@@ -1810,7 +1810,7 @@ lldb::ProcessSP Platform::DoConnectProcess(llvm::StringRef connect_url,
 
   if (synchronous) {
     EventSP event_sp;
-    process_sp->WaitForProcessToStop(llvm::None, &event_sp, true, listener_sp,
+    process_sp->WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp,
                                      nullptr);
     process_sp->RestoreProcessEvents();
     bool pop_process_io_handler = false;
@@ -1929,8 +1929,22 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64: {
     static const uint8_t g_riscv_opcode[] = {0x73, 0x00, 0x10, 0x00}; // ebreak
-    trap_opcode = g_riscv_opcode;
-    trap_opcode_size = sizeof(g_riscv_opcode);
+    static const uint8_t g_riscv_opcode_c[] = {0x02, 0x90}; // c.ebreak
+    if (arch.GetFlags() & ArchSpec::eRISCV_rvc) {
+      trap_opcode = g_riscv_opcode_c;
+      trap_opcode_size = sizeof(g_riscv_opcode_c);
+    } else {
+      trap_opcode = g_riscv_opcode;
+      trap_opcode_size = sizeof(g_riscv_opcode);
+    }
+  } break;
+
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64: {
+    static const uint8_t g_loongarch_opcode[] = {0x05, 0x00, 0x2a,
+                                                 0x00}; // break 0x5
+    trap_opcode = g_loongarch_opcode;
+    trap_opcode_size = sizeof(g_loongarch_opcode);
   } break;
 
   default:

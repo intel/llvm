@@ -22,11 +22,9 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-namespace detail {
-namespace half_impl {
+namespace detail::half_impl {
 class half;
-}
-} // namespace detail
+} // namespace detail::half_impl
 using half = detail::half_impl::half;
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
@@ -45,6 +43,8 @@ using marray_half_list =
     type_list<marray<half, 1>, marray<half, 2>, marray<half, 3>,
               marray<half, 4>, marray<half, 8>, marray<half, 16>>;
 
+using scalar_vector_half_list = type_list<scalar_half_list, vector_half_list>;
+
 using half_list =
     type_list<scalar_half_list, vector_half_list, marray_half_list>;
 
@@ -57,6 +57,9 @@ using vector_float_list =
 using marray_float_list =
     type_list<marray<float, 1>, marray<float, 2>, marray<float, 3>,
               marray<float, 4>, marray<float, 8>, marray<float, 16>>;
+
+using scalar_vector_float_list =
+    type_list<scalar_float_list, vector_float_list>;
 
 using float_list =
     type_list<scalar_float_list, vector_float_list, marray_float_list>;
@@ -71,6 +74,9 @@ using marray_double_list =
     type_list<marray<double, 1>, marray<double, 2>, marray<double, 3>,
               marray<double, 4>, marray<double, 8>, marray<double, 16>>;
 
+using scalar_vector_double_list =
+    type_list<scalar_double_list, vector_double_list>;
+
 using double_list =
     type_list<scalar_double_list, vector_double_list, marray_double_list>;
 
@@ -82,6 +88,9 @@ using vector_floating_list =
 
 using marray_floating_list =
     type_list<marray_float_list, marray_double_list, marray_half_list>;
+
+using scalar_vector_floating_list =
+    type_list<scalar_floating_list, vector_floating_list>;
 
 using floating_list =
     type_list<scalar_floating_list, vector_floating_list, marray_floating_list>;
@@ -400,7 +409,7 @@ using long_integer_list =
     type_list<scalar_long_integer_list, vector_long_integer_list,
               marray_long_integer_list>;
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // std::byte
 using scalar_byte_list = type_list<std::byte>;
 
@@ -446,7 +455,7 @@ using scalar_unsigned_integer_list =
                             scalar_unsigned_char_list>,
               scalar_unsigned_short_list, scalar_unsigned_int_list,
               scalar_unsigned_long_list, scalar_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               scalar_byte_list
 #endif
@@ -459,7 +468,7 @@ using vector_unsigned_integer_list =
                             vector_unsigned_char_list>,
               vector_unsigned_short_list, vector_unsigned_int_list,
               vector_unsigned_long_list, vector_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               vector_byte_list
 #endif
@@ -472,7 +481,7 @@ using marray_unsigned_integer_list =
                             marray_unsigned_char_list>,
               marray_unsigned_short_list, marray_unsigned_int_list,
               marray_unsigned_long_list, marray_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               marray_byte_list
 #endif

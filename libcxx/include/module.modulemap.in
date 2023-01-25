@@ -316,16 +316,37 @@ module std [system] {
       module ranges_adjacent_find            { private header "__algorithm/ranges_adjacent_find.h" }
       module ranges_all_of                   { private header "__algorithm/ranges_all_of.h" }
       module ranges_any_of                   { private header "__algorithm/ranges_any_of.h" }
-      module ranges_binary_search            { private header "__algorithm/ranges_binary_search.h" }
-      module ranges_clamp                    { private header "__algorithm/ranges_clamp.h" }
-      module ranges_copy                     { private header "__algorithm/ranges_copy.h" }
-      module ranges_copy_backward            { private header "__algorithm/ranges_copy_backward.h" }
-      module ranges_copy_if                  { private header "__algorithm/ranges_copy_if.h" }
-      module ranges_copy_n                   { private header "__algorithm/ranges_copy_n.h" }
+      module ranges_binary_search {
+        private header "__algorithm/ranges_binary_search.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_clamp {
+        private header "__algorithm/ranges_clamp.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_copy {
+        private header "__algorithm/ranges_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_copy_backward {
+        private header "__algorithm/ranges_copy_backward.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_copy_if {
+        private header "__algorithm/ranges_copy_if.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_copy_n {
+        private header "__algorithm/ranges_copy_n.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module ranges_count                    { private header "__algorithm/ranges_count.h" }
       module ranges_count_if                 { private header "__algorithm/ranges_count_if.h" }
       module ranges_equal                    { private header "__algorithm/ranges_equal.h" }
-      module ranges_equal_range              { private header "__algorithm/ranges_equal_range.h" }
+      module ranges_equal_range {
+        private header "__algorithm/ranges_equal_range.h"
+        export functional.__functional.ranges_operations
+      }
       module ranges_fill                     { private header "__algorithm/ranges_fill.h" }
       module ranges_fill_n                   { private header "__algorithm/ranges_fill_n.h" }
       module ranges_find                     { private header "__algorithm/ranges_find.h" }
@@ -333,75 +354,219 @@ module std [system] {
       module ranges_find_first_of            { private header "__algorithm/ranges_find_first_of.h" }
       module ranges_find_if                  { private header "__algorithm/ranges_find_if.h" }
       module ranges_find_if_not              { private header "__algorithm/ranges_find_if_not.h" }
-      module ranges_for_each                 { private header "__algorithm/ranges_for_each.h" }
-      module ranges_for_each_n               { private header "__algorithm/ranges_for_each_n.h" }
+      module ranges_for_each {
+        private header "__algorithm/ranges_for_each.h"
+        export algorithm.__algorithm.in_fun_result
+      }
+      module ranges_for_each_n {
+        private header "__algorithm/ranges_for_each_n.h"
+        export algorithm.__algorithm.in_fun_result
+      }
       module ranges_generate                 { private header "__algorithm/ranges_generate.h" }
       module ranges_generate_n               { private header "__algorithm/ranges_generate_n.h" }
-      module ranges_includes                 { private header "__algorithm/ranges_includes.h" }
-      module ranges_inplace_merge            { private header "__algorithm/ranges_inplace_merge.h" }
-      module ranges_is_heap                  { private header "__algorithm/ranges_is_heap.h" }
-      module ranges_is_heap_until            { private header "__algorithm/ranges_is_heap_until.h" }
+      module ranges_includes {
+        private header "__algorithm/ranges_includes.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_inplace_merge {
+        private header "__algorithm/ranges_inplace_merge.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_is_heap {
+        private header "__algorithm/ranges_is_heap.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_is_heap_until {
+        private header "__algorithm/ranges_is_heap_until.h"
+        export functional.__functional.ranges_operations
+      }
       module ranges_is_partitioned           { private header "__algorithm/ranges_is_partitioned.h" }
       module ranges_is_permutation           { private header "__algorithm/ranges_is_permutation.h" }
-      module ranges_is_sorted                { private header "__algorithm/ranges_is_sorted.h" }
-      module ranges_is_sorted_until          { private header "__algorithm/ranges_is_sorted_until.h" }
+      module ranges_is_sorted {
+        private header "__algorithm/ranges_is_sorted.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_is_sorted_until {
+        private header "__algorithm/ranges_is_sorted_until.h"
+        export functional.__functional.ranges_operations
+      }
       module ranges_iterator_concept         { private header "__algorithm/ranges_iterator_concept.h" }
-      module ranges_lexicographical_compare  { private header "__algorithm/ranges_lexicographical_compare.h" }
-      module ranges_lower_bound              { private header "__algorithm/ranges_lower_bound.h" }
-      module ranges_make_heap                { private header "__algorithm/ranges_make_heap.h" }
-      module ranges_max                      { private header "__algorithm/ranges_max.h" }
-      module ranges_max_element              { private header "__algorithm/ranges_max_element.h" }
-      module ranges_merge                    { private header "__algorithm/ranges_merge.h" }
-      module ranges_min                      { private header "__algorithm/ranges_min.h" }
-      module ranges_min_element              { private header "__algorithm/ranges_min_element.h" }
-      module ranges_minmax                   { private header "__algorithm/ranges_minmax.h" }
-      module ranges_minmax_element           { private header "__algorithm/ranges_minmax_element.h" }
-      module ranges_mismatch                 { private header "__algorithm/ranges_mismatch.h" }
-      module ranges_move                     { private header "__algorithm/ranges_move.h" }
-      module ranges_move_backward            { private header "__algorithm/ranges_move_backward.h" }
-      module ranges_next_permutation         { private header "__algorithm/ranges_next_permutation.h" }
+      module ranges_lexicographical_compare {
+        private header "__algorithm/ranges_lexicographical_compare.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_lower_bound {
+        private header "__algorithm/ranges_lower_bound.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_make_heap {
+        private header "__algorithm/ranges_make_heap.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_max {
+        private header "__algorithm/ranges_max.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_max_element {
+        private header "__algorithm/ranges_max_element.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_merge {
+        private header "__algorithm/ranges_merge.h"
+        export algorithm.__algorithm.in_in_out_result
+      }
+      module ranges_min {
+        private header "__algorithm/ranges_min.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_min_element {
+        private header "__algorithm/ranges_min_element.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_minmax {
+        private header "__algorithm/ranges_minmax.h"
+        export functional.__functional.ranges_operations
+        export algorithm.__algorithm.min_max_result
+      }
+      module ranges_minmax_element {
+        private header "__algorithm/ranges_minmax_element.h"
+        export functional.__functional.ranges_operations
+        export algorithm.__algorithm.min_max_result
+      }
+      module ranges_mismatch {
+        private header "__algorithm/ranges_mismatch.h"
+        export algorithm.__algorithm.in_in_result
+      }
+      module ranges_move {
+        private header "__algorithm/ranges_move.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_move_backward {
+        private header "__algorithm/ranges_move_backward.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_next_permutation {
+        private header "__algorithm/ranges_next_permutation.h"
+        export algorithm.__algorithm.in_found_result
+        export functional.__functional.ranges_operations
+      }
       module ranges_none_of                  { private header "__algorithm/ranges_none_of.h" }
-      module ranges_nth_element              { private header "__algorithm/ranges_nth_element.h" }
-      module ranges_partial_sort             { private header "__algorithm/ranges_partial_sort.h" }
-      module ranges_partial_sort_copy        { private header "__algorithm/ranges_partial_sort_copy.h" }
+      module ranges_nth_element {
+        private header "__algorithm/ranges_nth_element.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_partial_sort {
+        private header "__algorithm/ranges_partial_sort.h"
+        export algorithm.__algorithm.in_out_result
+        export functional.__functional.ranges_operations
+      }
+      module ranges_partial_sort_copy {
+        private header "__algorithm/ranges_partial_sort_copy.h"
+        export algorithm.__algorithm.in_out_out_result
+        export functional.__functional.ranges_operations
+      }
       module ranges_partition                { private header "__algorithm/ranges_partition.h" }
       module ranges_partition_copy           { private header "__algorithm/ranges_partition_copy.h" }
       module ranges_partition_point          { private header "__algorithm/ranges_partition_point.h" }
-      module ranges_pop_heap                 { private header "__algorithm/ranges_pop_heap.h" }
-      module ranges_prev_permutation         { private header "__algorithm/ranges_prev_permutation.h" }
-      module ranges_push_heap                { private header "__algorithm/ranges_push_heap.h" }
+      module ranges_pop_heap {
+        private header "__algorithm/ranges_pop_heap.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_prev_permutation {
+        private header "__algorithm/ranges_prev_permutation.h"
+        export algorithm.__algorithm.in_found_result
+        export functional.__functional.ranges_operations
+      }
+      module ranges_push_heap {
+        private header "__algorithm/ranges_push_heap.h"
+        export functional.__functional.ranges_operations
+      }
       module ranges_remove                   { private header "__algorithm/ranges_remove.h" }
-      module ranges_remove_copy              { private header "__algorithm/ranges_remove_copy.h" }
-      module ranges_remove_copy_if           { private header "__algorithm/ranges_remove_copy_if.h" }
+      module ranges_remove_copy {
+        private header "__algorithm/ranges_remove_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_remove_copy_if {
+        private header "__algorithm/ranges_remove_copy_if.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module ranges_remove_if                { private header "__algorithm/ranges_remove_if.h" }
       module ranges_replace                  { private header "__algorithm/ranges_replace.h" }
-      module ranges_replace_copy             { private header "__algorithm/ranges_replace_copy.h" }
-      module ranges_replace_copy_if          { private header "__algorithm/ranges_replace_copy_if.h" }
+      module ranges_replace_copy {
+        private header "__algorithm/ranges_replace_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_replace_copy_if {
+        private header "__algorithm/ranges_replace_copy_if.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module ranges_replace_if               { private header "__algorithm/ranges_replace_if.h" }
       module ranges_reverse                  { private header "__algorithm/ranges_reverse.h" }
-      module ranges_reverse_copy             { private header "__algorithm/ranges_reverse_copy.h" }
+      module ranges_reverse_copy {
+        private header "__algorithm/ranges_reverse_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module ranges_rotate                   { private header "__algorithm/ranges_rotate.h" }
-      module ranges_rotate_copy              { private header "__algorithm/ranges_rotate_copy.h" }
+      module ranges_rotate_copy {
+        private header "__algorithm/ranges_rotate_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module ranges_sample                   { private header "__algorithm/ranges_sample.h" }
       module ranges_search                   { private header "__algorithm/ranges_search.h" }
       module ranges_search_n                 { private header "__algorithm/ranges_search_n.h" }
-      module ranges_set_difference           { private header "__algorithm/ranges_set_difference.h" }
-      module ranges_set_intersection         { private header "__algorithm/ranges_set_intersection.h" }
-      module ranges_set_symmetric_difference { private header "__algorithm/ranges_set_symmetric_difference.h" }
-      module ranges_set_union                { private header "__algorithm/ranges_set_union.h" }
+      module ranges_set_difference {
+        private header "__algorithm/ranges_set_difference.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_set_intersection {
+        private header "__algorithm/ranges_set_intersection.h"
+        export algorithm.__algorithm.in_in_out_result
+      }
+      module ranges_set_symmetric_difference {
+        private header "__algorithm/ranges_set_symmetric_difference.h"
+        export algorithm.__algorithm.in_in_out_result
+        export functional.__functional.ranges_operations
+      }
+      module ranges_set_union {
+        private header "__algorithm/ranges_set_union.h"
+        export algorithm.__algorithm.in_in_out_result
+        export functional.__functional.ranges_operations
+      }
       module ranges_shuffle                  { private header "__algorithm/ranges_shuffle.h" }
-      module ranges_sort                     { private header "__algorithm/ranges_sort.h" }
-      module ranges_sort_heap                { private header "__algorithm/ranges_sort_heap.h" }
+      module ranges_sort {
+        private header "__algorithm/ranges_sort.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_sort_heap {
+        private header "__algorithm/ranges_sort_heap.h"
+        export functional.__functional.ranges_operations
+      }
       module ranges_stable_partition         { private header "__algorithm/ranges_stable_partition.h" }
-      module ranges_stable_sort              { private header "__algorithm/ranges_stable_sort.h" }
-      module ranges_swap_ranges              { private header "__algorithm/ranges_swap_ranges.h" }
-      module ranges_transform                { private header "__algorithm/ranges_transform.h" }
+      module ranges_stable_sort {
+        private header "__algorithm/ranges_stable_sort.h"
+        export functional.__functional.ranges_operations
+      }
+      module ranges_swap_ranges {
+        private header "__algorithm/ranges_swap_ranges.h"
+        export algorithm.__algorithm.in_in_result
+      }
+      module ranges_transform {
+        private header "__algorithm/ranges_transform.h"
+        export algorithm.__algorithm.in_in_out_result
+        export algorithm.__algorithm.in_out_result
+      }
       module uniform_random_bit_generator_adaptor {
         private header "__algorithm/uniform_random_bit_generator_adaptor.h"
       }
       module ranges_unique                   { private header "__algorithm/ranges_unique.h" }
-      module ranges_unique_copy              { private header "__algorithm/ranges_unique_copy.h" }
-      module ranges_upper_bound              { private header "__algorithm/ranges_upper_bound.h" }
+      module ranges_unique_copy {
+        private header "__algorithm/ranges_unique_copy.h"
+        export algorithm.__algorithm.in_out_result
+      }
+      module ranges_upper_bound {
+        private header "__algorithm/ranges_upper_bound.h"
+        export functional.__functional.ranges_operations
+      }
       module remove                          { private header "__algorithm/remove.h" }
       module remove_copy                     { private header "__algorithm/remove_copy.h" }
       module remove_copy_if                  { private header "__algorithm/remove_copy_if.h" }
@@ -507,6 +672,7 @@ module std [system] {
         private header "__chrono/high_resolution_clock.h"
         export steady_clock
         export system_clock
+        export time_point
       }
       module literals               { private header "__chrono/literals.h" }
       module month                  { private header "__chrono/month.h" }
@@ -619,6 +785,17 @@ module std [system] {
     header "execution"
     export *
   }
+  module expected {
+    header "expected"
+    export *
+
+    module __expected {
+      module bad_expected_access          { private header "__expected/bad_expected_access.h" }
+      module expected                     { private header "__expected/expected.h" }
+      module unexpect                     { private header "__expected/unexpect.h" }
+      module unexpected                   { private header "__expected/unexpected.h" }
+    }
+  }
   module filesystem {
     @requires_LIBCXX_ENABLE_FILESYSTEM@
     header "filesystem"
@@ -651,6 +828,7 @@ module std [system] {
       module buffer                          { private header "__format/buffer.h" }
       module concepts                        { private header "__format/concepts.h" }
       module enable_insertable               { private header "__format/enable_insertable.h" }
+      module escaped_output_table            { private header "__format/escaped_output_table.h" }
       module extended_grapheme_cluster_table { private header "__format/extended_grapheme_cluster_table.h" }
       module format_arg                      { private header "__format/format_arg.h" }
       module format_arg_store                { private header "__format/format_arg_store.h" }
@@ -678,7 +856,9 @@ module std [system] {
       module formatter_output                { private header "__format/formatter_output.h" }
       module formatter_pointer               { private header "__format/formatter_pointer.h" }
       module formatter_string                { private header "__format/formatter_string.h" }
+      module formatter_tuple                 { private header "__format/formatter_tuple.h" }
       module parser_std_format_spec          { private header "__format/parser_std_format_spec.h" }
+      module range_default_formatter         { private header "__format/range_default_formatter.h" }
       module unicode                         { private header "__format/unicode.h" }
     }
   }
@@ -689,6 +869,7 @@ module std [system] {
   }
   module fstream {
     @requires_LIBCXX_ENABLE_LOCALIZATION@
+    @requires_LIBCXX_ENABLE_FSTREAM@
     header "fstream"
     export *
   }
@@ -711,7 +892,10 @@ module std [system] {
       module hash                       { private header "__functional/hash.h" }
       module hash_fwd                   { private header "__fwd/hash.h" }
       module identity                   { private header "__functional/identity.h" }
-      module invoke                     { private header "__functional/invoke.h" }
+      module invoke                     {
+        private header "__functional/invoke.h"
+        export type_traits
+      }
       module is_transparent             { private header "__functional/is_transparent.h" }
       module mem_fn                     { private header "__functional/mem_fn.h" }
       module mem_fun_ref                { private header "__functional/mem_fun_ref.h" }
@@ -798,7 +982,10 @@ module std [system] {
       module iter_swap             { private header "__iterator/iter_swap.h" }
       module iterator              { private header "__iterator/iterator.h" }
       module iterator_traits       { private header "__iterator/iterator_traits.h" }
-      module mergeable             { private header "__iterator/mergeable.h" }
+      module mergeable {
+        private header "__iterator/mergeable.h"
+        export functional.__functional.ranges_operations
+      }
       module move_iterator         { private header "__iterator/move_iterator.h" }
       module move_sentinel         { private header "__iterator/move_sentinel.h" }
       module next                  { private header "__iterator/next.h" }
@@ -814,7 +1001,10 @@ module std [system] {
       module reverse_access        { private header "__iterator/reverse_access.h" }
       module reverse_iterator      { private header "__iterator/reverse_iterator.h" }
       module size                  { private header "__iterator/size.h" }
-      module sortable              { private header "__iterator/sortable.h" }
+      module sortable {
+        private header "__iterator/sortable.h"
+        export functional.__functional.ranges_operations
+      }
       module unreachable_sentinel  { private header "__iterator/unreachable_sentinel.h" }
       module wrap_iter             { private header "__iterator/wrap_iter.h" }
     }
@@ -859,6 +1049,7 @@ module std [system] {
       module allocation_guard                { private header "__memory/allocation_guard.h" }
       module allocator                       { private header "__memory/allocator.h" }
       module allocator_arg_t                 { private header "__memory/allocator_arg_t.h" }
+      module allocator_destructor            { private header "__memory/allocator_destructor.h" }
       module allocator_traits                { private header "__memory/allocator_traits.h" }
       module assume_aligned                  { private header "__memory/assume_aligned.h" }
       module auto_ptr                        { private header "__memory/auto_ptr.h" }
@@ -869,7 +1060,10 @@ module std [system] {
       module destruct_n                      { private header "__memory/destruct_n.h" }
       module pointer_traits                  { private header "__memory/pointer_traits.h" }
       module ranges_construct_at             { private header "__memory/ranges_construct_at.h" }
-      module ranges_uninitialized_algorithms { private header "__memory/ranges_uninitialized_algorithms.h" }
+      module ranges_uninitialized_algorithms {
+        private header "__memory/ranges_uninitialized_algorithms.h"
+        export algorithm.__algorithm.in_out_result
+      }
       module raw_storage_iterator            { private header "__memory/raw_storage_iterator.h" }
       module shared_ptr                      { private header "__memory/shared_ptr.h" }
       module swap_allocator                  { private header "__memory/swap_allocator.h" }
@@ -878,7 +1072,22 @@ module std [system] {
       module uninitialized_algorithms        { private header "__memory/uninitialized_algorithms.h" }
       module unique_ptr                      { private header "__memory/unique_ptr.h" }
       module uses_allocator                  { private header "__memory/uses_allocator.h" }
+      module uses_allocator_construction     { private header "__memory/uses_allocator_construction.h" }
       module voidify                         { private header "__memory/voidify.h" }
+    }
+  }
+  module memory_resource {
+    header "memory_resource"
+    export *
+
+    module __memory_resource {
+      module memory_resource              { private header "__memory_resource/memory_resource.h" }
+      module memory_resource_fwd          { private header "__fwd/memory_resource.h" }
+      module monotonic_buffer_resource    { private header "__memory_resource/monotonic_buffer_resource.h" }
+      module polymorphic_allocator        { private header "__memory_resource/polymorphic_allocator.h" }
+      module pool_options                 { private header "__memory_resource/pool_options.h" }
+      module synchronized_pool_resource   { private header "__memory_resource/synchronized_pool_resource.h" }
+      module unsynchronized_pool_resource { private header "__memory_resource/unsynchronized_pool_resource.h" }
     }
   }
   module mutex {
@@ -1007,12 +1216,17 @@ module std [system] {
       module dangling               { private header "__ranges/dangling.h" }
       module data                   { private header "__ranges/data.h" }
       module drop_view              { private header "__ranges/drop_view.h" }
+      module drop_while_view        { private header "__ranges/drop_while_view.h" }
       module empty                  { private header "__ranges/empty.h" }
       module empty_view             { private header "__ranges/empty_view.h" }
       module enable_borrowed_range  { private header "__ranges/enable_borrowed_range.h" }
       module enable_view            { private header "__ranges/enable_view.h" }
       module filter_view            { private header "__ranges/filter_view.h" }
       module iota_view              { private header "__ranges/iota_view.h" }
+      module istream_view           {
+        @requires_LIBCXX_ENABLE_LOCALIZATION@
+        private header "__ranges/istream_view.h"
+      }
       module join_view              { private header "__ranges/join_view.h" }
       module lazy_split_view        { private header "__ranges/lazy_split_view.h" }
       module non_propagating_cache  { private header "__ranges/non_propagating_cache.h" }
@@ -1026,6 +1240,7 @@ module std [system] {
       module size                   { private header "__ranges/size.h" }
       module subrange               { private header "__ranges/subrange.h" }
       module take_view              { private header "__ranges/take_view.h" }
+      module take_while_view        { private header "__ranges/take_while_view.h" }
       module transform_view         {
         private header "__ranges/transform_view.h"
         export functional.__functional.bind_back
@@ -1098,6 +1313,7 @@ module std [system] {
     module __string {
       module char_traits           { private header "__string/char_traits.h" }
       module extern_template_lists { private header "__string/extern_template_lists.h" }
+      module string_fwd            { private header "__fwd/string.h" }
     }
     export *
   }
@@ -1130,16 +1346,16 @@ module std [system] {
     header "tuple"
     export *
 
-    module apply_cv         { private header "__tuple/apply_cv.h" }
+    module apply_cv         { private header "__tuple_dir/apply_cv.h" }
     module get_fwd          { private header "__fwd/get.h" }
-    module make_tuple_types { private header "__tuple/make_tuple_types.h" }
-    module sfinae_helpers   { private header "__tuple/sfinae_helpers.h" }
-    module tuple_element    { private header "__tuple/tuple_element.h" }
+    module make_tuple_types { private header "__tuple_dir/make_tuple_types.h" }
+    module sfinae_helpers   { private header "__tuple_dir/sfinae_helpers.h" }
+    module tuple_element    { private header "__tuple_dir/tuple_element.h" }
     module tuple_fwd        { private header "__fwd/tuple.h" }
-    module tuple_indices    { private header "__tuple/tuple_indices.h" }
-    module tuple_like       { private header "__tuple/tuple_like.h" }
-    module tuple_size       { private header "__tuple/tuple_size.h" }
-    module tuple_types      { private header "__tuple/tuple_types.h" }
+    module tuple_indices    { private header "__tuple_dir/tuple_indices.h" }
+    module tuple_like       { private header "__tuple_dir/tuple_like.h" }
+    module tuple_size       { private header "__tuple_dir/tuple_size.h" }
+    module tuple_types      { private header "__tuple_dir/tuple_types.h" }
   }
   module type_traits {
     header "type_traits"
@@ -1174,8 +1390,14 @@ module std [system] {
     module is_abstract                         { private header "__type_traits/is_abstract.h" }
     module is_aggregate                        { private header "__type_traits/is_aggregate.h" }
     module is_allocator                        { private header "__type_traits/is_allocator.h" }
-    module is_arithmetic                       { private header "__type_traits/is_arithmetic.h" }
-    module is_array                            { private header "__type_traits/is_array.h" }
+    module is_arithmetic {
+      private header "__type_traits/is_arithmetic.h"
+      export integral_constant
+    }
+    module is_array                            {
+      private header "__type_traits/is_array.h"
+      export integral_constant
+    }
     module is_assignable                       { private header "__type_traits/is_assignable.h" }
     module is_base_of                          { private header "__type_traits/is_base_of.h" }
     module is_bounded_array                    { private header "__type_traits/is_bounded_array.h" }
@@ -1189,7 +1411,10 @@ module std [system] {
     module is_convertible                      { private header "__type_traits/is_convertible.h" }
     module is_copy_assignable                  { private header "__type_traits/is_copy_assignable.h" }
     module is_copy_constructible               { private header "__type_traits/is_copy_constructible.h" }
-    module is_core_convertible                 { private header "__type_traits/is_core_convertible.h" }
+    module is_core_convertible                 {
+      private header "__type_traits/is_core_convertible.h"
+      export integral_constant
+    }
     module is_default_constructible            { private header "__type_traits/is_default_constructible.h" }
     module is_destructible                     { private header "__type_traits/is_destructible.h" }
     module is_empty                            { private header "__type_traits/is_empty.h" }
@@ -1224,11 +1449,15 @@ module std [system] {
     module is_reference                        { private header "__type_traits/is_reference.h" }
     module is_reference_wrapper                { private header "__type_traits/is_reference_wrapper.h" }
     module is_referenceable                    { private header "__type_traits/is_referenceable.h" }
-    module is_same                             { private header "__type_traits/is_same.h" }
+    module is_same                             {
+      private header "__type_traits/is_same.h"
+      export type_traits.integral_constant
+    }
     module is_scalar                           { private header "__type_traits/is_scalar.h" }
     module is_scoped_enum                      { private header "__type_traits/is_scoped_enum.h" }
     module is_signed                           { private header "__type_traits/is_signed.h" }
     module is_signed_integer                   { private header "__type_traits/is_signed_integer.h" }
+    module is_specialization                   { private header "__type_traits/is_specialization.h" }
     module is_standard_layout                  { private header "__type_traits/is_standard_layout.h" }
     module is_swappable                        { private header "__type_traits/is_swappable.h" }
     module is_trivial                          { private header "__type_traits/is_trivial.h" }
@@ -1246,7 +1475,10 @@ module std [system] {
     module is_unsigned                         { private header "__type_traits/is_unsigned.h" }
     module is_unsigned_integer                 { private header "__type_traits/is_unsigned_integer.h" }
     module is_valid_expansion                  { private header "__type_traits/is_valid_expansion.h" }
-    module is_void                             { private header "__type_traits/is_void.h" }
+    module is_void                             {
+      private header "__type_traits/is_void.h"
+      export integral_constant
+    }
     module is_volatile                         { private header "__type_traits/is_volatile.h" }
     module lazy                                { private header "__type_traits/lazy.h" }
     module make_32_64_or_128_bit               { private header "__type_traits/make_32_64_or_128_bit.h" }
@@ -1269,6 +1501,7 @@ module std [system] {
     module remove_reference                    { private header "__type_traits/remove_reference.h" }
     module remove_volatile                     { private header "__type_traits/remove_volatile.h" }
     module result_of                           { private header "__type_traits/result_of.h" }
+    module strip_signature                     { private header "__type_traits/strip_signature.h" }
     module type_identity                       { private header "__type_traits/type_identity.h" }
     module type_list                           { private header "__type_traits/type_list.h" }
     module underlying_type                     { private header "__type_traits/underlying_type.h" }

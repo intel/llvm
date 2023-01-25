@@ -27,7 +27,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def SPIRV_AddressOfOp : SPIRV_Op<"mlir.addressof",
     [DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     InFunctionScope, NoSideEffect]> {
+     InFunctionScope, Pure]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -75,7 +75,7 @@ def SPIRV_AddressOfOp : SPIRV_Op<"mlir.addressof",
 def SPIRV_ConstantOp : SPIRV_Op<"Constant",
     [ConstantLike,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     NoSideEffect]> {
+     Pure]> {
   let summary = [{
     Declare a new integer-type or floating-point-type scalar constant.
   }];
@@ -291,6 +291,8 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
 
   let arguments = (ins
     TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs,
     StrAttr:$sym_name,
     SPIRV_FunctionControlAttr:$function_control
   );
@@ -490,11 +492,11 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
   let regions = (region AnyRegion);
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+    OpBuilder<(ins CArg<"std::optional<StringRef>", "std::nullopt">:$name)>,
     OpBuilder<(ins "spirv::AddressingModel":$addressing_model,
                    "spirv::MemoryModel":$memory_model,
-                   CArg<"Optional<spirv::VerCapExtAttr>", "llvm::None">:$vce_triple,
-                   CArg<"Optional<StringRef>", "llvm::None">:$name)>
+                   CArg<"std::optional<spirv::VerCapExtAttr>", "std::nullopt">:$vce_triple,
+                   CArg<"std::optional<StringRef>", "std::nullopt">:$name)>
   ];
 
   // We need to ensure the block inside the region is properly terminated;
@@ -509,7 +511,7 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
 
     bool isOptionalSymbol() { return true; }
 
-    Optional<StringRef> getName() { return getSymName(); }
+    std::optional<StringRef> getName() { return getSymName(); }
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
   }];
@@ -520,7 +522,7 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
 
 // -----
 
-def SPIRV_ReferenceOfOp : SPIRV_Op<"mlir.referenceof", [NoSideEffect]> {
+def SPIRV_ReferenceOfOp : SPIRV_Op<"mlir.referenceof", [Pure]> {
   let summary = "Reference a specialization constant.";
 
   let description = [{
@@ -669,7 +671,7 @@ def SPIRV_SpecConstantCompositeOp : SPIRV_Op<"SpecConstantComposite", [
 // -----
 
 def SPIRV_SpecConstantOperationOp : SPIRV_Op<"SpecConstantOperation", [
-       NoSideEffect, InFunctionScope,
+       Pure, InFunctionScope,
        SingleBlockImplicitTerminator<"YieldOp">]> {
   let summary = [{
     Declare a new specialization constant that results from doing an operation.
@@ -760,7 +762,7 @@ def SPIRV_SpecConstantOperationOp : SPIRV_Op<"SpecConstantOperation", [
 // -----
 
 def SPIRV_YieldOp : SPIRV_Op<"mlir.yield", [
-    HasParent<"SpecConstantOperationOp">, NoSideEffect, Terminator]> {
+    HasParent<"SpecConstantOperationOp">, Pure, Terminator]> {
   let summary = [{
     Yields the result computed in `spirv.SpecConstantOperation`'s
     region back to the parent op.

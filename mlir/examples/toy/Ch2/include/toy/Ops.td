@@ -43,9 +43,9 @@ class Toy_Op<string mnemonic, list<Trait> traits = []> :
 
 // We define a toy operation by inheriting from our base 'Toy_Op' class above.
 // Here we provide the mnemonic and a list of traits for the operation. The
-// constant operation is marked as 'NoSideEffect' as it is a pure operation
+// constant operation is marked as 'Pure' as it is a pure operation
 // and may be removed if dead.
-def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
+def ConstantOp : Toy_Op<"constant", [Pure]> {
   // Provide a summary and description for this operation. This can be used to
   // auto-generate documentation of the operations within our dialect.
   let summary = "constant";
@@ -134,7 +134,9 @@ def FuncOp : Toy_Op<"func", [
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
+    TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
   let regions = (region AnyRegion:$body);
 
@@ -265,7 +267,7 @@ def ReshapeOp : Toy_Op<"reshape"> {
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">,
                                  Terminator]> {
   let summary = "return operation";
   let description = [{
@@ -291,7 +293,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 
   // Allow building a ReturnOp with no return operand.
   let builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
   ];
 
   // Provide extra utility definitions on the c++ operation class definition.

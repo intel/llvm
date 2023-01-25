@@ -71,10 +71,10 @@ void UnwindPlan::Row::RegisterLocation::SetIsDWARFExpression(
 static llvm::Optional<std::pair<lldb::ByteOrder, uint32_t>>
 GetByteOrderAndAddrSize(Thread *thread) {
   if (!thread)
-    return llvm::None;
+    return std::nullopt;
   ProcessSP process_sp = thread->GetProcess();
   if (!process_sp)
-    return llvm::None;
+    return std::nullopt;
   ArchSpec arch = process_sp->GetTarget().GetArchitecture();
   return std::make_pair(arch.GetByteOrder(), arch.GetAddressByteSize());
 }
@@ -84,7 +84,7 @@ static void DumpDWARFExpr(Stream &s, llvm::ArrayRef<uint8_t> expr, Thread *threa
     llvm::DataExtractor data(expr, order_and_width->first == eByteOrderLittle,
                              order_and_width->second);
     llvm::DWARFExpression(data, order_and_width->second, llvm::dwarf::DWARF32)
-        .print(s.AsRawOstream(), llvm::DIDumpOptions(), nullptr, nullptr);
+        .print(s.AsRawOstream(), llvm::DIDumpOptions(), nullptr);
   } else
     s.PutCString("dwarf-expr");
 }

@@ -8,11 +8,12 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
-__SYCL_INLINE_NAMESPACE(_V1) {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <typename T> struct PiInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
@@ -94,8 +95,13 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
   template <> struct PiInfoCode<Namespace::info::DescType::Desc> {             \
@@ -112,5 +118,5 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // __SYCL_INLINE_NAMESPACE(_V1)
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

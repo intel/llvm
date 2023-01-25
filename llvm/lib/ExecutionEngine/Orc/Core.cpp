@@ -17,6 +17,7 @@
 
 #include <condition_variable>
 #include <future>
+#include <optional>
 
 #define DEBUG_TYPE "orc"
 
@@ -2243,8 +2244,8 @@ void ExecutionSession::dump(raw_ostream &OS) {
 void ExecutionSession::dispatchOutstandingMUs() {
   LLVM_DEBUG(dbgs() << "Dispatching MaterializationUnits...\n");
   while (true) {
-    Optional<std::pair<std::unique_ptr<MaterializationUnit>,
-                       std::unique_ptr<MaterializationResponsibility>>>
+    std::optional<std::pair<std::unique_ptr<MaterializationUnit>,
+                            std::unique_ptr<MaterializationResponsibility>>>
         JMU;
 
     {
@@ -2284,9 +2285,10 @@ Error ExecutionSession::removeResourceTracker(ResourceTracker &RT) {
 
   Error Err = Error::success();
 
+  auto &JD = RT.getJITDylib();
   for (auto *L : reverse(CurrentResourceManagers))
-    Err =
-        joinErrors(std::move(Err), L->handleRemoveResources(RT.getKeyUnsafe()));
+    Err = joinErrors(std::move(Err),
+                     L->handleRemoveResources(JD, RT.getKeyUnsafe()));
 
   for (auto &Q : QueriesToFail)
     Q->handleFailed(
@@ -2315,7 +2317,8 @@ void ExecutionSession::transferResourceTracker(ResourceTracker &DstRT,
     auto &JD = DstRT.getJITDylib();
     JD.transferTracker(DstRT, SrcRT);
     for (auto *L : reverse(ResourceManagers))
-      L->handleTransferResources(DstRT.getKeyUnsafe(), SrcRT.getKeyUnsafe());
+      L->handleTransferResources(JD, DstRT.getKeyUnsafe(),
+                                 SrcRT.getKeyUnsafe());
   });
 }
 

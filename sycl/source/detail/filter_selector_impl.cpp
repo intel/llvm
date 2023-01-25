@@ -21,9 +21,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace detail {
+namespace ext::oneapi::detail {
 
 std::vector<std::string> tokenize(const std::string &Filter,
                                   const std::string &Delim) {
@@ -167,9 +165,7 @@ void filter_selector_impl::reset() const {
   mNumDevicesSeen = 0;
 }
 
-} // namespace detail
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::detail
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;

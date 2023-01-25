@@ -394,3 +394,50 @@ namespace NamedDeclRefs {
     // expected-note@#NOREFOUTER{{previous definition is here}}
   }
 } // namespace NamedDeclRefs
+
+namespace RefersToParentInConstraint {
+  // No diagnostic, these aren't duplicates.
+  template<typename T, typename U>
+  concept similar = true;
+
+  template <typename X>
+  struct S{
+    friend void f(similar<S> auto && self){}
+    friend void f2(similar<S<X>> auto && self){}
+  };
+
+  void use() {
+    S<int> x;
+    S<long> y;
+  }
+} // namespace RefersToParentInConstraint
+
+namespace NTTP {
+  struct Base{};
+  template<int N>
+  struct S : Base {
+    // N is from the parent template.
+    template<typename T>
+      friend int templ_func(Base&) requires(N > 0)
+      { return 10; }
+  };
+
+  template<typename T>
+  struct U : Base {
+    template<T N>
+      friend int templ_func(Base&) requires(N>0)
+      { return 10; }
+  };
+
+  void use() {
+    S<1> s1;
+    templ_func<float>(s1);
+    S<2> s2;
+    templ_func<float>(s2);
+
+    U<int> u1;
+    templ_func<1>(u1);
+    U<short> u2;
+    templ_func<1>(u2);
+  }
+}

@@ -15,6 +15,7 @@
 
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Lex/HeaderMapTypes.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Compiler.h"
@@ -39,6 +40,19 @@ public:
   // Check for a valid header and extract the byte swap.
   static bool checkHeader(const llvm::MemoryBuffer &File, bool &NeedsByteSwap);
 
+  // Make a call for every Key in the map.
+  template <typename Func> void forEachKey(Func Callback) const {
+    const HMapHeader &Hdr = getHeader();
+    unsigned NumBuckets = getEndianAdjustedWord(Hdr.NumBuckets);
+
+    for (unsigned Bucket = 0; Bucket < NumBuckets; ++Bucket) {
+      HMapBucket B = getBucket(Bucket);
+      if (B.Key != HMAP_EmptyBucketKey)
+        if (Optional<StringRef> Key = getString(B.Key))
+          Callback(*Key);
+    }
+  }
+
   /// If the specified relative filename is located in this HeaderMap return
   /// the filename it is mapped to, otherwise return an empty StringRef.
   StringRef lookupFilename(StringRef Filename,
@@ -59,7 +73,7 @@ private:
   HMapBucket getBucket(unsigned BucketNo) const;
 
   /// Look up the specified string in the string table.  If the string index is
-  /// not valid, return None.
+  /// not valid, return std::nullopt.
   Optional<StringRef> getString(unsigned StrTabIdx) const;
 };
 
@@ -78,6 +92,7 @@ public:
                                            FileManager &FM);
 
   using HeaderMapImpl::dump;
+  using HeaderMapImpl::forEachKey;
   using HeaderMapImpl::getFileName;
   using HeaderMapImpl::lookupFilename;
   using HeaderMapImpl::reverseLookupFilename;

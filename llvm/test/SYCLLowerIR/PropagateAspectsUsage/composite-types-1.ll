@@ -22,7 +22,7 @@
 
 %F2.does.not.contain.optional = type { %B.core, %C.core*, %D2.does.not.contain.optional* }
 
-; CHECK: spir_kernel void @kernelD1.uses.optional() !sycl_used_aspects ![[MDID:[0-9]+]] {
+; CHECK: spir_kernel void @kernelD1.uses.optional() !sycl_used_aspects ![[MDID:[0-9]+]]
 define spir_kernel void @kernelD1.uses.optional() {
   %tmp = alloca %D1.contains.optional
   ret void
@@ -34,7 +34,7 @@ define spir_func void @funcD1.uses.optional() {
   ret void
 }
 
-; CHECK: spir_kernel void @kernelD2.does.not.use.optional() {
+; CHECK: spir_kernel void @kernelD2.does.not.use.optional()
 define spir_kernel void @kernelD2.does.not.use.optional() {
   %tmp = alloca %D2.does.not.contain.optional
   ret void
@@ -46,7 +46,7 @@ define spir_func void @funcD2.does.not.use.optional() {
   ret void
 }
 
-; CHECK: spir_kernel void @kernelE.uses.optional() !sycl_used_aspects ![[MDID]] {
+; CHECK: spir_kernel void @kernelE.uses.optional() !sycl_used_aspects ![[MDID]]
 define spir_kernel void @kernelE.uses.optional() {
   %tmp = alloca %E.contains.optional
   ret void
@@ -58,7 +58,7 @@ define spir_func void @funcE.uses.optional() {
   ret void
 }
 
-; CHECK: spir_kernel void @kernelF1.points.to.optional() {
+; CHECK: spir_kernel void @kernelF1.points.to.optional()
 define spir_kernel void @kernelF1.points.to.optional() {
   %tmp = alloca %F1.points.to.optional
   ret void
@@ -70,7 +70,7 @@ define spir_func void @funcF1.points.to.optional() {
   ret void
 }
 
-; CHECK: spir_kernel void @kernelF2.does.not.use.optional() {
+; CHECK: spir_kernel void @kernelF2.does.not.use.optional()
 define spir_kernel void @kernelF2.does.not.use.optional() {
   %tmp = alloca %F2.does.not.contain.optional
   ret void

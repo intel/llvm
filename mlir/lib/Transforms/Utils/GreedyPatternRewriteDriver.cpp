@@ -51,6 +51,10 @@ public:
   /// If the specified operation is in the worklist, remove it.
   void removeFromWorklist(Operation *op);
 
+  /// Notifies the driver that the specified operation may have been modified
+  /// in-place.
+  void finalizeRootUpdate(Operation *op) override;
+
 protected:
   // Implement the hook for inserting operations, and make sure that newly
   // inserted ops are added to the worklist for processing.
@@ -179,6 +183,7 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions) {
     SmallVector<Value, 8> originalOperands, resultValues;
 
     changed = false;
+    int64_t numRewrites = 0;
     while (!worklist.empty()) {
       auto *op = popFromWorklist();
 
@@ -275,16 +280,20 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions) {
 #else
       LogicalResult matchResult = matcher.matchAndRewrite(op, *this);
 #endif
-      changed |= succeeded(matchResult);
+      if (succeeded(matchResult)) {
+        changed = true;
+        if (numRewrites++ >= config.maxNumRewrites &&
+            config.maxNumRewrites != GreedyRewriteConfig::kNoLimit)
+          break;
+      }
     }
 
     // After applying patterns, make sure that the CFG of each of the regions
     // is kept up to date.
     if (config.enableRegionSimplification)
       changed |= succeeded(simplifyRegions(*this, regions));
-  } while (changed &&
-           (iteration++ < config.maxIterations ||
-            config.maxIterations == GreedyRewriteConfig::kNoIterationLimit));
+  } while (changed && (iteration++ < config.maxIterations ||
+                       config.maxIterations == GreedyRewriteConfig::kNoLimit));
 
   // Whether the rewrite converges, i.e. wasn't changed in the last iteration.
   return !changed;
@@ -321,6 +330,14 @@ void GreedyPatternRewriteDriver::removeFromWorklist(Operation *op) {
 void GreedyPatternRewriteDriver::notifyOperationInserted(Operation *op) {
   LLVM_DEBUG({
     logger.startLine() << "** Insert  : '" << op->getName() << "'(" << op
+                       << ")\n";
+  });
+  addToWorklist(op);
+}
+
+void GreedyPatternRewriteDriver::finalizeRootUpdate(Operation *op) {
+  LLVM_DEBUG({
+    logger.startLine() << "** Modified: '" << op->getName() << "'(" << op
                        << ")\n";
   });
   addToWorklist(op);
@@ -494,9 +511,8 @@ LogicalResult OpPatternRewriteDriver::simplifyLocally(Operation *op,
     changed |= succeeded(matcher.matchAndRewrite(op, *this));
     if ((erased = opErasedViaPatternRewrites))
       return success();
-  } while (changed &&
-           (++iterations < maxIterations ||
-            maxIterations == GreedyRewriteConfig::kNoIterationLimit));
+  } while (changed && (++iterations < maxIterations ||
+                       maxIterations == GreedyRewriteConfig::kNoLimit));
 
   // Whether the rewrite converges, i.e. wasn't changed in the last iteration.
   return failure(changed);

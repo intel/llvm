@@ -18,7 +18,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/Dialect/Tosa/Utils/CoversionUtils.h"
+#include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -58,10 +58,9 @@ static mlir::Value applyPad(Location loc, Value input, ArrayRef<int64_t> pad,
 
   Value padValue = rewriter.create<arith::ConstantOp>(loc, padAttr);
 
-  return tensor::createPadScalarOp(RankedTensorType::get(paddedShape, inputETy),
-                                   input, padValue, lowIndices, highIndices,
-                                   /*nofold=*/false, loc, rewriter)
-      .getResult();
+  return rewriter.create<tensor::PadOp>(
+      loc, RankedTensorType::get(paddedShape, inputETy), input, lowIndices,
+      highIndices, padValue);
 }
 
 static mlir::Value reifyConstantDim(Attribute attr,
@@ -696,7 +695,7 @@ public:
         checkHasDynamicBatchDims(rewriter, op, {input, op.getOutput()});
     if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
+    SmallVector<Value> dynamicDims = *dynamicDimsOr;
 
     // Determine what the initial value needs to be for the max pool op.
     Attribute initialAttr;
@@ -773,7 +772,7 @@ public:
         checkHasDynamicBatchDims(rewriter, op, {input, op.getOutput()});
     if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
+    SmallVector<Value> dynamicDims = *dynamicDimsOr;
 
     // Apply padding as necessary.
     llvm::SmallVector<int64_t> pad;

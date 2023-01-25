@@ -120,7 +120,8 @@ void NormalizeMemRefs::setCalleesAndCallersNonNormalizable(
                    << " calls or is called by non-normalizable function\n");
   normalizableFuncs.erase(funcOp);
   // Caller of the function.
-  Optional<SymbolTable::UseRange> symbolUses = funcOp.getSymbolUses(moduleOp);
+  std::optional<SymbolTable::UseRange> symbolUses =
+      funcOp.getSymbolUses(moduleOp);
   for (SymbolTable::SymbolUse symbolUse : *symbolUses) {
     // TODO: Extend this for ops that are FunctionOpInterface. This would
     // require creating an OpInterface for FunctionOpInterface ops.
@@ -256,7 +257,8 @@ void NormalizeMemRefs::updateFunctionSignature(func::FuncOp funcOp,
   llvm::SmallDenseSet<func::FuncOp, 8> funcOpsToUpdate;
   // We iterate over all symbolic uses of the function and update the return
   // type at the caller site.
-  Optional<SymbolTable::UseRange> symbolUses = funcOp.getSymbolUses(moduleOp);
+  std::optional<SymbolTable::UseRange> symbolUses =
+      funcOp.getSymbolUses(moduleOp);
   for (SymbolTable::SymbolUse symbolUse : *symbolUses) {
     Operation *userOp = symbolUse.getUser();
     OpBuilder builder(userOp);
@@ -364,7 +366,7 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(func::FuncOp funcOp,
     }
     // Fetch a new memref type after normalizing the old memref to have an
     // identity map layout.
-    MemRefType newMemRefType = normalizeMemRefType(memrefType, b,
+    MemRefType newMemRefType = normalizeMemRefType(memrefType,
                                                    /*numSymbolicOperands=*/0);
     if (newMemRefType == memrefType || funcOp.isExternal()) {
       // Either memrefType already had an identity map or the map couldn't be
@@ -472,7 +474,7 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(func::FuncOp funcOp,
       }
       // Computing a new memref type after normalizing the old memref to have an
       // identity map layout.
-      MemRefType newMemRefType = normalizeMemRefType(memrefType, b,
+      MemRefType newMemRefType = normalizeMemRefType(memrefType,
                                                      /*numSymbolicOperands=*/0);
       resultTypes.push_back(newMemRefType);
     }
@@ -511,7 +513,7 @@ Operation *NormalizeMemRefs::createOpResultsNormalized(func::FuncOp funcOp,
       continue;
     }
     // Fetch a new memref type after normalizing the old memref.
-    MemRefType newMemRefType = normalizeMemRefType(memrefType, b,
+    MemRefType newMemRefType = normalizeMemRefType(memrefType,
                                                    /*numSymbolicOperands=*/0);
     if (newMemRefType == memrefType) {
       // Either memrefType already had an identity map or the map couldn't

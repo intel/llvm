@@ -12,7 +12,6 @@
 
 #include "llvm/Transforms/Scalar/CorrelatedValuePropagation.h"
 #include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
@@ -44,6 +43,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -340,18 +340,16 @@ static bool processICmp(ICmpInst *Cmp, LazyValueInfo *LVI) {
 /// exploiting range information.
 static bool constantFoldCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   Value *Op0 = Cmp->getOperand(0);
-  auto *C = dyn_cast<Constant>(Cmp->getOperand(1));
-  if (!C)
-    return false;
-
+  Value *Op1 = Cmp->getOperand(1);
   LazyValueInfo::Tristate Result =
-      LVI->getPredicateAt(Cmp->getPredicate(), Op0, C, Cmp,
+      LVI->getPredicateAt(Cmp->getPredicate(), Op0, Op1, Cmp,
                           /*UseBlockValue=*/true);
   if (Result == LazyValueInfo::Unknown)
     return false;
 
   ++NumCmps;
-  Constant *TorF = ConstantInt::get(Type::getInt1Ty(Cmp->getContext()), Result);
+  Constant *TorF =
+      ConstantInt::get(CmpInst::makeCmpResultType(Op0->getType()), Result);
   Cmp->replaceAllUsesWith(TorF);
   Cmp->eraseFromParent();
   return true;
@@ -731,7 +729,7 @@ static bool narrowSDivOrSRem(BinaryOperator *Instr, LazyValueInfo *LVI) {
 
   // What is the smallest bit width that can accommodate the entire value ranges
   // of both of the operands?
-  std::array<Optional<ConstantRange>, 2> CRs;
+  std::array<std::optional<ConstantRange>, 2> CRs;
   unsigned MinSignedBits = 0;
   for (auto I : zip(Instr->operands(), CRs)) {
     std::get<1>(I) = LVI->getConstantRange(std::get<0>(I), Instr);
@@ -770,13 +768,27 @@ static bool narrowSDivOrSRem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   return true;
 }
 
+static bool processURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
+  assert(Instr->getOpcode() == Instruction::URem);
+  assert(!Instr->getType()->isVectorTy());
+
+  // X % Y -> X for X < Y
+  if (LVI->getConstantRange(Instr->getOperand(0), Instr)
+          .icmp(ICmpInst::ICMP_ULT,
+                LVI->getConstantRange(Instr->getOperand(1), Instr))) {
+    Instr->replaceAllUsesWith(Instr->getOperand(0));
+    Instr->eraseFromParent();
+    return true;
+  }
+  return false;
+}
+
 /// Try to shrink a udiv/urem's width down to the smallest power of two that's
 /// sufficient to contain its operands.
-static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
+static bool narrowUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   assert(Instr->getOpcode() == Instruction::UDiv ||
          Instr->getOpcode() == Instruction::URem);
-  if (Instr->getType()->isVectorTy())
-    return false;
+  assert(!Instr->getType()->isVectorTy());
 
   // Find the smallest power of two bitwidth that's sufficient to hold Instr's
   // operands.
@@ -812,6 +824,18 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   Instr->replaceAllUsesWith(Zext);
   Instr->eraseFromParent();
   return true;
+}
+
+static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
+  assert(Instr->getOpcode() == Instruction::UDiv ||
+         Instr->getOpcode() == Instruction::URem);
+  if (Instr->getType()->isVectorTy())
+    return false;
+
+  if (Instr->getOpcode() == Instruction::URem && processURem(Instr, LVI))
+    return true;
+
+  return narrowUDivOrURem(Instr, LVI);
 }
 
 static bool processSRem(BinaryOperator *SDI, LazyValueInfo *LVI) {

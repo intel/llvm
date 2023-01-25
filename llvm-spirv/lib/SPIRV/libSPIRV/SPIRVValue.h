@@ -123,8 +123,8 @@ public:
     return Type->getRequiredCapability();
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    llvm::Optional<ExtensionID> EV;
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    std::optional<ExtensionID> EV;
     if (!hasType())
       return EV;
     EV = Type->getRequiredExtension();

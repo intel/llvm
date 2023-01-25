@@ -546,7 +546,7 @@ DiagnosticIDs::getDiagnosticSeverity(unsigned DiagID, SourceLocation Loc,
   if (Result == diag::Severity::Ignored)
     return Result;
 
-  // Honor -w: this disables all messages which which are not Error/Fatal by
+  // Honor -w: this disables all messages which are not Error/Fatal by
   // default (disregarding attempts to upgrade severity from Warning to Error),
   // as well as disabling all messages which are currently mapped to Warning
   // (whether by default or downgraded from Error via e.g. -Wno-error or #pragma
@@ -639,14 +639,14 @@ DiagnosticIDs::getGroupForWarningOption(StringRef Name) {
   const auto *Found = llvm::partition_point(
       OptionTable, [=](const WarningOption &O) { return O.getName() < Name; });
   if (Found == std::end(OptionTable) || Found->getName() != Name)
-    return llvm::None;
+    return std::nullopt;
   return static_cast<diag::Group>(Found - OptionTable);
 }
 
 llvm::Optional<diag::Group> DiagnosticIDs::getGroupForDiag(unsigned DiagID) {
   if (const StaticDiagInfoRec *Info = GetDiagInfo(DiagID))
     return static_cast<diag::Group>(Info->getOptionGroupIndex());
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// getWarningOptionForDiag - Return the lowest-level warning option that

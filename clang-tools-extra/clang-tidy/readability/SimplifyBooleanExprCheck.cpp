@@ -300,18 +300,18 @@ public:
   static Optional<bool> getAsBoolLiteral(const Expr *E, bool FilterMacro) {
     if (const auto *Bool = dyn_cast<CXXBoolLiteralExpr>(E)) {
       if (FilterMacro && Bool->getBeginLoc().isMacroID())
-        return llvm::None;
+        return std::nullopt;
       return Bool->getValue();
     }
     if (const auto *UnaryOp = dyn_cast<UnaryOperator>(E)) {
       if (FilterMacro && UnaryOp->getBeginLoc().isMacroID())
-        return None;
+        return std::nullopt;
       if (UnaryOp->getOpcode() == UO_LNot)
         if (Optional<bool> Res = getAsBoolLiteral(
                 UnaryOp->getSubExpr()->IgnoreImplicit(), FilterMacro))
           return !*Res;
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   template <typename Node> struct NodeAndBool {
@@ -354,8 +354,9 @@ public:
   }
 
   bool VisitIfStmt(IfStmt *If) {
-    // Skip any if's that have a condition var or an init statement.
-    if (If->hasInitStorage() || If->hasVarStorage())
+    // Skip any if's that have a condition var or an init statement, or are
+    // "if consteval" statements.
+    if (If->hasInitStorage() || If->hasVarStorage() || If->isConsteval())
       return true;
     /*
      * if (true) ThenStmt(); -> ThenStmt();
@@ -467,7 +468,8 @@ public:
          * if (Cond) return false; return true; -> return !Cond;
          */
         auto *If = cast<IfStmt>(*First);
-        if (!If->hasInitStorage() && !If->hasVarStorage()) {
+        if (!If->hasInitStorage() && !If->hasVarStorage() &&
+            !If->isConsteval()) {
           ExprAndBool ThenReturnBool =
               checkSingleStatement(If->getThen(), parseReturnLiteralBool);
           if (ThenReturnBool &&
@@ -491,7 +493,7 @@ public:
                                     : cast<DefaultStmt>(*First)->getSubStmt();
         auto *SubIf = dyn_cast<IfStmt>(SubStmt);
         if (SubIf && !SubIf->getElse() && !SubIf->hasInitStorage() &&
-            !SubIf->hasVarStorage()) {
+            !SubIf->hasVarStorage() && !SubIf->isConsteval()) {
           ExprAndBool ThenReturnBool =
               checkSingleStatement(SubIf->getThen(), parseReturnLiteralBool);
           if (ThenReturnBool &&
@@ -565,7 +567,7 @@ public:
       if (Check->reportDeMorgan(Context, Op, BinaryOp, !IsProcessing, parent(),
                                 Parens) &&
           !Check->areDiagsSelfContained()) {
-        llvm::SaveAndRestore<bool> RAII(IsProcessing, true);
+        llvm::SaveAndRestore RAII(IsProcessing, true);
         return Base::TraverseUnaryOperator(Op);
       }
     }

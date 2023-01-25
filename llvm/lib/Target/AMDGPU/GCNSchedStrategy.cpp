@@ -468,7 +468,7 @@ GCNScheduleDAGMILive::createSchedStage(GCNSchedStageID SchedStageID) {
 void GCNScheduleDAGMILive::schedule() {
   // Collect all scheduling regions. The actual scheduling is performed in
   // GCNScheduleDAGMILive::finalizeSchedule.
-  Regions.push_back(std::make_pair(RegionBegin, RegionEnd));
+  Regions.push_back(std::pair(RegionBegin, RegionEnd));
 }
 
 GCNRegPressure
@@ -538,7 +538,6 @@ void GCNScheduleDAGMILive::computeBlockPressure(unsigned RegionIdx,
       RPTracker.advanceToNext();
       RPTracker.advance(MBB->end());
     }
-    RPTracker.reset(*OnlySucc->begin(), &RPTracker.getLiveRegs());
     RPTracker.advanceBeforeNext();
     MBBLiveIns[OnlySucc] = RPTracker.moveLiveRegs();
   }
@@ -781,11 +780,11 @@ bool GCNSchedStage::initGCNRegion() {
   PressureBefore = DAG.Pressure[RegionIdx];
 
   LLVM_DEBUG(
-      dbgs() << "Pressure before scheduling:\nRegion live-ins:";
-      GCNRPTracker::printLiveRegs(dbgs(), DAG.LiveIns[RegionIdx], DAG.MRI);
-      dbgs() << "Region live-in pressure:  ";
-      llvm::getRegPressure(DAG.MRI, DAG.LiveIns[RegionIdx]).print(dbgs());
-      dbgs() << "Region register pressure: "; PressureBefore.print(dbgs()));
+      dbgs() << "Pressure before scheduling:\nRegion live-ins:"
+             << print(DAG.LiveIns[RegionIdx], DAG.MRI)
+             << "Region live-in pressure:  "
+             << print(llvm::getRegPressure(DAG.MRI, DAG.LiveIns[RegionIdx]))
+             << "Region register pressure: " << print(PressureBefore));
 
   S.HasHighPressure = false;
 
@@ -842,7 +841,7 @@ void GCNSchedStage::setupNewBlock() {
 }
 
 void GCNSchedStage::finalizeGCNRegion() {
-  DAG.Regions[RegionIdx] = std::make_pair(DAG.RegionBegin, DAG.RegionEnd);
+  DAG.Regions[RegionIdx] = std::pair(DAG.RegionBegin, DAG.RegionEnd);
   DAG.RescheduleRegions[RegionIdx] = false;
   if (S.HasHighPressure)
     DAG.RegionsWithHighRP[RegionIdx] = true;
@@ -862,8 +861,7 @@ void GCNSchedStage::finalizeGCNRegion() {
 void GCNSchedStage::checkScheduling() {
   // Check the results of scheduling.
   PressureAfter = DAG.getRealRegPressure(RegionIdx);
-  LLVM_DEBUG(dbgs() << "Pressure after scheduling: ";
-             PressureAfter.print(dbgs()));
+  LLVM_DEBUG(dbgs() << "Pressure after scheduling: " << print(PressureAfter));
 
   if (PressureAfter.getSGPRNum() <= S.SGPRCriticalLimit &&
       PressureAfter.getVGPRNum(ST.hasGFX90AInsts()) <= S.VGPRCriticalLimit) {
@@ -935,6 +933,9 @@ bool GCNSchedStage::shouldRevertScheduling(unsigned WavesAfter) {
 }
 
 bool OccInitialScheduleStage::shouldRevertScheduling(unsigned WavesAfter) {
+  if (PressureAfter == PressureBefore)
+    return false;
+
   if (GCNSchedStage::shouldRevertScheduling(WavesAfter))
     return true;
 
@@ -958,6 +959,9 @@ bool UnclusteredHighRPStage::shouldRevertScheduling(unsigned WavesAfter) {
 }
 
 bool ClusteredLowOccStage::shouldRevertScheduling(unsigned WavesAfter) {
+  if (PressureAfter == PressureBefore)
+    return false;
+
   if (GCNSchedStage::shouldRevertScheduling(WavesAfter))
     return true;
 
@@ -1061,7 +1065,7 @@ void GCNSchedStage::revertScheduling() {
   // RegionBegin and RegionEnd if needed.
   DAG.placeDebugValues();
 
-  DAG.Regions[RegionIdx] = std::make_pair(DAG.RegionBegin, DAG.RegionEnd);
+  DAG.Regions[RegionIdx] = std::pair(DAG.RegionBegin, DAG.RegionEnd);
 }
 
 void PreRARematStage::collectRematerializableInstructions() {
@@ -1189,7 +1193,7 @@ bool PreRARematStage::sinkTriviallyRematInsts(const GCNSubtarget &ST,
       // LiveRangeEdit::canRematerializeAt().
       TII->reMaterialize(*InsertPos->getParent(), InsertPos, Reg,
                          Def->getOperand(0).getSubReg(), *Def, *DAG.TRI);
-      MachineInstr *NewMI = &*(--InsertPos);
+      MachineInstr *NewMI = &*std::prev(InsertPos);
       LIS->InsertMachineInstrInMaps(*NewMI);
       LIS->removeInterval(Reg);
       LIS->createAndComputeVirtRegInterval(Reg);
@@ -1322,22 +1326,21 @@ void GCNScheduleDAGMILive::updateRegionBoundaries(
       // MI is in a region with size 1, after removing, the region will be
       // size 0, set RegionBegin and RegionEnd to pass end of block iterator.
       RegionBoundaries[I] =
-          std::make_pair(MI->getParent()->end(), MI->getParent()->end());
+          std::pair(MI->getParent()->end(), MI->getParent()->end());
       return;
     }
     if (MI == RegionBoundaries[I].first) {
       if (Removing)
         RegionBoundaries[I] =
-            std::make_pair(std::next(MI), RegionBoundaries[I].second);
+            std::pair(std::next(MI), RegionBoundaries[I].second);
       else
         // Inserted NewMI in front of region, set new RegionBegin to NewMI
-        RegionBoundaries[I] = std::make_pair(MachineBasicBlock::iterator(NewMI),
-                                             RegionBoundaries[I].second);
+        RegionBoundaries[I] = std::pair(MachineBasicBlock::iterator(NewMI),
+                                        RegionBoundaries[I].second);
       return;
     }
     if (Removing && MI == RegionBoundaries[I].second) {
-      RegionBoundaries[I] =
-          std::make_pair(RegionBoundaries[I].first, std::prev(MI));
+      RegionBoundaries[I] = std::pair(RegionBoundaries[I].first, std::prev(MI));
       return;
     }
   }

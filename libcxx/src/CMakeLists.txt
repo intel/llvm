@@ -31,6 +31,7 @@ set(LIBCXX_SOURCES
   include/to_chars_floating_point.h
   legacy_pointer_safety.cpp
   memory.cpp
+  memory_resource.cpp
   mutex.cpp
   mutex_destructor.cpp
   new.cpp
@@ -299,7 +300,7 @@ if (LIBCXX_ENABLE_STATIC)
     PROPERTIES
       COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"
-      OUTPUT_NAME   "c++"
+      OUTPUT_NAME   "${LIBCXX_STATIC_OUTPUT_NAME}"
   )
   cxx_add_common_build_flags(cxx_static)
   cxx_set_common_defines(cxx_static)

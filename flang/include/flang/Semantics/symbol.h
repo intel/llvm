@@ -105,6 +105,10 @@ public:
   Symbol *moduleInterface() { return moduleInterface_; }
   const Symbol *moduleInterface() const { return moduleInterface_; }
   void set_moduleInterface(Symbol &);
+  void ReplaceResult(Symbol &result) {
+    CHECK(result_ != nullptr);
+    result_ = &result;
+  }
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
@@ -187,6 +191,7 @@ class ObjectEntityDetails : public EntityDetails {
 public:
   explicit ObjectEntityDetails(EntityDetails &&);
   ObjectEntityDetails(const ObjectEntityDetails &) = default;
+  ObjectEntityDetails(ObjectEntityDetails &&) = default;
   ObjectEntityDetails &operator=(const ObjectEntityDetails &) = default;
   ObjectEntityDetails(bool isDummy = false) : EntityDetails(isDummy) {}
   MaybeExpr &init() { return init_; }
@@ -247,14 +252,14 @@ private:
 class ProcEntityDetails : public EntityDetails, public WithPassArg {
 public:
   ProcEntityDetails() = default;
-  explicit ProcEntityDetails(EntityDetails &&d);
+  explicit ProcEntityDetails(EntityDetails &&);
+  ProcEntityDetails(const ProcEntityDetails &) = default;
+  ProcEntityDetails(ProcEntityDetails &&) = default;
+  ProcEntityDetails &operator=(const ProcEntityDetails &) = default;
 
-  const ProcInterface &interface() const { return interface_; }
-  ProcInterface &interface() { return interface_; }
-  void set_interface(const ProcInterface &interface) { interface_ = interface; }
-  bool IsInterfaceSet() {
-    return interface_.symbol() != nullptr || interface_.type() != nullptr;
-  }
+  const Symbol *procInterface() const { return procInterface_; }
+  void set_procInterface(const Symbol &sym) { procInterface_ = &sym; }
+  bool IsInterfaceSet() { return procInterface_ || type(); }
   inline bool HasExplicitInterface() const;
 
   // Be advised: !init().has_value() => uninitialized pointer,
@@ -264,7 +269,7 @@ public:
   void set_init(std::nullptr_t) { init_ = nullptr; }
 
 private:
-  ProcInterface interface_;
+  const Symbol *procInterface_{nullptr};
   std::optional<const Symbol *> init_;
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const ProcEntityDetails &);
@@ -480,6 +485,7 @@ public:
   Symbol *derivedType() { return derivedType_; }
   const Symbol *derivedType() const { return derivedType_; }
   void set_derivedType(Symbol &derivedType);
+  void clear_derivedType();
   void AddUse(const Symbol &);
 
   // Copy in specificProcs, specific, and derivedType from another generic
@@ -518,9 +524,9 @@ std::string DetailsToString(const Details &);
 class Symbol {
 public:
   ENUM_CLASS(Flag,
-      Function, // symbol is a function
+      Function, // symbol is a function or statement function
       Subroutine, // symbol is a subroutine
-      StmtFunction, // symbol is a statement function (Function is set too)
+      StmtFunction, // symbol is a statement function or result
       Implicit, // symbol is implicitly typed
       ImplicitOrError, // symbol must be implicitly typed or it's an error
       ModFile, // symbol came from .mod file
@@ -558,6 +564,8 @@ public:
   const SourceName &name() const { return name_; }
   Attrs &attrs() { return attrs_; }
   const Attrs &attrs() const { return attrs_; }
+  Attrs &implicitAttrs() { return implicitAttrs_; }
+  const Attrs &implicitAttrs() const { return implicitAttrs_; }
   Flags &flags() { return flags_; }
   const Flags &flags() const { return flags_; }
   bool test(Flag flag) const { return flags_.test(flag); }
@@ -618,28 +626,27 @@ public:
   bool IsSubprogram() const;
   bool IsFromModFile() const;
   bool HasExplicitInterface() const {
-    return common::visit(common::visitors{
-                             [](const SubprogramDetails &) { return true; },
-                             [](const SubprogramNameDetails &) { return true; },
-                             [&](const ProcEntityDetails &x) {
-                               return attrs_.test(Attr::INTRINSIC) ||
-                                   x.HasExplicitInterface();
-                             },
-                             [](const ProcBindingDetails &x) {
-                               return x.symbol().HasExplicitInterface();
-                             },
-                             [](const UseDetails &x) {
-                               return x.symbol().HasExplicitInterface();
-                             },
-                             [](const HostAssocDetails &x) {
-                               return x.symbol().HasExplicitInterface();
-                             },
-                             [](const GenericDetails &x) {
-                               return x.specific() &&
-                                   x.specific()->HasExplicitInterface();
-                             },
-                             [](const auto &) { return false; },
-                         },
+    return common::visit(
+        common::visitors{
+            [](const SubprogramDetails &) { return true; },
+            [](const SubprogramNameDetails &) { return true; },
+            [&](const ProcEntityDetails &x) {
+              return attrs_.test(Attr::INTRINSIC) || x.HasExplicitInterface();
+            },
+            [](const ProcBindingDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const UseDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const HostAssocDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const GenericDetails &x) {
+              return x.specific() && x.specific()->HasExplicitInterface();
+            },
+            [](const auto &) { return false; },
+        },
         details_);
   }
 
@@ -684,6 +691,7 @@ private:
   const Scope *owner_;
   SourceName name_;
   Attrs attrs_;
+  Attrs implicitAttrs_; // subset of attrs_ that were not explicit
   Flags flags_;
   Scope *scope_{nullptr};
   std::size_t size_{0}; // size in bytes
@@ -691,7 +699,7 @@ private:
   Details details_;
 
   Symbol() {} // only created in class Symbols
-  const std::string GetDetailsName() const;
+  std::string GetDetailsName() const;
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
   friend llvm::raw_ostream &DumpForUnparse(
       llvm::raw_ostream &, const Symbol &, bool);
@@ -720,7 +728,7 @@ private:
             },
             [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
             [&](const ProcEntityDetails &ped) {
-              const Symbol *iface{ped.interface().symbol()};
+              const Symbol *iface{ped.procInterface()};
               return iface ? iface->RankImpl(depth) : 0;
             },
             [](const AssocEntityDetails &aed) {
@@ -783,10 +791,7 @@ private:
 // between the two shared libraries.
 
 inline bool ProcEntityDetails::HasExplicitInterface() const {
-  if (auto *symbol{interface_.symbol()}) {
-    return symbol->HasExplicitInterface();
-  }
-  return false;
+  return procInterface_ && procInterface_->HasExplicitInterface();
 }
 
 inline Symbol &Symbol::GetUltimate() {
@@ -820,8 +825,8 @@ inline const DeclTypeSpec *Symbol::GetTypeImpl(int depth) const {
             return x.isFunction() ? x.result().GetTypeImpl(depth) : nullptr;
           },
           [&](const ProcEntityDetails &x) {
-            const Symbol *symbol{x.interface().symbol()};
-            return symbol ? symbol->GetTypeImpl(depth) : x.interface().type();
+            const Symbol *symbol{x.procInterface()};
+            return symbol ? symbol->GetTypeImpl(depth) : x.type();
           },
           [&](const ProcBindingDetails &x) {
             return x.symbol().GetTypeImpl(depth);

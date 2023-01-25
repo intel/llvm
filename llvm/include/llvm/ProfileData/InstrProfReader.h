@@ -103,6 +103,9 @@ public:
   InstrProfIterator<> begin() { return InstrProfIterator<>(this); }
   InstrProfIterator<> end() { return InstrProfIterator<>(); }
 
+  /// Return the profile version.
+  virtual uint64_t getVersion() const = 0;
+
   virtual bool isIRLevelProfile() const = 0;
 
   virtual bool hasCSIRLevelProfile() const = 0;
@@ -215,6 +218,9 @@ public:
   /// Return true if the given buffer is in text instrprof format.
   static bool hasFormat(const MemoryBuffer &Buffer);
 
+  // Text format does not have version, so return 0.
+  uint64_t getVersion() const override { return 0; }
+
   bool isIRLevelProfile() const override {
     return static_cast<bool>(ProfileKind & InstrProfKind::IRInstrumentation);
   }
@@ -250,8 +256,8 @@ public:
   Error readNextRecord(NamedInstrProfRecord &Record) override;
 
   InstrProfSymtab &getSymtab() override {
-    assert(Symtab.get());
-    return *Symtab.get();
+    assert(Symtab);
+    return *Symtab;
   }
 };
 
@@ -305,6 +311,8 @@ public:
   Error readHeader() override;
   Error readNextRecord(NamedInstrProfRecord &Record) override;
   Error printBinaryIds(raw_ostream &OS) override;
+
+  uint64_t getVersion() const override { return Version; }
 
   bool isIRLevelProfile() const override {
     return (Version & VARIANT_MASK_IR_PROF) != 0;
@@ -608,7 +616,7 @@ public:
   IndexedInstrProfReader &operator=(const IndexedInstrProfReader &) = delete;
 
   /// Return the profile version.
-  uint64_t getVersion() const { return Index->getVersion(); }
+  uint64_t getVersion() const override { return Index->getVersion(); }
   bool isIRLevelProfile() const override { return Index->isIRLevelProfile(); }
   bool hasCSIRLevelProfile() const override {
     return Index->hasCSIRLevelProfile();
@@ -692,10 +700,10 @@ public:
   ProfileSummary &getSummary(bool UseCS) {
     if (UseCS) {
       assert(CS_Summary && "No context sensitive summary");
-      return *(CS_Summary.get());
+      return *CS_Summary;
     } else {
       assert(Summary && "No profile summary");
-      return *(Summary.get());
+      return *Summary;
     }
   }
 };

@@ -35,7 +35,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
@@ -164,6 +163,7 @@ class Preprocessor {
   IdentifierInfo *Ident__has_feature;              // __has_feature
   IdentifierInfo *Ident__has_extension;            // __has_extension
   IdentifierInfo *Ident__has_builtin;              // __has_builtin
+  IdentifierInfo *Ident__has_constexpr_builtin;    // __has_constexpr_builtin
   IdentifierInfo *Ident__has_attribute;            // __has_attribute
   IdentifierInfo *Ident__has_include;              // __has_include
   IdentifierInfo *Ident__has_include_next;         // __has_include_next
@@ -282,10 +282,6 @@ class Preprocessor {
   /// Empty line handler.
   EmptylineHandler *Emptyline = nullptr;
 
-  /// True if we want to ignore EOF token and continue later on (thus
-  /// avoid tearing the Lexer and etc. down).
-  bool IncrementalProcessing = false;
-
 public:
   /// The kind of translation unit we are processing.
   const TranslationUnitKind TUKind;
@@ -314,14 +310,14 @@ private:
   /// lexed, if any.
   SourceLocation ModuleImportLoc;
 
-  /// The module import path that we're currently processing.
-  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> ModuleImportPath;
+  /// The import path for named module that we're currently processing.
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> NamedModuleImportPath;
 
   /// Whether the last token we lexed was an '@'.
   bool LastTokenWasAt = false;
 
   /// A position within a C++20 import-seq.
-  class ImportSeq {
+  class StdCXXImportSeq {
   public:
     enum State : int {
       // Positive values represent a number of unclosed brackets.
@@ -331,7 +327,7 @@ private:
       AfterImportSeq = -3,
     };
 
-    ImportSeq(State S) : S(S) {}
+    StdCXXImportSeq(State S) : S(S) {}
 
     /// Saw any kind of open bracket.
     void handleOpenBracket() {
@@ -397,7 +393,7 @@ private:
   };
 
   /// Our current position within a C++20 import-seq.
-  ImportSeq ImportSeqState = ImportSeq::AfterTopLevelTokenSeq;
+  StdCXXImportSeq StdCXXImportSeqState = StdCXXImportSeq::AfterTopLevelTokenSeq;
 
   /// Track whether we are in a Global Module Fragment
   class TrackGMF {
@@ -760,7 +756,7 @@ private:
     getActiveModuleMacros(Preprocessor &PP, const IdentifierInfo *II) const {
       if (auto *Info = getModuleInfo(PP, II))
         return Info->ActiveModuleMacros;
-      return None;
+      return std::nullopt;
     }
 
     MacroDirective::DefInfo findDirectiveAtLoc(SourceLocation Loc,
@@ -784,7 +780,7 @@ private:
     ArrayRef<ModuleMacro*> getOverriddenMacros() const {
       if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
         return Info->OverriddenMacros;
-      return None;
+      return std::nullopt;
     }
 
     void setOverriddenMacros(Preprocessor &PP,
@@ -864,7 +860,7 @@ private:
 
   /// The set of top-level modules that affected preprocessing, but were not
   /// imported.
-  llvm::SmallSetVector<Module *, 2> AffectingModules;
+  llvm::SmallSetVector<Module *, 2> AffectingClangModules;
 
   /// The set of known macros exported from modules.
   llvm::FoldingSet<ModuleMacro> ModuleMacros;
@@ -907,17 +903,17 @@ private:
     static MacroAnnotations makeDeprecation(SourceLocation Loc,
                                             std::string Msg) {
       return MacroAnnotations{MacroAnnotationInfo{Loc, std::move(Msg)},
-                              llvm::None, llvm::None};
+                              std::nullopt, std::nullopt};
     }
 
     static MacroAnnotations makeRestrictExpansion(SourceLocation Loc,
                                                   std::string Msg) {
       return MacroAnnotations{
-          llvm::None, MacroAnnotationInfo{Loc, std::move(Msg)}, llvm::None};
+          std::nullopt, MacroAnnotationInfo{Loc, std::move(Msg)}, std::nullopt};
     }
 
     static MacroAnnotations makeFinal(SourceLocation Loc) {
-      return MacroAnnotations{llvm::None, llvm::None, Loc};
+      return MacroAnnotations{std::nullopt, std::nullopt, Loc};
     }
   };
 
@@ -1009,15 +1005,6 @@ private:
   /// indicate where CachedLexPos should be set when the BackTrack() method is
   /// invoked (at which point the last position is popped).
   std::vector<CachedTokensTy::size_type> BacktrackPositions;
-
-  struct MacroInfoChain {
-    MacroInfo MI;
-    MacroInfoChain *Next;
-  };
-
-  /// MacroInfos are managed as a chain for easy disposal.  This is the head
-  /// of that list.
-  MacroInfoChain *MIChainHead = nullptr;
 
   /// True if \p Preprocessor::SkipExcludedConditionalBlock() is running.
   /// This is used to guard against calling this function recursively.
@@ -1311,7 +1298,7 @@ public:
     auto I = LeafModuleMacros.find(II);
     if (I != LeafModuleMacros.end())
       return I->second;
-    return None;
+    return std::nullopt;
   }
 
   /// Get the list of submodules that we're currently building.
@@ -1337,20 +1324,21 @@ public:
 
   /// \}
 
-  /// Mark the given module as affecting the current module or translation unit.
-  void markModuleAsAffecting(Module *M) {
+  /// Mark the given clang module as affecting the current clang module or translation unit.
+  void markClangModuleAsAffecting(Module *M) {
+    assert(M->isModuleMapModule());
     if (!BuildingSubmoduleStack.empty()) {
       if (M != BuildingSubmoduleStack.back().M)
-        BuildingSubmoduleStack.back().M->AffectingModules.insert(M);
+        BuildingSubmoduleStack.back().M->AffectingClangModules.insert(M);
     } else {
-      AffectingModules.insert(M);
+      AffectingClangModules.insert(M);
     }
   }
 
-  /// Get the set of top-level modules that affected preprocessing, but were not
+  /// Get the set of top-level clang modules that affected preprocessing, but were not
   /// imported.
-  const llvm::SmallSetVector<Module *, 2> &getAffectingModules() const {
-    return AffectingModules;
+  const llvm::SmallSetVector<Module *, 2> &getAffectingClangModules() const {
+    return AffectingClangModules;
   }
 
   /// Mark the file as included.
@@ -1785,11 +1773,14 @@ public:
   void recomputeCurLexerKind();
 
   /// Returns true if incremental processing is enabled
-  bool isIncrementalProcessingEnabled() const { return IncrementalProcessing; }
+  bool isIncrementalProcessingEnabled() const {
+    return getLangOpts().IncrementalExtensions;
+  }
 
   /// Enables the incremental processing
   void enableIncrementalProcessing(bool value = true) {
-    IncrementalProcessing = value;
+    // FIXME: Drop this interface.
+    const_cast<LangOptions &>(getLangOpts()).IncrementalExtensions = value;
   }
 
   /// Specify the point at which code-completion will be performed.
@@ -2250,9 +2241,9 @@ public:
 
   /// Given a "foo" or \<foo> reference, look up the indicated file.
   ///
-  /// Returns None on failure.  \p isAngled indicates whether the file
+  /// Returns std::nullopt on failure.  \p isAngled indicates whether the file
   /// reference is for system \#include's or not (i.e. using <> instead of "").
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   LookupFile(SourceLocation FilenameLoc, StringRef Filename, bool isAngled,
              ConstSearchDirIterator FromDir, const FileEntry *FromFile,
              ConstSearchDirIterator *CurDir, SmallVectorImpl<char> *SearchPath,
@@ -2519,7 +2510,7 @@ private:
     }
   };
 
-  Optional<FileEntryRef> LookupHeaderIncludeOrImport(
+  OptionalFileEntryRef LookupHeaderIncludeOrImport(
       ConstSearchDirIterator *CurDir, StringRef &Filename,
       SourceLocation FilenameLoc, CharSourceRange FilenameRange,
       const Token &FilenameTok, bool &IsFrameworkFound, bool IsImportDecl,

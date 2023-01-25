@@ -1073,7 +1073,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
           } else if (isa<Function>(GV)) {
             // Without a datalayout we have to assume the worst case: that the
             // function pointer isn't aligned at all.
-            GVAlign = llvm::None;
+            GVAlign = std::nullopt;
           } else if (isa<GlobalVariable>(GV)) {
             GVAlign = cast<GlobalVariable>(GV)->getAlign();
           }
@@ -1579,6 +1579,25 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
   return ICmpInst::BAD_ICMP_PREDICATE;
 }
 
+static Constant *constantFoldCompareGlobalToNull(CmpInst::Predicate Predicate,
+                                                 Constant *C1, Constant *C2) {
+  const GlobalValue *GV = dyn_cast<GlobalValue>(C2);
+  if (!GV || !C1->isNullValue())
+    return nullptr;
+
+  // Don't try to evaluate aliases.  External weak GV can be null.
+  if (!isa<GlobalAlias>(GV) && !GV->hasExternalWeakLinkage() &&
+      !NullPointerIsDefined(nullptr /* F */,
+                            GV->getType()->getAddressSpace())) {
+    if (Predicate == ICmpInst::ICMP_EQ)
+      return ConstantInt::getFalse(C1->getContext());
+    else if (Predicate == ICmpInst::ICMP_NE)
+      return ConstantInt::getTrue(C1->getContext());
+  }
+
+  return nullptr;
+}
+
 Constant *llvm::ConstantFoldCompareInstruction(CmpInst::Predicate Predicate,
                                                Constant *C1, Constant *C2) {
   Type *ResultTy;
@@ -1618,31 +1637,14 @@ Constant *llvm::ConstantFoldCompareInstruction(CmpInst::Predicate Predicate,
   }
 
   // icmp eq/ne(null,GV) -> false/true
-  if (C1->isNullValue()) {
-    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C2))
-      // Don't try to evaluate aliases.  External weak GV can be null.
-      if (!isa<GlobalAlias>(GV) && !GV->hasExternalWeakLinkage() &&
-          !NullPointerIsDefined(nullptr /* F */,
-                                GV->getType()->getAddressSpace())) {
-        if (Predicate == ICmpInst::ICMP_EQ)
-          return ConstantInt::getFalse(C1->getContext());
-        else if (Predicate == ICmpInst::ICMP_NE)
-          return ConstantInt::getTrue(C1->getContext());
-      }
-  // icmp eq/ne(GV,null) -> false/true
-  } else if (C2->isNullValue()) {
-    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C1)) {
-      // Don't try to evaluate aliases.  External weak GV can be null.
-      if (!isa<GlobalAlias>(GV) && !GV->hasExternalWeakLinkage() &&
-          !NullPointerIsDefined(nullptr /* F */,
-                                GV->getType()->getAddressSpace())) {
-        if (Predicate == ICmpInst::ICMP_EQ)
-          return ConstantInt::getFalse(C1->getContext());
-        else if (Predicate == ICmpInst::ICMP_NE)
-          return ConstantInt::getTrue(C1->getContext());
-      }
-    }
+  if (Constant *Folded = constantFoldCompareGlobalToNull(Predicate, C1, C2))
+    return Folded;
 
+  // icmp eq/ne(GV,null) -> false/true
+  if (Constant *Folded = constantFoldCompareGlobalToNull(Predicate, C2, C1))
+    return Folded;
+
+  if (C2->isNullValue()) {
     // The caller is expected to commute the operands if the constant expression
     // is C2.
     // C1 >= 0 --> true
@@ -2020,9 +2022,9 @@ static Constant *foldGEPOfGEP(GEPOperator *GEP, Type *PointeeTy, bool InBounds,
   // The combined GEP normally inherits its index inrange attribute from
   // the inner GEP, but if the inner GEP's last index was adjusted by the
   // outer GEP, any inbounds attribute on that index is invalidated.
-  Optional<unsigned> IRIndex = GEP->getInRangeIndex();
+  std::optional<unsigned> IRIndex = GEP->getInRangeIndex();
   if (IRIndex && *IRIndex == GEP->getNumIndices() - 1)
-    IRIndex = None;
+    IRIndex = std::nullopt;
 
   return ConstantExpr::getGetElementPtr(
       GEP->getSourceElementType(), cast<Constant>(GEP->getPointerOperand()),
@@ -2031,7 +2033,7 @@ static Constant *foldGEPOfGEP(GEPOperator *GEP, Type *PointeeTy, bool InBounds,
 
 Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
                                           bool InBounds,
-                                          Optional<unsigned> InRangeIndex,
+                                          std::optional<unsigned> InRangeIndex,
                                           ArrayRef<Value *> Idxs) {
   if (Idxs.empty()) return C;
 

@@ -391,9 +391,8 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
     // result onto the work list.
     // CEENode -> Dst -> WorkList
     NodeBuilderContext Ctx(Engine, calleeCtx->getCallSiteBlock(), CEENode);
-    SaveAndRestore<const NodeBuilderContext*> NBCSave(currBldrCtx,
-        &Ctx);
-    SaveAndRestore<unsigned> CBISave(currStmtIdx, calleeCtx->getIndex());
+    SaveAndRestore<const NodeBuilderContext *> NBCSave(currBldrCtx, &Ctx);
+    SaveAndRestore CBISave(currStmtIdx, calleeCtx->getIndex());
 
     CallEventRef<> UpdatedCall = Call.cloneWithState(CEEState);
 
@@ -1093,7 +1092,7 @@ bool ExprEngine::shouldInlineCall(const CallEvent &Call, const Decl *D,
   // Check if this function has been marked as non-inlinable.
   Optional<bool> MayInline = Engine.FunctionSummaries->mayInline(D);
   if (MayInline) {
-    if (!MayInline.value())
+    if (!*MayInline)
       return false;
 
   } else {

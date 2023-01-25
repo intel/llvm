@@ -1,10 +1,11 @@
-//===- Arith.h - Arith dialect ----0000000000----------------------*- C++-*-==//
+//===- Arith.h - Arith dialect ------------------------------------*- C++-*-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef MLIR_DIALECT_ARITH_IR_ARITH_H_
 #define MLIR_DIALECT_ARITH_IR_ARITH_H_
 
@@ -16,6 +17,7 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
+#include "llvm/ADT/StringExtras.h"
 
 //===----------------------------------------------------------------------===//
 // ArithDialect
@@ -28,6 +30,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/ArithOpsEnums.h.inc"
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Arith/IR/ArithOpsAttributes.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Arith Interfaces
+//===----------------------------------------------------------------------===//
+#include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Arith Dialect Operations

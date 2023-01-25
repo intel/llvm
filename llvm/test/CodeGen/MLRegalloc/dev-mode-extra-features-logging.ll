@@ -1,4 +1,4 @@
-; REQUIRES: have_tf_api
+; REQUIRES: have_tflite
 ; REQUIRES: x86_64-linux
 ;
 ; Check that we log the currently in development features correctly with both the default
@@ -31,9 +31,9 @@
 ; CHECK-LABEL: key: \"instructions\"
 ; Check the first five opcodes in the first eviction problem
 ; CHECK-NEXT: value: 19
-; CHECK-SAME: value: 3031
-; CHECK-SAME: value: 1245
-; CHECK-SAME: value: 1264
+; CHECK-SAME: value: {{([0-9]{4})}}
+; CHECK-SAME: value: 12{{([0-9]{2})}}
+; CHECK-SAME: value: 12{{([0-9]{2})}}
 ; The first eviction problem is significantly less than 300 instructions. Check
 ; that there is a zero value
 ; CHECK-SAME: value: 0

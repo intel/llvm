@@ -50,7 +50,7 @@ using namespace llvm;
 // SelectionDAGISel::runOnMachineFunction.  We have to do it in two places
 // because we want to do it while building the selection DAG for uses of alloca,
 // but not all alloca instructions are used so we have to follow up afterwards.
-Optional<unsigned>
+std::optional<unsigned>
 WebAssemblyFrameLowering::getLocalForStackObject(MachineFunction &MF,
                                                  int FrameIndex) {
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -63,7 +63,7 @@ WebAssemblyFrameLowering::getLocalForStackObject(MachineFunction &MF,
   // linear memory.
   const AllocaInst *AI = MFI.getObjectAllocation(FrameIndex);
   if (!AI || !WebAssembly::isWasmVarAddressSpace(AI->getAddressSpace()))
-    return None;
+    return std::nullopt;
 
   // Otherwise, allocate this object in the named value stack, outside of linear
   // memory.

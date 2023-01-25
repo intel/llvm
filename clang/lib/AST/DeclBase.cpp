@@ -261,12 +261,12 @@ const TemplateParameterList *Decl::getDescribedTemplateParams() const {
 
 bool Decl::isTemplated() const {
   // A declaration is templated if it is a template or a template pattern, or
-  // is within (lexcially for a friend, semantically otherwise) a dependent
-  // context.
-  // FIXME: Should local extern declarations be treated like friends?
+  // is within (lexcially for a friend or local function declaration,
+  // semantically otherwise) a dependent context.
   if (auto *AsDC = dyn_cast<DeclContext>(this))
     return AsDC->isDependentContext();
-  auto *DC = getFriendObjectKind() ? getLexicalDeclContext() : getDeclContext();
+  auto *DC = getFriendObjectKind() || isLocalExternDecl()
+      ? getLexicalDeclContext() : getDeclContext();
   return DC->isDependentContext() || isTemplateDecl() ||
          getDescribedTemplateParams();
 }
@@ -295,8 +295,7 @@ unsigned Decl::getTemplateDepth() const {
 const DeclContext *Decl::getParentFunctionOrMethod(bool LexicalParent) const {
   for (const DeclContext *DC = LexicalParent ? getLexicalDeclContext()
                                              : getDeclContext();
-       DC && !DC->isTranslationUnit() && !DC->isNamespace();
-       DC = DC->getParent())
+       DC && !DC->isFileContext(); DC = DC->getParent())
     if (DC->isFunctionOrMethod())
       return DC;
 
@@ -844,6 +843,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case LinkageSpec:
     case Export:
     case FileScopeAsm:
+    case TopLevelStmt:
     case StaticAssert:
     case ObjCPropertyImpl:
     case PragmaComment:
@@ -875,6 +875,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case Empty:
     case LifetimeExtendedTemporary:
     case RequiresExprBody:
+    case ImplicitConceptSpecialization:
       // Never looked up by name.
       return 0;
   }

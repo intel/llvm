@@ -11,7 +11,7 @@ define i32 @foo(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    mulw a0, a0, a0
 ; CHECK-NEXT:    addiw a0, a0, 1
 ; CHECK-NEXT:    mulw a0, a0, a0
-; CHECK-NEXT:    addw a0, a0, a2
+; CHECK-NEXT:    add a0, a0, a2
 ; CHECK-NEXT:    addiw a0, a0, 1
 ; CHECK-NEXT:    sllw a0, a0, a1
 ; CHECK-NEXT:    ret
@@ -113,6 +113,45 @@ define signext i32 @andi_sub_cse(i32 signext %0, i32 signext %1, ptr %2) {
 ; CHECK-NEXT:    sw a0, 0(a2)
 ; CHECK-NEXT:    ret
   %4 = and i32 %0, -8
+  %5 = sub i32 %4, %1
+  store i32 %5, ptr %2, align 4
+  ret i32 %5
+}
+
+define signext i32 @addi_sub_cse(i32 signext %0, i32 signext %1, ptr %2) {
+; CHECK-LABEL: addi_sub_cse:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    subw a0, a0, a1
+; CHECK-NEXT:    addiw a0, a0, -8
+; CHECK-NEXT:    sw a0, 0(a2)
+; CHECK-NEXT:    ret
+  %4 = add i32 %0, -8
+  %5 = sub i32 %4, %1
+  store i32 %5, ptr %2, align 4
+  ret i32 %5
+}
+
+define signext i32 @xori_sub_cse(i32 signext %0, i32 signext %1, ptr %2) {
+; CHECK-LABEL: xori_sub_cse:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    xori a0, a0, -8
+; CHECK-NEXT:    subw a0, a0, a1
+; CHECK-NEXT:    sw a0, 0(a2)
+; CHECK-NEXT:    ret
+  %4 = xor i32 %0, -8
+  %5 = sub i32 %4, %1
+  store i32 %5, ptr %2, align 4
+  ret i32 %5
+}
+
+define signext i32 @ori_sub_cse(i32 signext %0, i32 signext %1, ptr %2) {
+; CHECK-LABEL: ori_sub_cse:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    ori a0, a0, -8
+; CHECK-NEXT:    subw a0, a0, a1
+; CHECK-NEXT:    sw a0, 0(a2)
+; CHECK-NEXT:    ret
+  %4 = or i32 %0, -8
   %5 = sub i32 %4, %1
   store i32 %5, ptr %2, align 4
   ret i32 %5

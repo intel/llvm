@@ -46,7 +46,10 @@ using namespace clang;
 ///           'using' 'namespace' '::'[opt] nested-name-specifier[opt]
 ///                 namespace-name ';'
 ///
-bool Parser::isCXXDeclarationStatement() {
+bool Parser::isCXXDeclarationStatement(
+    bool DisambiguatingWithExpression /*=false*/) {
+  assert(getLangOpts().CPlusPlus && "Must be called for C++ only.");
+
   switch (Tok.getKind()) {
     // asm-definition
   case tok::kw_asm:
@@ -59,6 +62,42 @@ bool Parser::isCXXDeclarationStatement() {
   case tok::kw_static_assert:
   case tok::kw__Static_assert:
     return true;
+  case tok::identifier: {
+    if (DisambiguatingWithExpression) {
+      RevertingTentativeParsingAction TPA(*this);
+      // Parse the C++ scope specifier.
+      CXXScopeSpec SS;
+      ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                     /*ObjectHasErrors=*/false,
+                                     /*EnteringContext=*/true);
+
+      switch (Tok.getKind()) {
+      case tok::identifier: {
+        IdentifierInfo *II = Tok.getIdentifierInfo();
+        bool isDeductionGuide =
+            Actions.isDeductionGuideName(getCurScope(), *II, Tok.getLocation(),
+                                         /*Template=*/nullptr);
+        if (Actions.isCurrentClassName(*II, getCurScope(), &SS) ||
+            isDeductionGuide) {
+          if (isConstructorDeclarator(/*Unqualified=*/SS.isEmpty(),
+                                      isDeductionGuide,
+                                      DeclSpec::FriendSpecified::No))
+            return true;
+        }
+        break;
+      }
+      case tok::kw_operator:
+        return true;
+      case tok::annot_cxxscope: // Check if this is a dtor.
+        if (NextToken().is(tok::tilde))
+          return true;
+        break;
+      default:
+        break;
+      }
+    }
+  }
+    [[fallthrough]];
     // simple-declaration
   default:
     return isCXXSimpleDeclaration(/*AllowForRangeDecl=*/false);
@@ -1253,17 +1292,34 @@ Parser::TPResult
 Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
                                   Parser::TPResult BracedCastResult,
                                   bool *InvalidAsDeclSpec) {
-  auto IsPlaceholderSpecifier = [&] (TemplateIdAnnotation *TemplateId,
-                                     int Lookahead) {
+  auto IsPlaceholderSpecifier = [&](TemplateIdAnnotation *TemplateId,
+                                    int Lookahead) {
     // We have a placeholder-constraint (we check for 'auto' or 'decltype' to
     // distinguish 'C<int>;' from 'C<int> auto c = 1;')
     return TemplateId->Kind == TNK_Concept_template &&
-        GetLookAheadToken(Lookahead + 1).isOneOf(tok::kw_auto, tok::kw_decltype,
-            // If we have an identifier here, the user probably forgot the
-            // 'auto' in the placeholder constraint, e.g. 'C<int> x = 2;'
-            // This will be diagnosed nicely later, so disambiguate as a
-            // declaration.
-            tok::identifier);
+           (GetLookAheadToken(Lookahead + 1)
+                .isOneOf(tok::kw_auto, tok::kw_decltype,
+                         // If we have an identifier here, the user probably
+                         // forgot the 'auto' in the placeholder constraint,
+                         // e.g. 'C<int> x = 2;' This will be diagnosed nicely
+                         // later, so disambiguate as a declaration.
+                         tok::identifier,
+                         // CVR qualifierslikely the same situation for the
+                         // user, so let this be diagnosed nicely later. We
+                         // cannot handle references here, as `C<int> & Other`
+                         // and `C<int> && Other` are both legal.
+                         tok::kw_const, tok::kw_volatile, tok::kw_restrict) ||
+            // While `C<int> && Other` is legal, doing so while not specifying a
+            // template argument is NOT, so see if we can fix up in that case at
+            // minimum. Concepts require at least 1 template parameter, so we
+            // can count on the argument count.
+            // FIXME: In the future, we migth be able to have SEMA look up the
+            // declaration for this concept, and see how many template
+            // parameters it has.  If the concept isn't fully specified, it is
+            // possibly a situation where we want deduction, such as:
+            // `BinaryConcept<int> auto f = bar();`
+            (TemplateId->NumArgs == 0 &&
+             GetLookAheadToken(Lookahead + 1).isOneOf(tok::amp, tok::ampamp)));
   };
   switch (Tok.getKind()) {
   case tok::identifier: {
@@ -1422,6 +1478,9 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
   case tok::kw___read_write:
     // OpenCL pipe
   case tok::kw_pipe:
+
+    // HLSL address space qualifiers
+  case tok::kw_groupshared:
 
     // GNU
   case tok::kw_restrict:

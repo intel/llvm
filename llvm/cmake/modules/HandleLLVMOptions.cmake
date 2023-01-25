@@ -293,10 +293,23 @@ if( LLVM_ENABLE_LLD )
   if ( LLVM_USE_LINKER )
     message(FATAL_ERROR "LLVM_ENABLE_LLD and LLVM_USE_LINKER can't be set at the same time")
   endif()
+
   # In case of MSVC cmake always invokes the linker directly, so the linker
   # should be specified by CMAKE_LINKER cmake variable instead of by -fuse-ld
   # compiler option.
-  if ( NOT MSVC )
+  if ( MSVC )
+    if(NOT CMAKE_LINKER MATCHES "lld-link")
+        get_filename_component(CXX_COMPILER_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
+        get_filename_component(C_COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
+        find_program(LLD_LINK NAMES "lld-link" "lld-link.exe" HINTS ${CXX_COMPILER_DIR} ${C_COMPILER_DIR} DOC "lld linker")
+        if(NOT LLD_LINK)
+            message(FATAL_ERROR
+                "LLVM_ENABLE_LLD set, but cannot find lld-link. "
+                "Consider setting CMAKE_LINKER to lld-link path.")
+        endif()
+        set(CMAKE_LINKER ${LLD_LINK})
+    endif()
+  else()
     set(LLVM_USE_LINKER "lld")
   endif()
 endif()
@@ -779,7 +792,7 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
   # line is also a // comment.
   set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror -Wcomment")
-  CHECK_C_SOURCE_COMPILES("// \\\\\\n//\\nint main() {return 0;}"
+  CHECK_C_SOURCE_COMPILES("// \\\\\\n//\\nint main(void) {return 0;}"
                           C_WCOMMENT_ALLOWS_LINE_WRAP)
   set(CMAKE_REQUIRED_FLAGS ${OLD_CMAKE_REQUIRED_FLAGS})
   if (NOT C_WCOMMENT_ALLOWS_LINE_WRAP)
@@ -1260,3 +1273,6 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
   append_if(SUPPORTS_FFILE_PREFIX_MAP "-ffile-prefix-map=${source_root}/=${LLVM_SOURCE_PREFIX}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   add_flag_if_supported("-no-canonical-prefixes" NO_CANONICAL_PREFIXES)
 endif()
+
+set(LLVM_THIRD_PARTY_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../third-party CACHE STRING
+    "Directory containing third party software used by LLVM (e.g. googletest)")

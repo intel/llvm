@@ -46,6 +46,9 @@ public:
   /// Dump cached object to output file `filename`.
   void dumpToObjectFile(StringRef filename);
 
+  /// Returns `true` if cache hasn't been populated yet.
+  bool isEmpty();
+
 private:
   llvm::StringMap<std::unique_ptr<llvm::MemoryBuffer>> cachedObjects;
 };
@@ -64,7 +67,7 @@ struct ExecutionEngineOptions {
 
   /// `jitCodeGenOptLevel`, when provided, is used as the optimization level for
   /// target code generation.
-  Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = llvm::None;
+  Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = std::nullopt;
 
   /// If `sharedLibPaths` are provided, the underlying JIT-compilation will
   /// open and link the shared libraries for symbol resolution.
@@ -77,8 +80,8 @@ struct ExecutionEngineOptions {
 
   /// If `enableObjectCache` is set, the JIT compiler will create one to store
   /// the object generated for the given module. The contents of the cache can
-  /// be dumped to a file via the `dumpToObjectfile` method.
-  bool enableObjectCache = false;
+  /// be dumped to a file via the `dumpToObjectFile` method.
+  bool enableObjectDump = false;
 
   /// If enable `enableGDBNotificationListener` is set, the JIT compiler will
   /// notify the llvm's global GDB notification listener.
@@ -101,7 +104,7 @@ struct ExecutionEngineOptions {
 /// be used to invoke the JIT-compiled function.
 class ExecutionEngine {
 public:
-  ExecutionEngine(bool enableObjectCache, bool enableGDBNotificationListener,
+  ExecutionEngine(bool enableObjectDump, bool enableGDBNotificationListener,
                   bool enablePerfNotificationListener);
 
   /// Creates an execution engine for the given MLIR IR.
@@ -120,7 +123,7 @@ public:
   /// Invokes the function with the given name passing it the list of opaque
   /// pointers to the actual arguments.
   llvm::Error invokePacked(StringRef name,
-                           MutableArrayRef<void *> args = llvm::None);
+                           MutableArrayRef<void *> args = std::nullopt);
 
   /// Trait that defines how a given type is passed to the JIT code. This
   /// defaults to passing the address but can be specialized.
@@ -198,6 +201,9 @@ private:
 
   /// Underlying cache.
   std::unique_ptr<SimpleObjectCache> cache;
+
+  /// Names of functions that may be looked up.
+  std::vector<std::string> functionNames;
 
   /// GDB notification listener.
   llvm::JITEventListener *gdbListener;

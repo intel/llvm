@@ -1,4 +1,4 @@
-//===- ArithOps.td - Arith op definitions -------------*- tablegen -*-===//
+//===- ArithOps.td - Arith op definitions ------------------*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #define ARITH_OPS
 
 include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -17,13 +18,15 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/EnumAttr.td"
 
-// Base class for Arith dialect ops. Ops in this dialect have no side
+// Base class for Arith dialect ops. Ops in this dialect have no memory
 // effects and can be applied element-wise to vectors and tensors.
 class Arith_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Arith_Dialect, mnemonic, traits # [NoSideEffect,
-    DeclareOpInterfaceMethods<VectorUnrollOpInterface>] #
-    ElementwiseMappable.traits>;
+    Op<Arith_Dialect, mnemonic,
+       traits #
+       [DeclareOpInterfaceMethods<VectorUnrollOpInterface>, NoMemoryEffect] #
+       ElementwiseMappable.traits>;
 
 // Base class for integer and floating point arithmetic ops. All ops have one
 // result, require operands and results to be of the same type, and can accept
@@ -33,7 +36,7 @@ class Arith_ArithOp<string mnemonic, list<Trait> traits = []> :
 
 // Base class for unary arithmetic operations.
 class Arith_UnaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_ArithOp<mnemonic, traits> {
+    Arith_ArithOp<mnemonic, traits # [Pure]> {
   let assemblyFormat = "$operand attr-dict `:` type($result)";
 }
 
@@ -45,7 +48,7 @@ class Arith_BinaryOp<string mnemonic, list<Trait> traits = []> :
 
 // Base class for ternary arithmetic operations.
 class Arith_TernaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_ArithOp<mnemonic, traits> {
+    Arith_ArithOp<mnemonic, traits # [Pure]> {
   let assemblyFormat = "$a `,` $b `,` $c attr-dict `:` type($result)";
 }
 
@@ -56,23 +59,39 @@ class Arith_IntBinaryOp<string mnemonic, list<Trait> traits = []> :
     Arguments<(ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs)>,
     Results<(outs SignlessIntegerLike:$result)>;
 
+// Base class for integer binary operations without undefined behavior.
+class Arith_TotalIntBinaryOp<string mnemonic, list<Trait> traits = []> :
+    Arith_IntBinaryOp<mnemonic, traits # [Pure]>;
+
 // Base class for floating point unary operations.
 class Arith_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_UnaryOp<mnemonic, traits>,
-    Arguments<(ins FloatLike:$operand)>,
-    Results<(outs FloatLike:$result)>;
+    Arith_UnaryOp<mnemonic,
+      !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>],
+                  traits)>,
+    Arguments<(ins FloatLike:$operand,
+      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+    Results<(outs FloatLike:$result)> {
+  let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($result) }];
+}
 
 // Base class for floating point binary operations.
 class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_BinaryOp<mnemonic, traits>,
-    Arguments<(ins FloatLike:$lhs, FloatLike:$rhs)>,
-    Results<(outs FloatLike:$result)>;
+    Arith_BinaryOp<mnemonic,
+      !listconcat([Pure, DeclareOpInterfaceMethods<ArithFastMathInterface>],
+                  traits)>,
+    Arguments<(ins FloatLike:$lhs, FloatLike:$rhs,
+      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+    Results<(outs FloatLike:$result)> {
+  let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($result) }];
+}
 
 // Base class for arithmetic cast operations. Requires a single operand and
 // result. If either is a shaped type, then the other must be of the same shape.
 class Arith_CastOp<string mnemonic, TypeConstraint From, TypeConstraint To,
                    list<Trait> traits = []> :
-    Arith_Op<mnemonic, traits # [SameOperandsAndResultShape,
+    Arith_Op<mnemonic, traits # [Pure, SameOperandsAndResultShape,
       DeclareOpInterfaceMethods<CastOpInterface>]>,
     Arguments<(ins From:$in)>,
     Results<(outs To:$out)> {
@@ -107,7 +126,7 @@ class Arith_FToFCastOp<string mnemonic, list<Trait> traits = []> :
 // and returns a single `BoolLike` result. If the operand type is a vector or
 // tensor, then the result will be one of `i1` of the same shape.
 class Arith_CompareOp<string mnemonic, list<Trait> traits = []> :
-    Arith_Op<mnemonic, traits # [SameTypeOperands, TypesMatchWith<
+    Arith_Op<mnemonic, traits # [Pure, SameTypeOperands, TypesMatchWith<
     "result type has i1 element type and same shape as operands",
     "lhs", "result", "::getI1SameShape($_self)">]> {
   let results = (outs BoolLike:$result);
@@ -127,7 +146,7 @@ class Arith_CompareOpOfAnyRank<string mnemonic, list<Trait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 def Arith_ConstantOp : Op<Arith_Dialect, "constant",
-    [ConstantLike, NoSideEffect,
+    [ConstantLike, Pure,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
      AllTypesMatch<["value", "result"]>,
      DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
@@ -177,7 +196,7 @@ def Arith_ConstantOp : Op<Arith_Dialect, "constant",
 // AddIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_AddIOp : Arith_IntBinaryOp<"addi", [Commutative]> {
+def Arith_AddIOp : Arith_TotalIntBinaryOp<"addi", [Commutative]> {
   let summary = "integer addition operation";
   let description = [{
     The `addi` operation takes two operands and returns one result, each of
@@ -202,34 +221,40 @@ def Arith_AddIOp : Arith_IntBinaryOp<"addi", [Commutative]> {
   let hasCanonicalizer = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// AddUIExtendedOp
+//===----------------------------------------------------------------------===//
 
-def Arith_AddUICarryOp : Arith_Op<"addui_carry", [Commutative,
+def Arith_AddUIExtendedOp : Arith_Op<"addui_extended", [Pure, Commutative,
     AllTypesMatch<["lhs", "rhs", "sum"]>]> {
-  let summary = "unsigned integer addition operation returning sum and carry";
+  let summary = [{
+    extended unsigned integer addition operation returning sum and overflow bit
+  }];
+
   let description = [{
-    The `addui_carry` operation takes two operands and returns two results: the
-    sum (same type as both operands), and the carry (boolean-like). The carry
-    value `1` indicates unsigned addition overflow, while indicates `0` no
-    overflow.
+    Performs (N+1)-bit addition on zero-extended operands. Returns two results:
+    the N-bit sum (same type as both operands), and the overflow bit
+    (boolean-like), where`1` indicates unsigned addition overflow, while `0`
+    indicates no overflow.
 
     Example:
 
     ```mlir
     // Scalar addition.
-    %sum, %carry = arith.addui_carry %b, %c : i64, i1
+    %sum, %overflow = arith.addui_extended %b, %c : i64, i1
 
     // Vector element-wise addition.
-    %b:2 = arith.addui_carry %g, %h : vector<4xi32>, vector<4xi1>
+    %d:2 = arith.addui_extended %e, %f : vector<4xi32>, vector<4xi1>
 
     // Tensor element-wise addition.
-    %c:2 = arith.addui_carry %y, %z : tensor<4x?xi8>, tensor<4x?xi1>
+    %x:2 = arith.addui_extended %y, %z : tensor<4x?xi8>, tensor<4x?xi1>
     ```
   }];
 
   let arguments = (ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs);
-  let results = (outs SignlessIntegerLike:$sum, BoolLike:$carry);
+  let results = (outs SignlessIntegerLike:$sum, BoolLike:$overflow);
   let assemblyFormat = [{
-    $lhs `,` $rhs attr-dict `:` type($sum) `,` type($carry)
+    $lhs `,` $rhs attr-dict `:` type($sum) `,` type($overflow)
   }];
 
   let builders = [
@@ -240,9 +265,10 @@ def Arith_AddUICarryOp : Arith_Op<"addui_carry", [Commutative,
   ];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    ::llvm::Optional<::llvm::SmallVector<int64_t, 4>> getShapeForUnroll();
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
   }];
 }
 
@@ -250,7 +276,7 @@ def Arith_AddUICarryOp : Arith_Op<"addui_carry", [Commutative,
 // SubIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_SubIOp : Arith_IntBinaryOp<"subi"> {
+def Arith_SubIOp : Arith_TotalIntBinaryOp<"subi"> {
   let summary = "integer subtraction operation";
   let hasFolder = 1;
   let hasCanonicalizer = 1;
@@ -260,16 +286,102 @@ def Arith_SubIOp : Arith_IntBinaryOp<"subi"> {
 // MulIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MulIOp : Arith_IntBinaryOp<"muli", [Commutative]> {
+def Arith_MulIOp : Arith_TotalIntBinaryOp<"muli", [Commutative]> {
   let summary = "integer multiplication operation";
   let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MulSIExtendedOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MulSIExtendedOp : Arith_Op<"mulsi_extended", [Pure, Commutative,
+    AllTypesMatch<["lhs", "rhs", "low", "high"]>]> {
+  let summary = [{
+    extended signed integer multiplication operation
+  }];
+
+  let description = [{
+    Performs (2*N)-bit multiplication on sign-extended operands. Returns two
+    N-bit results: the low and the high halves of the product. The low half has
+    the same value as the result of regular multiplication `arith.muli` with
+    the same operands.
+
+    Example:
+
+    ```mlir
+    // Scalar multiplication.
+    %low, %high = arith.mulsi_extended %a, %b : i32
+
+    // Vector element-wise multiplication.
+    %c:2 = arith.mulsi_extended %d, %e : vector<4xi32>
+
+    // Tensor element-wise multiplication.
+    %x:2 = arith.mulsi_extended %y, %z : tensor<4x?xi8>
+    ```
+  }];
+
+  let arguments = (ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs);
+  let results = (outs SignlessIntegerLike:$low, SignlessIntegerLike:$high);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($lhs)";
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+
+  let extraClassDeclaration = [{
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MulUIExtendedOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MulUIExtendedOp : Arith_Op<"mului_extended", [Pure, Commutative,
+    AllTypesMatch<["lhs", "rhs", "low", "high"]>]> {
+  let summary = [{
+    extended unsigned integer multiplication operation
+  }];
+
+  let description = [{
+    Performs (2*N)-bit multiplication on zero-extended operands. Returns two
+    N-bit results: the low and the high halves of the product. The low half has
+    the same value as the result of regular multiplication `arith.muli` with
+    the same operands.
+
+    Example:
+
+    ```mlir
+    // Scalar multiplication.
+    %low, %high = arith.mului_extended %a, %b : i32
+
+    // Vector element-wise multiplication.
+    %c:2 = arith.mului_extended %d, %e : vector<4xi32>
+
+    // Tensor element-wise multiplication.
+    %x:2 = arith.mului_extended %y, %z : tensor<4x?xi8>
+    ```
+  }];
+
+  let arguments = (ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs);
+  let results = (outs SignlessIntegerLike:$low, SignlessIntegerLike:$high);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($lhs)";
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+
+  let extraClassDeclaration = [{
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // DivUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_DivUIOp : Arith_IntBinaryOp<"divui"> {
+def Arith_DivUIOp : Arith_IntBinaryOp<"divui", [ConditionallySpeculatable]> {
   let summary = "unsigned integer division operation";
   let description = [{
     Unsigned integer division. Rounds towards zero. Treats the leading bit as
@@ -292,6 +404,12 @@ def Arith_DivUIOp : Arith_IntBinaryOp<"divui"> {
     %x = arith.divui %y, %z : tensor<4x?xi8>
     ```
   }];
+
+  let extraClassDeclaration = [{
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
+  }];
+
   let hasFolder = 1;
 }
 
@@ -299,7 +417,7 @@ def Arith_DivUIOp : Arith_IntBinaryOp<"divui"> {
 // DivSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_DivSIOp : Arith_IntBinaryOp<"divsi"> {
+def Arith_DivSIOp : Arith_IntBinaryOp<"divsi", [ConditionallySpeculatable]> {
   let summary = "signed integer division operation";
   let description = [{
     Signed integer division. Rounds towards zero. Treats the leading bit as
@@ -321,6 +439,12 @@ def Arith_DivSIOp : Arith_IntBinaryOp<"divsi"> {
     %x = arith.divsi %y, %z : tensor<4x?xi8>
     ```
   }];
+
+  let extraClassDeclaration = [{
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
+  }];
+
   let hasFolder = 1;
 }
 
@@ -328,7 +452,8 @@ def Arith_DivSIOp : Arith_IntBinaryOp<"divsi"> {
 // CeilDivUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_CeilDivUIOp : Arith_IntBinaryOp<"ceildivui"> {
+def Arith_CeilDivUIOp : Arith_IntBinaryOp<"ceildivui",
+                                          [ConditionallySpeculatable]> {
   let summary = "unsigned ceil integer division operation";
   let description = [{
     Unsigned integer division. Rounds towards positive infinity. Treats the
@@ -345,6 +470,12 @@ def Arith_CeilDivUIOp : Arith_IntBinaryOp<"ceildivui"> {
     %a = arith.ceildivui %b, %c : i64
     ```
   }];
+
+  let extraClassDeclaration = [{
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
+  }];
+
   let hasFolder = 1;
 }
 
@@ -352,7 +483,8 @@ def Arith_CeilDivUIOp : Arith_IntBinaryOp<"ceildivui"> {
 // CeilDivSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_CeilDivSIOp : Arith_IntBinaryOp<"ceildivsi"> {
+def Arith_CeilDivSIOp : Arith_IntBinaryOp<"ceildivsi",
+                                          [ConditionallySpeculatable]> {
   let summary = "signed ceil integer division operation";
   let description = [{
     Signed integer division. Rounds towards positive infinity, i.e. `7 / -2 = -3`.
@@ -367,6 +499,12 @@ def Arith_CeilDivSIOp : Arith_IntBinaryOp<"ceildivsi"> {
     %a = arith.ceildivsi %b, %c : i64
     ```
   }];
+
+  let extraClassDeclaration = [{
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
+  }];
+
   let hasFolder = 1;
 }
 
@@ -374,7 +512,7 @@ def Arith_CeilDivSIOp : Arith_IntBinaryOp<"ceildivsi"> {
 // FloorDivSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_FloorDivSIOp : Arith_IntBinaryOp<"floordivsi"> {
+def Arith_FloorDivSIOp : Arith_TotalIntBinaryOp<"floordivsi"> {
   let summary = "signed floor integer division operation";
   let description = [{
     Signed integer division. Rounds towards negative infinity, i.e. `5 / -2 = -3`.
@@ -397,7 +535,7 @@ def Arith_FloorDivSIOp : Arith_IntBinaryOp<"floordivsi"> {
 // RemUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_RemUIOp : Arith_IntBinaryOp<"remui"> {
+def Arith_RemUIOp : Arith_TotalIntBinaryOp<"remui"> {
   let summary = "unsigned integer division remainder operation";
   let description = [{
     Unsigned integer division remainder. Treats the leading bit as the most
@@ -426,7 +564,7 @@ def Arith_RemUIOp : Arith_IntBinaryOp<"remui"> {
 // RemSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_RemSIOp : Arith_IntBinaryOp<"remsi"> {
+def Arith_RemSIOp : Arith_TotalIntBinaryOp<"remsi"> {
   let summary = "signed integer division remainder operation";
   let description = [{
     Signed integer division remainder. Treats the leading bit as sign, i.e. `6 %
@@ -455,7 +593,7 @@ def Arith_RemSIOp : Arith_IntBinaryOp<"remsi"> {
 // AndIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_AndIOp : Arith_IntBinaryOp<"andi", [Commutative, Idempotent]> {
+def Arith_AndIOp : Arith_TotalIntBinaryOp<"andi", [Commutative, Idempotent]> {
   let summary = "integer binary and";
   let description = [{
     The `andi` operation takes two operands and returns one result, each of
@@ -484,7 +622,7 @@ def Arith_AndIOp : Arith_IntBinaryOp<"andi", [Commutative, Idempotent]> {
 // OrIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_OrIOp : Arith_IntBinaryOp<"ori", [Commutative, Idempotent]> {
+def Arith_OrIOp : Arith_TotalIntBinaryOp<"ori", [Commutative, Idempotent]> {
   let summary = "integer binary or";
   let description = [{
     The `ori` operation takes two operands and returns one result, each of these
@@ -513,7 +651,7 @@ def Arith_OrIOp : Arith_IntBinaryOp<"ori", [Commutative, Idempotent]> {
 // XOrIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_XOrIOp : Arith_IntBinaryOp<"xori", [Commutative]> {
+def Arith_XOrIOp : Arith_TotalIntBinaryOp<"xori", [Commutative]> {
   let summary = "integer binary xor";
   let description = [{
     The `xori` operation takes two operands and returns one result, each of
@@ -542,7 +680,7 @@ def Arith_XOrIOp : Arith_IntBinaryOp<"xori", [Commutative]> {
 // ShLIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_ShLIOp : Arith_IntBinaryOp<"shli"> {
+def Arith_ShLIOp : Arith_TotalIntBinaryOp<"shli"> {
   let summary = "integer left-shift";
   let description = [{
     The `shli` operation shifts an integer value to the left by a variable
@@ -563,7 +701,7 @@ def Arith_ShLIOp : Arith_IntBinaryOp<"shli"> {
 // ShRUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_ShRUIOp : Arith_IntBinaryOp<"shrui"> {
+def Arith_ShRUIOp : Arith_TotalIntBinaryOp<"shrui"> {
   let summary = "unsigned integer right-shift";
   let description = [{
     The `shrui` operation shifts an integer value to the right by a variable
@@ -585,7 +723,7 @@ def Arith_ShRUIOp : Arith_IntBinaryOp<"shrui"> {
 // ShRSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_ShRSIOp : Arith_IntBinaryOp<"shrsi"> {
+def Arith_ShRSIOp : Arith_TotalIntBinaryOp<"shrsi"> {
   let summary = "signed integer right-shift";
   let description = [{
     The `shrsi` operation shifts an integer value to the right by a variable
@@ -726,7 +864,7 @@ def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf", [Commutative]> {
 // MaxSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi", [Commutative]> {
+def Arith_MaxSIOp : Arith_TotalIntBinaryOp<"maxsi", [Commutative]> {
   let summary = "signed integer maximum operation";
   let hasFolder = 1;
 }
@@ -735,7 +873,7 @@ def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi", [Commutative]> {
 // MaxUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MaxUIOp : Arith_IntBinaryOp<"maxui", [Commutative]> {
+def Arith_MaxUIOp : Arith_TotalIntBinaryOp<"maxui", [Commutative]> {
   let summary = "unsigned integer maximum operation";
   let hasFolder = 1;
 }
@@ -770,7 +908,7 @@ def Arith_MinFOp : Arith_FloatBinaryOp<"minf", [Commutative]> {
 // MinSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MinSIOp : Arith_IntBinaryOp<"minsi", [Commutative]> {
+def Arith_MinSIOp : Arith_TotalIntBinaryOp<"minsi", [Commutative]> {
   let summary = "signed integer minimum operation";
   let hasFolder = 1;
 }
@@ -779,7 +917,7 @@ def Arith_MinSIOp : Arith_IntBinaryOp<"minsi", [Commutative]> {
 // MinUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MinUIOp : Arith_IntBinaryOp<"minui", [Commutative]> {
+def Arith_MinUIOp : Arith_TotalIntBinaryOp<"minui", [Commutative]> {
   let summary = "unsigned integer minimum operation";
   let hasFolder = 1;
 }
@@ -933,6 +1071,7 @@ def Arith_TruncIOp : Arith_IToICastOp<"trunci"> {
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -1236,7 +1375,7 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
 // SelectOp
 //===----------------------------------------------------------------------===//
 
-def SelectOp : Arith_Op<"select", [
+def SelectOp : Arith_Op<"select", [Pure,
     AllTypesMatch<["true_value", "false_value", "result"]>,
     DeclareOpInterfaceMethods<InferIntRangeInterface>,
   ] # ElementwiseMappable.traits> {

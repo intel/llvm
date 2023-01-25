@@ -25,7 +25,6 @@ const char *Action::getClassName(ActionClass AC) {
     return "offload";
   case PreprocessJobClass: return "preprocessor";
   case PrecompileJobClass: return "precompiler";
-  case HeaderModulePrecompileJobClass: return "header-module-precompiler";
   case ExtractAPIJobClass:
     return "api-extractor";
   case AnalyzeJobClass: return "analyzer";
@@ -381,13 +380,6 @@ PrecompileJobAction::PrecompileJobAction(ActionClass Kind, Action *Input,
   assert(isa<PrecompileJobAction>((Action*)this) && "invalid action kind");
 }
 
-void HeaderModulePrecompileJobAction::anchor() {}
-
-HeaderModulePrecompileJobAction::HeaderModulePrecompileJobAction(
-    Action *Input, types::ID OutputType, const char *ModuleName)
-    : PrecompileJobAction(HeaderModulePrecompileJobClass, Input, OutputType),
-      ModuleName(ModuleName) {}
-
 void ExtractAPIJobAction::anchor() {}
 
 ExtractAPIJobAction::ExtractAPIJobAction(Action *Inputs, types::ID OutputType)
@@ -573,6 +565,10 @@ void FileTableTformJobAction::addCopySingleFileTform(StringRef ColumnName,
                                                      int Row) {
   Tforms.emplace_back(
       Tform(Tform::COPY_SINGLE_FILE, {ColumnName, std::to_string(Row)}));
+}
+
+void FileTableTformJobAction::addMergeTform(StringRef ColumnName) {
+  Tforms.emplace_back(Tform(Tform::MERGE, {ColumnName}));
 }
 
 void AppendFooterJobAction::anchor() {}

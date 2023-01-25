@@ -284,6 +284,14 @@ public:
   /// procedure.
   bool isIndirectCall() const;
 
+  /// Returns true if this is a call of a type-bound procedure with a
+  /// polymorphic entity.
+  bool requireDispatchCall() const;
+
+  /// Get the passed-object argument index. nullopt if there is no passed-object
+  /// index.
+  std::optional<unsigned> getPassArgIndex() const;
+
   /// Return the procedure symbol if this is a call to a user defined
   /// procedure.
   const Fortran::semantics::Symbol *getProcedureSymbol() const;
@@ -337,6 +345,9 @@ public:
     llvm_unreachable("getting host associated type in CallerInterface");
   }
 
+  /// Set attributes on MLIR function.
+  void setFuncAttrs(mlir::func::FuncOp) const {}
+
 private:
   /// Check that the input vector is complete.
   bool verifyActualInputs() const;
@@ -372,6 +383,10 @@ public:
   /// called through pointers or not.
   bool isIndirectCall() const { return false; }
 
+  /// On the callee side it does not matter whether the procedure is called
+  /// through dynamic dispatch or not.
+  bool requireDispatchCall() const { return false; };
+
   /// Return the procedure symbol if this is a call to a user defined
   /// procedure.
   const Fortran::semantics::Symbol *getProcedureSymbol() const;
@@ -383,6 +398,7 @@ public:
   bool hasHostAssociated() const;
   mlir::Type getHostAssociatedTy() const;
   mlir::Value getHostAssociatedTuple() const;
+  void setFuncAttrs(mlir::func::FuncOp) const;
 
 private:
   Fortran::lower::pft::FunctionLikeUnit &funit;

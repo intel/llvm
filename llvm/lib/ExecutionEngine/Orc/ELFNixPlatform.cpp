@@ -16,6 +16,7 @@
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/Support/BinaryByteStream.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "orc"
 
@@ -110,7 +111,7 @@ Expected<std::unique_ptr<ELFNixPlatform>>
 ELFNixPlatform::Create(ExecutionSession &ES,
                        ObjectLinkingLayer &ObjLinkingLayer,
                        JITDylib &PlatformJD, const char *OrcRuntimePath,
-                       Optional<SymbolAliasMap> RuntimeAliases) {
+                       std::optional<SymbolAliasMap> RuntimeAliases) {
 
   auto &EPC = ES.getExecutorProcessControl();
 
@@ -850,7 +851,7 @@ Error ELFNixPlatform::ELFNixPlatformPlugin::fixTLVSectionsAndEdges(
   auto *TLSInfoEntrySection = G.findSectionByName("$__TLSINFO");
 
   if (TLSInfoEntrySection) {
-    Optional<uint64_t> Key;
+    std::optional<uint64_t> Key;
     {
       std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
       auto I = MP.JITDylibToPThreadKey.find(&JD);

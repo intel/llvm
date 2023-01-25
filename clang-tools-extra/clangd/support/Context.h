@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_SUPPORT_CONTEXT_H_
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_SUPPORT_CONTEXT_H_
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_SUPPORT_CONTEXT_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_SUPPORT_CONTEXT_H
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
@@ -155,7 +155,7 @@ private:
   };
 
   template <class T> class TypedAnyStorage : public Context::AnyStorage {
-    static_assert(std::is_same<typename std::decay<T>::type, T>::value,
+    static_assert(std::is_same<std::decay_t<T>, T>::value,
                   "Argument to TypedAnyStorage must be decayed");
 
   public:
@@ -200,7 +200,7 @@ private:
 class [[nodiscard]] WithContextValue {
 public:
   template <typename T>
-  WithContextValue(const Key<T> &K, typename std::decay<T>::type V)
+  WithContextValue(const Key<T> &K, std::decay_t<T> V)
       : Restore(Context::current().derive(K, std::move(V))) {}
 
   // Anonymous values can be used for the destructor side-effect.

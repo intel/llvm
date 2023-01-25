@@ -424,8 +424,7 @@ bool IdentifierNamingCheck::HungarianNotation::isOptionEnabled(
   if (Iter == StrMap.end())
     return false;
 
-  llvm::Optional<bool> Parsed = llvm::yaml::parseBool(Iter->getValue());
-  return *Parsed;
+  return *llvm::yaml::parseBool(Iter->getValue());
 }
 
 void IdentifierNamingCheck::HungarianNotation::loadFileConfig(
@@ -1361,14 +1360,14 @@ IdentifierNamingCheck::getFailureInfo(
     const IdentifierNamingCheck::HungarianNotationOption &HNOption,
     StyleKind SK, const SourceManager &SM, bool IgnoreFailedSplit) const {
   if (SK == SK_Invalid || !NamingStyles[SK])
-    return None;
+    return std::nullopt;
 
   const IdentifierNamingCheck::NamingStyle &Style = *NamingStyles[SK];
   if (Style.IgnoredRegexp.isValid() && Style.IgnoredRegexp.match(Name))
-    return None;
+    return std::nullopt;
 
   if (matchesStyle(Type, Name, Style, HNOption, ND))
-    return None;
+    return std::nullopt;
 
   std::string KindName =
       fixupWithCase(Type, StyleNames[SK], ND, Style, HNOption,
@@ -1383,7 +1382,7 @@ IdentifierNamingCheck::getFailureInfo(
                  << llvm::formatv(": unable to split words for {0} '{1}'\n",
                                   KindName, Name));
     }
-    return None;
+    return std::nullopt;
   }
   return RenamerClangTidyCheck::FailureInfo{std::move(KindName),
                                             std::move(Fixup)};
@@ -1395,7 +1394,7 @@ IdentifierNamingCheck::getDeclFailureInfo(const NamedDecl *Decl,
   SourceLocation Loc = Decl->getLocation();
   const FileStyle &FileStyle = getStyleForFile(SM.getFilename(Loc));
   if (!FileStyle.isActive())
-    return llvm::None;
+    return std::nullopt;
 
   return getFailureInfo(HungarianNotation.getDeclTypeName(Decl),
                         Decl->getName(), Decl, Loc, FileStyle.getStyles(),
@@ -1411,7 +1410,7 @@ IdentifierNamingCheck::getMacroFailureInfo(const Token &MacroNameTok,
   SourceLocation Loc = MacroNameTok.getLocation();
   const FileStyle &Style = getStyleForFile(SM.getFilename(Loc));
   if (!Style.isActive())
-    return llvm::None;
+    return std::nullopt;
 
   return getFailureInfo("", MacroNameTok.getIdentifierInfo()->getName(),
                         nullptr, Loc, Style.getStyles(), Style.getHNOption(),

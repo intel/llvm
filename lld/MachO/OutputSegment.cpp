@@ -47,7 +47,7 @@ static uint32_t maxProt(StringRef name) {
 static uint32_t flags(StringRef name) {
   // If we ever implement shared cache output support, SG_READ_ONLY should not
   // be used for dylibs that can be placed in it.
-  return name == segment_names::dataConst ? SG_READ_ONLY : 0;
+  return name == segment_names::dataConst ? (uint32_t)SG_READ_ONLY : 0;
 }
 
 size_t OutputSegment::numNonHiddenSections() const {
@@ -90,10 +90,11 @@ static int sectionOrder(OutputSection *osec) {
   // Sections are uniquely identified by their segment + section name.
   if (segname == segment_names::text) {
     return StringSwitch<int>(osec->name)
-        .Case(section_names::header, -5)
-        .Case(section_names::text, -4)
-        .Case(section_names::stubs, -3)
-        .Case(section_names::stubHelper, -2)
+        .Case(section_names::header, -6)
+        .Case(section_names::text, -5)
+        .Case(section_names::stubs, -4)
+        .Case(section_names::stubHelper, -3)
+        .Case(section_names::objcStubs, -2)
         .Case(section_names::initOffsets, -1)
         .Case(section_names::unwindInfo, std::numeric_limits<int>::max() - 1)
         .Case(section_names::ehFrame, std::numeric_limits<int>::max())
@@ -125,6 +126,7 @@ static int sectionOrder(OutputSection *osec) {
     }
   } else if (segname == segment_names::linkEdit) {
     return StringSwitch<int>(osec->name)
+        .Case(section_names::chainFixups, -11)
         .Case(section_names::rebase, -10)
         .Case(section_names::binding, -9)
         .Case(section_names::weakBinding, -8)

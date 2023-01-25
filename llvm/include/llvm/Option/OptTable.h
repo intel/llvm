@@ -10,6 +10,7 @@
 #define LLVM_OPTION_OPTTABLE_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Option/OptSpecifier.h"
@@ -43,8 +44,8 @@ public:
   struct Info {
     /// A null terminated array of prefix strings to apply to name while
     /// matching.
-    const char *const *Prefixes;
-    const char *Name;
+    ArrayRef<StringLiteral> Prefixes;
+    StringRef Name;
     const char *HelpText;
     const char *MetaVar;
     unsigned ID;
@@ -74,7 +75,7 @@ private:
   /// The union of all option prefixes. If an argument does not begin with
   /// one of these, it is an input.
   StringSet<> PrefixesUnion;
-  std::string PrefixChars;
+  SmallString<8> PrefixChars;
 
 private:
   const Info &getInfo(OptSpecifier Opt) const {
@@ -102,9 +103,7 @@ public:
   const Option getOption(OptSpecifier Opt) const;
 
   /// Lookup the name of the given option.
-  const char *getOptionName(OptSpecifier id) const {
-    return getInfo(id).Name;
-  }
+  StringRef getOptionName(OptSpecifier id) const { return getInfo(id).Name; }
 
   /// Get the kind of the given option.
   unsigned getOptionKind(OptSpecifier id) const {
@@ -184,7 +183,7 @@ public:
   ///  takes
   ///
   /// \return true in success, and false in fail.
-  bool addValues(const char *Option, const char *Values);
+  bool addValues(StringRef Option, const char *Values);
 
   /// Parse a single argument; returning the new argument and
   /// updating Index.

@@ -85,6 +85,12 @@ llvm::raw_ostream &fir::operator<<(llvm::raw_ostream &os,
 }
 
 llvm::raw_ostream &fir::operator<<(llvm::raw_ostream &os,
+                                   const fir::PolymorphicValue &p) {
+  return os << "polymorphicvalue: { addr: " << p.getAddr()
+            << ", tdesc: " << p.getTdesc() << " }";
+}
+
+llvm::raw_ostream &fir::operator<<(llvm::raw_ostream &os,
                                    const fir::ArrayBoxValue &box) {
   os << "boxarray { addr: " << box.getAddr();
   if (box.getLBounds().size()) {
@@ -204,7 +210,7 @@ bool fir::MutableBoxValue::verify() const {
 /// Debug verifier for BoxValue ctor. There is no guarantee this will
 /// always be called.
 bool fir::BoxValue::verify() const {
-  if (!addr.getType().isa<fir::BoxType>())
+  if (!addr.getType().isa<fir::BaseBoxType>())
     return false;
   if (!lbounds.empty() && lbounds.size() != rank())
     return false;

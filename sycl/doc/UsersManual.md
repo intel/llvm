@@ -4,7 +4,7 @@ This is the list of SYCL specific options supported by compiler and some
 examples.
 
 Options marked as [DEPRECATED] are going to be removed in some future updates.
-Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+Options marked as [EXPERIMENTAL] are expected to be used only in limited cases
 and not recommended to use in production environment.
 
 ## Generic options
@@ -32,9 +32,9 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
-    Special target values specific to Intel Processor Graphics support are
-    accepted, providing a streamlined interface for AOT. Only one of these
-    values at a time is supported.
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics
+    support are accepted, providing a streamlined interface for AOT. Only one of
+    these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
     * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
@@ -57,13 +57,48 @@ and not recommended to use in production environment.
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
     * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
     * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
+    * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
+    * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
+    * nvidia_gpu_sm_60 - NVIDIA Pascal architecture (compute capability 6.0)
+    * nvidia_gpu_sm_61 - NVIDIA Pascal architecture (compute capability 6.1)
+    * nvidia_gpu_sm_62 - NVIDIA Pascal architecture (compute capability 6.2)
+    * nvidia_gpu_sm_70 - NVIDIA Volta architecture (compute capability 7.0)
+    * nvidia_gpu_sm_72 - NVIDIA Volta architecture (compute capability 7.2)
+    * nvidia_gpu_sm_75 - NVIDIA Turing architecture (compute capability 7.5)
+    * nvidia_gpu_sm_80 - NVIDIA Ampere architecture (compute capability 8.0)
+    * nvidia_gpu_sm_86 - NVIDIA Ampere architecture (compute capability 8.6)
+    * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
+    * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx805 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx810 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx900 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1013 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
     SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1
+    * 121 - SYCL 1.2.1 [DEPRECATED]
     * 2020 - SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
@@ -112,7 +147,8 @@ and not recommended to use in production environment.
   Enables/Disables inlining of the kernel lambda operator into the compiler
   generated entry point function. This flag does not apply to ESIMD
   kernels.
-  Enabled by default.
+  Disabled when optimizations are disabled (-O0 or equivalent). Enabled
+  otherwise.
 
 **`-fgpu-inline-threshold=<n>`**
 
@@ -204,7 +240,8 @@ and not recommended to use in production environment.
       kernels grouped on per-source basis and all their dependencies, such as
       all used variables and called functions, including the `SYCL_EXTERNAL`
       macro-marked functions from other translation units.
-    * off - creates a single module for all kernels.
+    * off - creates a single module for all kernels. If `-fsycl-no-rdc` is
+      specified, the behavior is the same as per_source.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
@@ -263,6 +300,16 @@ and not recommended to use in production environment.
     the expected unbundling type even though the target given does not match.
     The forced target applies to all objects, archives and default device
     libraries.
+
+**`-f[no-]sycl-rdc`**
+
+    Enables/disables relocatable device code. If relocatable device code is
+    disabled, device code cannot use SYCL_EXTERNAL functions, which allows
+    the compiler to link device code on a per-translation-unit basis.
+    This may result in compile time and compiler memory usage improvements.
+    '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
+    additional device linking parallism for fat static archives.
+    Relocatable device code is enabled by default.
 
 ## Intel FPGA specific options
 

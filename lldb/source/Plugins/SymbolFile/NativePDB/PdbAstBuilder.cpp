@@ -21,7 +21,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/LLDBAssert.h"
-
 #include "PdbUtil.h"
 #include "UdtRecordCompleter.h"
 #include "SymbolFileNativePDB.h"
@@ -151,7 +150,7 @@ TranslateCallingConvention(llvm::codeview::CallingConvention conv) {
   case CC::NearVector:
     return clang::CallingConv::CC_X86VectorCall;
   default:
-    return llvm::None;
+    return std::nullopt;
   }
 }
 
@@ -285,19 +284,19 @@ llvm::Optional<CompilerDecl> PdbAstBuilder::GetOrCreateDeclForUid(PdbSymUid uid)
   case PdbSymUidKind::Type: {
     clang::QualType qt = GetOrCreateType(uid.asTypeSym());
     if (qt.isNull())
-      return llvm::None;
+      return std::nullopt;
     if (auto *tag = qt->getAsTagDecl()) {
       result = tag;
       break;
     }
-    return llvm::None;
+    return std::nullopt;
   }
   default:
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (!result)
-    return llvm::None;
+    return std::nullopt;
   m_uid_to_decl[toOpaqueUid(uid)] = result;
   return ToCompilerDecl(*result);
 }
@@ -477,7 +476,7 @@ bool PdbAstBuilder::CompleteTagDecl(clang::TagDecl &tag) {
   // Visit all members of this class, then perform any finalization necessary
   // to complete the class.
   CompilerType ct = ToCompilerType(tag_qt);
-  UdtRecordCompleter completer(best_ti, ct, tag, *this, index,
+  UdtRecordCompleter completer(best_ti, ct, tag, *this, index, m_decl_to_status,
                                m_cxx_record_map);
   llvm::Error error =
       llvm::codeview::visitMemberRecordStream(field_list.Data, completer);
@@ -1232,8 +1231,11 @@ static bool isBlockDecl(clang::DeclContext &context) {
   return llvm::isa<clang::BlockDecl>(&context);
 }
 
-void PdbAstBuilder::ParseAllNamespacesPlusChildrenOf(
-    llvm::Optional<llvm::StringRef> parent) {
+void PdbAstBuilder::ParseNamespace(clang::DeclContext &context) {
+  clang::NamespaceDecl *ns = llvm::dyn_cast<clang::NamespaceDecl>(&context);
+  if (m_parsed_namespaces.contains(ns))
+    return;
+  std::string qname = ns->getQualifiedNameAsString();
   SymbolFileNativePDB *pdb = static_cast<SymbolFileNativePDB *>(
       m_clang.GetSymbolFile()->GetBackingSymbolFile());
   PdbIndex &index = pdb->GetIndex();
@@ -1247,12 +1249,6 @@ void PdbAstBuilder::ParseAllNamespacesPlusChildrenOf(
 
     CVTagRecord tag = CVTagRecord::create(cvt);
 
-    if (!parent) {
-      clang::QualType qt = GetOrCreateType(tid);
-      CompleteType(qt);
-      continue;
-    }
-
     // Call CreateDeclInfoForType unconditionally so that the namespace info
     // gets created.  But only call CreateRecordType if the namespace name
     // matches.
@@ -1263,41 +1259,68 @@ void PdbAstBuilder::ParseAllNamespacesPlusChildrenOf(
       continue;
 
     clang::NamespaceDecl *ns = llvm::cast<clang::NamespaceDecl>(context);
-    std::string actual_ns = ns->getQualifiedNameAsString();
-    if (llvm::StringRef(actual_ns).startswith(*parent)) {
-      clang::QualType qt = GetOrCreateType(tid);
-      CompleteType(qt);
-      continue;
+    llvm::StringRef ns_name = ns->getName();
+    if (ns_name.startswith(qname)) {
+      ns_name = ns_name.drop_front(qname.size());
+      if (ns_name.startswith("::"))
+        GetOrCreateType(tid);
     }
   }
+  ParseAllFunctionsAndNonLocalVars();
+  m_parsed_namespaces.insert(ns);
+}
 
-  uint32_t module_count = index.dbi().modules().getModuleCount();
-  for (uint16_t modi = 0; modi < module_count; ++modi) {
-    CompilandIndexItem &cii = index.compilands().GetOrCreateCompiland(modi);
-    const CVSymbolArray &symbols = cii.m_debug_stream.getSymbolArray();
-    auto iter = symbols.begin();
-    while (iter != symbols.end()) {
-      PdbCompilandSymId sym_id{modi, iter.offset()};
+void PdbAstBuilder::ParseAllTypes() {
+  llvm::call_once(m_parse_all_types, [this]() {
+    SymbolFileNativePDB *pdb = static_cast<SymbolFileNativePDB *>(
+        m_clang.GetSymbolFile()->GetBackingSymbolFile());
+    PdbIndex &index = pdb->GetIndex();
+    TypeIndex ti{index.tpi().TypeIndexBegin()};
+    for (const CVType &cvt : index.tpi().typeArray()) {
+      PdbTypeSymId tid{ti};
+      ++ti;
 
-      switch (iter->kind()) {
-      case S_GPROC32:
-      case S_LPROC32:
-        GetOrCreateFunctionDecl(sym_id);
-        iter = symbols.at(getScopeEndOffset(*iter));
-        break;
-      case S_GDATA32:
-      case S_GTHREAD32:
-      case S_LDATA32:
-      case S_LTHREAD32:
-        GetOrCreateVariableDecl(PdbCompilandSymId(modi, 0), sym_id);
-        ++iter;
-        break;
-      default:
-        ++iter;
+      if (!IsTagRecord(cvt))
         continue;
+
+      GetOrCreateType(tid);
+    }
+  });
+}
+
+void PdbAstBuilder::ParseAllFunctionsAndNonLocalVars() {
+  llvm::call_once(m_parse_functions_and_non_local_vars, [this]() {
+    SymbolFileNativePDB *pdb = static_cast<SymbolFileNativePDB *>(
+        m_clang.GetSymbolFile()->GetBackingSymbolFile());
+    PdbIndex &index = pdb->GetIndex();
+    uint32_t module_count = index.dbi().modules().getModuleCount();
+    for (uint16_t modi = 0; modi < module_count; ++modi) {
+      CompilandIndexItem &cii = index.compilands().GetOrCreateCompiland(modi);
+      const CVSymbolArray &symbols = cii.m_debug_stream.getSymbolArray();
+      auto iter = symbols.begin();
+      while (iter != symbols.end()) {
+        PdbCompilandSymId sym_id{modi, iter.offset()};
+
+        switch (iter->kind()) {
+        case S_GPROC32:
+        case S_LPROC32:
+          GetOrCreateFunctionDecl(sym_id);
+          iter = symbols.at(getScopeEndOffset(*iter));
+          break;
+        case S_GDATA32:
+        case S_GTHREAD32:
+        case S_LDATA32:
+        case S_LTHREAD32:
+          GetOrCreateVariableDecl(PdbCompilandSymId(modi, 0), sym_id);
+          ++iter;
+          break;
+        default:
+          ++iter;
+          continue;
+        }
       }
     }
-  }
+  });
 }
 
 static CVSymbolArray skipFunctionParameters(clang::Decl &decl,
@@ -1384,14 +1407,13 @@ void PdbAstBuilder::ParseDeclsForContext(clang::DeclContext &context) {
   // work (such as parsing the items that appear within the namespaces) at the
   // same time.
   if (context.isTranslationUnit()) {
-    ParseAllNamespacesPlusChildrenOf(llvm::None);
+    ParseAllTypes();
+    ParseAllFunctionsAndNonLocalVars();
     return;
   }
 
   if (context.isNamespace()) {
-    clang::NamespaceDecl &ns = *llvm::dyn_cast<clang::NamespaceDecl>(&context);
-    std::string qname = ns.getQualifiedNameAsString();
-    ParseAllNamespacesPlusChildrenOf(llvm::StringRef{qname});
+    ParseNamespace(context);
     return;
   }
 
@@ -1406,7 +1428,7 @@ CompilerDecl PdbAstBuilder::ToCompilerDecl(clang::Decl &decl) {
 }
 
 CompilerType PdbAstBuilder::ToCompilerType(clang::QualType qt) {
-  return {&m_clang, qt.getAsOpaquePtr()};
+  return {m_clang.weak_from_this(), qt.getAsOpaquePtr()};
 }
 
 CompilerDeclContext

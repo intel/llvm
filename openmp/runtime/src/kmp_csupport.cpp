@@ -332,6 +332,37 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
 
 /*!
 @ingroup PARALLEL
+@param loc  source location information
+@param microtask  pointer to callback routine consisting of outlined parallel
+construct
+@param cond  condition for running in parallel
+@param args  struct of pointers to shared variables that aren't global
+
+Perform a fork only if the condition is true.
+*/
+void __kmpc_fork_call_if(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
+                         kmp_int32 cond, void *args) {
+  int gtid = __kmp_entry_gtid();
+  int zero = 0;
+  if (cond) {
+    if (args)
+      __kmpc_fork_call(loc, argc, microtask, args);
+    else
+      __kmpc_fork_call(loc, argc, microtask);
+  } else {
+    __kmpc_serialized_parallel(loc, gtid);
+
+    if (args)
+      microtask(&gtid, &zero, args);
+    else
+      microtask(&gtid, &zero);
+
+    __kmpc_end_serialized_parallel(loc, gtid);
+  }
+}
+
+/*!
+@ingroup PARALLEL
 @param loc source location information
 @param global_tid global thread number
 @param num_teams number of teams requested for the teams construct
@@ -633,7 +664,7 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
                 global_tid, this_thr->th.th_task_team, this_thr->th.th_team));
     }
 #if KMP_AFFINITY_SUPPORTED
-    if (this_thr->th.th_team->t.t_level == 0 && __kmp_affin_reset) {
+    if (this_thr->th.th_team->t.t_level == 0 && __kmp_affinity.flags.reset) {
       __kmp_reset_root_init_mask(global_tid);
     }
 #endif
@@ -1989,7 +2020,8 @@ void KMP_EXPAND_NAME(ompc_display_affinity)(char const *format) {
   __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
 #if KMP_AFFINITY_SUPPORTED
-  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 && __kmp_affin_reset) {
+  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 &&
+      __kmp_affinity.flags.reset) {
     __kmp_reset_root_init_mask(gtid);
   }
 #endif
@@ -2007,7 +2039,8 @@ size_t KMP_EXPAND_NAME(ompc_capture_affinity)(char *buffer, size_t buf_size,
   __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
 #if KMP_AFFINITY_SUPPORTED
-  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 && __kmp_affin_reset) {
+  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 &&
+      __kmp_affinity.flags.reset) {
     __kmp_reset_root_init_mask(gtid);
   }
 #endif

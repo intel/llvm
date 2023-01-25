@@ -449,10 +449,8 @@ unsigned Parser::ParseAttributeArgsCommon(
                        ? Sema::ExpressionEvaluationContext::Unevaluated
                        : Sema::ExpressionEvaluationContext::ConstantEvaluated);
 
-      CommaLocsTy CommaLocs;
       ExprVector ParsedExprs;
-      if (ParseExpressionList(ParsedExprs, CommaLocs,
-                              llvm::function_ref<void()>(),
+      if (ParseExpressionList(ParsedExprs, llvm::function_ref<void()>(),
                               /*FailImmediatelyOnInvalidExpr=*/true,
                               /*EarlyTypoCorrection=*/true)) {
         SkipUntil(tok::r_paren, StopAtSemi);
@@ -910,6 +908,17 @@ void Parser::ParseCUDAFunctionAttributes(ParsedAttributes &attrs) {
 void Parser::ParseOpenCLQualifiers(ParsedAttributes &Attrs) {
   IdentifierInfo *AttrName = Tok.getIdentifierInfo();
   SourceLocation AttrNameLoc = Tok.getLocation();
+  Attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
+               ParsedAttr::AS_Keyword);
+}
+
+bool Parser::isHLSLQualifier(const Token &Tok) const {
+  return Tok.is(tok::kw_groupshared);
+}
+
+void Parser::ParseHLSLQualifiers(ParsedAttributes &Attrs) {
+  IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+  SourceLocation AttrNameLoc = ConsumeToken();
   Attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
                ParsedAttr::AS_Keyword);
 }
@@ -2054,6 +2063,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     return nullptr;
   }
 
+  if (getLangOpts().HLSL)
+    MaybeParseHLSLSemantics(D);
+
   if (Tok.is(tok::kw_requires))
     ParseTrailingRequiresClause(D);
 
@@ -2223,6 +2235,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       DiagnoseAndSkipExtendedMicrosoftTypeAttributes();
 
     ParseDeclarator(D);
+
+    if (getLangOpts().HLSL)
+      MaybeParseHLSLSemantics(D);
+
     if (!D.isInvalidType()) {
       // C++2a [dcl.decl]p1
       //    init-declarator:
@@ -2405,8 +2421,8 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         // Recover as if it were an explicit specialization.
         TemplateParameterLists FakedParamLists;
         FakedParamLists.push_back(Actions.ActOnTemplateParameterList(
-            0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc, None,
-            LAngleLoc, nullptr));
+            0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc,
+            std::nullopt, LAngleLoc, nullptr));
 
         ThisDecl =
             Actions.ActOnTemplateDeclarator(getCurScope(), FakedParamLists, D);
@@ -2481,7 +2497,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     T.consumeOpen();
 
     ExprVector Exprs;
-    CommaLocsTy CommaLocs;
 
     InitializerScopeRAII InitScope(*this, D, ThisDecl);
 
@@ -2506,7 +2521,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       // ProduceConstructorSignatureHelp only on VarDecls.
       ExpressionStarts = SetPreferredType;
     }
-    if (ParseExpressionList(Exprs, CommaLocs, ExpressionStarts)) {
+    if (ParseExpressionList(Exprs, ExpressionStarts)) {
       if (ThisVarDecl && PP.isCodeCompletionReached() && !CalledSignatureHelp) {
         Actions.ProduceConstructorSignatureHelp(
             ThisVarDecl->getType()->getCanonicalTypeInternal(),
@@ -2519,10 +2534,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     } else {
       // Match the ')'.
       T.consumeClose();
-
-      assert(!Exprs.empty() && Exprs.size()-1 == CommaLocs.size() &&
-             "Unexpected number of commas!");
-
       InitScope.pop();
 
       ExprResult Initializer = Actions.ActOnParenListExpr(T.getOpenLocation(),
@@ -3689,11 +3700,18 @@ void Parser::ParseDeclarationSpecifiers(
 
       if (TemplateId->Kind == TNK_Concept_template) {
         // If we've already diagnosed that this type-constraint has invalid
-        // arguemnts, drop it and just form 'auto' or 'decltype(auto)'.
+        // arguments, drop it and just form 'auto' or 'decltype(auto)'.
         if (TemplateId->hasInvalidArgs())
           TemplateId = nullptr;
 
-        if (NextToken().is(tok::identifier)) {
+        // Any of the following tokens are likely the start of the user
+        // forgetting 'auto' or 'decltype(auto)', so diagnose.
+        // Note: if updating this list, please make sure we update
+        // isCXXDeclarationSpecifier's check for IsPlaceholderSpecifier to have
+        // a matching list.
+        if (NextToken().isOneOf(tok::identifier, tok::kw_const,
+                                tok::kw_volatile, tok::kw_restrict, tok::amp,
+                                tok::ampamp)) {
           Diag(Loc, diag::err_placeholder_expected_auto_or_decltype_auto)
               << FixItHint::CreateInsertion(NextToken().getLocation(), "auto");
           // Attempt to continue as if 'auto' was placed here.
@@ -4322,6 +4340,11 @@ void Parser::ParseDeclarationSpecifiers(
     case tok::kw___read_write:
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
+
+    case tok::kw_groupshared:
+      // NOTE: ParseHLSLQualifiers will consume the qualifier token.
+      ParseHLSLQualifiers(DS.getAttributes());
+      continue;
 
     case tok::less:
       // GCC ObjC supports types like "<SomeProtocol>" as a synonym for
@@ -5346,6 +5369,8 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___read_only:
   case tok::kw___read_write:
   case tok::kw___write_only:
+
+  case tok::kw_groupshared:
     return true;
 
   case tok::kw_private:
@@ -5355,6 +5380,25 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw__Atomic:
     return true;
   }
+}
+
+Parser::DeclGroupPtrTy Parser::ParseTopLevelStmtDecl() {
+  assert(PP.isIncrementalProcessingEnabled() && "Not in incremental mode");
+
+  // Parse a top-level-stmt.
+  Parser::StmtVector Stmts;
+  ParsedStmtContext SubStmtCtx = ParsedStmtContext();
+  StmtResult R = ParseStatementOrDeclaration(Stmts, SubStmtCtx);
+  if (!R.isUsable())
+    return nullptr;
+
+  SmallVector<Decl *, 2> DeclsInGroup;
+  DeclsInGroup.push_back(Actions.ActOnTopLevelStmtDecl(R.get()));
+  // Currently happens for things like  -fms-extensions and use `__if_exists`.
+  for (Stmt *S : Stmts)
+    DeclsInGroup.push_back(Actions.ActOnTopLevelStmtDecl(S));
+
+  return Actions.BuildDeclaratorGroup(DeclsInGroup);
 }
 
 /// isDeclarationSpecifier() - Return true if the current token is part of a
@@ -5405,6 +5449,8 @@ bool Parser::isDeclarationSpecifier(
     return isDeclarationSpecifier(AllowImplicitTypename);
 
   case tok::coloncolon:   // ::foo::bar
+    if (!getLangOpts().CPlusPlus)
+      return false;
     if (NextToken().is(tok::kw_new) ||    // ::new
         NextToken().is(tok::kw_delete))   // ::delete
       return false;
@@ -5586,6 +5632,7 @@ bool Parser::isDeclarationSpecifier(
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
 
+  case tok::kw_groupshared:
     return true;
 
   case tok::kw_private:
@@ -5812,6 +5859,11 @@ void Parser::ParseTypeQualifierListOpt(
     case tok::kw___read_write:
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
+
+    case tok::kw_groupshared:
+      // NOTE: ParseHLSLQualifiers will consume the qualifier token.
+      ParseHLSLQualifiers(DS.getAttributes());
+      continue;
 
     case tok::kw___unaligned:
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_unaligned, Loc, PrevSpec, DiagID,
@@ -7166,7 +7218,8 @@ void Parser::ParseParameterDeclarationClause(
 
     // Parse GNU attributes, if present.
     MaybeParseGNUAttributes(ParmDeclarator);
-    MaybeParseHLSLSemantics(DS.getAttributes());
+    if (getLangOpts().HLSL)
+      MaybeParseHLSLSemantics(DS.getAttributes());
 
     if (Tok.is(tok::kw_requires)) {
       // User tried to define a requires clause in a parameter declaration,

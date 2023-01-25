@@ -121,9 +121,9 @@ static void removeEmptyPTLoad(SmallVector<PhdrEntry *, 0> &phdrs) {
 
 void elf::copySectionsIntoPartitions() {
   SmallVector<InputSectionBase *, 0> newSections;
-  const size_t ehSize = ehInputSections.size();
+  const size_t ehSize = ctx.ehInputSections.size();
   for (unsigned part = 2; part != partitions.size() + 1; ++part) {
-    for (InputSectionBase *s : inputSections) {
+    for (InputSectionBase *s : ctx.inputSections) {
       if (!(s->flags & SHF_ALLOC) || !s->isLive() || s->type != SHT_NOTE)
         continue;
       auto *copy = make<InputSection>(cast<InputSection>(*s));
@@ -131,15 +131,15 @@ void elf::copySectionsIntoPartitions() {
       newSections.push_back(copy);
     }
     for (size_t i = 0; i != ehSize; ++i) {
-      assert(ehInputSections[i]->isLive());
-      auto *copy = make<EhInputSection>(*ehInputSections[i]);
+      assert(ctx.ehInputSections[i]->isLive());
+      auto *copy = make<EhInputSection>(*ctx.ehInputSections[i]);
       copy->partition = part;
-      ehInputSections.push_back(copy);
+      ctx.ehInputSections.push_back(copy);
     }
   }
 
-  inputSections.insert(inputSections.end(), newSections.begin(),
-                       newSections.end());
+  ctx.inputSections.insert(ctx.inputSections.end(), newSections.begin(),
+                           newSections.end());
 }
 
 static Defined *addOptionalRegular(StringRef name, SectionBase *sec,
@@ -273,16 +273,16 @@ template <class ELFT> void elf::createSyntheticSections() {
     for (size_t i = 1; i <= partitions.size(); ++i) {
       InputSection *sec = createInterpSection();
       sec->partition = i;
-      inputSections.push_back(sec);
+      ctx.inputSections.push_back(sec);
     }
   }
 
-  auto add = [](SyntheticSection &sec) { inputSections.push_back(&sec); };
+  auto add = [](SyntheticSection &sec) { ctx.inputSections.push_back(&sec); };
 
   in.shStrTab = std::make_unique<StringTableSection>(".shstrtab", false);
 
   Out::programHeaders = make<OutputSection>("", 0, SHF_ALLOC);
-  Out::programHeaders->alignment = config->wordsize;
+  Out::programHeaders->addralign = config->wordsize;
 
   if (config->strip != StripPolicy::All) {
     in.strTab = std::make_unique<StringTableSection>(".strtab", false);
@@ -321,7 +321,7 @@ template <class ELFT> void elf::createSyntheticSections() {
   for (Partition &part : partitions) {
     auto add = [&](SyntheticSection &sec) {
       sec.partition = part.getNumber();
-      inputSections.push_back(&sec);
+      ctx.inputSections.push_back(&sec);
     };
 
     if (!part.name.empty()) {
@@ -398,13 +398,12 @@ template <class ELFT> void elf::createSyntheticSections() {
       }
       part.ehFrame = std::make_unique<EhFrameSection>();
       add(*part.ehFrame);
-    }
 
-    if (config->emachine == EM_ARM && !config->relocatable) {
-      // The ARMExidxsyntheticsection replaces all the individual .ARM.exidx
-      // InputSections.
-      part.armExidx = std::make_unique<ARMExidxSyntheticSection>();
-      add(*part.armExidx);
+      if (config->emachine == EM_ARM) {
+        // This section replaces all the individual .ARM.exidx InputSections.
+        part.armExidx = std::make_unique<ARMExidxSyntheticSection>();
+        add(*part.armExidx);
+      }
     }
 
     if (!config->packageMetadata.empty()) {
@@ -993,7 +992,7 @@ void PhdrEntry::add(OutputSection *sec) {
   lastSec = sec;
   if (!firstSec)
     firstSec = sec;
-  p_align = std::max(p_align, sec->alignment);
+  p_align = std::max(p_align, sec->addralign);
   if (p_type == PT_LOAD)
     sec->ptLoad = this;
 }
@@ -1005,7 +1004,7 @@ void PhdrEntry::add(OutputSection *sec) {
 // need these symbols, since IRELATIVE relocs are resolved through GOT
 // and PLT. For details, see http://www.airs.com/blog/archives/403.
 template <class ELFT> void Writer<ELFT>::addRelIpltSymbols() {
-  if (config->relocatable || config->isPic)
+  if (config->isPic)
     return;
 
   // By default, __rela_iplt_{start,end} belong to a dummy section 0
@@ -1032,8 +1031,8 @@ template <class ELFT> void Writer<ELFT>::setReservedSymbolSections() {
     // to the start of the .got or .got.plt section.
     InputSection *sec = in.gotPlt.get();
     if (!target->gotBaseSymInGotPlt)
-      sec = in.mipsGot.get() ? cast<InputSection>(in.mipsGot.get())
-                             : cast<InputSection>(in.got.get());
+      sec = in.mipsGot ? cast<InputSection>(in.mipsGot.get())
+                       : cast<InputSection>(in.got.get());
     ElfSym::globalOffsetTable->section = sec;
   }
 
@@ -1202,7 +1201,7 @@ static void maybeShuffle(DenseMap<const InputSectionBase *, int> &order) {
   if (config->shuffleSections.empty())
     return;
 
-  SmallVector<InputSectionBase *, 0> matched, sections = inputSections;
+  SmallVector<InputSectionBase *, 0> matched, sections = ctx.inputSections;
   matched.reserve(sections.size());
   for (const auto &patAndSeed : config->shuffleSections) {
     matched.clear();
@@ -1685,10 +1684,10 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   for (SectionCommand *cmd : script->sectionCommands)
     if (auto *osd = dyn_cast<OutputDesc>(cmd)) {
       OutputSection *osec = &osd->osec;
-      if (osec->addr % osec->alignment != 0)
+      if (osec->addr % osec->addralign != 0)
         warn("address (0x" + Twine::utohexstr(osec->addr) + ") of section " +
              osec->name + " is not a multiple of alignment (" +
-             Twine(osec->alignment) + ")");
+             Twine(osec->addralign) + ")");
     }
 }
 
@@ -1711,7 +1710,7 @@ static void fixSymbolsAfterShrinking() {
       if (!inputSec || !inputSec->bytesDropped)
         return;
 
-      const size_t OldSize = inputSec->rawData.size();
+      const size_t OldSize = inputSec->content().size();
       const size_t NewSize = OldSize - inputSec->bytesDropped;
 
       if (def->value > NewSize && def->value <= OldSize) {
@@ -1793,23 +1792,22 @@ static void removeUnusedSyntheticSections() {
   // All input synthetic sections that can be empty are placed after
   // all regular ones. Reverse iterate to find the first synthetic section
   // after a non-synthetic one which will be our starting point.
-  auto start = std::find_if(inputSections.rbegin(), inputSections.rend(),
-                            [](InputSectionBase *s) {
-                              return !isa<SyntheticSection>(s);
-                            })
-                   .base();
+  auto start =
+      llvm::find_if(llvm::reverse(ctx.inputSections), [](InputSectionBase *s) {
+        return !isa<SyntheticSection>(s);
+      }).base();
 
-  // Remove unused synthetic sections from inputSections;
+  // Remove unused synthetic sections from ctx.inputSections;
   DenseSet<InputSectionBase *> unused;
   auto end =
-      std::remove_if(start, inputSections.end(), [&](InputSectionBase *s) {
+      std::remove_if(start, ctx.inputSections.end(), [&](InputSectionBase *s) {
         auto *sec = cast<SyntheticSection>(s);
         if (sec->getParent() && sec->isNeeded())
           return false;
         unused.insert(sec);
         return true;
       });
-  inputSections.erase(end, inputSections.end());
+  ctx.inputSections.erase(end, ctx.inputSections.end());
 
   // Remove unused synthetic sections from the corresponding input section
   // description and orphanSections.
@@ -1827,124 +1825,125 @@ static void removeUnusedSyntheticSections() {
 
 // Create output section objects and add them to OutputSections.
 template <class ELFT> void Writer<ELFT>::finalizeSections() {
-  Out::preinitArray = findSection(".preinit_array");
-  Out::initArray = findSection(".init_array");
-  Out::finiArray = findSection(".fini_array");
-
-  // The linker needs to define SECNAME_start, SECNAME_end and SECNAME_stop
-  // symbols for sections, so that the runtime can get the start and end
-  // addresses of each section by section name. Add such symbols.
   if (!config->relocatable) {
+    Out::preinitArray = findSection(".preinit_array");
+    Out::initArray = findSection(".init_array");
+    Out::finiArray = findSection(".fini_array");
+
+    // The linker needs to define SECNAME_start, SECNAME_end and SECNAME_stop
+    // symbols for sections, so that the runtime can get the start and end
+    // addresses of each section by section name. Add such symbols.
     addStartEndSymbols();
     for (SectionCommand *cmd : script->sectionCommands)
       if (auto *osd = dyn_cast<OutputDesc>(cmd))
         addStartStopSymbols(osd->osec);
-  }
 
-  // Add _DYNAMIC symbol. Unlike GNU gold, our _DYNAMIC symbol has no type.
-  // It should be okay as no one seems to care about the type.
-  // Even the author of gold doesn't remember why gold behaves that way.
-  // https://sourceware.org/ml/binutils/2002-03/msg00360.html
-  if (mainPart->dynamic->parent)
-    symtab.addSymbol(Defined{/*file=*/nullptr, "_DYNAMIC", STB_WEAK, STV_HIDDEN,
-        STT_NOTYPE, /*value=*/0, /*size=*/0, mainPart->dynamic.get()})->isUsedInRegularObj = true;
-
-  // Define __rel[a]_iplt_{start,end} symbols if needed.
-  addRelIpltSymbols();
-
-  // RISC-V's gp can address +/- 2 KiB, set it to .sdata + 0x800. This symbol
-  // should only be defined in an executable. If .sdata does not exist, its
-  // value/section does not matter but it has to be relative, so set its
-  // st_shndx arbitrarily to 1 (Out::elfHeader).
-  if (config->emachine == EM_RISCV && !config->shared) {
-    OutputSection *sec = findSection(".sdata");
-    ElfSym::riscvGlobalPointer =
-        addOptionalRegular("__global_pointer$", sec ? sec : Out::elfHeader,
-                           0x800, STV_DEFAULT);
-  }
-
-  if (config->emachine == EM_386 || config->emachine == EM_X86_64) {
-    // On targets that support TLSDESC, _TLS_MODULE_BASE_ is defined in such a
-    // way that:
-    //
-    // 1) Without relaxation: it produces a dynamic TLSDESC relocation that
-    // computes 0.
-    // 2) With LD->LE relaxation: _TLS_MODULE_BASE_@tpoff = 0 (lowest address in
-    // the TLS block).
-    //
-    // 2) is special cased in @tpoff computation. To satisfy 1), we define it as
-    // an absolute symbol of zero. This is different from GNU linkers which
-    // define _TLS_MODULE_BASE_ relative to the first TLS section.
-    Symbol *s = symtab.find("_TLS_MODULE_BASE_");
-    if (s && s->isUndefined()) {
-      s->resolve(Defined{/*file=*/nullptr, StringRef(), STB_GLOBAL, STV_HIDDEN,
-                         STT_TLS, /*value=*/0, 0,
-                         /*section=*/nullptr});
-      ElfSym::tlsModuleBase = cast<Defined>(s);
+    // Add _DYNAMIC symbol. Unlike GNU gold, our _DYNAMIC symbol has no type.
+    // It should be okay as no one seems to care about the type.
+    // Even the author of gold doesn't remember why gold behaves that way.
+    // https://sourceware.org/ml/binutils/2002-03/msg00360.html
+    if (mainPart->dynamic->parent) {
+      Symbol *s = symtab.addSymbol(Defined{
+          /*file=*/nullptr, "_DYNAMIC", STB_WEAK, STV_HIDDEN, STT_NOTYPE,
+          /*value=*/0, /*size=*/0, mainPart->dynamic.get()});
+      s->isUsedInRegularObj = true;
     }
-  }
 
-  {
-    llvm::TimeTraceScope timeScope("Finalize .eh_frame");
+    // Define __rel[a]_iplt_{start,end} symbols if needed.
+    addRelIpltSymbols();
+
+    // RISC-V's gp can address +/- 2 KiB, set it to .sdata + 0x800. This symbol
+    // should only be defined in an executable. If .sdata does not exist, its
+    // value/section does not matter but it has to be relative, so set its
+    // st_shndx arbitrarily to 1 (Out::elfHeader).
+    if (config->emachine == EM_RISCV && !config->shared) {
+      OutputSection *sec = findSection(".sdata");
+      addOptionalRegular("__global_pointer$", sec ? sec : Out::elfHeader, 0x800,
+                         STV_DEFAULT);
+    }
+
+    if (config->emachine == EM_386 || config->emachine == EM_X86_64) {
+      // On targets that support TLSDESC, _TLS_MODULE_BASE_ is defined in such a
+      // way that:
+      //
+      // 1) Without relaxation: it produces a dynamic TLSDESC relocation that
+      // computes 0.
+      // 2) With LD->LE relaxation: _TLS_MODULE_BASE_@tpoff = 0 (lowest address
+      // in the TLS block).
+      //
+      // 2) is special cased in @tpoff computation. To satisfy 1), we define it
+      // as an absolute symbol of zero. This is different from GNU linkers which
+      // define _TLS_MODULE_BASE_ relative to the first TLS section.
+      Symbol *s = symtab.find("_TLS_MODULE_BASE_");
+      if (s && s->isUndefined()) {
+        s->resolve(Defined{/*file=*/nullptr, StringRef(), STB_GLOBAL,
+                           STV_HIDDEN, STT_TLS, /*value=*/0, 0,
+                           /*section=*/nullptr});
+        ElfSym::tlsModuleBase = cast<Defined>(s);
+      }
+    }
+
     // This responsible for splitting up .eh_frame section into
     // pieces. The relocation scan uses those pieces, so this has to be
     // earlier.
-    for (Partition &part : partitions)
-      finalizeSynthetic(part.ehFrame.get());
-  }
+    {
+      llvm::TimeTraceScope timeScope("Finalize .eh_frame");
+      for (Partition &part : partitions)
+        finalizeSynthetic(part.ehFrame.get());
+    }
 
-  if (config->hasDynSymTab) {
-    parallelForEach(symtab.getSymbols(), [](Symbol *sym) {
-      sym->isPreemptible = computeIsPreemptible(*sym);
-    });
+    if (config->hasDynSymTab) {
+      parallelForEach(symtab.getSymbols(), [](Symbol *sym) {
+        sym->isPreemptible = computeIsPreemptible(*sym);
+      });
+    }
   }
 
   // Change values of linker-script-defined symbols from placeholders (assigned
   // by declareSymbols) to actual definitions.
   script->processSymbolAssignments();
 
-  {
+  if (!config->relocatable) {
     llvm::TimeTraceScope timeScope("Scan relocations");
     // Scan relocations. This must be done after every symbol is declared so
     // that we can correctly decide if a dynamic relocation is needed. This is
     // called after processSymbolAssignments() because it needs to know whether
     // a linker-script-defined symbol is absolute.
     ppc64noTocRelax.clear();
-    if (!config->relocatable) {
-      scanRelocations<ELFT>();
-      reportUndefinedSymbols();
-      postScanRelocations();
-    }
-  }
+    scanRelocations<ELFT>();
+    reportUndefinedSymbols();
+    postScanRelocations();
 
-  if (in.plt && in.plt->isNeeded())
-    in.plt->addSymbols();
-  if (in.iplt && in.iplt->isNeeded())
-    in.iplt->addSymbols();
+    if (in.plt && in.plt->isNeeded())
+      in.plt->addSymbols();
+    if (in.iplt && in.iplt->isNeeded())
+      in.iplt->addSymbols();
 
-  if (config->unresolvedSymbolsInShlib != UnresolvedPolicy::Ignore) {
-    auto diagnose =
-        config->unresolvedSymbolsInShlib == UnresolvedPolicy::ReportError
-            ? errorOrWarn
-            : warn;
-    // Error on undefined symbols in a shared object, if all of its DT_NEEDED
-    // entries are seen. These cases would otherwise lead to runtime errors
-    // reported by the dynamic linker.
-    //
-    // ld.bfd traces all DT_NEEDED to emulate the logic of the dynamic linker to
-    // catch more cases. That is too much for us. Our approach resembles the one
-    // used in ld.gold, achieves a good balance to be useful but not too smart.
-    for (SharedFile *file : ctx.sharedFiles) {
-      bool allNeededIsKnown =
-          llvm::all_of(file->dtNeeded, [&](StringRef needed) {
-            return symtab.soNames.count(CachedHashStringRef(needed));
-          });
-      if (!allNeededIsKnown)
-        continue;
-      for (Symbol *sym : file->requiredSymbols)
-        if (sym->isUndefined() && !sym->isWeak())
-          diagnose("undefined reference due to --no-allow-shlib-undefined: " +
-                   toString(*sym) + "\n>>> referenced by " + toString(file));
+    if (config->unresolvedSymbolsInShlib != UnresolvedPolicy::Ignore) {
+      auto diagnose =
+          config->unresolvedSymbolsInShlib == UnresolvedPolicy::ReportError
+              ? errorOrWarn
+              : warn;
+      // Error on undefined symbols in a shared object, if all of its DT_NEEDED
+      // entries are seen. These cases would otherwise lead to runtime errors
+      // reported by the dynamic linker.
+      //
+      // ld.bfd traces all DT_NEEDED to emulate the logic of the dynamic linker
+      // to catch more cases. That is too much for us. Our approach resembles
+      // the one used in ld.gold, achieves a good balance to be useful but not
+      // too smart.
+      for (SharedFile *file : ctx.sharedFiles) {
+        bool allNeededIsKnown =
+            llvm::all_of(file->dtNeeded, [&](StringRef needed) {
+              return symtab.soNames.count(CachedHashStringRef(needed));
+            });
+        if (!allNeededIsKnown)
+          continue;
+        for (Symbol *sym : file->requiredSymbols)
+          if (sym->isUndefined() && !sym->isWeak())
+            diagnose("undefined reference due to --no-allow-shlib-undefined: " +
+                     toString(*sym) + "\n>>> referenced by " + toString(file));
+      }
     }
   }
 
@@ -2403,7 +2402,7 @@ SmallVector<PhdrEntry *, 0> Writer<ELFT>::createPhdrs(Partition &part) {
     if (sec->partition != partNo)
       continue;
     if (sec->type == SHT_NOTE && (sec->flags & SHF_ALLOC)) {
-      if (!note || sec->lmaExpr || note->lastSec->alignment != sec->alignment)
+      if (!note || sec->lmaExpr || note->lastSec->addralign != sec->addralign)
         note = addHdr(PT_NOTE, PF_R);
       note->add(sec);
     } else {
@@ -2437,7 +2436,7 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
     OutputSection *cmd = p->firstSec;
     if (!cmd)
       return;
-    cmd->alignExpr = [align = cmd->alignment]() { return align; };
+    cmd->alignExpr = [align = cmd->addralign]() { return align; };
     if (!cmd->addrExpr) {
       // Prefer advancing to align(dot, maxPageSize) + dot%maxPageSize to avoid
       // padding in the file contents.
@@ -2514,7 +2513,7 @@ static uint64_t computeFileOffset(OutputSection *os, uint64_t off) {
 
   // If the section is not in a PT_LOAD, we just have to align it.
   if (!os->ptLoad)
-     return alignToPowerOf2(off, os->alignment);
+     return alignToPowerOf2(off, os->addralign);
 
   // If two sections share the same PT_LOAD the file offset is calculated
   // using this formula: Off2 = Off1 + (VA2 - VA1).
@@ -2577,7 +2576,7 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsets() {
   }
   for (OutputSection *osec : outputSections)
     if (!(osec->flags & SHF_ALLOC)) {
-      osec->offset = alignToPowerOf2(off, osec->alignment);
+      osec->offset = alignToPowerOf2(off, osec->addralign);
       off = osec->offset + osec->size;
     }
 

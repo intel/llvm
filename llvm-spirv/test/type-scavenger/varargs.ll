@@ -20,8 +20,8 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @foo() {
   %iptr = alloca i32, align 4
-  %res = call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2) @.str, ptr %iptr)
+  %res = call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2cz(ptr addrspace(2) @.str, ptr %iptr)
   ret void
 }
 
-declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2), ...)
+declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2cz(ptr addrspace(2), ...)

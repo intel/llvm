@@ -57,7 +57,8 @@ enum ID {
 };
 
 struct Info {
-  const char *Name, *Type, *Attributes, *HeaderName;
+  llvm::StringRef Name;
+  const char *Type, *Attributes, *HeaderName;
   LanguageID Langs;
   const char *Features;
 };
@@ -86,9 +87,7 @@ public:
 
   /// Return the identifier name for the specified builtin,
   /// e.g. "__builtin_abs".
-  const char *getName(unsigned ID) const {
-    return getRecord(ID).Name;
-  }
+  llvm::StringRef getName(unsigned ID) const { return getRecord(ID).Name; }
 
   /// Get the type descriptor string for the specified builtin.
   const char *getTypeString(unsigned ID) const {
@@ -262,6 +261,11 @@ public:
   /// Returns true if this is a builtin that can be redeclared.  Returns true
   /// for non-builtins.
   bool canBeRedeclared(unsigned ID) const;
+
+  /// Return true if this function can be constant evaluated by Clang frontend.
+  bool isConstantEvaluated(unsigned ID) const {
+    return strchr(getRecord(ID).Attributes, 'E') != nullptr;
+  }
 
 private:
   const Info &getRecord(unsigned ID) const;

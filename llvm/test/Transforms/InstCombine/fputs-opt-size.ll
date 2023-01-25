@@ -1,9 +1,9 @@
 ; When optimising for size, we don't want to rewrite fputs to fwrite
 ; because it requires more arguments and thus extra MOVs are required.
 ;
-; RUN: opt < %s -instcombine -S | FileCheck %s
+; RUN: opt < %s -passes=instcombine -S | FileCheck %s
 ; RUN: opt < %s -passes='require<profile-summary>,function(instcombine)' -pgso -S | FileCheck %s -check-prefix=PGSO
-; RUN: opt < %s -instcombine -pgso=false -S | FileCheck %s -check-prefix=NPGSO
+; RUN: opt < %s -passes=instcombine -pgso=false -S | FileCheck %s -check-prefix=NPGSO
 
 %struct._IO_FILE = type { i32, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, i32, i32, i32, i16, i8, [1 x i8], ptr, i64, ptr, ptr, ptr, ptr, i32, i32, [40 x i8] }
 %struct._IO_marker = type { ptr, ptr, i32 }

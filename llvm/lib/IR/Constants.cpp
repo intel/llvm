@@ -87,7 +87,7 @@ bool Constant::isNullValue() const {
   // constant zero is zero for aggregates, cpnull is null for pointers, none for
   // tokens.
   return isa<ConstantAggregateZero>(this) || isa<ConstantPointerNull>(this) ||
-         isa<ConstantTokenNone>(this);
+         isa<ConstantTokenNone>(this) || isa<ConstantTargetNone>(this);
 }
 
 bool Constant::isAllOnesValue() const {
@@ -337,6 +337,12 @@ bool Constant::containsPoisonElement() const {
       this, [&](const auto *C) { return isa<PoisonValue>(C); });
 }
 
+bool Constant::containsUndefElement() const {
+  return containsUndefinedElement(this, [&](const auto *C) {
+    return isa<UndefValue>(C) && !isa<PoisonValue>(C);
+  });
+}
+
 bool Constant::containsConstantExpression() const {
   if (auto *VTy = dyn_cast<FixedVectorType>(getType())) {
     for (unsigned i = 0, e = VTy->getNumElements(); i != e; ++i)
@@ -369,6 +375,8 @@ Constant *Constant::getNullValue(Type *Ty) {
     return ConstantAggregateZero::get(Ty);
   case Type::TokenTyID:
     return ConstantTokenNone::get(Ty->getContext());
+  case Type::TargetExtTyID:
+    return ConstantTargetNone::get(cast<TargetExtType>(Ty));
   default:
     // Function, Label, or Opaque type?
     llvm_unreachable("Cannot create a null constant of that type!");
@@ -1710,6 +1718,25 @@ void ConstantPointerNull::destroyConstantImpl() {
   getContext().pImpl->CPNConstants.erase(getType());
 }
 
+//---- ConstantTargetNone::get() implementation.
+//
+
+ConstantTargetNone *ConstantTargetNone::get(TargetExtType *Ty) {
+  assert(Ty->hasProperty(TargetExtType::HasZeroInit) &&
+         "Target extension type not allowed to have a zeroinitializer");
+  std::unique_ptr<ConstantTargetNone> &Entry =
+      Ty->getContext().pImpl->CTNConstants[Ty];
+  if (!Entry)
+    Entry.reset(new ConstantTargetNone(Ty));
+
+  return Entry.get();
+}
+
+/// Remove the constant from the constant table.
+void ConstantTargetNone::destroyConstantImpl() {
+  getContext().pImpl->CTNConstants.erase(getType());
+}
+
 UndefValue *UndefValue::get(Type *Ty) {
   std::unique_ptr<UndefValue> &Entry = Ty->getContext().pImpl->UVConstants[Ty];
   if (!Entry)
@@ -2430,7 +2457,7 @@ Constant *ConstantExpr::getSelect(Constant *C, Constant *V1, Constant *V2,
 
 Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
                                          ArrayRef<Value *> Idxs, bool InBounds,
-                                         Optional<unsigned> InRangeIndex,
+                                         std::optional<unsigned> InRangeIndex,
                                          Type *OnlyIfReducedTy) {
   PointerType *OrigPtrTy = cast<PointerType>(C->getType()->getScalarType());
   assert(Ty && "Must specify element type");
@@ -2487,7 +2514,7 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
   if (InRangeIndex && *InRangeIndex < 63)
     SubClassOptionalData |= (*InRangeIndex + 1) << 1;
   const ConstantExprKeyType Key(Instruction::GetElementPtr, ArgVec, 0,
-                                SubClassOptionalData, None, Ty);
+                                SubClassOptionalData, std::nullopt, Ty);
 
   LLVMContextImpl *pImpl = C->getContext().pImpl;
   return pImpl->ExprConstants.getOrCreate(ReqTy, Key);

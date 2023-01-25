@@ -95,6 +95,13 @@ enum {
   // compiler has free to select either one.
   UsesMaskPolicyShift = IsRVVWideningReductionShift + 1,
   UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
+
+  // Indicates that the result can be considered sign extended from bit 31. Some
+  // instructions with this flag aren't W instructions, but are either sign
+  // extended from a smaller size, always outputs a small integer, or put zeros
+  // in bits 63:31. Used by the SExtWRemoval pass.
+  IsSignExtendingOpWShift = UsesMaskPolicyShift + 1,
+  IsSignExtendingOpWMask = 1ULL << IsSignExtendingOpWShift,
 };
 
 // Match with the definitions in RISCVInstrFormats.td
@@ -454,6 +461,8 @@ inline static bool isTailAgnostic(unsigned VType) { return VType & 0x40; }
 inline static bool isMaskAgnostic(unsigned VType) { return VType & 0x80; }
 
 void printVType(unsigned VType, raw_ostream &OS);
+
+unsigned getSEWLMULRatio(unsigned SEW, RISCVII::VLMUL VLMul);
 
 } // namespace RISCVVType
 

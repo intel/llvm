@@ -242,24 +242,21 @@ std::string BinaryFunction::buildColdCodeSectionName(StringRef Name,
 
 uint64_t BinaryFunction::Count = 0;
 
-Optional<StringRef> BinaryFunction::hasNameRegex(const StringRef Name) const {
+std::optional<StringRef>
+BinaryFunction::hasNameRegex(const StringRef Name) const {
   const std::string RegexName = (Twine("^") + StringRef(Name) + "$").str();
   Regex MatchName(RegexName);
-  Optional<StringRef> Match = forEachName(
+  return forEachName(
       [&MatchName](StringRef Name) { return MatchName.match(Name); });
-
-  return Match;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 BinaryFunction::hasRestoredNameRegex(const StringRef Name) const {
   const std::string RegexName = (Twine("^") + StringRef(Name) + "$").str();
   Regex MatchName(RegexName);
-  Optional<StringRef> Match = forEachName([&MatchName](StringRef Name) {
+  return forEachName([&MatchName](StringRef Name) {
     return MatchName.match(NameResolver::restore(Name));
   });
-
-  return Match;
 }
 
 std::string BinaryFunction::getDemangledName() const {
@@ -395,7 +392,7 @@ bool BinaryFunction::isForwardCall(const MCSymbol *CalleeSymbol) const {
   }
 }
 
-void BinaryFunction::dump(bool PrintInstructions) const {
+void BinaryFunction::dump() const {
   // getDynoStats calls FunctionLayout::updateLayoutIndices and
   // BasicBlock::analyzeBranch. The former cannot be const, but should be
   // removed, the latter should be made const, but seems to require refactoring.
@@ -405,11 +402,10 @@ void BinaryFunction::dump(bool PrintInstructions) const {
   // modified. Only BinaryBasicBlocks are actually modified (if it all) and we
   // have mutable pointers to those regardless whether this function is
   // const-qualified or not.
-  const_cast<BinaryFunction &>(*this).print(dbgs(), "", PrintInstructions);
+  const_cast<BinaryFunction &>(*this).print(dbgs(), "");
 }
 
-void BinaryFunction::print(raw_ostream &OS, std::string Annotation,
-                           bool PrintInstructions) {
+void BinaryFunction::print(raw_ostream &OS, std::string Annotation) {
   if (!opts::shouldPrint(*this))
     return;
 
@@ -488,7 +484,7 @@ void BinaryFunction::print(raw_ostream &OS, std::string Annotation,
 
   OS << "\n}\n";
 
-  if (opts::PrintDynoStatsOnly || !PrintInstructions || !BC.InstPrinter)
+  if (opts::PrintDynoStatsOnly || !BC.InstPrinter)
     return;
 
   // Offset of the instruction in function.
@@ -1047,16 +1043,11 @@ void BinaryFunction::handlePCRelOperand(MCInst &Instruction, uint64_t Address,
   uint64_t TargetOffset;
   std::tie(TargetSymbol, TargetOffset) =
       BC.handleAddressRef(TargetAddress, *this, /*IsPCRel*/ true);
-  const MCExpr *Expr =
-      MCSymbolRefExpr::create(TargetSymbol, MCSymbolRefExpr::VK_None, *BC.Ctx);
-  if (TargetOffset) {
-    const MCConstantExpr *Offset =
-        MCConstantExpr::create(TargetOffset, *BC.Ctx);
-    Expr = MCBinaryExpr::createAdd(Expr, Offset, *BC.Ctx);
-  }
-  MIB->replaceMemOperandDisp(Instruction,
-                             MCOperand::createExpr(BC.MIB->getTargetExprFor(
-                                 Instruction, Expr, *BC.Ctx, 0)));
+
+  bool ReplaceSuccess = MIB->replaceMemOperandDisp(
+      Instruction, TargetSymbol, static_cast<int64_t>(TargetOffset), &*BC.Ctx);
+  (void)ReplaceSuccess;
+  assert(ReplaceSuccess && "Failed to replace mem operand with symbol+off.");
 }
 
 MCSymbol *BinaryFunction::handleExternalReference(MCInst &Instruction,
@@ -1222,7 +1213,7 @@ bool BinaryFunction::disassemble() {
     // Check integrity of LLVM assembler/disassembler.
     if (opts::CheckEncoding && !BC.MIB->isBranch(Instruction) &&
         !BC.MIB->isCall(Instruction) && !BC.MIB->isNoop(Instruction)) {
-      if (!BC.validateEncoding(Instruction, FunctionData.slice(Offset, Size))) {
+      if (!BC.validateInstructionEncoding(FunctionData.slice(Offset, Size))) {
         errs() << "BOLT-WARNING: mismatching LLVM encoding detected in "
                << "function " << *this << " for instruction :\n";
         BC.printInstruction(errs(), Instruction, AbsoluteInstrAddr);
@@ -1238,15 +1229,10 @@ bool BinaryFunction::disassemble() {
         break;
       }
 
-      // Disassemble again without the symbolizer and check that the disassembly
-      // matches the assembler output.
-      MCInst TempInst;
-      BC.DisAsm->getInstruction(TempInst, Size, FunctionData.slice(Offset),
-                                AbsoluteInstrAddr, nulls());
-      if (!BC.validateEncoding(TempInst, FunctionData.slice(Offset, Size))) {
+      if (!BC.validateInstructionEncoding(FunctionData.slice(Offset, Size))) {
         errs() << "BOLT-WARNING: internal assembler/disassembler error "
                   "detected for AVX512 instruction:\n";
-        BC.printInstruction(errs(), TempInst, AbsoluteInstrAddr);
+        BC.printInstruction(errs(), Instruction, AbsoluteInstrAddr);
         errs() << " in function " << *this << '\n';
         setIgnored();
         break;
@@ -1558,7 +1544,7 @@ bool BinaryFunction::scanExternalRefs() {
 
     // Create relocation for every fixup.
     for (const MCFixup &Fixup : Fixups) {
-      Optional<Relocation> Rel = BC.MIB->createRelocation(Fixup, *BC.MAB);
+      std::optional<Relocation> Rel = BC.MIB->createRelocation(Fixup, *BC.MAB);
       if (!Rel) {
         Success = false;
         continue;
@@ -1933,7 +1919,8 @@ void BinaryFunction::recomputeLandingPads() {
       if (!BC.MIB->isInvoke(Instr))
         continue;
 
-      const Optional<MCPlus::MCLandingPad> EHInfo = BC.MIB->getEHInfo(Instr);
+      const std::optional<MCPlus::MCLandingPad> EHInfo =
+          BC.MIB->getEHInfo(Instr);
       if (!EHInfo || !EHInfo->first)
         continue;
 
@@ -2290,7 +2277,7 @@ void BinaryFunction::removeConditionalTailCalls() {
     if (!CTCInstr)
       continue;
 
-    Optional<uint64_t> TargetAddressOrNone =
+    std::optional<uint64_t> TargetAddressOrNone =
         BC.MIB->getConditionalTailCall(*CTCInstr);
     if (!TargetAddressOrNone)
       continue;
@@ -2481,7 +2468,8 @@ private:
       CFARule = UNKNOWN;
       break;
     case MCCFIInstruction::OpEscape: {
-      Optional<uint8_t> Reg = readDWARFExpressionTargetReg(Instr.getValues());
+      std::optional<uint8_t> Reg =
+          readDWARFExpressionTargetReg(Instr.getValues());
       // Handle DW_CFA_def_cfa_expression
       if (!Reg) {
         CFARule = RuleNumber;
@@ -2585,7 +2573,8 @@ struct CFISnapshotDiff : public CFISnapshot {
       if (Instr.getOperation() != MCCFIInstruction::OpEscape) {
         Reg = Instr.getRegister();
       } else {
-        Optional<uint8_t> R = readDWARFExpressionTargetReg(Instr.getValues());
+        std::optional<uint8_t> R =
+            readDWARFExpressionTargetReg(Instr.getValues());
         // Handle DW_CFA_def_cfa_expression
         if (!R) {
           if (RestoredCFAReg && RestoredCFAOffset)
@@ -2731,7 +2720,8 @@ BinaryFunction::unwindCFIState(int32_t FromState, int32_t ToState,
       if (Instr.getOperation() != MCCFIInstruction::OpEscape) {
         Reg = Instr.getRegister();
       } else {
-        Optional<uint8_t> R = readDWARFExpressionTargetReg(Instr.getValues());
+        std::optional<uint8_t> R =
+            readDWARFExpressionTargetReg(Instr.getValues());
         // Handle DW_CFA_def_cfa_expression
         if (!R) {
           undoStateDefCfa();

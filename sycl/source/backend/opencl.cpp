@@ -36,7 +36,8 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
 //----------------------------------------------------------------------------
 // Implementation of opencl::make<context>
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
-  return detail::make_context(NativeHandle, async_handler{}, backend::opencl);
+  return detail::make_context(NativeHandle, detail::defaultAsyncHandler,
+                              backend::opencl);
 }
 
 //----------------------------------------------------------------------------

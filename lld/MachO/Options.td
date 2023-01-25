@@ -54,8 +54,11 @@ def : Flag<["--"], "time-trace">,
 def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
     HelpText<"Minimum time granularity (in microseconds) traced by time profiler">,
     Group<grp_lld>;
-def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
-    HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
+def deduplicate_strings: Flag<["--"], "deduplicate-strings">,
+    HelpText<"Enable string deduplication">,
+    Group<grp_lld>;
+def no_deduplicate_strings: Flag<["--"], "no-deduplicate-strings">,
+    HelpText<"Disable string deduplication. This helps uncover cases of comparing string addresses instead of equality and might have a link time performance benefit.">,
     Group<grp_lld>;
 def dead_strip_duplicates: Flag<["--"], "dead-strip-duplicates">,
     HelpText<"Do not error on duplicate symbols that will be dead stripped.">,
@@ -94,6 +97,15 @@ def no_call_graph_profile_sort : Flag<["--"], "no-call-graph-profile-sort">,
     Group<grp_lld>;
 def print_symbol_order_eq: Joined<["--"], "print-symbol-order=">,
     HelpText<"Print a symbol order specified by --call-graph-profile-sort into the specified file">,
+    Group<grp_lld>;
+def ignore_auto_link_option : Separate<["--"], "ignore-auto-link-option">,
+    Group<grp_lld>;
+def ignore_auto_link_option_eq : Joined<["--"], "ignore-auto-link-option=">,
+    Alias<!cast<Separate>(ignore_auto_link_option)>,
+    HelpText<"Ignore a single auto-linked library or framework. Useful to ignore invalid options that ld64 ignores">,
+    Group<grp_lld>;
+def strict_auto_link : Flag<["--"], "strict-auto-link">,
+    HelpText<"Always warn for missing frameworks or libraries if they are loaded via LC_LINKER_OPTIONS">,
     Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
@@ -991,6 +1003,9 @@ def dyld_env : Separate<["-"], "dyld_env">,
     MetaVarName<"<dyld_env_var>">,
     HelpText<"Specifies a LC_DYLD_ENVIRONMENT variable value pair.">,
     Group<grp_rare>;
+def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
+    HelpText<"Ignore LC_LINKER_OPTIONs">,
+    Group<grp_rare>;
 
 def grp_deprecated : OptionGroup<"deprecated">, HelpText<"DEPRECATED">;
 
@@ -1267,10 +1282,6 @@ def function_starts : Flag<["-"], "function_starts">,
     HelpText<"Create table of function start addresses (default)">,
     Group<grp_undocumented>;
 def i : Flag<["-"], "i">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
-    Group<grp_undocumented>;
-def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;

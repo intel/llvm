@@ -83,8 +83,6 @@ public:
   static std::optional<TypeAndShape> Characterize(
       const semantics::Symbol &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcInterface &, FoldingContext &);
-  static std::optional<TypeAndShape> Characterize(
       const semantics::DeclTypeSpec &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
       const ActualArgument &, FoldingContext &);
@@ -123,9 +121,9 @@ public:
   }
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
-      const A *p, FoldingContext &context) {
-    if (p) {
-      return Characterize(*p, context);
+      A *ptr, FoldingContext &context) {
+    if (ptr) {
+      return Characterize(std::as_const(*ptr), context);
     } else {
       return std::nullopt;
     }
@@ -213,6 +211,7 @@ struct DummyProcedure {
   bool operator!=(const DummyProcedure &that) const { return !(*this == that); }
   bool IsCompatibleWith(
       const DummyProcedure &, std::string *whyNot = nullptr) const;
+  bool CanBePassedViaImplicitInterface() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
   CopyableIndirection<Procedure> procedure;

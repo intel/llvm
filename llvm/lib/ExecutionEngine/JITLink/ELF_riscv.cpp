@@ -247,6 +247,17 @@ private:
           (RawInstr & 0xFFFFF) | (static_cast<uint32_t>(Lo & 0xFFF) << 20);
       break;
     }
+    case R_RISCV_LO12_S: {
+      // FIXME: We assume that R_RISCV_HI20 is present in object code and pairs
+      // with current relocation R_RISCV_LO12_S. So here may need a check.
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      int64_t Lo = Value & 0xFFF;
+      uint32_t Imm31_25 = extractBits(Lo, 5, 7) << 25;
+      uint32_t Imm11_7 = extractBits(Lo, 0, 5) << 7;
+      uint32_t RawInstr = *(little32_t *)FixupPtr;
+      *(little32_t *)FixupPtr = (RawInstr & 0x1FFF07F) | Imm31_25 | Imm11_7;
+      break;
+    }
     case R_RISCV_CALL: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
@@ -291,6 +302,8 @@ private:
       // pairs with current relocation R_RISCV_PCREL_LO12_S. So here may need a
       // check.
       auto RelHI20 = getRISCVPCRelHi20(E);
+      if (!RelHI20)
+        return RelHI20.takeError();
       int64_t Value = RelHI20->getTarget().getAddress() +
                       RelHI20->getAddend() - E.getTarget().getAddress();
       int64_t Lo = Value & 0xFFF;
@@ -429,6 +442,8 @@ private:
       return EdgeKind_riscv::R_RISCV_HI20;
     case ELF::R_RISCV_LO12_I:
       return EdgeKind_riscv::R_RISCV_LO12_I;
+    case ELF::R_RISCV_LO12_S:
+      return EdgeKind_riscv::R_RISCV_LO12_S;
     case ELF::R_RISCV_CALL:
       return EdgeKind_riscv::R_RISCV_CALL;
     case ELF::R_RISCV_PCREL_HI20:
@@ -482,8 +497,8 @@ private:
     using Base = ELFLinkGraphBuilder<ELFT>;
     using Self = ELFLinkGraphBuilder_riscv<ELFT>;
     for (const auto &RelSect : Base::Sections)
-      if (Error Err = Base::forEachRelocation(RelSect, this,
-                                              &Self::addSingleRelocation))
+      if (Error Err = Base::forEachRelaRelocation(RelSect, this,
+                                                  &Self::addSingleRelocation))
         return Err;
 
     return Error::success();

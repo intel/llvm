@@ -377,6 +377,11 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
 
     Expr *InputExpr = Exprs[i];
 
+    if (InputExpr->getType()->isMemberPointerType())
+      return StmtError(Diag(InputExpr->getBeginLoc(),
+                            diag::err_asm_pmf_through_constraint_not_permitted)
+                       << InputExpr->getSourceRange());
+
     // Referring to parameters is not allowed in naked functions.
     if (CheckNakedParmReference(InputExpr, *this))
       return StmtError();
@@ -932,13 +937,24 @@ StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc, SourceLocation LBraceLoc,
   bool IsSimple = (NumOutputs != 0 || NumInputs != 0);
   setFunctionHasBranchProtectedScope();
 
+  bool InvalidOperand = false;
   for (uint64_t I = 0; I < NumOutputs + NumInputs; ++I) {
-    if (Exprs[I]->getType()->isBitIntType())
-      return StmtError(
-          Diag(Exprs[I]->getBeginLoc(), diag::err_asm_invalid_type)
-          << Exprs[I]->getType() << (I < NumOutputs)
-          << Exprs[I]->getSourceRange());
+    Expr *E = Exprs[I];
+    if (E->getType()->isBitIntType()) {
+      InvalidOperand = true;
+      Diag(E->getBeginLoc(), diag::err_asm_invalid_type)
+          << E->getType() << (I < NumOutputs)
+          << E->getSourceRange();
+    } else if (E->refersToBitField()) {
+      InvalidOperand = true;
+      FieldDecl *BitField = E->getSourceBitField();
+      Diag(E->getBeginLoc(), diag::err_ms_asm_bitfield_unsupported)
+          << E->getSourceRange();
+      Diag(BitField->getLocation(), diag::note_bitfield_decl);
+    }
   }
+  if (InvalidOperand)
+    return StmtError();
 
   MSAsmStmt *NS =
     new (Context) MSAsmStmt(Context, AsmLoc, LBraceLoc, IsSimple,

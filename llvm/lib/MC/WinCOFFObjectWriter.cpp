@@ -267,7 +267,7 @@ COFFSection *WinCOFFObjectWriter::createSection(StringRef Name) {
 }
 
 static uint32_t getAlignment(const MCSectionCOFF &Sec) {
-  switch (Sec.getAlignment()) {
+  switch (Sec.getAlign().value()) {
   case 1:
     return COFF::IMAGE_SCN_ALIGN_1BYTES;
   case 2:
@@ -1098,6 +1098,8 @@ uint64_t WinCOFFObjectWriter::writeObject(MCAssembler &Asm,
     Frag->setLayoutOrder(0);
     raw_svector_ostream OS(Frag->getContents());
     for (const MCSymbol *S : AddrsigSyms) {
+      if (!S->isRegistered())
+        continue;
       if (!S->isTemporary()) {
         encodeULEB128(S->getIndex(), OS);
         continue;

@@ -573,7 +573,7 @@ ExprDependence clang::computeDependence(RecoveryExpr *E) {
   //   - type-dependent if we don't know the type (fallback to an opaque
   //     dependent type), or the type is known and dependent, or it has
   //     type-dependent subexpressions.
-  auto D = toExprDependenceForImpliedType(E->getType()->getDependence()) |
+  auto D = toExprDependenceAsWritten(E->getType()->getDependence()) |
            ExprDependence::ErrorDependent;
   // FIXME: remove the type-dependent bit from subexpressions, if the
   // RecoveryExpr has a non-dependent type.
@@ -832,6 +832,13 @@ ExprDependence clang::computeDependence(CXXFoldExpr *E) {
     if (C)
       D |= C->getDependence() & ~ExprDependence::UnexpandedPack;
   }
+  return D;
+}
+
+ExprDependence clang::computeDependence(CXXParenListInitExpr *E) {
+  auto D = ExprDependence::None;
+  for (const auto *A : E->getInitExprs())
+    D |= A->getDependence();
   return D;
 }
 

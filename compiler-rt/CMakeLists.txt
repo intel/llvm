@@ -10,6 +10,13 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR COMPILER_RT_STANDALONE
   project(CompilerRT C CXX ASM)
   set(COMPILER_RT_STANDALONE_BUILD TRUE)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+    message(WARNING
+      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+      "minimum version of CMake required to build LLVM will become 3.20.0, and "
+      "using an older CMake will become an error. Please upgrade your CMake to "
+      "at least 3.20.0 now to avoid issues in the future!")
+  endif()
 endif()
 
 set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
@@ -57,6 +64,13 @@ option(COMPILER_RT_BUILD_GWP_ASAN "Build GWP-ASan, and link it into SCUDO" ON)
 mark_as_advanced(COMPILER_RT_BUILD_GWP_ASAN)
 option(COMPILER_RT_ENABLE_CET "Build Compiler RT with CET enabled" OFF)
 
+option(COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH "Set custom sysroot for building SCUDO standalone" OFF)
+mark_as_advanced(COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH)
+option(COMPILER_RT_SCUDO_STANDALONE_BUILD_SHARED "Build SCUDO standalone for shared libraries" ON)
+mark_as_advanced(COMPILER_RT_SCUDO_STANDALONE_BUILD_SHARED)
+option(COMPILER_RT_BUILD_SCUDO_STANDALONE_WITH_LLVM_LIBC "Build SCUDO standalone with LLVM's libc headers" OFF)
+mark_as_advanced(COMPILER_RT_BUILD_SCUDO_STANDALONE_WITH_LLVM_LIBC)
+
 if(FUCHSIA)
   set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS_DEFAULT OFF)
 else()
@@ -72,7 +86,9 @@ if (COMPILER_RT_STANDALONE_BUILD)
   set(CMAKE_CXX_STANDARD_REQUIRED YES)
   set(CMAKE_CXX_EXTENSIONS NO)
 
-  load_llvm_config()
+  if (NOT LLVM_RUNTIMES_BUILD)
+    load_llvm_config()
+  endif()
   if (TARGET intrinsics_gen)
     # Loading the llvm config causes this target to be imported so place it
     # under the appropriate folder in an IDE.
@@ -113,6 +129,20 @@ if ("${COMPILER_RT_DEFAULT_TARGET_TRIPLE}" MATCHES ".*hf$")
   if (${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "^arm")
     set(COMPILER_RT_DEFAULT_TARGET_ARCH "armhf")
     CHECK_SYMBOL_EXISTS (__thumb__ "" COMPILER_RT_ARM_THUMB)
+  endif()
+endif()
+if (${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "^mips")
+  CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS32R6 "" COMPILER_RT_MIPS32R6)
+  CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS64R6 "" COMPILER_RT_MIPS64R6)
+  CHECK_SYMBOL_EXISTS (__mips64 "" COMPILER_RT_MIPS_64)
+  CHECK_SYMBOL_EXISTS (__MIPSEL__ "" COMPILER_RT_MIPS_EL)
+  if ("${COMPILER_RT_MIPS_64}")
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips64")
+  else()
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips")
+  endif()
+  if ("${COMPILER_RT_MIPS_EL}")
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "${COMPILER_RT_DEFAULT_TARGET_ARCH}el")
   endif()
 endif()
 if ("${COMPILER_RT_DEFAULT_TARGET_TRIPLE}" MATCHES ".*android.*")
@@ -475,6 +505,21 @@ append_list_if(COMPILER_RT_HAS_WD4800_FLAG /wd4800 SANITIZER_COMMON_CFLAGS)
 
 append_list_if(MINGW -fms-extensions SANITIZER_COMMON_CFLAGS)
 
+# When lsan scans the stack for detecting reachable pointers, it's possible for
+# a leaked pointer, which was pushed to the stack on an earlier function call,
+# to still exist on the stack when doing a leak check if that part of the stack
+# was not overwritten. In particular, if there's any uninitialized data in the
+# lsan runtime, and the SP we start from is sufficiently deep into the runtime,
+# then a leaked pointer could be marked as reachable. Such instances could be
+# mitigated by clobbering any uninitialized data. Note that this won't cover
+# all possible uninitialized stack contents, such as those used for register
+# spill slots, unused portions for alignment, or even local variables not
+# yet in scope at a certain point in the function.
+#
+# Note that this type of issue was discovered with lsan, but can apply to other
+# sanitizers.
+append_list_if(COMPILER_RT_HAS_TRIVIAL_AUTO_INIT -ftrivial-auto-var-init=pattern SANITIZER_COMMON_CFLAGS)
+
 # Set common link flags.
 # TODO: We should consider using the same model as libc++, that is use either
 # -nostdlib++ and --unwindlib=none if supported, or -nodefaultlibs otherwise.
@@ -579,17 +624,16 @@ if (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libc++")
     # because we added -nodefaultlibs there earlier, and adding would result in
     # a warning, but if we switch to -nostdlib++, we would need to add it here.
     # append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none SANITIZER_COMMON_LINK_FLAGS)
-
-    if (SANITIZER_USE_STATIC_LLVM_UNWINDER AND (TARGET unwind_static OR HAVE_LIBUNWIND))
-      list(APPEND SANITIZER_CXX_ABI_LIBRARIES unwind_static)
-    elseif (TARGET unwind_shared OR HAVE_LIBUNWIND)
-      list(APPEND SANITIZER_CXX_ABI_LIBRARIES unwind_shared)
-    endif()
-
-    if (SANITIZER_USE_STATIC_CXX_ABI AND (TARGET cxxabi_static OR HAVE_LIBCXXABI))
-      list(APPEND SANITIZER_CXX_ABI_LIBRARIES cxxabi_static)
-    elseif (TARGET cxxabi_shared OR HAVE_LIBCXXABI)
-      list(APPEND SANITIZER_CXX_ABI_LIBRARIES cxxabi_shared)
+    if(SANITIZER_USE_STATIC_CXX_ABI)
+      if(TARGET libcxx-abi-static)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-static)
+      endif()
+    else()
+      if(TARGET libcxx-abi-shared)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-shared)
+      elseif(TARGET libcxx-abi-static)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-static)
+      endif()
     endif()
   else()
     append_list_if(COMPILER_RT_HAS_LIBCXX c++ SANITIZER_CXX_ABI_LIBRARIES)
@@ -619,7 +663,13 @@ elseif (SANITIZER_TEST_CXX_LIBNAME STREQUAL "libstdc++")
 endif()
 
 # Unittests support.
-set(COMPILER_RT_GTEST_PATH ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest)
+# FIXME: When compiler-rt is build using -DLLVM_BUILD_EXTERNAL_COMPILER_RT=ON, then
+# The LLVM_THIRD_PARTY_DIR variable is not set.
+if (NOT LLVM_THIRD_PARTY_DIR)
+  set(LLVM_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third-party")
+endif()
+
+set(COMPILER_RT_GTEST_PATH ${LLVM_THIRD_PARTY_DIR}/unittest/googletest)
 set(COMPILER_RT_GTEST_SOURCE ${COMPILER_RT_GTEST_PATH}/src/gtest-all.cc)
 set(COMPILER_RT_GTEST_CFLAGS
   -DGTEST_NO_LLVM_SUPPORT=1
@@ -629,7 +679,7 @@ set(COMPILER_RT_GTEST_CFLAGS
 )
 
 # Mocking support.
-set(COMPILER_RT_GMOCK_PATH ${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock)
+set(COMPILER_RT_GMOCK_PATH ${LLVM_THIRD_PARTY_DIR}/unittest/googlemock)
 set(COMPILER_RT_GMOCK_SOURCE ${COMPILER_RT_GMOCK_PATH}/src/gmock-all.cc)
 set(COMPILER_RT_GMOCK_CFLAGS
   -DGTEST_NO_LLVM_SUPPORT=1

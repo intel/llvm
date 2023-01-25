@@ -2504,6 +2504,8 @@ define i64 @rmw64_max_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    j .LBB49_2
 ; RV32-NEXT:  .LBB49_1: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB49_2 Depth=1
+; RV32-NEXT:    neg a3, a0
+; RV32-NEXT:    and a3, a3, a1
 ; RV32-NEXT:    sw a4, 0(sp)
 ; RV32-NEXT:    sw a1, 4(sp)
 ; RV32-NEXT:    mv a1, sp
@@ -2513,28 +2515,26 @@ define i64 @rmw64_max_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    call __atomic_compare_exchange_8@plt
 ; RV32-NEXT:    lw a1, 4(sp)
 ; RV32-NEXT:    lw a4, 0(sp)
-; RV32-NEXT:    bnez a0, .LBB49_7
+; RV32-NEXT:    bnez a0, .LBB49_6
 ; RV32-NEXT:  .LBB49_2: # %atomicrmw.start
 ; RV32-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV32-NEXT:    beqz a1, .LBB49_4
 ; RV32-NEXT:  # %bb.3: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB49_2 Depth=1
 ; RV32-NEXT:    sgtz a0, a1
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB49_1
 ; RV32-NEXT:    j .LBB49_5
 ; RV32-NEXT:  .LBB49_4: # in Loop: Header=BB49_2 Depth=1
 ; RV32-NEXT:    sltiu a0, a4, 2
 ; RV32-NEXT:    xori a0, a0, 1
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB49_1
 ; RV32-NEXT:  .LBB49_5: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB49_2 Depth=1
-; RV32-NEXT:    mv a2, a4
-; RV32-NEXT:    mv a3, a1
-; RV32-NEXT:    bnez a0, .LBB49_1
-; RV32-NEXT:  # %bb.6: # %atomicrmw.start
-; RV32-NEXT:    # in Loop: Header=BB49_2 Depth=1
-; RV32-NEXT:    li a3, 0
 ; RV32-NEXT:    li a2, 1
 ; RV32-NEXT:    j .LBB49_1
-; RV32-NEXT:  .LBB49_7: # %atomicrmw.end
+; RV32-NEXT:  .LBB49_6: # %atomicrmw.end
 ; RV32-NEXT:    mv a0, a4
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -2599,6 +2599,8 @@ define i64 @rmw64_min_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    j .LBB50_2
 ; RV32-NEXT:  .LBB50_1: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB50_2 Depth=1
+; RV32-NEXT:    neg a3, a0
+; RV32-NEXT:    and a3, a3, a1
 ; RV32-NEXT:    sw a4, 0(sp)
 ; RV32-NEXT:    sw a1, 4(sp)
 ; RV32-NEXT:    mv a1, sp
@@ -2608,27 +2610,25 @@ define i64 @rmw64_min_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    call __atomic_compare_exchange_8@plt
 ; RV32-NEXT:    lw a1, 4(sp)
 ; RV32-NEXT:    lw a4, 0(sp)
-; RV32-NEXT:    bnez a0, .LBB50_7
+; RV32-NEXT:    bnez a0, .LBB50_6
 ; RV32-NEXT:  .LBB50_2: # %atomicrmw.start
 ; RV32-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV32-NEXT:    beqz a1, .LBB50_4
 ; RV32-NEXT:  # %bb.3: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB50_2 Depth=1
 ; RV32-NEXT:    slti a0, a1, 0
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB50_1
 ; RV32-NEXT:    j .LBB50_5
 ; RV32-NEXT:  .LBB50_4: # in Loop: Header=BB50_2 Depth=1
 ; RV32-NEXT:    sltiu a0, a4, 2
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB50_1
 ; RV32-NEXT:  .LBB50_5: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB50_2 Depth=1
-; RV32-NEXT:    mv a2, a4
-; RV32-NEXT:    mv a3, a1
-; RV32-NEXT:    bnez a0, .LBB50_1
-; RV32-NEXT:  # %bb.6: # %atomicrmw.start
-; RV32-NEXT:    # in Loop: Header=BB50_2 Depth=1
-; RV32-NEXT:    li a3, 0
 ; RV32-NEXT:    li a2, 1
 ; RV32-NEXT:    j .LBB50_1
-; RV32-NEXT:  .LBB50_7: # %atomicrmw.end
+; RV32-NEXT:  .LBB50_6: # %atomicrmw.end
 ; RV32-NEXT:    mv a0, a4
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -2696,6 +2696,8 @@ define i64 @rmw64_umax_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    j .LBB51_2
 ; RV32-NEXT:  .LBB51_1: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB51_2 Depth=1
+; RV32-NEXT:    neg a3, a0
+; RV32-NEXT:    and a3, a3, a1
 ; RV32-NEXT:    sw a4, 0(sp)
 ; RV32-NEXT:    sw a1, 4(sp)
 ; RV32-NEXT:    mv a1, sp
@@ -2705,28 +2707,26 @@ define i64 @rmw64_umax_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    call __atomic_compare_exchange_8@plt
 ; RV32-NEXT:    lw a1, 4(sp)
 ; RV32-NEXT:    lw a4, 0(sp)
-; RV32-NEXT:    bnez a0, .LBB51_7
+; RV32-NEXT:    bnez a0, .LBB51_6
 ; RV32-NEXT:  .LBB51_2: # %atomicrmw.start
 ; RV32-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV32-NEXT:    beqz a1, .LBB51_4
 ; RV32-NEXT:  # %bb.3: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB51_2 Depth=1
 ; RV32-NEXT:    snez a0, a1
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB51_1
 ; RV32-NEXT:    j .LBB51_5
 ; RV32-NEXT:  .LBB51_4: # in Loop: Header=BB51_2 Depth=1
 ; RV32-NEXT:    sltiu a0, a4, 2
 ; RV32-NEXT:    xori a0, a0, 1
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB51_1
 ; RV32-NEXT:  .LBB51_5: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB51_2 Depth=1
-; RV32-NEXT:    mv a2, a4
-; RV32-NEXT:    mv a3, a1
-; RV32-NEXT:    bnez a0, .LBB51_1
-; RV32-NEXT:  # %bb.6: # %atomicrmw.start
-; RV32-NEXT:    # in Loop: Header=BB51_2 Depth=1
-; RV32-NEXT:    li a3, 0
 ; RV32-NEXT:    li a2, 1
 ; RV32-NEXT:    j .LBB51_1
-; RV32-NEXT:  .LBB51_7: # %atomicrmw.end
+; RV32-NEXT:  .LBB51_6: # %atomicrmw.end
 ; RV32-NEXT:    mv a0, a4
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -2791,6 +2791,8 @@ define i64 @rmw64_umin_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    j .LBB52_2
 ; RV32-NEXT:  .LBB52_1: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB52_2 Depth=1
+; RV32-NEXT:    neg a3, a0
+; RV32-NEXT:    and a3, a3, a1
 ; RV32-NEXT:    sw a4, 0(sp)
 ; RV32-NEXT:    sw a1, 4(sp)
 ; RV32-NEXT:    mv a1, sp
@@ -2800,27 +2802,19 @@ define i64 @rmw64_umin_seq_cst(ptr %p) nounwind {
 ; RV32-NEXT:    call __atomic_compare_exchange_8@plt
 ; RV32-NEXT:    lw a1, 4(sp)
 ; RV32-NEXT:    lw a4, 0(sp)
-; RV32-NEXT:    bnez a0, .LBB52_7
+; RV32-NEXT:    bnez a0, .LBB52_4
 ; RV32-NEXT:  .LBB52_2: # %atomicrmw.start
 ; RV32-NEXT:    # =>This Inner Loop Header: Depth=1
-; RV32-NEXT:    beqz a1, .LBB52_4
+; RV32-NEXT:    sltiu a0, a4, 2
+; RV32-NEXT:    seqz a2, a1
+; RV32-NEXT:    and a0, a2, a0
+; RV32-NEXT:    mv a2, a4
+; RV32-NEXT:    bnez a0, .LBB52_1
 ; RV32-NEXT:  # %bb.3: # %atomicrmw.start
 ; RV32-NEXT:    # in Loop: Header=BB52_2 Depth=1
-; RV32-NEXT:    li a0, 0
-; RV32-NEXT:    j .LBB52_5
-; RV32-NEXT:  .LBB52_4: # in Loop: Header=BB52_2 Depth=1
-; RV32-NEXT:    sltiu a0, a4, 2
-; RV32-NEXT:  .LBB52_5: # %atomicrmw.start
-; RV32-NEXT:    # in Loop: Header=BB52_2 Depth=1
-; RV32-NEXT:    mv a2, a4
-; RV32-NEXT:    mv a3, a1
-; RV32-NEXT:    bnez a0, .LBB52_1
-; RV32-NEXT:  # %bb.6: # %atomicrmw.start
-; RV32-NEXT:    # in Loop: Header=BB52_2 Depth=1
-; RV32-NEXT:    li a3, 0
 ; RV32-NEXT:    li a2, 1
 ; RV32-NEXT:    j .LBB52_1
-; RV32-NEXT:  .LBB52_7: # %atomicrmw.end
+; RV32-NEXT:  .LBB52_4: # %atomicrmw.end
 ; RV32-NEXT:    mv a0, a4
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -2962,8 +2956,8 @@ define double @rmw64_fadd_seq_cst(ptr %p) nounwind {
 ; RV64-NO-ATOMIC-NEXT:    sd s2, 16(sp) # 8-byte Folded Spill
 ; RV64-NO-ATOMIC-NEXT:    mv s0, a0
 ; RV64-NO-ATOMIC-NEXT:    ld s2, 0(a0)
-; RV64-NO-ATOMIC-NEXT:    li a0, 1023
-; RV64-NO-ATOMIC-NEXT:    slli s1, a0, 52
+; RV64-NO-ATOMIC-NEXT:    li s1, 1023
+; RV64-NO-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-NO-ATOMIC-NEXT:  .LBB54_1: # %atomicrmw.start
 ; RV64-NO-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-NO-ATOMIC-NEXT:    mv a0, s2
@@ -2996,8 +2990,8 @@ define double @rmw64_fadd_seq_cst(ptr %p) nounwind {
 ; RV64-ATOMIC-NEXT:    sd s2, 0(sp) # 8-byte Folded Spill
 ; RV64-ATOMIC-NEXT:    mv s0, a0
 ; RV64-ATOMIC-NEXT:    ld a0, 0(a0)
-; RV64-ATOMIC-NEXT:    li a1, 1023
-; RV64-ATOMIC-NEXT:    slli s1, a1, 52
+; RV64-ATOMIC-NEXT:    li s1, 1023
+; RV64-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-ATOMIC-NEXT:  .LBB54_1: # %atomicrmw.start
 ; RV64-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-ATOMIC-NEXT:    mv s2, a0
@@ -3068,8 +3062,8 @@ define double @rmw64_fsub_seq_cst(ptr %p) nounwind {
 ; RV64-NO-ATOMIC-NEXT:    sd s2, 16(sp) # 8-byte Folded Spill
 ; RV64-NO-ATOMIC-NEXT:    mv s0, a0
 ; RV64-NO-ATOMIC-NEXT:    ld s2, 0(a0)
-; RV64-NO-ATOMIC-NEXT:    li a0, -1025
-; RV64-NO-ATOMIC-NEXT:    slli s1, a0, 52
+; RV64-NO-ATOMIC-NEXT:    li s1, -1025
+; RV64-NO-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-NO-ATOMIC-NEXT:  .LBB55_1: # %atomicrmw.start
 ; RV64-NO-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-NO-ATOMIC-NEXT:    mv a0, s2
@@ -3102,8 +3096,8 @@ define double @rmw64_fsub_seq_cst(ptr %p) nounwind {
 ; RV64-ATOMIC-NEXT:    sd s2, 0(sp) # 8-byte Folded Spill
 ; RV64-ATOMIC-NEXT:    mv s0, a0
 ; RV64-ATOMIC-NEXT:    ld a0, 0(a0)
-; RV64-ATOMIC-NEXT:    li a1, -1025
-; RV64-ATOMIC-NEXT:    slli s1, a1, 52
+; RV64-ATOMIC-NEXT:    li s1, -1025
+; RV64-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-ATOMIC-NEXT:  .LBB55_1: # %atomicrmw.start
 ; RV64-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-ATOMIC-NEXT:    mv s2, a0
@@ -3174,8 +3168,8 @@ define double @rmw64_fmin_seq_cst(ptr %p) nounwind {
 ; RV64-NO-ATOMIC-NEXT:    sd s2, 16(sp) # 8-byte Folded Spill
 ; RV64-NO-ATOMIC-NEXT:    mv s0, a0
 ; RV64-NO-ATOMIC-NEXT:    ld s2, 0(a0)
-; RV64-NO-ATOMIC-NEXT:    li a0, 1023
-; RV64-NO-ATOMIC-NEXT:    slli s1, a0, 52
+; RV64-NO-ATOMIC-NEXT:    li s1, 1023
+; RV64-NO-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-NO-ATOMIC-NEXT:  .LBB56_1: # %atomicrmw.start
 ; RV64-NO-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-NO-ATOMIC-NEXT:    mv a0, s2
@@ -3208,8 +3202,8 @@ define double @rmw64_fmin_seq_cst(ptr %p) nounwind {
 ; RV64-ATOMIC-NEXT:    sd s2, 0(sp) # 8-byte Folded Spill
 ; RV64-ATOMIC-NEXT:    mv s0, a0
 ; RV64-ATOMIC-NEXT:    ld a0, 0(a0)
-; RV64-ATOMIC-NEXT:    li a1, 1023
-; RV64-ATOMIC-NEXT:    slli s1, a1, 52
+; RV64-ATOMIC-NEXT:    li s1, 1023
+; RV64-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-ATOMIC-NEXT:  .LBB56_1: # %atomicrmw.start
 ; RV64-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-ATOMIC-NEXT:    mv s2, a0
@@ -3280,8 +3274,8 @@ define double @rmw64_fmax_seq_cst(ptr %p) nounwind {
 ; RV64-NO-ATOMIC-NEXT:    sd s2, 16(sp) # 8-byte Folded Spill
 ; RV64-NO-ATOMIC-NEXT:    mv s0, a0
 ; RV64-NO-ATOMIC-NEXT:    ld s2, 0(a0)
-; RV64-NO-ATOMIC-NEXT:    li a0, 1023
-; RV64-NO-ATOMIC-NEXT:    slli s1, a0, 52
+; RV64-NO-ATOMIC-NEXT:    li s1, 1023
+; RV64-NO-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-NO-ATOMIC-NEXT:  .LBB57_1: # %atomicrmw.start
 ; RV64-NO-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-NO-ATOMIC-NEXT:    mv a0, s2
@@ -3314,8 +3308,8 @@ define double @rmw64_fmax_seq_cst(ptr %p) nounwind {
 ; RV64-ATOMIC-NEXT:    sd s2, 0(sp) # 8-byte Folded Spill
 ; RV64-ATOMIC-NEXT:    mv s0, a0
 ; RV64-ATOMIC-NEXT:    ld a0, 0(a0)
-; RV64-ATOMIC-NEXT:    li a1, 1023
-; RV64-ATOMIC-NEXT:    slli s1, a1, 52
+; RV64-ATOMIC-NEXT:    li s1, 1023
+; RV64-ATOMIC-NEXT:    slli s1, s1, 52
 ; RV64-ATOMIC-NEXT:  .LBB57_1: # %atomicrmw.start
 ; RV64-ATOMIC-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64-ATOMIC-NEXT:    mv s2, a0

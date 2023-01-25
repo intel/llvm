@@ -52,6 +52,27 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  fork
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.fork
+)
+
+add_entrypoint_object(
+  execv
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.execv
+)
+
+add_entrypoint_object(
+  execve
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.execve
+)
+
+add_entrypoint_object(
   fsync
   ALIAS
   DEPENDS
@@ -63,6 +84,13 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.ftruncate
+)
+
+add_entrypoint_object(
+  getcwd
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.getcwd
 )
 
 add_entrypoint_object(
@@ -91,6 +119,13 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.getuid
+)
+
+add_entrypoint_object(
+  isatty
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.isatty
 )
 
 add_entrypoint_object(
@@ -178,6 +213,13 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  sysconf
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.sysconf
+)
+
+add_entrypoint_object(
   truncate
   ALIAS
   DEPENDS
@@ -203,4 +245,46 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.write
+)
+
+add_entrypoint_object(
+  environ
+  SRCS
+    environ.cpp
+  HDRS
+    environ.h
+)
+
+add_entrypoint_object(
+  getopt
+  SRCS
+    getopt.cpp
+  HDRS
+    getopt.h
+  DEPENDS
+    libc.include.unistd
+    libc.src.__support.CPP.optional
+    libc.src.__support.CPP.string_view
+    libc.src.__support.File.file
+    libc.src.stdio.fprintf
+)
+
+# These aren't actual external per-se, but this is just an easy way to create
+# targets that don't do anything. They exist to be referenced in entrypoints.txt
+# so that the header will properly expose their definitions. Their declaration
+# is in getopt.cpp.
+add_entrypoint_external(
+  optarg
+)
+
+add_entrypoint_external(
+  optind
+)
+
+add_entrypoint_external(
+  optopt
+)
+
+add_entrypoint_external(
+  opterr
 )

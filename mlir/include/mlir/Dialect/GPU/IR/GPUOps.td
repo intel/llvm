@@ -16,6 +16,7 @@
 include "mlir/Dialect/DLTI/DLTIBase.td"
 include "mlir/Dialect/GPU/IR/GPUBase.td"
 include "mlir/Dialect/GPU/IR/ParallelLoopMapperAttr.td"
+include "mlir/Dialect/GPU/TransformOps/GPUDeviceMappingAttr.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -45,7 +46,7 @@ def GPU_DimensionAttr : EnumAttr<GPU_Dialect, GPU_Dimension, "dim">;
 
 class GPU_IndexOp<string mnemonic, list<Trait> traits = []> :
     GPU_Op<mnemonic, !listconcat(traits, [
-        NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>])>,
+        Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>])>,
     Arguments<(ins GPU_DimensionAttr:$dimension)>, Results<(outs Index)> {
   let assemblyFormat = "$dimension attr-dict";
 }
@@ -100,7 +101,7 @@ def GPU_ThreadIdOp : GPU_IndexOp<"thread_id"> {
 }
 
 def GPU_LaneIdOp : GPU_Op<"lane_id", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
   let description = [{
     Returns the lane id within the subgroup (warp/wave).
 
@@ -114,7 +115,7 @@ def GPU_LaneIdOp : GPU_Op<"lane_id", [
 }
 
 def GPU_SubgroupIdOp : GPU_Op<"subgroup_id", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the subgroup id, i.e. the index of the current subgroup within the
@@ -146,7 +147,7 @@ def GPU_GlobalIdOp : GPU_IndexOp<"global_id"> {
 
 
 def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the number of subgroups within a workgroup.
@@ -162,7 +163,7 @@ def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [
 }
 
 def GPU_SubgroupSizeOp : GPU_Op<"subgroup_size", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the number of threads within a subgroup.
@@ -241,7 +242,9 @@ def GPU_GPUFuncOp : GPU_Op<"func", [
     attribution.
   }];
 
-  let arguments = (ins TypeAttrOf<FunctionType>:$function_type);
+  let arguments = (ins TypeAttrOf<FunctionType>:$function_type,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region AnyRegion:$body);
 
   let skipDefaultBuilders = 1;
@@ -612,7 +615,7 @@ def GPU_PrintfOp : GPU_Op<"printf", [MemoryEffects<[MemWrite]>]>,
   }];
 }
 
-def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
+def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, Pure,
                                      Terminator]>,
     Arguments<(ins Variadic<AnyType>:$operands)>, Results<(outs)> {
   let summary = "Terminator for GPU functions.";
@@ -629,7 +632,7 @@ def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
 }
 
 def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
-                                             NoSideEffect, Terminator]>,
+                                             Pure, Terminator]>,
     Arguments<(ins)>, Results<(outs)> {
   let summary = "Terminator for GPU launch regions.";
   let description = [{
@@ -641,7 +644,7 @@ def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
   let assemblyFormat = "attr-dict";
 }
 
-def GPU_YieldOp : GPU_Op<"yield", [NoSideEffect, Terminator]>,
+def GPU_YieldOp : GPU_Op<"yield", [Pure, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "GPU yield operation";
   let description = [{
@@ -685,7 +688,8 @@ def GPU_AllReduceOperationAttr : EnumAttr<GPU_Dialect, GPU_AllReduceOperation,
 def GPU_AllReduceOp : GPU_Op<"all_reduce",
     [SameOperandsAndResultType, IsolatedFromAbove]>,
     Arguments<(ins AnyType:$value,
-               OptionalAttr<GPU_AllReduceOperationAttr>:$op)>,
+               OptionalAttr<GPU_AllReduceOperationAttr>:$op,
+               UnitAttr:$uniform)>,
     Results<(outs AnyType)> {
   let summary = "Reduce values among workgroup.";
   let description = [{
@@ -708,13 +712,40 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
     accumulation as code region. The accumulation operation must be one of:
     `add`, `and`, `max`, `min`, `mul`, `or`, `xor`.
 
-    Either none or all work items of a workgroup need to execute this op
-    in convergence.
+    If `uniform` flag is set either none or all work items of a workgroup
+    need to execute this op in convergence.
   }];
   let regions = (region AnyRegion:$body);
-  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value $body attr-dict
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? $body attr-dict
                           `:` functional-type(operands, results) }];
   let hasRegionVerifier = 1;
+}
+
+def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
+    [SameOperandsAndResultType]>,
+    Arguments<(ins AnyType:$value,
+               GPU_AllReduceOperationAttr:$op,
+               UnitAttr:$uniform)>,
+    Results<(outs AnyType)> {
+  let summary = "Reduce values among subgroup.";
+  let description = [{
+    The `subgroup_reduce` op reduces the value of every work item across a
+    subgroup. The result is equal for all work items of a subgroup.
+
+    Example:
+
+    ```mlir
+    %1 = gpu.subgroup_reduce add %0 : (f32) -> (f32)
+    ```
+
+    If `uniform` flag is set either none or all work items of a subgroup
+    need to execute this op in convergence.
+  }];
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? attr-dict
+                          `:` functional-type(operands, results) }];
+  let hasVerifier = 1;
 }
 
 def GPU_ShuffleOpXor  : I32EnumAttrCase<"XOR",  0, "xor">;
@@ -737,7 +768,7 @@ def I32OrF32 : TypeConstraint<Or<[I32.predicate, F32.predicate]>,
                                  "i32 or f32">;
 
 def GPU_ShuffleOp : GPU_Op<
-    "shuffle", [NoSideEffect, AllTypesMatch<["value", "shuffleResult"]>]>,
+    "shuffle", [Pure, AllTypesMatch<["value", "shuffleResult"]>]>,
     Arguments<(ins I32OrF32:$value, I32:$offset, I32:$width,
                GPU_ShuffleModeAttr:$mode)>,
     Results<(outs I32OrF32:$shuffleResult, I1:$valid)> {
@@ -919,15 +950,19 @@ def GPU_AllocOp : GPU_Op<"alloc", [
     it does not block until the execution has finished on the device). In
     that case, it also returns a !gpu.async.token.
 
+    If the `host_shared` keyword is present, the memory will be allocated in a
+    memory accessible both on host and on device.
+
     Example:
 
     ```mlir
-    %memref, %token = gpu.alloc async [%dep] (%width) : memref<64x?xf32, 1>
+    %memref, %token = gpu.alloc async [%dep] host_shared (%width) : memref<64x?xf32, 1>
     ```
   }];
 
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
-                   Variadic<Index>:$dynamicSizes, Variadic<Index>:$symbolOperands);
+                   Variadic<Index>:$dynamicSizes, Variadic<Index>:$symbolOperands,
+                   UnitAttr:$hostShared);
   let results = (outs Res<AnyMemRef, "", [MemAlloc]>:$memref,
                  Optional<GPU_AsyncToken>:$asyncToken);
 
@@ -936,7 +971,7 @@ def GPU_AllocOp : GPU_Op<"alloc", [
   }];
 
   let assemblyFormat = [{
-    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) ` `
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) (` ` `host_shared` $hostShared^)? ` `
     `(` $dynamicSizes `)` (`` `[` $symbolOperands^ `]`)? attr-dict `:` type($memref)
   }];
 
@@ -1073,7 +1108,7 @@ def GPU_SubgroupMmaLoadMatrixOp : GPU_Op<"subgroup_mma_load_matrix",
     determined using `indices`. The matrix being loaded into is the result.  The
     `leadDimension` attribute specifies the leading dimension size of the source
     matrix which eventually allows the lowering to determine the size of each
-    row.
+    row.  If the `transpose` attribute is present then the op does a transposed load.
 
     This op is often meant to be used along with `gpu.subgroup_mma_store_matrix` and
     `gpu.subgroup_mma_compute`.
@@ -1086,9 +1121,10 @@ def GPU_SubgroupMmaLoadMatrixOp : GPU_Op<"subgroup_mma_load_matrix",
     ```
   }];
 
-  let arguments = (ins Arg<MemRefOf<[F16, F32]>, "", [MemRead]>:$srcMemref,
+  let arguments = (ins Arg<GPU_MMAMemRef, "", [MemRead]>:$srcMemref,
                   Variadic<Index>:$indices,
-                  IndexAttr:$leadDimension);
+                  IndexAttr:$leadDimension,
+                  OptionalAttr<UnitAttr>:$transpose);
 
   let results = (outs GPU_MMAMatrix:$res);
 
@@ -1111,7 +1147,8 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
     `!gpu.mma_matrix` is the source value containing the data to be stored into the
     destination memref which can be in global or shared memory.  The store address
     is determined using the indices provided. The `leadDimension` attribute
-    specifies the leading dimension of the destination matrix.
+    specifies the leading dimension of the destination matrix. If the
+    `transpose` attribute is present then the op does a transposed store.
 
     This op is often meant to be used along with `gpu.subgroup_mma_load_matrix` and
     `gpu.subgroup_mma_compute`.
@@ -1125,9 +1162,10 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
   }];
 
   let arguments = (ins Arg<MMAMatrixOf<[F16, F32]>>:$src,
-                  Arg<MemRefOf<[F16, F32]>, "",[MemWrite]>:$dstMemref,
+                  Arg<GPU_MMAMemRef, "",[MemWrite]>:$dstMemref,
                   Variadic<Index>:$indices,
-                  IndexAttr:$leadDimension);
+                  IndexAttr:$leadDimension,
+                  OptionalAttr<UnitAttr>:$transpose);
 
   let assemblyFormat = [{
     $src`,` $dstMemref`[`$indices`]` attr-dict `:` type($src)`,` type($dstMemref)
@@ -1135,8 +1173,8 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
   let hasVerifier = 1;
 }
 
-def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
-   [NoSideEffect, AllTypesMatch<["opC", "res"]>]>{
+def GPU_SubgroupMmaComputeOp
+    : GPU_Op<"subgroup_mma_compute", [Pure, AllTypesMatch<["opC", "res"]>]> {
 
   let summary = "GPU warp synchronous matrix multiply accumulate";
 
@@ -1145,9 +1183,14 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
     operation using all the threads in a subgroup.
 
     This operation takes three `!gpu.mma_matrix`s as arguments: these hold `A`,
-     `B` and `C`operands for the mma operation. The operation performed is represented
+    `B` and `C`operands for the mma operation. The operation performed is represented
     as `C += A * B`. The op returns a `!gpu.mma_matrix` which contains the result of
-    the operation held by all threads in a subgroup.
+    the operation held by all threads in a subgroup. `a_transpose` or
+    `b_transpose` if present, signify that the respective operand was loaded in a
+    transposed manner. The transpose opernads are required to map to correct
+    underlying intrisics but they currently do not seem to affect correctness
+    even if they are absent given that the operands were loaded correctly using
+    the `transpose` attribute in `gpu.subgroup_mma_load_matrix` op.
 
     This op is meant to be used along with `gpu.subgroup_mma_store_matrix` and
     `gpu.subgroup_mma_load_matrix` ops.
@@ -1163,9 +1206,11 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
 
   let arguments = (ins Arg<MMAMatrixOf<[F16, F32]>>:$opA,
                   Arg<MMAMatrixOf<[F16, F32]>>:$opB,
-                  Arg<MMAMatrixOf<[F16, F32]>>:$opC);
+                  Arg<MMAMatrixOf<[F16, F32]>>:$opC,
+                  OptionalAttr<UnitAttr>:$a_transpose,
+                  OptionalAttr<UnitAttr>:$b_transpose);
 
-  let results = (outs GPU_MMAMatrix:$res);
+  let results = (outs GPU_MMAMatrix : $res);
 
   let assemblyFormat = [{
     $opA`,` $opB`,` $opC attr-dict `:` type($opA)`,` type($opB) `->` type($res)
@@ -1174,7 +1219,7 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
 }
 
 def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
-    [NoSideEffect,
+    [Pure,
      TypesMatchWith<"value type matches element type of mma_matrix",
                     "res", "value",
                     "$_self.cast<gpu::MMAMatrixType>().getElementType()">]>{
@@ -1185,11 +1230,11 @@ def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
     The `gpu.subgroup_mma_constant_matrix` creates a `!gpu.mma_matrix` with
     constant elements.
 
-    The operation takes a scalar input and return a `!gpu.mma_matrix` where each
-    element of is equal to the operand constant. The destination mma_matrix type
-    must have elememt type equal to the constant type. Since the layout of
-    `!gpu.mma_matrix` is opaque this only support setting all the elements to
-    the same value.
+    The operation takes a scalar input and return a `!gpu.mma_matrix` where
+    each element of is equal to the operand constant. The destination
+    mma_matrix type must have elememt type equal to the constant type. Since
+    the layout of `!gpu.mma_matrix` is opaque this only support setting all the
+    elements to the same value.
 
     This op is meant to be used along with `gpu.subgroup_mma_compute`.
 
@@ -1218,19 +1263,35 @@ def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
   }];
 }
 
-def GPU_ElementwiseOpAdd  : I32EnumAttrCase<"ADDF", 0, "addf">;
-def GPU_ElementwiseOpMul  : I32EnumAttrCase<"MULF", 1, "mulf">;
-def GPU_ElementwiseOpMaxF : I32EnumAttrCase<"MAXF", 2, "maxf">;
-def GPU_ElementwiseOpMinF : I32EnumAttrCase<"MINF", 3, "minf">;
-def GPU_ElementwiseOpDivF : I32EnumAttrCase<"DIVF", 4, "divf">;
+def GPU_ElementwiseOpAddF  : I32EnumAttrCase<"ADDF", 0, "addf">;
+def GPU_ElementwiseOpMulF  : I32EnumAttrCase<"MULF", 1, "mulf">;
+def GPU_ElementwiseOpSUBF  : I32EnumAttrCase<"SUBF", 2, "subf">;
+def GPU_ElementwiseOpMaxF : I32EnumAttrCase<"MAXF", 3, "maxf">;
+def GPU_ElementwiseOpMinF : I32EnumAttrCase<"MINF", 4, "minf">;
+def GPU_ElementwiseOpDivF : I32EnumAttrCase<"DIVF", 5, "divf">;
+def GPU_ElementwiseOpAddI  : I32EnumAttrCase<"ADDI", 6, "addi">;
+def GPU_ElementwiseOpMulI  : I32EnumAttrCase<"MULI", 7, "muli">;
+def GPU_ElementwiseOpSUBI  : I32EnumAttrCase<"SUBI", 8, "subi">;
+def GPU_ElementwiseOpDivS : I32EnumAttrCase<"DIVS", 9, "divs">;
+def GPU_ElementwiseOpDivU : I32EnumAttrCase<"DIVU", 10, "divu">;
+def GPU_ElementwiseOpNEGF : I32EnumAttrCase<"NEGATEF", 11, "negatef">;
+def GPU_ElementwiseOpNEGS : I32EnumAttrCase<"NEGATES", 12, "negates">;
 
 def MMAElementWise : I32EnumAttr<"MMAElementwiseOp",
   "elementwise operation to apply to mma matrix", [
-    GPU_ElementwiseOpAdd,
-    GPU_ElementwiseOpMul,
+    GPU_ElementwiseOpAddF,
+    GPU_ElementwiseOpMulF,
+    GPU_ElementwiseOpSUBF,
     GPU_ElementwiseOpMaxF,
     GPU_ElementwiseOpMinF,
-    GPU_ElementwiseOpDivF
+    GPU_ElementwiseOpDivF,
+    GPU_ElementwiseOpAddI,
+    GPU_ElementwiseOpMulI,
+    GPU_ElementwiseOpSUBI,
+    GPU_ElementwiseOpDivS,
+    GPU_ElementwiseOpDivU,
+    GPU_ElementwiseOpNEGF,
+    GPU_ElementwiseOpNEGS
   ]> {
   let genSpecializedAttr = 0;
   let cppNamespace = "::mlir::gpu";
@@ -1239,7 +1300,7 @@ def MMAElementWiseAttr : EnumAttr<GPU_Dialect, MMAElementWise,
                                   "mma_element_wise">;
 
 def GPU_SubgroupMmaElementwiseOp : GPU_Op<"subgroup_mma_elementwise",
-    [NoSideEffect,
+    [Pure,
      AllTypesMatch<["args"]>]>{
 
   let summary = "GPU warp elementwise operation on a matrix";

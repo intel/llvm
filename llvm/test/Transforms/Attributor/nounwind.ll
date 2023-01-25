@@ -4,7 +4,7 @@
 
 ; TEST 1
 define i32 @foo1() {
-; CHECK: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CHECK-LABEL: define {{[^@]+}}@foo1
 ; CHECK-SAME: () #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:    ret i32 1
@@ -14,12 +14,12 @@ define i32 @foo1() {
 
 ; TEST 2
 define i32 @scc1_foo() {
-; TUNIT: Function Attrs: nofree nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@scc1_foo
 ; TUNIT-SAME: () #[[ATTR1:[0-9]+]] {
 ; TUNIT-NEXT:    ret i32 1
 ;
-; CGSCC: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@scc1_foo
 ; CGSCC-SAME: () #[[ATTR0]] {
 ; CGSCC-NEXT:    ret i32 1
@@ -31,12 +31,12 @@ define i32 @scc1_foo() {
 
 ; TEST 3
 define i32 @scc1_bar() {
-; TUNIT: Function Attrs: nofree nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@scc1_bar
 ; TUNIT-SAME: () #[[ATTR1]] {
 ; TUNIT-NEXT:    ret i32 1
 ;
-; CGSCC: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@scc1_bar
 ; CGSCC-SAME: () #[[ATTR0]] {
 ; CGSCC-NEXT:    ret i32 1
@@ -96,17 +96,17 @@ declare void @__cxa_rethrow()
 ;   return 1;
 ; }
 
-define i32 @catch_thing() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
-; CHECK-LABEL: define {{[^@]+}}@catch_thing() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define i32 @catch_thing() personality ptr @__gxx_personality_v0 {
+; CHECK-LABEL: define {{[^@]+}}@catch_thing() personality ptr @__gxx_personality_v0 {
 ; CHECK-NEXT:    invoke void @__cxa_rethrow()
 ; CHECK-NEXT:    to label [[TMP1:%.*]] unwind label [[TMP2:%.*]]
 ; CHECK:       1:
 ; CHECK-NEXT:    unreachable
 ; CHECK:       2:
-; CHECK-NEXT:    [[TMP3:%.*]] = landingpad { i8*, i32 }
-; CHECK-NEXT:    catch i8* null
-; CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { i8*, i32 } [[TMP3]], 0
-; CHECK-NEXT:    [[TMP5:%.*]] = tail call i8* @__cxa_begin_catch(i8* [[TMP4]])
+; CHECK-NEXT:    [[TMP3:%.*]] = landingpad { ptr, i32 }
+; CHECK-NEXT:    catch ptr null
+; CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { ptr, i32 } [[TMP3]], 0
+; CHECK-NEXT:    [[TMP5:%.*]] = tail call ptr @__cxa_begin_catch(ptr [[TMP4]])
 ; CHECK-NEXT:    tail call void @__cxa_end_catch()
 ; CHECK-NEXT:    ret i32 -1
 ;
@@ -117,10 +117,10 @@ define i32 @catch_thing() personality i8* bitcast (i32 (...)* @__gxx_personality
   unreachable
 
 2:                                                ; preds = %0
-  %3 = landingpad { i8*, i32 }
-  catch i8* null
-  %4 = extractvalue { i8*, i32 } %3, 0
-  %5 = tail call i8* @__cxa_begin_catch(i8* %4) #2
+  %3 = landingpad { ptr, i32 }
+  catch ptr null
+  %4 = extractvalue { ptr, i32 } %3, 0
+  %5 = tail call ptr @__cxa_begin_catch(ptr %4) #2
   tail call void @__cxa_end_catch()
   ret i32 -1
 }
@@ -141,12 +141,12 @@ define i32 @catch_thing_user() {
 
 declare i32 @__gxx_personality_v0(...)
 
-declare i8* @__cxa_begin_catch(i8*)
+declare ptr @__cxa_begin_catch(ptr)
 
 declare void @__cxa_end_catch()
 ;.
-; TUNIT: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind readnone willreturn }
-; TUNIT: attributes #[[ATTR1]] = { nofree nosync nounwind readnone willreturn }
+; TUNIT: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind willreturn memory(none) }
+; TUNIT: attributes #[[ATTR1]] = { nofree nosync nounwind willreturn memory(none) }
 ;.
-; CGSCC: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind readnone willreturn }
+; CGSCC: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind willreturn memory(none) }
 ;.

@@ -12,7 +12,6 @@
 
 #include "TGParser.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -945,6 +944,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     TokError("unknown bang operator");
     return nullptr;
   case tgtok::XNOT:
+  case tgtok::XLOG2:
   case tgtok::XHead:
   case tgtok::XTail:
   case tgtok::XSize:
@@ -971,6 +971,11 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     case tgtok::XNOT:
       Lex.Lex();  // eat the operation
       Code = UnOpInit::NOT;
+      Type = IntRecTy::get(Records);
+      break;
+    case tgtok::XLOG2:
+      Lex.Lex();  // eat the operation
+      Code = UnOpInit::LOG2;
       Type = IntRecTy::get(Records);
       break;
     case tgtok::XHead:
@@ -1174,6 +1179,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
   case tgtok::XGt:
   case tgtok::XListConcat:
   case tgtok::XListSplat:
+  case tgtok::XListRemove:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: { // Value ::= !binop '(' Value ',' Value ')'
@@ -1203,6 +1209,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     case tgtok::XGt:     Code = BinOpInit::GT; break;
     case tgtok::XListConcat: Code = BinOpInit::LISTCONCAT; break;
     case tgtok::XListSplat:  Code = BinOpInit::LISTSPLAT; break;
+    case tgtok::XListRemove: Code = BinOpInit::LISTREMOVE; break;
     case tgtok::XStrConcat:  Code = BinOpInit::STRCONCAT; break;
     case tgtok::XInterleave: Code = BinOpInit::INTERLEAVE; break;
     case tgtok::XSetDagOp:   Code = BinOpInit::SETDAGOP; break;
@@ -1241,11 +1248,15 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
       // ArgType for the comparison operators is not yet known.
       break;
     case tgtok::XListConcat:
-      // We don't know the list type until we parse the first argument
+      // We don't know the list type until we parse the first argument.
       ArgType = ItemType;
       break;
     case tgtok::XListSplat:
       // Can't do any typechecking until we parse the first argument.
+      break;
+    case tgtok::XListRemove:
+      // We don't know the list type until we parse the first argument.
+      ArgType = ItemType;
       break;
     case tgtok::XStrConcat:
       Type = StringRecTy::get(Records);
@@ -1323,6 +1334,13 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
             return nullptr;
           }
           ArgType = nullptr; // Broken invariant: types not identical.
+          break;
+        case BinOpInit::LISTREMOVE:
+          if (!isa<ListRecTy>(ArgType)) {
+            Error(InitLoc, Twine("expected a list, got value of type '") +
+                               ArgType->getAsString() + "'");
+            return nullptr;
+          }
           break;
         case BinOpInit::EQ:
         case BinOpInit::NE:
@@ -1418,6 +1436,9 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     // listsplat returns a list of type of the *first* argument.
     if (Code == BinOpInit::LISTSPLAT)
       Type = cast<TypedInit>(InitList.front())->getType()->getListTy();
+    // listremove returns a list with type of the argument.
+    if (Code == BinOpInit::LISTREMOVE)
+      Type = ArgType;
 
     // We allow multiple operands to associative operators like !strconcat as
     // shorthand for nesting them.
@@ -2149,6 +2170,7 @@ Init *TGParser::ParseOperationCond(Record *CurRec, RecTy *ItemType) {
 ///   SimpleValue ::= SRLTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTSPLATTOK '(' Value ',' Value ')'
+///   SimpleValue ::= LISTREMOVETOK '(' Value ',' Value ')'
 ///   SimpleValue ::= STRCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= COND '(' [Value ':' Value,]+ ')'
 ///
@@ -2433,6 +2455,7 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
   case tgtok::XMUL:
   case tgtok::XDIV:
   case tgtok::XNOT:
+  case tgtok::XLOG2:
   case tgtok::XAND:
   case tgtok::XOR:
   case tgtok::XXOR:
@@ -2447,6 +2470,7 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
   case tgtok::XGt:
   case tgtok::XListConcat:
   case tgtok::XListSplat:
+  case tgtok::XListRemove:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: // Value ::= !binop '(' Value ',' Value ')'
@@ -2816,7 +2840,7 @@ Init *TGParser::ParseDeclaration(Record *CurRec,
     SMLoc ValLoc = Lex.getLoc();
     Init *Val = ParseValue(CurRec, Type);
     if (!Val ||
-        SetValue(CurRec, ValLoc, DeclName, None, Val,
+        SetValue(CurRec, ValLoc, DeclName, std::nullopt, Val,
                  /*AllowSelfAssignment=*/false, /*OverrideDefLoc=*/false)) {
       // Return the name, even if an error is thrown.  This is so that we can
       // continue to make some progress, even without the value having been

@@ -128,7 +128,7 @@ def fir_CharacterType : FIR_Type<"Character", "char"> {
     static constexpr LenType singleton() { return 1; }
 
     /// Character has a LEN value which is not a compile-time known constant.
-    static constexpr LenType unknownLen() { return -1; }
+    static constexpr LenType unknownLen() { return mlir::ShapedType::kDynamic; }
 
     /// Character LEN is a runtime value.
     bool hasDynamicLen() { return getLen() == unknownLen(); }
@@ -142,7 +142,7 @@ def fir_ClassType : FIR_Type<"Class", "class", [], "BaseBoxType"> {
   let summary = "Class type";
 
   let description = [{
-    Class type is used to model the Fortran CLASS instrinsic type. A class type
+    Class type is used to model the Fortran CLASS intrinsic type. A class type
     is equivalent to a fir.box type with a dynamic type.
   }];
 
@@ -356,6 +356,7 @@ def fir_RecordType : FIR_Type<"Record", "type"> {
     unsigned getNumLenParams() { return getLenParamList().size(); }
     bool isDependentType() { return getNumLenParams(); }
 
+    bool isFinalized() const;
     void finalize(llvm::ArrayRef<TypePair> lenPList,
                   llvm::ArrayRef<TypePair> typeList);
 
@@ -426,15 +427,6 @@ def fir_ShiftType : FIR_Type<"Shift", "shift"> {
 
   let parameters = (ins "unsigned":$rank);
   let hasCustomAssemblyFormat = 1;
-
-  let extraClassDeclaration = [{
-    using KindTy = unsigned;
-
-    // a !fir.boxchar<k> always wraps a !fir.char<k, ?>
-    CharacterType getElementType(mlir::MLIRContext *context) const;
-
-    CharacterType getEleTy() const;
-  }];
 }
 
 def fir_SequenceType : FIR_Type<"Sequence", "array"> {
@@ -491,8 +483,10 @@ def fir_SequenceType : FIR_Type<"Sequence", "array"> {
     // Does the sequence have unknown shape? (`array<* x T>`)
     bool hasUnknownShape() const { return getShape().empty(); }
 
-    // The value `-1` represents an unknown extent for a dimension
-    static constexpr Extent getUnknownExtent() { return -1; }
+    // The value `kDynamic` represents an unknown extent for a dimension
+    static constexpr Extent getUnknownExtent() {
+      return mlir::ShapedType::kDynamic;
+    }
   }];
 }
 
@@ -536,7 +530,7 @@ def fir_VectorType : FIR_Type<"Vector", "vector"> {
 
   let description = [{
     Replacement for the builtin vector type.
-    The FIR vector type is always rank one. It's size is always a constant.
+    The FIR vector type is always rank one. Its size is always a constant.
     A vector's element type must be real or integer.
   }];
 
@@ -610,8 +604,8 @@ def AnyRefOrBoxLike : TypeConstraint<Or<[AnyReferenceLike.predicate,
     AnyBoxLike.predicate, FunctionType.predicate]>,
     "any reference or box like">;
 def AnyRefOrBox : TypeConstraint<Or<[fir_ReferenceType.predicate,
-    fir_HeapType.predicate, fir_PointerType.predicate, fir_BoxType.predicate]>,
-    "any reference or box">;
+    fir_HeapType.predicate, fir_PointerType.predicate,
+    IsBaseBoxTypePred]>, "any reference or box">;
 
 def AnyShapeLike : TypeConstraint<Or<[fir_ShapeType.predicate,
     fir_ShapeShiftType.predicate]>, "any legal shape type">;
@@ -642,7 +636,7 @@ def AnyAddressableLike : TypeConstraint<Or<[fir_ReferenceType.predicate,
     FunctionType.predicate]>, "any addressable">;
 
 def ArrayOrBoxOrRecord : TypeConstraint<Or<[fir_SequenceType.predicate,
-    fir_BoxType.predicate, fir_RecordType.predicate]>,
+    IsBaseBoxTypePred, fir_RecordType.predicate]>,
     "fir.box, fir.array or fir.type">;
 
 

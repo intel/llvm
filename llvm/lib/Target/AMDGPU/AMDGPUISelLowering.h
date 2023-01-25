@@ -57,6 +57,7 @@ protected:
   SDValue LowerFRINT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFNEARBYINT(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue LowerFROUNDEVEN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFLOG(SDValue Op, SelectionDAG &DAG,
@@ -172,6 +173,9 @@ public:
                                unsigned Depth) const override;
 
   bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+
+  bool isDesirableToCommuteWithShift(const SDNode *N,
+                                     CombineLevel Level) const override;
 
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
@@ -511,6 +515,7 @@ enum NodeType : unsigned {
   BUFFER_LOAD_BYTE,
   BUFFER_LOAD_SHORT,
   BUFFER_LOAD_FORMAT,
+  BUFFER_LOAD_FORMAT_TFE,
   BUFFER_LOAD_FORMAT_D16,
   SBUFFER_LOAD,
   BUFFER_STORE,

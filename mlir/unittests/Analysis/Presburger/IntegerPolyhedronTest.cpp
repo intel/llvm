@@ -52,8 +52,8 @@ static void dump(ArrayRef<MPInt> vec) {
 ///   for the IntegerPolyhedron poly. Also check that getIntegerLexmin finds a
 ///   non-empty lexmin.
 ///
-///   If hasSample is false, check that findIntegerSample returns None and
-///   findIntegerLexMin returns Empty.
+///   If hasSample is false, check that findIntegerSample returns std::nullopt
+///   and findIntegerLexMin returns Empty.
 ///
 /// If fn is TestFunction::Empty, check that isIntegerEmpty returns the
 /// opposite of hasSample.
@@ -1479,9 +1479,7 @@ TEST(IntegerPolyhedronTest, containsPointNoLocal) {
   IntegerPolyhedron poly3 =
       parseIntegerPolyhedron("(x, y) : (2*x - y >= 0, y - 3*x >= 0)");
 
-  // -0 instead of 0 to prevent unwanted conversion to pointer types,
-  // which would lead to ambiguity in overload resolution.
-  EXPECT_TRUE(poly3.containsPointNoLocal({-0, 0}));
+  EXPECT_TRUE(poly3.containsPointNoLocal(ArrayRef<int64_t>({0, 0})));
   EXPECT_FALSE(poly3.containsPointNoLocal({1, 0}));
 }
 

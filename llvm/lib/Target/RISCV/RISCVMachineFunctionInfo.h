@@ -65,9 +65,14 @@ private:
   uint64_t RVVPadding = 0;
   /// Size of stack frame to save callee saved registers
   unsigned CalleeSavedStackSize = 0;
+  /// Is there any vector argument or return?
+  bool IsVectorCall = false;
+
+  /// Registers that have been sign extended from i32.
+  SmallVector<Register, 8> SExt32Registers;
 
 public:
-  RISCVMachineFunctionInfo(const MachineFunction &MF) {}
+  RISCVMachineFunctionInfo(const Function &F, const TargetSubtargetInfo *STI) {}
 
   MachineFunctionInfo *
   clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
@@ -118,6 +123,12 @@ public:
   void setCalleeSavedStackSize(unsigned Size) { CalleeSavedStackSize = Size; }
 
   void initializeBaseYamlFields(const yaml::RISCVMachineFunctionInfo &YamlMFI);
+
+  void addSExt32Register(Register Reg);
+  bool isSExt32Register(Register Reg) const;
+
+  bool isVectorCall() const { return IsVectorCall; }
+  void setIsVectorCall() { IsVectorCall = true; }
 };
 
 } // end namespace llvm

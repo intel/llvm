@@ -52,8 +52,13 @@ add_lldb_unittest(UtilityTests
       LLVMTestingSupport
   LINK_COMPONENTS
     Support
+    TargetParser
   )
 
-add_unittest_inputs(UtilityTests
+set(test_inputs
   StructuredData-basic.json
+  StructuredData-nested.json
+  StructuredData-full.json
   )
+
+add_unittest_inputs(UtilityTests "${test_inputs}")

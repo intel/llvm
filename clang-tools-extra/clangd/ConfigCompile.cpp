@@ -33,7 +33,6 @@
 #include "support/Logger.h"
 #include "support/Path.h"
 #include "support/Trace.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -111,14 +110,14 @@ struct FragmentCompiler {
     std::string RegexError;
     if (!Result.isValid(RegexError)) {
       diag(Error, "Invalid regex " + Anchored + ": " + RegexError, Text.Range);
-      return llvm::None;
+      return std::nullopt;
     }
-    return Result;
+    return std::move(Result);
   }
 
-  llvm::Optional<std::string> makeAbsolute(Located<std::string> Path,
-                                           llvm::StringLiteral Description,
-                                           llvm::sys::path::Style Style) {
+  std::optional<std::string> makeAbsolute(Located<std::string> Path,
+                                          llvm::StringLiteral Description,
+                                          llvm::sys::path::Style Style) {
     if (llvm::sys::path::is_absolute(*Path))
       return *Path;
     if (FragmentDirectory.empty()) {
@@ -129,7 +128,7 @@ struct FragmentCompiler {
                Description)
                .str(),
            Path.Range);
-      return llvm::None;
+      return std::nullopt;
     }
     llvm::SmallString<256> AbsPath = llvm::StringRef(*Path);
     llvm::sys::fs::make_absolute(FragmentDirectory, AbsPath);
@@ -171,7 +170,7 @@ struct FragmentCompiler {
   };
 
   // Attempt to parse a specified string into an enum.
-  // Yields llvm::None and produces a diagnostic on failure.
+  // Yields std::nullopt and produces a diagnostic on failure.
   //
   // Optional<T> Value = compileEnum<En>("Foo", Frag.Foo)
   //    .map("Foo", Enum::Foo)

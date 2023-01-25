@@ -109,6 +109,14 @@ void VPDef::dump() const {
 }
 #endif
 
+VPRecipeBase *VPValue::getDefiningRecipe() {
+  return cast_or_null<VPRecipeBase>(Def);
+}
+
+const VPRecipeBase *VPValue::getDefiningRecipe() const {
+  return cast_or_null<VPRecipeBase>(Def);
+}
+
 // Get the top-most entry block of \p Start. This is the entry block of the
 // containing VPlan. This function is templated to support both const and non-const blocks
 template <typename T> static T *getPlanEntry(T *Start) {
@@ -202,7 +210,7 @@ VPBasicBlock::iterator VPBasicBlock::getFirstNonPhi() {
 }
 
 Value *VPTransformState::get(VPValue *Def, const VPIteration &Instance) {
-  if (!Def->getDef())
+  if (!Def->hasDefiningRecipe())
     return Def->getLiveInIRValue();
 
   if (hasScalarValue(Def, Instance)) {
@@ -257,7 +265,7 @@ void VPTransformState::setDebugLocFromInst(const Value *V) {
   const DILocation *DIL = Inst->getDebugLoc();
   // When a FSDiscriminator is enabled, we don't need to add the multiply
   // factors to the discriminators.
-  if (DIL && Inst->getFunction()->isDebugInfoForProfiling() &&
+  if (DIL && Inst->getFunction()->shouldEmitDebugInfoForProfiling() &&
       !isa<DbgInfoIntrinsic>(Inst) && !EnableFSDiscriminator) {
     // FIXME: For scalable vectors, assume vscale=1.
     auto NewDIL =
@@ -577,44 +585,10 @@ VPActiveLaneMaskPHIRecipe *VPlan::getActiveLaneMaskPhi() {
   return nullptr;
 }
 
-static bool canSimplifyBranchOnCond(VPInstruction *Term) {
-  VPInstruction *Not = dyn_cast<VPInstruction>(Term->getOperand(0));
-  if (!Not || Not->getOpcode() != VPInstruction::Not)
-    return false;
-
-  VPInstruction *ALM = dyn_cast<VPInstruction>(Not->getOperand(0));
-  return ALM && ALM->getOpcode() == VPInstruction::ActiveLaneMask;
-}
-
 void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
                              Value *CanonicalIVStartValue,
                              VPTransformState &State,
                              bool IsEpilogueVectorization) {
-
-  VPBasicBlock *ExitingVPBB = getVectorLoopRegion()->getExitingBasicBlock();
-  auto *Term = dyn_cast<VPInstruction>(&ExitingVPBB->back());
-  // Try to simplify the branch condition if TC <= VF * UF when preparing to
-  // execute the plan for the main vector loop. We only do this if the
-  // terminator is:
-  //  1. BranchOnCount, or
-  //  2. BranchOnCond where the input is Not(ActiveLaneMask).
-  if (!IsEpilogueVectorization && Term && isa<ConstantInt>(TripCountV) &&
-      (Term->getOpcode() == VPInstruction::BranchOnCount ||
-       (Term->getOpcode() == VPInstruction::BranchOnCond &&
-        canSimplifyBranchOnCond(Term)))) {
-    ConstantInt *C = cast<ConstantInt>(TripCountV);
-    uint64_t TCVal = C->getZExtValue();
-    if (TCVal && TCVal <= State.VF.getKnownMinValue() * State.UF) {
-      auto *BOC =
-          new VPInstruction(VPInstruction::BranchOnCond,
-                            {getOrAddExternalDef(State.Builder.getTrue())});
-      Term->eraseFromParent();
-      ExitingVPBB->appendRecipe(BOC);
-      // TODO: Further simplifications are possible
-      //      1. Replace inductions with constants.
-      //      2. Replace vector loop region with VPBasicBlock.
-    }
-  }
 
   // Check if the trip count is needed, and if so build it.
   if (TripCount && TripCount->getNumUsers()) {
@@ -640,12 +614,14 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
 
   // When vectorizing the epilogue loop, the canonical induction start value
   // needs to be changed from zero to the value after the main vector loop.
+  // FIXME: Improve modeling for canonical IV start values in the epilogue loop.
   if (CanonicalIVStartValue) {
     VPValue *VPV = getOrAddExternalDef(CanonicalIVStartValue);
     auto *IV = getCanonicalIV();
     assert(all_of(IV->users(),
                   [](const VPUser *U) {
-                    if (isa<VPScalarIVStepsRecipe>(U))
+                    if (isa<VPScalarIVStepsRecipe>(U) ||
+                        isa<VPDerivedIVRecipe>(U))
                       return true;
                     auto *VPI = cast<VPInstruction>(U);
                     return VPI->getOpcode() ==
@@ -747,7 +723,7 @@ LLVM_DUMP_METHOD
 void VPlan::print(raw_ostream &O) const {
   VPSlotTracker SlotTracker(this);
 
-  O << "VPlan '" << Name << "' {";
+  O << "VPlan '" << getName() << "' {";
 
   if (VectorTripCount.getNumUsers() > 0) {
     O << "\nLive-in ";
@@ -777,6 +753,29 @@ void VPlan::print(raw_ostream &O) const {
   }
 
   O << "}\n";
+}
+
+std::string VPlan::getName() const {
+  std::string Out;
+  raw_string_ostream RSO(Out);
+  RSO << Name << " for ";
+  if (!VFs.empty()) {
+    RSO << "VF={" << VFs[0];
+    for (ElementCount VF : drop_begin(VFs))
+      RSO << "," << VF;
+    RSO << "},";
+  }
+
+  if (UFs.empty()) {
+    RSO << "UF>=1";
+  } else {
+    RSO << "UF={" << UFs[0];
+    for (unsigned UF : drop_begin(UFs))
+      RSO << "," << UF;
+    RSO << "}";
+  }
+
+  return Out;
 }
 
 LLVM_DUMP_METHOD
@@ -1103,7 +1102,7 @@ VPValue *vputils::getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
     return Plan.getOrAddExternalDef(E->getValue());
 
   VPBasicBlock *Preheader = Plan.getEntry()->getEntryBasicBlock();
-  VPValue *Step = new VPExpandSCEVRecipe(Expr, SE);
-  Preheader->appendRecipe(cast<VPRecipeBase>(Step->getDef()));
+  VPExpandSCEVRecipe *Step = new VPExpandSCEVRecipe(Expr, SE);
+  Preheader->appendRecipe(Step);
   return Step;
 }

@@ -9,17 +9,24 @@ on:
     - sycl
     paths:
     - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
+  workflow_dispatch:
 
 jobs:
   # This job generates matrix of tests for LLVM Test Suite
   test_matrix:
     name: Generate Test Matrix
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "l0_gen9"
       cts_config: "cuda"
   linux_default:
     name: Linux Default
+    if: github.repository == 'intel/llvm'
     needs: test_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -31,6 +38,7 @@ jobs:
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -60,11 +68,11 @@ jobs:
     - name: Configure
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-15 main"
         sudo apt-get update
-        sudo apt-get install -y clang-13
-        export CC="clang-13"
-        export CXX="clang++-13"
+        sudo apt-get install -y clang-15
+        export CC="clang-15"
+        export CXX="clang++-15"
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \

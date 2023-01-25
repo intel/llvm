@@ -8,7 +8,6 @@
 
 #include "FS.h"
 #include "clang/Basic/LLVM.h"
-#include "llvm/ADT/None.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
@@ -47,7 +46,7 @@ PreambleFileStatusCache::lookup(llvm::StringRef File) const {
   if (I != StatCache.end())
     // Returned Status name should always match the requested File.
     return llvm::vfs::Status::copyWithNewName(I->getValue(), File);
-  return None;
+  return std::nullopt;
 }
 
 llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem>

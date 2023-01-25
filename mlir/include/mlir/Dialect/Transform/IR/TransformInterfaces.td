@@ -48,34 +48,88 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
           "::mlir::transform::TransformResults &":$transformResults,
           "::mlir::transform::TransformState &":$state
     )>,
+    InterfaceMethod<
+      /*desc=*/[{
+        Indicates whether the op instance allows its handle operands to be
+        associated with the same payload operations.
+      }],
+      /*returnType=*/"bool",
+      /*name=*/"allowsRepeatedHandleOperands",
+      /*arguments=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return false;
+      }]
+    >,
   ];
 
   let extraSharedClassDeclaration = [{
-    /// Emits a generic transform error for the current transform operation
+    /// Creates the silenceable failure object with a diagnostic located at the
+    /// current operation. Silenceable failure must be suppressed or reported
+    /// explicitly at some later time.
+    DiagnosedSilenceableFailure
+    emitSilenceableError(const ::llvm::Twine &message = {}) {
+      return ::mlir::emitSilenceableFailure($_op, message);
+    }
+
+    /// Creates the definite failure object with a diagnostic located at the
+    /// current operation. Definite failure will be reported when the object
+    /// is destroyed or converted.
+    DiagnosedDefiniteFailure
+    emitDefiniteFailure(const ::llvm::Twine &message = {}) {
+      return ::mlir::emitDefiniteFailure($_op, message);
+    }
+
+    /// Emits a generic definite failure for the current transform operation
     /// targeting the given Payload IR operation and returns failure. Should
     /// be only used as a last resort when the transformation itself provides
     /// no further indication as to the reason of the failure.
-    ::mlir::LogicalResult reportUnknownTransformError(
+    DiagnosedDefiniteFailure emitDefaultDefiniteFailure(
         ::mlir::Operation *target) {
-      ::mlir::InFlightDiagnostic diag = $_op->emitError() << "failed to apply";
+      auto diag = ::mlir::emitDefiniteFailure($_op, "failed to apply");
       diag.attachNote(target->getLoc()) << "attempted to apply to this op";
       return diag;
-    }
-
-    /// Creates the silenceable failure object with a diagnostic located at the
-    /// current operation.
-    DiagnosedSilenceableFailure emitSilenceableError() {
-      Diagnostic diag($_op->getLoc(), DiagnosticSeverity::Error);
-      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
     }
 
     /// Creates the default silenceable failure for a transform op that failed
     /// to properly apply to a target.
     DiagnosedSilenceableFailure emitDefaultSilenceableFailure(
         Operation *target) {
-      Diagnostic diag($_op->getLoc(), DiagnosticSeverity::Error);
+      DiagnosedSilenceableFailure diag = emitSilenceableFailure($_op->getLoc());
       diag << $_op->getName() << " failed to apply";
       diag.attachNote(target->getLoc()) << "when applied to this op";
+      return diag;
+    }
+  }];
+}
+
+def TransformTypeInterface : TypeInterface<"TransformTypeInterface"> {
+  let description = [{
+    Types that can be used for Transform dialect handle values. Such types
+    define the properties of Payload IR operations associated with the handle.
+    A user of such a handle can assume that these properties have been verified
+    for any Payload IR operation associated with it.
+  }];
+
+  let cppNamespace = "::mlir::transform";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        Checks if the given list of associated Payload IR operations satisfy
+        the conditions defined by this type. If not, produces a silenceable
+        error at the specified location.
+      }],
+      /*returnType=*/"::mlir::DiagnosedSilenceableFailure",
+      /*name=*/"checkPayload",
+      /*arguments=*/(ins "::mlir::Location":$loc,
+                         "::mlir::ArrayRef<::mlir::Operation *>":$payload)
+    >
+  ];
+
+  let extraSharedClassDeclaration = [{
+    DiagnosedSilenceableFailure emitSilenceableError(Location loc) const {
+      Diagnostic diag(loc, DiagnosticSeverity::Error);
       return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
     }
   }];

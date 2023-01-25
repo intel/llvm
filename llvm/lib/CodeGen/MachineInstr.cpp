@@ -13,7 +13,6 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
@@ -128,6 +127,14 @@ MachineInstr::MachineInstr(MachineFunction &MF, const MachineInstr &MI)
   // Copy operands.
   for (const MachineOperand &MO : MI.operands())
     addOperand(MF, MO);
+
+  // Replicate ties between the operands, which addOperand was not
+  // able to do reliably.
+  for (unsigned i = 0, e = getNumOperands(); i < e; ++i) {
+    MachineOperand &NewMO = getOperand(i);
+    const MachineOperand &OrigMO = MI.getOperand(i);
+    NewMO.TiedTo = OrigMO.TiedTo;
+  }
 
   // Copy all the sensible flags.
   setFlags(MI.Flags);
@@ -664,6 +671,25 @@ bool MachineInstr::isIdenticalTo(const MachineInstr &Other,
   if (isCall() && getCFIType() != Other.getCFIType())
     return false;
 
+  return true;
+}
+
+bool MachineInstr::isEquivalentDbgInstr(const MachineInstr &Other) const {
+  if (!isDebugValue() || !Other.isDebugValue())
+    return false;
+  if (getDebugLoc() != Other.getDebugLoc())
+    return false;
+  if (getDebugVariable() != Other.getDebugVariable())
+    return false;
+  if (getNumDebugOperands() != Other.getNumDebugOperands())
+    return false;
+  for (unsigned OpIdx = 0; OpIdx < getNumDebugOperands(); ++OpIdx)
+    if (!getDebugOperand(OpIdx).isIdenticalTo(Other.getDebugOperand(OpIdx)))
+      return false;
+  if (!DIExpression::isEqualExpression(
+          getDebugExpression(), isIndirectDebugValue(),
+          Other.getDebugExpression(), Other.isIndirectDebugValue()))
+    return false;
   return true;
 }
 
@@ -2322,7 +2348,7 @@ static unsigned getSpillSlotSize(const MMOList &Accesses,
   return Size;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 MachineInstr::getSpillSize(const TargetInstrInfo *TII) const {
   int FI;
   if (TII->isStoreToStackSlotPostFE(*this, FI)) {
@@ -2330,18 +2356,18 @@ MachineInstr::getSpillSize(const TargetInstrInfo *TII) const {
     if (MFI.isSpillSlotObjectIndex(FI))
       return (*memoperands_begin())->getSize();
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 MachineInstr::getFoldedSpillSize(const TargetInstrInfo *TII) const {
   MMOList Accesses;
   if (TII->hasStoreToStackSlot(*this, Accesses))
     return getSpillSlotSize(Accesses, getMF()->getFrameInfo());
-  return None;
+  return std::nullopt;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 MachineInstr::getRestoreSize(const TargetInstrInfo *TII) const {
   int FI;
   if (TII->isLoadFromStackSlotPostFE(*this, FI)) {
@@ -2349,15 +2375,15 @@ MachineInstr::getRestoreSize(const TargetInstrInfo *TII) const {
     if (MFI.isSpillSlotObjectIndex(FI))
       return (*memoperands_begin())->getSize();
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 MachineInstr::getFoldedRestoreSize(const TargetInstrInfo *TII) const {
   MMOList Accesses;
   if (TII->hasLoadFromStackSlot(*this, Accesses))
     return getSpillSlotSize(Accesses, getMF()->getFrameInfo());
-  return None;
+  return std::nullopt;
 }
 
 unsigned MachineInstr::getDebugInstrNum() {

@@ -15,7 +15,6 @@
 #ifndef LLVM_OBJECT_DXCONTAINER_H
 #define LLVM_OBJECT_DXCONTAINER_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/DXContainer.h"
@@ -34,13 +33,15 @@ private:
   MemoryBufferRef Data;
   dxbc::Header Header;
   SmallVector<uint32_t, 4> PartOffsets;
-  Optional<DXILData> DXIL;
-  Optional<uint64_t> ShaderFlags;
+  std::optional<DXILData> DXIL;
+  std::optional<uint64_t> ShaderFlags;
+  std::optional<dxbc::ShaderHash> Hash;
 
   Error parseHeader();
   Error parsePartOffsets();
   Error parseDXILHeader(uint32_t Offset);
   Error parseShaderFlags(uint32_t Offset);
+  Error parseHash(uint32_t Offset);
   friend class PartIterator;
 
 public:
@@ -117,9 +118,11 @@ public:
 
   const dxbc::Header &getHeader() const { return Header; }
 
-  Optional<DXILData> getDXIL() const { return DXIL; }
+  std::optional<DXILData> getDXIL() const { return DXIL; }
 
-  Optional<uint64_t> getShaderFlags() const { return ShaderFlags; }
+  std::optional<uint64_t> getShaderFlags() const { return ShaderFlags; }
+
+  std::optional<dxbc::ShaderHash> getShaderHash() const { return Hash; }
 };
 
 } // namespace object

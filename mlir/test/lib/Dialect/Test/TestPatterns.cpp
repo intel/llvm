@@ -147,6 +147,26 @@ public:
   }
 };
 
+/// This pattern matches test.any_attr_of_i32_str ops. In case of an integer
+/// attribute with value smaller than MaxVal, it increments the value by 1.
+template <int MaxVal>
+struct IncrementIntAttribute : public OpRewritePattern<AnyAttrOfOp> {
+  using OpRewritePattern<AnyAttrOfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AnyAttrOfOp op,
+                                PatternRewriter &rewriter) const override {
+    auto intAttr = op.getAttr().dyn_cast<IntegerAttr>();
+    if (!intAttr)
+      return failure();
+    int64_t val = intAttr.getInt();
+    if (val >= MaxVal)
+      return failure();
+    rewriter.updateRootInPlace(
+        op, [&]() { op.setAttrAttr(rewriter.getI32IntegerAttr(val + 1)); });
+    return success();
+  }
+};
+
 struct TestPatternDriver
     : public PassWrapper<TestPatternDriver, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestPatternDriver)
@@ -165,8 +185,12 @@ struct TestPatternDriver
                  FolderInsertBeforePreviouslyFoldedConstantPattern,
                  FolderCommutativeOp2WithConstant>(&getContext());
 
+    // Additional patterns for testing the GreedyPatternRewriteDriver.
+    patterns.insert<IncrementIntAttribute<3>>(&getContext());
+
     GreedyRewriteConfig config;
     config.useTopDownTraversal = this->useTopDownTraversal;
+    config.maxIterations = this->maxIterations;
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                        config);
   }
@@ -175,6 +199,10 @@ struct TestPatternDriver
       *this, "top-down",
       llvm::cl::desc("Seed the worklist in general top-down order"),
       llvm::cl::init(GreedyRewriteConfig().useTopDownTraversal)};
+  Option<int> maxIterations{
+      *this, "max-iterations",
+      llvm::cl::desc("Max. iterations in the GreedyRewriteConfig"),
+      llvm::cl::init(GreedyRewriteConfig().maxIterations)};
 };
 
 struct TestStrictPatternDriver
@@ -283,7 +311,7 @@ static void invokeCreateWithInferredReturnType(Operation *op) {
       std::array<Value, 2> values = {{fop.getArgument(i), fop.getArgument(j)}};
       SmallVector<Type, 2> inferredReturnTypes;
       if (succeeded(OpTy::inferReturnTypes(
-              context, llvm::None, values, op->getAttrDictionary(),
+              context, std::nullopt, values, op->getAttrDictionary(),
               op->getRegions(), inferredReturnTypes))) {
         OperationState state(location, OpTy::getOperationName());
         // TODO: Expand to regions.
@@ -540,8 +568,8 @@ struct TestPassthroughInvalidOp : public ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.replaceOpWithNewOp<TestValidOp>(op, llvm::None, operands,
-                                             llvm::None);
+    rewriter.replaceOpWithNewOp<TestValidOp>(op, std::nullopt, operands,
+                                             std::nullopt);
     return success();
   }
 };
@@ -749,8 +777,9 @@ struct TestTypeConverter : public TypeConverter {
 
   /// Hook for materializing a conversion. This is necessary because we generate
   /// 1->N type mappings.
-  static Optional<Value> materializeCast(OpBuilder &builder, Type resultType,
-                                         ValueRange inputs, Location loc) {
+  static std::optional<Value> materializeCast(OpBuilder &builder,
+                                              Type resultType,
+                                              ValueRange inputs, Location loc) {
     return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
   }
 };
@@ -786,8 +815,8 @@ struct TestLegalizePatternDriver
              TestNestedOpCreationUndoRewrite, TestReplaceEraseOp,
              TestCreateUnregisteredOp>(&getContext());
     patterns.add<TestDropOpSignatureConversion>(&getContext(), converter);
-    mlir::populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(
-        patterns, converter);
+    mlir::populateAnyFunctionOpInterfaceTypeConversionPattern(patterns,
+                                                              converter);
     mlir::populateCallOpTypeConversionPattern(patterns, converter);
 
     // Define the conversion target used for the test.
@@ -1239,7 +1268,7 @@ struct TestTypeConversionDriver
         // Convert a recursive self-referring type into a non-self-referring
         // type named "outer_converted_type" that contains a SimpleAType.
         [&](test::TestRecursiveType type, SmallVectorImpl<Type> &results,
-            ArrayRef<Type> callStack) -> Optional<LogicalResult> {
+            ArrayRef<Type> callStack) -> std::optional<LogicalResult> {
           // If the type is already converted, return it to indicate that it is
           // legal.
           if (type.getName() == "outer_converted_type") {
@@ -1313,8 +1342,8 @@ struct TestTypeConversionDriver
                  TestTestSignatureConversionNoConverter>(converter,
                                                          &getContext());
     patterns.add<TestTypeConversionAnotherProducer>(&getContext());
-    mlir::populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(
-        patterns, converter);
+    mlir::populateAnyFunctionOpInterfaceTypeConversionPattern(patterns,
+                                                              converter);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

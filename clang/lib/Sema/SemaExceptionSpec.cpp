@@ -1289,6 +1289,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::StmtExprClass:
   case Expr::ConvertVectorExprClass:
   case Expr::VAArgExprClass:
+  case Expr::CXXParenListInitExprClass:
     return canSubStmtsThrow(*this, S);
 
   case Expr::CompoundLiteralExprClass:
@@ -1498,6 +1499,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::OMPTaskLoopSimdDirectiveClass:
   case Stmt::OMPTaskwaitDirectiveClass:
   case Stmt::OMPTaskyieldDirectiveClass:
+  case Stmt::OMPErrorDirectiveClass:
   case Stmt::OMPTeamsDirectiveClass:
   case Stmt::OMPTeamsDistributeDirectiveClass:
   case Stmt::OMPTeamsDistributeParallelForDirectiveClass:

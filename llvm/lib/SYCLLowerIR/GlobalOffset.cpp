@@ -147,7 +147,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   AllocaInst *ImplicitOffset =
       Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
   uint64_t AllocByteSize =
-      ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).getValue() / 8;
+      ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).value() / 8;
   CallInst *MemsetCall =
       Builder.CreateMemSet(ImplicitOffset, Builder.getInt8(0), AllocByteSize,
                            ImplicitOffset->getAlign());
@@ -303,7 +303,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
           Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
       auto DL = M.getDataLayout();
       uint64_t AllocByteSize =
-          ImplicitOffsetAlloca->getAllocationSizeInBits(DL).getValue() / 8;
+          ImplicitOffsetAlloca->getAllocationSizeInBits(DL).value() / 8;
       // After AMD's kernel arg lowering pass runs the accesses to arguments
       // are replaced with uses of kernarg.segment.ptr which is in
       // addrspace(4), cast implicit offset arg to constant memory so the
@@ -327,8 +327,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     NewFunc->takeName(Func);
 
     // Splice the body of the old function right into the new function.
-    NewFunc->getBasicBlockList().splice(NewFunc->begin(),
-                                        Func->getBasicBlockList());
+    NewFunc->splice(NewFunc->begin(), Func);
 
     for (Function::arg_iterator FuncArg = Func->arg_begin(),
                                 FuncEnd = Func->arg_end(),
@@ -340,7 +339,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // Clone metadata of the old function, including debug info descriptor.
     SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
     Func->getAllMetadata(MDs);
-    for (auto MD : MDs)
+    for (const auto &MD : MDs)
       NewFunc->addMetadata(MD.first, *MD.second);
 
     ImplicitOffset = std::prev(NewFunc->arg_end());

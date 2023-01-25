@@ -291,7 +291,9 @@ public:
 
   /// Pretty-print the unqualified name of this declaration. Can be overloaded
   /// by derived classes to provide a more user-friendly name when appropriate.
-  virtual void printName(raw_ostream &os) const;
+  virtual void printName(raw_ostream &OS, const PrintingPolicy &Policy) const;
+  /// Calls printName() with the ASTContext printing policy from the decl.
+  void printName(raw_ostream &OS) const;
 
   /// Get the actual, stored name of the declaration, which may be a special
   /// name.
@@ -541,6 +543,9 @@ public:
 class NamespaceDecl : public NamedDecl, public DeclContext,
                       public Redeclarable<NamespaceDecl>
 {
+
+  enum Flags : unsigned { F_Inline = 1 << 0, F_Nested = 1 << 1 };
+
   /// The starting location of the source range, pointing
   /// to either the namespace or the inline keyword.
   SourceLocation LocStart;
@@ -552,11 +557,12 @@ class NamespaceDecl : public NamedDecl, public DeclContext,
   /// this namespace or to the first namespace in the chain (the latter case
   /// only when this is not the first in the chain), along with a
   /// boolean value indicating whether this is an inline namespace.
-  llvm::PointerIntPair<NamespaceDecl *, 1, bool> AnonOrFirstNamespaceAndInline;
+  llvm::PointerIntPair<NamespaceDecl *, 2, unsigned>
+      AnonOrFirstNamespaceAndFlags;
 
   NamespaceDecl(ASTContext &C, DeclContext *DC, bool Inline,
                 SourceLocation StartLoc, SourceLocation IdLoc,
-                IdentifierInfo *Id, NamespaceDecl *PrevDecl);
+                IdentifierInfo *Id, NamespaceDecl *PrevDecl, bool Nested);
 
   using redeclarable_base = Redeclarable<NamespaceDecl>;
 
@@ -568,10 +574,10 @@ public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
 
-  static NamespaceDecl *Create(ASTContext &C, DeclContext *DC,
-                               bool Inline, SourceLocation StartLoc,
-                               SourceLocation IdLoc, IdentifierInfo *Id,
-                               NamespaceDecl *PrevDecl);
+  static NamespaceDecl *Create(ASTContext &C, DeclContext *DC, bool Inline,
+                               SourceLocation StartLoc, SourceLocation IdLoc,
+                               IdentifierInfo *Id, NamespaceDecl *PrevDecl,
+                               bool Nested);
 
   static NamespaceDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -600,12 +606,33 @@ public:
 
   /// Returns true if this is an inline namespace declaration.
   bool isInline() const {
-    return AnonOrFirstNamespaceAndInline.getInt();
+    return AnonOrFirstNamespaceAndFlags.getInt() & F_Inline;
   }
 
   /// Set whether this is an inline namespace declaration.
   void setInline(bool Inline) {
-    AnonOrFirstNamespaceAndInline.setInt(Inline);
+    unsigned F = AnonOrFirstNamespaceAndFlags.getInt();
+    if (Inline)
+      AnonOrFirstNamespaceAndFlags.setInt(F | F_Inline);
+    else
+      AnonOrFirstNamespaceAndFlags.setInt(F & ~F_Inline);
+  }
+
+  /// Returns true if this is a nested namespace declaration.
+  /// \code
+  /// namespace outer::nested { }
+  /// \endcode
+  bool isNested() const {
+    return AnonOrFirstNamespaceAndFlags.getInt() & F_Nested;
+  }
+
+  /// Set whether this is a nested namespace declaration.
+  void setNested(bool Nested) {
+    unsigned F = AnonOrFirstNamespaceAndFlags.getInt();
+    if (Nested)
+      AnonOrFirstNamespaceAndFlags.setInt(F | F_Nested);
+    else
+      AnonOrFirstNamespaceAndFlags.setInt(F & ~F_Nested);
   }
 
   /// Returns true if the inline qualifier for \c Name is redundant.
@@ -634,11 +661,11 @@ public:
   /// Retrieve the anonymous namespace nested inside this namespace,
   /// if any.
   NamespaceDecl *getAnonymousNamespace() const {
-    return getOriginalNamespace()->AnonOrFirstNamespaceAndInline.getPointer();
+    return getOriginalNamespace()->AnonOrFirstNamespaceAndFlags.getPointer();
   }
 
   void setAnonymousNamespace(NamespaceDecl *D) {
-    getOriginalNamespace()->AnonOrFirstNamespaceAndInline.setPointer(D);
+    getOriginalNamespace()->AnonOrFirstNamespaceAndFlags.setPointer(D);
   }
 
   /// Retrieves the canonical declaration of this namespace.
@@ -888,7 +915,10 @@ public:
     CallInit,
 
     /// Direct list-initialization (C++11)
-    ListInit
+    ListInit,
+
+    /// Parenthesized list-initialization (C++20)
+    ParenListInit
   };
 
   /// Kinds of thread-local storage.
@@ -1862,7 +1892,8 @@ enum class MultiVersionKind {
   Target,
   CPUSpecific,
   CPUDispatch,
-  TargetClones
+  TargetClones,
+  TargetVersion
 };
 
 /// Represents a function declaration or definition.
@@ -1944,6 +1975,8 @@ private:
   /// de-serialized, so it's far better to have the (sometimes-redundant)
   /// EndRangeLoc.
   SourceLocation EndRangeLoc;
+
+  SourceLocation DefaultKWLoc;
 
   /// The template or declaration that this declaration
   /// describes or was instantiated from, respectively.
@@ -2249,6 +2282,16 @@ public:
   /// State that this function is explicitly defaulted.
   void setExplicitlyDefaulted(bool ED = true) {
     FunctionDeclBits.IsExplicitlyDefaulted = ED;
+  }
+
+  SourceLocation getDefaultLoc() const {
+    return isExplicitlyDefaulted() ? DefaultKWLoc : SourceLocation();
+  }
+
+  void setDefaultLoc(SourceLocation NewLoc) {
+    assert((NewLoc.isInvalid() || isExplicitlyDefaulted()) &&
+           "Can't set default loc is function isn't explicitly defaulted");
+    DefaultKWLoc = NewLoc;
   }
 
   /// True if this method is user-declared and was not
@@ -3643,6 +3686,8 @@ public:
     return getExtInfo()->TemplParamLists[i];
   }
 
+  void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
+
   void setTemplateParameterListsInfo(ASTContext &Context,
                                      ArrayRef<TemplateParameterList *> TPLists);
 
@@ -4235,6 +4280,34 @@ public:
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == FileScopeAsm; }
+};
+
+/// A declaration that models statements at global scope. This declaration
+/// supports incremental and interactive C/C++.
+///
+/// \note This is used in libInterpreter, clang -cc1 -fincremental-extensions
+/// and in tools such as clang-repl.
+class TopLevelStmtDecl : public Decl {
+  friend class ASTDeclReader;
+  friend class ASTDeclWriter;
+
+  Stmt *Statement = nullptr;
+
+  TopLevelStmtDecl(DeclContext *DC, SourceLocation L, Stmt *S)
+      : Decl(TopLevelStmt, DC, L), Statement(S) {}
+
+  virtual void anchor();
+
+public:
+  static TopLevelStmtDecl *Create(ASTContext &C, Stmt *Statement);
+  static TopLevelStmtDecl *CreateDeserialized(ASTContext &C, unsigned ID);
+
+  SourceRange getSourceRange() const override LLVM_READONLY;
+  Stmt *getStmt() { return Statement; }
+  const Stmt *getStmt() const { return Statement; }
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == TopLevelStmt; }
 };
 
 /// Represents a block literal declaration, which is like an

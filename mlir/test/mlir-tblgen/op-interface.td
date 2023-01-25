@@ -1,5 +1,6 @@
 // RUN: mlir-tblgen -gen-op-interface-decls -I %S/../../include %s | FileCheck %s --check-prefix=DECL
 // RUN: mlir-tblgen -gen-op-decls -I %S/../../include %s | FileCheck %s --check-prefix=OP_DECL
+// RUN: mlir-tblgen -gen-op-interface-docs -I %S/../../include %s | FileCheck %s --check-prefix=DOCS
 
 include "mlir/IR/OpBase.td"
 
@@ -30,6 +31,13 @@ def TestOpInterface : OpInterface<"TestOpInterface"> {
       /*retTy=*/"int",
       /*methodName=*/"foo",
       /*args=*/(ins "int":$input)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{some function comment}],
+      /*retTy=*/"int",
+      /*methodName=*/"body_foo",
+      /*args=*/(ins "int":$input),
+      /*body=*/[{ return 0; }]
     >,
     InterfaceMethod<
       /*desc=*/[{some function comment}],
@@ -76,14 +84,15 @@ def DeclareMethodsWithDefaultOp : Op<TestDialect, "declare_methods_op",
 // DECL: /// some function comment
 // DECL: int foo(int input);
 
-// DECL: template<typename ConcreteOp>
-// DECL: int detail::TestOpInterfaceInterfaceTraits::Model<ConcreteOp>::foo
-
 // DECL-LABEL: struct TestOpInterfaceVerifyTrait
 // DECL: verifyTrait
 
 // DECL-LABEL: struct TestOpInterfaceVerifyRegionTrait
 // DECL: verifyRegionTrait
+
+// Method implementations come last, after all class definitions.
+// DECL: template<typename ConcreteOp>
+// DECL: int detail::TestOpInterfaceInterfaceTraits::Model<ConcreteOp>::foo
 
 // OP_DECL-LABEL: class DeclareMethodsOp : public
 // OP_DECL: int foo(int input);
@@ -92,3 +101,17 @@ def DeclareMethodsWithDefaultOp : Op<TestDialect, "declare_methods_op",
 // OP_DECL-LABEL: class DeclareMethodsWithDefaultOp : public
 // OP_DECL: int foo(int input);
 // OP_DECL: int default_foo(int input);
+
+// DOCS-LABEL: {{^}}## TestOpInterface (`TestOpInterface`)
+// DOCS: some op interface description
+
+// DOCS: {{^}}### Methods:
+
+// DOCS: {{^}}#### `foo`
+// DOCS: some function comment
+
+// DOCS: {{^}}#### `body_foo`
+// DOCS: some function comment
+
+// DOCS: {{^}}#### `default_foo`
+// DOCS: some function comment

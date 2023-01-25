@@ -23,7 +23,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/Debug.h"
@@ -240,7 +239,7 @@ private:
   PartialSection *createPartialSection(StringRef name, uint32_t outChars);
   PartialSection *findPartialSection(StringRef name, uint32_t outChars);
 
-  llvm::Optional<coff_symbol16> createSymbol(Defined *d);
+  std::optional<coff_symbol16> createSymbol(Defined *d);
   size_t addEntryToStringTable(StringRef str);
 
   OutputSection *findSection(StringRef name);
@@ -1137,7 +1136,7 @@ size_t Writer::addEntryToStringTable(StringRef str) {
   return offsetOfEntry;
 }
 
-Optional<coff_symbol16> Writer::createSymbol(Defined *def) {
+std::optional<coff_symbol16> Writer::createSymbol(Defined *def) {
   coff_symbol16 sym;
   switch (def->kind()) {
   case Symbol::DefinedAbsoluteKind: {
@@ -1156,10 +1155,10 @@ Optional<coff_symbol16> Writer::createSymbol(Defined *def) {
     // like __ImageBase are outside of sections and thus cannot be represented.
     Chunk *c = def->getChunk();
     if (!c)
-      return None;
+      return std::nullopt;
     OutputSection *os = ctx.getOutputSection(c);
     if (!os)
-      return None;
+      return std::nullopt;
 
     sym.Value = def->getRVA() - os->getRVA();
     sym.SectionNumber = os->sectionIndex;
@@ -1172,7 +1171,7 @@ Optional<coff_symbol16> Writer::createSymbol(Defined *def) {
   // instead. Avoid emitting them to the symbol table, as they can confuse
   // debuggers.
   if (def->isRuntimePseudoReloc)
-    return None;
+    return std::nullopt;
 
   StringRef name = def->getName();
   if (name.size() > COFF::NameSize) {
@@ -1235,13 +1234,14 @@ void Writer::createSymbolAndStringTable() {
             continue;
         }
 
-        if (Optional<coff_symbol16> sym = createSymbol(d))
+        if (std::optional<coff_symbol16> sym = createSymbol(d))
           outputSymtab.push_back(*sym);
 
         if (auto *dthunk = dyn_cast<DefinedImportThunk>(d)) {
           if (!dthunk->wrappedSym->writtenToSymtab) {
             dthunk->wrappedSym->writtenToSymtab = true;
-            if (Optional<coff_symbol16> sym = createSymbol(dthunk->wrappedSym))
+            if (std::optional<coff_symbol16> sym =
+                    createSymbol(dthunk->wrappedSym))
               outputSymtab.push_back(*sym);
           }
         }

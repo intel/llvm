@@ -97,7 +97,7 @@ def MIMG {
 class mimgopc <int gfx11, int gfx10m, int vi = gfx10m, int si = gfx10m> {
   field bits<8> GFX11 = gfx11;
   field bits<8> GFX10M = gfx10m; // GFX10minus for all but atomics
-  field bits<8> VI = vi; // VI is only used for atomic instructions
+  field bits<8> VI = vi; // VI is only used for atomic/sampler/gather instructions
   field bits<8> SI = si; // SI is only used for atomic instructions
   bit HAS_GFX11 = !ne(gfx11, MIMG.NOP);
   bit HAS_GFX10M = !ne(gfx10m, MIMG.NOP);
@@ -872,7 +872,7 @@ multiclass MIMG_Atomic <mimgopc op, string asm, bit isCmpSwap = 0, bit isFP = 0>
 
 class MIMG_Sampler_Helper <mimgopc op, string asm, RegisterClass dst_rc,
                            RegisterClass src_rc, string dns="">
-  : MIMG_gfx6789 <op.GFX10M, (outs dst_rc:$vdata), dns> {
+  : MIMG_gfx6789 <op.VI, (outs dst_rc:$vdata), dns> {
   let InOperandList = !con((ins src_rc:$vaddr, SReg_256:$srsrc, SReg_128:$ssamp,
                                 DMask:$dmask, UNorm:$unorm, CPol:$cpol,
                                 R128A16:$r128, TFE:$tfe, LWE:$lwe, DA:$da),
@@ -958,7 +958,11 @@ class MIMGAddrSize<int dw, bit enable_disasm> {
                            !if(!eq(NumWords, 6), VReg_192,
                            !if(!eq(NumWords, 7), VReg_224,
                            !if(!le(NumWords, 8), VReg_256,
-                           !if(!le(NumWords, 16), VReg_512, ?))))))))));
+                           !if(!le(NumWords, 9), VReg_288,
+                           !if(!le(NumWords, 10), VReg_320,
+                           !if(!le(NumWords, 11), VReg_352,
+                           !if(!le(NumWords, 12), VReg_384,
+                           !if(!le(NumWords, 16), VReg_512, ?))))))))))))));
 
   // Whether the instruction variant with this vaddr size should be enabled for
   // the auto-generated disassembler.
@@ -1007,8 +1011,8 @@ class MIMG_Sampler_AddrSizes<AMDGPUSampleVariant sample, bit isG16> {
            !foreach(range,
                     // V4 is generated for V3 and V4
                     // V8 is generated for V5 through V8
-                    // V16 is generated for V9 through V16
-                    [[1],[2],[3],[3,4],[5],[6],[7],[5,8],[9,16]],
+                    // V16 is generated for V13 through V16
+                    [[1],[2],[3],[3,4],[5],[6],[7],[5,8],[9],[10],[11],[12],[13,16]],
                     MIMGAddrSizes_dw_range<range>),
            lhs, dw,
            !if(isRangeInList<dw.Min, dw.Max, AllNumAddrWords>.ret,
@@ -1129,8 +1133,6 @@ multiclass MIMG_Gather_WQM <mimgopc op, AMDGPUSampleVariant sample>
 
 class MIMG_IntersectRay_Helper<bit Is64, bit A16> {
   int num_addrs = !if(Is64, !if(A16, 9, 12), !if(A16, 8, 11));
-  // TODO: MIMGAddrSize will choose VReg_512 which is a 16 register tuple,
-  // when we only need 9, 11 or 12 depending on A16 field and ptr size.
   RegisterClass RegClass = MIMGAddrSize<num_addrs, 0>.RegClass;
   int VAddrDwords = !srl(RegClass.Size, 5);
 
@@ -1329,7 +1331,9 @@ defm IMAGE_GATHER4_C_L_O        : MIMG_Gather <mimgopc<MIMG.NOP, 0x5c>, AMDGPUSa
 defm IMAGE_GATHER4_C_B_O        : MIMG_Gather_WQM <mimgopc<MIMG.NOP, 0x5d>, AMDGPUSample_c_b_o>;
 defm IMAGE_GATHER4_C_B_CL_O     : MIMG_Gather_WQM <mimgopc<MIMG.NOP, 0x5e>, AMDGPUSample_c_b_cl_o>;
 defm IMAGE_GATHER4_C_LZ_O       : MIMG_Gather <mimgopc<0x37, 0x5f>, AMDGPUSample_c_lz_o>;
-defm IMAGE_GATHER4H             : MIMG_Gather <mimgopc<0x90, 0x61>, AMDGPUSample, 1, "image_gather4h">;
+
+let SubtargetPredicate = isGFX9Plus in
+defm IMAGE_GATHER4H             : MIMG_Gather <mimgopc<0x90, 0x61, 0x42>, AMDGPUSample, 1, "image_gather4h">;
 
 defm IMAGE_GET_LOD              : MIMG_Sampler <mimgopc<0x38, 0x60>, AMDGPUSample, 1, 0, 1, "image_get_lod">;
 

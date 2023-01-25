@@ -57,8 +57,11 @@ bool canCoerceMustAliasedValueToLoad(Value *StoredVal, Type *LoadTy,
 
   // The implementation below uses inttoptr for vectors of unequal size; we
   // can't allow this for non integral pointers. We could teach it to extract
-  // exact subvectors if desired. 
+  // exact subvectors if desired.
   if (StoredNI && StoreSize != DL.getTypeSizeInBits(LoadTy).getFixedSize())
+    return false;
+
+  if (StoredTy->isTargetExtTy() || LoadTy->isTargetExtTy())
     return false;
 
   return true;
@@ -356,9 +359,9 @@ int analyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
 
   // If this is memset, we just need to see if the offset is valid in the size
   // of the memset..
-  if (MI->getIntrinsicID() == Intrinsic::memset) {
+  if (const auto *memset_inst = dyn_cast<MemSetInst>(MI)) {
     if (DL.isNonIntegralPointerType(LoadTy->getScalarType())) {
-      auto *CI = dyn_cast<ConstantInt>(cast<MemSetInst>(MI)->getValue());
+      auto *CI = dyn_cast<ConstantInt>(memset_inst->getValue());
       if (!CI || !CI->isZero())
         return -1;
     }

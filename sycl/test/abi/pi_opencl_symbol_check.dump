@@ -3,15 +3,17 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_opencl.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_opencl.so
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
 piContextCreate
+piContextGetInfo
 piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
+piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo
 piKernelGetSubGroupInfo
@@ -20,13 +22,15 @@ piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramCreate
 piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
+piextQueueCreate
+piQueueGetInfo
 piSamplerCreate
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
@@ -55,6 +59,9 @@ piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemset
 piextUSMEnqueuePrefetch
+piextUSMEnqueueFill2D
+piextUSMEnqueueMemset2D
+piextUSMEnqueueMemcpy2D
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc

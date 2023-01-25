@@ -84,6 +84,8 @@ option(LIBCXX_ENABLE_LOCALIZATION
    the C locale API (e.g. embedded). When localization is not supported,
    several parts of the library will be disabled: <iostream>, <regex>, <locale>
    will be completely unusable, and other parts may be only partly available." ON)
+option(LIBCXX_ENABLE_FSTREAM
+   "Whether to include support for <fstream>." ON) # TODO: Consider rolling that into LIBCXX_ENABLE_FILESYSTEM
 option(LIBCXX_ENABLE_UNICODE
   "Whether to include support for Unicode in the library. Disabling Unicode can
    be useful when porting to platforms that don't support UTF-8 encoding (e.g.
@@ -101,6 +103,7 @@ option(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS
    to provide compile-time errors when using features unavailable on some version of
    the shared library they shipped should turn this on and see `include/__availability`
    for more details." OFF)
+option(LIBCXX_ENABLE_CLANG_TIDY "Whether to compile and run clang-tidy checks" OFF)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-shared-gcc.cfg.in")
@@ -407,8 +410,8 @@ set(LIBCXX_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}/c++/v1" CACHE PATH
 set(LIBCXX_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
     "Path where built libc++ runtime libraries should be installed.")
 
-set(LIBCXX_SHARED_OUTPUT_NAME "c++" CACHE STRING
-    "Output name for the shared libc++ runtime library.")
+set(LIBCXX_SHARED_OUTPUT_NAME "c++" CACHE STRING "Output name for the shared libc++ runtime library.")
+set(LIBCXX_STATIC_OUTPUT_NAME "c++" CACHE STRING "Output name for the static libc++ runtime library.")
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXX_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE})
@@ -491,12 +494,6 @@ endif()
 #===============================================================================
 
 include(HandleLibCXXABI) # Setup the ABI library flags
-
-# Remove flags that may have snuck in.
-# TODO: This shouldn't be necessary anymore since we don't support the Project
-#       build anymore, so the rest of LLVM can't pollute our flags.
-remove_flags(-DNDEBUG -UNDEBUG -D_DEBUG -lc++abi)
-remove_flags(--stdlib=libc++ -stdlib=libc++ --stdlib=libstdc++ -stdlib=libstdc++)
 
 # FIXME: Remove all debug flags and flags that change which Windows
 # default libraries are linked. Currently we only support linking the
@@ -860,6 +857,7 @@ config_define_if(LIBCXX_ENABLE_PARALLEL_ALGORITHMS _LIBCPP_HAS_PARALLEL_ALGORITH
 config_define_if_not(LIBCXX_ENABLE_FILESYSTEM _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 config_define_if_not(LIBCXX_ENABLE_RANDOM_DEVICE _LIBCPP_HAS_NO_RANDOM_DEVICE)
 config_define_if_not(LIBCXX_ENABLE_LOCALIZATION _LIBCPP_HAS_NO_LOCALIZATION)
+config_define_if_not(LIBCXX_ENABLE_FSTREAM _LIBCPP_HAS_NO_FSTREAM)
 config_define_if_not(LIBCXX_ENABLE_UNICODE _LIBCPP_HAS_NO_UNICODE)
 config_define_if_not(LIBCXX_ENABLE_WIDE_CHARACTERS _LIBCPP_HAS_NO_WIDE_CHARACTERS)
 config_define_if_not(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS)
@@ -929,6 +927,10 @@ set(LIBCXX_TEST_DEPS "cxx_experimental")
 
 if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY)
   list(APPEND LIBCXX_TEST_DEPS cxx_external_threads)
+endif()
+
+if (LIBCXX_ENABLE_CLANG_TIDY)
+  list(APPEND LIBCXX_TEST_DEPS cxx-tidy)
 endif()
 
 if (LIBCXX_INCLUDE_BENCHMARKS)

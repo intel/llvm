@@ -14,7 +14,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -99,6 +98,11 @@ ImplicationSearchThreshold(
   cl::desc("The number of predecessors to search for a stronger "
            "condition to use to thread over a weaker condition"),
   cl::init(3), cl::Hidden);
+
+static cl::opt<unsigned> PhiDuplicateThreshold(
+    "jump-threading-phi-threshold",
+    cl::desc("Max PHIs in BB to duplicate for jump threading"), cl::init(76),
+    cl::Hidden);
 
 static cl::opt<bool> PrintLVIAfterJumpThreading(
     "print-lvi-after-jump-threading",
@@ -518,8 +522,23 @@ static unsigned getJumpThreadDuplicationCost(const TargetTransformInfo *TTI,
                                              Instruction *StopAt,
                                              unsigned Threshold) {
   assert(StopAt->getParent() == BB && "Not an instruction from proper BB?");
+
+  // Do not duplicate the BB if it has a lot of PHI nodes.
+  // If a threadable chain is too long then the number of PHI nodes can add up,
+  // leading to a substantial increase in compile time when rewriting the SSA.
+  unsigned PhiCount = 0;
+  Instruction *FirstNonPHI = nullptr;
+  for (Instruction &I : *BB) {
+    if (!isa<PHINode>(&I)) {
+      FirstNonPHI = &I;
+      break;
+    }
+    if (++PhiCount > PhiDuplicateThreshold)
+      return ~0U;
+  }
+
   /// Ignore PHI nodes, these will be flattened when duplication happens.
-  BasicBlock::const_iterator I(BB->getFirstNonPHI());
+  BasicBlock::const_iterator I(FirstNonPHI);
 
   // FIXME: THREADING will delete values that are just used to compute the
   // branch, so they shouldn't count against the duplication cost.
@@ -1254,7 +1273,7 @@ bool JumpThreadingPass::processImpliedCondition(BasicBlock *BB) {
       return false;
 
     bool CondIsTrue = PBI->getSuccessor(0) == CurrentBB;
-    Optional<bool> Implication =
+    std::optional<bool> Implication =
         isImpliedCondition(PBI->getCondition(), Cond, DL, CondIsTrue);
 
     // If the branch condition of BB (which is Cond) and CurrentPred are
@@ -1912,7 +1931,7 @@ bool JumpThreadingPass::processBranchOnXOR(BinaryOperator *BO) {
       // If all preds provide undef, just nuke the xor, because it is undef too.
       BO->replaceAllUsesWith(UndefValue::get(BO->getType()));
       BO->eraseFromParent();
-    } else if (SplitVal->isZero()) {
+    } else if (SplitVal->isZero() && BO != BO->getOperand(isLHS)) {
       // If all preds provide 0, replace the xor with the other input.
       BO->replaceAllUsesWith(BO->getOperand(isLHS));
       BO->eraseFromParent();
@@ -2088,7 +2107,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
   for (; BI != BE; ++BI) {
     Instruction *New = BI->clone();
     New->setName(BI->getName());
-    NewBB->getInstList().push_back(New);
+    New->insertInto(NewBB, NewBB->end());
     ValueMapping[&*BI] = New;
     adaptNoAliasScopes(New, ClonedScopes, Context);
 
@@ -2681,7 +2700,7 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
     if (New) {
       // Otherwise, insert the new instruction into the block.
       New->setName(BI->getName());
-      PredBB->getInstList().insert(OldPredBranch->getIterator(), New);
+      New->insertInto(PredBB, OldPredBranch->getIterator());
       // Update Dominance from simplified New instruction operands.
       for (unsigned i = 0, e = New->getNumOperands(); i != e; ++i)
         if (BasicBlock *SuccBB = dyn_cast<BasicBlock>(New->getOperand(i)))
@@ -2735,7 +2754,7 @@ void JumpThreadingPass::unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB,
                                          BB->getParent(), BB);
   // Move the unconditional branch to NewBB.
   PredTerm->removeFromParent();
-  NewBB->getInstList().insert(NewBB->end(), PredTerm);
+  PredTerm->insertInto(NewBB, NewBB->end());
   // Create a conditional branch and update PHI nodes.
   auto *BI = BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
   BI->applyMergedLocation(PredTerm->getDebugLoc(), SI->getDebugLoc());

@@ -279,15 +279,16 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for bf16
+// Specialization for bf16 math functions
 template <>
-struct get_device_info_impl<bool, info::device::ext_oneapi_bfloat16> {
+struct get_device_info_impl<bool,
+                            info::device::ext_oneapi_bfloat16_math_functions> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
-
     bool result = false;
 
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::ext_oneapi_bfloat16>::value,
+        dev,
+        PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
         sizeof(result), &result, nullptr);
     if (Err != PI_SUCCESS) {
       return false;
@@ -357,6 +358,7 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_equally:
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
+  case info::partition_property::ext_intel_partition_by_cslice:
     return true;
   }
   return false;
@@ -1002,7 +1004,8 @@ get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
 }
 
 template <>
-inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
+inline bool
+get_device_info_host<info::device::ext_oneapi_bfloat16_math_functions>() {
   return false;
 }
 
@@ -1570,6 +1573,30 @@ template <>
 inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
+  throw runtime_error(
+      "Obtaining the device memory clock rate is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_bus_width>() {
+  throw runtime_error(
+      "Obtaining the device memory bus width is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline int32_t
+get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
+  throw runtime_error(
+      "Obtaining max compute queue indices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 

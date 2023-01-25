@@ -10,6 +10,7 @@
 #define LLVM_CLANG_DRIVER_DRIVER_H
 
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/HeaderInclude.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -35,6 +36,9 @@ namespace llvm {
 class Triple;
 namespace vfs {
 class FileSystem;
+}
+namespace cl {
+class ExpansionContext;
 }
 } // namespace llvm
 
@@ -230,9 +234,16 @@ public:
   /// CCPrintOptionsFilename or to stderr.
   unsigned CCPrintOptions : 1;
 
-  /// Set CC_PRINT_HEADERS mode, which causes the frontend to log header include
-  /// information to CCPrintHeadersFilename or to stderr.
-  unsigned CCPrintHeaders : 1;
+  /// The format of the header information that is emitted. If CC_PRINT_HEADERS
+  /// is set, the format is textual. Otherwise, the format is determined by the
+  /// enviroment variable CC_PRINT_HEADERS_FORMAT.
+  HeaderIncludeFormatKind CCPrintHeadersFormat = HIFMT_None;
+
+  /// This flag determines whether clang should filter the header information
+  /// that is emitted. If enviroment variable CC_PRINT_HEADERS_FILTERING is set
+  /// to "only-direct-system", only system headers that are directly included
+  /// from non-system headers are emitted.
+  HeaderIncludeFilteringKind CCPrintHeadersFiltering = HIFIL_None;
 
   /// Set CC_LOG_DIAGNOSTICS mode, which causes the frontend to log diagnostics
   /// to CCLogDiagnosticsFilename or to stderr, in a stable machine readable
@@ -690,13 +701,14 @@ private:
   /// executable filename).
   ///
   /// \returns true if error occurred.
-  bool loadDefaultConfigFiles(ArrayRef<StringRef> CfgFileSearchDirs);
+  bool loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx);
 
   /// Read options from the specified file.
   ///
   /// \param [in] FileName File to read.
+  /// \param [in] Search and expansion options.
   /// \returns true, if error occurred while reading.
-  bool readConfigFile(StringRef FileName);
+  bool readConfigFile(StringRef FileName, llvm::cl::ExpansionContext &ExpCtx);
 
   /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
   /// option.

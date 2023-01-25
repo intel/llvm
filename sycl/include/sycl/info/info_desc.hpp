@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/id.hpp>
@@ -55,7 +56,8 @@ enum class partition_property : pi_device_partition_property {
   no_partition = 0,
   partition_equally = PI_DEVICE_PARTITION_EQUALLY,
   partition_by_counts = PI_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
+  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+  ext_intel_partition_by_cslice = PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE
 };
 
 enum class partition_affinity_domain : pi_device_affinity_domain {
@@ -98,13 +100,17 @@ namespace device {
 #include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
-template <int Dimensions> struct max_work_item_sizes;
+template <int Dimensions = 3> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
 } // namespace device
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 
 // A.4 Queue information descriptors
@@ -175,17 +181,9 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace info {
-namespace device {
+namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
-} // namespace device
-} // namespace info
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental::info::device
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

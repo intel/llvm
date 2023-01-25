@@ -10,7 +10,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/device_selector.hpp>
 
@@ -26,6 +25,18 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
+  for (Command *Cmd : Record->MReadLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  return true;
+}
+
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -35,7 +46,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -47,7 +59,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -59,7 +72,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
+    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, GraphReadLock,
+                                                   Res, ToCleanUp, ReleaseCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -79,19 +93,25 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
+  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
 
   if (Type == CG::Kernel) {
-    Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
+    auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
+    Streams = CGExecKernelPtr->getStreams();
+    CGExecKernelPtr->clearStreams();
+    AuxiliaryResources = CGExecKernelPtr->getAuxiliaryResources();
+    CGExecKernelPtr->clearAuxiliaryResources();
     // Stream's flush buffer memory is mainly initialized in stream's __init
     // method. However, this method is not available on host device.
     // Initializing stream's flush buffer on the host side in a separate task.
     if (Queue->is_host()) {
       for (const StreamImplPtr &Stream : Streams) {
-        initStream(Stream, Queue);
+        Stream->initStreamHost(Queue);
       }
     }
   }
 
+  bool ShouldEnqueue = true;
   {
     WriteLockT Lock = acquireWriteLock();
 
@@ -100,36 +120,63 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     case CG::UpdateHost:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue, AuxiliaryCmds);
+      NewEvent = NewCmd->getEvent();
       break;
-    case CG::CodeplayHostTask:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
-                                   AuxiliaryCmds);
+    case CG::CodeplayHostTask: {
+      auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
+                                        DefaultHostQueue, AuxiliaryCmds);
+      NewCmd = Result.NewCmd;
+      NewEvent = Result.NewEvent;
+      ShouldEnqueue = Result.ShouldEnqueue;
       break;
-    default:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue),
-                                   AuxiliaryCmds);
     }
-    NewEvent = NewCmd->getEvent();
+    default:
+      auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
+                                        std::move(Queue), AuxiliaryCmds);
+      NewCmd = Result.NewCmd;
+      NewEvent = Result.NewEvent;
+      ShouldEnqueue = Result.ShouldEnqueue;
+    }
+    NewEvent->setSubmissionTime();
   }
 
+  if (ShouldEnqueue) {
+    enqueueCommandForCG(NewEvent, AuxiliaryCmds);
+
+    for (auto StreamImplPtr : Streams) {
+      StreamImplPtr->flush(NewEvent);
+    }
+
+    if (!AuxiliaryResources.empty())
+      registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
+  }
+
+  return NewEvent;
+}
+
+void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
+                                    std::vector<Command *> &AuxiliaryCmds) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    Command *NewCmd =
+        (NewEvent) ? static_cast<Command *>(NewEvent->getCommand()) : nullptr;
 
     EnqueueResultT Res;
     bool Enqueued;
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        NewEvent->setCommand(nullptr);
+        if (NewEvent) {
+          NewEvent->setCommand(nullptr);
+        }
         delete NewCmd;
       }
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
       try {
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
@@ -146,7 +193,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
       try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Lock, Res,
+                                                       ToCleanUp, NewCmd);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
@@ -159,12 +207,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     }
   }
   cleanupCommands(ToCleanUp);
-
-  for (auto StreamImplPtr : Streams) {
-    StreamImplPtr->flush();
-  }
-
-  return NewEvent;
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
@@ -186,13 +228,14 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
-    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+    Enqueued =
+        GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -218,81 +261,32 @@ void Scheduler::waitForEvent(const EventImplPtr &Event) {
   cleanupCommands(ToCleanUp);
 }
 
-static void deallocateStreams(
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
-  // Deallocate buffers for stream objects of the finished commands. Iterate in
-  // reverse order because it is the order of commands execution.
-  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
-       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
-    detail::Scheduler::getInstance().deallocateStreamBuffers(
-        StreamImplPtr->get());
-}
-
-void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
-  // We are going to traverse a graph of finished commands. Gather stream
-  // objects from these commands if any and deallocate buffers for these stream
-  // objects, this is needed to guarantee that streamed data is printed and
-  // resources are released.
-  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
-  // Similar to streams, we also collect the auxiliary resources used by the
-  // commands. Cleanup will make sure the commands do not own the resources
-  // anymore, so we just need them to survive the graph lock then they can die
-  // as they go out of scope.
-  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
-  {
-    // Avoiding deadlock situation, where one thread is in the process of
-    // enqueueing (with a locked mutex) a currently blocked task that waits for
-    // another thread which is stuck at attempting cleanup.
-    WriteLockT Lock(MGraphLock, std::try_to_lock);
-    if (Lock.owns_lock()) {
-      auto FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-      // The command might have been cleaned up (and set to nullptr) by another
-      // thread
-      if (FinishedCmd)
-        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate,
-                                              AuxResourcesToDeallocate);
-    }
-  }
-  deallocateStreams(StreamsToDeallocate);
-}
-
-void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  // We are going to traverse a graph of finished commands. Gather stream
-  // objects from these commands if any and deallocate buffers for these stream
-  // objects, this is needed to guarantee that streamed data is printed and
-  // resources are released.
-  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
-  // Similar to streams, we also collect the auxiliary resources used by the
-  // commands. Cleanup will make sure the commands do not own the resources
-  // anymore, so we just need them to survive the graph lock then they can die
-  // as they go out of scope.
-  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
+bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
+                                   bool StrictLock) {
+  MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+  if (!Record)
+    // No operations were performed on the mem object
+    return true;
 
   {
-    MemObjRecord *Record = nullptr;
-
-    {
-      // This only needs a shared mutex as it only involves enqueueing and
-      // awaiting for events
-      ReadLockT Lock = acquireReadLock();
-
-      Record = MGraphBuilder.getMemObjRecord(MemObj);
-      if (!Record)
-        // No operations were performed on the mem object
-        return;
-
-      waitForRecordToFinish(Record, Lock);
-    }
-
-    {
-      WriteLockT Lock = acquireWriteLock();
-      MGraphBuilder.decrementLeafCountersForRecord(Record);
-      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
-                                             AuxResourcesToDeallocate);
-      MGraphBuilder.removeRecordForMemObj(MemObj);
-    }
+    // This only needs a shared mutex as it only involves enqueueing and
+    // awaiting for events
+    ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
+                                : ReadLockT(MGraphLock, std::try_to_lock);
+    if (!Lock.owns_lock())
+      return false;
+    waitForRecordToFinish(Record, Lock);
   }
-  deallocateStreams(StreamsToDeallocate);
+  {
+    WriteLockT Lock = StrictLock ? acquireWriteLock()
+                                 : WriteLockT(MGraphLock, std::try_to_lock);
+    if (!Lock.owns_lock())
+      return false;
+    MGraphBuilder.decrementLeafCountersForRecord(Record);
+    MGraphBuilder.cleanupCommandsForRecord(Record);
+    MGraphBuilder.removeRecordForMemObj(MemObj);
+  }
+  return true;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -315,14 +309,15 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
     if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
-      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      Enqueued =
+          GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -344,18 +339,20 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
     BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
+    enqueueLeavesOfReqUnlocked(Req, Lock, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
 }
 
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                           ReadLockT &GraphReadLock,
                                            std::vector<Command *> &ToCleanUp) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-  auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
+  auto EnqueueLeaves = [&ToCleanUp, &GraphReadLock](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res,
+                                                     ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -366,18 +363,20 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::allocateStreamBuffers(stream_impl *Impl,
-                                      size_t StreamBufferSize,
-                                      size_t FlushBufferSize) {
-  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
-  StreamBuffersPool.insert(
-      {Impl, new StreamBuffers(StreamBufferSize, FlushBufferSize)});
-}
-
-void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
-  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
-  delete StreamBuffersPool[Impl];
-  StreamBuffersPool.erase(Impl);
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &Event : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    if (!Cmd)
+      continue;
+    EnqueueResultT Res;
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
 }
 
 Scheduler::Scheduler() {
@@ -390,26 +389,24 @@ Scheduler::Scheduler() {
                      /*PropList=*/{}));
 }
 
-Scheduler::~Scheduler() {
-  // By specification there are several possible sync points: buffer
-  // destruction, wait() method of a queue or event. Stream doesn't introduce
-  // any synchronization point. It is guaranteed that stream is flushed and
-  // resources are released only if one of the listed sync points was used for
-  // the kernel. Otherwise resources for stream will not be released, issue a
-  // warning in this case.
-  if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
-    std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
-    if (!StreamBuffersPool.empty())
-      fprintf(
-          stderr,
-          "\nWARNING: Some commands may have not finished the execution and "
-          "not all resources were released. Please be sure that all kernels "
-          "have synchronization points.\n\n");
-  }
-  // There might be some commands scheduled for post enqueue cleanup that
-  // haven't been freed because of the graph mutex being locked at the time,
-  // clean them up now.
+Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
+
+void Scheduler::releaseResources() {
+  //  There might be some commands scheduled for post enqueue cleanup that
+  //  haven't been freed because of the graph mutex being locked at the time,
+  //  clean them up now.
   cleanupCommands({});
+
+  cleanupAuxiliaryResources(BlockingT::BLOCKING);
+  // We need loop since sometimes we may need new objects to be added to
+  // deferred mem objects storage during cleanup. Known example is: we cleanup
+  // existing deferred mem objects under write lock, during this process we
+  // cleanup commands related to this record, command may have last reference to
+  // queue_impl, ~queue_impl is called and buffer for assert (which is created
+  // with size only so all confitions for deferred release are satisfied) is
+  // added to deferred mem obj storage. So we may end up with leak.
+  while (!isDeferredMemObjectsEmpty())
+    cleanupDeferredMemObjects(BlockingT::BLOCKING);
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -417,8 +414,10 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  if (Cmds.empty())
-  {
+  cleanupAuxiliaryResources(BlockingT::NON_BLOCKING);
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+
+  if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
       return;
@@ -447,7 +446,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   }
 }
 
-void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
+void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Completing command's event along with unblocking enqueue readiness of
   // empty command may lead to quick deallocation of MThisCmd by some cleanup
   // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -460,16 +459,161 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     ReadLockT Lock = acquireReadLock();
 
     std::vector<DepDesc> Deps = Cmd->MDeps;
+    // Host tasks are cleaned up upon completion rather than enqueuing.
+    if (Cmd->MLeafCounter == 0) {
+      ToCleanUp.push_back(Cmd);
+      Cmd->MMarkedForCleanup = true;
+    }
 
-    // update self-event status
-    Cmd->getEvent()->setComplete();
-
-    BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    for (const DepDesc &Dep : Deps)
-      Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
+    {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // update self-event status
+      Cmd->getEvent()->setComplete();
+    }
+    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+}
+
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.push_back(MemObj);
+  }
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+}
+
+inline bool Scheduler::isDeferredMemObjectsEmpty() {
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  return MDeferredMemObjRelease.empty();
+}
+
+void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
+  if (isDeferredMemObjectsEmpty())
+    return;
+  if (Blocking == BlockingT::BLOCKING) {
+    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
+    {
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      MDeferredMemObjRelease.swap(TempStorage);
+    }
+    // if any objects in TempStorage exist - it is leaving scope and being
+    // deleted
+  }
+
+  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  {
+    // Lock is needed for checkLeavesCompletion - if walks through Record leaves
+    ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
+    if (Lock.owns_lock()) {
+      // Not expected that Blocking == true will be used in parallel with
+      // adding MemObj to storage, no such scenario.
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      auto MemObjIt = MDeferredMemObjRelease.begin();
+      while (MemObjIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
+        if (!checkLeavesCompletion(Record)) {
+          MemObjIt++;
+          continue;
+        }
+        ObjsReadyToRelease.push_back(*MemObjIt);
+        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+      }
+    }
+  }
+  auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
+  while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
+    if (!removeMemoryObject(ReleaseCandidateIt->get(), false))
+      break;
+    ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
+  }
+  if (!ObjsReadyToRelease.empty()) {
+    std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.insert(
+        MDeferredMemObjRelease.end(),
+        std::make_move_iterator(ObjsReadyToRelease.begin()),
+        std::make_move_iterator(ObjsReadyToRelease.end()));
+  }
+}
+
+void Scheduler::registerAuxiliaryResources(
+    EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
+  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  MAuxiliaryResources.insert({Event, std::move(Resources)});
+}
+
+void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
+  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  ForceDeferredReleaseWrapper ForceDeferredRelease;
+  for (auto It = MAuxiliaryResources.begin();
+       It != MAuxiliaryResources.end();) {
+    const EventImplPtr &Event = It->first;
+    if (Blocking == BlockingT::BLOCKING) {
+      Event->waitInternal();
+      It = MAuxiliaryResources.erase(It);
+    } else if (Event->isCompleted())
+      It = MAuxiliaryResources.erase(It);
+    else
+      ++It;
+  }
+}
+
+thread_local bool Scheduler::ForceDeferredMemObjRelease = false;
+
+void Scheduler::startFusion(QueueImplPtr Queue) {
+  WriteLockT Lock = acquireWriteLock();
+  MGraphBuilder.startFusion(Queue);
+}
+
+void Scheduler::cancelFusion(QueueImplPtr Queue) {
+  std::vector<Command *> ToEnqueue;
+  {
+    WriteLockT Lock = acquireWriteLock();
+    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+  }
+  enqueueCommandForCG(nullptr, ToEnqueue);
+}
+
+EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
+                                       const property_list &PropList) {
+  std::vector<Command *> ToEnqueue;
+  EventImplPtr FusedEvent;
+  {
+    WriteLockT Lock = acquireWriteLock();
+    FusedEvent = MGraphBuilder.completeFusion(Queue, ToEnqueue, PropList);
+  }
+  enqueueCommandForCG(nullptr, ToEnqueue);
+
+  return FusedEvent;
+}
+
+bool Scheduler::isInFusionMode(QueueIdT queue) {
+  ReadLockT Lock = acquireReadLock();
+  return MGraphBuilder.isInFusionMode(queue);
+}
+
+void Scheduler::printFusionWarning(const std::string &Message) {
+  if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
+    std::cerr << "WARNING: " << Message << "\n";
+  }
+}
+
+KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
+  auto CmdType = Cmd->getType();
+  switch (CmdType) {
+  case Command::FUSION: {
+    auto *FusionCmd = static_cast<KernelFusionCommand *>(Cmd);
+    return (FusionCmd->isActive()) ? FusionCmd : nullptr;
+  }
+  case Command::RUN_CG: {
+    auto *CGCmd = static_cast<ExecCGCommand *>(Cmd);
+    return (CGCmd->MFusionCmd && CGCmd->MFusionCmd->isActive())
+               ? CGCmd->MFusionCmd
+               : nullptr;
+  }
+  default:
+    return nullptr;
+  }
 }
 
 } // namespace detail

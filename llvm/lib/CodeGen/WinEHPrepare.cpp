@@ -556,8 +556,8 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
       // Create the entry for this cleanup with the appropriate handler
       // properties.  Finally and fault handlers are distinguished by arity.
       ClrHandlerType HandlerType =
-          (Cleanup->getNumArgOperands() ? ClrHandlerType::Fault
-                                        : ClrHandlerType::Finally);
+          (Cleanup->arg_size() ? ClrHandlerType::Fault
+                               : ClrHandlerType::Finally);
       int CleanupState = addClrEHHandler(FuncInfo, HandlerParentState, -1,
                                          HandlerType, 0, Pad->getParent());
       // Queue any child EH pads on the worklist.
@@ -1212,8 +1212,8 @@ void WinEHPrepare::replaceUseWithLoad(Value *V, Use &U, AllocaInst *&SpillSlot,
       BranchInst *Goto = cast<BranchInst>(IncomingBlock->getTerminator());
       Goto->removeFromParent();
       CatchRet->removeFromParent();
-      IncomingBlock->getInstList().push_back(CatchRet);
-      NewBlock->getInstList().push_back(Goto);
+      CatchRet->insertInto(IncomingBlock, IncomingBlock->end());
+      Goto->insertInto(NewBlock, NewBlock->end());
       Goto->setSuccessor(0, PHIBlock);
       CatchRet->setSuccessor(NewBlock);
       // Update the color mapping for the newly split edge.

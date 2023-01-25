@@ -55,7 +55,7 @@ static void writeWithCommas(raw_ostream &S, ArrayRef<char> Buffer) {
 template <typename T>
 static void write_unsigned_impl(raw_ostream &S, T N, size_t MinDigits,
                                 IntegerStyle Style, bool IsNegative) {
-  static_assert(std::is_unsigned<T>::value, "Value is not unsigned!");
+  static_assert(std::is_unsigned_v<T>, "Value is not unsigned!");
 
   char NumberBuffer[128];
   std::memset(NumberBuffer, '0', sizeof(NumberBuffer));
@@ -92,7 +92,7 @@ static void write_unsigned(raw_ostream &S, T N, size_t MinDigits,
 template <typename T>
 static void write_signed(raw_ostream &S, T N, size_t MinDigits,
                          IntegerStyle Style) {
-  static_assert(std::is_signed<T>::value, "Value is not signed!");
+  static_assert(std::is_signed_v<T>, "Value is not signed!");
 
   using UnsignedT = std::make_unsigned_t<T>;
 
@@ -136,7 +136,7 @@ void llvm::write_integer(raw_ostream &S, long long N, size_t MinDigits,
 }
 
 void llvm::write_hex(raw_ostream &S, uint64_t N, HexPrintStyle Style,
-                     Optional<size_t> Width) {
+                     std::optional<size_t> Width) {
   const size_t kMaxWidth = 128u;
 
   size_t W = std::min(kMaxWidth, Width.value_or(0u));
@@ -166,7 +166,7 @@ void llvm::write_hex(raw_ostream &S, uint64_t N, HexPrintStyle Style,
 }
 
 void llvm::write_double(raw_ostream &S, double N, FloatStyle Style,
-                        Optional<size_t> Precision) {
+                        std::optional<size_t> Precision) {
   size_t Prec = Precision.value_or(getDefaultPrecision(Style));
 
   if (std::isnan(N)) {

@@ -19,7 +19,6 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/ControlFlowSinkUtils.h"
-#include "mlir/Transforms/SideEffectUtils.h"
 
 namespace mlir {
 #define GEN_PASS_DEF_CONTROLFLOWSINK
@@ -44,7 +43,7 @@ void ControlFlowSink::runOnOperation() {
     // Sink side-effect free operations.
     numSunk = controlFlowSink(
         regionsToSink, domInfo,
-        [](Operation *op, Region *) { return isSideEffectFree(op); },
+        [](Operation *op, Region *) { return isMemoryEffectFree(op); },
         [](Operation *op, Region *region) {
           // Move the operation to the beginning of the region's entry block.
           // This guarantees the preservation of SSA dominance of all of the

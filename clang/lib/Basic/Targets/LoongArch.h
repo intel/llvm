@@ -24,10 +24,14 @@ namespace targets {
 class LLVM_LIBRARY_VISIBILITY LoongArchTargetInfo : public TargetInfo {
 protected:
   std::string ABI;
+  bool HasFeatureD;
+  bool HasFeatureF;
 
 public:
   LoongArchTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
+    HasFeatureD = false;
+    HasFeatureF = false;
     LongDoubleWidth = 128;
     LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
@@ -51,12 +55,31 @@ public:
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
+  int getEHDataRegisterNumber(unsigned RegNo) const override {
+    if (RegNo == 0)
+      return 4;
+    if (RegNo == 1)
+      return 5;
+    return -1;
+  }
+
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &Info) const override;
+  std::string convertConstraint(const char *&Constraint) const override;
 
   bool hasBitIntType() const override { return true; }
+
+  bool handleTargetFeatures(std::vector<std::string> &Features,
+                            DiagnosticsEngine &Diags) override;
+
+  bool
+  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
+                 StringRef CPU,
+                 const std::vector<std::string> &FeaturesVec) const override;
+
+  bool hasFeature(StringRef Feature) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY LoongArch32TargetInfo
@@ -79,6 +102,9 @@ public:
     }
     return false;
   }
+  void setMaxAtomicWidth() override {
+    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 32;
+  }
 };
 
 class LLVM_LIBRARY_VISIBILITY LoongArch64TargetInfo
@@ -99,6 +125,9 @@ public:
       return true;
     }
     return false;
+  }
+  void setMaxAtomicWidth() override {
+    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
   }
 };
 } // end namespace targets

@@ -262,9 +262,9 @@ template <typename A> const Symbol *ExtractBareLenParameter(const A &expr) {
 }
 
 // If an expression simply wraps a DataRef, extract and return it.
-// The Boolean argument controls the handling of Substring and ComplexPart
+// The Boolean arguments control the handling of Substring and ComplexPart
 // references: when true (not default), it extracts the base DataRef
-// of a substring or complex part, if it has one.
+// of a substring or complex part.
 template <typename A>
 common::IfNoLvalue<std::optional<DataRef>, A> ExtractDataRef(
     const A &, bool intoSubstring, bool intoComplexPart) {
@@ -312,15 +312,15 @@ std::optional<DataRef> ExtractDataRef(const std::optional<A> &x,
 }
 template <typename A>
 std::optional<DataRef> ExtractDataRef(
-    const A *p, bool intoSubstring = false, bool intoComplexPart = false) {
+    A *p, bool intoSubstring = false, bool intoComplexPart = false) {
   if (p) {
-    return ExtractDataRef(*p, intoSubstring, intoComplexPart);
+    return ExtractDataRef(std::as_const(*p), intoSubstring, intoComplexPart);
   } else {
     return std::nullopt;
   }
 }
-std::optional<DataRef> ExtractDataRef(
-    const ActualArgument &, bool intoSubstring = false);
+std::optional<DataRef> ExtractDataRef(const ActualArgument &,
+    bool intoSubstring = false, bool intoComplexPart = false);
 
 std::optional<DataRef> ExtractSubstringBase(const Substring &);
 
@@ -583,9 +583,8 @@ template <TypeCategory TOCAT, typename VALUE> struct ConvertToKindHelper {
 template <TypeCategory TOCAT, typename VALUE>
 common::IfNoLvalue<Expr<SomeKind<TOCAT>>, VALUE> ConvertToKind(
     int kind, VALUE &&x) {
-  return common::SearchTypes(
-      ConvertToKindHelper<TOCAT, VALUE>{kind, std::move(x)})
-      .value();
+  return *common::SearchTypes(
+      ConvertToKindHelper<TOCAT, VALUE>{kind, std::move(x)});
 }
 
 // Given a type category CAT, SameKindExprs<CAT, N> is a variant that
@@ -893,11 +892,47 @@ template <typename A> const Symbol *GetLastSymbol(const A &x) {
   }
 }
 
-// Convenience: If GetLastSymbol() succeeds on the argument, return its
-// set of attributes, otherwise the empty set.
+// If a function reference constitutes an entire expression, return a pointer
+// to its PrcedureRef.
+const ProcedureRef *GetProcedureRef(const Expr<SomeType> &);
+
+// For everyday variables: if GetLastSymbol() succeeds on the argument, return
+// its set of attributes, otherwise the empty set.  Also works on variables that
+// are pointer results of functions.
 template <typename A> semantics::Attrs GetAttrs(const A &x) {
   if (const Symbol * symbol{GetLastSymbol(x)}) {
     return symbol->attrs();
+  } else {
+    return {};
+  }
+}
+
+template <>
+inline semantics::Attrs GetAttrs<Expr<SomeType>>(const Expr<SomeType> &x) {
+  if (IsVariable(x)) {
+    if (const auto *procRef{GetProcedureRef(x)}) {
+      if (const Symbol * interface{procRef->proc().GetInterfaceSymbol()}) {
+        if (const auto *details{
+                interface->detailsIf<semantics::SubprogramDetails>()}) {
+          if (details->isFunction() &&
+              details->result().attrs().test(semantics::Attr::POINTER)) {
+            // N.B.: POINTER becomes TARGET in SetAttrsFromAssociation()
+            return details->result().attrs();
+          }
+        }
+      }
+    }
+  }
+  if (const Symbol * symbol{GetLastSymbol(x)}) {
+    return symbol->attrs();
+  } else {
+    return {};
+  }
+}
+
+template <typename A> semantics::Attrs GetAttrs(const std::optional<A> &x) {
+  if (x) {
+    return GetAttrs(*x);
   } else {
     return {};
   }
@@ -924,14 +959,8 @@ std::optional<BaseObject> GetBaseObject(const std::optional<A> &x) {
   }
 }
 
-// Predicate: IsAllocatableOrPointer()
-template <typename A> bool IsAllocatableOrPointer(const A &x) {
-  return GetAttrs(x).HasAny(
-      semantics::Attrs{semantics::Attr::POINTER, semantics::Attr::ALLOCATABLE});
-}
-
 // Like IsAllocatableOrPointer, but accepts pointer function results as being
-// pointers.
+// pointers too.
 bool IsAllocatableOrPointerObject(const Expr<SomeType> &, FoldingContext &);
 
 bool IsAllocatableDesignator(const Expr<SomeType> &);
@@ -945,8 +974,6 @@ bool IsNullObjectPointer(const Expr<SomeType> &);
 bool IsNullProcedurePointer(const Expr<SomeType> &);
 bool IsNullPointer(const Expr<SomeType> &);
 bool IsObjectPointer(const Expr<SomeType> &, FoldingContext &);
-
-const ProcedureRef *GetProcedureRef(const Expr<SomeType> &);
 
 // Can Expr be passed as absent to an optional dummy argument.
 // See 15.5.2.12 point 1 for more details.

@@ -134,7 +134,7 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          OptionalFileEntryRef File, StringRef SearchPath,
                           StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
   void moduleImport(SourceLocation ImportLoc, ModuleIdPath Path,
@@ -169,9 +169,9 @@ private:
 
   /// Traverses the affecting modules and updates \c MD with references to the
   /// parent \c ModuleDepCollector info.
-  void addAllAffectingModules(const Module *M, ModuleDeps &MD,
+  void addAllAffectingClangModules(const Module *M, ModuleDeps &MD,
                               llvm::DenseSet<const Module *> &AddedModules);
-  void addAffectingModule(const Module *M, ModuleDeps &MD,
+  void addAffectingClangModule(const Module *M, ModuleDeps &MD,
                           llvm::DenseSet<const Module *> &AddedModules);
 };
 
@@ -237,7 +237,7 @@ private:
       llvm::function_ref<void(CompilerInvocation &)> Optimize) const;
 
   /// Collect module map files for given modules.
-  llvm::StringSet<>
+  llvm::DenseSet<const FileEntry *>
   collectModuleMapFiles(ArrayRef<ModuleID> ClangModuleDeps) const;
 
   /// Add module map files to the invocation, if needed.

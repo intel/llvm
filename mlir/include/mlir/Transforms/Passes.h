@@ -55,14 +55,17 @@ std::unique_ptr<Pass> createCanonicalizerPass();
 /// set to their type name.
 std::unique_ptr<Pass>
 createCanonicalizerPass(const GreedyRewriteConfig &config,
-                        ArrayRef<std::string> disabledPatterns = llvm::None,
-                        ArrayRef<std::string> enabledPatterns = llvm::None);
+                        ArrayRef<std::string> disabledPatterns = std::nullopt,
+                        ArrayRef<std::string> enabledPatterns = std::nullopt);
 
 /// Creates a pass to perform control-flow sinking.
 std::unique_ptr<Pass> createControlFlowSinkPass();
 
 /// Creates a pass to perform common sub expression elimination.
 std::unique_ptr<Pass> createCSEPass();
+
+/// Creates a pass that generates IR to verify ops at runtime.
+std::unique_ptr<Pass> createGenerateRuntimeVerificationPass();
 
 /// Creates a loop invariant code motion pass that hoists loop invariant
 /// instructions out of the loop.

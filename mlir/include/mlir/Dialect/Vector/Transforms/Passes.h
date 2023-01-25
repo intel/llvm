@@ -19,6 +19,15 @@ namespace vector {
 /// Creates an instance of the `vector` dialect bufferization pass.
 std::unique_ptr<Pass> createVectorBufferizePass();
 
+/// Creates an instance of the `vector.mask` lowering pass.
+std::unique_ptr<Pass> createLowerVectorMaskPass();
+
+/// Populates instances of `MaskOpRewritePattern` to lower masked operations
+/// with `vector.mask`. Patterns should rewrite the `vector.mask` operation and
+/// not its nested `MaskableOpInterface`.
+void populateVectorMaskLoweringPatternsForSideEffectingOps(
+    RewritePatternSet &patterns);
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//
@@ -27,7 +36,6 @@ std::unique_ptr<Pass> createVectorBufferizePass();
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Vector/Transforms/Passes.h.inc"
 } // namespace vector
-
 } // namespace mlir
 
 #endif // MLIR_DIALECT_VECTOR_TRANSFORMS_PASSES_H_

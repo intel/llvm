@@ -72,6 +72,10 @@ public:
     if (!MOutFile.is_open())
       return;
 
+    // add an empty element for not ending with '}, ]'
+    MOutFile << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
+                "\"tid\": \"\", \"ts\": \"\"}\n";
+
     MOutFile << "],\n";
     MOutFile << "\"displayTimeUnit\":\"ns\"\n}\n";
     MOutFile.close();

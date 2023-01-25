@@ -446,6 +446,7 @@ TEST(DenseMapCustomTest, InitFromIterator) {
   std::vector<std::pair<int, CountCopyAndMove>> Values;
   // The size is a random value greater than 64 (hardcoded DenseMap min init)
   const int Count = 65;
+  Values.reserve(Count);
   for (int i = 0; i < Count; i++)
     Values.emplace_back(i, CountCopyAndMove());
 
@@ -682,7 +683,7 @@ struct B : public A {
 
 namespace llvm {
 template <typename T>
-struct DenseMapInfo<T, std::enable_if_t<std::is_base_of<A, T>::value>> {
+struct DenseMapInfo<T, std::enable_if_t<std::is_base_of_v<A, T>>> {
   static inline T getEmptyKey() { return {static_cast<int>(~0)}; }
   static inline T getTombstoneKey() { return {static_cast<int>(~0U - 1)}; }
   static unsigned getHashValue(const T &Val) { return Val.value; }

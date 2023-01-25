@@ -8,7 +8,7 @@
 ; the function is not exactly defined, and marked alwaysinline and can be inlined,
 ; so the function can be analyzed
 define linkonce void @inner1() alwaysinline {
-; CHECK: Function Attrs: alwaysinline nofree norecurse nosync nounwind readnone willreturn
+; CHECK: Function Attrs: alwaysinline nofree norecurse nosync nounwind willreturn memory(none)
 ; CHECK-LABEL: define {{[^@]+}}@inner1
 ; CHECK-SAME: () #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:  entry:
@@ -19,13 +19,13 @@ entry:
 }
 
 define void @outer1() {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@outer1
 ; TUNIT-SAME: () #[[ATTR1:[0-9]+]] {
 ; TUNIT-NEXT:  entry:
 ; TUNIT-NEXT:    ret void
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@outer1
 ; CGSCC-SAME: () #[[ATTR1:[0-9]+]] {
 ; CGSCC-NEXT:  entry:
@@ -69,12 +69,12 @@ entry:
 ; This function cannot be inlined although it is marked alwaysinline
 ; it is `unexactly defined` and alwaysinline but cannot be inlined.
 ; so it will not be analyzed
-define linkonce i32 @inner3(i8* %addr) alwaysinline {
+define linkonce i32 @inner3(ptr %addr) alwaysinline {
 ; TUNIT: Function Attrs: alwaysinline
 ; TUNIT-LABEL: define {{[^@]+}}@inner3
-; TUNIT-SAME: (i8* [[ADDR:%.*]]) #[[ATTR3]] {
+; TUNIT-SAME: (ptr [[ADDR:%.*]]) #[[ATTR3]] {
 ; TUNIT-NEXT:  entry:
-; TUNIT-NEXT:    indirectbr i8* [[ADDR]], [label [[ONE:%.*]], label %two]
+; TUNIT-NEXT:    indirectbr ptr [[ADDR]], [label [[ONE:%.*]], label %two]
 ; TUNIT:       one:
 ; TUNIT-NEXT:    ret i32 42
 ; TUNIT:       two:
@@ -82,16 +82,16 @@ define linkonce i32 @inner3(i8* %addr) alwaysinline {
 ;
 ; CGSCC: Function Attrs: alwaysinline
 ; CGSCC-LABEL: define {{[^@]+}}@inner3
-; CGSCC-SAME: (i8* [[ADDR:%.*]]) #[[ATTR2]] {
+; CGSCC-SAME: (ptr [[ADDR:%.*]]) #[[ATTR2]] {
 ; CGSCC-NEXT:  entry:
-; CGSCC-NEXT:    indirectbr i8* [[ADDR]], [label [[ONE:%.*]], label %two]
+; CGSCC-NEXT:    indirectbr ptr [[ADDR]], [label [[ONE:%.*]], label %two]
 ; CGSCC:       one:
 ; CGSCC-NEXT:    ret i32 42
 ; CGSCC:       two:
 ; CGSCC-NEXT:    ret i32 44
 ;
 entry:
-  indirectbr i8* %addr, [ label %one, label %two ]
+  indirectbr ptr %addr, [ label %one, label %two ]
 
 one:
   ret i32 42
@@ -105,29 +105,29 @@ define i32 @outer3(i32 %x) {
 ; TUNIT-LABEL: define {{[^@]+}}@outer3
 ; TUNIT-SAME: (i32 [[X:%.*]]) #[[ATTR2]] {
 ; TUNIT-NEXT:    [[CMP:%.*]] = icmp slt i32 [[X]], 42
-; TUNIT-NEXT:    [[ADDR:%.*]] = select i1 [[CMP]], i8* blockaddress(@inner3, [[ONE:%.*]]), i8* blockaddress(@inner3, [[TWO:%.*]])
-; TUNIT-NEXT:    [[CALL:%.*]] = call i32 @inner3(i8* [[ADDR]])
+; TUNIT-NEXT:    [[ADDR:%.*]] = select i1 [[CMP]], ptr blockaddress(@inner3, [[ONE:%.*]]), ptr blockaddress(@inner3, [[TWO:%.*]])
+; TUNIT-NEXT:    [[CALL:%.*]] = call i32 @inner3(ptr [[ADDR]])
 ; TUNIT-NEXT:    ret i32 [[CALL]]
 ;
 ; CGSCC-LABEL: define {{[^@]+}}@outer3
 ; CGSCC-SAME: (i32 [[X:%.*]]) {
 ; CGSCC-NEXT:    [[CMP:%.*]] = icmp slt i32 [[X]], 42
-; CGSCC-NEXT:    [[ADDR:%.*]] = select i1 [[CMP]], i8* blockaddress(@inner3, [[ONE:%.*]]), i8* blockaddress(@inner3, [[TWO:%.*]])
-; CGSCC-NEXT:    [[CALL:%.*]] = call i32 @inner3(i8* [[ADDR]])
+; CGSCC-NEXT:    [[ADDR:%.*]] = select i1 [[CMP]], ptr blockaddress(@inner3, [[ONE:%.*]]), ptr blockaddress(@inner3, [[TWO:%.*]])
+; CGSCC-NEXT:    [[CALL:%.*]] = call i32 @inner3(ptr [[ADDR]])
 ; CGSCC-NEXT:    ret i32 [[CALL]]
 ;
   %cmp = icmp slt i32 %x, 42
-  %addr = select i1 %cmp, i8* blockaddress(@inner3, %one), i8* blockaddress(@inner3, %two)
-  %call = call i32 @inner3(i8* %addr)
+  %addr = select i1 %cmp, ptr blockaddress(@inner3, %one), ptr blockaddress(@inner3, %two)
+  %call = call i32 @inner3(ptr %addr)
   ret i32 %call
 }
 ;.
-; TUNIT: attributes #[[ATTR0]] = { alwaysinline nofree norecurse nosync nounwind readnone willreturn }
-; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind readnone willreturn }
+; TUNIT: attributes #[[ATTR0]] = { alwaysinline nofree norecurse nosync nounwind willreturn memory(none) }
+; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind willreturn memory(none) }
 ; TUNIT: attributes #[[ATTR2]] = { norecurse }
 ; TUNIT: attributes #[[ATTR3]] = { alwaysinline }
 ;.
-; CGSCC: attributes #[[ATTR0]] = { alwaysinline nofree norecurse nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR1]] = { nofree nosync nounwind readnone willreturn }
+; CGSCC: attributes #[[ATTR0]] = { alwaysinline nofree norecurse nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR1]] = { nofree nosync nounwind willreturn memory(none) }
 ; CGSCC: attributes #[[ATTR2]] = { alwaysinline }
 ;.

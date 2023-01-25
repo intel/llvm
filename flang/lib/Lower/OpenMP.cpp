@@ -61,10 +61,11 @@ getOmpObjectSymbol(const Fortran::parser::OmpObject &ompObject) {
   return sym;
 }
 
-static void
-privatizeSymbol(Fortran::lower::AbstractConverter &converter,
-                const Fortran::semantics::Symbol *sym,
-                [[maybe_unused]] mlir::Block *lastPrivBlock = nullptr) {
+template <typename Op>
+static void privatizeSymbol(
+    Op &op, Fortran::lower::AbstractConverter &converter,
+    const Fortran::semantics::Symbol *sym,
+    [[maybe_unused]] mlir::OpBuilder::InsertPoint *lastPrivIP = nullptr) {
   // Privatization for symbols which are pre-determined (like loop index
   // variables) happen separately, for everything else privatize here.
   if (sym->test(Fortran::semantics::Symbol::Flag::OmpPreDetermined))
@@ -72,10 +73,20 @@ privatizeSymbol(Fortran::lower::AbstractConverter &converter,
   bool success = converter.createHostAssociateVarClone(*sym);
   (void)success;
   assert(success && "Privatization failed due to existing binding");
-  if (sym->test(Fortran::semantics::Symbol::Flag::OmpFirstPrivate))
-    converter.copyHostAssociateVar(*sym);
+  if (sym->test(Fortran::semantics::Symbol::Flag::OmpFirstPrivate)) {
+    fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
+    mlir::OpBuilder::InsertPoint firstPrivIP, insPt;
+    if (mlir::isa<mlir::omp::SingleOp>(op)) {
+      insPt = firOpBuilder.saveInsertionPoint();
+      firOpBuilder.setInsertionPointToStart(&op.getRegion().front());
+      firstPrivIP = firOpBuilder.saveInsertionPoint();
+    }
+    converter.copyHostAssociateVar(*sym, &firstPrivIP);
+    if (mlir::isa<mlir::omp::SingleOp>(op))
+      firOpBuilder.restoreInsertionPoint(insPt);
+  }
   if (sym->test(Fortran::semantics::Symbol::Flag::OmpLastPrivate))
-    converter.copyHostAssociateVar(*sym, lastPrivBlock);
+    converter.copyHostAssociateVar(*sym, lastPrivIP);
 }
 
 template <typename Op>
@@ -96,7 +107,7 @@ static bool privatizeVars(Op &op, Fortran::lower::AbstractConverter &converter,
       };
   // We need just one ICmpOp for multiple LastPrivate clauses.
   mlir::arith::CmpIOp cmpOp;
-  mlir::Block *lastPrivBlock = nullptr;
+  mlir::OpBuilder::InsertPoint lastPrivIP;
   bool hasLastPrivateOp = false;
   for (const Fortran::parser::OmpClause &clause : opClauseList.v) {
     if (const auto &privateClause =
@@ -155,7 +166,8 @@ static bool privatizeVars(Op &op, Fortran::lower::AbstractConverter &converter,
         }
         mlir::scf::IfOp ifOp = firOpBuilder.create<mlir::scf::IfOp>(
             wsLoopOp->getLoc(), cmpOp, /*else*/ false);
-        lastPrivBlock = &ifOp.getThenRegion().front();
+        firOpBuilder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+        lastPrivIP = firOpBuilder.saveInsertionPoint();
       } else {
         TODO(converter.getCurrentLocation(),
              "lastprivate clause in constructs other than worksharing-loop");
@@ -207,7 +219,7 @@ static bool privatizeVars(Op &op, Fortran::lower::AbstractConverter &converter,
   else
     firOpBuilder.setInsertionPointToStart(firOpBuilder.getAllocaBlock());
   for (auto sym : privatizedSymbols) {
-    privatizeSymbol(converter, sym, lastPrivBlock);
+    privatizeSymbol(op, converter, sym, &lastPrivIP);
     if (sym->test(Fortran::semantics::Symbol::Flag::OmpFirstPrivate) &&
         sym->test(Fortran::semantics::Symbol::Flag::OmpLastPrivate))
       needBarrier = true;
@@ -217,7 +229,7 @@ static bool privatizeVars(Op &op, Fortran::lower::AbstractConverter &converter,
     if (!symbolsInNestedRegions.contains(sym) &&
         !symbolsInParentRegions.contains(sym) &&
         !privatizedSymbols.contains(sym))
-      privatizeSymbol(converter, sym);
+      privatizeSymbol(op, converter, sym);
 
   // Emit implicit barrier to synchronize threads and avoid data races on
   // initialization of firstprivate variables and post-update of lastprivate
@@ -825,10 +837,11 @@ genOMP(Fortran::lower::AbstractConverter &converter,
   } else if (blockDirective.v == llvm::omp::OMPD_single) {
     auto singleOp = firOpBuilder.create<mlir::omp::SingleOp>(
         currentLocation, allocateOperands, allocatorOperands, nowaitAttr);
-    createBodyOfOp<omp::SingleOp>(singleOp, converter, currentLocation, eval);
+    createBodyOfOp<omp::SingleOp>(singleOp, converter, currentLocation, eval,
+                                  &opClauseList);
   } else if (blockDirective.v == llvm::omp::OMPD_ordered) {
     auto orderedOp = firOpBuilder.create<mlir::omp::OrderedRegionOp>(
-        currentLocation, /*simd=*/nullptr);
+        currentLocation, /*simd=*/false);
     createBodyOfOp<omp::OrderedRegionOp>(orderedOp, converter, currentLocation,
                                          eval);
   } else if (blockDirective.v == llvm::omp::OMPD_task) {
@@ -839,7 +852,7 @@ genOMP(Fortran::lower::AbstractConverter &converter,
         allocatorOperands);
     createBodyOfOp(taskOp, converter, currentLocation, eval, &opClauseList);
   } else if (blockDirective.v == llvm::omp::OMPD_taskgroup) {
-      // TODO: Add task_reduction support
+    // TODO: Add task_reduction support
     auto taskGroupOp = firOpBuilder.create<mlir::omp::TaskGroupOp>(
         currentLocation, /*task_reduction_vars=*/ValueRange(),
         /*task_reductions=*/nullptr, allocateOperands, allocatorOperands);
@@ -1041,7 +1054,7 @@ static void genOMP(Fortran::lower::AbstractConverter &converter,
   fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
   mlir::Location currentLocation = converter.getCurrentLocation();
   llvm::SmallVector<mlir::Value> lowerBound, upperBound, step, linearVars,
-      linearStepVars, reductionVars;
+      linearStepVars, reductionVars, alignedVars;
   mlir::Value scheduleChunkClauseOperand, ifClauseOperand;
   mlir::Attribute scheduleClauseOperand, noWaitClauseOperand,
       orderedClauseOperand, orderClauseOperand;
@@ -1200,8 +1213,10 @@ static void genOMP(Fortran::lower::AbstractConverter &converter,
   if (llvm::omp::OMPD_simd == ompDirective) {
     TypeRange resultType;
     auto SimdLoopOp = firOpBuilder.create<mlir::omp::SimdLoopOp>(
-        currentLocation, resultType, lowerBound, upperBound, step,
-        ifClauseOperand, simdlenClauseOperand, safelenClauseOperand,
+        currentLocation, resultType, lowerBound, upperBound, step, alignedVars,
+        nullptr, ifClauseOperand,
+        orderClauseOperand.dyn_cast_or_null<omp::ClauseOrderKindAttr>(),
+        simdlenClauseOperand, safelenClauseOperand,
         /*inclusive=*/firOpBuilder.getUnitAttr());
     createBodyOfOp<omp::SimdLoopOp>(SimdLoopOp, converter, currentLocation,
                                     eval, &loopOpClauseList, iv);
@@ -1761,6 +1776,12 @@ void Fortran::lower::genThreadprivateOp(
         currentLocation, symValue.getType(), symValue);
   } else {
     mlir::Value symValue = converter.getSymbolAddress(sym);
+    mlir::Operation *op = symValue.getDefiningOp();
+    // The symbol may be use-associated multiple times, and nothing needs to be
+    // done after the original symbol is mapped to the threadprivatized value
+    // for the first time. Use the threadprivatized value directly.
+    if (mlir::isa<mlir::omp::ThreadprivateOp>(op))
+      return;
     symThreadprivateValue = firOpBuilder.create<mlir::omp::ThreadprivateOp>(
         currentLocation, symValue.getType(), symValue);
   }
@@ -1795,6 +1816,10 @@ void Fortran::lower::genOpenMPDeclarativeConstruct(
                   &declareTargetConstruct) {
             TODO(converter.getCurrentLocation(),
                  "OpenMPDeclareTargetConstruct");
+          },
+          [&](const Fortran::parser::OpenMPRequiresConstruct
+                  &requiresConstruct) {
+            TODO(converter.getCurrentLocation(), "OpenMPRequiresConstruct");
           },
           [&](const Fortran::parser::OpenMPThreadprivate &threadprivate) {
             // The directive is lowered when instantiating the variable to

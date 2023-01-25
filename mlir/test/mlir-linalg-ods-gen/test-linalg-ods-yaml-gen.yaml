@@ -235,8 +235,8 @@ structured_op: !LinalgStructuredOpConfig
         - !ScalarExpression
           scalar_arg: value
 
-#       IMPL:  Test3Op::iterator_types() {
-#  IMPL-NEXT:    int64_t rank = getRank(getOutputOperand(0));
+#       IMPL:  Test3Op::getIteratorTypesArray() {
+#  IMPL-NEXT:    int64_t rank = getRank(getDpsInitOperand(0));
 
 #       IMPL:  Test3Op::getIndexingMaps() {
 #  IMPL-NEXT:    MLIRContext *context = getContext();

@@ -43,23 +43,23 @@
 // EXTERNAL_I: "-isystem" "path"
 
 // RUN: %clang_cl /fp:fast /fp:except -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept %s
-// fpexcept-NOT: -menable-unsafe-fp-math
+// fpexcept-NOT: -funsafe-math-optimizations
 // fpexcept: -ffp-exception-behavior=strict
 
 // RUN: %clang_cl /fp:fast /fp:except /fp:except- -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept_ %s
-// fpexcept_: -menable-unsafe-fp-math
+// fpexcept_: -funsafe-math-optimizations
 // fpexcept_: -ffp-exception-behavior=ignore
 
 // RUN: %clang_cl /fp:precise /fp:fast -### -- %s 2>&1 | FileCheck -check-prefix=fpfast %s
-// fpfast: -menable-unsafe-fp-math
+// fpfast: -funsafe-math-optimizations
 // fpfast: -ffast-math
 
 // RUN: %clang_cl /fp:fast /fp:precise -### -- %s 2>&1 | FileCheck -check-prefix=fpprecise %s
-// fpprecise-NOT: -menable-unsafe-fp-math
+// fpprecise-NOT: -funsafe-math-optimizations
 // fpprecise-NOT: -ffast-math
 
 // RUN: %clang_cl /fp:fast /fp:strict -### -- %s 2>&1 | FileCheck -check-prefix=fpstrict %s
-// fpstrict-NOT: -menable-unsafe-fp-math
+// fpstrict-NOT: -funsafe-math-optimizations
 // fpstrict-NOT: -ffast-math
 // fpstrict: -ffp-contract=off
 
@@ -426,6 +426,8 @@
 // RUN:     /Bt \
 // RUN:     /Bt+ \
 // RUN:     /clr:pure \
+// RUN:     /d1import_no_registry \
+// RUN:     /d1nodatetime \
 // RUN:     /d2FH4 \
 // RUN:     /docname \
 // RUN:     /experimental:external \
@@ -782,8 +784,11 @@
 // EXTERNAL_W0: "-Wno-system-headers"
 // EXTERNAL_Wn: "-Wsystem-headers"
 
-// RUN: %clang_cl -vctoolsdir "" /arm64EC /c -### -- %s 2>&1 | FileCheck %s --check-prefix ARM64EC
-// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.20.0"
+// RUN: %clang_cl -vctoolsdir "" /arm64EC /c -### -- %s 2>&1 | FileCheck --check-prefix=ARM64EC %s 
 // ARM64EC-NOT: /arm64EC has been overridden by specified target
+// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.20.0"
+
+// RUN: %clang_cl -vctoolsdir "" /arm64EC /c -target x86_64-pc-windows-msvc  -### -- %s 2>&1 | FileCheck --check-prefix=ARM64EC_OVERRIDE %s
+// ARM64EC_OVERRIDE: warning: /arm64EC has been overridden by specified target: x86_64-pc-windows-msvc; option ignored
 
 void f(void) { }

@@ -31,7 +31,6 @@
 #include "ProvenanceAnalysis.h"
 #include "PtrState.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -58,8 +57,6 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -483,8 +480,8 @@ namespace {
 
   /// The main ARC optimization pass.
 class ObjCARCOpt {
-  bool Changed;
-  bool CFGChanged;
+  bool Changed = false;
+  bool CFGChanged = false;
   ProvenanceAnalysis PA;
 
   /// A cache of references to runtime entry point constants.
@@ -576,46 +573,9 @@ class ObjCARCOpt {
   public:
     void init(Module &M);
     bool run(Function &F, AAResults &AA);
-    void releaseMemory();
     bool hasCFGChanged() const { return CFGChanged; }
 };
-
-/// The main ARC optimization pass.
-class ObjCARCOptLegacyPass : public FunctionPass {
-public:
-  ObjCARCOptLegacyPass() : FunctionPass(ID) {
-    initializeObjCARCOptLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-  bool doInitialization(Module &M) override {
-    OCAO.init(M);
-    return false;
-  }
-  bool runOnFunction(Function &F) override {
-    return OCAO.run(F, getAnalysis<AAResultsWrapperPass>().getAAResults());
-  }
-  void releaseMemory() override { OCAO.releaseMemory(); }
-  static char ID;
-
-private:
-  ObjCARCOpt OCAO;
-};
 } // end anonymous namespace
-
-char ObjCARCOptLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(ObjCARCOptLegacyPass, "objc-arc", "ObjC ARC optimization",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(ObjCARCAAWrapperPass)
-INITIALIZE_PASS_END(ObjCARCOptLegacyPass, "objc-arc", "ObjC ARC optimization",
-                    false, false)
-
-Pass *llvm::createObjCARCOptPass() { return new ObjCARCOptLegacyPass(); }
-
-void ObjCARCOptLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<ObjCARCAAWrapperPass>();
-  AU.addRequired<AAResultsWrapperPass>();
-}
 
 /// Turn objc_retainAutoreleasedReturnValue into objc_retain if the operand is
 /// not a return value.
@@ -1038,7 +998,7 @@ void ObjCARCOpt::OptimizeIndividualCallImpl(
       CallInst *NewCall =
           CallInst::Create(Decl, Call->getArgOperand(0), "", Call);
       NewCall->setMetadata(MDKindCache.get(ARCMDKindID::ImpreciseRelease),
-                           MDNode::get(C, None));
+                           MDNode::get(C, std::nullopt));
 
       LLVM_DEBUG(dbgs() << "Replacing autorelease{,RV}(x) with objc_release(x) "
                            "since x is otherwise unused.\nOld: "
@@ -2519,10 +2479,6 @@ bool ObjCARCOpt::run(Function &F, AAResults &AA) {
   LLVM_DEBUG(dbgs() << "\n");
 
   return Changed;
-}
-
-void ObjCARCOpt::releaseMemory() {
-  PA.clear();
 }
 
 /// @}

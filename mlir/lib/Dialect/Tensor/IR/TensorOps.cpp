@@ -6,17 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
+#include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -54,9 +60,66 @@ SmallVector<OpFoldResult> tensor::getMixedSizes(OpBuilder &builder,
   return result;
 }
 
+FailureOr<Value> tensor::getOrCreateDestination(OpBuilder &b, Location loc,
+                                                OpResult opResult) {
+  auto tensorType = opResult.getType().dyn_cast<TensorType>();
+  assert(tensorType && "expected tensor type");
+
+  // If the op has a destination, it implements DestinationStyleOpInterface and
+  // we can query the destination operand from that interface.
+  auto destOp = opResult.getDefiningOp<DestinationStyleOpInterface>();
+  if (destOp)
+    return destOp.getTiedOpOperand(opResult)->get();
+
+  // Otherwise, create a new destination tensor with the same shape.
+  OpBuilder::InsertionGuard g(b);
+  b.setInsertionPoint(opResult.getDefiningOp());
+
+  // Compute sizes.
+  SmallVector<OpFoldResult> mixedSizes;
+  if (!tensorType.hasStaticShape()) {
+    // Dynamic shape: Query ReifyRankedShapedTypeOpInterface.
+    ReifiedRankedShapedTypeDims reifiedShapes;
+    ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
+        dyn_cast<ReifyRankedShapedTypeOpInterface>(opResult.getDefiningOp());
+    if (!reifyShapedTypeInterface)
+      return failure();
+    if (failed(reifyShapedTypeInterface.reifyResultShapes(b, reifiedShapes)))
+      return failure();
+    mixedSizes = getAsOpFoldResult(reifiedShapes[opResult.getResultNumber()]);
+  } else {
+    // Static shape: Take static sizes directly.
+    for (int64_t sz : tensorType.getShape())
+      mixedSizes.push_back(b.getIndexAttr(sz));
+  }
+
+  // Create empty tensor.
+  Value emptyTensor =
+      b.create<tensor::EmptyOp>(loc, mixedSizes, tensorType.getElementType());
+  return emptyTensor;
+}
+
+LogicalResult tensor::getOrCreateDestinations(OpBuilder &b, Location loc,
+                                              Operation *op,
+                                              SmallVector<Value> &result) {
+  for (OpResult opResult : op->getResults()) {
+    if (opResult.getType().isa<TensorType>()) {
+      FailureOr<Value> destination = getOrCreateDestination(b, loc, opResult);
+      if (failed(destination))
+        return failure();
+      result.push_back(*destination);
+    }
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
+
+void CastOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "cast");
+}
 
 /// Returns true if `target` is a ranked tensor type that preserves static
 /// information available in the `source` ranked tensor type.
@@ -276,8 +339,7 @@ struct TensorCastExtractSlice : public OpRewritePattern<CastOp> {
 
     SmallVector<OpFoldResult, 4> sizes = extractOperand.getMixedSizes();
     auto dimMask = computeRankReductionMask(
-        extractFromI64ArrayAttr(extractOperand.getStaticSizes()),
-        extractOperand.getType().getShape());
+        extractOperand.getStaticSizes(), extractOperand.getType().getShape());
     size_t dimIndex = 0;
     for (size_t i = 0, e = sizes.size(); i < e; i++) {
       if (dimMask && dimMask->count(i))
@@ -307,6 +369,10 @@ void CastOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // DimOp
 //===----------------------------------------------------------------------===//
 
+void DimOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "dim");
+}
+
 void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
                   int64_t index) {
   auto loc = result.location;
@@ -314,15 +380,27 @@ void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
   build(builder, result, source, indexValue);
 }
 
-Optional<int64_t> DimOp::getConstantIndex() {
-  if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
-    return constantOp.getValue().cast<IntegerAttr>().getInt();
-  return {};
+std::optional<int64_t> DimOp::getConstantIndex() {
+  return getConstantIntValue(getIndex());
+}
+
+Speculation::Speculatability DimOp::getSpeculatability() {
+  auto constantIndex = getConstantIndex();
+  if (!constantIndex)
+    return Speculation::NotSpeculatable;
+
+  auto rankedSourceType = dyn_cast<RankedTensorType>(getSource().getType());
+  if (!rankedSourceType)
+    return Speculation::NotSpeculatable;
+
+  // The verifier rejects operations that violate this assertion.
+  assert(constantIndex < rankedSourceType.getRank());
+  return Speculation::Speculatable;
 }
 
 LogicalResult DimOp::verify() {
   // Assume unknown index to be in range.
-  Optional<int64_t> index = getConstantIndex();
+  std::optional<int64_t> index = getConstantIndex();
   if (!index)
     return success();
 
@@ -421,27 +499,28 @@ void DimOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
-                    ArrayRef<int64_t> staticShape, Type elementType) {
+                    ArrayRef<int64_t> staticShape, Type elementType,
+                    Attribute encoding) {
   assert(all_of(staticShape,
                 [](int64_t sz) { return !ShapedType::isDynamic(sz); }) &&
          "expected only static sizes");
-  build(builder, result, staticShape, elementType, {});
+  build(builder, result, staticShape, elementType, ValueRange{}, encoding);
 }
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
                     ArrayRef<int64_t> staticShape, Type elementType,
-                    ValueRange dynamicSizes) {
-  auto tensorType = RankedTensorType::get(staticShape, elementType);
+                    ValueRange dynamicSizes, Attribute encoding) {
+  auto tensorType = RankedTensorType::get(staticShape, elementType, encoding);
   build(builder, result, tensorType, dynamicSizes);
 }
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
-                    ArrayRef<OpFoldResult> sizes, Type elementType) {
+                    ArrayRef<OpFoldResult> sizes, Type elementType,
+                    Attribute encoding) {
   SmallVector<int64_t> staticShape;
   SmallVector<Value> dynamicSizes;
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticShape,
-                             ShapedType::kDynamicSize);
-  build(builder, result, staticShape, elementType, dynamicSizes);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticShape);
+  build(builder, result, staticShape, elementType, dynamicSizes, encoding);
 }
 
 LogicalResult EmptyOp::verify() {
@@ -519,7 +598,7 @@ struct ReplaceEmptyTensorStaticShapeDims : OpRewritePattern<EmptyOp> {
     for (int64_t i = 0; i < op.getType().getRank(); ++i) {
       if (op.getType().isDynamicDim(i)) {
         Value dynamicSize = op.getDynamicSizes()[ctr++];
-        Optional<int64_t> cst = getConstantIntValue(dynamicSize);
+        std::optional<int64_t> cst = getConstantIntValue(dynamicSize);
         if (cst.has_value()) {
           staticShape[i] = *cst;
           changedType = true;
@@ -542,64 +621,12 @@ struct ReplaceEmptyTensorStaticShapeDims : OpRewritePattern<EmptyOp> {
   }
 };
 
-/// `tensor.empty` does not define any tensor contents, so a slice of a
-/// `tensor.empty` can be canonicalized to a smaller `tensor.empty`.
-struct FoldEmptyTensorWithExtractSliceOp
-    : public OpRewritePattern<ExtractSliceOp> {
-  using OpRewritePattern<ExtractSliceOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(ExtractSliceOp sliceOp,
-                                PatternRewriter &rewriter) const override {
-    if (!sliceOp.getSource().getDefiningOp<EmptyOp>())
-      return failure();
-
-    // ExtractSliceOp may be rank-reducing; its dynamic sizes must be
-    // preserved as well as its result type.
-    auto tensorType = RankedTensorType::get(sliceOp.getType().getShape(),
-                                            sliceOp.getType().getElementType(),
-                                            sliceOp.getType().getEncoding());
-    rewriter.replaceOpWithNewOp<EmptyOp>(sliceOp, tensorType,
-                                         sliceOp.getSizes());
-    return success();
-  }
-};
-
-template <typename ReshapeOp>
-struct FoldEmptyTensorWithReshapeOp : public OpRewritePattern<ReshapeOp> {
-  using OpRewritePattern<ReshapeOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(ReshapeOp reshapeOp,
-                                PatternRewriter &rewriter) const override {
-    if (!reshapeOp.getSrc().template getDefiningOp<EmptyOp>())
-      return failure();
-    Location loc = reshapeOp.getLoc();
-    ReifiedRankedShapedTypeDims resultShapes;
-    ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
-        cast<ReifyRankedShapedTypeOpInterface>(reshapeOp.getOperation());
-    if (failed(reifyShapedTypeInterface.reifyResultShapes(rewriter,
-                                                          resultShapes)) ||
-        !llvm::hasSingleElement(resultShapes))
-      return failure();
-    // TODO: Do not drop tensor type encoding.
-    Value emptyTensor =
-        rewriter.create<EmptyOp>(loc, getAsOpFoldResult(resultShapes[0]),
-                                 reshapeOp.getResultType().getElementType());
-    if (emptyTensor.getType() != reshapeOp.getResultType()) {
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(
-          reshapeOp, reshapeOp.getResultType(), emptyTensor);
-    } else {
-      rewriter.replaceOp(reshapeOp, emptyTensor);
-    }
-    return success();
-  }
-};
-
 struct FoldEmptyTensorWithDimOp : public OpRewritePattern<DimOp> {
   using OpRewritePattern<DimOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(tensor::DimOp dimOp,
                                 PatternRewriter &rewriter) const override {
-    Optional<int64_t> maybeConstantIndex = dimOp.getConstantIndex();
+    std::optional<int64_t> maybeConstantIndex = dimOp.getConstantIndex();
     auto emptyTensorOp = dimOp.getSource().getDefiningOp<EmptyOp>();
     if (!emptyTensorOp || !maybeConstantIndex)
       return failure();
@@ -687,9 +714,6 @@ struct FoldEmptyTensorWithCastOp : public OpRewritePattern<CastOp> {
 void EmptyOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {
   results.add<FoldEmptyTensorWithCastOp, FoldEmptyTensorWithDimOp,
-              FoldEmptyTensorWithExtractSliceOp,
-              FoldEmptyTensorWithReshapeOp<tensor::ExpandShapeOp>,
-              FoldEmptyTensorWithReshapeOp<tensor::CollapseShapeOp>,
               ReplaceEmptyTensorStaticShapeDims>(context);
 }
 
@@ -697,12 +721,44 @@ void EmptyOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // ExtractOp
 //===----------------------------------------------------------------------===//
 
+namespace {
+
+/// Canonicalizes the pattern of the form
+///
+/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
+/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
+///
+/// to
+///
+/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
+struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
+  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
+                                PatternRewriter &rewriter) const final {
+    auto tensorCast = extract.getTensor().getDefiningOp<tensor::CastOp>();
+    if (!tensorCast)
+      return failure();
+    if (!tensorCast.getSource().getType().isa<RankedTensorType>())
+      return failure();
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
+        extract, tensorCast.getSource(), extract.getIndices());
+    return success();
+  }
+};
+
+} // namespace
+
+void ExtractOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "extracted");
+}
+
 LogicalResult ExtractOp::verify() {
   // Verify the # indices match if we have a ranked type.
-  if (auto tensorType = getTensor().getType().dyn_cast<RankedTensorType>())
-    if (tensorType.getRank() != static_cast<int64_t>(getIndices().size()))
-      return emitOpError("incorrect number of indices for extract_element");
-
+  auto tensorType = getTensor().getType().cast<RankedTensorType>();
+  if (tensorType.getRank() != static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices for extract_element");
   return success();
 }
 
@@ -752,9 +808,19 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
+void ExtractOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.add<ExtractFromTensorCast>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // FromElementsOp
 //===----------------------------------------------------------------------===//
+
+void FromElementsOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "from_elements");
+}
 
 void FromElementsOp::build(OpBuilder &builder, OperationState &result,
                            Type resultType, ValueRange elements) {
@@ -827,6 +893,11 @@ void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 // GatherOp
 //===----------------------------------------------------------------------===//
+
+void GatherOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "gather");
+}
 
 /// Return the inferred result type for a gatherOp where:
 ///   - sourceType is the type of the source tensor gathered from
@@ -911,11 +982,16 @@ LogicalResult GatherOp::verify() {
 // InsertOp
 //===----------------------------------------------------------------------===//
 
+void InsertOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "inserted");
+}
+
 LogicalResult InsertOp::verify() {
   // Verify the # indices match if we have a ranked type.
-  if (auto destType = getDest().getType().dyn_cast<RankedTensorType>())
-    if (destType.getRank() != static_cast<int64_t>(getIndices().size()))
-      return emitOpError("incorrect number of indices");
+  auto destType = getDest().getType().cast<RankedTensorType>();
+  if (destType.getRank() != static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices");
   return success();
 }
 
@@ -932,6 +1008,11 @@ OpFoldResult InsertOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // GenerateOp
 //===----------------------------------------------------------------------===//
+
+void GenerateOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "generated");
+}
 
 LogicalResult GenerateOp::reifyResultShapes(
     OpBuilder &builder, ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
@@ -1024,7 +1105,7 @@ struct StaticTensorGenerate : public OpRewritePattern<GenerateOp> {
       }
       APInt index;
       if (!matchPattern(*operandsIt, m_ConstantInt(&index))) {
-        newShape.push_back(ShapedType::kDynamicSize);
+        newShape.push_back(ShapedType::kDynamic);
         newOperands.push_back(*operandsIt++);
         continue;
       }
@@ -1080,41 +1161,21 @@ struct ExtractFromTensorGenerate : public OpRewritePattern<tensor::ExtractOp> {
   }
 };
 
-/// Canonicalizes the pattern of the form
-///
-/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
-/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
-///
-/// to
-///
-/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
-struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
-  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
-                                PatternRewriter &rewriter) const final {
-    auto tensorCast = extract.getTensor().getDefiningOp<tensor::CastOp>();
-    if (!tensorCast)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
-        extract, tensorCast.getSource(), extract.getIndices());
-    return success();
-  }
-};
-
 } // namespace
 
 void GenerateOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
-  // TODO: Move extract patterns to tensor::ExtractOp.
-  results.add<ExtractFromTensorGenerate, ExtractFromTensorCast,
-              StaticTensorGenerate>(context);
+  // TODO: Move extract pattern to tensor::ExtractOp.
+  results.add<ExtractFromTensorGenerate, StaticTensorGenerate>(context);
 }
 
 //===----------------------------------------------------------------------===//
 // RankOp
 //===----------------------------------------------------------------------===//
+
+void RankOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "rank");
+}
 
 OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
   // Constant fold rank when the rank of the operand is known.
@@ -1128,6 +1189,11 @@ OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
+
+void ReshapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "reshape");
+}
 
 static int64_t getNumElements(ShapedType type) {
   int64_t numElements = 1;
@@ -1170,6 +1236,25 @@ LogicalResult ReshapeOp::verify() {
 // Reassociative reshape ops
 //===----------------------------------------------------------------------===//
 
+void CollapseShapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "collapsed");
+}
+
+void ExpandShapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "expanded");
+}
+
+int64_t ExpandShapeOp::getCorrespondingSourceDim(int64_t resultDim) {
+  assert(resultDim >= 0 && resultDim < getResultType().getRank() &&
+         "invalid resultDim");
+  for (const auto &it : llvm::enumerate(getReassociationIndices()))
+    if (llvm::find(it.value(), resultDim) != it.value().end())
+      return it.index();
+  llvm_unreachable("could not find reassociation group");
+}
+
 SmallVector<AffineMap, 4> CollapseShapeOp::getReassociationMaps() {
   return getSymbolLessAffineMaps(getReassociationExprs());
 }
@@ -1203,8 +1288,8 @@ computeTensorReshapeCollapsedType(RankedTensorType type,
     unsigned dim = m.getNumResults();
     auto band = shape.slice(currentDim, dim);
     int64_t size = 1;
-    if (llvm::is_contained(band, ShapedType::kDynamicSize))
-      size = ShapedType::kDynamicSize;
+    if (llvm::is_contained(band, ShapedType::kDynamic))
+      size = ShapedType::kDynamic;
     else
       for (unsigned d = 0; d < dim; ++d)
         size *= shape[currentDim + d];
@@ -1258,10 +1343,22 @@ static LogicalResult verifyTensorReshapeOp(TensorReshapeOp op,
 }
 
 LogicalResult ExpandShapeOp::verify() {
+  auto srcType = getSrcType();
+  auto resultType = getResultType();
+  if (srcType.getRank() >= resultType.getRank())
+    return emitOpError("expected rank expansion, but found source rank ")
+           << srcType.getRank() << " >= result rank " << resultType.getRank();
+
   return verifyTensorReshapeOp(*this, getResultType(), getSrcType());
 }
 
 LogicalResult CollapseShapeOp::verify() {
+  auto srcType = getSrcType();
+  auto resultType = getResultType();
+  if (srcType.getRank() <= resultType.getRank())
+    return emitOpError("expected rank reduction, but found source rank ")
+           << srcType.getRank() << " <= result rank " << resultType.getRank();
+
   return verifyTensorReshapeOp(*this, getSrcType(), getResultType());
 }
 
@@ -1338,6 +1435,87 @@ struct FoldCollapseOfCastOp : public OpRewritePattern<CollapseShapeOp> {
   }
 };
 
+struct FoldDimOfExpandShape : public OpRewritePattern<DimOp> {
+  using OpRewritePattern<DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DimOp dimOp,
+                                PatternRewriter &rewriter) const override {
+    auto expandShapeOp = dimOp.getSource().getDefiningOp<ExpandShapeOp>();
+    if (!expandShapeOp)
+      return failure();
+
+    // Only constant dimension values are supported.
+    std::optional<int64_t> dim = dimOp.getConstantIndex();
+    if (!dim.has_value())
+      return failure();
+
+    // Skip static dims. These are folded to constant ops.
+    TensorType resultType = expandShapeOp.getResultType();
+    if (!resultType.isDynamicDim(*dim))
+      return failure();
+
+    // Find reassociation group that contains this result dimension.
+    int64_t srcDim = expandShapeOp.getCorrespondingSourceDim(*dim);
+
+    // `dim` is the only dynamic dimension in `group`. (Otherwise, the
+    // ExpandShapeOp would be ambiguous.)
+    int64_t product = 1;
+    ReassociationIndices grp = expandShapeOp.getReassociationIndices()[srcDim];
+    for (int64_t d : grp) {
+      if (d != dim) {
+        assert(!resultType.isDynamicDim(d) && "expected static dim");
+        product *= resultType.getDimSize(d);
+      }
+    }
+
+    // result dim size = src dim size / (product(other dims in reassoc group))
+    Value srcDimSz =
+        rewriter.create<DimOp>(dimOp.getLoc(), expandShapeOp.getSrc(), srcDim);
+    AffineExpr expr;
+    bindSymbols(dimOp.getContext(), expr);
+    rewriter.replaceOpWithNewOp<AffineApplyOp>(dimOp, expr.floorDiv(product),
+                                               srcDimSz);
+    return success();
+  }
+};
+
+struct FoldDimOfCollapseShape : public OpRewritePattern<DimOp> {
+  using OpRewritePattern<DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DimOp dimOp,
+                                PatternRewriter &rewriter) const override {
+    auto collapseShapeOp = dimOp.getSource().getDefiningOp<CollapseShapeOp>();
+    if (!collapseShapeOp)
+      return failure();
+
+    // Only constant dimension values are supported.
+    std::optional<int64_t> dim = dimOp.getConstantIndex();
+    if (!dim.has_value())
+      return failure();
+
+    // Skip static dims. These are folded to constant ops.
+    TensorType resultType = collapseShapeOp.getResultType();
+    if (!resultType.isDynamicDim(*dim))
+      return failure();
+
+    // Get reassociation group of the result dimension.
+    ReassociationIndices group =
+        collapseShapeOp.getReassociationIndices()[*dim];
+
+    // result dim size = product(dims in reassoc group)
+    SmallVector<Value> srcDimSizes;
+    SmallVector<AffineExpr> syms;
+    AffineExpr product;
+    for (const auto &it : llvm::enumerate(group)) {
+      srcDimSizes.push_back(rewriter.create<DimOp>(
+          dimOp.getLoc(), collapseShapeOp.getSrc(), it.value()));
+      syms.push_back(rewriter.getAffineSymbolExpr(it.index()));
+      product = product ? product * syms.back() : syms.back();
+    }
+    rewriter.replaceOpWithNewOp<AffineApplyOp>(dimOp, product, srcDimSizes);
+    return success();
+  }
+};
 } // namespace
 
 void ExpandShapeOp::getCanonicalizationPatterns(RewritePatternSet &results,
@@ -1345,14 +1523,15 @@ void ExpandShapeOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<ComposeReassociativeReshapeOps<ExpandShapeOp>,
               ComposeExpandOfCollapseOp<ExpandShapeOp, CollapseShapeOp>,
               FoldReshapeWithConstant<ExpandShapeOp>,
-              FoldReshapeWithFromElements<ExpandShapeOp>>(context);
+              FoldReshapeWithFromElements<ExpandShapeOp>, FoldDimOfExpandShape,
+              FoldDimOfCollapseShape>(context);
 }
 
 void CollapseShapeOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
   results
       .add<ComposeReassociativeReshapeOps<CollapseShapeOp>,
-           ComposeCollapseOfExpandOp<CollapseShapeOp, ExpandShapeOp>,
+           ComposeCollapseOfExpandOp<CollapseShapeOp, ExpandShapeOp, CastOp>,
            FoldReshapeWithConstant<CollapseShapeOp>,
            FoldReshapeWithFromElements<CollapseShapeOp>, FoldCollapseOfCastOp>(
           context);
@@ -1368,6 +1547,11 @@ OpFoldResult CollapseShapeOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // ExtractSliceOp
 //===----------------------------------------------------------------------===//
+
+void ExtractSliceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "extracted_slice");
+}
 
 /// An extract_slice result type can be inferred, when it is not
 /// rank-reduced, from the source type and the static representation of
@@ -1390,12 +1574,9 @@ RankedTensorType ExtractSliceOp::inferResultType(
     ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   return ExtractSliceOp::inferResultType(sourceShapedTensorType, staticOffsets,
                                          staticSizes, staticStrides);
 }
@@ -1438,12 +1619,9 @@ RankedTensorType ExtractSliceOp::inferCanonicalRankReducedResultType(
     ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   return ExtractSliceOp::inferCanonicalRankReducedResultType(
       desiredResultRank, sourceRankedTensorType, staticOffsets, staticSizes,
       staticStrides);
@@ -1459,12 +1637,9 @@ void ExtractSliceOp::build(OpBuilder &b, OperationState &result,
                            ArrayRef<NamedAttribute> attrs) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   auto sourceRankedTensorType = source.getType().cast<RankedTensorType>();
   // Structuring implementation this way avoids duplication between builders.
   if (!resultType) {
@@ -1474,8 +1649,9 @@ void ExtractSliceOp::build(OpBuilder &b, OperationState &result,
             .cast<RankedTensorType>();
   }
   build(b, result, resultType, source, dynamicOffsets, dynamicSizes,
-        dynamicStrides, b.getI64ArrayAttr(staticOffsets),
-        b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
+        dynamicStrides, b.getDenseI64ArrayAttr(staticOffsets),
+        b.getDenseI64ArrayAttr(staticSizes),
+        b.getDenseI64ArrayAttr(staticStrides));
   result.addAttributes(attrs);
 }
 
@@ -1556,7 +1732,7 @@ llvm::SmallBitVector ExtractSliceOp::getDroppedDims() {
   llvm::SmallBitVector droppedDims(mixedSizes.size());
   unsigned shapePos = 0;
   for (const auto &size : enumerate(mixedSizes)) {
-    Optional<int64_t> sizeVal = getConstantIntValue(size.value());
+    std::optional<int64_t> sizeVal = getConstantIntValue(size.value());
     // If the size is not 1, or if the current matched dimension of the result
     // is the same static shape as the size value (which is 1), then the
     // dimension is preserved.
@@ -1568,6 +1744,23 @@ llvm::SmallBitVector ExtractSliceOp::getDroppedDims() {
     droppedDims.set(size.index());
   }
   return droppedDims;
+}
+
+FailureOr<Value>
+ExtractSliceOp::rankReduceIfNeeded(OpBuilder &b, Location loc, Value value,
+                                   ArrayRef<int64_t> desiredShape) {
+  auto sourceTensorType = value.getType().dyn_cast<RankedTensorType>();
+  assert(sourceTensorType && "not a ranked tensor type");
+  auto sourceShape = sourceTensorType.getShape();
+  if (sourceShape.equals(desiredShape))
+    return value;
+  auto maybeRankReductionMask =
+      mlir::computeRankReductionMask(sourceShape, desiredShape);
+  if (!maybeRankReductionMask)
+    return failure();
+  return createCanonicalRankReducingExtractSliceOp(
+      b, loc, value,
+      RankedTensorType::Builder(sourceTensorType).setShape(desiredShape));
 }
 
 LogicalResult ExtractSliceOp::reifyResultShapes(
@@ -1710,14 +1903,14 @@ public:
       return failure();
 
     // Check if there are any dynamic parts, which are not supported.
-    auto offsets = extractFromI64ArrayAttr(op.getStaticOffsets());
-    if (llvm::is_contained(offsets, ShapedType::kDynamicStrideOrOffset))
+    auto offsets = op.getStaticOffsets();
+    if (llvm::is_contained(offsets, ShapedType::kDynamic))
       return failure();
-    auto sizes = extractFromI64ArrayAttr(op.getStaticSizes());
-    if (llvm::is_contained(sizes, ShapedType::kDynamicSize))
+    auto sizes = op.getStaticSizes();
+    if (llvm::is_contained(sizes, ShapedType::kDynamic))
       return failure();
-    auto strides = extractFromI64ArrayAttr(op.getStaticStrides());
-    if (llvm::is_contained(strides, ShapedType::kDynamicStrideOrOffset))
+    auto strides = op.getStaticStrides();
+    if (llvm::is_contained(strides, ShapedType::kDynamic))
       return failure();
 
     // Compute the stride for each dimension.
@@ -1865,6 +2058,11 @@ Value mlir::tensor::createCanonicalRankReducingExtractSliceOp(
 // InsertSliceOp
 //===----------------------------------------------------------------------===//
 
+void InsertSliceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "inserted_slice");
+}
+
 // Build a InsertSliceOp with mixed static and dynamic entries.
 void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
                           Value dest, ArrayRef<OpFoldResult> offsets,
@@ -1873,15 +2071,13 @@ void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
                           ArrayRef<NamedAttribute> attrs) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   build(b, result, dest.getType(), source, dest, dynamicOffsets, dynamicSizes,
-        dynamicStrides, b.getI64ArrayAttr(staticOffsets),
-        b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
+        dynamicStrides, b.getDenseI64ArrayAttr(staticOffsets),
+        b.getDenseI64ArrayAttr(staticSizes),
+        b.getDenseI64ArrayAttr(staticStrides));
   result.addAttributes(attrs);
 }
 
@@ -1909,17 +2105,14 @@ void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
 
 /// Rank-reducing type verification for both InsertSliceOp and
 /// ParallelInsertSliceOp.
-static SliceVerificationResult
-verifyInsertSliceOp(ShapedType srcType, ShapedType dstType,
-                    ArrayAttr staticOffsets, ArrayAttr staticSizes,
-                    ArrayAttr staticStrides,
-                    ShapedType *expectedType = nullptr) {
+static SliceVerificationResult verifyInsertSliceOp(
+    ShapedType srcType, ShapedType dstType, ArrayRef<int64_t> staticOffsets,
+    ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides,
+    ShapedType *expectedType = nullptr) {
   // insert_slice is the inverse of extract_slice, use the same type
   // inference.
   RankedTensorType expected = ExtractSliceOp::inferResultType(
-      dstType, extractFromI64ArrayAttr(staticOffsets),
-      extractFromI64ArrayAttr(staticSizes),
-      extractFromI64ArrayAttr(staticStrides));
+      dstType, staticOffsets, staticSizes, staticStrides);
   if (expectedType)
     *expectedType = expected;
   return isRankReducedType(expected, srcType);
@@ -2028,9 +2221,9 @@ public:
     SmallVector<OpFoldResult> mixedOffsets(insertSliceOp.getMixedOffsets());
     SmallVector<OpFoldResult> mixedSizes(insertSliceOp.getMixedSizes());
     SmallVector<OpFoldResult> mixedStrides(insertSliceOp.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamicStrideOrOffset);
+    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamic);
     canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamicStrideOrOffset);
+    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamic);
 
     // Create the new op in canonical form.
     auto sourceType = ExtractSliceOp::inferCanonicalRankReducedResultType(
@@ -2085,15 +2278,16 @@ struct InsertSliceOpCastFolder final : public OpRewritePattern<InsertOpTy> {
         }))
       return failure();
 
-    auto getSourceOfCastOp = [](Value v) -> Optional<Value> {
+    auto getSourceOfCastOp = [](Value v) -> std::optional<Value> {
       auto castOp = v.getDefiningOp<tensor::CastOp>();
       if (!castOp || !canFoldIntoConsumerOp(castOp))
-        return llvm::None;
+        return std::nullopt;
       return castOp.getSource();
     };
-    Optional<Value> sourceCastSource =
+    std::optional<Value> sourceCastSource =
         getSourceOfCastOp(insertSliceOp.getSource());
-    Optional<Value> destCastSource = getSourceOfCastOp(insertSliceOp.getDest());
+    std::optional<Value> destCastSource =
+        getSourceOfCastOp(insertSliceOp.getDest());
     if (!sourceCastSource && !destCastSource)
       return failure();
 
@@ -2159,7 +2353,7 @@ struct InsertSliceOpSourceCastInserter final
     SmallVector<int64_t> newSrcShape(srcType.getShape().begin(),
                                      srcType.getShape().end());
     for (int64_t i = 0; i < srcType.getRank(); ++i) {
-      if (Optional<int64_t> constInt =
+      if (std::optional<int64_t> constInt =
               getConstantIntValue(insertSliceOp.getMixedSizes()[i]))
         newSrcShape[i] = *constInt;
     }
@@ -2188,7 +2382,6 @@ struct InsertSliceOpSourceCastInserter final
         insertSliceOp, cast, insertSliceOp.getDest(),
         insertSliceOp.getMixedOffsets(), insertSliceOp.getMixedSizes(),
         insertSliceOp.getMixedStrides());
-    cast.getDefiningOp()->getParentOfType<ModuleOp>().dump();
     return success();
   }
 };
@@ -2218,14 +2411,19 @@ Value mlir::tensor::createCanonicalRankReducingInsertSliceOp(OpBuilder &b,
 // PadOp
 //===----------------------------------------------------------------------===//
 
+void PadOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "padded");
+}
+
 // TODO: Replace custom<InferType> directive with AllTypesMatch as soon as it
 // supports optional types.
 void printInferType(OpAsmPrinter &printer, Operation *op, Value optOperand,
                     Type typeToInfer, Type typeToInferFrom) {}
 
-ParseResult parseInferType(OpAsmParser &parser,
-                           Optional<OpAsmParser::UnresolvedOperand> optOperand,
-                           Type &typeToInfer, Type typeToInferFrom) {
+ParseResult
+parseInferType(OpAsmParser &parser,
+               std::optional<OpAsmParser::UnresolvedOperand> optOperand,
+               Type &typeToInfer, Type typeToInferFrom) {
   if (optOperand)
     typeToInfer = typeToInferFrom;
   return success();
@@ -2234,9 +2432,8 @@ ParseResult parseInferType(OpAsmParser &parser,
 LogicalResult PadOp::verify() {
   auto sourceType = getSource().getType().cast<RankedTensorType>();
   auto resultType = getResult().getType().cast<RankedTensorType>();
-  auto expectedType = PadOp::inferResultType(
-      sourceType, extractFromI64ArrayAttr(getStaticLow()),
-      extractFromI64ArrayAttr(getStaticHigh()));
+  auto expectedType =
+      PadOp::inferResultType(sourceType, getStaticLow(), getStaticHigh());
   for (int i = 0, e = sourceType.getRank(); i < e; ++i) {
     if (resultType.getDimSize(i) == expectedType.getDimSize(i))
       continue;
@@ -2285,15 +2482,14 @@ RankedTensorType PadOp::inferResultType(RankedTensorType sourceType,
 
   SmallVector<int64_t, 4> inferredShape;
   for (auto i : llvm::seq<unsigned>(0, rank)) {
-    if (sourceType.isDynamicDim(i) ||
-        staticLow[i] == ShapedType::kDynamicSize ||
-        staticHigh[i] == ShapedType::kDynamicSize) {
-      inferredShape.push_back(resultShape.empty() ? ShapedType::kDynamicSize
+    if (sourceType.isDynamicDim(i) || staticLow[i] == ShapedType::kDynamic ||
+        staticHigh[i] == ShapedType::kDynamic) {
+      inferredShape.push_back(resultShape.empty() ? ShapedType::kDynamic
                                                   : resultShape[i]);
     } else {
       int64_t size = sourceType.getDimSize(i) + staticLow[i] + staticHigh[i];
       assert((resultShape.empty() || size == resultShape[i] ||
-              resultShape[i] == ShapedType::kDynamicSize) &&
+              resultShape[i] == ShapedType::kDynamic) &&
              "mismatch between inferred shape and result shape");
       inferredShape.push_back(size);
     }
@@ -2308,8 +2504,9 @@ void PadOp::build(OpBuilder &b, OperationState &result, Value source,
                   ArrayRef<NamedAttribute> attrs) {
   auto sourceType = source.getType().cast<RankedTensorType>();
   auto resultType = inferResultType(sourceType, staticLow, staticHigh);
-  build(b, result, resultType, source, low, high, b.getI64ArrayAttr(staticLow),
-        b.getI64ArrayAttr(staticHigh), nofold ? b.getUnitAttr() : UnitAttr());
+  build(b, result, resultType, source, low, high,
+        b.getDenseI64ArrayAttr(staticLow), b.getDenseI64ArrayAttr(staticHigh),
+        nofold ? b.getUnitAttr() : UnitAttr());
   result.addAttributes(attrs);
 }
 
@@ -2318,7 +2515,7 @@ void PadOp::build(OpBuilder &b, OperationState &result, Value source,
                   ArrayRef<NamedAttribute> attrs) {
   auto sourceType = source.getType().cast<RankedTensorType>();
   unsigned rank = sourceType.getRank();
-  SmallVector<int64_t, 4> staticVector(rank, ShapedType::kDynamicSize);
+  SmallVector<int64_t, 4> staticVector(rank, ShapedType::kDynamic);
   build(b, result, source, staticVector, staticVector, low, high, nofold,
         attrs);
 }
@@ -2327,7 +2524,6 @@ void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
                   Value source, ArrayRef<OpFoldResult> low,
                   ArrayRef<OpFoldResult> high, bool nofold,
                   ArrayRef<NamedAttribute> attrs) {
-  assert(resultType.isa<RankedTensorType>());
   auto sourceType = source.getType().cast<RankedTensorType>();
   SmallVector<Value, 4> dynamicLow, dynamicHigh;
   SmallVector<int64_t, 4> staticLow, staticHigh;
@@ -2335,17 +2531,35 @@ void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
   // This will grow staticLow and staticHigh with 1 value. If the config is
   // dynamic (ie not a constant), dynamicLow and dynamicHigh will grow with 1
   // value as well.
-  dispatchIndexOpFoldResults(low, dynamicLow, staticLow,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(high, dynamicHigh, staticHigh,
-                             ShapedType::kDynamicSize);
+  dispatchIndexOpFoldResults(low, dynamicLow, staticLow);
+  dispatchIndexOpFoldResults(high, dynamicHigh, staticHigh);
   if (!resultType) {
     resultType = PadOp::inferResultType(sourceType, staticLow, staticHigh);
   }
+  assert(resultType.isa<RankedTensorType>());
   build(b, result, resultType, source, dynamicLow, dynamicHigh,
-        b.getI64ArrayAttr(staticLow), b.getI64ArrayAttr(staticHigh),
+        b.getDenseI64ArrayAttr(staticLow), b.getDenseI64ArrayAttr(staticHigh),
         nofold ? b.getUnitAttr() : UnitAttr());
   result.addAttributes(attrs);
+}
+
+void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
+                  Value source, ArrayRef<OpFoldResult> low,
+                  ArrayRef<OpFoldResult> high, Value constantPadValue,
+                  bool nofold, ArrayRef<NamedAttribute> attrs) {
+  build(b, result, resultType, source, low, high, nofold, attrs);
+
+  // Add a region and a block to yield the pad value.
+  Region *region = result.regions[0].get();
+  int sourceRank = source.getType().cast<RankedTensorType>().getRank();
+  SmallVector<Type> blockArgTypes(sourceRank, b.getIndexType());
+  SmallVector<Location> blockArgLocs(sourceRank, result.location);
+
+  // `builder.createBlock` changes the insertion point within the block. Create
+  // a guard to reset the insertion point of the builder after it is destroyed.
+  OpBuilder::InsertionGuard guard(b);
+  b.createBlock(region, region->end(), blockArgTypes, blockArgLocs);
+  b.create<tensor::YieldOp>(result.location, constantPadValue);
 }
 
 llvm::SmallBitVector PadOp::getPaddedDims() {
@@ -2391,8 +2605,7 @@ struct FoldSourceTensorCast : public OpRewritePattern<PadOp> {
 
     auto newResultType = PadOp::inferResultType(
         castOp.getSource().getType().cast<RankedTensorType>(),
-        extractFromI64ArrayAttr(padTensorOp.getStaticLow()),
-        extractFromI64ArrayAttr(padTensorOp.getStaticHigh()),
+        padTensorOp.getStaticLow(), padTensorOp.getStaticHigh(),
         padTensorOp.getResultType().getShape());
 
     if (newResultType == padTensorOp.getResultType()) {
@@ -2666,15 +2879,13 @@ void ParallelInsertSliceOp::build(OpBuilder &b, OperationState &result,
                                   ArrayRef<NamedAttribute> attrs) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   build(b, result, {}, source, dest, dynamicOffsets, dynamicSizes,
-        dynamicStrides, b.getI64ArrayAttr(staticOffsets),
-        b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
+        dynamicStrides, b.getDenseI64ArrayAttr(staticOffsets),
+        b.getDenseI64ArrayAttr(staticSizes),
+        b.getDenseI64ArrayAttr(staticStrides));
   result.addAttributes(attrs);
 }
 
@@ -2725,6 +2936,11 @@ void ParallelInsertSliceOp::getCanonicalizationPatterns(
 // ScatterOp
 //===----------------------------------------------------------------------===//
 
+void ScatterOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "scatter");
+}
+
 LogicalResult ScatterOp::verify() {
   int64_t destRank = getDestType().getRank();
   ArrayRef<int64_t> scatterDims = getScatterDims();
@@ -2761,6 +2977,11 @@ LogicalResult ScatterOp::verify() {
 // SplatOp
 //===----------------------------------------------------------------------===//
 
+void SplatOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "splat");
+}
+
 OpFoldResult SplatOp::fold(ArrayRef<Attribute> operands) {
   auto constOperand = operands.front();
   if (!constOperand.isa_and_nonnull<IntegerAttr, FloatAttr>())
@@ -2769,6 +2990,522 @@ OpFoldResult SplatOp::fold(ArrayRef<Attribute> operands) {
   // SplatElementsAttr::get treats single value for second arg as being a
   // splat.
   return SplatElementsAttr::get(getType(), {constOperand});
+}
+
+//===----------------------------------------------------------------------===//
+// PackOp/UnPackOp Common
+//===----------------------------------------------------------------------===//
+
+template <typename OpTy>
+static LogicalResult
+reifyResultShapesImpl(OpTy op, OpBuilder &builder,
+                      ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  int64_t destRank = op.getDestRank();
+  reifiedReturnShapes.resize(1, SmallVector<Value>(destRank));
+  for (auto dim : llvm::seq<int64_t>(0, destRank)) {
+    reifiedReturnShapes[0][dim] =
+        builder.createOrFold<tensor::DimOp>(op.getLoc(), op.getDest(), dim);
+  }
+  return success();
+}
+
+template <typename OpTy>
+static DenseMap<int64_t, OpFoldResult> getDimAndTileMappingImpl(OpTy op) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  DenseMap<int64_t, OpFoldResult> dimAndTileMapping;
+  ArrayRef<int64_t> dimsToTile = op.getInnerDimsPos();
+  SmallVector<OpFoldResult> tiles = op.getMixedTiles();
+  assert(tiles.size() == dimsToTile.size() &&
+         "tiles must match indices of dimension to block");
+  // bind the dimension `i` with the tile factor.
+  for (auto i : llvm::seq<int64_t>(0, dimsToTile.size()))
+    dimAndTileMapping[dimsToTile[i]] = tiles[i];
+  return dimAndTileMapping;
+}
+
+template <typename OpTy>
+static SmallVector<OpFoldResult> getMixedTilesImpl(OpTy op) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  Builder builder(op);
+  SmallVector<OpFoldResult> mixedInnerTiles;
+  unsigned dynamicValIndex = 0;
+  for (int64_t staticTile : op.getStaticInnerTiles()) {
+    if (!ShapedType::isDynamic(staticTile))
+      mixedInnerTiles.push_back(builder.getI64IntegerAttr(staticTile));
+    else
+      mixedInnerTiles.push_back(op.getInnerTiles()[dynamicValIndex++]);
+  }
+  return mixedInnerTiles;
+}
+
+template <typename OpTy>
+static SmallVector<int64_t> getStaticTilesImpl(OpTy op) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  SmallVector<Value> dynamicTiles;
+  SmallVector<int64_t> staticTiles;
+  dispatchIndexOpFoldResults(op.getMixedTiles(), dynamicTiles, staticTiles);
+  return staticTiles;
+}
+
+/// Returns true if `dimsPos` is invalid. It is invalid when:
+/// a) It contains duplicate.
+/// b) At least one dimension is out of bound (`dimPos` is >= 0 and < rank).
+/// c) The number of elements in `dimsPos` is > than `rank`.
+static bool isInvalidPackingPosSpecification(ArrayRef<int64_t> dimsPos,
+                                             size_t rank) {
+  size_t dimsPosSize = dimsPos.size();
+  if (dimsPosSize > rank)
+    return true;
+  DenseSet<int64_t> uniqued;
+  for (int64_t dim : dimsPos)
+    uniqued.insert(dim);
+  if (dimsPosSize != uniqued.size())
+    return true;
+  return llvm::any_of(dimsPos, [rank](int64_t dimPos) {
+    return dimPos < 0 || dimPos >= static_cast<int64_t>(rank);
+  });
+}
+
+/// Returns true if the dimension of `sourceShape` is smaller than the dimension
+/// of the `limitShape`.
+static bool areAllInBound(ArrayRef<int64_t> sourceShape,
+                          ArrayRef<int64_t> limitShape) {
+  assert(
+      sourceShape.size() == limitShape.size() &&
+      "expected source shape rank, and limit of the shape to have same rank");
+  return llvm::all_of(
+      llvm::zip(sourceShape, limitShape), [](std::tuple<int64_t, int64_t> it) {
+        int64_t sourceExtent = std::get<0>(it);
+        int64_t limit = std::get<1>(it);
+        return ShapedType::isDynamic(sourceExtent) ||
+               ShapedType::isDynamic(limit) || sourceExtent <= limit;
+      });
+}
+
+template <typename OpTy>
+static LogicalResult commonVerifierPackAndUnPackOp(OpTy packOrUnPack) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  Operation *op = packOrUnPack.getOperation();
+
+  // Return true if we have a zero-value tile.
+  auto hasZeros = [&](ArrayRef<OpFoldResult> tiles) {
+    return llvm::any_of(
+        tiles, [](OpFoldResult tile) { return isConstantIntValue(tile, 0); });
+  };
+
+  // Verify tiles. Do not allow zero tiles.
+  SmallVector<OpFoldResult> mixedTiles = packOrUnPack.getMixedTiles();
+  if (hasZeros(mixedTiles))
+    return op->emitError("invalid zero tile factor");
+
+  // Verify inner_dims_pos and outer_dims_perm.
+  ShapedType unpackedType = (std::is_same<OpTy, PackOp>::value)
+                                ? packOrUnPack.getSourceType()
+                                : packOrUnPack.getDestType();
+  size_t unpackedRank = unpackedType.getRank();
+  ArrayRef<int64_t> innerDimsPos = packOrUnPack.getInnerDimsPos();
+  ArrayRef<int64_t> outerDimPerm = packOrUnPack.getOuterDimsPerm();
+  if (isInvalidPackingPosSpecification(innerDimsPos, unpackedRank))
+    return op->emitError("invalid inner_dims_pos vector");
+  if (isInvalidPackingPosSpecification(outerDimPerm, unpackedRank))
+    return op->emitError("invalid outer_dims_perm vector");
+  if (!outerDimPerm.empty() && outerDimPerm.size() != unpackedRank)
+    return op->emitError("outer_dims_perm must be a permutation or empty");
+
+  // Tiling factors must be less than or equal to the input rank for pack (or
+  // output rank for unpack), and must match the number of `inner_dims_pos`.
+  if (mixedTiles.size() > unpackedRank) {
+    return op->emitError("tiling factors must be less than or equal to the "
+                         "input rank for pack or output rank for unpack");
+  }
+  if (mixedTiles.size() != innerDimsPos.size()) {
+    return op->emitError(
+        "tiling factors must equal the number of dimensions to tile");
+  }
+
+  ShapedType packedType = (std::is_same<OpTy, PackOp>::value)
+                              ? packOrUnPack.getDestType()
+                              : packOrUnPack.getSourceType();
+  size_t packedRank = packedType.getRank();
+  // Require output rank to match input rank + number of blocking factors.
+  if (unpackedRank + mixedTiles.size() != packedRank) {
+    return op->emitError(
+        "packed rank must equal unpacked rank + tiling factors");
+  }
+
+  // Verify result shape is greater than the minimum expected
+  // by the pack operation, and that the output shape
+  // represents full tiles.
+  ShapedType expectedPackedType = PackOp::inferPackedType(
+      unpackedType, packOrUnPack.getStaticTiles(), innerDimsPos, outerDimPerm);
+  if (!areAllInBound(expectedPackedType.getShape(), packedType.getShape())) {
+    return op->emitError("the shape of output is not large enough to hold the "
+                         "packed data. Expected at least ")
+           << expectedPackedType << ", got " << packedType;
+  }
+  if (!llvm::all_of(
+          llvm::zip(packedType.getShape().take_back(mixedTiles.size()),
+                    mixedTiles),
+          [](std::tuple<int64_t, OpFoldResult> it) {
+            std::optional<int64_t> constTileSize =
+                getConstantIntValue(std::get<1>(it));
+            int64_t shape = std::get<0>(it);
+            if (!constTileSize) {
+              // If specified tile size is dynamic, output shape should
+              // be dynamic too.
+              return ShapedType::isDynamic(shape);
+            }
+            if (ShapedType::isDynamic(shape)) {
+              // For the shape being dynamic when tile size is
+              // specified, return true. In canonical form a constant
+              // tile size should lead to constant shape of the tiled
+              // dimension, but not needed for verification.
+              return true;
+            }
+            return shape == constTileSize.value();
+           
+          })) {
+    return op->emitError("mismatch in inner tile sizes specified and shaped of "
+                         "tiled dimension in the packed type");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// PackOp
+//===----------------------------------------------------------------------===//
+
+void PackOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "pack");
+}
+
+void PackOp::build(OpBuilder &builder, OperationState &state, Value source,
+                   Value dest, ArrayRef<int64_t> innerDimsPos,
+                   ArrayRef<OpFoldResult> innerTiles,
+                   Optional<Value> paddingValue,
+                   ArrayRef<int64_t> outerDimsPerm) {
+  assert(innerDimsPos.size() == innerTiles.size() &&
+         "number of tile sizes specified must match the specified number of "
+         "original dimensions to be tiled");
+  SmallVector<int64_t> staticTileSizes;
+  SmallVector<Value> dynamicTileSizes;
+  dispatchIndexOpFoldResults(innerTiles, dynamicTileSizes, staticTileSizes);
+  build(builder, state, dest.getType(), source, dest,
+        paddingValue ? *paddingValue : nullptr,
+        outerDimsPerm.empty() ? nullptr
+                              : builder.getDenseI64ArrayAttr(outerDimsPerm),
+        builder.getDenseI64ArrayAttr(innerDimsPos), dynamicTileSizes,
+        builder.getDenseI64ArrayAttr(staticTileSizes));
+}
+
+LogicalResult
+PackOp::reifyResultShapes(OpBuilder &builder,
+                          ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  return reifyResultShapesImpl(*this, builder, reifiedReturnShapes);
+}
+
+DenseMap<int64_t, OpFoldResult> PackOp::getDimAndTileMapping() {
+  return getDimAndTileMappingImpl(*this);
+}
+
+SmallVector<OpFoldResult> PackOp::getMixedTiles() {
+  return getMixedTilesImpl(*this);
+}
+
+SmallVector<int64_t> PackOp::getStaticTiles() {
+  return getStaticTilesImpl(*this);
+}
+
+/// Check if we have enough static information to catch undefined behavior when
+/// the tile size does not divide perfectly the dimension of the input tensor.
+static bool
+areNotFullTiles(ArrayRef<int64_t> inputShape,
+                DenseMap<int64_t, OpFoldResult> const &dimAndTileMapping) {
+  int64_t rank = inputShape.size();
+  for (int64_t dim = 0; dim < rank; dim++) {
+    if (ShapedType::isDynamic(inputShape[dim]))
+      continue;
+    auto it = dimAndTileMapping.find(dim);
+    if (it == dimAndTileMapping.end())
+      continue;
+    std::optional<int64_t> constantTile = getConstantIntValue(it->second);
+    if (!constantTile)
+      continue;
+    if (inputShape[dim] % (*constantTile) != 0)
+      return true;
+  }
+  return false;
+}
+
+LogicalResult PackOp::verify() {
+  if (failed(commonVerifierPackAndUnPackOp(*this)))
+    return failure();
+
+  // Verify padding value, and bail out if the tile does not divide the
+  // dimension fully. In the case of dynamic tile factors or dimensions, having
+  // a partial tile is undefined behavior.
+  auto paddingValue = getPaddingValue();
+  if (paddingValue &&
+      paddingValue.getType() != getSourceType().getElementType()) {
+    return emitOpError("expected padding_value has ")
+           << getSourceType().getElementType()
+           << " but got: " << paddingValue.getType();
+  }
+
+  auto dimAndTileMapping = getDimAndTileMapping();
+  if (!paddingValue &&
+      areNotFullTiles(getSourceType().getShape(), dimAndTileMapping)) {
+    return emitOpError("invalid tile factor provided. Only full tiles are "
+                       "supported when padding_value is not set");
+  }
+  return success();
+}
+
+/// Get the expected packed type based on source type, tile factors, position of
+/// the inner tiles and permutation of the outer tiled loop.
+ShapedType PackOp::inferPackedType(ShapedType sourceType,
+                                   ArrayRef<int64_t> innerTileSizes,
+                                   ArrayRef<int64_t> innerDimsPos,
+                                   ArrayRef<int64_t> outerDimsPerm) {
+  SmallVector<int64_t> resultShape = llvm::to_vector(sourceType.getShape());
+  for (const auto &tiledDim : llvm::enumerate(innerDimsPos)) {
+    if (ShapedType::isDynamic(resultShape[tiledDim.value()]))
+      continue;
+    if (ShapedType::isDynamic(innerTileSizes[tiledDim.index()])) {
+      resultShape[tiledDim.value()] = ShapedType::kDynamic;
+      continue;
+    }
+    resultShape[tiledDim.value()] = ceilDiv(resultShape[tiledDim.value()],
+                                            innerTileSizes[tiledDim.index()]);
+  }
+
+  if (!outerDimsPerm.empty())
+    applyPermutationToVector(resultShape, outerDimsPerm);
+
+  // Append the inner tile dimensions.
+  resultShape.append(innerTileSizes.begin(), innerTileSizes.end());
+  return RankedTensorType::get(resultShape, sourceType.getElementType());
+}
+
+Value PackOp::createDestinationTensor(OpBuilder &b, Location loc, Value source,
+                                      ArrayRef<OpFoldResult> innerTileSizes,
+                                      ArrayRef<int64_t> innerDimsPos,
+                                      ArrayRef<int64_t> outerDimsPerm) {
+  AffineExpr dim0, dim1;
+  bindDims(b.getContext(), dim0, dim1);
+  auto ceilDiv = [&](OpFoldResult v1, OpFoldResult v2) -> OpFoldResult {
+    return makeComposedFoldedAffineApply(b, loc, dim0.ceilDiv(dim1), {v1, v2});
+  };
+
+  SmallVector<OpFoldResult> mixedSizes;
+  for (auto [index, value] :
+       llvm::enumerate(source.getType().cast<RankedTensorType>().getShape())) {
+    if (ShapedType::isDynamic(value))
+      mixedSizes.push_back(b.create<DimOp>(loc, source, index).getResult());
+    else
+      mixedSizes.push_back(b.getIndexAttr(value));
+  }
+  for (auto it : llvm::zip(innerDimsPos, innerTileSizes)) {
+    int64_t dimPos = std::get<0>(it);
+    OpFoldResult tileSize = std::get<1>(it);
+    mixedSizes[dimPos] = ceilDiv(mixedSizes[dimPos], tileSize);
+  }
+  if (!outerDimsPerm.empty())
+    applyPermutationToVector<OpFoldResult>(mixedSizes, outerDimsPerm);
+
+  mixedSizes.append(innerTileSizes.begin(), innerTileSizes.end());
+  auto elemType = source.getType().cast<ShapedType>().getElementType();
+  return b.create<tensor::EmptyOp>(loc, mixedSizes, elemType);
+}
+
+/// Returns true if the tiles and the tiled dims are constant.
+template <typename OpTy>
+bool areTilesAndTiledDimsAllConstant(OpTy op) {
+  static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
+                "applies to only pack or unpack operations");
+  ShapedType packedType = (std::is_same<OpTy, PackOp>::value)
+                              ? op.getDestType()
+                              : op.getSourceType();
+  SmallVector<OpFoldResult> mixedTiles = op.getMixedTiles();
+  for (auto [dimDest, tile] : llvm::zip(
+           packedType.getShape().take_back(mixedTiles.size()), mixedTiles)) {
+    std::optional<int64_t> constTileSize = getConstantIntValue(tile);
+    if (!constTileSize || ShapedType::isDynamic(dimDest))
+      return false;
+  }
+  return true;
+}
+
+Speculation::Speculatability PackOp::getSpeculatability() {
+  if (auto paddingValue = getPaddingValue())
+    return Speculation::Speculatable;
+
+  // The verifier rejects already operations if we can statically prove that the
+  // sizes of the tiles do not divide perfectly the dimension; thus, check only
+  // to have constant tiles and tiled inner dimensions.
+  if (!areTilesAndTiledDimsAllConstant(*this))
+    return Speculation::NotSpeculatable;
+
+  return Speculation::Speculatable;
+}
+
+//===----------------------------------------------------------------------===//
+// UnPackOp
+//===----------------------------------------------------------------------===//
+
+void UnPackOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "unpack");
+}
+
+LogicalResult
+UnPackOp::reifyResultShapes(OpBuilder &builder,
+                            ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  return reifyResultShapesImpl(*this, builder, reifiedReturnShapes);
+}
+
+DenseMap<int64_t, OpFoldResult> UnPackOp::getDimAndTileMapping() {
+  return getDimAndTileMappingImpl(*this);
+}
+
+SmallVector<OpFoldResult> UnPackOp::getMixedTiles() {
+  return getMixedTilesImpl(*this);
+}
+
+SmallVector<int64_t> UnPackOp::getStaticTiles() {
+  return getStaticTilesImpl(*this);
+}
+
+LogicalResult UnPackOp::verify() {
+  return commonVerifierPackAndUnPackOp(*this);
+}
+
+Speculation::Speculatability UnPackOp::getSpeculatability() {
+  // See PackOp::getSpeculatability.
+  if (!areTilesAndTiledDimsAllConstant(*this))
+    return Speculation::NotSpeculatable;
+
+  return Speculation::Speculatable;
+}
+
+void UnPackOp::build(OpBuilder &builder, OperationState &state, Value source,
+                     Value dest, ArrayRef<int64_t> innerDimsPos,
+                     ArrayRef<OpFoldResult> innerTiles,
+                     ArrayRef<int64_t> outerDimsPerm) {
+  assert(innerDimsPos.size() == innerTiles.size() &&
+         "number of tile sizes specified must match the specified number of "
+         "original dimensions to be tiled");
+  SmallVector<int64_t> staticTileSizes;
+  SmallVector<Value> dynamicTileSizes;
+  dispatchIndexOpFoldResults(innerTiles, dynamicTileSizes, staticTileSizes);
+  build(builder, state, dest.getType(), source, dest,
+        outerDimsPerm.empty() ? nullptr
+                              : builder.getDenseI64ArrayAttr(outerDimsPerm),
+        builder.getDenseI64ArrayAttr(innerDimsPos), dynamicTileSizes,
+        builder.getDenseI64ArrayAttr(staticTileSizes));
+}
+
+/// pack(unpack(x)) -> x
+LogicalResult UnPackOp::canonicalize(UnPackOp unpackOp,
+                                     PatternRewriter &rewriter) {
+  PackOp packOp = unpackOp.getSource().getDefiningOp<tensor::PackOp>();
+  if (!packOp || packOp.getDestType() != unpackOp.getSourceType())
+    return failure();
+  if (packOp.getInnerDimsPos() != unpackOp.getInnerDimsPos())
+    return failure();
+  if (packOp.getOuterDimsPerm() != unpackOp.getOuterDimsPerm())
+    return failure();
+  rewriter.replaceOp(unpackOp, packOp.getSource());
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Common Canonicalizers and Folders.
+//===----------------------------------------------------------------------===//
+
+/// Folds a tensor.cast op into a consuming DestinationStyleOpInterface op if
+/// the `tensor.cast` has source that is more static than the consuming op.
+///
+/// Example:
+/// ```mlir
+///   %1 = tensor.cast %0 : tensor<8x16xf32> to tensor<?x?xf32>
+///   %2 = consumer %1 ... : tensor<?x?xf32> ...
+/// ```
+///
+/// folds into:
+///
+/// ```mlir
+///   %2 = consumer %0 ... : tensor<8x16xf32> ...
+/// ```
+/// TODO: Move the pattern to a proper place, so all other DestinationStyleOp
+/// can add the pattern to their canonicalizers.
+struct FoldTensorCastProducerOp
+    : public OpInterfaceRewritePattern<DestinationStyleOpInterface> {
+  using OpInterfaceRewritePattern<
+      DestinationStyleOpInterface>::OpInterfaceRewritePattern;
+
+  LogicalResult matchAndRewrite(DestinationStyleOpInterface op,
+                                PatternRewriter &rewriter) const override {
+    // InsertSliceOp has its own logic about folding tensor.cast ops.
+    if (isa<InsertSliceOp>(op.getOperation()))
+      return failure();
+
+    // If no operand comes from a tensor::CastOp and can be folded then fail.
+    bool hasTensorCastOperand =
+        llvm::any_of(op->getOpOperands(), [&](OpOperand &opOperand) {
+          if (opOperand.get().isa<BlockArgument>())
+            return false;
+          auto castOp = opOperand.get().getDefiningOp<tensor::CastOp>();
+          return castOp && canFoldIntoConsumerOp(castOp);
+        });
+    if (!hasTensorCastOperand)
+      return failure();
+
+    SmallVector<Type, 4> newResultTypes;
+    newResultTypes.reserve(op->getNumResults());
+    SmallVector<Value, 4> newOperands;
+    newOperands.reserve(op->getNumOperands());
+    for (OpOperand &opOperand : op->getOpOperands()) {
+      auto tensorCastOp = opOperand.get().getDefiningOp<tensor::CastOp>();
+      bool fold = canFoldIntoConsumerOp(tensorCastOp);
+      newOperands.push_back(fold ? tensorCastOp.getOperand() : opOperand.get());
+      if (op.isDpsInit(&opOperand) &&
+          !newOperands.back().getType().isa<MemRefType>())
+        newResultTypes.push_back(newOperands.back().getType());
+    }
+
+    // Clone op.
+    Operation *newOp = clone(rewriter, op, newResultTypes, newOperands);
+    SmallVector<Value, 4> replacements;
+    replacements.reserve(newOp->getNumResults());
+    for (auto [oldResult, newResult] :
+         llvm::zip(op->getResults(), newOp->getResults())) {
+      if (newResult.getType() != oldResult.getType()) {
+        replacements.push_back(rewriter.create<tensor::CastOp>(
+            op->getLoc(), oldResult.getType(), newResult));
+      } else {
+        replacements.push_back(newResult);
+      }
+    }
+    rewriter.replaceOp(op, replacements);
+
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// TensorDialect
+//===----------------------------------------------------------------------===//
+
+void TensorDialect::getCanonicalizationPatterns(
+    RewritePatternSet &results) const {
+  results.add<FoldTensorCastProducerOp>(getContext());
 }
 
 //===----------------------------------------------------------------------===//

@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -DUSE_OPENCL %s
-// RUN: %clangxx -fsycl -DUSE_L0 %s
-// RUN: %clangxx -fsycl -DUSE_CUDA %s
-// RUN: %clangxx -fsycl -DUSE_HIP %s
-// RUN: %clangxx -fsycl -DUSE_CUDA_EXPERIMENTAL %s
+// RUN: %clangxx -fsycl -fsyntax-only -DUSE_OPENCL %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -DUSE_L0 %s
+// RUN: %clangxx -fsycl -fsyntax-only -DUSE_CUDA %s
+// RUN: %clangxx -fsycl -fsyntax-only -DUSE_HIP %s
+// RUN: %clangxx -fsycl -fsyntax-only -DUSE_CUDA_EXPERIMENTAL %s
 
 #ifdef USE_OPENCL
 #include <CL/cl.h>
@@ -13,7 +13,7 @@ constexpr auto Backend = sycl::backend::opencl;
 #endif
 
 #ifdef USE_L0
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
@@ -33,6 +33,7 @@ constexpr auto Backend = sycl::backend::ext_oneapi_hip;
 #endif
 
 #ifdef USE_CUDA_EXPERIMENTAL
+#define SYCL_EXT_ONEAPI_BACKEND_CUDA 1
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
 #include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>

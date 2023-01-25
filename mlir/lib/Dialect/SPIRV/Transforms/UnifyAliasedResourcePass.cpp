@@ -16,6 +16,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -51,8 +52,8 @@ static AliasedResourceMap collectAliasedResources(spirv::ModuleOp moduleOp) {
   AliasedResourceMap aliasedResources;
   moduleOp->walk([&aliasedResources](spirv::GlobalVariableOp varOp) {
     if (varOp->getAttrOfType<UnitAttr>("aliased")) {
-      Optional<uint32_t> set = varOp.getDescriptorSet();
-      Optional<uint32_t> binding = varOp.getBinding();
+      std::optional<uint32_t> set = varOp.getDescriptorSet();
+      std::optional<uint32_t> binding = varOp.getBinding();
       if (set && binding)
         aliasedResources[{*set, *binding}].push_back(varOp);
     }
@@ -81,9 +82,10 @@ static Type getRuntimeArrayElementType(Type type) {
 }
 
 /// Given a list of resource element `types`, returns the index of the canonical
-/// resource that all resources should be unified into. Returns llvm::None if
+/// resource that all resources should be unified into. Returns std::nullopt if
 /// unable to unify.
-static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
+static std::optional<int>
+deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
   // scalarNumBits: contains all resources' scalar types' bit counts.
   // vectorNumBits: only contains resources whose element types are vectors.
   // vectorIndices: each vector's original index in `types`.
@@ -97,11 +99,12 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     assert(type.isScalarOrVector());
     if (auto vectorType = type.dyn_cast<VectorType>()) {
       if (vectorType.getNumElements() % 2 != 0)
-        return llvm::None; // Odd-sized vector has special layout requirements.
+        return std::nullopt; // Odd-sized vector has special layout
+                             // requirements.
 
-      Optional<int64_t> numBytes = type.getSizeInBytes();
+      std::optional<int64_t> numBytes = type.getSizeInBytes();
       if (!numBytes)
-        return llvm::None;
+        return std::nullopt;
 
       scalarNumBits.push_back(
           vectorType.getElementType().getIntOrFloatBitWidth());
@@ -121,7 +124,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     // With out this, we cannot properly adjust the index later.
     if (llvm::any_of(vectorNumBits,
                      [&](int bits) { return bits % *minVal != 0; }))
-      return llvm::None;
+      return std::nullopt;
 
     // Require all scalar type bit counts to be a multiple of the chosen
     // vector's primitive type to avoid reading/writing subcomponents.
@@ -129,7 +132,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     int baseNumBits = scalarNumBits[index];
     if (llvm::any_of(scalarNumBits,
                      [&](int bits) { return bits % baseNumBits != 0; }))
-      return llvm::None;
+      return std::nullopt;
 
     return index;
   }
@@ -139,7 +142,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
   auto *minVal = std::min_element(scalarNumBits.begin(), scalarNumBits.end());
   if (llvm::any_of(scalarNumBits,
                    [minVal](int64_t bit) { return bit % *minVal != 0; }))
-    return llvm::None;
+    return std::nullopt;
   return std::distance(scalarNumBits.begin(), minVal);
 }
 
@@ -223,7 +226,8 @@ bool ResourceAliasAnalysis::shouldUnify(Operation *op) const {
   }
   if (auto addressOp = dyn_cast<spirv::AddressOfOp>(op)) {
     auto moduleOp = addressOp->getParentOfType<spirv::ModuleOp>();
-    auto *varOp = SymbolTable::lookupSymbolIn(moduleOp, addressOp.getVariable());
+    auto *varOp =
+        SymbolTable::lookupSymbolIn(moduleOp, addressOp.getVariable());
     return shouldUnify(varOp);
   }
 
@@ -277,7 +281,7 @@ void ResourceAliasAnalysis::recordIfUnifiable(
     elementTypes.push_back(type);
   }
 
-  Optional<int> index = deduceCanonicalResource(elementTypes);
+  std::optional<int> index = deduceCanonicalResource(elementTypes);
   if (!index)
     return;
 
@@ -517,8 +521,8 @@ struct ConvertStore : public ConvertAliasResource<spirv::StoreOp> {
     Value value = adaptor.getValue();
     if (srcElemType != dstElemType)
       value = rewriter.create<spirv::BitcastOp>(loc, dstElemType, value);
-    rewriter.replaceOpWithNewOp<spirv::StoreOp>(storeOp, adaptor.getPtr(), value,
-                                                storeOp->getAttrs());
+    rewriter.replaceOpWithNewOp<spirv::StoreOp>(storeOp, adaptor.getPtr(),
+                                                value, storeOp->getAttrs());
     return success();
   }
 };
@@ -532,13 +536,33 @@ class UnifyAliasedResourcePass final
     : public spirv::impl::SPIRVUnifyAliasedResourcePassBase<
           UnifyAliasedResourcePass> {
 public:
+  explicit UnifyAliasedResourcePass(spirv::GetTargetEnvFn getTargetEnv)
+      : getTargetEnvFn(std::move(getTargetEnv)) {}
+
   void runOnOperation() override;
+
+private:
+  spirv::GetTargetEnvFn getTargetEnvFn;
 };
 } // namespace
 
 void UnifyAliasedResourcePass::runOnOperation() {
   spirv::ModuleOp moduleOp = getOperation();
   MLIRContext *context = &getContext();
+
+  if (getTargetEnvFn) {
+    // This pass is only needed for targeting WebGPU, Metal, or layering Vulkan
+    // on Metal via MoltenVK, where we need to translate SPIR-V into WGSL or
+    // MSL. The translation has limitations.
+    spirv::TargetEnvAttr targetEnv = getTargetEnvFn(moduleOp);
+    spirv::ClientAPI clientAPI = targetEnv.getClientAPI();
+    bool isVulkanOnAppleDevices =
+        clientAPI == spirv::ClientAPI::Vulkan &&
+        targetEnv.getVendorID() == spirv::Vendor::Apple;
+    if (clientAPI != spirv::ClientAPI::WebGPU &&
+        clientAPI != spirv::ClientAPI::Metal && !isVulkanOnAppleDevices)
+      return;
+  }
 
   // Analyze aliased resources first.
   ResourceAliasAnalysis &analysis = getAnalysis<ResourceAliasAnalysis>();
@@ -570,6 +594,6 @@ void UnifyAliasedResourcePass::runOnOperation() {
 }
 
 std::unique_ptr<mlir::OperationPass<spirv::ModuleOp>>
-spirv::createUnifyAliasedResourcePass() {
-  return std::make_unique<UnifyAliasedResourcePass>();
+spirv::createUnifyAliasedResourcePass(spirv::GetTargetEnvFn getTargetEnv) {
+  return std::make_unique<UnifyAliasedResourcePass>(std::move(getTargetEnv));
 }

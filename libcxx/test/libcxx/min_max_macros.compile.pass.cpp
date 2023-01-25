@@ -139,6 +139,8 @@ TEST_MACROS();
 TEST_MACROS();
 #include <execution>
 TEST_MACROS();
+#include <expected>
+TEST_MACROS();
 #include <fenv.h>
 TEST_MACROS();
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
@@ -151,7 +153,7 @@ TEST_MACROS();
 TEST_MACROS();
 #include <forward_list>
 TEST_MACROS();
-#if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_FSTREAM)
 #   include <fstream>
 TEST_MACROS();
 #endif
@@ -208,6 +210,8 @@ TEST_MACROS();
 #include <math.h>
 TEST_MACROS();
 #include <memory>
+TEST_MACROS();
+#include <memory_resource>
 TEST_MACROS();
 #if !defined(_LIBCPP_HAS_NO_THREADS)
 #   include <mutex>

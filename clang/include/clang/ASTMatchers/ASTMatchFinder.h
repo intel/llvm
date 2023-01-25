@@ -115,7 +115,7 @@ public:
     /// the result nodes. This API is temporary to facilitate
     /// third parties porting existing code to the default
     /// behavior of clang-tidy.
-    virtual llvm::Optional<TraversalKind> getCheckTraversalKind() const;
+    virtual std::optional<TraversalKind> getCheckTraversalKind() const;
   };
 
   /// Called when parsing is finished. Intended for testing only.
@@ -289,8 +289,8 @@ public:
     Nodes.push_back(Result.Nodes);
   }
 
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
-    return llvm::None;
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
+    return std::nullopt;
   }
 
   SmallVector<BoundNodes, 1> Nodes;

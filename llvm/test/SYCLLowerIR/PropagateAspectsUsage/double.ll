@@ -4,7 +4,7 @@
 
 %composite = type { double }
 
-; CHECK: spir_kernel void @kernel() !sycl_used_aspects ![[MDID:[0-9]+]] {
+; CHECK: spir_kernel void @kernel() !sycl_used_aspects ![[MDID:[0-9]+]]
 define spir_kernel void @kernel() {
   call spir_func void @func()
   ret void

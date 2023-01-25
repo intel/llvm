@@ -187,6 +187,7 @@ void MachineFunction::init() {
     RegInfo = nullptr;
 
   MFInfo = nullptr;
+
   // We can realign the stack if the target supports it and the user hasn't
   // explicitly asked us not to.
   bool CanRealignSP = STI->getFrameLowering()->isStackRealignable() &&
@@ -230,6 +231,12 @@ void MachineFunction::init() {
          "Target-incompatible DataLayout attached\n");
 
   PSVManager = std::make_unique<PseudoSourceValueManager>(getTarget());
+}
+
+void MachineFunction::initTargetMachineFunctionInfo(
+    const TargetSubtargetInfo &STI) {
+  assert(!MFInfo && "MachineFunctionInfo already set");
+  MFInfo = Target.createMachineFunctionInfo(Allocator, F, &STI);
 }
 
 MachineFunction::~MachineFunction() {
@@ -779,7 +786,7 @@ MCSymbol *MachineFunction::addLandingPad(MachineBasicBlock *LandingPad) {
     }
 
   } else if (const auto *CPI = dyn_cast<CatchPadInst>(FirstI)) {
-    for (unsigned I = CPI->getNumArgOperands(); I != 0; --I) {
+    for (unsigned I = CPI->arg_size(); I != 0; --I) {
       Value *TypeInfo = CPI->getArgOperand(I - 1)->stripPointerCasts();
       addCatchTypeInfo(LandingPad, dyn_cast<GlobalValue>(TypeInfo));
     }

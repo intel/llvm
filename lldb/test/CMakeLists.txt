@@ -95,8 +95,19 @@ endif()
 if(TARGET clang)
   add_lldb_test_dependency(clang)
 
+  # TestFullLtoStepping depends on LTO, and only runs when the compiler is clang.
+  add_lldb_test_dependency(LTO)
+
   if (TARGET libcxx OR ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES))
     set(LLDB_HAS_LIBCXX ON)
+    if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
+      set(LIBCXX_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE})
+      set(LIBCXX_GENERATED_INCLUDE_DIR "${LLVM_BINARY_DIR}/include/c++/v1")
+      set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LLVM_BINARY_DIR}/include/${LLVM_DEFAULT_TARGET_TRIPLE}/c++/v1")
+    else()
+      set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXX_LIBDIR_SUFFIX})
+      set(LIBCXX_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/c++/v1")
+    endif()
     add_lldb_test_dependency(cxx)
   endif()
 
@@ -167,6 +178,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_SHARED_LIBS
   LLDB_HAS_LIBCXX
+  LLDB_TOOL_LLDB_SERVER_BUILD
   LLDB_USE_SYSTEM_DEBUGSERVER
   LLDB_IS_64_BITS)
 

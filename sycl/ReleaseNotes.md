@@ -232,7 +232,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 # Known issues
 
 - This release is not backwards compatible with previous releases, which means
-  that existing SYCL applications won't work with the never runtime without
+  that existing SYCL applications won't work with the newer runtime without
   re-compilation.
 - Having MESA OpenCL implementation which provides no devices on a
   system may cause incorrect device discovery. As a workaround such an OpenCL
@@ -707,7 +707,7 @@ Release notes for commit range 23ca0c2..27f59d8
    Level Zero, ESIMD emulator, HIP [2b0ebab376dc]
  - Added support for `sycl::ext::intel::experimental::esimd_ballot` function
    [0bbb091c1baa]
- - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
+ - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
    [711ba58c30a8]
 
 ### Documentation
@@ -1099,7 +1099,7 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added [sRGBA support](doc/extensions/supported/sycl_ext_oneapi_srgb.asciidoc)
    [e488327][191efdd]
  - Added a preview feature implementation for the DPC++ experimental
-   [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
+   [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
    [7f218531] [a95f46d]
  - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
  - Added support for [sycl_ext_intel_bf16_conversion extension](doc/extensions/experimental/sycl_ext_intel_bf16_conversion.asciidoc)
@@ -1363,7 +1363,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    for querying of free device memory in LevelZero backend extension [fa428bf]
  - Added [InvokeSIMD](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and
    [Uniform](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extensions [72e1611]
- - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
+ - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
  - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) extension
    [4fb95fc]
@@ -1509,7 +1509,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed build issue when CUDA 11 is used [f7224f1]
  - Fixed caching of sub-devices in Level Zero backend[4c34f93]
  - Fixed requesting of USM memory allocation info on CUDA [691f842]
- - Fixed [`joint_matrix_mad`](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
+ - Fixed [`joint_matrix_mad`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
    behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
  - Workaround an issue in Level Zero backend when event isn't waited upon its
    completion but is queried for its status in an infinite loop  [bfef316]

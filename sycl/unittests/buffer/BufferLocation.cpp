@@ -43,11 +43,11 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
+static pi_result redefinedDeviceGetInfoAfter(pi_device device,
+                                             pi_device_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_TYPE) {
     auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
     *Result = PI_DEVICE_TYPE_ACC;
@@ -58,12 +58,30 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   }
   if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
     const std::string name = "cl_intel_mem_alloc_buffer_location";
+
+    // Increase size by one for the null terminator
+    const size_t nameSize = name.size() + 1;
+
     if (!param_value) {
-      // Increase size by one for the null terminator
-      *param_value_size_ret = name.size() + 1;
+      // Choose bigger size so that both original and redefined function
+      // has enough memory for storing the extension string
+      *param_value_size_ret =
+          nameSize > *param_value_size_ret ? nameSize : *param_value_size_ret;
     } else {
       char *dst = static_cast<char *>(param_value);
       strcpy(dst, name.data());
+    }
+  }
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
     }
   }
   return PI_SUCCESS;
@@ -75,10 +93,10 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
-    Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfoAfter);
   }
 
 protected:

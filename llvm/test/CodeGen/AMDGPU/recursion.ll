@@ -5,7 +5,7 @@
 ; CHECK: ScratchSize: 16
 define void @recursive() {
   call void @recursive()
-  store volatile i32 0, i32 addrspace(1)* undef
+  store volatile i32 0, ptr addrspace(1) undef
   ret void
 }
 
@@ -24,7 +24,7 @@ define void @calls_tail_recursive() norecurse {
 ; CHECK-LABEL: {{^}}tail_recursive_with_stack:
 define void @tail_recursive_with_stack() {
   %alloca = alloca i32, addrspace(5)
-  store volatile i32 0, i32 addrspace(5)* %alloca
+  store volatile i32 0, ptr addrspace(5) %alloca
   tail call void @tail_recursive_with_stack()
   ret void
 }
@@ -36,6 +36,7 @@ define void @tail_recursive_with_stack() {
 ;
 ; V5-LABEL: {{^}}calls_recursive:
 ; V5: .amdhsa_private_segment_fixed_size 0{{$}}
+; V5: .amdhsa_uses_dynamic_stack 1
 define amdgpu_kernel void @calls_recursive() {
   call void @recursive()
   ret void
@@ -59,6 +60,7 @@ define amdgpu_kernel void @kernel_indirectly_calls_tail_recursive() {
 ;
 ; V5-LABEL: {{^}}kernel_calls_tail_recursive:
 ; V5: .amdhsa_private_segment_fixed_size 0{{$}}
+; V5: .amdhsa_uses_dynamic_stack 1
 define amdgpu_kernel void @kernel_calls_tail_recursive() {
   call void @tail_recursive()
   ret void
@@ -69,6 +71,7 @@ define amdgpu_kernel void @kernel_calls_tail_recursive() {
 ;
 ; V5-LABEL: {{^}}kernel_calls_tail_recursive_with_stack:
 ; V5: .amdhsa_private_segment_fixed_size 8{{$}}
+; V5: .amdhsa_uses_dynamic_stack 1
 define amdgpu_kernel void @kernel_calls_tail_recursive_with_stack() {
   call void @tail_recursive_with_stack()
   ret void

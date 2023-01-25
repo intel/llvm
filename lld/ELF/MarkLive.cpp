@@ -75,7 +75,7 @@ private:
 template <class ELFT>
 static uint64_t getAddend(InputSectionBase &sec,
                           const typename ELFT::Rel &rel) {
-  return target->getImplicitAddend(sec.rawData.begin() + rel.r_offset,
+  return target->getImplicitAddend(sec.content().begin() + rel.r_offset,
                                    rel.getType(config->isMips64EL));
 }
 
@@ -235,14 +235,14 @@ template <class ELFT> void MarkLive<ELFT>::run() {
   // that point to .eh_frames. Otherwise, the garbage collector would drop
   // all of them. We also want to preserve personality routines and LSDA
   // referenced by .eh_frame sections, so we scan them for that here.
-  for (EhInputSection *eh : ehInputSections) {
+  for (EhInputSection *eh : ctx.ehInputSections) {
     const RelsOrRelas<ELFT> rels = eh->template relsOrRelas<ELFT>();
     if (rels.areRelocsRel())
       scanEhFrameSection(*eh, rels.rels);
     else if (rels.relas.size())
       scanEhFrameSection(*eh, rels.relas);
   }
-  for (InputSectionBase *sec : inputSections) {
+  for (InputSectionBase *sec : ctx.inputSections) {
     if (sec->flags & SHF_GNU_RETAIN) {
       enqueue(sec, 0);
       continue;
@@ -335,7 +335,7 @@ template <class ELFT> void MarkLive<ELFT>::moveToMain() {
             d->section->isLive())
           markSymbol(s);
 
-  for (InputSectionBase *sec : inputSections) {
+  for (InputSectionBase *sec : ctx.inputSections) {
     if (!sec->isLive() || !isValidCIdentifier(sec->name))
       continue;
     if (symtab.find(("__start_" + sec->name).str()) ||
@@ -361,7 +361,7 @@ template <class ELFT> void elf::markLive() {
     return;
   }
 
-  for (InputSectionBase *sec : inputSections)
+  for (InputSectionBase *sec : ctx.inputSections)
     sec->markDead();
 
   // Follow the graph to mark all live sections.
@@ -376,7 +376,7 @@ template <class ELFT> void elf::markLive() {
 
   // Report garbage-collected sections.
   if (config->printGcSections)
-    for (InputSectionBase *sec : inputSections)
+    for (InputSectionBase *sec : ctx.inputSections)
       if (!sec->isLive())
         message("removing unused section " + toString(sec));
 }

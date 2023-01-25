@@ -23,13 +23,13 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
+#include "clang/Analysis/FlowSensitive/DataflowLattice.h"
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Analysis/FlowSensitive/Transfer.h"
 #include "clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
@@ -51,7 +51,7 @@ public:
     assert(BlockIt != CFCtx.getStmtToBlock().end());
     const auto &State = BlockToState[BlockIt->getSecond()->getBlockID()];
     assert(State);
-    return &State.value().Env;
+    return &State->Env;
   }
 
 private:
@@ -69,54 +69,77 @@ static int blockIndexInPredecessor(const CFGBlock &Pred,
   return BlockPos - Pred.succ_begin();
 }
 
+static bool isLoopHead(const CFGBlock &B) {
+  if (const auto *T = B.getTerminatorStmt())
+    switch (T->getStmtClass()) {
+      case Stmt::WhileStmtClass:
+      case Stmt::DoStmtClass:
+      case Stmt::ForStmtClass:
+        return true;
+      default:
+        return false;
+    }
+
+  return false;
+}
+
+// The return type of the visit functions in TerminatorVisitor. The first
+// element represents the terminator expression (that is the conditional
+// expression in case of a path split in the CFG). The second element
+// represents whether the condition was true or false.
+using TerminatorVisitorRetTy = std::pair<const Expr *, bool>;
+
 /// Extends the flow condition of an environment based on a terminator
 /// statement.
-class TerminatorVisitor : public ConstStmtVisitor<TerminatorVisitor> {
+class TerminatorVisitor
+    : public ConstStmtVisitor<TerminatorVisitor, TerminatorVisitorRetTy> {
 public:
   TerminatorVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
                     int BlockSuccIdx, TransferOptions TransferOpts)
-      : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx),
-        TransferOpts(TransferOpts) {}
+      : StmtToEnv(StmtToEnv), Env(Env),
+        BlockSuccIdx(BlockSuccIdx), TransferOpts(TransferOpts) {}
 
-  void VisitIfStmt(const IfStmt *S) {
+  TerminatorVisitorRetTy VisitIfStmt(const IfStmt *S) {
     auto *Cond = S->getCond();
     assert(Cond != nullptr);
-    extendFlowCondition(*Cond);
+    return extendFlowCondition(*Cond);
   }
 
-  void VisitWhileStmt(const WhileStmt *S) {
+  TerminatorVisitorRetTy VisitWhileStmt(const WhileStmt *S) {
     auto *Cond = S->getCond();
     assert(Cond != nullptr);
-    extendFlowCondition(*Cond);
+    return extendFlowCondition(*Cond);
   }
 
-  void VisitDoStmt(const DoStmt *S) {
+  TerminatorVisitorRetTy VisitDoStmt(const DoStmt *S) {
     auto *Cond = S->getCond();
     assert(Cond != nullptr);
-    extendFlowCondition(*Cond);
+    return extendFlowCondition(*Cond);
   }
 
-  void VisitForStmt(const ForStmt *S) {
+  TerminatorVisitorRetTy VisitForStmt(const ForStmt *S) {
     auto *Cond = S->getCond();
     if (Cond != nullptr)
-      extendFlowCondition(*Cond);
+      return extendFlowCondition(*Cond);
+    return {nullptr, false};
   }
 
-  void VisitBinaryOperator(const BinaryOperator *S) {
+  TerminatorVisitorRetTy VisitBinaryOperator(const BinaryOperator *S) {
     assert(S->getOpcode() == BO_LAnd || S->getOpcode() == BO_LOr);
     auto *LHS = S->getLHS();
     assert(LHS != nullptr);
-    extendFlowCondition(*LHS);
+    return extendFlowCondition(*LHS);
   }
 
-  void VisitConditionalOperator(const ConditionalOperator *S) {
+  TerminatorVisitorRetTy
+  VisitConditionalOperator(const ConditionalOperator *S) {
     auto *Cond = S->getCond();
     assert(Cond != nullptr);
-    extendFlowCondition(*Cond);
+    return extendFlowCondition(*Cond);
   }
 
 private:
-  void extendFlowCondition(const Expr &Cond) {
+  TerminatorVisitorRetTy extendFlowCondition(const Expr &Cond) {
     // The terminator sub-expression might not be evaluated.
     if (Env.getStorageLocation(Cond, SkipPast::None) == nullptr)
       transfer(StmtToEnv, Cond, Env, TransferOpts);
@@ -140,12 +163,16 @@ private:
       Env.setValue(*Loc, *Val);
     }
 
+    bool ConditionValue = true;
     // The condition must be inverted for the successor that encompasses the
     // "else" branch, if such exists.
-    if (BlockSuccIdx == 1)
+    if (BlockSuccIdx == 1) {
       Val = &Env.makeNot(*Val);
+      ConditionValue = false;
+    }
 
     Env.addToFlowCondition(*Val);
+    return {&Cond, ConditionValue};
   }
 
   const StmtToEnvMap &StmtToEnv;
@@ -182,7 +209,7 @@ struct AnalysisContext {
 ///
 ///   All predecessors of `Block` except those with loop back edges must have
 ///   already been transferred. States in `AC.BlockStates` that are set to
-///   `llvm::None` represent basic blocks that are not evaluated yet.
+///   `std::nullopt` represent basic blocks that are not evaluated yet.
 static TypeErasedDataflowAnalysisState
 computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
   llvm::DenseSet<const CFGBlock *> Preds;
@@ -235,14 +262,20 @@ computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
     if (!MaybePredState)
       continue;
 
-    TypeErasedDataflowAnalysisState PredState = MaybePredState.value();
+    TypeErasedDataflowAnalysisState PredState = *MaybePredState;
     if (BuiltinTransferOpts) {
       if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
         const StmtToEnvMapImpl StmtToEnv(AC.CFCtx, AC.BlockStates);
-        TerminatorVisitor(StmtToEnv, PredState.Env,
-                          blockIndexInPredecessor(*Pred, Block),
-                          *BuiltinTransferOpts)
-            .Visit(PredTerminatorStmt);
+        auto [Cond, CondValue] =
+            TerminatorVisitor(StmtToEnv, PredState.Env,
+                              blockIndexInPredecessor(*Pred, Block),
+                              *BuiltinTransferOpts)
+                .Visit(PredTerminatorStmt);
+        if (Cond != nullptr)
+          // FIXME: Call transferBranchTypeErased even if BuiltinTransferOpts
+          // are not set.
+          Analysis.transferBranchTypeErased(CondValue, Cond, PredState.Lattice,
+                                            PredState.Env);
       }
     }
 
@@ -312,14 +345,12 @@ void builtinTransfer(const CFGElement &Elt,
                      TypeErasedDataflowAnalysisState &State,
                      AnalysisContext &AC) {
   switch (Elt.getKind()) {
-  case CFGElement::Statement: {
+  case CFGElement::Statement:
     builtinTransferStatement(Elt.castAs<CFGStmt>(), State, AC);
     break;
-  }
-  case CFGElement::Initializer: {
+  case CFGElement::Initializer:
     builtinTransferInitializer(Elt.castAs<CFGInitializer>(), State);
     break;
-  }
   default:
     // FIXME: Evaluate other kinds of `CFGElement`.
     break;
@@ -380,7 +411,7 @@ runTypeErasedDataflowAnalysis(
   ForwardDataflowWorklist Worklist(CFCtx.getCFG(), &POV);
 
   std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates(
-      CFCtx.getCFG().size(), llvm::None);
+      CFCtx.getCFG().size(), std::nullopt);
 
   // The entry basic block doesn't contain statements so it can be skipped.
   const CFGBlock &Entry = CFCtx.getCFG().getEntry();
@@ -416,13 +447,24 @@ runTypeErasedDataflowAnalysis(
     TypeErasedDataflowAnalysisState NewBlockState =
         transferCFGBlock(*Block, AC);
 
-    if (OldBlockState &&
-        Analysis.isEqualTypeErased(OldBlockState.value().Lattice,
-                                   NewBlockState.Lattice) &&
-        OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
-      // The state of `Block` didn't change after transfer so there's no need to
-      // revisit its successors.
-      continue;
+    if (OldBlockState) {
+      if (isLoopHead(*Block)) {
+        LatticeJoinEffect Effect1 = Analysis.widenTypeErased(
+            NewBlockState.Lattice, OldBlockState->Lattice);
+        LatticeJoinEffect Effect2 =
+            NewBlockState.Env.widen(OldBlockState->Env, Analysis);
+        if (Effect1 == LatticeJoinEffect::Unchanged &&
+            Effect2 == LatticeJoinEffect::Unchanged)
+          // The state of `Block` didn't change from widening so there's no need
+          // to revisit its successors.
+          continue;
+      } else if (Analysis.isEqualTypeErased(OldBlockState->Lattice,
+                                            NewBlockState.Lattice) &&
+                 OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
+        // The state of `Block` didn't change after transfer so there's no need
+        // to revisit its successors.
+        continue;
+      }
     }
 
     BlockStates[Block->getBlockID()] = std::move(NewBlockState);
@@ -434,7 +476,7 @@ runTypeErasedDataflowAnalysis(
     Worklist.enqueueSuccessors(Block);
   }
   // FIXME: Consider evaluating unreachable basic blocks (those that have a
-  // state set to `llvm::None` at this point) to also analyze dead code.
+  // state set to `std::nullopt` at this point) to also analyze dead code.
 
   if (PostVisitCFG) {
     for (const CFGBlock *Block : CFCtx.getCFG()) {

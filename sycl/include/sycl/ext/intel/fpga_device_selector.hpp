@@ -20,8 +20,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class platform;
 
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 namespace detail {
 // Scores a device by platform name.
@@ -61,15 +60,15 @@ static constexpr auto EMULATION_PLATFORM_NAME =
 static constexpr auto HARDWARE_PLATFORM_NAME =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
-int fpga_selector_v(const device &device) {
+inline int fpga_selector_v(const device &device) {
   return detail::selectDeviceByPlatform(HARDWARE_PLATFORM_NAME, device);
 }
 
-int fpga_emulator_selector_v(const device &device) {
+inline int fpga_emulator_selector_v(const device &device) {
   return detail::selectDeviceByPlatform(EMULATION_PLATFORM_NAME, device);
 }
 
-int fpga_simulator_selector_v(const device &device) {
+inline int fpga_simulator_selector_v(const device &device) {
   static bool IsFirstCall = true;
   if (IsFirstCall) {
     detail::enableFPGASimulator();
@@ -102,8 +101,7 @@ public:
   }
 };
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

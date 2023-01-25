@@ -37,6 +37,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
+#include <optional>
 
 using namespace llvm;
 
@@ -302,10 +303,10 @@ class FrameTypeBuilder;
 using SpillInfo = SmallMapVector<Value *, SmallVector<Instruction *, 2>, 8>;
 struct AllocaInfo {
   AllocaInst *Alloca;
-  DenseMap<Instruction *, llvm::Optional<APInt>> Aliases;
+  DenseMap<Instruction *, std::optional<APInt>> Aliases;
   bool MayWriteBeforeCoroBegin;
   AllocaInfo(AllocaInst *Alloca,
-             DenseMap<Instruction *, llvm::Optional<APInt>> Aliases,
+             DenseMap<Instruction *, std::optional<APInt>> Aliases,
              bool MayWriteBeforeCoroBegin)
       : Alloca(Alloca), Aliases(std::move(Aliases)),
         MayWriteBeforeCoroBegin(MayWriteBeforeCoroBegin) {}
@@ -437,14 +438,14 @@ private:
   Align StructAlign;
   bool IsFinished = false;
 
-  Optional<Align> MaxFrameAlignment;
+  std::optional<Align> MaxFrameAlignment;
 
   SmallVector<Field, 8> Fields;
   DenseMap<Value*, unsigned> FieldIndexByKey;
 
 public:
   FrameTypeBuilder(LLVMContext &Context, const DataLayout &DL,
-                   Optional<Align> MaxFrameAlignment)
+                   std::optional<Align> MaxFrameAlignment)
       : DL(DL), Context(Context), MaxFrameAlignment(MaxFrameAlignment) {}
 
   /// Add a field to this structure for the storage of an `alloca`
@@ -654,7 +655,7 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
         StackLifetimeAnalyzer.getLiveRange(AI2));
   };
   auto GetAllocaSize = [&](const AllocaInfo &A) {
-    Optional<TypeSize> RetSize = A.Alloca->getAllocationSizeInBits(DL);
+    std::optional<TypeSize> RetSize = A.Alloca->getAllocationSizeInBits(DL);
     assert(RetSize && "Variable Length Arrays (VLA) are not supported.\n");
     assert(!RetSize->isScalable() && "Scalable vectors are not yet supported");
     return RetSize->getFixedSize();
@@ -888,14 +889,15 @@ static DIType *solveDIType(DIBuilder &Builder, Type *Ty,
     //  struct Node {
     //      Node* ptr;
     //  };
-    RetType = Builder.createPointerType(nullptr, Layout.getTypeSizeInBits(Ty),
-                                        Layout.getABITypeAlignment(Ty),
-                                        /*DWARFAddressSpace=*/None, Name);
+    RetType =
+        Builder.createPointerType(nullptr, Layout.getTypeSizeInBits(Ty),
+                                  Layout.getABITypeAlignment(Ty) * CHAR_BIT,
+                                  /*DWARFAddressSpace=*/std::nullopt, Name);
   } else if (Ty->isStructTy()) {
     auto *DIStruct = Builder.createStructType(
         Scope, Name, Scope->getFile(), LineNum, Layout.getTypeSizeInBits(Ty),
-        Layout.getPrefTypeAlignment(Ty), llvm::DINode::FlagArtificial, nullptr,
-        llvm::DINodeArray());
+        Layout.getPrefTypeAlignment(Ty) * CHAR_BIT,
+        llvm::DINode::FlagArtificial, nullptr, llvm::DINodeArray());
 
     auto *StructTy = cast<StructType>(Ty);
     SmallVector<Metadata *, 16> Elements;
@@ -1131,13 +1133,13 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
   }();
 
   // We will use this value to cap the alignment of spilled values.
-  Optional<Align> MaxFrameAlignment;
+  std::optional<Align> MaxFrameAlignment;
   if (Shape.ABI == coro::ABI::Async)
     MaxFrameAlignment = Shape.AsyncLowering.getContextAlignment();
   FrameTypeBuilder B(C, DL, MaxFrameAlignment);
 
   AllocaInst *PromiseAlloca = Shape.getPromiseAlloca();
-  Optional<FieldIDType> SwitchIndexFieldId;
+  std::optional<FieldIDType> SwitchIndexFieldId;
 
   if (Shape.ABI == coro::ABI::Switch) {
     auto *FramePtrTy = FrameTy->getPointerTo();
@@ -1147,8 +1149,8 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
 
     // Add header fields for the resume and destroy functions.
     // We can rely on these being perfectly packed.
-    (void)B.addField(FnPtrTy, None, /*header*/ true);
-    (void)B.addField(FnPtrTy, None, /*header*/ true);
+    (void)B.addField(FnPtrTy, std::nullopt, /*header*/ true);
+    (void)B.addField(FnPtrTy, std::nullopt, /*header*/ true);
 
     // PromiseAlloca field needs to be explicitly added here because it's
     // a header field with a fixed offset based on its alignment. Hence it
@@ -1162,7 +1164,7 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     unsigned IndexBits = std::max(1U, Log2_64_Ceil(Shape.CoroSuspends.size()));
     Type *IndexType = Type::getIntNTy(C, IndexBits);
 
-    SwitchIndexFieldId = B.addField(IndexType, None);
+    SwitchIndexFieldId = B.addField(IndexType, std::nullopt);
   } else {
     assert(PromiseAlloca == nullptr && "lowering doesn't support promises");
   }
@@ -1178,7 +1180,7 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     // We assume that the promise alloca won't be modified before
     // CoroBegin and no alias will be create before CoroBegin.
     FrameData.Allocas.emplace_back(
-        PromiseAlloca, DenseMap<Instruction *, llvm::Optional<APInt>>{}, false);
+        PromiseAlloca, DenseMap<Instruction *, std::optional<APInt>>{}, false);
   // Create an entry for every spilled value.
   for (auto &S : FrameData.Spills) {
     Type *FieldType = S.first->getType();
@@ -1187,8 +1189,8 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     if (const Argument *A = dyn_cast<Argument>(S.first))
       if (A->hasByValAttr())
         FieldType = A->getParamByValType();
-    FieldIDType Id =
-        B.addField(FieldType, None, false /*header*/, true /*IsSpillOfValue*/);
+    FieldIDType Id = B.addField(FieldType, std::nullopt, false /*header*/,
+                                true /*IsSpillOfValue*/);
     FrameData.setFieldIndex(S.first, Id);
   }
 
@@ -1403,7 +1405,7 @@ struct AllocaUseVisitor : PtrUseVisitor<AllocaUseVisitor> {
 
   bool getMayWriteBeforeCoroBegin() const { return MayWriteBeforeCoroBegin; }
 
-  DenseMap<Instruction *, llvm::Optional<APInt>> getAliasesCopy() const {
+  DenseMap<Instruction *, std::optional<APInt>> getAliasesCopy() const {
     assert(getShouldLiveOnFrame() && "This method should only be called if the "
                                      "alloca needs to live on the frame.");
     for (const auto &P : AliasOffetMap)
@@ -1420,13 +1422,13 @@ private:
   // All alias to the original AllocaInst, created before CoroBegin and used
   // after CoroBegin. Each entry contains the instruction and the offset in the
   // original Alloca. They need to be recreated after CoroBegin off the frame.
-  DenseMap<Instruction *, llvm::Optional<APInt>> AliasOffetMap{};
+  DenseMap<Instruction *, std::optional<APInt>> AliasOffetMap{};
   SmallPtrSet<Instruction *, 4> Users{};
   SmallPtrSet<IntrinsicInst *, 2> LifetimeStarts{};
   bool MayWriteBeforeCoroBegin{false};
   bool ShouldUseLifetimeStartInfo{true};
 
-  mutable llvm::Optional<bool> ShouldLiveOnFrame{};
+  mutable std::optional<bool> ShouldLiveOnFrame{};
 
   bool computeShouldLiveOnFrame() const {
     // If lifetime information is available, we check it first since it's
@@ -1815,6 +1817,47 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           Builder.CreateBitCast(AliasPtr, Alias.first->getType());
       Alias.first->replaceUsesWithIf(
           AliasPtrTyped, [&](Use &U) { return DT.dominates(CB, U); });
+    }
+  }
+
+  // PromiseAlloca is not collected in FrameData.Allocas. So we don't handle
+  // the case that the PromiseAlloca may have writes before CoroBegin in the
+  // above codes. And it may be problematic in edge cases. See
+  // https://github.com/llvm/llvm-project/issues/57861 for an example.
+  if (Shape.ABI == coro::ABI::Switch && Shape.SwitchLowering.PromiseAlloca) {
+    AllocaInst *PA = Shape.SwitchLowering.PromiseAlloca;
+    // If there is memory accessing to promise alloca before CoroBegin;
+    bool HasAccessingPromiseBeforeCB = llvm::any_of(PA->uses(), [&](Use &U) {
+      auto *Inst = dyn_cast<Instruction>(U.getUser());
+      if (!Inst || DT.dominates(CB, Inst))
+        return false;
+
+      if (auto *CI = dyn_cast<CallInst>(Inst)) {
+        // It is fine if the call wouldn't write to the Promise.
+        // This is possible for @llvm.coro.id intrinsics, which
+        // would take the promise as the second argument as a
+        // marker.
+        if (CI->onlyReadsMemory() ||
+            CI->onlyReadsMemory(CI->getArgOperandNo(&U)))
+          return false;
+        return true;
+      }
+
+      return isa<StoreInst>(Inst) ||
+             // It may take too much time to track the uses.
+             // Be conservative about the case the use may escape.
+             isa<GetElementPtrInst>(Inst) ||
+             // There would always be a bitcast for the promise alloca
+             // before we enabled Opaque pointers. And now given
+             // opaque pointers are enabled by default. This should be
+             // fine.
+             isa<BitCastInst>(Inst);
+    });
+    if (HasAccessingPromiseBeforeCB) {
+      Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
+      auto *G = GetFramePointer(PA);
+      auto *Value = Builder.CreateLoad(PA->getAllocatedType(), PA);
+      Builder.CreateStore(Value, G);
     }
   }
 }
@@ -2732,7 +2775,7 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
       Shape.ABI != coro::ABI::RetconOnce)
     sinkLifetimeStartMarkers(F, Shape, Checker);
 
-  if (Shape.ABI != coro::ABI::Async || !Shape.CoroSuspends.empty())
+  if (Shape.ABI == coro::ABI::Switch || !Shape.CoroSuspends.empty())
     collectFrameAllocas(F, Shape, Checker, FrameData.Allocas);
   LLVM_DEBUG(dumpAllocas(FrameData.Allocas));
 

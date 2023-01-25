@@ -381,7 +381,7 @@ SmallVector<Optional<MPInt>, 4>
 DivisionRepr::divValuesAt(ArrayRef<MPInt> point) const {
   assert(point.size() == getNumNonDivs() && "Incorrect point size");
 
-  SmallVector<Optional<MPInt>, 4> divValues(getNumDivs(), None);
+  SmallVector<Optional<MPInt>, 4> divValues(getNumDivs(), std::nullopt);
   bool changed = true;
   while (changed) {
     changed = false;
@@ -401,7 +401,7 @@ DivisionRepr::divValuesAt(ArrayRef<MPInt> point) const {
         // Division value required, but not found yet.
         if (!divValues[j])
           break;
-        divVal += dividend[getDivOffset() + j] * divValues[j].value();
+        divVal += dividend[getDivOffset() + j] * *divValues[j];
       }
 
       // We have some division values that are still not found, but are required

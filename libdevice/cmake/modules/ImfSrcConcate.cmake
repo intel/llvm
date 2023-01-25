@@ -7,12 +7,18 @@ set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp
 set(imf_fp64_fallback_src_list imf_utils/double_convert.cpp
                                imf/imf_inline_fp64.cpp)
 
-if (FP64 STREQUAL 0)
+set(imf_bf16_fallback_src_list imf_utils/bfloat16_convert.cpp
+                               imf/imf_inline_bf16.cpp)
+
+if (IMF_TARGET STREQUAL "FP32")
   set(imf_fallback_src_list ${imf_fp32_fallback_src_list})
   set(imf_fallback_dest ${DEST_DIR}/imf_fp32_fallback.cpp)
-else()
+elseif (IMF_TARGET STREQUAL "FP64")
   set(imf_fallback_src_list ${imf_fp64_fallback_src_list})
   set(imf_fallback_dest ${DEST_DIR}/imf_fp64_fallback.cpp)
+elseif (IMF_TARGET STREQUAL "BF16")
+  set(imf_fallback_src_list ${imf_bf16_fallback_src_list})
+  set(imf_fallback_dest ${DEST_DIR}/imf_bf16_fallback.cpp)
 endif()
 
 set(flag 0)

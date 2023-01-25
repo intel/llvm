@@ -28,15 +28,17 @@ TEST(YAMLGeneratorTest, emitNamespaceYAML) {
   I.Path = "path/to/A";
   I.Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
-  I.ChildNamespaces.emplace_back(EmptySID, "ChildNamespace",
-                                 InfoType::IT_namespace, "path/to/A/Namespace");
-  I.ChildRecords.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record,
-                              "path/to/A/Namespace");
-  I.ChildFunctions.emplace_back();
-  I.ChildFunctions.back().Name = "OneFunction";
-  I.ChildFunctions.back().Access = AccessSpecifier::AS_none;
-  I.ChildEnums.emplace_back();
-  I.ChildEnums.back().Name = "OneEnum";
+  I.Children.Namespaces.emplace_back(
+      EmptySID, "ChildNamespace", InfoType::IT_namespace,
+      "path::to::A::Namespace::ChildNamespace", "path/to/A/Namespace");
+  I.Children.Records.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record,
+                                  "path::to::A::Namespace::ChildStruct",
+                                  "path/to/A/Namespace");
+  I.Children.Functions.emplace_back();
+  I.Children.Functions.back().Name = "OneFunction";
+  I.Children.Functions.back().Access = AccessSpecifier::AS_none;
+  I.Children.Enums.emplace_back();
+  I.Children.Enums.back().Name = "OneEnum";
 
   auto G = getYAMLGenerator();
   assert(G);
@@ -52,13 +54,16 @@ Path:            'path/to/A'
 Namespace:
   - Type:            Namespace
     Name:            'A'
+    QualName:        'A'
 ChildNamespaces:
   - Type:            Namespace
     Name:            'ChildNamespace'
+    QualName:        'path::to::A::Namespace::ChildNamespace'
     Path:            'path/to/A/Namespace'
 ChildRecords:
   - Type:            Record
     Name:            'ChildStruct'
+    QualName:        'path::to::A::Namespace::ChildStruct'
     Path:            'path/to/A/Namespace'
 ChildFunctions:
   - USR:             '0000000000000000000000000000000000000000'
@@ -82,8 +87,7 @@ TEST(YAMLGeneratorTest, emitRecordYAML) {
   I.DefLoc = Location(10, llvm::SmallString<16>{"test.cpp"});
   I.Loc.emplace_back(12, llvm::SmallString<16>{"test.cpp"});
 
-  I.Members.emplace_back(TypeInfo("int", "path/to/int"), "X",
-                         AccessSpecifier::AS_private);
+  I.Members.emplace_back(TypeInfo("int"), "X", AccessSpecifier::AS_private);
 
   // Member documentation.
   CommentInfo TopComment;
@@ -100,21 +104,21 @@ TEST(YAMLGeneratorTest, emitRecordYAML) {
   I.TagType = TagTypeKind::TTK_Class;
   I.Bases.emplace_back(EmptySID, "F", "path/to/F", true,
                        AccessSpecifier::AS_public, true);
-  I.Bases.back().ChildFunctions.emplace_back();
-  I.Bases.back().ChildFunctions.back().Name = "InheritedFunctionOne";
-  I.Bases.back().Members.emplace_back(TypeInfo("int", "path/to/int"), "N",
+  I.Bases.back().Children.Functions.emplace_back();
+  I.Bases.back().Children.Functions.back().Name = "InheritedFunctionOne";
+  I.Bases.back().Members.emplace_back(TypeInfo("int"), "N",
                                       AccessSpecifier::AS_private);
   // F is in the global namespace
   I.Parents.emplace_back(EmptySID, "F", InfoType::IT_record, "");
   I.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record,
-                                "path/to/G");
+                                "path::to::G::G", "path/to/G");
 
-  I.ChildRecords.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record,
-                              "path/to/A/r");
-  I.ChildFunctions.emplace_back();
-  I.ChildFunctions.back().Name = "OneFunction";
-  I.ChildEnums.emplace_back();
-  I.ChildEnums.back().Name = "OneEnum";
+  I.Children.Records.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record,
+                                  "path::to::A::r::ChildStruct", "path/to/A/r");
+  I.Children.Functions.emplace_back();
+  I.Children.Functions.back().Name = "OneFunction";
+  I.Children.Enums.emplace_back();
+  I.Children.Enums.back().Name = "OneEnum";
 
   auto G = getYAMLGenerator();
   assert(G);
@@ -130,6 +134,7 @@ Path:            'path/to/A'
 Namespace:
   - Type:            Namespace
     Name:            'A'
+    QualName:        'A'
 DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
@@ -141,7 +146,7 @@ IsTypeDef:       true
 Members:
   - Type:
       Name:            'int'
-      Path:            'path/to/int'
+      QualName:        'int'
     Name:            'X'
     Access:          Private
     Description:
@@ -160,7 +165,7 @@ Bases:
     Members:
       - Type:
           Name:            'int'
-          Path:            'path/to/int'
+          QualName:        'int'
         Name:            'N'
         Access:          Private
     ChildFunctions:
@@ -177,10 +182,12 @@ Parents:
 VirtualParents:
   - Type:            Record
     Name:            'G'
+    QualName:        'path::to::G::G'
     Path:            'path/to/G'
 ChildRecords:
   - Type:            Record
     Name:            'ChildStruct'
+    QualName:        'path::to::A::r::ChildStruct'
     Path:            'path/to/A/r'
 ChildFunctions:
   - USR:             '0000000000000000000000000000000000000000'
@@ -205,10 +212,9 @@ TEST(YAMLGeneratorTest, emitFunctionYAML) {
 
   I.Access = AccessSpecifier::AS_none;
 
-  I.ReturnType = TypeInfo(
-      Reference(EmptySID, "void", InfoType::IT_default, "path/to/void"));
-  I.Params.emplace_back(TypeInfo("int", "path/to/int"), "P");
-  I.Params.emplace_back(TypeInfo("double", "path/to/double"), "D");
+  I.ReturnType = TypeInfo(Reference(EmptySID, "void", InfoType::IT_default));
+  I.Params.emplace_back(TypeInfo("int"), "P");
+  I.Params.emplace_back(TypeInfo("double"), "D");
   I.Params.back().DefaultValue = "2.0 * M_PI";
   I.IsMethod = true;
   I.Parent = Reference(EmptySID, "Parent", InfoType::IT_record);
@@ -226,6 +232,7 @@ Name:            'f'
 Namespace:
   - Type:            Namespace
     Name:            'A'
+    QualName:        'A'
 DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
@@ -236,20 +243,21 @@ IsMethod:        true
 Parent:
   Type:            Record
   Name:            'Parent'
+  QualName:        'Parent'
 Params:
   - Type:
       Name:            'int'
-      Path:            'path/to/int'
+      QualName:        'int'
     Name:            'P'
   - Type:
       Name:            'double'
-      Path:            'path/to/double'
+      QualName:        'double'
     Name:            'D'
     DefaultValue:    '2.0 * M_PI'
 ReturnType:
   Type:
     Name:            'void'
-    Path:            'path/to/void'
+    QualName:        'void'
 ...
 )raw";
   EXPECT_EQ(Expected, Actual.str());
@@ -283,6 +291,7 @@ Name:            'e'
 Namespace:
   - Type:            Namespace
     Name:            'A'
+    QualName:        'A'
 DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
@@ -321,10 +330,36 @@ Scoped:          true
 BaseType:
   Type:
     Name:            'short'
+    QualName:        'short'
 Members:
   - Name:            'X'
     Value:           '-9876'
     Expr:            'FOO_BAR + 2'
+...
+)raw";
+  EXPECT_EQ(Expected, Actual.str());
+}
+
+TEST(YAMLGeneratorTest, enumTypedefYAML) {
+  TypedefInfo I;
+  I.Name = "MyUsing";
+  I.Underlying = TypeInfo("int");
+  I.IsUsing = true;
+
+  auto G = getYAMLGenerator();
+  assert(G);
+  std::string Buffer;
+  llvm::raw_string_ostream Actual(Buffer);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
+  assert(!Err);
+  std::string Expected =
+      R"raw(---
+USR:             '0000000000000000000000000000000000000000'
+Name:            'MyUsing'
+Underlying:
+  Name:            'int'
+  QualName:        'int'
+IsUsing:         true
 ...
 )raw";
   EXPECT_EQ(Expected, Actual.str());
@@ -523,13 +558,16 @@ DefLocation:
 Params:
   - Type:
       Name:            'int'
+      QualName:        'int'
     Name:            'I'
   - Type:
       Name:            'int'
+      QualName:        'int'
     Name:            'J'
 ReturnType:
   Type:
     Name:            'void'
+    QualName:        'void'
 ...
 )raw";
 

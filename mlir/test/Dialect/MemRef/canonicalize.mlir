@@ -57,7 +57,7 @@ func.func @subview_canonicalize(%arg0 : memref<?x?x?xf32>, %arg1 : index,
 //  CHECK-SAME:      [4, 1, %{{[a-zA-Z0-9_]+}}] [1, 1, 1]
 //  CHECK-SAME:      : memref<?x?x?xf32> to memref<4x1x?xf32
 //       CHECK:   %[[RESULT:.+]] = memref.cast %[[SUBVIEW]]
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -770,15 +770,32 @@ func.func @reinterpret_of_extract_strided_metadata_w_type_mistach(%arg0 : memref
 
 // -----
 
+// Similar to reinterpret_of_extract_strided_metadata_w_type_mistach except that
+// we check that the match happen when the static information has been folded.
+// E.g., in this case, we know that size of dim 0 is 8 and size of dim 1 is 2.
+// So even if we don't use the values sizes#0, sizes#1, as long as they have the
+// same constant value, the match is valid.
+// CHECK-LABEL: func @reinterpret_of_extract_strided_metadata_w_constants
+//  CHECK-SAME: (%[[ARG:.*]]: memref<8x2xf32>)
+//       CHECK: %[[CAST:.*]] = memref.cast %[[ARG]] : memref<8x2xf32> to memref<?x?xf32,
+//       CHECK: return %[[CAST]]
+func.func @reinterpret_of_extract_strided_metadata_w_constants(%arg0 : memref<8x2xf32>) -> memref<?x?xf32, strided<[?, ?], offset: ?>> {
+  %base, %offset, %sizes:2, %strides:2 = memref.extract_strided_metadata %arg0 : memref<8x2xf32> -> memref<f32>, index, index, index, index, index
+  %c8 = arith.constant 8: index
+  %m2 = memref.reinterpret_cast %base to offset: [0], sizes: [%c8, 2], strides: [2, %strides#1] : memref<f32> to memref<?x?xf32, strided<[?, ?], offset: ?>>
+  return %m2 : memref<?x?xf32, strided<[?, ?], offset: ?>>
+}
+// -----
+
 // Check that a reinterpret cast of an equivalent extract strided metadata
 // is completely removed when the original memref has the same type.
 // CHECK-LABEL: func @reinterpret_of_extract_strided_metadata_same_type
-//  CHECK-SAME: (%[[ARG:.*]]: memref<8x2xf32>)
+//  CHECK-SAME: (%[[ARG:.*]]: memref<?x?xf32
 //       CHECK: return %[[ARG]]
-func.func @reinterpret_of_extract_strided_metadata_same_type(%arg0 : memref<8x2xf32>) -> memref<8x2xf32> {
-  %base, %offset, %sizes:2, %strides:2 = memref.extract_strided_metadata %arg0 : memref<8x2xf32> -> memref<f32>, index, index, index, index, index
-  %m2 = memref.reinterpret_cast %base to offset: [%offset], sizes: [%sizes#0, %sizes#1], strides: [%strides#0, %strides#1] : memref<f32> to memref<8x2xf32>
-  return %m2 : memref<8x2xf32>
+func.func @reinterpret_of_extract_strided_metadata_same_type(%arg0 : memref<?x?xf32, strided<[?,?], offset: ?>>) -> memref<?x?xf32, strided<[?,?], offset: ?>> {
+  %base, %offset, %sizes:2, %strides:2 = memref.extract_strided_metadata %arg0 : memref<?x?xf32, strided<[?,?], offset: ?>> -> memref<f32>, index, index, index, index, index
+  %m2 = memref.reinterpret_cast %base to offset: [%offset], sizes: [%sizes#0, %sizes#1], strides: [%strides#0, %strides#1] : memref<f32> to memref<?x?xf32, strided<[?,?], offset:?>>
+  return %m2 : memref<?x?xf32, strided<[?,?], offset:?>>
 }
 
 // -----
@@ -787,8 +804,10 @@ func.func @reinterpret_of_extract_strided_metadata_same_type(%arg0 : memref<8x2x
 // when the strides don't match.
 // CHECK-LABEL: func @reinterpret_of_extract_strided_metadata_w_different_stride
 //  CHECK-SAME: (%[[ARG:.*]]: memref<8x2xf32>)
-//       CHECK: %[[BASE:.*]], %[[OFFSET:.*]], %[[SIZES:.*]]:2, %[[STRIDES:.*]]:2 = memref.extract_strided_metadata %[[ARG]]
-//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[BASE]] to offset: [%[[OFFSET]]], sizes: [4, 2, 2], strides: [1, 1, %[[STRIDES]]#1]
+//   CHECK-DAG: %[[C0:.*]] = arith.constant 0 : index
+//   CHECK-DAG: %[[C1:.*]] = arith.constant 1 : index
+//   CHECK-DAG: %[[BASE:.*]], %[[OFFSET:.*]], %[[SIZES:.*]]:2, %[[STRIDES:.*]]:2 = memref.extract_strided_metadata %[[ARG]]
+//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[BASE]] to offset: [%[[C0]]], sizes: [4, 2, 2], strides: [1, 1, %[[C1]]]
 //       CHECK: return %[[RES]]
 func.func @reinterpret_of_extract_strided_metadata_w_different_stride(%arg0 : memref<8x2xf32>) -> memref<?x?x?xf32, strided<[?, ?, ?], offset: ?>> {
   %base, %offset, %sizes:2, %strides:2 = memref.extract_strided_metadata %arg0 : memref<8x2xf32> -> memref<f32>, index, index, index, index, index
@@ -801,8 +820,11 @@ func.func @reinterpret_of_extract_strided_metadata_w_different_stride(%arg0 : me
 // when the offset doesn't match.
 // CHECK-LABEL: func @reinterpret_of_extract_strided_metadata_w_different_offset
 //  CHECK-SAME: (%[[ARG:.*]]: memref<8x2xf32>)
-//       CHECK: %[[BASE:.*]], %[[OFFSET:.*]], %[[SIZES:.*]]:2, %[[STRIDES:.*]]:2 = memref.extract_strided_metadata %[[ARG]]
-//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[BASE]] to offset: [1], sizes: [%[[SIZES]]#0, %[[SIZES]]#1], strides: [%[[STRIDES]]#0, %[[STRIDES]]#1]
+//   CHECK-DAG: %[[C8:.*]] = arith.constant 8 : index
+//   CHECK-DAG: %[[C2:.*]] = arith.constant 2 : index
+//   CHECK-DAG: %[[C1:.*]] = arith.constant 1 : index
+//   CHECK-DAG: %[[BASE:.*]], %[[OFFSET:.*]], %[[SIZES:.*]]:2, %[[STRIDES:.*]]:2 = memref.extract_strided_metadata %[[ARG]]
+//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[BASE]] to offset: [1], sizes: [%[[C8]], %[[C2]]], strides: [%[[C2]], %[[C1]]]
 //       CHECK: return %[[RES]]
 func.func @reinterpret_of_extract_strided_metadata_w_different_offset(%arg0 : memref<8x2xf32>) -> memref<?x?xf32, strided<[?, ?], offset: ?>> {
   %base, %offset, %sizes:2, %strides:2 = memref.extract_strided_metadata %arg0 : memref<8x2xf32> -> memref<f32>, index, index, index, index, index
@@ -836,4 +858,39 @@ func.func @memref_realloc_dead(%src : memref<2xf32>, %v : f32) -> memref<2xf32>{
   %i2 = arith.constant 2 : index
   memref.store %v, %0[%i2] : memref<4xf32>
   return %src : memref<2xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @collapse_expand_fold_to_cast(
+//  CHECK-SAME:     %[[m:.*]]: memref<?xf32, strided<[1]>, 3>
+//       CHECK:   %[[casted:.*]] = memref.cast %[[m]] : memref<?xf32, strided<[1]>, 3> to memref<?xf32, 3
+//       CHECK:   return %[[casted]]
+func.func @collapse_expand_fold_to_cast(%m: memref<?xf32, strided<[1]>, 3>)
+    -> (memref<?xf32, 3>)
+{
+  %0 = memref.expand_shape %m [[0, 1]]
+      : memref<?xf32, strided<[1]>, 3> into memref<1x?xf32, 3>
+  %1 = memref.collapse_shape %0 [[0, 1]]
+      : memref<1x?xf32, 3> into memref<?xf32, 3>
+  return %1 : memref<?xf32, 3>
+}
+
+// -----
+
+// CHECK-LABEL: func @fold_trivial_subviews(
+//  CHECK-SAME:     %[[m:.*]]: memref<?xf32, strided<[?], offset: ?>>
+//       CHECK:   %[[subview:.*]] = memref.subview %[[m]][5]
+//       CHECK:   return %[[subview]]
+func.func @fold_trivial_subviews(%m: memref<?xf32, strided<[?], offset: ?>>,
+                                 %sz: index)
+    -> memref<?xf32, strided<[?], offset: ?>>
+{
+  %0 = memref.subview %m[5] [%sz] [1]
+      : memref<?xf32, strided<[?], offset: ?>>
+        to memref<?xf32, strided<[?], offset: ?>>
+  %1 = memref.subview %0[0] [%sz] [1]
+      : memref<?xf32, strided<[?], offset: ?>>
+        to memref<?xf32, strided<[?], offset: ?>>
+  return %1 : memref<?xf32, strided<[?], offset: ?>>
 }

@@ -15,18 +15,20 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/Orc/Shared/MemoryFlags.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include <optional>
 
 #include <map>
 #include <string>
@@ -528,7 +530,7 @@ public:
     return *Base;
   }
 
-  /// Return the addressable that thsi symbol points to.
+  /// Return the addressable that this symbol points to.
   const Addressable &getAddressable() const {
     assert(Base && "Cannot get underlying addressable for null symbol");
     return *Base;
@@ -1031,6 +1033,20 @@ public:
                        AlignmentOffset);
   }
 
+  /// Create a content block with initially mutable data of the given size.
+  /// Content will be allocated via the LinkGraph's allocateBuffer method.
+  /// By default the memory will be zero-initialized. Passing false for
+  /// ZeroInitialize will prevent this.
+  Block &createMutableContentBlock(Section &Parent, size_t ContentSize,
+                                   orc::ExecutorAddr Address,
+                                   uint64_t Alignment, uint64_t AlignmentOffset,
+                                   bool ZeroInitialize = true) {
+    auto Content = allocateContent(ContentSize);
+    if (ZeroInitialize)
+      memset(Content.data(), 0, Content.size());
+    return createBlock(Parent, Content, Address, Alignment, AlignmentOffset);
+  }
+
   /// Create a zero-fill block.
   Block &createZeroFillBlock(Section &Parent, orc::ExecutorAddrDiff Size,
                              orc::ExecutorAddr Address, uint64_t Alignment,
@@ -1038,8 +1054,24 @@ public:
     return createBlock(Parent, Size, Address, Alignment, AlignmentOffset);
   }
 
+  /// Returns a BinaryStreamReader for the given block.
+  BinaryStreamReader getBlockContentReader(Block &B) {
+    ArrayRef<uint8_t> C(
+        reinterpret_cast<const uint8_t *>(B.getContent().data()), B.getSize());
+    return BinaryStreamReader(C, getEndianness());
+  }
+
+  /// Returns a BinaryStreamWriter for the given block.
+  /// This will call getMutableContent to obtain mutable content for the block.
+  BinaryStreamWriter getBlockContentWriter(Block &B) {
+    MutableArrayRef<uint8_t> C(
+        reinterpret_cast<uint8_t *>(B.getMutableContent(*this).data()),
+        B.getSize());
+    return BinaryStreamWriter(C, getEndianness());
+  }
+
   /// Cache type for the splitBlock function.
-  using SplitBlockCache = Optional<SmallVector<Symbol *, 8>>;
+  using SplitBlockCache = std::optional<SmallVector<Symbol *, 8>>;
 
   /// Splits block B at the given index which must be greater than zero.
   /// If SplitIndex == B.getSize() then this function is a no-op and returns B.
@@ -1270,9 +1302,10 @@ public:
   /// given offset) of the size of the new block.
   ///
   /// All other symbol attributes are unchanged.
-  void transferDefinedSymbol(Symbol &Sym, Block &DestBlock,
-                             orc::ExecutorAddrDiff NewOffset,
-                             Optional<orc::ExecutorAddrDiff> ExplicitNewSize) {
+  void
+  transferDefinedSymbol(Symbol &Sym, Block &DestBlock,
+                        orc::ExecutorAddrDiff NewOffset,
+                        std::optional<orc::ExecutorAddrDiff> ExplicitNewSize) {
     auto &OldSection = Sym.getBlock().getSection();
     Sym.setBlock(DestBlock);
     Sym.setOffset(NewOffset);

@@ -22,7 +22,6 @@ namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY XCoreTargetInfo : public TargetInfo {
-  static const Builtin::Info BuiltinInfo[];
 
 public:
   XCoreTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
@@ -61,7 +60,7 @@ public:
   }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
 
   bool validateAsmConstraint(const char *&Name,

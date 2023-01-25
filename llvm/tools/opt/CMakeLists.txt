@@ -14,6 +14,7 @@ set(LLVM_LINK_COMPONENTS
   Extensions
   IPO
   IRReader
+  IRPrinter
   InstCombine
   Instrumentation
   MC
@@ -23,6 +24,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
   Vectorize
   Passes
@@ -31,9 +33,7 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(opt
   AnalysisWrappers.cpp
   BreakpointPrinter.cpp
-  GraphPrinters.cpp
   NewPMDriver.cpp
-  PrintSCC.cpp
   opt.cpp
 
   DEPENDS

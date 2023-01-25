@@ -56,7 +56,7 @@ using namespace mlir::LLVM::detail;
 static FailureOr<llvm::DataLayout>
 translateDataLayout(DataLayoutSpecInterface attribute,
                     const DataLayout &dataLayout,
-                    Optional<Location> loc = llvm::None) {
+                    Optional<Location> loc = std::nullopt) {
   if (!loc)
     loc = UnknownLoc::get(attribute.getContext());
 
@@ -687,7 +687,7 @@ LogicalResult ModuleTranslation::convertGlobals() {
 
     addRuntimePreemptionSpecifier(op.getDsoLocal(), var);
 
-    Optional<uint64_t> alignment = op.getAlignment();
+    std::optional<uint64_t> alignment = op.getAlignment();
     if (alignment.has_value())
       var->setAlignment(llvm::MaybeAlign(alignment.value()));
 
@@ -783,7 +783,7 @@ static LogicalResult checkedAddLLVMFnAttribute(Location loc,
 /// attribute and the second string beings its value. Note that even integer
 /// attributes are expected to have their values expressed as strings.
 static LogicalResult
-forwardPassthroughAttributes(Location loc, Optional<ArrayAttr> attributes,
+forwardPassthroughAttributes(Location loc, std::optional<ArrayAttr> attributes,
                              llvm::Function *llvmFunc) {
   if (!attributes)
     return success();
@@ -826,100 +826,9 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   debugTranslation->translate(func, *llvmFunc);
 
   // Add function arguments to the value remapping table.
-  // If there was noalias info then we decorate each argument accordingly.
-  unsigned int argIdx = 0;
-  for (auto kvp : llvm::zip(func.getArguments(), llvmFunc->args())) {
-    llvm::Argument &llvmArg = std::get<1>(kvp);
-    BlockArgument mlirArg = std::get<0>(kvp);
-
-    if (auto attr = func.getArgAttrOfType<UnitAttr>(
-            argIdx, LLVMDialect::getNoAliasAttrName())) {
-      // NB: Attribute already verified to be boolean, so check if we can indeed
-      // attach the attribute to this argument, based on its type.
-      auto argTy = mlirArg.getType();
-      if (!argTy.isa<LLVM::LLVMPointerType>())
-        return func.emitError(
-            "llvm.noalias attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttr(llvm::Attribute::AttrKind::NoAlias);
-    }
-
-    if (auto attr = func.getArgAttrOfType<IntegerAttr>(
-            argIdx, LLVMDialect::getAlignAttrName())) {
-      // NB: Attribute already verified to be int, so check if we can indeed
-      // attach the attribute to this argument, based on its type.
-      auto argTy = mlirArg.getType();
-      if (!argTy.isa<LLVM::LLVMPointerType>())
-        return func.emitError(
-            "llvm.align attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addAlignmentAttr(llvm::Align(attr.getInt())));
-    }
-
-    if (auto attr = func.getArgAttrOfType<TypeAttr>(
-            argIdx, LLVMDialect::getStructRetAttrName())) {
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
-      if (!argTy)
-        return func.emitError(
-            "llvm.sret attribute attached to LLVM non-pointer argument");
-      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
-        return func.emitError("llvm.sret attribute attached to LLVM pointer "
-                              "argument of a different type");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addStructRetAttr(convertType(attr.getValue())));
-    }
-
-    if (auto attr = func.getArgAttrOfType<TypeAttr>(
-            argIdx, LLVMDialect::getByValAttrName())) {
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
-      if (!argTy)
-        return func.emitError(
-            "llvm.byval attribute attached to LLVM non-pointer argument");
-      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
-        return func.emitError("llvm.byval attribute attached to LLVM pointer "
-                              "argument of a different type");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addByValAttr(convertType(attr.getValue())));
-    }
-
-    if (auto attr = func.getArgAttrOfType<TypeAttr>(
-            argIdx, LLVMDialect::getByRefAttrName())) {
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
-      if (!argTy)
-        return func.emitError(
-            "llvm.byref attribute attached to LLVM non-pointer argument");
-      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
-        return func.emitError("llvm.byref attribute attached to LLVM pointer "
-                              "argument of a different type");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addByRefAttr(convertType(attr.getValue())));
-    }
-
-    if (auto attr = func.getArgAttrOfType<TypeAttr>(
-            argIdx, LLVMDialect::getInAllocaAttrName())) {
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
-      if (!argTy)
-        return func.emitError(
-            "llvm.inalloca attribute attached to LLVM non-pointer argument");
-      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
-        return func.emitError(
-            "llvm.inalloca attribute attached to LLVM pointer "
-            "argument of a different type");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addInAllocaAttr(convertType(attr.getValue())));
-    }
-
-    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.nest")) {
-      auto argTy = mlirArg.getType();
-      if (!argTy.isa<LLVM::LLVMPointerType>())
-        return func.emitError(
-            "llvm.nest attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addAttribute(llvm::Attribute::Nest));
-    }
-
+  for (auto [mlirArg, llvmArg] :
+       llvm::zip(func.getArguments(), llvmFunc->args()))
     mapValue(mlirArg, &llvmArg);
-    argIdx++;
-  }
 
   // Check the personality and set it.
   if (func.getPersonality()) {
@@ -976,8 +885,156 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     mapFunction(function.getName(), llvmFunc);
     addRuntimePreemptionSpecifier(function.getDsoLocal(), llvmFunc);
 
+    // Convert function attributes.
     if (function->getAttrOfType<UnitAttr>(LLVMDialect::getReadnoneAttrName()))
-      llvmFunc->addFnAttr(llvm::Attribute::ReadNone);
+      llvmFunc->setDoesNotAccessMemory();
+
+    // Convert result attributes.
+    if (ArrayAttr allResultAttrs = function.getAllResultAttrs()) {
+      llvm::AttrBuilder retAttrs(llvmFunc->getContext());
+      DictionaryAttr resultAttrs = allResultAttrs[0].cast<DictionaryAttr>();
+      for (const NamedAttribute &attr : resultAttrs) {
+        StringAttr name = attr.getName();
+        if (name == LLVMDialect::getAlignAttrName()) {
+          auto alignAmount = attr.getValue().cast<IntegerAttr>();
+          retAttrs.addAlignmentAttr(llvm::Align(alignAmount.getInt()));
+        } else if (name == LLVMDialect::getNoAliasAttrName()) {
+          retAttrs.addAttribute(llvm::Attribute::NoAlias);
+        } else if (name == LLVMDialect::getNoUndefAttrName()) {
+          retAttrs.addAttribute(llvm::Attribute::NoUndef);
+        } else if (name == LLVMDialect::getSExtAttrName()) {
+          retAttrs.addAttribute(llvm::Attribute::SExt);
+        } else if (name == LLVMDialect::getZExtAttrName()) {
+          retAttrs.addAttribute(llvm::Attribute::ZExt);
+        }
+      }
+      llvmFunc->addRetAttrs(retAttrs);
+    }
+
+    // Convert argument attributes.
+    unsigned int argIdx = 0;
+    for (auto [mlirArgTy, llvmArg] :
+         llvm::zip(function.getArgumentTypes(), llvmFunc->args())) {
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getNoAliasAttrName())) {
+        // NB: Attribute already verified to be boolean, so check if we can
+        // indeed attach the attribute to this argument, based on its type.
+        if (!mlirArgTy.isa<LLVM::LLVMPointerType>())
+          return function.emitError(
+              "llvm.noalias attribute attached to LLVM non-pointer argument");
+        llvmArg.addAttr(llvm::Attribute::AttrKind::NoAlias);
+      }
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getReadonlyAttrName())) {
+        if (!mlirArgTy.isa<LLVM::LLVMPointerType>())
+          return function.emitError(
+              "llvm.readonly attribute attached to LLVM non-pointer argument");
+        llvmArg.addAttr(llvm::Attribute::AttrKind::ReadOnly);
+      }
+
+      if (auto attr = function.getArgAttrOfType<IntegerAttr>(
+              argIdx, LLVMDialect::getAlignAttrName())) {
+        // NB: Attribute already verified to be int, so check if we can indeed
+        // attach the attribute to this argument, based on its type.
+        if (!mlirArgTy.isa<LLVM::LLVMPointerType>())
+          return function.emitError(
+              "llvm.align attribute attached to LLVM non-pointer argument");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addAlignmentAttr(llvm::Align(attr.getInt())));
+      }
+
+      if (auto attr = function.getArgAttrOfType<TypeAttr>(
+              argIdx, LLVMDialect::getStructRetAttrName())) {
+        auto argTy = mlirArgTy.dyn_cast<LLVM::LLVMPointerType>();
+        if (!argTy)
+          return function.emitError(
+              "llvm.sret attribute attached to LLVM non-pointer argument");
+        if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+          return function.emitError(
+              "llvm.sret attribute attached to LLVM pointer "
+              "argument of a different type");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addStructRetAttr(convertType(attr.getValue())));
+      }
+
+      if (auto attr = function.getArgAttrOfType<TypeAttr>(
+              argIdx, LLVMDialect::getByValAttrName())) {
+        auto argTy = mlirArgTy.dyn_cast<LLVM::LLVMPointerType>();
+        if (!argTy)
+          return function.emitError(
+              "llvm.byval attribute attached to LLVM non-pointer argument");
+        if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+          return function.emitError(
+              "llvm.byval attribute attached to LLVM pointer "
+              "argument of a different type");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addByValAttr(convertType(attr.getValue())));
+      }
+
+      if (auto attr = function.getArgAttrOfType<TypeAttr>(
+              argIdx, LLVMDialect::getByRefAttrName())) {
+        auto argTy = mlirArgTy.dyn_cast<LLVM::LLVMPointerType>();
+        if (!argTy)
+          return function.emitError(
+              "llvm.byref attribute attached to LLVM non-pointer argument");
+        if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+          return function.emitError(
+              "llvm.byref attribute attached to LLVM pointer "
+              "argument of a different type");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addByRefAttr(convertType(attr.getValue())));
+      }
+
+      if (auto attr = function.getArgAttrOfType<TypeAttr>(
+              argIdx, LLVMDialect::getInAllocaAttrName())) {
+        auto argTy = mlirArgTy.dyn_cast<LLVM::LLVMPointerType>();
+        if (!argTy)
+          return function.emitError(
+              "llvm.inalloca attribute attached to LLVM non-pointer argument");
+        if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+          return function.emitError(
+              "llvm.inalloca attribute attached to LLVM pointer "
+              "argument of a different type");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addInAllocaAttr(convertType(attr.getValue())));
+      }
+
+      if (auto attr =
+              function.getArgAttrOfType<UnitAttr>(argIdx, "llvm.nest")) {
+        if (!mlirArgTy.isa<LLVM::LLVMPointerType>())
+          return function.emitError(
+              "llvm.nest attribute attached to LLVM non-pointer argument");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addAttribute(llvm::Attribute::Nest));
+      }
+
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getNoUndefAttrName())) {
+        // llvm.noundef can be added to any argument type.
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addAttribute(llvm::Attribute::NoUndef));
+      }
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getSExtAttrName())) {
+        // llvm.signext can be added to any integer argument type.
+        if (!mlirArgTy.isa<mlir::IntegerType>())
+          return function.emitError(
+              "llvm.signext attribute attached to LLVM non-integer argument");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addAttribute(llvm::Attribute::SExt));
+      }
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getZExtAttrName())) {
+        // llvm.zeroext can be added to any integer argument type.
+        if (!mlirArgTy.isa<mlir::IntegerType>())
+          return function.emitError(
+              "llvm.zeroext attribute attached to LLVM non-integer argument");
+        llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                             .addAttribute(llvm::Attribute::ZExt));
+      }
+
+      ++argIdx;
+    }
 
     // Forward the pass-through attributes to LLVM.
     if (failed(forwardPassthroughAttributes(
@@ -1054,7 +1111,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       llvm::LLVMContext &ctx = llvmModule->getContext();
       llvm::SmallVector<llvm::Metadata *, 2> operands;
       operands.push_back({}); // Placeholder for self-reference
-      if (Optional<StringRef> description = op.getDescription())
+      if (std::optional<StringRef> description = op.getDescription())
         operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *domain = llvm::MDNode::get(ctx, operands);
       domain->replaceOperandWith(0, domain); // Self-reference for uniqueness
@@ -1073,7 +1130,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       llvm::SmallVector<llvm::Metadata *, 3> operands;
       operands.push_back({}); // Placeholder for self-reference
       operands.push_back(domain);
-      if (Optional<StringRef> description = op.getDescription())
+      if (std::optional<StringRef> description = op.getDescription())
         operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *scope = llvm::MDNode::get(ctx, operands);
       scope->replaceOperandWith(0, scope); // Self-reference for uniqueness
@@ -1132,6 +1189,10 @@ ModuleTranslation::translateLoc(Location loc, llvm::DILocalScope *scope) {
   return debugTranslation->translateLoc(loc, scope);
 }
 
+llvm::Metadata *ModuleTranslation::translateDebugInfo(LLVM::DINodeAttr attr) {
+  return debugTranslation->translate(attr);
+}
+
 llvm::NamedMDNode *
 ModuleTranslation::getOrInsertNamedModuleMetadata(StringRef name) {
   return llvmModule->getOrInsertNamedMetadata(name);
@@ -1182,8 +1243,10 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
 std::unique_ptr<llvm::Module>
 mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
                               StringRef name) {
-  if (!satisfiesLLVMModule(module))
+  if (!satisfiesLLVMModule(module)) {
+    module->emitOpError("can not be translated to an LLVMIR module");
     return nullptr;
+  }
 
   std::unique_ptr<llvm::Module> llvmModule =
       prepareLLVMModule(module, llvmContext, name);

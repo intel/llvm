@@ -326,10 +326,10 @@ write_cmake_config("llvm-config") {
     "LLVM_FORCE_ENABLE_STATS=",
     "LLVM_FORCE_USE_OLD_TOOLCHAIN=",
     "LLVM_HAS_ATOMICS=1",
-    "LLVM_HAVE_TF_API=",
     "LLVM_HAVE_TFLITE=",
     "LLVM_HOST_TRIPLE=$llvm_current_triple",
     "LLVM_NATIVE_ARCH=$native_target",
+    "LLVM_UNREACHABLE_OPTIMIZE=1",
     "LLVM_USE_INTEL_JITEVENTS=",
     "LLVM_USE_OPROFILE=",
     "LLVM_USE_PERF=",
@@ -339,12 +339,6 @@ write_cmake_config("llvm-config") {
     "LLVM_WITH_Z3=",
     "PACKAGE_VERSION=${llvm_version}git",
   ]
-
-  if (llvm_enable_assertions) {
-    values += [ "LLVM_UNREACHABLE_OPTIMIZE=" ]
-  } else {
-    values += [ "LLVM_UNREACHABLE_OPTIMIZE=1" ]
-  }
 
   if (llvm_build_native) {
     values += [
@@ -371,11 +365,13 @@ write_cmake_config("llvm-config") {
   if (current_os == "win") {
     values += [
       "HAVE_SYSEXITS_H=",
+      "LLVM_ENABLE_PLUGINS=",
       "LLVM_ON_UNIX=",
     ]
   } else {
     values += [
       "HAVE_SYSEXITS_H=1",
+      "LLVM_ENABLE_PLUGINS=1",
       "LLVM_ON_UNIX=1",
     ]
   }

@@ -1216,11 +1216,11 @@ bool LambdaExpr::isInitCapture(const LambdaCapture *C) const {
 }
 
 LambdaExpr::capture_iterator LambdaExpr::capture_begin() const {
-  return getLambdaClass()->getLambdaData().Captures;
+  return getLambdaClass()->captures_begin();
 }
 
 LambdaExpr::capture_iterator LambdaExpr::capture_end() const {
-  return capture_begin() + capture_size();
+  return getLambdaClass()->captures_end();
 }
 
 LambdaExpr::capture_range LambdaExpr::captures() const {
@@ -1232,9 +1232,8 @@ LambdaExpr::capture_iterator LambdaExpr::explicit_capture_begin() const {
 }
 
 LambdaExpr::capture_iterator LambdaExpr::explicit_capture_end() const {
-  struct CXXRecordDecl::LambdaDefinitionData &Data
-    = getLambdaClass()->getLambdaData();
-  return Data.Captures + Data.NumExplicitCaptures;
+  return capture_begin() +
+         getLambdaClass()->getLambdaData().NumExplicitCaptures;
 }
 
 LambdaExpr::capture_range LambdaExpr::explicit_captures() const {
@@ -1574,6 +1573,11 @@ SizeOfPackExpr *SizeOfPackExpr::CreateDeserialized(ASTContext &Context,
   return new (Storage) SizeOfPackExpr(EmptyShell(), NumPartialArgs);
 }
 
+NonTypeTemplateParmDecl *SubstNonTypeTemplateParmExpr::getParameter() const {
+  return cast<NonTypeTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())->asArray()[Index]);
+}
+
 QualType SubstNonTypeTemplateParmExpr::getParameterType(
     const ASTContext &Context) const {
   // Note that, for a class type NTTP, we will have an lvalue of type 'const
@@ -1584,13 +1588,20 @@ QualType SubstNonTypeTemplateParmExpr::getParameterType(
 }
 
 SubstNonTypeTemplateParmPackExpr::SubstNonTypeTemplateParmPackExpr(
-    QualType T, ExprValueKind ValueKind, NonTypeTemplateParmDecl *Param,
-    SourceLocation NameLoc, const TemplateArgument &ArgPack)
+    QualType T, ExprValueKind ValueKind, SourceLocation NameLoc,
+    const TemplateArgument &ArgPack, Decl *AssociatedDecl, unsigned Index)
     : Expr(SubstNonTypeTemplateParmPackExprClass, T, ValueKind, OK_Ordinary),
-      Param(Param), Arguments(ArgPack.pack_begin()),
-      NumArguments(ArgPack.pack_size()), NameLoc(NameLoc) {
+      AssociatedDecl(AssociatedDecl), Arguments(ArgPack.pack_begin()),
+      NumArguments(ArgPack.pack_size()), Index(Index), NameLoc(NameLoc) {
+  assert(AssociatedDecl != nullptr);
   setDependence(ExprDependence::TypeValueInstantiation |
                 ExprDependence::UnexpandedPack);
+}
+
+NonTypeTemplateParmDecl *
+SubstNonTypeTemplateParmPackExpr::getParameterPack() const {
+  return cast<NonTypeTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())->asArray()[Index]);
 }
 
 TemplateArgument SubstNonTypeTemplateParmPackExpr::getArgumentPack() const {
@@ -1745,4 +1756,22 @@ CUDAKernelCallExpr *CUDAKernelCallExpr::CreateEmpty(const ASTContext &Ctx,
   void *Mem = Ctx.Allocate(sizeof(CUDAKernelCallExpr) + SizeOfTrailingObjects,
                            alignof(CUDAKernelCallExpr));
   return new (Mem) CUDAKernelCallExpr(NumArgs, HasFPFeatures, Empty);
+}
+
+CXXParenListInitExpr *
+CXXParenListInitExpr::Create(ASTContext &C, ArrayRef<Expr *> Args, QualType T,
+                             unsigned NumUserSpecifiedExprs,
+                             SourceLocation InitLoc, SourceLocation LParenLoc,
+                             SourceLocation RParenLoc) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(Args.size()));
+  return new (Mem) CXXParenListInitExpr(Args, T, NumUserSpecifiedExprs, InitLoc,
+                                        LParenLoc, RParenLoc);
+}
+
+CXXParenListInitExpr *CXXParenListInitExpr::CreateEmpty(ASTContext &C,
+                                                        unsigned NumExprs,
+                                                        EmptyShell Empty) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(NumExprs),
+                         alignof(CXXParenListInitExpr));
+  return new (Mem) CXXParenListInitExpr(Empty, NumExprs);
 }

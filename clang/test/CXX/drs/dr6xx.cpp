@@ -3,6 +3,22 @@
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
 // RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
+// RUN: %clang_cc1 -std=c++2b %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
+
+namespace dr600 { // dr600: yes
+struct S {
+  void f(int);
+
+private:
+  void f(double); // expected-note {{declared private here}}
+};
+
+void g(S *sp) {
+  sp->f(2);
+  // access control is applied after overload resolution
+  sp->f(2.2); // expected-error {{is a private member}}
+}
+} // namespace dr600
 
 namespace std {
   struct type_info {};
@@ -776,7 +792,7 @@ namespace dr666 { // dr666: yes
 #if __cplusplus >= 201103L
 namespace dr667 { // dr667: yes
   struct A {
-    A() = default; // expected-warning {{explicitly defaulted default constructor is implicitly deleted}}
+    A() = default; // expected-warning {{explicitly defaulted default constructor is implicitly deleted}} expected-note{{replace 'default'}}
     int &r; // expected-note {{because field 'r' of reference type 'int &' would not be initialized}}
   };
   static_assert(!__is_trivially_constructible(A), "");
@@ -1079,16 +1095,16 @@ namespace dr687 { // dr687 (9 c++20, but the issue is still considered open)
   }
 }
 
-namespace dr692 { // dr692: no
+namespace dr692 { // dr692: 16
   // Also see dr1395.
 
   namespace temp_func_order_example2 {
     template <typename... T> struct A1 {}; // expected-error 0-1{{C++11}}
     template <typename U, typename... T> struct A2 {}; // expected-error 0-1{{C++11}}
-    template <class T1, class... U> void e1(A1<T1, U...>) = delete; // expected-error 0-2{{C++11}}
-    template <class T1> void e1(A1<T1>);
-    template <class T1, class... U> void e2(A2<T1, U...>) = delete; // expected-error 0-2{{C++11}}
-    template <class T1> void e2(A2<T1>);
+    template <typename T1, typename... U> void e1(A1<T1, U...>) = delete; // expected-error 0-2{{C++11}}
+    template <typename T1> void e1(A1<T1>);
+    template <typename T1, typename... U> void e2(A2<T1, U...>) = delete; // expected-error 0-2{{C++11}}
+    template <typename T1> void e2(A2<T1>);
     template <typename T, typename U> void f(U, A1<U, T> *p = 0) = delete; // expected-note {{candidate}} expected-error 0-1{{C++11}}
     template <typename U> int &f(U, A1<U, U> *p = 0); // expected-note {{candidate}}
     template <typename T> void g(T, T = T()); // expected-note {{candidate}}

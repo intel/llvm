@@ -6,6 +6,8 @@ Intel LLVM-based projects:
 - [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
 
+For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
+
 ## oneAPI DPC++ compiler
 
 [![](https://spec.oneapi.io/oneapi-logo-white-scaled.jpg)](https://www.oneapi.io/)

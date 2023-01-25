@@ -11,6 +11,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Targets/SPIR.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -30,12 +31,13 @@
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/IR/IRPrintingPasses.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/LTO/LTOBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -47,6 +49,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -75,6 +78,7 @@
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
+#include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
@@ -85,9 +89,9 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
 #include "llvm/Transforms/Scalar/LowerMatrixIntrinsics.h"
-#include "llvm/Transforms/Scalar/NewGVN.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/Debugify.h"
@@ -96,6 +100,7 @@
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include <memory>
+#include <optional>
 using namespace clang;
 using namespace llvm;
 
@@ -105,7 +110,6 @@ using namespace llvm;
 
 namespace llvm {
 extern cl::opt<bool> DebugInfoCorrelate;
-extern cl::opt<bool> RunNewGVN;
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
@@ -239,6 +243,7 @@ getSanitizerBinaryMetadataOptions(const CodeGenOptions &CGOpts) {
   SanitizerBinaryMetadataOptions Opts;
   Opts.Covered = CGOpts.SanitizeBinaryMetadataCovered;
   Opts.Atomics = CGOpts.SanitizeBinaryMetadataAtomics;
+  Opts.UAR = CGOpts.SanitizeBinaryMetadataUAR;
   return Opts;
 }
 
@@ -317,7 +322,7 @@ static CodeGenOpt::Level getCGOptLevel(const CodeGenOptions &CodeGenOpts) {
   }
 }
 
-static Optional<llvm::CodeModel::Model>
+static std::optional<llvm::CodeModel::Model>
 getCodeModel(const CodeGenOptions &CodeGenOpts) {
   unsigned CodeModel = llvm::StringSwitch<unsigned>(CodeGenOpts.CodeModel)
                            .Case("tiny", llvm::CodeModel::Tiny)
@@ -329,7 +334,7 @@ getCodeModel(const CodeGenOptions &CodeGenOpts) {
                            .Default(~0u);
   assert(CodeModel != ~0u && "invalid code model!");
   if (CodeModel == ~1u)
-    return None;
+    return std::nullopt;
   return static_cast<llvm::CodeModel::Model>(CodeModel);
 }
 
@@ -415,7 +420,12 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.NoInfsFPMath = LangOpts.NoHonorInfs;
   Options.NoNaNsFPMath = LangOpts.NoHonorNaNs;
   Options.NoZerosInBSS = CodeGenOpts.NoZeroInitializedInBSS;
-  Options.UnsafeFPMath = LangOpts.UnsafeFPMath;
+  Options.UnsafeFPMath = LangOpts.AllowFPReassoc && LangOpts.AllowRecip &&
+                         LangOpts.NoSignedZero && LangOpts.ApproxFunc &&
+                         (LangOpts.getDefaultFPContractMode() ==
+                              LangOptions::FPModeKind::FPM_Fast ||
+                          LangOpts.getDefaultFPContractMode() ==
+                              LangOptions::FPModeKind::FPM_FastHonorPragmas);
   Options.ApproxFuncFPMath = LangOpts.ApproxFunc;
 
   Options.BBSections =
@@ -502,6 +512,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
           Entry.IgnoreSysRoot ? Entry.Path : HSOpts.Sysroot + Entry.Path);
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
+  Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
   Options.MisExpect = CodeGenOpts.MisExpect;
 
   return true;
@@ -510,7 +521,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
 static Optional<GCOVOptions> getGCOVOptions(const CodeGenOptions &CodeGenOpts,
                                             const LangOptions &LangOpts) {
   if (!CodeGenOpts.EmitGcovArcs && !CodeGenOpts.EmitGcovNotes)
-    return None;
+    return std::nullopt;
   // Not using 'GCOVOptions::getDefault' allows us to avoid exiting if
   // LLVM's -default-gcov-version flag is set to something invalid.
   GCOVOptions Options;
@@ -528,7 +539,7 @@ static Optional<InstrProfOptions>
 getInstrProfOptions(const CodeGenOptions &CodeGenOpts,
                     const LangOptions &LangOpts) {
   if (!CodeGenOpts.hasProfileClangInstr())
-    return None;
+    return std::nullopt;
   InstrProfOptions Options;
   Options.NoRedZone = CodeGenOpts.DisableRedZone;
   Options.InstrProfileOutput = CodeGenOpts.InstrProfileOutput;
@@ -571,7 +582,7 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
     return;
   }
 
-  Optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
+  std::optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
   std::string FeaturesStr =
       llvm::join(TargetOpts.Features.begin(), TargetOpts.Features.end(), ",");
   llvm::Reloc::Model RM = CodeGenOpts.RelocationModel;
@@ -644,6 +655,31 @@ static OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
   }
 }
 
+static void addKCFIPass(const Triple &TargetTriple, const LangOptions &LangOpts,
+                        PassBuilder &PB) {
+  // If the back-end supports KCFI operand bundle lowering, skip KCFIPass.
+  if (TargetTriple.getArch() == llvm::Triple::x86_64 ||
+      TargetTriple.isAArch64(64))
+    return;
+
+  // Ensure we lower KCFI operand bundles with -O0.
+  PB.registerOptimizerLastEPCallback(
+      [&](ModulePassManager &MPM, OptimizationLevel Level) {
+        if (Level == OptimizationLevel::O0 &&
+            LangOpts.Sanitize.has(SanitizerKind::KCFI))
+          MPM.addPass(createModuleToFunctionPassAdaptor(KCFIPass()));
+      });
+
+  // When optimizations are requested, run KCIFPass after InstCombine to
+  // avoid unnecessary checks.
+  PB.registerPeepholeEPCallback(
+      [&](FunctionPassManager &FPM, OptimizationLevel Level) {
+        if (Level != OptimizationLevel::O0 &&
+            LangOpts.Sanitize.has(SanitizerKind::KCFI))
+          FPM.addPass(KCFIPass());
+      });
+}
+
 static void addSanitizers(const Triple &TargetTriple,
                           const CodeGenOptions &CodeGenOpts,
                           const LangOptions &LangOpts, PassBuilder &PB) {
@@ -679,10 +715,7 @@ static void addSanitizers(const Triple &TargetTriple,
           FPM.addPass(EarlyCSEPass(true /* Enable mem-ssa. */));
           FPM.addPass(InstCombinePass());
           FPM.addPass(JumpThreadingPass());
-          if (RunNewGVN)
-            FPM.addPass(NewGVNPass());
-          else
-            FPM.addPass(GVNPass());
+          FPM.addPass(GVNPass());
           FPM.addPass(InstCombinePass());
           MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
         }
@@ -749,7 +782,7 @@ static void addSanitizers(const Triple &TargetTriple,
 void EmitAssemblyHelper::RunOptimizationPipeline(
     BackendAction Action, std::unique_ptr<raw_pwrite_stream> &OS,
     std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS) {
-  Optional<PGOOptions> PGOOpt;
+  std::optional<PGOOptions> PGOOpt;
 
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
@@ -828,11 +861,19 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PrintPassOptions PrintPassOpts;
   PrintPassOpts.Indent = DebugPassStructure;
   PrintPassOpts.SkipAnalyses = DebugPassStructure;
-  StandardInstrumentations SI(CodeGenOpts.DebugPassManager ||
-                                  DebugPassStructure,
-                              /*VerifyEach*/ false, PrintPassOpts);
+  StandardInstrumentations SI(
+      TheModule->getContext(),
+      (CodeGenOpts.DebugPassManager || DebugPassStructure),
+      /*VerifyEach*/ false, PrintPassOpts);
   SI.registerCallbacks(PIC, &FAM);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
+
+  if (CodeGenOpts.EnableAssignmentTracking) {
+    PB.registerPipelineStartEPCallback(
+        [&](ModulePassManager &MPM, OptimizationLevel Level) {
+          MPM.addPass(AssignmentTrackingPass());
+        });
+  }
 
   // Enable verify-debuginfo-preserve-each for new PM.
   DebugifyEachInstrumentation Debugify;
@@ -884,7 +925,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
+            MPM.addPass(SYCLPropagateAspectsUsagePass());
           });
+
+    // Add the InferAddressSpaces pass for all the SPIR[V] targets
+    if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
+      PB.registerOptimizerLastEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
+          });
+    }
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
@@ -948,8 +999,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     // Don't add sanitizers if we are here from ThinLTO PostLink. That already
     // done on PreLink stage.
-    if (!IsThinLTOPostLink)
+    if (!IsThinLTOPostLink) {
       addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
+      addKCFIPass(TargetTriple, LangOpts, PB);
+    }
 
     if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
       PB.registerPipelineStartEPCallback(
@@ -963,7 +1016,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(InstrProfiling(*Options, false));
           });
 
-    if (CodeGenOpts.OptimizationLevel == 0) {
+    if (CodeGenOpts.DisableSYCLEarlyOpts) {
+      MPM =
+          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+    } else if (CodeGenOpts.OptimizationLevel == 0) {
       MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
     } else if (IsThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
@@ -977,31 +1033,26 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
-  }
-  if (LangOpts.SYCLIsDevice) {
-    MPM.addPass(SYCLMutatePrintfAddrspacePass());
-    if (!CodeGenOpts.DisableLLVMPasses && LangOpts.EnableDAEInSpirKernels)
-      MPM.addPass(DeadArgumentEliminationSYCLPass());
-  }
 
-  // Add SPIRITTAnnotations pass to the pass manager if
-  // -fsycl-instrument-device-code option was passed. This option can be used
-  // only with spir triple.
-  if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
-    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
-           "ITT annotations can only be added to a module with spir target");
-    MPM.addPass(SPIRITTAnnotationsPass());
-  }
+    if (LangOpts.SYCLIsDevice) {
+      MPM.addPass(SYCLMutatePrintfAddrspacePass());
+      if (LangOpts.EnableDAEInSpirKernels)
+        MPM.addPass(DeadArgumentEliminationSYCLPass());
 
-  // Allocate static local memory in SYCL kernel scope for each allocation
-  // call. It should be called after inlining pass.
-  if (LangOpts.SYCLIsDevice) {
-    // Group local memory pass depends on inlining. Turn it on even in case if
-    // all llvm passes or SYCL early optimizations are disabled.
-    // FIXME: Remove this workaround when dependency on inlining is eliminated.
-    if (CodeGenOpts.DisableLLVMPasses)
-      MPM.addPass(AlwaysInlinerPass(false));
-    MPM.addPass(SYCLLowerWGLocalMemoryPass());
+      // Add SPIRITTAnnotations pass to the pass manager if
+      // -fsycl-instrument-device-code option was passed. This option can be
+      // used only with spir triple.
+      if (CodeGenOpts.SPIRITTAnnotations) {
+        assert(
+            TargetTriple.isSPIR() &&
+            "ITT annotations can only be added to a module with spir target");
+        MPM.addPass(SPIRITTAnnotationsPass());
+      }
+
+      // Allocate static local memory in SYCL kernel scope for each allocation
+      // call.
+      MPM.addPass(SYCLLowerWGLocalMemoryPass());
+    }
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action
@@ -1010,19 +1061,24 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (!actionRequiresCodeGen(Action) && CodeGenOpts.VerifyModule)
     MPM.addPass(VerifierPass());
 
-  switch (Action) {
-  case Backend_EmitBC:
+  if (Action == Backend_EmitBC || Action == Backend_EmitLL) {
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
-      if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
-        ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
-        if (!ThinLinkOS)
-          return;
-      }
       if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
         TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                  CodeGenOpts.EnableSplitLTOUnit);
-      MPM.addPass(ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &ThinLinkOS->os()
-                                                           : nullptr));
+      if (Action == Backend_EmitBC) {
+        if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
+          ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
+          if (!ThinLinkOS)
+            return;
+        }
+        MPM.addPass(ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &ThinLinkOS->os()
+                                                             : nullptr));
+      } else {
+        MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
+                                    /*EmitLTOSummary=*/true));
+      }
+
     } else {
       // Emit a module summary by default for Regular LTO except for ld64
       // targets
@@ -1034,17 +1090,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                    uint32_t(1));
       }
-      MPM.addPass(
-          BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists, EmitLTOSummary));
+      if (Action == Backend_EmitBC)
+        MPM.addPass(BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
+                                      EmitLTOSummary));
+      else
+        MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
+                                    EmitLTOSummary));
     }
-    break;
-
-  case Backend_EmitLL:
-    MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists));
-    break;
-
-  default:
-    break;
   }
 
   // Now that we have all of the passes ready, run them.
@@ -1136,7 +1188,7 @@ static void runThinLTOBackend(
   if (!lto::initImportList(*M, *CombinedIndex, ImportList))
     return;
 
-  auto AddStream = [&](size_t Task) {
+  auto AddStream = [&](size_t Task, const Twine &ModuleName) {
     return std::make_unique<CachedFileStream>(std::move(OS),
                                               CGOpts.ObjectFilenameForDebug);
   };

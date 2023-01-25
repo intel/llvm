@@ -11,7 +11,8 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+    - [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -166,8 +167,6 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
-There is experimental support for DPC++ for CUDA devices.
-
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
 the CUDA backend has Windows support; windows subsystem for
@@ -299,6 +298,16 @@ Enabling this flag requires following packages installed.
 
 Currently, this feature was tested and verified on Ubuntu 20.04
 environment.
+
+### Build DPC++ toolchain with support for runtime kernel fusion
+
+Support for the experimental SYCL extension for user-driven kernel fusion 
+at runtime is enabled by default. 
+
+To disable support for this feature, follow the instructions for the 
+Linux DPC++ toolchain, but add the `--disable-fusion` flag.
+
+Kernel fusion is currently not yet supported on the Windows platform.
 
 ### Build Doxygen documentation
 
@@ -557,8 +566,8 @@ Creating a file `simple-sycl-app.cpp` with the following C++/SYCL code:
 #include <sycl/sycl.hpp>
 
 int main() {
-  // Creating buffer of 4 ints to be used inside the kernel code
-  sycl::buffer<sycl::cl_int, 1> Buffer(4);
+  // Creating buffer of 4 elements to be used inside the kernel code
+  sycl::buffer<size_t, 1> Buffer(4);
 
   // Creating SYCL queue
   sycl::queue Queue;
@@ -568,19 +577,19 @@ int main() {
 
   // Submitting command group(work) to queue
   Queue.submit([&](sycl::handler &cgh) {
-    // Getting write only access to the buffer on a device
-    auto Accessor = Buffer.get_access<sycl::access::mode::write>(cgh);
+    // Getting write only access to the buffer on a device.
+    sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
     // Executing kernel
     cgh.parallel_for<class FillBuffer>(
         NumOfWorkItems, [=](sycl::id<1> WIid) {
-          // Fill buffer with indexes
-          Accessor[WIid] = (sycl::cl_int)WIid.get(0);
+          // Fill buffer with indexes.
+          Accessor[WIid] = WIid.get(0);
         });
   });
 
   // Getting read only access to the buffer on the host.
   // Implicit barrier waiting for queue to complete the work.
-  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
   // Check the results
   bool MismatchFound = false;
@@ -687,13 +696,13 @@ The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_HIP` forces
-the usage of the HIP backend (if available), `PI_OPENCL` will
+using the `ONEAPI_DEVICE_SELECTOR` environment variable, setting `cuda:*` forces
+the usage of the CUDA backend (if available), `hip:*` forces
+the usage of the HIP backend (if available), `opencl:*` will
 force the usage of the OpenCL backend.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
@@ -709,11 +718,11 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_BE` environment
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
 variable.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
@@ -735,7 +744,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-project(simple-sycl-app)
+project(simple-sycl-app LANGUAGES CXX)
 
 add_executable(simple-sycl-app simple-sycl-app.cpp)
 ```
@@ -810,7 +819,6 @@ int CUDASelector(const sycl::device &Device) {
 
 ### Using the DPC++ toolchain on CUDA platforms
 
-The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
 on the system in order to link applications to the DPC++ runtime.
 The OpenCL implementation is not used at runtime if only the CUDA backend is

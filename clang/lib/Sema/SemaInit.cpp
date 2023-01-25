@@ -81,10 +81,20 @@ static StringInitFailureKind IsStringInit(Expr *Init, const ArrayType *AT,
   const QualType ElemTy =
       Context.getCanonicalType(AT->getElementType()).getUnqualifiedType();
 
+  auto IsCharOrUnsignedChar = [](const QualType &T) {
+    const BuiltinType *BT = dyn_cast<BuiltinType>(T.getTypePtr());
+    return BT && BT->isCharType() && BT->getKind() != BuiltinType::SChar;
+  };
+
   switch (SL->getKind()) {
   case StringLiteral::UTF8:
     // char8_t array can be initialized with a UTF-8 string.
-    if (ElemTy->isChar8Type())
+    // - C++20 [dcl.init.string] (DR)
+    //   Additionally, an array of char or unsigned char may be initialized
+    //   by a UTF-8 string literal.
+    if (ElemTy->isChar8Type() ||
+        (Context.getLangOpts().Char8 &&
+         IsCharOrUnsignedChar(ElemTy.getCanonicalType())))
       return SIF_None;
     [[fallthrough]];
   case StringLiteral::Ordinary:
@@ -493,7 +503,7 @@ ExprResult InitListChecker::PerformEmptyInit(SourceLocation Loc,
                                                             true);
   MultiExprArg SubInit;
   Expr *InitExpr;
-  InitListExpr DummyInitList(SemaRef.Context, Loc, None, Loc);
+  InitListExpr DummyInitList(SemaRef.Context, Loc, std::nullopt, Loc);
 
   // C++ [dcl.init.aggr]p7:
   //   If there are fewer initializer-clauses in the list than there are
@@ -512,8 +522,10 @@ ExprResult InitListChecker::PerformEmptyInit(SourceLocation Loc,
     //
     // Only do this if we're initializing a class type, to avoid filling in
     // the initializer list where possible.
-    InitExpr = VerifyOnly ? &DummyInitList : new (SemaRef.Context)
-                   InitListExpr(SemaRef.Context, Loc, None, Loc);
+    InitExpr = VerifyOnly
+                   ? &DummyInitList
+                   : new (SemaRef.Context)
+                         InitListExpr(SemaRef.Context, Loc, std::nullopt, Loc);
     InitExpr->setType(SemaRef.Context.VoidTy);
     SubInit = InitExpr;
     Kind = InitializationKind::CreateCopy(Loc, Loc);
@@ -1518,8 +1530,8 @@ void InitListChecker::CheckComplexType(const InitializedEntity &Entity,
 
   // As an extension, clang supports complex initializers, which initialize
   // a complex number component-wise.  When an explicit initializer list for
-  // a complex number contains two two initializers, this extension kicks in:
-  // it exepcts the initializer list to contain two elements convertible to
+  // a complex number contains two initializers, this extension kicks in:
+  // it expects the initializer list to contain two elements convertible to
   // the element type of the complex type. The first element initializes
   // the real part, and the second element intitializes the imaginary part.
 
@@ -2934,7 +2946,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
 
     // Compute the type of the integer literals.
     QualType PromotedCharTy = CharTy;
-    if (CharTy->isPromotableIntegerType())
+    if (Context.isPromotableIntegerType(CharTy))
       PromotedCharTy = Context.getPromotedIntegerType(CharTy);
     unsigned PromotedCharTyWidth = Context.getTypeSize(PromotedCharTy);
 
@@ -3110,10 +3122,8 @@ InitListExpr *
 InitListChecker::createInitListExpr(QualType CurrentObjectType,
                                     SourceRange InitRange,
                                     unsigned ExpectedNumInits) {
-  InitListExpr *Result
-    = new (SemaRef.Context) InitListExpr(SemaRef.Context,
-                                         InitRange.getBegin(), None,
-                                         InitRange.getEnd());
+  InitListExpr *Result = new (SemaRef.Context) InitListExpr(
+      SemaRef.Context, InitRange.getBegin(), std::nullopt, InitRange.getEnd());
 
   QualType ResultType = CurrentObjectType;
   if (!ResultType->isArrayType())
@@ -3519,6 +3529,7 @@ void InitializationSequence::Step::Destroy() {
   case SK_StdInitializerListConstructorCall:
   case SK_OCLSamplerInit:
   case SK_OCLZeroOpaqueType:
+  case SK_ParenthesizedListInit:
     break;
 
   case SK_ConversionSequence:
@@ -3578,6 +3589,7 @@ bool InitializationSequence::isAmbiguous() const {
   case FK_PlaceholderType:
   case FK_ExplicitConstructor:
   case FK_AddressOfUnaddressableFunction:
+  case FK_ParenthesizedListInitFailed:
     return false;
 
   case FK_ReferenceInitOverloadFailed:
@@ -3809,6 +3821,13 @@ void InitializationSequence::AddOCLSamplerInitStep(QualType T) {
 void InitializationSequence::AddOCLZeroOpaqueTypeStep(QualType T) {
   Step S;
   S.Kind = SK_OCLZeroOpaqueType;
+  S.Type = T;
+  Steps.push_back(S);
+}
+
+void InitializationSequence::AddParenthesizedListInitStep(QualType T) {
+  Step S;
+  S.Kind = SK_ParenthesizedListInit;
   S.Type = T;
   Steps.push_back(S);
 }
@@ -5228,7 +5247,7 @@ static void TryDefaultInitialization(Sema &S,
   //       constructor for T is called (and the initialization is ill-formed if
   //       T has no accessible default constructor);
   if (DestType->isRecordType() && S.getLangOpts().CPlusPlus) {
-    TryConstructorInitialization(S, Entity, Kind, None, DestType,
+    TryConstructorInitialization(S, Entity, Kind, std::nullopt, DestType,
                                  Entity.getType(), Sequence);
     return;
   }
@@ -5249,6 +5268,198 @@ static void TryDefaultInitialization(Sema &S,
     Sequence.AddZeroInitializationStep(Entity.getType());
     return;
   }
+}
+
+static void TryOrBuildParenListInitialization(
+    Sema &S, const InitializedEntity &Entity, const InitializationKind &Kind,
+    ArrayRef<Expr *> Args, InitializationSequence &Sequence, bool VerifyOnly,
+    ExprResult *Result = nullptr) {
+  unsigned ArgIndexToProcess = 0;
+  SmallVector<Expr *, 4> InitExprs;
+  QualType ResultType;
+  Expr *ArrayFiller = nullptr;
+
+  // Process entities (i.e. array members, base classes, or class fields) by
+  // adding an initialization expression to InitExprs for each entity to
+  // initialize.
+  auto ProcessEntities = [&](auto Range) -> bool {
+    for (InitializedEntity SubEntity : Range) {
+      // Unions should only have one initializer expression.
+      // If there are more initializers than it will be caught when we check
+      // whether Index equals Args.size().
+      if (ArgIndexToProcess == 1 && Entity.getType()->isUnionType())
+        return true;
+
+      // Unnamed bitfields should not be initialized at all, either with an arg
+      // or by default.
+      if (SubEntity.getKind() == InitializedEntity::EK_Member &&
+          cast<FieldDecl>(SubEntity.getDecl())->isUnnamedBitfield())
+        continue;
+
+      if (ArgIndexToProcess < Args.size()) {
+        // There are still expressions in Args that haven't been processed.
+        // Let's match them to the current entity to initialize.
+        Expr *E = Args[ArgIndexToProcess++];
+
+        // Incomplete array types indicate flexible array members. Do not allow
+        // paren list initializations of structs with these members, as GCC
+        // doesn't either.
+        if (SubEntity.getKind() == InitializedEntity::EK_Member) {
+          auto *FD = cast<FieldDecl>(SubEntity.getDecl());
+          if (FD->getType()->isIncompleteArrayType()) {
+            if (!VerifyOnly) {
+              S.Diag(E->getBeginLoc(), diag::err_flexible_array_init)
+                  << SourceRange(E->getBeginLoc(), E->getEndLoc());
+              S.Diag(FD->getLocation(), diag::note_flexible_array_member) << FD;
+            }
+            Sequence.SetFailed(
+                InitializationSequence::FK_ParenthesizedListInitFailed);
+            return false;
+          }
+        }
+
+        InitializationKind SubKind = InitializationKind::CreateForInit(
+            E->getExprLoc(), /*isDirectInit=*/false, E);
+        InitializationSequence SubSeq(S, SubEntity, SubKind, E);
+
+        if (SubSeq.Failed()) {
+          if (!VerifyOnly)
+            SubSeq.Diagnose(S, SubEntity, SubKind, E);
+          else
+            Sequence.SetFailed(
+                InitializationSequence::FK_ParenthesizedListInitFailed);
+
+          return false;
+        }
+        if (!VerifyOnly) {
+          ExprResult ER = SubSeq.Perform(S, SubEntity, SubKind, E);
+          InitExprs.push_back(ER.get());
+        }
+      } else {
+        // We've processed all of the args, but there are still entities that
+        // have to be initialized.
+        if (SubEntity.getKind() == InitializedEntity::EK_Member) {
+          // C++ [dcl.init]p17.6.2.2
+          //   The remaining elements are initialized with their default member
+          //   initializers, if any
+          auto *FD = cast<FieldDecl>(SubEntity.getDecl());
+          if (Expr *ICE = FD->getInClassInitializer(); ICE && !VerifyOnly) {
+            ExprResult DIE = S.BuildCXXDefaultInitExpr(FD->getLocation(), FD);
+            if (DIE.isInvalid())
+              return false;
+            S.checkInitializerLifetime(SubEntity, DIE.get());
+            InitExprs.push_back(DIE.get());
+            continue;
+          };
+        }
+        // Remaining class elements without default member initializers and
+        // array elements are value initialized:
+        //
+        // C++ [dcl.init]p17.6.2.2
+        //   The remaining elements...otherwise are value initialzed
+        //
+        // C++ [dcl.init]p17.5
+        //   if the destination type is an array, the object is initialized as
+        // . follows. Let x1, . . . , xk be the elements of the expression-list
+        //   ...Let n denote the array size...the ith array element is...value-
+        //   initialized for each k < i <= n.
+        InitializationKind SubKind = InitializationKind::CreateValue(
+            Kind.getLocation(), Kind.getLocation(), Kind.getLocation(), true);
+        InitializationSequence SubSeq(S, SubEntity, SubKind, std::nullopt);
+        if (SubSeq.Failed()) {
+          if (!VerifyOnly)
+            SubSeq.Diagnose(S, SubEntity, SubKind, std::nullopt);
+          return false;
+        }
+        if (!VerifyOnly) {
+          ExprResult ER = SubSeq.Perform(S, SubEntity, SubKind, std::nullopt);
+          if (SubEntity.getKind() == InitializedEntity::EK_ArrayElement) {
+            ArrayFiller = ER.get();
+            return true;
+          }
+          InitExprs.push_back(ER.get());
+        }
+      }
+    }
+    return true;
+  };
+
+  if (const ArrayType *AT =
+          S.getASTContext().getAsArrayType(Entity.getType())) {
+
+    SmallVector<InitializedEntity, 4> ElementEntities;
+    uint64_t ArrayLength;
+    // C++ [dcl.init]p17.5
+    //   if the destination type is an array, the object is initialized as
+    //   follows. Let x1, . . . , xk be the elements of the expression-list. If
+    //   the destination type is an array of unknown bound, it is define as
+    //   having k elements.
+    if (const ConstantArrayType *CAT =
+            S.getASTContext().getAsConstantArrayType(Entity.getType()))
+      ArrayLength = CAT->getSize().getZExtValue();
+    else
+      ArrayLength = Args.size();
+
+    if (ArrayLength >= Args.size()) {
+      for (uint64_t I = 0; I < ArrayLength; ++I)
+        ElementEntities.push_back(
+            InitializedEntity::InitializeElement(S.getASTContext(), I, Entity));
+
+      if (!ProcessEntities(ElementEntities))
+        return;
+
+      ResultType = S.Context.getConstantArrayType(
+          AT->getElementType(), llvm::APInt(32, ArrayLength), nullptr,
+          ArrayType::Normal, 0);
+    }
+  } else if (auto *RT = Entity.getType()->getAs<RecordType>()) {
+    const CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
+
+    auto BaseRange = map_range(RD->bases(), [&S](auto &base) {
+      return InitializedEntity::InitializeBase(S.getASTContext(), &base, false);
+    });
+    auto FieldRange = map_range(RD->fields(), [](auto *field) {
+      return InitializedEntity::InitializeMember(field);
+    });
+
+    if (!ProcessEntities(BaseRange))
+      return;
+
+    if (!ProcessEntities(FieldRange))
+      return;
+
+    ResultType = Entity.getType();
+  }
+
+  // Not all of the args have been processed, so there must've been more args
+  // then were required to initialize the element.
+  if (ArgIndexToProcess < Args.size()) {
+    Sequence.SetFailed(InitializationSequence::FK_ParenthesizedListInitFailed);
+    if (!VerifyOnly) {
+      QualType T = Entity.getType();
+      int InitKind = T->isArrayType() ? 0 : T->isUnionType() ? 3 : 4;
+      S.Diag(Kind.getLocation(), diag::err_excess_initializers)
+          << InitKind << Args[ArgIndexToProcess]->getSourceRange();
+    }
+    return;
+  }
+
+  if (VerifyOnly) {
+    Sequence.setSequenceKind(InitializationSequence::NormalSequence);
+    Sequence.AddParenthesizedListInitStep(Entity.getType());
+  } else if (Result) {
+    SourceRange SR = Kind.getParenOrBraceRange();
+    auto *CPLIE = CXXParenListInitExpr::Create(
+        S.getASTContext(), InitExprs, ResultType, Args.size(),
+        Kind.getLocation(), SR.getBegin(), SR.getEnd());
+    CPLIE->setArrayFiller(ArrayFiller);
+    *Result = CPLIE;
+    S.Diag(Kind.getLocation(),
+           diag::warn_cxx17_compat_aggregate_init_paren_list)
+        << Kind.getLocation() << SR << ResultType;
+  }
+
+  return;
 }
 
 /// Attempt a user-defined conversion between two types (C++ [dcl.init]),
@@ -5906,7 +6117,11 @@ void InitializationSequence::InitializeFrom(Sema &S,
       TryListInitialization(S, Entity, Kind, cast<InitListExpr>(Initializer),
                             *this, TreatUnavailableAsInvalid);
       AddParenthesizedArrayInitStep(DestType);
-    } else if (DestAT->getElementType()->isCharType())
+    } else if (S.getLangOpts().CPlusPlus20 && !TopLevelOfInitList &&
+               Kind.getKind() == InitializationKind::IK_Direct)
+      TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
+                                        /*VerifyOnly=*/true);
+    else if (DestAT->getElementType()->isCharType())
       SetFailed(FK_ArrayNeedsInitListOrStringLiteral);
     else if (IsWideCharCompatible(DestAT->getElementType(), Context))
       SetFailed(FK_ArrayNeedsInitListOrWideStringLiteral);
@@ -5953,18 +6168,39 @@ void InitializationSequence::InitializeFrom(Sema &S,
     if (Kind.getKind() == InitializationKind::IK_Direct ||
         (Kind.getKind() == InitializationKind::IK_Copy &&
          (Context.hasSameUnqualifiedType(SourceType, DestType) ||
-          S.IsDerivedFrom(Initializer->getBeginLoc(), SourceType, DestType))))
-      TryConstructorInitialization(S, Entity, Kind, Args,
-                                   DestType, DestType, *this);
-    //     - Otherwise (i.e., for the remaining copy-initialization cases),
-    //       user-defined conversion sequences that can convert from the source
-    //       type to the destination type or (when a conversion function is
-    //       used) to a derived class thereof are enumerated as described in
-    //       13.3.1.4, and the best one is chosen through overload resolution
-    //       (13.3).
-    else
+          S.IsDerivedFrom(Initializer->getBeginLoc(), SourceType, DestType)))) {
+      TryConstructorInitialization(S, Entity, Kind, Args, DestType, DestType,
+                                   *this);
+
+      // We fall back to the "no matching constructor" path if the
+      // failed candidate set has functions other than the three default
+      // constructors. For example, conversion function.
+      if (const auto *RD =
+              dyn_cast<CXXRecordDecl>(DestType->getAs<RecordType>()->getDecl());
+          // In general, we should call isCompleteType for RD to check its
+          // completeness, we don't call it here as it was already called in the
+          // above TryConstructorInitialization.
+          S.getLangOpts().CPlusPlus20 && RD && RD->hasDefinition() &&
+          RD->isAggregate() && Failed() &&
+          getFailureKind() == FK_ConstructorOverloadFailed) {
+        // C++20 [dcl.init] 17.6.2.2:
+        //   - Otherwise, if no constructor is viable, the destination type is
+        //   an
+        //      aggregate class, and the initializer is a parenthesized
+        //      expression-list.
+        TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
+                                          /*VerifyOnly=*/true);
+      }
+    } else {
+      //     - Otherwise (i.e., for the remaining copy-initialization cases),
+      //       user-defined conversion sequences that can convert from the
+      //       source type to the destination type or (when a conversion
+      //       function is used) to a derived class thereof are enumerated as
+      //       described in 13.3.1.4, and the best one is chosen through
+      //       overload resolution (13.3).
       TryUserDefinedConversion(S, DestType, Kind, Initializer, *this,
                                TopLevelOfInitList);
+    }
     return;
   }
 
@@ -7587,15 +7823,15 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
 }
 
 static bool pathOnlyInitializesGslPointer(IndirectLocalPath &Path) {
-  for (auto It = Path.rbegin(), End = Path.rend(); It != End; ++It) {
-    if (It->Kind == IndirectLocalPathEntry::VarInit)
+  for (const auto &It : llvm::reverse(Path)) {
+    if (It.Kind == IndirectLocalPathEntry::VarInit)
       continue;
-    if (It->Kind == IndirectLocalPathEntry::AddressOf)
+    if (It.Kind == IndirectLocalPathEntry::AddressOf)
       continue;
-    if (It->Kind == IndirectLocalPathEntry::LifetimeBoundCall)
+    if (It.Kind == IndirectLocalPathEntry::LifetimeBoundCall)
       continue;
-    return It->Kind == IndirectLocalPathEntry::GslPointerInit ||
-           It->Kind == IndirectLocalPathEntry::GslReferenceInit;
+    return It.Kind == IndirectLocalPathEntry::GslPointerInit ||
+           It.Kind == IndirectLocalPathEntry::GslReferenceInit;
   }
   return false;
 }
@@ -8224,6 +8460,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
   case SK_ConstructorInitializationFromList:
   case SK_StdInitializerListConstructorCall:
   case SK_ZeroInitialization:
+  case SK_ParenthesizedListInit:
     break;
   }
 
@@ -8923,6 +9160,14 @@ ExprResult InitializationSequence::Perform(Sema &S,
                                     CurInit.get()->getValueKind());
       break;
     }
+    case SK_ParenthesizedListInit: {
+      CurInit = false;
+      TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
+                                        /*VerifyOnly=*/false, &CurInit);
+      if (CurInit.get() && ResultType)
+        *ResultType = CurInit.get()->getType();
+      break;
+    }
     }
   }
 
@@ -9125,9 +9370,8 @@ bool InitializationSequence::Diagnose(Sema &S,
         << FixItHint::CreateInsertion(Args.front()->getBeginLoc(), "u8");
     break;
   case FK_UTF8StringIntoPlainChar:
-    S.Diag(Kind.getLocation(),
-           diag::err_array_init_utf8_string_into_char)
-      << S.getLangOpts().CPlusPlus20;
+    S.Diag(Kind.getLocation(), diag::err_array_init_utf8_string_into_char)
+        << DestType->isSignedIntegerType() << S.getLangOpts().CPlusPlus20;
     break;
   case FK_ArrayTypeMismatch:
   case FK_NonConstantArrayInit:
@@ -9525,6 +9769,11 @@ bool InitializationSequence::Diagnose(Sema &S,
            diag::note_explicit_ctor_deduction_guide_here) << false;
     break;
   }
+
+  case FK_ParenthesizedListInitFailed:
+    TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
+                                      /*VerifyOnly=*/false);
+    break;
   }
 
   PrintInitLocationNote(S, Entity);
@@ -9690,6 +9939,10 @@ void InitializationSequence::dump(raw_ostream &OS) const {
 
     case FK_ExplicitConstructor:
       OS << "list copy initialization chose explicit constructor";
+      break;
+
+    case FK_ParenthesizedListInitFailed:
+      OS << "parenthesized list initialization failed";
       break;
     }
     OS << '\n';
@@ -9861,6 +10114,9 @@ void InitializationSequence::dump(raw_ostream &OS) const {
 
     case SK_OCLZeroOpaqueType:
       OS << "OpenCL opaque type from zero";
+      break;
+    case SK_ParenthesizedListInit:
+      OS << "initialization from a parenthesized list of values";
       break;
     }
 

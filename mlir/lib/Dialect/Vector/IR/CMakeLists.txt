@@ -5,6 +5,8 @@ add_mlir_dialect_library(MLIRVectorDialect
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Vector/IR
 
   DEPENDS
+  MLIRMaskableOpInterfaceIncGen
+  MLIRMaskingOpInterfaceIncGen
   MLIRVectorOpsIncGen
   MLIRVectorOpsEnumsIncGen
 
@@ -12,8 +14,11 @@ add_mlir_dialect_library(MLIRVectorDialect
   MLIRArithDialect
   MLIRControlFlowInterfaces
   MLIRDataLayoutInterfaces
+  MLIRDestinationStyleOpInterface
   MLIRDialectUtils
   MLIRIR
+  MLIRMaskableOpInterface
+  MLIRMaskingOpInterface
   MLIRMemRefDialect
   MLIRSideEffectInterfaces
   MLIRTensorDialect

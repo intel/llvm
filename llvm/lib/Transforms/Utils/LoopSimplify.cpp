@@ -392,7 +392,7 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
 
   // Move the new backedge block to right after the last backedge block.
   Function::iterator InsertPos = ++BackedgeBlocks.back()->getIterator();
-  F->getBasicBlockList().splice(InsertPos, F->getBasicBlockList(), BEBlock);
+  F->splice(InsertPos, F, BEBlock->getIterator());
 
   // Now that the block has been inserted into the function, create PHI nodes in
   // the backedge block which correspond to any PHI nodes in the header block.
@@ -440,7 +440,7 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
     // eliminate the PHI Node.
     if (HasUniqueIncomingValue) {
       NewPN->replaceAllUsesWith(UniqueValue);
-      BEBlock->getInstList().erase(NewPN);
+      NewPN->eraseFromParent();
     }
   }
 
@@ -649,18 +649,13 @@ ReprocessLoop:
           continue;
         if (!L->makeLoopInvariant(
                 Inst, AnyInvariant,
-                Preheader ? Preheader->getTerminator() : nullptr, MSSAU)) {
+                Preheader ? Preheader->getTerminator() : nullptr, MSSAU, SE)) {
           AllInvariant = false;
           break;
         }
       }
-      if (AnyInvariant) {
+      if (AnyInvariant)
         Changed = true;
-        // The loop disposition of all SCEV expressions that depend on any
-        // hoisted values have also changed.
-        if (SE)
-          SE->forgetLoopDispositions();
-      }
       if (!AllInvariant) continue;
 
       // The block has now been cleared of all instructions except for

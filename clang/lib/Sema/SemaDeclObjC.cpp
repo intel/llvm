@@ -1213,7 +1213,7 @@ ObjCProtocolDecl *Sema::ActOnStartProtocolInterface(
     SourceLocation AtProtoInterfaceLoc, IdentifierInfo *ProtocolName,
     SourceLocation ProtocolLoc, Decl *const *ProtoRefs, unsigned NumProtoRefs,
     const SourceLocation *ProtoLocs, SourceLocation EndProtoLoc,
-    const ParsedAttributesView &AttrList) {
+    const ParsedAttributesView &AttrList, SkipBodyInfo *SkipBody) {
   bool err = false;
   // FIXME: Deal with AttrList.
   assert(ProtocolName && "Missing protocol identifier");
@@ -1221,23 +1221,29 @@ ObjCProtocolDecl *Sema::ActOnStartProtocolInterface(
                                               forRedeclarationInCurContext());
   ObjCProtocolDecl *PDecl = nullptr;
   if (ObjCProtocolDecl *Def = PrevDecl? PrevDecl->getDefinition() : nullptr) {
-    // If we already have a definition, complain.
-    Diag(ProtocolLoc, diag::warn_duplicate_protocol_def) << ProtocolName;
-    Diag(Def->getLocation(), diag::note_previous_definition);
-
     // Create a new protocol that is completely distinct from previous
     // declarations, and do not make this protocol available for name lookup.
     // That way, we'll end up completely ignoring the duplicate.
     // FIXME: Can we turn this into an error?
     PDecl = ObjCProtocolDecl::Create(Context, CurContext, ProtocolName,
                                      ProtocolLoc, AtProtoInterfaceLoc,
-                                     /*PrevDecl=*/nullptr);
+                                     /*PrevDecl=*/Def);
+
+    if (SkipBody && !hasVisibleDefinition(Def)) {
+      SkipBody->CheckSameAsPrevious = true;
+      SkipBody->New = PDecl;
+      SkipBody->Previous = Def;
+    } else {
+      // If we already have a definition, complain.
+      Diag(ProtocolLoc, diag::warn_duplicate_protocol_def) << ProtocolName;
+      Diag(Def->getLocation(), diag::note_previous_definition);
+    }
 
     // If we are using modules, add the decl to the context in order to
     // serialize something meaningful.
     if (getLangOpts().Modules)
       PushOnScopeChains(PDecl, TUScope);
-    PDecl->startDefinition();
+    PDecl->startDuplicateDefinitionForComparison();
   } else {
     if (PrevDecl) {
       // Check for circular dependencies among protocol declarations. This can
@@ -2355,21 +2361,17 @@ static bool CheckMethodOverrideReturn(Sema &S,
       !S.Context.hasSameNullabilityTypeQualifier(MethodImpl->getReturnType(),
                                                  MethodDecl->getReturnType(),
                                                  false)) {
-    auto nullabilityMethodImpl =
-      *MethodImpl->getReturnType()->getNullability(S.Context);
-    auto nullabilityMethodDecl =
-      *MethodDecl->getReturnType()->getNullability(S.Context);
-      S.Diag(MethodImpl->getLocation(),
-             diag::warn_conflicting_nullability_attr_overriding_ret_types)
-        << DiagNullabilityKind(
-             nullabilityMethodImpl,
-             ((MethodImpl->getObjCDeclQualifier() & Decl::OBJC_TQ_CSNullability)
-              != 0))
-        << DiagNullabilityKind(
-             nullabilityMethodDecl,
-             ((MethodDecl->getObjCDeclQualifier() & Decl::OBJC_TQ_CSNullability)
-                != 0));
-      S.Diag(MethodDecl->getLocation(), diag::note_previous_declaration);
+    auto nullabilityMethodImpl = *MethodImpl->getReturnType()->getNullability();
+    auto nullabilityMethodDecl = *MethodDecl->getReturnType()->getNullability();
+    S.Diag(MethodImpl->getLocation(),
+           diag::warn_conflicting_nullability_attr_overriding_ret_types)
+        << DiagNullabilityKind(nullabilityMethodImpl,
+                               ((MethodImpl->getObjCDeclQualifier() &
+                                 Decl::OBJC_TQ_CSNullability) != 0))
+        << DiagNullabilityKind(nullabilityMethodDecl,
+                               ((MethodDecl->getObjCDeclQualifier() &
+                                 Decl::OBJC_TQ_CSNullability) != 0));
+    S.Diag(MethodDecl->getLocation(), diag::note_previous_declaration);
   }
 
   if (S.Context.hasSameUnqualifiedType(MethodImpl->getReturnType(),
@@ -2447,14 +2449,12 @@ static bool CheckMethodOverrideParam(Sema &S,
       !S.Context.hasSameNullabilityTypeQualifier(ImplTy, IfaceTy, true)) {
     S.Diag(ImplVar->getLocation(),
            diag::warn_conflicting_nullability_attr_overriding_param_types)
-      << DiagNullabilityKind(
-           *ImplTy->getNullability(S.Context),
-           ((ImplVar->getObjCDeclQualifier() & Decl::OBJC_TQ_CSNullability)
-            != 0))
-      << DiagNullabilityKind(
-           *IfaceTy->getNullability(S.Context),
-           ((IfaceVar->getObjCDeclQualifier() & Decl::OBJC_TQ_CSNullability)
-            != 0));
+        << DiagNullabilityKind(*ImplTy->getNullability(),
+                               ((ImplVar->getObjCDeclQualifier() &
+                                 Decl::OBJC_TQ_CSNullability) != 0))
+        << DiagNullabilityKind(*IfaceTy->getNullability(),
+                               ((IfaceVar->getObjCDeclQualifier() &
+                                 Decl::OBJC_TQ_CSNullability) != 0));
     S.Diag(IfaceVar->getLocation(), diag::note_previous_declaration);
   }
   if (S.Context.hasSameUnqualifiedType(ImplTy, IfaceTy))
@@ -4432,6 +4432,11 @@ void Sema::CheckObjCMethodOverrides(ObjCMethodDecl *ObjCMethod,
                                     ResultTypeCompatibilityKind RTC) {
   if (!ObjCMethod)
     return;
+  auto IsMethodInCurrentClass = [CurrentClass](const ObjCMethodDecl *M) {
+    // Checking canonical decl works across modules.
+    return M->getClassInterface()->getCanonicalDecl() ==
+           CurrentClass->getCanonicalDecl();
+  };
   // Search for overridden methods and merge information down from them.
   OverrideSearch overrides(*this, ObjCMethod);
   // Keep track if the method overrides any method in the class's base classes,
@@ -4443,8 +4448,7 @@ void Sema::CheckObjCMethodOverrides(ObjCMethodDecl *ObjCMethod,
   for (ObjCMethodDecl *overridden : overrides) {
     if (!hasOverriddenMethodsInBaseOrProtocol) {
       if (isa<ObjCProtocolDecl>(overridden->getDeclContext()) ||
-          CurrentClass != overridden->getClassInterface() ||
-          overridden->isOverriding()) {
+          !IsMethodInCurrentClass(overridden) || overridden->isOverriding()) {
         CheckObjCMethodDirectOverrides(ObjCMethod, overridden);
         hasOverriddenMethodsInBaseOrProtocol = true;
       } else if (isa<ObjCImplDecl>(ObjCMethod->getDeclContext())) {
@@ -4469,7 +4473,7 @@ void Sema::CheckObjCMethodOverrides(ObjCMethodDecl *ObjCMethod,
               OverrideSearch overrides(*this, overridden);
               for (ObjCMethodDecl *SuperOverridden : overrides) {
                 if (isa<ObjCProtocolDecl>(SuperOverridden->getDeclContext()) ||
-                    CurrentClass != SuperOverridden->getClassInterface()) {
+                    !IsMethodInCurrentClass(SuperOverridden)) {
                   CheckObjCMethodDirectOverrides(ObjCMethod, SuperOverridden);
                   hasOverriddenMethodsInBaseOrProtocol = true;
                   overridden->setOverriding(true);
@@ -4533,8 +4537,8 @@ static QualType mergeTypeNullabilityForRedecl(Sema &S, SourceLocation loc,
                                               QualType prevType,
                                               bool prevUsesCSKeyword) {
   // Determine the nullability of both types.
-  auto nullability = type->getNullability(S.Context);
-  auto prevNullability = prevType->getNullability(S.Context);
+  auto nullability = type->getNullability();
+  auto prevNullability = prevType->getNullability();
 
   // Easy case: both have nullability.
   if (nullability.has_value() == prevNullability.has_value()) {

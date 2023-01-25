@@ -84,7 +84,23 @@ def note_constexpr_pointer_subtraction_not_same_array : Note<
 def note_constexpr_pointer_subtraction_zero_size : Note<
   "subtraction of pointers to type %0 of zero size">;
 def note_constexpr_pointer_comparison_unspecified : Note<
-  "comparison has unspecified value">;
+  "comparison between '%0' and '%1' has unspecified value">;
+def note_constexpr_pointer_constant_comparison : Note<
+  "comparison of numeric address '%0' with pointer '%1' can only be performed "
+  "at runtime">;
+def note_constexpr_literal_comparison : Note<
+  "comparison of addresses of literals has unspecified value">;
+def note_constexpr_pointer_weak_comparison : Note<
+  "comparison against address of weak declaration '%0' can only be performed "
+  "at runtime">;
+def note_constexpr_mem_pointer_weak_comparison : Note<
+  "comparison against pointer to weak member %q0 can only be performed "
+  "at runtime">;
+def note_constexpr_pointer_comparison_past_end : Note<
+  "comparison against pointer '%0' that points past the end of a "
+  "complete object has unspecified value">;
+def note_constexpr_pointer_comparison_zero_sized : Note<
+  "comparison of pointers '%0' and '%1' to unrelated zero-sized objects">;
 def note_constexpr_pointer_comparison_base_classes : Note<
   "comparison of addresses of subobjects of different base classes "
   "has unspecified value">;
@@ -621,11 +637,12 @@ def err_module_odr_violation_mismatch_decl : Error<
   "%select{definition in module '%2'|defined here}1 found "
   "%select{end of class|public access specifier|private access specifier|"
   "protected access specifier|static assert|field|method|type alias|typedef|"
-  "data member|friend declaration|function template}3">;
-def note_module_odr_violation_mismatch_decl : Note<"but in '%0' found "
+  "data member|friend declaration|function template|method|property}3">;
+def note_module_odr_violation_mismatch_decl : Note<
+  "but in %select{'%1'|definition here}0 found "
   "%select{end of class|public access specifier|private access specifier|"
   "protected access specifier|static assert|field|method|type alias|typedef|"
-  "data member|friend declaration|function template}1">;
+  "data member|friend declaration|function template|method|property}2">;
 
 def err_module_odr_violation_record : Error<
   "%q0 has different definitions in different modules; first difference is "
@@ -649,12 +666,6 @@ def err_module_odr_violation_record : Error<
     "is %select{not const|const}6|"
   "%select{method %5|constructor|destructor}4 "
     "is %select{not inline|inline}6|"
-  "%select{method %5|constructor|destructor}4 "
-    "that has %6 parameter%s6|"
-  "%select{method %5|constructor|destructor}4 "
-    "with %ordinal6 parameter of type %7%select{| decayed from %9}8|"
-  "%select{method %5|constructor|destructor}4 "
-    "with %ordinal6 parameter named %7|"
   "%select{method %5|constructor|destructor}4 "
     "with %ordinal6 parameter with%select{out|}7 a default argument|"
   "%select{method %5|constructor|destructor}4 "
@@ -706,12 +717,6 @@ def note_module_odr_violation_record : Note<"but in '%0' found "
     "is %select{not const|const}4|"
   "%select{method %3|constructor|destructor}2 "
     "is %select{not inline|inline}4|"
-  "%select{method %3|constructor|destructor}2 "
-    "that has %4 parameter%s4|"
-  "%select{method %3|constructor|destructor}2 "
-    "with %ordinal4 parameter of type %5%select{| decayed from %7}6|"
-  "%select{method %3|constructor|destructor}2 "
-    "with %ordinal4 parameter named %5|"
   "%select{method %3|constructor|destructor}2 "
     "with %ordinal4 parameter with%select{out|}5 a default argument|"
   "%select{method %3|constructor|destructor}2 "
@@ -848,18 +853,98 @@ def note_module_odr_violation_enum : Note<"but in '%0' found "
   "%ordinal2 element %3 has different initializer|"
   "}1">;
 
+def err_module_odr_violation_referenced_protocols : Error <
+  "%q0 has different definitions in different modules; first difference is "
+  "%select{definition in module '%2'|defined here}1 found "
+  "%select{"
+  "%4 referenced %plural{1:protocol|:protocols}4|"
+  "%ordinal4 referenced protocol with name %5"
+  "}3">;
+def note_module_odr_violation_referenced_protocols : Note <
+  "but in %select{'%1'|definition here}0 found "
+  "%select{"
+  "%3 referenced %plural{1:protocol|:protocols}3|"
+  "%ordinal3 referenced protocol with different name %4"
+  "}2">;
+
+def err_module_odr_violation_objc_method : Error<
+  "%q0 has different definitions in different modules; first difference is "
+  "%select{definition in module '%2'|defined here}1 found "
+  "%select{"
+  "method %4 with return type %5|"
+  "%select{class|instance}5 method %4|"
+  "%select{no|'required'|'optional'}4 method control|"
+  "method %4 with %select{no designated initializer|designated initializer}5|"
+  "%select{regular|direct}5 method %4|"
+  "method %4"
+  "}3">;
+def note_module_odr_violation_objc_method : Note<
+  "but in %select{'%1'|definition here}0 found "
+  "%select{"
+  "method %3 with different return type %4|"
+  "method %3 as %select{class|instance}4 method|"
+  "%select{no|'required'|'optional'}3 method control|"
+  "method %3 with %select{no designated initializer|designated initializer}4|"
+  "%select{regular|direct}4 method %3|"
+  "different method %3"
+  "}2">;
+
+def err_module_odr_violation_method_params : Error<
+  "%q0 has different definitions in different modules; first difference is "
+  "%select{definition in module '%2'|defined here}1 found "
+  "%select{"
+  "%select{method %5|constructor|destructor}4 "
+    "that has %6 parameter%s6|"
+  "%select{method %5|constructor|destructor}4 "
+    "with %ordinal6 parameter of type %7%select{| decayed from %9}8|"
+  "%select{method %5|constructor|destructor}4 "
+    "with %ordinal6 parameter named %7"
+  "}3">;
+def note_module_odr_violation_method_params : Note<
+  "but in %select{'%1'|definition here}0 found "
+  "%select{"
+  "%select{method %4|constructor|destructor}3 "
+    "that has %5 parameter%s5|"
+  "%select{method %4|constructor|destructor}3 "
+    "with %ordinal5 parameter of type %6%select{| decayed from %8}7|"
+  "%select{method %4|constructor|destructor}3 "
+    "with %ordinal5 parameter named %6"
+  "}2">;
+
+def err_module_odr_violation_objc_property : Error<
+  "%q0 has different definitions in different modules; first difference is "
+  "%select{definition in module '%2'|defined here}1 found "
+  "%select{"
+  "property %4|"
+  "property %4 with type %5|"
+  "%select{no|'required'|'optional'}4 property control|"
+  "property %4 with %select{default |}6'%select{none|readonly|getter|assign|"
+    "readwrite|retain|copy|nonatomic|setter|atomic|weak|strong|"
+    "unsafe_unretained|nullability|null_resettable|class|direct}5' attribute"
+  "}3">;
+def note_module_odr_violation_objc_property : Note<
+  "but in %select{'%1'|definition here}0 found "
+  "%select{"
+  "property %3|"
+  "property %3 with type %4|"
+  "%select{no|'required'|'optional'}3 property control|"
+  "property %3 with different '%select{none|readonly|getter|assign|"
+    "readwrite|retain|copy|nonatomic|setter|atomic|weak|strong|"
+    "unsafe_unretained|nullability|null_resettable|class|direct}4' attribute"
+  "}2">;
+
 def err_module_odr_violation_mismatch_decl_unknown : Error<
   "%q0 %select{with definition in module '%2'|defined here}1 has different "
   "definitions in different modules; first difference is this "
   "%select{||||static assert|field|method|type alias|typedef|data member|"
-  "friend declaration|function template|"
-  "unexpected decl}3">;
+  "friend declaration|function template|method|"
+  "property|unexpected decl}3">;
 def note_module_odr_violation_mismatch_decl_unknown : Note<
-  "but in '%0' found "
+  "but in %select{'%1'|definition here}0 found "
   "%select{||||different static assert|different field|different method|"
   "different type alias|different typedef|different data member|"
-  "different friend declaration|different function template|"
-  "another unexpected decl}1">;
+  "different friend declaration|different function template|different method|"
+  "different property|another unexpected decl}2">;
 
 
 def remark_sanitize_address_insert_extra_padding_accepted : Remark<
@@ -891,6 +976,11 @@ def warn_padded_struct_size : Warning<
   InGroup<Padded>, DefaultIgnore;
 def warn_unnecessary_packed : Warning<
   "packed attribute is unnecessary for %0">, InGroup<Packed>, DefaultIgnore;
+def warn_unpacked_field
+    : Warning<
+          "not packing field %0 as it is non-POD for the purposes of layout">,
+      InGroup<PackedNonPod>,
+      DefaultIgnore;
 
 // -Wunaligned-access
 def warn_unaligned_access : Warning<

@@ -26,12 +26,12 @@
 
 using namespace sycl;
 
-class TestKernel {
+class CacheTestKernel {
 public:
   void operator()(sycl::item<1>){};
 };
 
-class TestKernel2 {
+class CacheTestKernel2 {
 public:
   void operator()(sycl::item<1>){};
 };
@@ -51,11 +51,11 @@ struct MockKernelInfo {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
-  static constexpr const char *getName() { return "TestKernel"; }
+template <> struct KernelInfo<CacheTestKernel> : public MockKernelInfo {
+  static constexpr const char *getName() { return "CacheTestKernel"; }
 };
-template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
-  static constexpr const char *getName() { return "TestKernel2"; }
+template <> struct KernelInfo<CacheTestKernel2> : public MockKernelInfo {
+  static constexpr const char *getName() { return "CacheTestKernel2"; }
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
@@ -69,7 +69,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
   PiArray<PiOffloadEntry> Entries =
-      makeEmptyKernels({"TestKernel", "TestKernel2"});
+      makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -110,7 +110,8 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+    Mock.redefineBefore<detail::PiApiKind::piKernelGetInfo>(
+        redefinedKernelGetInfo);
   }
 
 protected:
@@ -121,9 +122,9 @@ protected:
 // Check that programs built from source are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_source("");
+  //   Prg.build_with_source("");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -133,9 +134,9 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
 // Check that programs built from source with options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_source("", "-g");
+  //   Prg.build_with_source("", "-g");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -146,10 +147,10 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
 TEST_F(KernelAndProgramCacheTest,
        DISABLED_ProgramSourceNegativeCompileAndLink) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_source("");
-//   Prg.link();
+  //   Prg.compile_with_source("");
+  //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -161,10 +162,10 @@ TEST_F(KernelAndProgramCacheTest,
 TEST_F(KernelAndProgramCacheTest,
        DISABLED_ProgramSourceNegativeCompileAndLinkWithOpts) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_source("");
-//   Prg.link();
+  //   Prg.compile_with_source("");
+  //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -174,11 +175,11 @@ TEST_F(KernelAndProgramCacheTest,
 // Check that programs built without options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositive) {
   context Ctx{Plt};
-//   program Prg1{Ctx};
-//   program Prg2{Ctx};
+  //   program Prg1{Ctx};
+  //   program Prg2{Ctx};
 
-//   Prg1.build_with_kernel_type<TestKernel>();
-//   Prg2.build_with_kernel_type<TestKernel>();
+  //   Prg1.build_with_kernel_type<CacheTestKernel>();
+  //   Prg2.build_with_kernel_type<CacheTestKernel>();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -188,21 +189,21 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositive) {
 // Check that programs built with options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
   context Ctx{Plt};
-//   program Prg1{Ctx};
-//   program Prg2{Ctx};
-//   program Prg3{Ctx};
-//   program Prg4{Ctx};
-//   program Prg5{Ctx};
+  //   program Prg1{Ctx};
+  //   program Prg2{Ctx};
+  //   program Prg3{Ctx};
+  //   program Prg4{Ctx};
+  //   program Prg5{Ctx};
 
   /* Build 5 instances of the same program. It is expected that there will be 3
    * instances of the program in the cache because Build of Prg1 is equal to
    * build of Prg5 and build of Prg2 is equal to build of Prg3.
    * */
-//   Prg1.build_with_kernel_type<TestKernel>("-a");
-//   Prg2.build_with_kernel_type<TestKernel>("-b");
-//   Prg3.build_with_kernel_type<TestKernel>("-b");
-//   Prg4.build_with_kernel_type<TestKernel>();
-//   Prg5.build_with_kernel_type<TestKernel2>("-a");
+  //   Prg1.build_with_kernel_type<CacheTestKernel>("-a");
+  //   Prg2.build_with_kernel_type<CacheTestKernel>("-b");
+  //   Prg3.build_with_kernel_type<CacheTestKernel>("-b");
+  //   Prg4.build_with_kernel_type<CacheTestKernel>();
+  //   Prg5.build_with_kernel_type<CacheTestKernel2>("-a");
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
@@ -213,10 +214,10 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
 // Check that programs built with compile options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>("-g");
-//   Prg.link();
+  //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
+  //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -226,10 +227,10 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
 // Check that programs built with link options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
   context Ctx{Plt};
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>();
-//   Prg.link("-g");
+  //   Prg.compile_with_kernel_type<CacheTestKernel>();
+  //   Prg.link("-g");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
@@ -243,10 +244,10 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositive) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_kernel_type<TestKernel>();
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.build_with_kernel_type<CacheTestKernel>();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
@@ -259,11 +260,11 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositiveBuildOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_kernel_type<TestKernel>("-g");
+  //   Prg.build_with_kernel_type<CacheTestKernel>("-g");
 
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
@@ -276,11 +277,11 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeCompileOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>("-g");
-//   Prg.link();
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
+  //   Prg.link();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
@@ -293,11 +294,11 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>();
-//   Prg.link("-g");
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.compile_with_kernel_type<CacheTestKernel>();
+  //   Prg.link("-g");
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
@@ -311,13 +312,13 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkedProgs) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg1{Ctx};
-//   program Prg2{Ctx};
+  //   program Prg1{Ctx};
+  //   program Prg2{Ctx};
 
-//   Prg1.compile_with_kernel_type<TestKernel>();
-//   Prg2.compile_with_kernel_type<TestKernel2>();
-//   program Prg({Prg1, Prg2});
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg1.compile_with_kernel_type<CacheTestKernel>();
+  //   Prg2.compile_with_kernel_type<CacheTestKernel2>();
+  //   program Prg({Prg1, Prg2});
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
 
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
@@ -331,10 +332,10 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeSource) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_source("");
-//   kernel Ker = Prg.get_kernel("test");
+  //   Prg.build_with_source("");
+  //   kernel Ker = Prg.get_kernel("test");
 
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
@@ -362,10 +363,10 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_kernel_type<TestKernel>();
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.build_with_kernel_type<CacheTestKernel>();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
@@ -378,11 +379,11 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_kernel_type<TestKernel>("-g");
+  //   Prg.build_with_kernel_type<CacheTestKernel>("-g");
 
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
@@ -395,11 +396,11 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>("-g");
-//   Prg.link();
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
+  //   Prg.link();
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
@@ -412,11 +413,11 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.compile_with_kernel_type<TestKernel>();
-//   Prg.link("-g");
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg.compile_with_kernel_type<CacheTestKernel>();
+  //   Prg.link("-g");
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
@@ -430,13 +431,13 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg1{Ctx};
-//   program Prg2{Ctx};
+  //   program Prg1{Ctx};
+  //   program Prg2{Ctx};
 
-//   Prg1.compile_with_kernel_type<TestKernel>();
-//   Prg2.compile_with_kernel_type<TestKernel2>();
-//   program Prg({Prg1, Prg2});
-//   kernel Ker = Prg.get_kernel<TestKernel>();
+  //   Prg1.compile_with_kernel_type<CacheTestKernel>();
+  //   Prg2.compile_with_kernel_type<CacheTestKernel2>();
+  //   program Prg({Prg1, Prg2});
+  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
 
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
@@ -450,10 +451,10 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeSource) {
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
 
-//   program Prg{Ctx};
+  //   program Prg{Ctx};
 
-//   Prg.build_with_source("");
-//   kernel Ker = Prg.get_kernel("test");
+  //   Prg.build_with_source("");
+  //   kernel Ker = Prg.get_kernel("test");
 
   detail::KernelProgramCache::KernelFastCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());

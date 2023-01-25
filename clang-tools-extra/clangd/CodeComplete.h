@@ -130,7 +130,9 @@ struct CodeCompleteOptions {
   enum CodeCompletionRankingModel {
     Heuristics,
     DecisionForest,
-  } RankingModel = DecisionForest;
+  };
+  static const CodeCompletionRankingModel DefaultRankingModel;
+  CodeCompletionRankingModel RankingModel = DefaultRankingModel;
 
   /// Callback used to score a CompletionCandidate if DecisionForest ranking
   /// model is enabled.
@@ -291,7 +293,7 @@ SignatureHelp signatureHelp(PathRef FileName, Position Pos,
 // For index-based completion, we only consider:
 //   * symbols in namespaces or translation unit scopes (e.g. no class
 //     members, no locals)
-//   * enum constants in unscoped enum decl (e.g. "red" in "enum {red};")
+//   * enum constants (both scoped and unscoped)
 //   * primary templates (no specializations)
 // For the other cases, we let Clang do the completion because it does not
 // need any non-local information and it will be much better at following

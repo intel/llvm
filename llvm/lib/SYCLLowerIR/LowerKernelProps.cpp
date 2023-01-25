@@ -29,7 +29,7 @@ constexpr char SET_KERNEL_PROPS_FUNC_NAME[] =
 
 // Kernel property identifiers. Should match ones in
 // sycl/include/sycl/ext/intel/experimental/kernel_properties.hpp
-enum property_ids { use_double_grf = 0 };
+enum property_ids { use_large_grf = 0 };
 
 void processSetKernelPropertiesCall(CallInst &CI) {
   auto F = CI.getFunction();
@@ -43,11 +43,20 @@ void processSetKernelPropertiesCall(CallInst &CI) {
   uint64_t PropID = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
 
   switch (PropID) {
-  case property_ids::use_double_grf:
+  case property_ids::use_large_grf:
     // TODO: Keep track of traversed functions to avoid repeating traversals
     // over same function.
     llvm::sycl::utils::traverseCallgraphUp(F, [](Function *GraphNode) {
-      GraphNode->addFnAttr(::sycl::kernel_props::ATTR_DOUBLE_GRF);
+      GraphNode->addFnAttr(::sycl::kernel_props::ATTR_LARGE_GRF);
+      // Add RegisterAllocMode metadata with arg 2 to the kernel to tell
+      // IGC to compile this kernel in large GRF mode. 2 means large.
+      if (GraphNode->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        auto &Ctx = GraphNode->getContext();
+        Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
+            Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, 2)))};
+        GraphNode->setMetadata("RegisterAllocMode",
+                               MDNode::get(Ctx, AttrMDArgs));
+      }
     });
     break;
   default:

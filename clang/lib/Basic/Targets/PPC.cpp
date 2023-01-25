@@ -18,7 +18,7 @@
 using namespace clang;
 using namespace clang::targets;
 
-const Builtin::Info PPCTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
@@ -281,7 +281,6 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (PointerWidth == 64) {
     Builder.defineMacro("_ARCH_PPC64");
     Builder.defineMacro("__powerpc64__");
-    Builder.defineMacro("__ppc64__");
     Builder.defineMacro("__PPC64__");
   } else if (getTriple().isOSAIX()) {
     // The XL compilers on AIX define _ARCH_PPC64 for both 32 and 64-bit modes.

@@ -248,15 +248,15 @@ void AArch64AsmPrinter::emitStartOfAsmFile(Module &M) {
     return;
 
   // Emit a .note.gnu.property section with the flags.
-  if (auto *TS = static_cast<AArch64TargetStreamer *>(
-          OutStreamer->getTargetStreamer()))
-    TS->emitNoteSection(Flags);
+  auto *TS =
+      static_cast<AArch64TargetStreamer *>(OutStreamer->getTargetStreamer());
+  TS->emitNoteSection(Flags);
 }
 
 void AArch64AsmPrinter::emitFunctionHeaderComment() {
   const AArch64FunctionInfo *FI = MF->getInfo<AArch64FunctionInfo>();
-  Optional<std::string> OutlinerString = FI->getOutliningStyle();
-  if (OutlinerString != None)
+  std::optional<std::string> OutlinerString = FI->getOutliningStyle();
+  if (OutlinerString != std::nullopt)
     OutStreamer->getCommentOS() << ' ' << OutlinerString;
 }
 
@@ -306,7 +306,7 @@ void AArch64AsmPrinter::emitSled(const MachineInstr &MI, SledKind Kind) {
   //   ;DATA: higher 32 bits of the address of the trampoline
   //   LDP X0, X30, [SP], #16 ; pop X0 and the link register from the stack
   //
-  OutStreamer->emitCodeAlignment(4, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(4), &getSubtargetInfo());
   auto CurSled = OutContext.createTempSymbol("xray_sled_", true);
   OutStreamer->emitLabel(CurSled);
   auto Target = OutContext.createTempSymbol();
@@ -1660,6 +1660,10 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
 
   case AArch64::SEH_EpilogEnd:
     TS->emitARM64WinCFIEpilogEnd();
+    return;
+
+  case AArch64::SEH_PACSignLR:
+    TS->emitARM64WinCFIPACSignLR();
     return;
   }
 

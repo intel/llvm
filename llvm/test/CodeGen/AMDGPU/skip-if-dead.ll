@@ -747,13 +747,13 @@ bb:
   %cmp.var = fcmp olt float %var, 0.0
   ; TODO: We could do an early-exit here (the branch above is uniform!)
   call void @llvm.amdgcn.kill(i1 %cmp.var)
-  store volatile float %live.across, float addrspace(1)* undef
+  store volatile float %live.across, ptr addrspace(1) undef
   %live.out = call float asm sideeffect "v_mov_b32_e64 v9, -2", "={v9}"()
   br label %exit
 
 exit:
   %phi = phi float [ 0.0, %entry ], [ %live.out, %bb ]
-  store float %phi, float addrspace(1)* undef
+  store float %phi, ptr addrspace(1) undef
   ret void
 }
 
@@ -1127,12 +1127,12 @@ bb:
     v_nop_e64", "={v7}"()
   %cmp.var = fcmp olt float %var, 0.0
   call void @llvm.amdgcn.kill(i1 %cmp.var)
-  %vgpr = load volatile i32, i32 addrspace(1)* undef
+  %vgpr = load volatile i32, ptr addrspace(1) undef
   %loop.cond = icmp eq i32 %vgpr, 0
   br i1 %loop.cond, label %bb, label %exit
 
 exit:
-  store volatile i32 8, i32 addrspace(1)* undef
+  store volatile i32 8, ptr addrspace(1) undef
   ret void
 }
 
@@ -1277,11 +1277,11 @@ phibb:
   br i1 %tmp6, label %bb10, label %end
 
 bb8:
-  store volatile i32 8, i32 addrspace(1)* undef
+  store volatile i32 8, ptr addrspace(1) undef
   br label %phibb
 
 bb10:
-  store volatile i32 9, i32 addrspace(1)* undef
+  store volatile i32 9, ptr addrspace(1) undef
   br label %end
 
 end:
@@ -1292,45 +1292,40 @@ define amdgpu_ps void @no_skip_no_successors(float inreg %arg, float inreg %arg1
 ; SI-LABEL: no_skip_no_successors:
 ; SI:       ; %bb.0: ; %bb
 ; SI-NEXT:    v_cmp_nge_f32_e64 s[4:5], s1, 0
-; SI-NEXT:    s_mov_b64 s[2:3], exec
-; SI-NEXT:    s_mov_b64 s[0:1], -1
 ; SI-NEXT:    s_and_b64 vcc, exec, s[4:5]
 ; SI-NEXT:    s_cbranch_vccz .LBB12_3
-; SI-NEXT:  ; %bb.1: ; %Flow
-; SI-NEXT:    s_and_b64 vcc, exec, s[0:1]
-; SI-NEXT:    s_cbranch_vccnz .LBB12_4
-; SI-NEXT:  .LBB12_2: ; %UnifiedUnreachableBlock
-; SI-NEXT:  .LBB12_3: ; %bb3
-; SI-NEXT:    s_branch .LBB12_2
-; SI-NEXT:  .LBB12_4: ; %bb6
+; SI-NEXT:  ; %bb.1: ; %bb6
+; SI-NEXT:    s_mov_b64 s[2:3], exec
 ; SI-NEXT:    s_andn2_b64 s[2:3], s[2:3], exec
-; SI-NEXT:    s_cbranch_scc0 .LBB12_6
-; SI-NEXT:  ; %bb.5: ; %bb6
+; SI-NEXT:    s_cbranch_scc0 .LBB12_5
+; SI-NEXT:  ; %bb.2: ; %bb6
 ; SI-NEXT:    s_mov_b64 exec, 0
-; SI-NEXT:  .LBB12_6:
+; SI-NEXT:  .LBB12_3: ; %bb3
+; SI-NEXT:    v_mov_b32_e32 v0, 0x3e7ae148
+; SI-NEXT:    v_cmp_nge_f32_e32 vcc, s0, v0
+; SI-NEXT:    s_and_b64 vcc, exec, vcc
+; SI-NEXT:  ; %bb.4: ; %bb5
+; SI-NEXT:  .LBB12_5:
 ; SI-NEXT:    s_mov_b64 exec, 0
 ; SI-NEXT:    exp null off, off, off, off done vm
 ; SI-NEXT:    s_endpgm
 ;
 ; GFX10-WAVE64-LABEL: no_skip_no_successors:
 ; GFX10-WAVE64:       ; %bb.0: ; %bb
-; GFX10-WAVE64-NEXT:    v_cmp_nge_f32_e64 s[0:1], s1, 0
-; GFX10-WAVE64-NEXT:    s_mov_b64 s[2:3], exec
-; GFX10-WAVE64-NEXT:    s_and_b64 vcc, exec, s[0:1]
-; GFX10-WAVE64-NEXT:    s_mov_b64 s[0:1], -1
+; GFX10-WAVE64-NEXT:    v_cmp_nge_f32_e64 s[4:5], s1, 0
+; GFX10-WAVE64-NEXT:    s_and_b64 vcc, exec, s[4:5]
 ; GFX10-WAVE64-NEXT:    s_cbranch_vccz .LBB12_3
-; GFX10-WAVE64-NEXT:  ; %bb.1: ; %Flow
-; GFX10-WAVE64-NEXT:    s_and_b64 vcc, exec, s[0:1]
-; GFX10-WAVE64-NEXT:    s_cbranch_vccnz .LBB12_4
-; GFX10-WAVE64-NEXT:  .LBB12_2: ; %UnifiedUnreachableBlock
-; GFX10-WAVE64-NEXT:  .LBB12_3: ; %bb3
-; GFX10-WAVE64-NEXT:    s_branch .LBB12_2
-; GFX10-WAVE64-NEXT:  .LBB12_4: ; %bb6
+; GFX10-WAVE64-NEXT:  ; %bb.1: ; %bb6
+; GFX10-WAVE64-NEXT:    s_mov_b64 s[2:3], exec
 ; GFX10-WAVE64-NEXT:    s_andn2_b64 s[2:3], s[2:3], exec
-; GFX10-WAVE64-NEXT:    s_cbranch_scc0 .LBB12_6
-; GFX10-WAVE64-NEXT:  ; %bb.5: ; %bb6
+; GFX10-WAVE64-NEXT:    s_cbranch_scc0 .LBB12_5
+; GFX10-WAVE64-NEXT:  ; %bb.2: ; %bb6
 ; GFX10-WAVE64-NEXT:    s_mov_b64 exec, 0
-; GFX10-WAVE64-NEXT:  .LBB12_6:
+; GFX10-WAVE64-NEXT:  .LBB12_3: ; %bb3
+; GFX10-WAVE64-NEXT:    v_cmp_nle_f32_e64 s[0:1], 0x3e7ae148, s0
+; GFX10-WAVE64-NEXT:    s_and_b64 vcc, exec, s[0:1]
+; GFX10-WAVE64-NEXT:  ; %bb.4: ; %bb5
+; GFX10-WAVE64-NEXT:  .LBB12_5:
 ; GFX10-WAVE64-NEXT:    s_mov_b64 exec, 0
 ; GFX10-WAVE64-NEXT:    exp null off, off, off, off done vm
 ; GFX10-WAVE64-NEXT:    s_endpgm
@@ -1338,46 +1333,42 @@ define amdgpu_ps void @no_skip_no_successors(float inreg %arg, float inreg %arg1
 ; GFX10-WAVE32-LABEL: no_skip_no_successors:
 ; GFX10-WAVE32:       ; %bb.0: ; %bb
 ; GFX10-WAVE32-NEXT:    v_cmp_nge_f32_e64 s1, s1, 0
-; GFX10-WAVE32-NEXT:    s_mov_b32 s0, exec_lo
 ; GFX10-WAVE32-NEXT:    s_and_b32 vcc_lo, exec_lo, s1
-; GFX10-WAVE32-NEXT:    s_mov_b32 s1, -1
 ; GFX10-WAVE32-NEXT:    s_cbranch_vccz .LBB12_3
-; GFX10-WAVE32-NEXT:  ; %bb.1: ; %Flow
-; GFX10-WAVE32-NEXT:    s_and_b32 vcc_lo, exec_lo, s1
-; GFX10-WAVE32-NEXT:    s_cbranch_vccnz .LBB12_4
-; GFX10-WAVE32-NEXT:  .LBB12_2: ; %UnifiedUnreachableBlock
-; GFX10-WAVE32-NEXT:  .LBB12_3: ; %bb3
-; GFX10-WAVE32-NEXT:    s_branch .LBB12_2
-; GFX10-WAVE32-NEXT:  .LBB12_4: ; %bb6
-; GFX10-WAVE32-NEXT:    s_andn2_b32 s0, s0, exec_lo
-; GFX10-WAVE32-NEXT:    s_cbranch_scc0 .LBB12_6
-; GFX10-WAVE32-NEXT:  ; %bb.5: ; %bb6
+; GFX10-WAVE32-NEXT:  ; %bb.1: ; %bb6
+; GFX10-WAVE32-NEXT:    s_mov_b32 s2, exec_lo
+; GFX10-WAVE32-NEXT:    s_andn2_b32 s2, s2, exec_lo
+; GFX10-WAVE32-NEXT:    s_cbranch_scc0 .LBB12_5
+; GFX10-WAVE32-NEXT:  ; %bb.2: ; %bb6
 ; GFX10-WAVE32-NEXT:    s_mov_b32 exec_lo, 0
-; GFX10-WAVE32-NEXT:  .LBB12_6:
+; GFX10-WAVE32-NEXT:  .LBB12_3: ; %bb3
+; GFX10-WAVE32-NEXT:    v_cmp_nle_f32_e64 s0, 0x3e7ae148, s0
+; GFX10-WAVE32-NEXT:    s_and_b32 vcc_lo, exec_lo, s0
+; GFX10-WAVE32-NEXT:  ; %bb.4: ; %bb5
+; GFX10-WAVE32-NEXT:  .LBB12_5:
 ; GFX10-WAVE32-NEXT:    s_mov_b32 exec_lo, 0
 ; GFX10-WAVE32-NEXT:    exp null off, off, off, off done vm
 ; GFX10-WAVE32-NEXT:    s_endpgm
 ;
 ; GFX11-LABEL: no_skip_no_successors:
 ; GFX11:       ; %bb.0: ; %bb
-; GFX11-NEXT:    v_cmp_nge_f32_e64 s[0:1], s1, 0
+; GFX11-NEXT:    v_cmp_nge_f32_e64 s[4:5], s1, 0
+; GFX11-NEXT:    s_delay_alu instid0(VALU_DEP_1)
+; GFX11-NEXT:    s_and_b64 vcc, exec, s[4:5]
+; GFX11-NEXT:    s_cbranch_vccz .LBB12_3
+; GFX11-NEXT:  ; %bb.1: ; %bb6
 ; GFX11-NEXT:    s_mov_b64 s[2:3], exec
+; GFX11-NEXT:    s_delay_alu instid0(SALU_CYCLE_1)
+; GFX11-NEXT:    s_and_not1_b64 s[2:3], s[2:3], exec
+; GFX11-NEXT:    s_cbranch_scc0 .LBB12_5
+; GFX11-NEXT:  ; %bb.2: ; %bb6
+; GFX11-NEXT:    s_mov_b64 exec, 0
+; GFX11-NEXT:  .LBB12_3: ; %bb3
+; GFX11-NEXT:    v_cmp_nle_f32_e64 s[0:1], 0x3e7ae148, s0
 ; GFX11-NEXT:    s_delay_alu instid0(VALU_DEP_1)
 ; GFX11-NEXT:    s_and_b64 vcc, exec, s[0:1]
-; GFX11-NEXT:    s_mov_b64 s[0:1], -1
-; GFX11-NEXT:    s_cbranch_vccz .LBB12_3
-; GFX11-NEXT:  ; %bb.1: ; %Flow
-; GFX11-NEXT:    s_and_b64 vcc, exec, s[0:1]
-; GFX11-NEXT:    s_cbranch_vccnz .LBB12_4
-; GFX11-NEXT:  .LBB12_2: ; %UnifiedUnreachableBlock
-; GFX11-NEXT:  .LBB12_3: ; %bb3
-; GFX11-NEXT:    s_branch .LBB12_2
-; GFX11-NEXT:  .LBB12_4: ; %bb6
-; GFX11-NEXT:    s_and_not1_b64 s[2:3], s[2:3], exec
-; GFX11-NEXT:    s_cbranch_scc0 .LBB12_6
-; GFX11-NEXT:  ; %bb.5: ; %bb6
-; GFX11-NEXT:    s_mov_b64 exec, 0
-; GFX11-NEXT:  .LBB12_6:
+; GFX11-NEXT:  ; %bb.4: ; %bb5
+; GFX11-NEXT:  .LBB12_5:
 ; GFX11-NEXT:    s_mov_b64 exec, 0
 ; GFX11-NEXT:    exp mrt0 off, off, off, off done
 ; GFX11-NEXT:    s_endpgm
@@ -1552,7 +1543,7 @@ bb4:                                              ; preds = %bb3, %bb
   br i1 %tmp7, label %bb8, label %bb9
 
 bb8:                                              ; preds = %bb9, %bb4
-  store volatile i32 9, i32 addrspace(1)* undef
+  store volatile i32 9, ptr addrspace(1) undef
   ret void
 
 bb9:                                              ; preds = %bb4

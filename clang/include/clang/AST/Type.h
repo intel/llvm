@@ -34,7 +34,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
@@ -1832,6 +1831,9 @@ protected:
 
     unsigned HasNonCanonicalUnderlyingType : 1;
 
+    // The index of the template parameter this substitution represents.
+    unsigned Index : 15;
+
     /// Represents the index within a pack if this represents a substitution
     /// from a pack expansion. This index starts at the end of the pack and
     /// increments towards the beginning.
@@ -1845,14 +1847,14 @@ protected:
 
     unsigned : NumTypeBits;
 
+    // The index of the template parameter this substitution represents.
+    unsigned Index : 16;
+
     /// The number of template arguments in \c Arguments, which is
     /// expected to be able to hold at least 1024 according to [implimits].
     /// However as this limit is somewhat easy to hit with template
     /// metaprogramming we'd prefer to keep it as large as possible.
-    /// At the moment it has been left as a non-bitfield since this type
-    /// safely fits in 64 bits as an unsigned, so there is no reason to
-    /// introduce the performance impact of a bitfield.
-    unsigned NumArgs;
+    unsigned NumArgs : 16;
   };
 
   class TemplateSpecializationTypeBitfields {
@@ -2223,7 +2225,8 @@ public:
   bool isObjCARCBridgableType() const;
   bool isCARCBridgableType() const;
   bool isTemplateTypeParmType() const;          // C++ template type parameter
-  bool isNullPtrType() const;                   // C++11 std::nullptr_t
+  bool isNullPtrType() const;                   // C++11 std::nullptr_t or
+                                                // C2x nullptr_t
   bool isNothrowT() const;                      // C++   std::nothrow_t
   bool isAlignValT() const;                     // C++17 std::align_val_t
   bool isStdByteType() const;                   // C++17 std::byte
@@ -2270,6 +2273,8 @@ public:
   bool isCUDADeviceBuiltinSurfaceType() const;
   /// Check if the type is the CUDA device builtin texture type.
   bool isCUDADeviceBuiltinTextureType() const;
+
+  bool isRVVType() const;
 
   /// Return the implicit lifetime for this type, which must not be dependent.
   Qualifiers::ObjCLifetime getObjCARCImplicitLifetime() const;
@@ -2473,9 +2478,6 @@ public:
   /// removing any typedefs, typeofs, etc., as well as any qualifiers.
   const Type *getUnqualifiedDesugaredType() const;
 
-  /// More type predicates useful for type checking/promotion
-  bool isPromotableIntegerType() const; // C99 6.3.1.1p2
-
   /// Return true if this is an integer type that is
   /// signed, according to C99 6.2.5p4 [char, signed char, short, int, long..],
   /// or an enum decl which has a signed representation.
@@ -2551,7 +2553,7 @@ public:
   /// Note that nullability is only captured as sugar within the type
   /// system, not as part of the canonical type, so nullability will
   /// be lost by canonicalization and desugaring.
-  Optional<NullabilityKind> getNullability(const ASTContext &context) const;
+  Optional<NullabilityKind> getNullability() const;
 
   /// Determine whether the given type can have a nullability
   /// specifier applied to it, i.e., if it is any kind of pointer type.
@@ -2596,6 +2598,7 @@ public:
 /// This will check for a TypedefType by removing any existing sugar
 /// until it reaches a TypedefType or a non-sugared type.
 template <> const TypedefType *Type::getAs() const;
+template <> const UsingType *Type::getAs() const;
 
 /// This will check for a TemplateSpecializationType by removing any
 /// existing sugar until it reaches a TemplateSpecializationType or a
@@ -4618,8 +4621,11 @@ protected:
 public:
   Expr *getUnderlyingExpr() const { return TOExpr; }
 
-  /// Returns true if this is a typeof_unqual type.
-  bool isUnqual() const { return TypeOfBits.IsUnqual; }
+  /// Returns the kind of 'typeof' type this is.
+  TypeOfKind getKind() const {
+    return TypeOfBits.IsUnqual ? TypeOfKind::Unqualified
+                               : TypeOfKind::Qualified;
+  }
 
   /// Remove a single level of sugar.
   QualType desugar() const;
@@ -4645,7 +4651,8 @@ public:
       : TypeOfExprType(E, Kind), Context(Context) {}
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, Context, getUnderlyingExpr(), isUnqual());
+    Profile(ID, Context, getUnderlyingExpr(),
+            getKind() == TypeOfKind::Unqualified);
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
@@ -4674,14 +4681,17 @@ public:
   /// Remove a single level of sugar.
   QualType desugar() const {
     QualType QT = getUnmodifiedType();
-    return isUnqual() ? QT.getAtomicUnqualifiedType() : QT;
+    return TypeOfBits.IsUnqual ? QT.getAtomicUnqualifiedType() : QT;
   }
 
   /// Returns whether this type directly provides sugar.
   bool isSugared() const { return true; }
 
-  /// Returns true if this is a typeof_unqual type.
-  bool isUnqual() const { return TypeOfBits.IsUnqual; }
+  /// Returns the kind of 'typeof' type this is.
+  TypeOfKind getKind() const {
+    return TypeOfBits.IsUnqual ? TypeOfKind::Unqualified
+                               : TypeOfKind::Qualified;
+  }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeOf; }
 };
@@ -5085,18 +5095,12 @@ class SubstTemplateTypeParmType final
   friend class ASTContext;
   friend class llvm::TrailingObjects<SubstTemplateTypeParmType, QualType>;
 
-  // The original type parameter.
-  const TemplateTypeParmType *Replaced;
+  Decl *AssociatedDecl;
 
-  SubstTemplateTypeParmType(const TemplateTypeParmType *Param, QualType Canon,
-                            Optional<unsigned> PackIndex);
+  SubstTemplateTypeParmType(QualType Replacement, Decl *AssociatedDecl,
+                            unsigned Index, Optional<unsigned> PackIndex);
 
 public:
-  /// Gets the template parameter that was substituted for.
-  const TemplateTypeParmType *getReplacedParameter() const {
-    return Replaced;
-  }
-
   /// Gets the type that was substituted for the template
   /// parameter.
   QualType getReplacementType() const {
@@ -5105,9 +5109,21 @@ public:
                : getCanonicalTypeInternal();
   }
 
+  /// A template-like entity which owns the whole pattern being substituted.
+  /// This will usually own a set of template parameters, or in some
+  /// cases might even be a template parameter itself.
+  Decl *getAssociatedDecl() const { return AssociatedDecl; }
+
+  /// Gets the template parameter declaration that was substituted for.
+  const TemplateTypeParmDecl *getReplacedParameter() const;
+
+  /// Returns the index of the replaced parameter in the associated declaration.
+  /// This should match the result of `getReplacedParameter()->getIndex()`.
+  unsigned getIndex() const { return SubstTemplateTypeParmTypeBits.Index; }
+
   Optional<unsigned> getPackIndex() const {
     if (SubstTemplateTypeParmTypeBits.PackIndex == 0)
-      return None;
+      return std::nullopt;
     return SubstTemplateTypeParmTypeBits.PackIndex - 1;
   }
 
@@ -5115,14 +5131,16 @@ public:
   QualType desugar() const { return getReplacementType(); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getReplacedParameter(), getReplacementType(), getPackIndex());
+    Profile(ID, getReplacementType(), getAssociatedDecl(), getIndex(),
+            getPackIndex());
   }
 
-  static void Profile(llvm::FoldingSetNodeID &ID,
-                      const TemplateTypeParmType *Replaced,
-                      QualType Replacement, Optional<unsigned> PackIndex) {
-    ID.AddPointer(Replaced);
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Replacement,
+                      const Decl *AssociatedDecl, unsigned Index,
+                      Optional<unsigned> PackIndex) {
     Replacement.Profile(ID);
+    ID.AddPointer(AssociatedDecl);
+    ID.AddInteger(Index);
     ID.AddInteger(PackIndex ? *PackIndex - 1 : 0);
   }
 
@@ -5146,24 +5164,33 @@ public:
 class SubstTemplateTypeParmPackType : public Type, public llvm::FoldingSetNode {
   friend class ASTContext;
 
-  /// The original type parameter.
-  const TemplateTypeParmType *Replaced;
-
   /// A pointer to the set of template arguments that this
   /// parameter pack is instantiated with.
   const TemplateArgument *Arguments;
 
-  SubstTemplateTypeParmPackType(const TemplateTypeParmType *Param,
-                                QualType Canon,
+  llvm::PointerIntPair<Decl *, 1, bool> AssociatedDeclAndFinal;
+
+  SubstTemplateTypeParmPackType(QualType Canon, Decl *AssociatedDecl,
+                                unsigned Index, bool Final,
                                 const TemplateArgument &ArgPack);
 
 public:
-  IdentifierInfo *getIdentifier() const { return Replaced->getIdentifier(); }
+  IdentifierInfo *getIdentifier() const;
 
-  /// Gets the template parameter that was substituted for.
-  const TemplateTypeParmType *getReplacedParameter() const {
-    return Replaced;
-  }
+  /// A template-like entity which owns the whole pattern being substituted.
+  /// This will usually own a set of template parameters, or in some
+  /// cases might even be a template parameter itself.
+  Decl *getAssociatedDecl() const;
+
+  /// Gets the template parameter declaration that was substituted for.
+  const TemplateTypeParmDecl *getReplacedParameter() const;
+
+  /// Returns the index of the replaced parameter in the associated declaration.
+  /// This should match the result of `getReplacedParameter()->getIndex()`.
+  unsigned getIndex() const { return SubstTemplateTypeParmPackTypeBits.Index; }
+
+  // When true the substitution will be 'Final' (subst node won't be placed).
+  bool getFinal() const;
 
   unsigned getNumArgs() const {
     return SubstTemplateTypeParmPackTypeBits.NumArgs;
@@ -5175,8 +5202,8 @@ public:
   TemplateArgument getArgumentPack() const;
 
   void Profile(llvm::FoldingSetNodeID &ID);
-  static void Profile(llvm::FoldingSetNodeID &ID,
-                      const TemplateTypeParmType *Replaced,
+  static void Profile(llvm::FoldingSetNodeID &ID, const Decl *AssociatedDecl,
+                      unsigned Index, bool Final,
                       const TemplateArgument &ArgPack);
 
   static bool classof(const Type *T) {
@@ -5235,29 +5262,10 @@ class alignas(8) AutoType : public DeducedType, public llvm::FoldingSetNode {
            TypeDependence ExtraDependence, QualType Canon, ConceptDecl *CD,
            ArrayRef<TemplateArgument> TypeConstraintArgs);
 
-  const TemplateArgument *getArgBuffer() const {
-    return reinterpret_cast<const TemplateArgument*>(this+1);
-  }
-
-  TemplateArgument *getArgBuffer() {
-    return reinterpret_cast<TemplateArgument*>(this+1);
-  }
-
 public:
-  /// Retrieve the template arguments.
-  const TemplateArgument *getArgs() const {
-    return getArgBuffer();
-  }
-
-  /// Retrieve the number of template arguments.
-  unsigned getNumArgs() const {
-    return AutoTypeBits.NumArgs;
-  }
-
-  const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
-
   ArrayRef<TemplateArgument> getTypeConstraintArguments() const {
-    return {getArgs(), getNumArgs()};
+    return {reinterpret_cast<const TemplateArgument *>(this + 1),
+            AutoTypeBits.NumArgs};
   }
 
   ConceptDecl *getTypeConstraintConcept() const {
@@ -5280,11 +5288,7 @@ public:
     return (AutoTypeKeyword)AutoTypeBits.Keyword;
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
-    Profile(ID, Context, getDeducedType(), getKeyword(), isDependentType(),
-            getTypeConstraintConcept(), getTypeConstraintArguments());
-  }
-
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context);
   static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                       QualType Deduced, AutoTypeKeyword Keyword,
                       bool IsDependent, ConceptDecl *CD,
@@ -5422,35 +5426,14 @@ public:
 
   /// Get the aliased type, if this is a specialization of a type alias
   /// template.
-  QualType getAliasedType() const {
-    assert(isTypeAlias() && "not a type alias template specialization");
-    return *reinterpret_cast<const QualType*>(end());
-  }
-
-  using iterator = const TemplateArgument *;
-
-  iterator begin() const { return getArgs(); }
-  iterator end() const; // defined inline in TemplateBase.h
+  QualType getAliasedType() const;
 
   /// Retrieve the name of the template that we are specializing.
   TemplateName getTemplateName() const { return Template; }
 
-  /// Retrieve the template arguments.
-  const TemplateArgument *getArgs() const {
-    return reinterpret_cast<const TemplateArgument *>(this + 1);
-  }
-
-  /// Retrieve the number of template arguments.
-  unsigned getNumArgs() const {
-    return TemplateSpecializationTypeBits.NumArgs;
-  }
-
-  /// Retrieve a specific template argument as a type.
-  /// \pre \c isArgType(Arg)
-  const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
-
   ArrayRef<TemplateArgument> template_arguments() const {
-    return {getArgs(), getNumArgs()};
+    return {reinterpret_cast<const TemplateArgument *>(this + 1),
+            TemplateSpecializationTypeBits.NumArgs};
   }
 
   bool isSugared() const {
@@ -5461,12 +5444,7 @@ public:
     return isTypeAlias() ? getAliasedType() : getCanonicalTypeInternal();
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) {
-    Profile(ID, Template, template_arguments(), Ctx);
-    if (isTypeAlias())
-      getAliasedType().Profile(ID);
-  }
-
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx);
   static void Profile(llvm::FoldingSetNodeID &ID, TemplateName T,
                       ArrayRef<TemplateArgument> Args,
                       const ASTContext &Context);
@@ -5492,6 +5470,13 @@ void printTemplateArgumentList(raw_ostream &OS,
                                const TemplateArgumentListInfo &Args,
                                const PrintingPolicy &Policy,
                                const TemplateParameterList *TPL = nullptr);
+
+/// Make a best-effort determination of whether the type T can be produced by
+/// substituting Args into the default argument of Param.
+bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
+                                  const NamedDecl *Param,
+                                  ArrayRef<TemplateArgument> Args,
+                                  unsigned Depth);
 
 /// The injected class name of a C++ class template or class
 /// template partial specialization.  Used to record that a type was
@@ -5809,44 +5794,20 @@ class alignas(8) DependentTemplateSpecializationType
                                       ArrayRef<TemplateArgument> Args,
                                       QualType Canon);
 
-  const TemplateArgument *getArgBuffer() const {
-    return reinterpret_cast<const TemplateArgument*>(this+1);
-  }
-
-  TemplateArgument *getArgBuffer() {
-    return reinterpret_cast<TemplateArgument*>(this+1);
-  }
-
 public:
   NestedNameSpecifier *getQualifier() const { return NNS; }
   const IdentifierInfo *getIdentifier() const { return Name; }
 
-  /// Retrieve the template arguments.
-  const TemplateArgument *getArgs() const {
-    return getArgBuffer();
-  }
-
-  /// Retrieve the number of template arguments.
-  unsigned getNumArgs() const {
-    return DependentTemplateSpecializationTypeBits.NumArgs;
-  }
-
-  const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
-
   ArrayRef<TemplateArgument> template_arguments() const {
-    return {getArgs(), getNumArgs()};
+    return {reinterpret_cast<const TemplateArgument *>(this + 1),
+            DependentTemplateSpecializationTypeBits.NumArgs};
   }
-
-  using iterator = const TemplateArgument *;
-
-  iterator begin() const { return getArgs(); }
-  iterator end() const; // inline in TemplateBase.h
 
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
-    Profile(ID, Context, getKeyword(), NNS, Name, {getArgs(), getNumArgs()});
+    Profile(ID, Context, getKeyword(), NNS, Name, template_arguments());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
@@ -5911,7 +5872,7 @@ public:
   Optional<unsigned> getNumExpansions() const {
     if (PackExpansionTypeBits.NumExpansions)
       return PackExpansionTypeBits.NumExpansions - 1;
-    return None;
+    return std::nullopt;
   }
 
   bool isSugared() const { return false; }
@@ -7206,6 +7167,14 @@ inline bool Type::isOCLExtOpaqueType() const {
 inline bool Type::isOpenCLSpecificType() const {
   return isSamplerT() || isEventT() || isImageType() || isClkEventT() ||
          isQueueT() || isReserveIDT() || isPipeType() || isOCLExtOpaqueType();
+}
+
+inline bool Type::isRVVType() const {
+#define RVV_TYPE(Name, Id, SingletonId) \
+  isSpecificBuiltinType(BuiltinType::Id) ||
+  return
+#include "clang/Basic/RISCVVTypes.def"
+    false; // end of boolean or operation.
 }
 
 inline bool Type::isTemplateTypeParmType() const {

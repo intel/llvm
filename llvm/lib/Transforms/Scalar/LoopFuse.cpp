@@ -67,6 +67,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/CodeMoverUtils.h"
 #include "llvm/Transforms/Utils/LoopPeel.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 
 using namespace llvm;
 
@@ -644,7 +645,7 @@ private:
   void collectFusionCandidates(const LoopVector &LV) {
     for (Loop *L : LV) {
       TTI::PeelingPreferences PP =
-          gatherPeelingPreferences(L, SE, TTI, None, None);
+          gatherPeelingPreferences(L, SE, TTI, std::nullopt, std::nullopt);
       FusionCandidate CurrCand(L, DT, &PDT, ORE, PP);
       if (!CurrCand.isEligibleForFusion(SE))
         continue;
@@ -700,21 +701,21 @@ private:
   /// have the same TripCount. The second is the difference in the two
   /// TripCounts. This information can be used later to determine whether or not
   /// peeling can be performed on either one of the candidates.
-  std::pair<bool, Optional<unsigned>>
+  std::pair<bool, std::optional<unsigned>>
   haveIdenticalTripCounts(const FusionCandidate &FC0,
                           const FusionCandidate &FC1) const {
     const SCEV *TripCount0 = SE.getBackedgeTakenCount(FC0.L);
     if (isa<SCEVCouldNotCompute>(TripCount0)) {
       UncomputableTripCount++;
       LLVM_DEBUG(dbgs() << "Trip count of first loop could not be computed!");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
     const SCEV *TripCount1 = SE.getBackedgeTakenCount(FC1.L);
     if (isa<SCEVCouldNotCompute>(TripCount1)) {
       UncomputableTripCount++;
       LLVM_DEBUG(dbgs() << "Trip count of second loop could not be computed!");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
     LLVM_DEBUG(dbgs() << "\tTrip counts: " << *TripCount0 << " & "
@@ -739,10 +740,10 @@ private:
       LLVM_DEBUG(dbgs() << "Loop(s) do not have a single exit point or do not "
                            "have a constant number of iterations. Peeling "
                            "is not benefical\n");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
-    Optional<unsigned> Difference;
+    std::optional<unsigned> Difference;
     int Diff = TC0 - TC1;
 
     if (Diff > 0)
@@ -766,7 +767,8 @@ private:
     LLVM_DEBUG(dbgs() << "Attempting to peel first " << PeelCount
                       << " iterations of the first loop. \n");
 
-    FC0.Peeled = peelLoop(FC0.L, PeelCount, &LI, &SE, DT, &AC, true);
+    ValueToValueMapTy VMap;
+    FC0.Peeled = peelLoop(FC0.L, PeelCount, &LI, &SE, DT, &AC, true, VMap);
     if (FC0.Peeled) {
       LLVM_DEBUG(dbgs() << "Done Peeling\n");
 
@@ -859,10 +861,10 @@ private:
           // the loops (second value of pair). The difference is not equal to
           // None iff the loops iterate a constant number of times, and have a
           // single exit.
-          std::pair<bool, Optional<unsigned>> IdenticalTripCountRes =
+          std::pair<bool, std::optional<unsigned>> IdenticalTripCountRes =
               haveIdenticalTripCounts(*FC0, *FC1);
           bool SameTripCount = IdenticalTripCountRes.first;
-          Optional<unsigned> TCDifference = IdenticalTripCountRes.second;
+          std::optional<unsigned> TCDifference = IdenticalTripCountRes.second;
 
           // Here we are checking that FC0 (the first loop) can be peeled, and
           // both loops have different tripcounts.
@@ -1063,6 +1065,11 @@ private:
       }
     }
 
+    // PHIs in FC1's header only have FC0 blocks as predecessors. PHIs
+    // cannot be hoisted and should be sunk to the exit of the fused loop.
+    if (isa<PHINode>(I))
+      return false;
+
     // If this isn't a memory inst, hoisting is safe
     if (!I.mayReadOrWriteMemory())
       return true;
@@ -1210,7 +1217,7 @@ private:
       const Loop *ExprL = Expr->getLoop();
       SmallVector<const SCEV *, 2> Operands;
       if (ExprL == &OldL) {
-        Operands.append(Expr->op_begin(), Expr->op_end());
+        append_range(Operands, Expr->operands());
         return SE.getAddRecExpr(Operands, &NewL, Expr->getNoWrapFlags());
       }
 
@@ -2085,8 +2092,19 @@ PreservedAnalyses LoopFusePass::run(Function &F, FunctionAnalysisManager &AM) {
   const TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
   const DataLayout &DL = F.getParent()->getDataLayout();
 
+  // Ensure loops are in simplifed form which is a pre-requisite for loop fusion
+  // pass. Added only for new PM since the legacy PM has already added
+  // LoopSimplify pass as a dependency.
+  bool Changed = false;
+  for (auto &L : LI) {
+    Changed |=
+        simplifyLoop(L, &DT, &LI, &SE, &AC, nullptr, false /* PreserveLCSSA */);
+  }
+  if (Changed)
+    PDT.recalculate(F);
+
   LoopFuser LF(LI, DT, DI, SE, PDT, ORE, DL, AC, TTI);
-  bool Changed = LF.fuseLoops(F);
+  Changed |= LF.fuseLoops(F);
   if (!Changed)
     return PreservedAnalyses::all();
 

@@ -1,3 +1,4 @@
+//===- LLVMTypes.cpp - MLIR LLVM dialect types ------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +29,106 @@ using namespace mlir::LLVM;
 constexpr const static unsigned kBitsInByte = 8;
 
 //===----------------------------------------------------------------------===//
-// Array type.
+// custom<FunctionTypes>
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseFunctionTypes(AsmParser &p,
+                                      FailureOr<SmallVector<Type>> &params,
+                                      FailureOr<bool> &isVarArg) {
+  params.emplace();
+  isVarArg = false;
+  // `(` `)`
+  if (succeeded(p.parseOptionalRParen()))
+    return success();
+
+  // `(` `...` `)`
+  if (succeeded(p.parseOptionalEllipsis())) {
+    isVarArg = true;
+    return p.parseRParen();
+  }
+
+  // type (`,` type)* (`,` `...`)?
+  FailureOr<Type> type;
+  if (parsePrettyLLVMType(p, type))
+    return failure();
+  params->push_back(*type);
+  while (succeeded(p.parseOptionalComma())) {
+    if (succeeded(p.parseOptionalEllipsis())) {
+      isVarArg = true;
+      return p.parseRParen();
+    }
+    if (parsePrettyLLVMType(p, type))
+      return failure();
+    params->push_back(*type);
+  }
+  return p.parseRParen();
+}
+
+static void printFunctionTypes(AsmPrinter &p, ArrayRef<Type> params,
+                               bool isVarArg) {
+  llvm::interleaveComma(params, p,
+                        [&](Type type) { printPrettyLLVMType(p, type); });
+  if (isVarArg) {
+    if (!params.empty())
+      p << ", ";
+    p << "...";
+  }
+  p << ')';
+}
+
+//===----------------------------------------------------------------------===//
+// custom<Pointer>
+//===----------------------------------------------------------------------===//
+
+static ParseResult parsePointer(AsmParser &p, FailureOr<Type> &elementType,
+                                FailureOr<unsigned> &addressSpace) {
+  addressSpace = 0;
+  // `<` addressSpace `>`
+  OptionalParseResult result = p.parseOptionalInteger(*addressSpace);
+  if (result.has_value()) {
+    if (failed(result.value()))
+      return failure();
+    elementType = Type();
+    return success();
+  }
+
+  if (parsePrettyLLVMType(p, elementType))
+    return failure();
+  if (succeeded(p.parseOptionalComma()))
+    return p.parseInteger(*addressSpace);
+
+  return success();
+}
+
+static void printPointer(AsmPrinter &p, Type elementType,
+                         unsigned addressSpace) {
+  if (elementType)
+    printPrettyLLVMType(p, elementType);
+  if (addressSpace != 0) {
+    if (elementType)
+      p << ", ";
+    p << addressSpace;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// ODS-Generated Definitions
+//===----------------------------------------------------------------------===//
+
+/// These are unused for now.
+/// TODO: Move over to these once more types have been migrated to TypeDef.
+LLVM_ATTRIBUTE_UNUSED static OptionalParseResult
+generatedTypeParser(AsmParser &parser, StringRef *mnemonic, Type &value);
+LLVM_ATTRIBUTE_UNUSED static LogicalResult
+generatedTypePrinter(Type def, AsmPrinter &printer);
+
+#include "mlir/Dialect/LLVMIR/LLVMTypeInterfaces.cpp.inc"
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/LLVMIR/LLVMTypes.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// LLVMArrayType
 //===----------------------------------------------------------------------===//
 
 bool LLVMArrayType::isValidElementType(Type type) {
@@ -49,12 +149,6 @@ LLVMArrayType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           numElements);
 }
 
-Type LLVMArrayType::getElementType() const { return getImpl()->elementType; }
-
-unsigned LLVMArrayType::getNumElements() const {
-  return getImpl()->numElements;
-}
-
 LogicalResult
 LLVMArrayType::verify(function_ref<InFlightDiagnostic()> emitError,
                       Type elementType, unsigned numElements) {
@@ -62,6 +156,9 @@ LLVMArrayType::verify(function_ref<InFlightDiagnostic()> emitError,
     return emitError() << "invalid array element type: " << elementType;
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// DataLayoutTypeInterface
 
 unsigned LLVMArrayType::getTypeSizeInBits(const DataLayout &dataLayout,
                                           DataLayoutEntryListRef params) const {
@@ -84,17 +181,6 @@ unsigned
 LLVMArrayType::getPreferredAlignment(const DataLayout &dataLayout,
                                      DataLayoutEntryListRef params) const {
   return dataLayout.getTypePreferredAlignment(getElementType());
-}
-
-void LLVMArrayType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMArrayType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), getNumElements());
 }
 
 //===----------------------------------------------------------------------===//
@@ -130,25 +216,8 @@ LLVMFunctionType LLVMFunctionType::clone(TypeRange inputs,
   return get(results[0], llvm::to_vector(inputs), isVarArg());
 }
 
-Type LLVMFunctionType::getReturnType() const {
-  return getImpl()->getReturnType();
-}
 ArrayRef<Type> LLVMFunctionType::getReturnTypes() const {
-  return getImpl()->getReturnType();
-}
-
-unsigned LLVMFunctionType::getNumParams() {
-  return getImpl()->getArgumentTypes().size();
-}
-
-Type LLVMFunctionType::getParamType(unsigned i) {
-  return getImpl()->getArgumentTypes()[i];
-}
-
-bool LLVMFunctionType::isVarArg() const { return getImpl()->isVariadic(); }
-
-ArrayRef<Type> LLVMFunctionType::getParams() const {
-  return getImpl()->getArgumentTypes();
+  return static_cast<detail::LLVMFunctionTypeStorage *>(getImpl())->returnType;
 }
 
 LogicalResult
@@ -164,20 +233,8 @@ LLVMFunctionType::verify(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
-void LLVMFunctionType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (Type type : llvm::concat<const Type>(getReturnTypes(), getParams()))
-    walkTypesFn(type);
-}
-
-Type LLVMFunctionType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), replTypes.drop_front(), isVarArg());
-}
-
 //===----------------------------------------------------------------------===//
-// Pointer type.
+// LLVMPointerType
 //===----------------------------------------------------------------------===//
 
 bool LLVMPointerType::isValidElementType(Type type) {
@@ -195,32 +252,6 @@ LLVMPointerType LLVMPointerType::get(Type pointee, unsigned addressSpace) {
   return Base::get(pointee.getContext(), pointee, addressSpace);
 }
 
-LLVMPointerType LLVMPointerType::get(MLIRContext *context,
-                                     unsigned addressSpace) {
-  return Base::get(context, Type(), addressSpace);
-}
-
-LLVMPointerType
-LLVMPointerType::getChecked(function_ref<InFlightDiagnostic()> emitError,
-                            Type pointee, unsigned addressSpace) {
-  return Base::getChecked(emitError, pointee.getContext(), pointee,
-                          addressSpace);
-}
-
-LLVMPointerType
-LLVMPointerType::getChecked(function_ref<InFlightDiagnostic()> emitError,
-                            MLIRContext *context, unsigned addressSpace) {
-  return Base::getChecked(emitError, context, Type(), addressSpace);
-}
-
-Type LLVMPointerType::getElementType() const { return getImpl()->pointeeType; }
-
-bool LLVMPointerType::isOpaque() const { return !getImpl()->pointeeType; }
-
-unsigned LLVMPointerType::getAddressSpace() const {
-  return getImpl()->addressSpace;
-}
-
 LogicalResult
 LLVMPointerType::verify(function_ref<InFlightDiagnostic()> emitError,
                         Type pointee, unsigned) {
@@ -228,6 +259,9 @@ LLVMPointerType::verify(function_ref<InFlightDiagnostic()> emitError,
     return emitError() << "invalid pointer element type: " << pointee;
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// DataLayoutTypeInterface
 
 constexpr const static unsigned kDefaultPointerSizeBits = 64;
 constexpr const static unsigned kDefaultPointerAlignment = 8;
@@ -237,14 +271,14 @@ Optional<unsigned> mlir::LLVM::extractPointerSpecValue(Attribute attr,
   auto spec = attr.cast<DenseIntElementsAttr>();
   auto idx = static_cast<unsigned>(pos);
   if (idx >= spec.size())
-    return None;
+    return std::nullopt;
   return spec.getValues<unsigned>()[idx];
 }
 
 /// Returns the part of the data layout entry that corresponds to `pos` for the
 /// given `type` by interpreting the list of entries `params`. For the pointer
 /// type in the default address space, returns the default value if the entries
-/// do not provide a custom one, for other address spaces returns None.
+/// do not provide a custom one, for other address spaces returns std::nullopt.
 static Optional<unsigned>
 getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                           PtrDLEntryPos pos) {
@@ -271,7 +305,7 @@ getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                                       : kDefaultPointerAlignment;
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 unsigned
@@ -373,17 +407,6 @@ LogicalResult LLVMPointerType::verifyEntries(DataLayoutEntryListRef entries,
     }
   }
   return success();
-}
-
-void LLVMPointerType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMPointerType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), getAddressSpace());
 }
 
 //===----------------------------------------------------------------------===//
@@ -515,7 +538,7 @@ getStructDataLayoutEntry(DataLayoutEntryListRef params, LLVMStructType type,
         return entry.isTypeEntry();
       });
   if (currentEntry == params.end())
-    return llvm::None;
+    return std::nullopt;
 
   auto attr = currentEntry->getValue().cast<DenseIntElementsAttr>();
   if (pos == StructDLEntryPos::Preferred &&
@@ -631,9 +654,12 @@ void LLVMStructType::walkImmediateSubElements(
 
 Type LLVMStructType::replaceImmediateSubElements(
     ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  // TODO: It's not clear how we support replacing sub-elements of mutable
-  // types.
-  return nullptr;
+  if (isIdentified()) {
+    // TODO: It's not clear how we support replacing sub-elements of mutable
+    // types.
+    return nullptr;
+  }
+  return getLiteral(getContext(), replTypes, isPacked());
 }
 
 //===----------------------------------------------------------------------===//
@@ -668,14 +694,6 @@ LLVMFixedVectorType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           numElements);
 }
 
-Type LLVMFixedVectorType::getElementType() const {
-  return static_cast<detail::LLVMTypeAndSizeStorage *>(impl)->elementType;
-}
-
-unsigned LLVMFixedVectorType::getNumElements() const {
-  return getImpl()->numElements;
-}
-
 bool LLVMFixedVectorType::isValidElementType(Type type) {
   return type.isa<LLVMPointerType, LLVMPPCFP128Type>();
 }
@@ -685,17 +703,6 @@ LLVMFixedVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                             Type elementType, unsigned numElements) {
   return verifyVectorConstructionInvariants<LLVMFixedVectorType>(
       emitError, elementType, numElements);
-}
-
-void LLVMFixedVectorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMFixedVectorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes[0], getNumElements());
 }
 
 //===----------------------------------------------------------------------===//
@@ -716,14 +723,6 @@ LLVMScalableVectorType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           minNumElements);
 }
 
-Type LLVMScalableVectorType::getElementType() const {
-  return static_cast<detail::LLVMTypeAndSizeStorage *>(impl)->elementType;
-}
-
-unsigned LLVMScalableVectorType::getMinNumElements() const {
-  return getImpl()->numElements;
-}
-
 bool LLVMScalableVectorType::isValidElementType(Type type) {
   if (auto intType = type.dyn_cast<IntegerType>())
     return intType.isSignless();
@@ -736,17 +735,6 @@ LLVMScalableVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                                Type elementType, unsigned numElements) {
   return verifyVectorConstructionInvariants<LLVMScalableVectorType>(
       emitError, elementType, numElements);
-}
-
-void LLVMScalableVectorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMScalableVectorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes[0], getMinNumElements());
 }
 
 //===----------------------------------------------------------------------===//
@@ -934,6 +922,15 @@ Type mlir::LLVM::getVectorType(Type elementType, unsigned numElements,
   return VectorType::get(numElements, elementType, (unsigned)isScalable);
 }
 
+Type mlir::LLVM::getVectorType(Type elementType,
+                               const llvm::ElementCount &numElements) {
+  if (numElements.isScalable())
+    return getVectorType(elementType, numElements.getKnownMinValue(),
+                         /*isScalable=*/true);
+  return getVectorType(elementType, numElements.getFixedValue(),
+                       /*isScalable=*/false);
+}
+
 Type mlir::LLVM::getFixedVectorType(Type elementType, unsigned numElements) {
   bool useLLVM = LLVMFixedVectorType::isValidElementType(elementType);
   bool useBuiltIn = VectorType::isValidElementType(elementType);
@@ -996,4 +993,21 @@ llvm::TypeSize mlir::LLVM::getPrimitiveTypeSizeInBits(Type type) {
       });
 }
 
-#include "mlir/Dialect/LLVMIR/LLVMTypeInterfaces.cpp.inc"
+//===----------------------------------------------------------------------===//
+// LLVMDialect
+//===----------------------------------------------------------------------===//
+
+void LLVMDialect::registerTypes() {
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/LLVMIR/LLVMTypes.cpp.inc"
+      >();
+}
+
+Type LLVMDialect::parseType(DialectAsmParser &parser) const {
+  return detail::parseType(parser);
+}
+
+void LLVMDialect::printType(Type type, DialectAsmPrinter &os) const {
+  return detail::printType(type, os);
+}

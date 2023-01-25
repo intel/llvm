@@ -2,7 +2,7 @@
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -verify-machineinstrs -o - %s | FileCheck -check-prefix=SI %s
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -verify-machineinstrs -o - %s | FileCheck -check-prefix=GFX9 %s
 
-define <4 x i16> @vec_8xi16_extract_4xi16(<8 x i16> addrspace(1) * %p0, <8 x i16> addrspace(1) * %p1) {
+define <4 x i16> @vec_8xi16_extract_4xi16(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ; SI-LABEL: vec_8xi16_extract_4xi16:
 ; SI:       ; %bb.0:
 ; SI-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -117,11 +117,11 @@ define <4 x i16> @vec_8xi16_extract_4xi16(<8 x i16> addrspace(1) * %p0, <8 x i16
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <8 x i16>, <8 x i16> addrspace(1) * %p0
+  %t = load volatile <8 x i16>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <8 x i16>, <8 x i16> addrspace(1) * %p1
+  %f = load volatile <8 x i16>, ptr addrspace(1) %p1
   br label %exit
 
 exit:
@@ -132,7 +132,7 @@ exit:
   ret <4 x i16> %r2
 }
 
-define <4 x i16> @vec_8xi16_extract_4xi16_2(<8 x i16> addrspace(1) * %p0, <8 x i16> addrspace(1) * %p1) {
+define <4 x i16> @vec_8xi16_extract_4xi16_2(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ; SI-LABEL: vec_8xi16_extract_4xi16_2:
 ; SI:       ; %bb.0:
 ; SI-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -249,11 +249,11 @@ define <4 x i16> @vec_8xi16_extract_4xi16_2(<8 x i16> addrspace(1) * %p0, <8 x i
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <8 x i16>, <8 x i16> addrspace(1) * %p0
+  %t = load volatile <8 x i16>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <8 x i16>, <8 x i16> addrspace(1) * %p1
+  %f = load volatile <8 x i16>, ptr addrspace(1) %p1
   br label %exit
 
 exit:
@@ -264,7 +264,7 @@ exit:
   ret <4 x i16> %r2
 }
 
-define <4 x half> @vec_8xf16_extract_4xf16(<8 x half> addrspace(1) * %p0, <8 x half> addrspace(1) * %p1) {
+define <4 x half> @vec_8xf16_extract_4xf16(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ; SI-LABEL: vec_8xf16_extract_4xf16:
 ; SI:       ; %bb.0:
 ; SI-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -386,11 +386,11 @@ define <4 x half> @vec_8xf16_extract_4xf16(<8 x half> addrspace(1) * %p0, <8 x h
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <8 x half>, <8 x half> addrspace(1) * %p0
+  %t = load volatile <8 x half>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <8 x half>, <8 x half> addrspace(1) * %p1
+  %f = load volatile <8 x half>, ptr addrspace(1) %p1
   br label %exit
 
 exit:
@@ -401,7 +401,7 @@ exit:
   ret <4 x half> %r2
 }
 
-define <4 x i16> @vec_16xi16_extract_4xi16(<16 x i16> addrspace(1) * %p0, <16 x i16> addrspace(1) * %p1) {
+define <4 x i16> @vec_16xi16_extract_4xi16(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ;
 ; SI-LABEL: vec_16xi16_extract_4xi16:
 ; SI:       ; %bb.0:
@@ -534,7 +534,6 @@ define <4 x i16> @vec_16xi16_extract_4xi16(<16 x i16> addrspace(1) * %p0, <16 x 
 ; GFX9-NEXT:  .LBB3_2:
 ; GFX9-NEXT:    ; implicit-def: $vgpr4_vgpr5_vgpr6_vgpr7_vgpr8_vgpr9_vgpr10_vgpr11
 ; GFX9-NEXT:  .LBB3_3: ; %T
-; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[2:5], v[0:1], off offset:16 glc
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[4:7], v[0:1], off glc
@@ -556,11 +555,11 @@ define <4 x i16> @vec_16xi16_extract_4xi16(<16 x i16> addrspace(1) * %p0, <16 x 
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <16 x i16>, <16 x i16> addrspace(1) * %p0
+  %t = load volatile <16 x i16>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <16 x i16>, <16 x i16> addrspace(1) * %p1
+  %f = load volatile <16 x i16>, ptr addrspace(1) %p1
   br label %exit
 
 exit:
@@ -571,7 +570,7 @@ exit:
   ret <4 x i16> %r2
 }
 
-define <4 x i16> @vec_16xi16_extract_4xi16_2(<16 x i16> addrspace(1) * %p0, <16 x i16> addrspace(1) * %p1) {
+define <4 x i16> @vec_16xi16_extract_4xi16_2(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ;
 ; SI-LABEL: vec_16xi16_extract_4xi16_2:
 ; SI:       ; %bb.0:
@@ -706,7 +705,6 @@ define <4 x i16> @vec_16xi16_extract_4xi16_2(<16 x i16> addrspace(1) * %p0, <16 
 ; GFX9-NEXT:  .LBB4_2:
 ; GFX9-NEXT:    ; implicit-def: $vgpr4_vgpr5_vgpr6_vgpr7_vgpr8_vgpr9_vgpr10_vgpr11
 ; GFX9-NEXT:  .LBB4_3: ; %T
-; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[2:5], v[0:1], off offset:16 glc
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[4:7], v[0:1], off glc
@@ -728,11 +726,11 @@ define <4 x i16> @vec_16xi16_extract_4xi16_2(<16 x i16> addrspace(1) * %p0, <16 
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <16 x i16>, <16 x i16> addrspace(1) * %p0
+  %t = load volatile <16 x i16>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <16 x i16>, <16 x i16> addrspace(1) * %p1
+  %f = load volatile <16 x i16>, ptr addrspace(1) %p1
   br label %exit
 
 exit:
@@ -743,7 +741,7 @@ exit:
   ret <4 x i16> %r2
 }
 
-define <4 x half> @vec_16xf16_extract_4xf16(<16 x half> addrspace(1) * %p0, <16 x half> addrspace(1) * %p1) {
+define <4 x half> @vec_16xf16_extract_4xf16(ptr addrspace(1) %p0, ptr addrspace(1) %p1) {
 ;
 ; SI-LABEL: vec_16xf16_extract_4xf16:
 ; SI:       ; %bb.0:
@@ -878,7 +876,6 @@ define <4 x half> @vec_16xf16_extract_4xf16(<16 x half> addrspace(1) * %p0, <16 
 ; GFX9-NEXT:  .LBB5_2:
 ; GFX9-NEXT:    ; implicit-def: $vgpr4_vgpr5_vgpr6_vgpr7_vgpr8_vgpr9_vgpr10_vgpr11
 ; GFX9-NEXT:  .LBB5_3: ; %T
-; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[2:5], v[0:1], off offset:16 glc
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    global_load_dwordx4 v[4:7], v[0:1], off glc
@@ -905,11 +902,11 @@ define <4 x half> @vec_16xf16_extract_4xf16(<16 x half> addrspace(1) * %p0, <16 
   br i1 undef, label %T, label %F
 
 T:
-  %t = load volatile <16 x half>, <16 x half> addrspace(1) * %p0
+  %t = load volatile <16 x half>, ptr addrspace(1) %p0
   br label %exit
 
 F:
-  %f = load volatile <16 x half>, <16 x half> addrspace(1) * %p1
+  %f = load volatile <16 x half>, ptr addrspace(1) %p1
   br label %exit
 
 exit:

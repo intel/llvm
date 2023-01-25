@@ -41,7 +41,16 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
+  // Initialize flush buffers on host.
+  void initStreamHost(QueueImplPtr Queue);
+
   // Enqueue task to copy stream buffer to the host and print the contents
+  // The host task event is then registered for post processing in the
+  // LeadEvent as well as in queue LeadEvent associated with.
+  void flush(const EventImplPtr &LeadEvent);
+
+  // Enqueue task to copy stream buffer to the host and print the contents
+  // Remove during next ABI breaking window
   void flush();
 
   size_t get_size() const;
@@ -66,6 +75,14 @@ private:
 
   // Property list
   property_list PropList_;
+
+  // It's fine to store the buffers in the stream_impl itself since the
+  // underlying buffer_impls are relased in a deferred manner by scheduler.
+  // Stream buffer
+  buffer<char, 1> Buf_;
+
+  // Global flush buffer
+  buffer<char, 1> FlushBuf_;
 
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.

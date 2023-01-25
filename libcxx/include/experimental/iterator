@@ -54,6 +54,7 @@ namespace std {
 
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__memory/addressof.h>
+#include <__type_traits/decay.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <experimental/__config>
@@ -117,5 +118,9 @@ make_ostream_joiner(basic_ostream<_CharT, _Traits>& __os, _Delim && __d)
 _LIBCPP_END_NAMESPACE_LFTS
 
 #endif // _LIBCPP_STD_VER > 11
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <type_traits>
+#endif
 
 #endif // _LIBCPP_EXPERIMENTAL_ITERATOR

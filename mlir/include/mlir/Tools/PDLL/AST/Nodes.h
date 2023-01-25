@@ -508,7 +508,7 @@ public:
                                ArrayRef<Expr *> resultTypes,
                                ArrayRef<NamedAttributeDecl *> attributes);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -564,6 +564,40 @@ private:
   size_t numTrailingObjects(OverloadToken<Expr *>) const {
     return numOperands + numResultTypes;
   }
+};
+
+//===----------------------------------------------------------------------===//
+// RangeExpr
+//===----------------------------------------------------------------------===//
+
+/// This expression builds a range from a set of element values (which may be
+/// ranges themselves).
+class RangeExpr final : public Node::NodeBase<RangeExpr, Expr>,
+                        private llvm::TrailingObjects<RangeExpr, Expr *> {
+public:
+  static RangeExpr *create(Context &ctx, SMRange loc, ArrayRef<Expr *> elements,
+                           RangeType type);
+
+  /// Return the element expressions of this range.
+  MutableArrayRef<Expr *> getElements() {
+    return {getTrailingObjects<Expr *>(), numElements};
+  }
+  ArrayRef<Expr *> getElements() const {
+    return const_cast<RangeExpr *>(this)->getElements();
+  }
+
+  /// Return the range result type of this expression.
+  RangeType getType() const { return Base::getType().cast<RangeType>(); }
+
+private:
+  RangeExpr(SMRange loc, RangeType type, unsigned numElements)
+      : Base(loc, type), numElements(numElements) {}
+
+  /// The number of element values for this range.
+  unsigned numElements;
+
+  /// TrailingObject utilities.
+  friend class llvm::TrailingObjects<RangeExpr, Expr *>;
 };
 
 //===----------------------------------------------------------------------===//
@@ -634,7 +668,7 @@ public:
   void setDocComment(Context &ctx, StringRef comment);
 
   /// Return the documentation comment attached to this decl if it has been set.
-  /// Otherwise, returns None.
+  /// Otherwise, returns std::nullopt.
   Optional<StringRef> getDocComment() const { return docComment; }
 
 protected:
@@ -730,7 +764,7 @@ public:
   static OpConstraintDecl *create(Context &ctx, SMRange loc,
                                   const OpNameDecl *nameDecl = nullptr);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -852,8 +886,8 @@ public:
                                         ArrayRef<VariableDecl *> results,
                                         const CompoundStmt *body,
                                         Type resultType) {
-    return createImpl(ctx, name, inputs, /*nativeInputTypes=*/llvm::None,
-                      results, /*codeBlock=*/llvm::None, body, resultType);
+    return createImpl(ctx, name, inputs, /*nativeInputTypes=*/std::nullopt,
+                      results, /*codeBlock=*/std::nullopt, body, resultType);
   }
 
   /// Return the name of the constraint.
@@ -867,8 +901,8 @@ public:
     return const_cast<UserConstraintDecl *>(this)->getInputs();
   }
 
-  /// Return the explicit native type to use for the given input. Returns None
-  /// if no explicit type was set.
+  /// Return the explicit native type to use for the given input. Returns
+  /// std::nullopt if no explicit type was set.
   Optional<StringRef> getNativeInputType(unsigned index) const;
 
   /// Return the explicit results of the constraint declaration. May be empty,
@@ -909,7 +943,7 @@ private:
                      Type resultType)
       : Base(name.getLoc(), &name), numInputs(numInputs),
         numResults(numResults), codeBlock(codeBlock), constraintBody(body),
-        resultType(resultType) {}
+        resultType(resultType), hasNativeInputTypes(hasNativeInputTypes) {}
 
   /// The number of inputs to this constraint.
   unsigned numInputs;
@@ -974,7 +1008,7 @@ public:
   /// Return the name of this operation, or none if the name is unknown.
   Optional<StringRef> getName() const {
     const Name *name = Decl::getName();
-    return name ? Optional<StringRef>(name->getName()) : llvm::None;
+    return name ? Optional<StringRef>(name->getName()) : std::nullopt;
   }
 
 private:
@@ -994,7 +1028,7 @@ public:
                              bool hasBoundedRecursion,
                              const CompoundStmt *body);
 
-  /// Return the benefit of this pattern if specified, or None.
+  /// Return the benefit of this pattern if specified, or std::nullopt.
   Optional<uint16_t> getBenefit() const { return benefit; }
 
   /// Return if this pattern has bounded rewrite recursion.
@@ -1059,7 +1093,7 @@ public:
                                      ArrayRef<VariableDecl *> results,
                                      const CompoundStmt *body,
                                      Type resultType) {
-    return createImpl(ctx, name, inputs, results, /*codeBlock=*/llvm::None,
+    return createImpl(ctx, name, inputs, results, /*codeBlock=*/std::nullopt,
                       body, resultType);
   }
 
@@ -1284,7 +1318,7 @@ inline bool CoreConstraintDecl::classof(const Node *node) {
 
 inline bool Expr::classof(const Node *node) {
   return isa<AttributeExpr, CallExpr, DeclRefExpr, MemberAccessExpr,
-             OperationExpr, TupleExpr, TypeExpr>(node);
+             OperationExpr, RangeExpr, TupleExpr, TypeExpr>(node);
 }
 
 inline bool OpRewriteStmt::classof(const Node *node) {

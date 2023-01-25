@@ -25,28 +25,12 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 
 } // namespace property
 
-#if __cplusplus >= 201703L
-
-__SYCL_INLINE_CONSTEXPR property::no_init no_init;
+inline constexpr property::no_init no_init;
 
 __SYCL2020_DEPRECATED("spelling is now: no_init")
-__SYCL_INLINE_CONSTEXPR property::noinit noinit;
+inline constexpr property::noinit noinit;
 
-#else
-
-namespace {
-
-constexpr const auto &no_init =
-    sycl::detail::InlineVariableHelper<property::no_init>::value;
-
-constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
-    sycl::detail::InlineVariableHelper<property::noinit>::value;
-} // namespace
-
-#endif
-
-namespace ext {
-namespace intel {
+namespace ext::intel {
 namespace property {
 struct __SYCL_TYPE(buffer_location) buffer_location {
   template <int A = 0> struct instance {
@@ -62,15 +46,12 @@ struct __SYCL_TYPE(buffer_location) buffer_location {
   };
 };
 } // namespace property
-#if __cplusplus >= 201703L
+
 template <int A>
 inline constexpr property::buffer_location::instance<A> buffer_location{};
-#endif
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace property {
 struct no_offset {
   template <bool B = true> struct instance {
@@ -94,12 +75,8 @@ struct __SYCL_TYPE(no_alias) no_alias {
 };
 } // namespace property
 
-#if __cplusplus >= 201703L
-
 inline constexpr property::no_offset::instance<> no_offset;
 inline constexpr property::no_alias::instance<> no_alias;
-
-#endif
 
 template <>
 struct is_compile_time_property<ext::oneapi::property::no_offset>
@@ -110,8 +87,7 @@ struct is_compile_time_property<ext::oneapi::property::no_alias>
 template <>
 struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 // Forward declaration
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -121,6 +97,20 @@ class accessor;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
+namespace detail::acc_properties {
+template <typename T> struct is_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                            IsPlaceholder, PropertyListT>> : std::true_type {};
+
+template <typename T> struct is_host_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct is_host_accessor<host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+} // namespace detail::acc_properties
+
 // Accessor property trait specializations
 template <>
 struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
@@ -129,50 +119,27 @@ struct is_property<ext::oneapi::property::no_alias> : std::true_type {};
 template <>
 struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_property_of<property::noinit,
-                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder, PropertyListT>> : std::true_type {
-};
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_property_of<property::no_init,
-                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder, PropertyListT>> : std::true_type {
-};
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_property_of<ext::oneapi::property::no_offset,
-                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder, PropertyListT>> : std::true_type {
-};
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_property_of<ext::oneapi::property::no_alias,
-                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder, PropertyListT>> : std::true_type {
-};
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_property_of<ext::intel::property::buffer_location,
-                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder, PropertyListT>> : std::true_type {
-};
+template <typename T>
+struct is_property_of<property::noinit, T>
+    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
+                         detail::acc_properties::is_host_accessor<T>::value> {};
 
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct is_property_of<property::noinit,
-                      host_accessor<DataT, Dimensions, AccessMode>>
-    : std::true_type {};
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct is_property_of<property::no_init,
-                      host_accessor<DataT, Dimensions, AccessMode>>
-    : std::true_type {};
+template <typename T>
+struct is_property_of<property::no_init, T>
+    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
+                         detail::acc_properties::is_host_accessor<T>::value> {};
+
+template <typename T>
+struct is_property_of<ext::oneapi::property::no_offset, T>
+    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+
+template <typename T>
+struct is_property_of<ext::oneapi::property::no_alias, T>
+    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+
+template <typename T>
+struct is_property_of<ext::intel::property::buffer_location, T>
+    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
 
 namespace detail {
 template <int I>

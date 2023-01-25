@@ -20,7 +20,14 @@ namespace llvm {
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
+  SYCLPropagateAspectsUsagePass(StringRef OptionsString = {}) {
+    OptionsString.split(this->TargetFixedAspects, ',', /*MaxSplit=*/-1,
+                        /*KeepEmpty=*/false);
+  };
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+
+private:
+  SmallVector<StringRef, 8> TargetFixedAspects;
 };
 
 } // namespace llvm

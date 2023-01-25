@@ -41,7 +41,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
   llvmModule.setDataLayout(targetMachine.createDataLayout());
 
   if (failed(optimizeLlvm(llvmModule, targetMachine)))
-    return llvm::None;
+    return std::nullopt;
 
   std::string targetISA;
   llvm::raw_string_ostream stream(targetISA);
@@ -52,7 +52,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
 
     if (targetMachine.addPassesToEmitFile(codegenPasses, pstream, nullptr,
                                           llvm::CGFT_AssemblyFile))
-      return llvm::None;
+      return std::nullopt;
 
     codegenPasses.run(llvmModule);
   }
@@ -78,7 +78,7 @@ void gpu::SerializeToBlobPass::runOnOperation() {
   if (!maybeTargetISA.has_value())
     return signalPassFailure();
 
-  std::string targetISA = std::move(maybeTargetISA.value());
+  std::string targetISA = std::move(*maybeTargetISA);
 
   LLVM_DEBUG({
     llvm::dbgs() << "ISA for module: " << getOperation().getNameAttr() << "\n";

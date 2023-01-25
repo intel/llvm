@@ -145,7 +145,7 @@ public:
 /// This structure is used to record entries in our framework cache.
 struct FrameworkCacheEntry {
   /// The directory entry which should be used for the cached framework.
-  Optional<DirectoryEntryRef> Directory;
+  OptionalDirectoryEntryRef Directory;
 
   /// Whether this framework has been "user-specified" to be treated as if it
   /// were a system framework (even if it was found outside a system framework
@@ -249,6 +249,14 @@ class HeaderSearch {
   unsigned SystemDirIdx = 0;
   bool NoCurDirSearch = false;
 
+  /// Maps HeaderMap keys to SearchDir indices. When HeaderMaps are used
+  /// heavily, SearchDirs can start with thousands of HeaderMaps, so this Index
+  /// lets us avoid scanning them all to find a match.
+  llvm::StringMap<unsigned, llvm::BumpPtrAllocator> SearchDirHeaderMapIndex;
+
+  /// The index of the first SearchDir that isn't a header map.
+  unsigned FirstNonHeaderMapSearchDirIdx = 0;
+
   /// \#include prefixes for which the 'system header' property is
   /// overridden.
   ///
@@ -329,6 +337,10 @@ class HeaderSearch {
 
   /// Entity used to look up stored header file information.
   ExternalHeaderFileInfoSource *ExternalSource = nullptr;
+
+  /// Scan all of the header maps at the beginning of SearchDirs and
+  /// map their keys to the SearchDir index of their header map.
+  void indexInitialHeaderMaps();
 
 public:
   HeaderSearch(std::shared_ptr<HeaderSearchOptions> HSOpts,
@@ -467,7 +479,7 @@ public:
   /// found in any of searched SearchDirs. Will be set to false if a framework
   /// is found only through header maps. Doesn't guarantee the requested file is
   /// found.
-  Optional<FileEntryRef> LookupFile(
+  OptionalFileEntryRef LookupFile(
       StringRef Filename, SourceLocation IncludeLoc, bool isAngled,
       ConstSearchDirIterator FromDir, ConstSearchDirIterator *CurDir,
       ArrayRef<std::pair<const FileEntry *, const DirectoryEntry *>> Includers,
@@ -483,7 +495,7 @@ public:
   /// within ".../Carbon.framework/Headers/Carbon.h", check to see if
   /// HIToolbox is a subframework within Carbon.framework.  If so, return
   /// the FileEntry for the designated file, otherwise return null.
-  Optional<FileEntryRef> LookupSubframeworkHeader(
+  OptionalFileEntryRef LookupSubframeworkHeader(
       StringRef Filename, const FileEntry *ContextFileEnt,
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule);
@@ -757,7 +769,7 @@ private:
 
   /// Look up the file with the specified name and determine its owning
   /// module.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   getFileAndSuggestModule(StringRef FileName, SourceLocation IncludeLoc,
                           const DirectoryEntry *Dir, bool IsSystemHeaderDir,
                           Module *RequestingModule,
@@ -801,6 +813,10 @@ public:
   }
 
   ConstSearchDirIterator search_dir_begin() const { return quoted_dir_begin(); }
+  ConstSearchDirIterator search_dir_nth(size_t n) const {
+    assert(n < SearchDirs.size());
+    return {*this, n};
+  }
   ConstSearchDirIterator search_dir_end() const { return system_dir_end(); }
   ConstSearchDirRange search_dir_range() const {
     return {search_dir_begin(), search_dir_end()};

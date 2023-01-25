@@ -265,6 +265,7 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects to construct SYCL class objects.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
@@ -276,14 +277,25 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
+
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-  if (!FilterList) {
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+
+  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
+  // We do NOT attempt to support both simultaneously.
+  if (OdsTargetList && FilterList) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "ONEAPI_DEVICE_SELECTOR cannot be used in "
+                          "conjunction with SYCL_DEVICE_FILTER");
+  } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-  } else {
+    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                             backend::ext_oneapi_unified_runtime);
+  } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
@@ -320,6 +332,30 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+    }
+  } else {
+    ods_target_list &list = *OdsTargetList;
+    if (list.backendCompatible(backend::opencl)) {
+      PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
+      PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                               backend::ext_oneapi_level_zero);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_cuda)) {
+      PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
+                               backend::ext_oneapi_cuda);
+    }
+    if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
+      PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                               backend::ext_intel_esimd_emulator);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_hip)) {
+      PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
+      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                               backend::ext_oneapi_unified_runtime);
     }
   }
   return PluginNames;
@@ -411,39 +447,6 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
                   << PluginNames[I].first << std::endl;
       }
       continue;
-    }
-    backend *BE = SYCLConfig<SYCL_BE>::get();
-    // Use OpenCL as the default interoperability plugin.
-    // This will go away when we make backend interoperability selection
-    // explicit in SYCL-2020.
-    backend InteropBE = BE ? *BE : backend::opencl;
-
-    if (InteropBE == backend::opencl &&
-        PluginNames[I].first.find("opencl") != std::string::npos) {
-      // Use the OpenCL plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
-    } else if (InteropBE == backend::ext_oneapi_cuda &&
-               PluginNames[I].first.find("cuda") != std::string::npos) {
-      // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_cuda, Library);
-    } else if (InteropBE == backend::ext_oneapi_hip &&
-               PluginNames[I].first.find("hip") != std::string::npos) {
-      // Use the HIP plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::ext_oneapi_hip, Library);
-    } else if (InteropBE == backend::ext_oneapi_level_zero &&
-               PluginNames[I].first.find("level_zero") != std::string::npos) {
-      // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_level_zero, Library);
-    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
-               PluginNames[I].first.find("esimd_emulator") !=
-                   std::string::npos) {
-      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
     plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));

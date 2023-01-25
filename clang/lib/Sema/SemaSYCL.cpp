@@ -368,9 +368,11 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
-    // Allow __builtin_assume_aligned to be called from within device code.
+    // Allow __builtin_assume_aligned and __builtin_printf to be called from
+    // within device code.
     if (FD->getBuiltinID() &&
-        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
+        (FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned ||
+         FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
     // Allow to use `::printf` only for CUDA.
@@ -420,7 +422,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   // variable length arrays
   if (Ty->isVariableArrayType()) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported) << 0;
     Emitting = true;
   }
 
@@ -529,7 +531,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                 ReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
+                 SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
@@ -540,9 +542,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-      return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
-                 SYCLIntelFPGADisableLoopPipeliningAttr,
-                 SYCLIntelFPGAInitiationIntervalAttr,
+      return isa<SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
+                 SYCLIntelDisableLoopPipeliningAttr,
+                 SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
                  SYCLAddIRAttributesFunctionAttr>(A);
     });
@@ -579,7 +581,8 @@ public:
       }
 
       if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual())
+        if (Method->isVirtual() &&
+            !SemaRef.getLangOpts().SYCLAllowVirtualFunctions)
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
 
@@ -1720,7 +1723,7 @@ public:
     while (FieldTy->isAnyPointerType()) {
       FieldTy = QualType{FieldTy->getPointeeOrArrayElementType(), 0};
       if (FieldTy->isVariableArrayType()) {
-        Diag.Report(FD->getLocation(), diag::err_vla_unsupported);
+        Diag.Report(FD->getLocation(), diag::err_vla_unsupported) << 0;
         IsInvalid = true;
         break;
       }
@@ -2065,6 +2068,7 @@ public:
 
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
+    assert(CAT && "Should only be called on constant-size array.");
     QualType ModifiedArray = SemaRef.getASTContext().getConstantArrayType(
         ModifiedArrayElement, CAT->getSize(),
         const_cast<Expr *>(CAT->getSizeExpr()), CAT->getSizeModifier(),
@@ -2994,8 +2998,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                    InitializationKind InitKind) {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, std::nullopt);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
@@ -3196,7 +3200,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
-    addFieldInit(FD, Ty, None,
+    addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
 
     addFieldMemberExpr(FD, Ty);
@@ -3247,8 +3251,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         InitializedEntity::InitializeVariable(KernelHandlerClone);
     InitializationKind InitKind =
         InitializationKind::CreateDefault(KernelCallerSrcLoc);
-    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, None);
-    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, None);
+    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, std::nullopt);
     KernelHandlerClone->setInit(
         SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     KernelHandlerClone->setInitStyle(VarDecl::CallInit);
@@ -3486,10 +3490,10 @@ public:
 
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    uint64_t ArraySize = SemaRef.getASTContext()
-                             .getAsConstantArrayType(ArrayType)
-                             ->getSize()
-                             .getZExtValue();
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayType);
+    assert(CAT && "Should only be called on constant-size array.");
+    uint64_t ArraySize = CAT->getSize().getZExtValue();
     addCollectionInitListExpr(ArrayType, ArraySize);
     ArrayInfos.emplace_back(getFieldEntity(FD, ArrayType), 0);
 
@@ -3943,7 +3947,7 @@ public:
   }
 };
 
-void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
@@ -4338,12 +4342,12 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
-  case attr::Kind::ReqdWorkGroupSize: {
-    auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() != *RWGSA->getXDimVal() ||
-          *Existing->getYDimVal() != *RWGSA->getYDimVal() ||
-          *Existing->getZDimVal() != *RWGSA->getZDimVal()) {
+  case attr::Kind::SYCLReqdWorkGroupSize: {
+    auto *RWGSA = cast<SYCLReqdWorkGroupSizeAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      if (S.AnyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), RWGSA->getXDim(),
+                                    RWGSA->getYDim(), RWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4352,9 +4356,9 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() < *RWGSA->getXDimVal() ||
-          *Existing->getYDimVal() < *RWGSA->getYDimVal() ||
-          *Existing->getZDimVal() < *RWGSA->getZDimVal()) {
+      if (S.CheckMaxAllowedWorkGroupSize(
+              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
+              Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4368,12 +4372,12 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
-  case attr::Kind::WorkGroupSizeHint: {
-    auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
-      if (Existing->getXDimVal() != WGSH->getXDimVal() ||
-          Existing->getYDimVal() != WGSH->getYDimVal() ||
-          Existing->getZDimVal() != WGSH->getZDimVal()) {
+  case attr::Kind::SYCLWorkGroupSizeHint: {
+    auto *WGSH = cast<SYCLWorkGroupSizeHintAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+      if (S.AnyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), WGSH->getXDim(),
+                                    WGSH->getYDim(), WGSH->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4386,10 +4390,10 @@ static void PropagateAndDiagnoseDeviceAttr(
   }
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() > *SIMWGSA->getXDimVal() ||
-          *Existing->getYDimVal() > *SIMWGSA->getYDimVal() ||
-          *Existing->getZDimVal() > *SIMWGSA->getZDimVal()) {
+    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      if (S.CheckMaxAllowedWorkGroupSize(
+              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
+              SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4420,9 +4424,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
   case attr::Kind::SYCLIntelLoopFuse:
-  case attr::Kind::SYCLIntelFPGAMaxConcurrency:
-  case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
-  case attr::Kind::SYCLIntelFPGAInitiationInterval:
+  case attr::Kind::SYCLIntelMaxConcurrency:
+  case attr::Kind::SYCLIntelDisableLoopPipelining:
+  case attr::Kind::SYCLIntelInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
@@ -4628,6 +4632,10 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
 
   // If Callee has a SYCL attribute, no diagnostic needed.
   if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+    return;
+
+  // If Callee has a CUDA device attribute, no diagnostic needed.
+  if (getLangOpts().CUDA && Callee->hasAttr<CUDADeviceAttr>())
     return;
 
   // Diagnose if this is an undefined function and it is not a builtin.
@@ -5000,7 +5008,7 @@ public:
     DeclContext *DC = RD->getDeclContext();
     if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
       PrintNamespaceScopes(DC);
-      RD->printName(OS);
+      RD->printName(OS, Policy);
       return;
     }
 
@@ -5074,6 +5082,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  // Disable printing anonymous tag locations because on Windows
+  // file path separators are treated as escape sequences and cause errors
+  // when integration header is compiled with host compiler.
+  Policy.AnonymousTagLocations = 0;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   // Predefines which need to be set for custom host compilation

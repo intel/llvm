@@ -1,4 +1,4 @@
-// RUN: mlir-opt -fold-memref-alias-ops -split-input-file %s -o - | FileCheck %s
+// RUN: mlir-opt -fold-memref-alias-ops -split-input-file %s | FileCheck %s
 
 func.func @fold_static_stride_subview_with_load(%arg0 : memref<12x32xf32>, %arg1 : index, %arg2 : index, %arg3 : index, %arg4 : index) -> f32 {
   %0 = memref.subview %arg0[%arg1, %arg2][4, 4][2, 3] : memref<12x32xf32> to memref<4x4xf32, strided<[64, 3], offset: ?>>
@@ -125,7 +125,7 @@ func.func @fold_subview_with_transfer_read(%arg0 : memref<12x32xf32>, %arg1 : in
 // -----
 
 func.func @fold_static_stride_subview_with_transfer_write_0d(
-    %arg0 : memref<12x32xf32>, %arg1 : index, %arg2 : index, %arg3 : index, 
+    %arg0 : memref<12x32xf32>, %arg1 : index, %arg2 : index, %arg3 : index,
     %v : vector<f32>) {
   %f1 = arith.constant 1.0 : f32
   %0 = memref.subview %arg0[%arg1, %arg2][1, 1][2, %arg3] : memref<12x32xf32> to memref<f32, strided<[], offset: ?>>
@@ -416,7 +416,7 @@ func.func @fold_static_stride_subview_with_affine_load_store_expand_shape_when_a
 // CHECK-NEXT:    affine.for %[[ARG6:.*]] = 0 to 1 {
 // CHECK-NEXT:      %[[TMP1:.*]] = affine.apply #[[$MAP0]](%[[ARG3]], %[[ARG4]], %[[ARG5]], %[[ARG6]])
 // CHECK-NEXT:      %[[TMP2:.*]] = affine.apply #[[$MAP1]](%[[ARG3]], %[[TMP1]])
-// CHECK-NEXT:      %[[TMP3:.*]] = affine.apply #map2(%[[ARG5]], %[[ARG6]])
+// CHECK-NEXT:      %[[TMP3:.*]] = affine.apply #{{.*}}(%[[ARG5]], %[[ARG6]])
 // CHECK-NEXT:      affine.load %[[ARG0]][%[[TMP2]], %[[TMP3]]] : memref<1024x1024xf32>
 
 // -----
@@ -465,3 +465,40 @@ func.func @fold_static_stride_subview_with_affine_load_store_collapse_shape_with
 // CHECK-NEXT: %[[ZERO:.*]] = arith.constant 0 : index
 // CHECK-NEXT: affine.for %{{.*}} = 0 to 3 {
 // CHECK-NEXT:   affine.load %[[ARG0]][%[[ZERO]]] : memref<1xf32>
+
+// -----
+
+//       CHECK: #[[$map:.*]] = affine_map<()[s0] -> (s0 + 2)>
+// CHECK-LABEL: func @subview_of_subview(
+//  CHECK-SAME:     %[[m:.*]]: memref<1x1024xf32, 3>, %[[pos:.*]]: index
+//       CHECK:   %[[add:.*]] = affine.apply #[[$map]]()[%arg1]
+//       CHECK:   memref.subview %arg0[4, %[[add]]] [1, 1] [1, 1] : memref<1x1024xf32, 3> to memref<f32, strided<[], offset: ?>, 3>
+func.func @subview_of_subview(%m: memref<1x1024xf32, 3>, %pos: index)
+    -> memref<f32, strided<[], offset: ?>, 3>
+{
+  %0 = memref.subview %m[3, %pos] [1, 2] [1, 1]
+      : memref<1x1024xf32, 3>
+        to memref<1x2xf32, strided<[1024, 2], offset: ?>, 3>
+  %1 = memref.subview %0[1, 2] [1, 1] [1, 1]
+      : memref<1x2xf32, strided<[1024, 2], offset: ?>, 3>
+        to memref<f32, strided<[], offset: ?>, 3>
+  return %1 : memref<f32, strided<[], offset: ?>, 3>
+}
+
+// -----
+
+// CHECK-LABEL: func @subview_of_subview_rank_reducing(
+//  CHECK-SAME:     %[[m:.*]]: memref<?x?x?xf32>
+//       CHECK:   memref.subview %arg0[3, 7, 8] [1, 1, 1] [1, 1, 1] : memref<?x?x?xf32> to memref<f32, strided<[], offset: ?>>
+func.func @subview_of_subview_rank_reducing(%m: memref<?x?x?xf32>,
+                                            %sz: index, %pos: index)
+    -> memref<f32, strided<[], offset: ?>>
+{
+  %0 = memref.subview %m[3, 1, 8] [1, %sz, 1] [1, 1, 1]
+      : memref<?x?x?xf32>
+        to memref<?xf32, strided<[1], offset: ?>>
+  %1 = memref.subview %0[6] [1] [1]
+      : memref<?xf32, strided<[1], offset: ?>>
+        to memref<f32, strided<[], offset: ?>>
+  return %1 : memref<f32, strided<[], offset: ?>>
+}

@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 #define DEBUG_TYPE "affine-structures"
 
@@ -157,7 +158,7 @@ FlatAffineValueConstraints::FlatAffineValueConstraints(IntegerSet set)
                                                      /*numLocals=*/0)) {
 
   // Resize values.
-  values.resize(getNumDimAndSymbolVars(), None);
+  values.resize(getNumDimAndSymbolVars(), std::nullopt);
 
   // Flatten expressions and add them to the constraint system.
   std::vector<SmallVector<int64_t, 8>> flatExprs;
@@ -294,7 +295,7 @@ unsigned FlatAffineValueConstraints::insertVar(VarKind kind, unsigned pos,
   unsigned absolutePos = IntegerPolyhedron::insertVar(kind, pos, num);
 
   if (kind != VarKind::Local) {
-    values.insert(values.begin() + absolutePos, num, None);
+    values.insert(values.begin() + absolutePos, num, std::nullopt);
     assert(values.size() == getNumDimAndSymbolVars());
   }
 
@@ -312,7 +313,7 @@ unsigned FlatAffineValueConstraints::insertVar(VarKind kind, unsigned pos,
   // If a Value is provided, insert it; otherwise use None.
   for (unsigned i = 0; i < num; ++i)
     values.insert(values.begin() + absolutePos + i,
-                  vals[i] ? Optional<Value>(vals[i]) : None);
+                  vals[i] ? Optional<Value>(vals[i]) : std::nullopt);
 
   assert(values.size() == getNumDimAndSymbolVars());
   return absolutePos;
@@ -637,6 +638,33 @@ FlatAffineValueConstraints::addAffineForOpDomain(AffineForOp forOp) {
   // Non-constant upper bound case.
   return addBound(BoundType::UB, pos, forOp.getUpperBoundMap(),
                   forOp.getUpperBoundOperands());
+}
+
+LogicalResult FlatAffineValueConstraints::addAffineParallelOpDomain(
+    AffineParallelOp parallelOp) {
+  size_t ivPos = 0;
+  for (auto iv : parallelOp.getIVs()) {
+    unsigned pos;
+    if (!findVar(iv, &pos)) {
+      assert(false && "variable expected for the IV value");
+      return failure();
+    }
+
+    AffineMap lowerBound = parallelOp.getLowerBoundMap(ivPos);
+    if (lowerBound.isConstant())
+      addBound(BoundType::LB, pos, lowerBound.getSingleConstantResult());
+    else if (failed(addBound(BoundType::LB, pos, lowerBound,
+                             parallelOp.getLowerBoundsOperands())))
+      return failure();
+
+    auto upperBound = parallelOp.getUpperBoundMap(ivPos);
+    if (upperBound.isConstant())
+      addBound(BoundType::UB, pos, upperBound.getSingleConstantResult());
+    else if (failed(addBound(BoundType::UB, pos, upperBound,
+                             parallelOp.getUpperBoundsOperands())))
+      return failure();
+  }
+  return success();
 }
 
 LogicalResult
@@ -1008,16 +1036,15 @@ void FlatAffineValueConstraints::getSliceBounds(
       auto ubConst = getConstantBound64(BoundType::UB, pos);
       if (lbConst.has_value() && ubConst.has_value()) {
         // Detect equality to a constant.
-        if (lbConst.value() == ubConst.value()) {
-          memo[pos] = getAffineConstantExpr(lbConst.value(), context);
+        if (*lbConst == *ubConst) {
+          memo[pos] = getAffineConstantExpr(*lbConst, context);
           changed = true;
           continue;
         }
 
         // Detect an variable as modulo of another variable w.r.t a
         // constant.
-        if (detectAsMod(*this, pos, lbConst.value(), ubConst.value(), memo,
-                        context)) {
+        if (detectAsMod(*this, pos, *lbConst, *ubConst, memo, context)) {
           changed = true;
           continue;
         }
@@ -1078,7 +1105,7 @@ void FlatAffineValueConstraints::getSliceBounds(
   // Set the lower and upper bound maps for all the variables that were
   // computed as affine expressions of the rest as the "detected expr" and
   // "detected expr + 1" respectively; set the undetected ones to null.
-  Optional<FlatAffineValueConstraints> tmpClone;
+  std::optional<FlatAffineValueConstraints> tmpClone;
   for (unsigned pos = 0; pos < num; pos++) {
     unsigned numMapDims = getNumDimVars() - num;
     unsigned numMapSymbols = getNumSymbolVars();
@@ -1118,9 +1145,8 @@ void FlatAffineValueConstraints::getSliceBounds(
                    << "WARNING: Potentially over-approximating slice lb\n");
         auto lbConst = getConstantBound64(BoundType::LB, pos + offset);
         if (lbConst.has_value()) {
-          lbMap =
-              AffineMap::get(numMapDims, numMapSymbols,
-                             getAffineConstantExpr(lbConst.value(), context));
+          lbMap = AffineMap::get(numMapDims, numMapSymbols,
+                                 getAffineConstantExpr(*lbConst, context));
         }
       }
       if (!ubMap || ubMap.getNumResults() > 1) {
@@ -1130,7 +1156,7 @@ void FlatAffineValueConstraints::getSliceBounds(
         if (ubConst.has_value()) {
           ubMap = AffineMap::get(
               numMapDims, numMapSymbols,
-              getAffineConstantExpr(ubConst.value() + ubAdjustment, context));
+              getAffineConstantExpr(*ubConst + ubAdjustment, context));
         }
       }
     }
@@ -1351,9 +1377,9 @@ void FlatAffineValueConstraints::swapVar(unsigned posA, unsigned posB) {
 
   // Treat value of a local variable as None.
   if (getVarKindAt(posA) == VarKind::Local)
-    values[posB] = None;
+    values[posB] = std::nullopt;
   else if (getVarKindAt(posB) == VarKind::Local)
-    values[posA] = None;
+    values[posA] = std::nullopt;
   else
     std::swap(values[posA], values[posB]);
 }
@@ -1392,7 +1418,7 @@ void FlatAffineValueConstraints::clearAndCopyFrom(
   } else {
     *static_cast<IntegerRelation *>(this) = other;
     values.clear();
-    values.resize(getNumDimAndSymbolVars(), None);
+    values.resize(getNumDimAndSymbolVars(), std::nullopt);
   }
 }
 
@@ -1670,12 +1696,12 @@ void FlatAffineRelation::compose(const FlatAffineRelation &other) {
   // Add and match domain of `rel` to domain of `this`.
   for (unsigned i = 0, e = rel.getNumDomainDims(); i < e; ++i)
     if (relMaybeValues[i].has_value())
-      setValue(i, relMaybeValues[i].value());
+      setValue(i, *relMaybeValues[i]);
   // Add and match range of `this` to range of `rel`.
   for (unsigned i = 0, e = getNumRangeDims(); i < e; ++i) {
     unsigned rangeIdx = rel.getNumDomainDims() + i;
     if (thisMaybeValues[rangeIdx].has_value())
-      rel.setValue(rangeIdx, thisMaybeValues[rangeIdx].value());
+      rel.setValue(rangeIdx, *thisMaybeValues[rangeIdx]);
   }
 
   // Append `this` to `rel` and simplify constraints.

@@ -53,6 +53,10 @@ public:
 protected:
   bool printSysAlias(const MCInst *MI, const MCSubtargetInfo &STI,
                      raw_ostream &O);
+  bool printSyspAlias(const MCInst *MI, const MCSubtargetInfo &STI,
+                      raw_ostream &O);
+  bool printRangePrefetchAlias(const MCInst *MI, const MCSubtargetInfo &STI,
+                               raw_ostream &O, StringRef Annot);
   // Operand printers
   void printOperand(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O);
@@ -130,9 +134,16 @@ protected:
   void printImmScale(const MCInst *MI, unsigned OpNum,
                      const MCSubtargetInfo &STI, raw_ostream &O);
 
+  template <int Scale, int Offset>
+  void printImmRangeScale(const MCInst *MI, unsigned OpNum,
+                          const MCSubtargetInfo &STI, raw_ostream &O);
+
   template <bool IsSVEPrefetch = false>
   void printPrefetchOp(const MCInst *MI, unsigned OpNum,
                        const MCSubtargetInfo &STI, raw_ostream &O);
+
+  void printRPRFMOperand(const MCInst *MI, unsigned OpNum,
+                         const MCSubtargetInfo &STI, raw_ostream &O);
 
   void printPSBHintOp(const MCInst *MI, unsigned OpNum,
                       const MCSubtargetInfo &STI, raw_ostream &O);
@@ -160,6 +171,7 @@ protected:
   void printTypedVectorList(const MCInst *MI, unsigned OpNum,
                             const MCSubtargetInfo &STI, raw_ostream &O);
 
+  template <unsigned Scale = 1>
   void printVectorIndex(const MCInst *MI, unsigned OpNum,
                         const MCSubtargetInfo &STI, raw_ostream &O);
   void printMatrixIndex(const MCInst *MI, unsigned OpNum,
@@ -178,6 +190,10 @@ protected:
                               const MCSubtargetInfo &STI, raw_ostream &O);
   void printSIMDType10Operand(const MCInst *MI, unsigned OpNum,
                               const MCSubtargetInfo &STI, raw_ostream &O);
+  template <int EltSize>
+  void printPredicateAsCounter(const MCInst *MI, unsigned OpNum,
+                               const MCSubtargetInfo &STI, raw_ostream &O);
+
   template<int64_t Angle, int64_t Remainder>
   void printComplexRotationOp(const MCInst *MI, unsigned OpNo,
                             const MCSubtargetInfo &STI, raw_ostream &O);
@@ -193,6 +209,8 @@ protected:
                           const MCSubtargetInfo &STI, raw_ostream &O);
   void printSVEPattern(const MCInst *MI, unsigned OpNum,
                        const MCSubtargetInfo &STI, raw_ostream &O);
+  void printSVEVecLenSpecifier(const MCInst *MI, unsigned OpNum,
+                               const MCSubtargetInfo &STI, raw_ostream &O);
 
   template <bool IsVertical>
   void printMatrixTileVector(const MCInst *MI, unsigned OpNum,
@@ -211,6 +229,8 @@ protected:
                       const MCSubtargetInfo &STI, raw_ostream &O);
   void printGPR64x8(const MCInst *MI, unsigned OpNum,
                     const MCSubtargetInfo &STI, raw_ostream &O);
+  void printSyspXzrPair(const MCInst *MI, unsigned OpNum,
+                        const MCSubtargetInfo &STI, raw_ostream &O);
   template <int Width>
   void printZPRasFPR(const MCInst *MI, unsigned OpNum,
                      const MCSubtargetInfo &STI, raw_ostream &O);

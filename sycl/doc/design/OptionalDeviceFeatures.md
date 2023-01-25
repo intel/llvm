@@ -516,6 +516,10 @@ We add a new IR phase to the device compiler which does the following:
   aspects that come from references to types in the
   `sycl_types_that_use_aspects` list.
 
+* If a function has the `!sycl_declared_aspects` metadata, creates (or augments)
+  the function's `!sycl_used_aspects` metadata with aspects from the
+  `!sycl_declared_aspects` list.
+
 * Propagates each function's `!sycl_used_aspects` metadata up the static call
   graph so that each function lists the aspects used by that function and by
   any functions it calls.

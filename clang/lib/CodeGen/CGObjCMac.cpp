@@ -737,14 +737,17 @@ public:
     // Also it is safe to make it readnone, since we never load or store the
     // classref except by calling this function.
     llvm::Type *params[] = { Int8PtrPtrTy };
+    llvm::LLVMContext &C = CGM.getLLVMContext();
+    llvm::AttributeSet AS = llvm::AttributeSet::get(C, {
+        llvm::Attribute::get(C, llvm::Attribute::NonLazyBind),
+        llvm::Attribute::getWithMemoryEffects(C, llvm::MemoryEffects::none()),
+        llvm::Attribute::get(C, llvm::Attribute::NoUnwind),
+    });
     llvm::FunctionCallee F = CGM.CreateRuntimeFunction(
         llvm::FunctionType::get(ClassnfABIPtrTy, params, false),
         "objc_loadClassref",
         llvm::AttributeList::get(CGM.getLLVMContext(),
-                                 llvm::AttributeList::FunctionIndex,
-                                 {llvm::Attribute::NonLazyBind,
-                                  llvm::Attribute::ReadNone,
-                                  llvm::Attribute::NoUnwind}));
+                                 llvm::AttributeList::FunctionIndex, AS));
     if (!CGM.getTriple().isOSBinFormatCOFF())
       cast<llvm::Function>(F.getCallee())->setLinkage(
         llvm::Function::ExternalWeakLinkage);
@@ -2404,8 +2407,8 @@ void IvarLayoutBuilder::visitBlock(const CGBlockInfo &blockInfo) {
     Qualifiers::GC GCAttr = GetGCAttrTypeForType(CGM.getContext(), type);
 
     if (GCAttr == Qualifiers::Strong) {
-      assert(CGM.getContext().getTypeSize(type)
-                == CGM.getTarget().getPointerWidth(0));
+      assert(CGM.getContext().getTypeSize(type) ==
+             CGM.getTarget().getPointerWidth(LangAS::Default));
       IvarsInfo.push_back(IvarInfo(fieldOffset, /*size in words*/ 1));
     }
   }
@@ -2698,7 +2701,7 @@ llvm::Constant *CGObjCCommonMac::getBitmapBlockLayout(bool ComputeByrefLayout) {
   llvm::Constant *nullPtr = llvm::Constant::getNullValue(CGM.Int8PtrTy);
   if (RunSkipBlockVars.empty())
     return nullPtr;
-  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(0);
+  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(LangAS::Default);
   unsigned ByteSizeInBits = CGM.getTarget().getCharWidth();
   unsigned WordSizeInBytes = WordSizeInBits/ByteSizeInBits;
 
@@ -2884,7 +2887,7 @@ void CGObjCCommonMac::fillRunSkipBlockVars(CodeGenModule &CGM,
   RunSkipBlockVars.clear();
   bool hasUnion = false;
 
-  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(0);
+  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(LangAS::Default);
   unsigned ByteSizeInBits = CGM.getTarget().getCharWidth();
   unsigned WordSizeInBytes = WordSizeInBits/ByteSizeInBits;
 
@@ -7229,7 +7232,7 @@ CGObjCNonFragileABIMac::EmitIvarOffset(CodeGen::CodeGenFunction &CGF,
     if (IsIvarOffsetKnownIdempotent(CGF, Ivar))
       cast<llvm::LoadInst>(IvarOffsetValue)
           ->setMetadata(CGM.getModule().getMDKindID("invariant.load"),
-                        llvm::MDNode::get(VMContext, None));
+                        llvm::MDNode::get(VMContext, std::nullopt));
   }
 
   // This could be 32bit int or 64bit integer depending on the architecture.
@@ -7629,7 +7632,7 @@ llvm::Value *CGObjCNonFragileABIMac::EmitSelector(CodeGenFunction &CGF,
 
   llvm::LoadInst* LI = CGF.Builder.CreateLoad(Addr);
   LI->setMetadata(CGM.getModule().getMDKindID("invariant.load"),
-                  llvm::MDNode::get(VMContext, None));
+                  llvm::MDNode::get(VMContext, std::nullopt));
   return LI;
 }
 

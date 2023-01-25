@@ -1,5 +1,5 @@
 ; RUN: opt -module-summary %s -o %t1.o
-; RUN: llvm-lto2 run -save-temps -o %t2.o %t1.o      \
+; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t2.o %t1.o      \
 ; RUN:   -r %t1.o,testVar1,plx -r %t1.o,testVar2,plx \
 ; RUN:   -r %t1.o,var1,pl -r %t1.o,var2,lx
 
@@ -7,7 +7,7 @@
 ; var2 is not prevailing and here we check it is not inlined.
 
 ; Check 'var2' was not inlined.
-; RUN: llvm-objdump -d -r %t2.o.1 | FileCheck %s
+; RUN: llvm-objdump --no-print-imm-hex -d -r %t2.o.1 | FileCheck %s
 ; CHECK:      <testVar1>:
 ; CHECK-NEXT:   movl $10, %eax
 ; CHECK-NEXT:   retq
@@ -26,12 +26,12 @@ target triple = "x86_64-unknown-linux-gnu"
 
 @var1 = global i32 10, align 4
 define i32 @testVar1() {
-  %1 = load i32, i32* @var1, align 4
+  %1 = load i32, ptr @var1, align 4
   ret i32 %1
 }
 
 @var2 = global i32 11, align 4
 define i32 @testVar2() {
-  %1 = load i32, i32* @var2, align 4
+  %1 = load i32, ptr @var2, align 4
   ret i32 %1
 }

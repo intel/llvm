@@ -2,14 +2,14 @@
 ; RUN: opt -aa-pipeline=basic-aa -passes=attributor -attributor-manifest-internal  -attributor-max-iterations-verify -attributor-annotate-decl-cs -attributor-max-iterations=3 -S < %s | FileCheck %s --check-prefixes=CHECK,TUNIT
 ; RUN: opt -aa-pipeline=basic-aa -passes=attributor-cgscc -attributor-manifest-internal  -attributor-annotate-decl-cs -S < %s | FileCheck %s --check-prefixes=CHECK,CGSCC
 
-%S = type { %S* }
+%S = type { ptr }
 
 ; Inlining should nuke the invoke (and any inlined calls) here even with
 ; argument promotion running along with it.
-define void @zot() personality i32 (...)* @wibble {
-; TUNIT: Function Attrs: nofree norecurse noreturn nosync nounwind readnone willreturn
+define void @zot() personality ptr @wibble {
+; TUNIT: Function Attrs: nofree norecurse noreturn nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@zot
-; TUNIT-SAME: () #[[ATTR0:[0-9]+]] personality i32 (...)* @wibble {
+; TUNIT-SAME: () #[[ATTR0:[0-9]+]] personality ptr @wibble {
 ; TUNIT-NEXT:  bb:
 ; TUNIT-NEXT:    call void @hoge() #[[ATTR2:[0-9]+]]
 ; TUNIT-NEXT:    unreachable
@@ -18,9 +18,9 @@ define void @zot() personality i32 (...)* @wibble {
 ; TUNIT:       bb2:
 ; TUNIT-NEXT:    unreachable
 ;
-; CGSCC: Function Attrs: nofree noreturn nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree noreturn nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@zot
-; CGSCC-SAME: () #[[ATTR0:[0-9]+]] personality i32 (...)* @wibble {
+; CGSCC-SAME: () #[[ATTR0:[0-9]+]] personality ptr @wibble {
 ; CGSCC-NEXT:  bb:
 ; CGSCC-NEXT:    call void @hoge() #[[ATTR4:[0-9]+]]
 ; CGSCC-NEXT:    unreachable
@@ -37,32 +37,32 @@ bb1:
   unreachable
 
 bb2:
-  %tmp = landingpad { i8*, i32 }
+  %tmp = landingpad { ptr, i32 }
   cleanup
   unreachable
 }
 
 define internal void @hoge() {
-; TUNIT: Function Attrs: nofree norecurse noreturn nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse noreturn nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@hoge
 ; TUNIT-SAME: () #[[ATTR0]] {
 ; TUNIT-NEXT:  bb:
 ; TUNIT-NEXT:    unreachable
 ;
-; CGSCC: Function Attrs: nofree noreturn nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree noreturn nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@hoge
 ; CGSCC-SAME: () #[[ATTR0]] {
 ; CGSCC-NEXT:  bb:
 ; CGSCC-NEXT:    unreachable
 ;
 bb:
-  %tmp = call fastcc i8* @spam(i1 (i8*)* @eggs)
-  %tmp1 = call fastcc i8* @spam(i1 (i8*)* @barney)
+  %tmp = call fastcc ptr @spam(ptr @eggs)
+  %tmp1 = call fastcc ptr @spam(ptr @barney)
   unreachable
 }
 
-define internal fastcc i8* @spam(i1 (i8*)* %arg) {
-; CGSCC: Function Attrs: nofree norecurse noreturn nosync nounwind readnone willreturn
+define internal fastcc ptr @spam(ptr %arg) {
+; CGSCC: Function Attrs: nofree norecurse noreturn nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@spam
 ; CGSCC-SAME: () #[[ATTR1:[0-9]+]] {
 ; CGSCC-NEXT:  bb:
@@ -72,20 +72,20 @@ bb:
   unreachable
 }
 
-define internal i1 @eggs(i8* %arg) {
+define internal i1 @eggs(ptr %arg) {
 ; CGSCC-LABEL: define {{[^@]+}}@eggs
-; CGSCC-SAME: (i8* [[ARG:%.*]]) {
+; CGSCC-SAME: (ptr [[ARG:%.*]]) {
 ; CGSCC-NEXT:  bb:
 ; CGSCC-NEXT:    [[TMP:%.*]] = call zeroext i1 @barney()
 ; CGSCC-NEXT:    unreachable
 ;
 bb:
-  %tmp = call zeroext i1 @barney(i8* %arg)
+  %tmp = call zeroext i1 @barney(ptr %arg)
   unreachable
 }
 
-define internal i1 @barney(i8* %arg) {
-; CGSCC: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+define internal i1 @barney(ptr %arg) {
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@barney
 ; CGSCC-SAME: () #[[ATTR2:[0-9]+]] {
 ; CGSCC-NEXT:  bb:
@@ -96,13 +96,13 @@ bb:
 }
 
 define i32 @test_inf_promote_caller(i32 %arg) {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@test_inf_promote_caller
 ; TUNIT-SAME: (i32 [[ARG:%.*]]) #[[ATTR1:[0-9]+]] {
 ; TUNIT-NEXT:  bb:
 ; TUNIT-NEXT:    ret i32 0
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@test_inf_promote_caller
 ; CGSCC-SAME: (i32 [[ARG:%.*]]) #[[ATTR3:[0-9]+]] {
 ; CGSCC-NEXT:  bb:
@@ -113,37 +113,37 @@ define i32 @test_inf_promote_caller(i32 %arg) {
 bb:
   %tmp = alloca %S
   %tmp1 = alloca %S
-  %tmp2 = call i32 @test_inf_promote_callee(%S* %tmp, %S* %tmp1)
+  %tmp2 = call i32 @test_inf_promote_callee(ptr %tmp, ptr %tmp1)
 
   ret i32 0
 }
 
-define internal i32 @test_inf_promote_callee(%S* %arg, %S* %arg1) {
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+define internal i32 @test_inf_promote_callee(ptr %arg, ptr %arg1) {
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@test_inf_promote_callee
 ; CGSCC-SAME: () #[[ATTR3]] {
 ; CGSCC-NEXT:  bb:
 ; CGSCC-NEXT:    ret i32 undef
 ;
 bb:
-  %tmp = getelementptr %S, %S* %arg1, i32 0, i32 0
-  %tmp2 = load %S*, %S** %tmp
-  %tmp3 = getelementptr %S, %S* %arg, i32 0, i32 0
-  %tmp4 = load %S*, %S** %tmp3
-  %tmp5 = call i32 @test_inf_promote_callee(%S* %tmp4, %S* %tmp2)
+  %tmp2 = load ptr, ptr %arg1
+  %tmp4 = load ptr, ptr %arg
+  %tmp5 = call i32 @test_inf_promote_callee(ptr %tmp4, ptr %tmp2)
 
   ret i32 0
 }
 
 declare i32 @wibble(...)
 ;.
-; TUNIT: attributes #[[ATTR0]] = { nofree norecurse noreturn nosync nounwind readnone willreturn }
-; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind readnone willreturn }
-; TUNIT: attributes #[[ATTR2]] = { noreturn nounwind readnone }
+; TUNIT: attributes #[[ATTR0]] = { nofree norecurse noreturn nosync nounwind willreturn memory(none) }
+; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind willreturn memory(none) }
+; TUNIT: attributes #[[ATTR2]] = { noreturn nounwind }
 ;.
-; CGSCC: attributes #[[ATTR0]] = { nofree noreturn nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR1]] = { nofree norecurse noreturn nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR2]] = { nofree norecurse nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR3]] = { nofree nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR4]] = { noreturn nounwind readnone }
+; CGSCC: attributes #[[ATTR0]] = { nofree noreturn nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR1]] = { nofree norecurse noreturn nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR2]] = { nofree norecurse nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR3]] = { nofree nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR4]] = { noreturn nounwind }
 ;.
+;; NOTE: These prefixes are unused and the list is autogenerated. Do not add tests below this line:
+; CHECK: {{.*}}

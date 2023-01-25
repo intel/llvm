@@ -328,7 +328,9 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     return;
   }
   if (DemangledName == kOCLBuiltinName::Dot ||
-      DemangledName == kOCLBuiltinName::DotAccSat) {
+      DemangledName == kOCLBuiltinName::DotAccSat ||
+      DemangledName.startswith(kOCLBuiltinName::Dot4x8PackedPrefix) ||
+      DemangledName.startswith(kOCLBuiltinName::DotAccSat4x8PackedPrefix)) {
     if (CI.getOperand(0)->getType()->isVectorTy()) {
       auto *VT = (VectorType *)(CI.getOperand(0)->getType());
       if (!isa<llvm::IntegerType>(VT->getElementType())) {
@@ -942,27 +944,24 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   Function *Func = CI->getCalledFunction();
   bool IsRetScalar = !CI->getType()->isVectorTy();
-  SmallVector<Type *, 3> ArgStructTys;
-  getParameterTypes(CI, ArgStructTys);
   Type *Ret = CI->getType();
-  auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedArgumentType(Func, 0).second;
+  auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedArgumentType(Func, 0);
   if (!ImageTy)
-    ImageTy = ArgStructTys[0];
-  ImageTy = adaptSPIRVImageType(M, ImageTy);
-  auto *SampledImgStructTy = getSPIRVStructTypeByChangeBaseTypeName(
-      M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
-  auto *SampledImgTy = PointerType::get(SampledImgStructTy, SPIRAS_Global);
-  Value *SampledImgArgs[] = {CI->getArgOperand(0), CI->getArgOperand(1)};
-  auto *SampledImg = addCallInstSPIRV(M, getSPIRVFuncName(OpSampledImage),
-                                      SampledImgTy, SampledImgArgs, nullptr,
-                                      {ArgStructTys[0], ArgStructTys[1]}, CI,
-                                      kSPIRVName::TempSampledImage);
+    ImageTy = getCallValueType(CI, 0);
 
   auto Mutator = mutateCallInst(
       CI, getSPIRVFuncName(OpImageSampleExplicitLod,
                            std::string(kSPIRVPostfix::ExtDivider) +
                                getPostfixForReturnType(Ret)));
-  Mutator.replaceArg(0, {SampledImg, SampledImgStructTy}).removeArg(1);
+  Mutator.mapArg(0, [&](IRBuilder<> &Builder, Value *ImgArg, Type *ImgType) {
+    auto *SampledImgTy = adjustImageType(ImageTy, kSPIRVTypeName::Image,
+                                         kSPIRVTypeName::SampledImg);
+    Value *SampledImgArgs[] = {CI->getArgOperand(0), CI->getArgOperand(1)};
+    return addSPIRVCallPair(Builder, OpSampledImage, SampledImgTy,
+                            SampledImgArgs, {ImgType, Mutator.getType(1)},
+                            kSPIRVName::TempSampledImage);
+  });
+  Mutator.removeArg(1);
   unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
   unsigned ImgOpMaskInsIndex = Mutator.arg_size();
   switch (Mutator.arg_size()) {
@@ -995,15 +994,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
 
 void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                                            StringRef DemangledName) {
-  StringRef TyName;
-  SmallVector<StringRef, 4> SubStrs;
-  SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI, ParamTys);
-  auto IsImg = isOCLImageStructType(ParamTys[0], &TyName);
-  (void)IsImg;
-  assert(IsImg);
-  std::string ImageTyName = getImageBaseTypeName(TyName);
-  auto Desc = map<SPIRVTypeImageDescriptor>(ImageTyName);
+  auto Desc = getImageDescriptor(getCallValueType(CI, 0));
   unsigned Dim = getImageDimension(Desc.Dim) + Desc.Arrayed;
   assert(Dim > 0 && "Invalid image dimension.");
   assert(CI->arg_size() == 1);
@@ -1129,8 +1120,10 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
     Mutator
         .mapArg(Mutator.arg_size() - 1,
                 [&](Value *V) {
-                  return std::pair<Value *, Type *>(
-                      castToInt8Ptr(V, CI), Type::getInt8Ty(V->getContext()));
+                  return std::make_pair(
+                      castToInt8Ptr(V, CI),
+                      TypedPointerType::get(Type::getInt8Ty(V->getContext()),
+                                            SPIRAS_Generic));
                 })
         .appendArg(StorageClass);
   };
@@ -1213,19 +1206,11 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
   // translation for dot function calls,
   // to differentiate between integer dot products
 
-  SmallVector<Value *, 3> Args;
-  Args.push_back(CI->getOperand(0));
-  Args.push_back(CI->getOperand(1));
   bool IsFirstSigned, IsSecondSigned;
   bool IsDot = DemangledName == kOCLBuiltinName::Dot;
-  std::string FunName = (IsDot) ? "DotKHR" : "DotAccSatKHR";
-  if (CI->arg_size() > 2) {
-    Args.push_back(CI->getOperand(2));
-  }
-  if (CI->arg_size() > 3) {
-    Args.push_back(CI->getOperand(3));
-  }
-  if (CI->getOperand(0)->getType()->isVectorTy()) {
+  bool IsAccSat = DemangledName.contains(kOCLBuiltinName::DotAccSat);
+  bool IsPacked = CI->getOperand(0)->getType()->isIntegerTy();
+  if (!IsPacked) {
     if (IsDot) {
       // dot(char4, char4) _Z3dotDv4_cS_
       // dot(char4, uchar4) _Z3dotDv4_cDv4_h
@@ -1266,24 +1251,31 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
     }
   } else {
     // for packed format
-    // dot(int, int, int) _Z3dotiii
-    // dot(int, uint, int) _Z3dotiji
-    // dot(uint, int, int) _Z3dotjii
-    // dot(uint, uint, int) _Z3dotjji
+    // dot_4x8packed_ss_int(uint, uint) _Z20dot_4x8packed_ss_intjj
+    // dot_4x8packed_su_int(uint, uint) _Z20dot_4x8packed_su_intjj
+    // dot_4x8packed_us_int(uint, uint) _Z20dot_4x8packed_us_intjj
+    // dot_4x8packed_uu_uint(uint, uint) _Z21dot_4x8packed_uu_uintjj
     // or
-    // dot_acc_sat(int, int, int, int) _Z11dot_acc_satiiii
-    // dot_acc_sat(int, uint, int, int) _Z11dot_acc_satijii
-    // dot_acc_sat(uint, int, int, int) _Z11dot_acc_satjiii
-    // dot_acc_sat(uint, uint, int, int) _Z11dot_acc_satjjii
-    assert(MangledName.startswith("_Z3dot") ||
-           MangledName.startswith("_Z11dot_acc_sat"));
-    IsFirstSigned = (IsDot) ? (MangledName[MangledName.size() - 3] == 'i')
-                            : (MangledName[MangledName.size() - 4] == 'i');
-    IsSecondSigned = (IsDot) ? (MangledName[MangledName.size() - 2] == 'i')
-                             : (MangledName[MangledName.size() - 3] == 'i');
+    // dot_acc_sat_4x8packed_ss_int(uint, uint, int)
+    // _Z28dot_acc_sat_4x8packed_ss_intjji
+    // dot_acc_sat_4x8packed_su_int(uint, uint, int)
+    // _Z28dot_acc_sat_4x8packed_su_intjji
+    // dot_acc_sat_4x8packed_us_int(uint, uint, int)
+    // _Z28dot_acc_sat_4x8packed_us_intjji
+    // dot_acc_sat_4x8packed_uu_uint(uint, uint, uint)
+    // _Z29dot_acc_sat_4x8packed_uu_uintjjj
+    assert(MangledName.startswith("_Z20dot_4x8packed") ||
+           MangledName.startswith("_Z21dot_4x8packed") ||
+           MangledName.startswith("_Z28dot_acc_sat_4x8packed") ||
+           MangledName.startswith("_Z29dot_acc_sat_4x8packed"));
+    size_t SignIndex = IsAccSat
+                           ? strlen(kOCLBuiltinName::DotAccSat4x8PackedPrefix)
+                           : strlen(kOCLBuiltinName::Dot4x8PackedPrefix);
+    IsFirstSigned = DemangledName[SignIndex] == 's';
+    IsSecondSigned = DemangledName[SignIndex + 1] == 's';
   }
   Op OC;
-  if (IsDot) {
+  if (!IsAccSat) {
     OC =
         (IsFirstSigned != IsSecondSigned ? OpSUDot
                                          : ((IsFirstSigned) ? OpSDot : OpUDot));
@@ -1298,6 +1290,14 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
   // so that the OpSUDotKHR can be used properly
   if (IsFirstSigned == false && IsSecondSigned == true) {
     Mutator.moveArg(1, 0);
+  }
+  if (IsPacked) {
+    // As per SPIRV specification the dot OpCodes
+    // which use scalar integers to represent
+    // packed vectors need additional argument
+    // specified - the Packed Vector Format
+    Mutator.appendArg(
+        getInt32(M, PackedVectorFormatPackedVectorFormat4x8BitKHR));
   }
 }
 
@@ -1383,9 +1383,11 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
 
   // If no event arguments in original call, add dummy ones
   if (!HasEvents) {
-    Args.push_back(getInt32(M, 0));           // dummy num events
-    Args.push_back(getOCLNullClkEventPtr(M)); // dummy wait events
-    Args.push_back(getOCLNullClkEventPtr(M)); // dummy ret event
+    Args.push_back(getInt32(M, 0)); // dummy num events
+    Value *Null = Constant::getNullValue(PointerType::get(
+        getSPIRVType(OpTypeDeviceEvent, true), SPIRAS_Generic));
+    Args.push_back(Null); // dummy wait events
+    Args.push_back(Null); // dummy ret event
   }
 
   // Invoke: Pointer to invoke function
@@ -1422,8 +1424,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
-  FunctionType *FT =
-      FunctionType::get(CI->getType(), getTypes(Args), false /*isVarArg*/);
+  FunctionType *FT = FunctionType::get(
+      CI->getType(), getTypes(ArrayRef<Value *>(Args)), false /*isVarArg*/);
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);
@@ -1488,9 +1490,7 @@ void OCLToSPIRVBase::processSubgroupBlockReadWriteINTEL(
 // reads and vector block reads.
 void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<Type *, 2> ParamTys;
-  getParameterTypes(CI, ParamTys);
-  if (isOCLImageStructType(ParamTys[0]))
+  if (isOCLImageType(getCallValueType(CI, 0)))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockReadINTEL);
@@ -1503,9 +1503,7 @@ void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
 // instructions.
 void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<Type *, 3> ParamTys;
-  getParameterTypes(CI, ParamTys);
-  if (isOCLImageStructType(ParamTys[0]))
+  if (isOCLImageType(getCallValueType(CI, 0)))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockWriteINTEL);
@@ -1605,7 +1603,7 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCESTy = getSubgroupAVCIntelMCEType(M, MCETName);
-  auto *MCETy = PointerType::get(MCESTy, SPIRAS_Private);
+  auto *MCETy = TypedPointerType::get(MCESTy, SPIRAS_Private);
   std::string ToMCEFName = Prefix + OpKind + "_convert_to_mce_" + TyKind;
   Op ToMCEOC = OpNop;
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(ToMCEFName, &ToMCEOC);
@@ -1622,28 +1620,24 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
 
     mutateCallInst(CI, WrappedOC)
         .mapArg(CI->arg_size() - 1,
-                [&](Value *Arg, Type *ParamTy) {
+                [&](IRBuilder<> &Builder, Value *Arg, Type *ParamTy) {
                   // Create conversion function call for the last operand
-                  return std::pair<Value *, Type *>(
-                      addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy, Arg,
-                                       nullptr, {ParamTy}, CI, ""),
-                      MCESTy);
+                  return addSPIRVCallPair(Builder, ToMCEOC, MCETy, {Arg},
+                                          {ParamTy});
                 })
-        .changeReturnType(MCETy, [=](IRBuilder<> &, CallInst *NewCI) {
+        .changeReturnType(MCETy, [&](IRBuilder<> &Builder, CallInst *NewCI) {
           // Create conversion function call for the return result
-          return addCallInstSPIRV(M, getSPIRVFuncName(FromMCEOC), CI->getType(),
-                                  NewCI, nullptr, {MCESTy}, CI, "");
+          return addSPIRVCall(Builder, FromMCEOC, CI->getType(), {NewCI},
+                              {MCETy});
         });
   } else {
     // Wrapper built-ins which take the 'result_t' argument requires only one
     // conversion for the argument
     mutateCallInst(CI, WrappedOC)
-        .mapArg(CI->arg_size() - 1, [&](Value *Arg, Type *ParamTy) {
+        .mapArg(CI->arg_size() - 1, [&](IRBuilder<> &Builder, Value *Arg,
+                                        Type *ParamTy) {
           // Create conversion function call for the last operand
-          return std::pair<Value *, Type *>(
-              addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy, Arg,
-                               nullptr, {ParamTy}, CI, ""),
-              MCESTy);
+          return addSPIRVCallPair(Builder, ToMCEOC, MCETy, {Arg}, {ParamTy});
         });
   }
 }
@@ -1667,9 +1661,8 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
     return; // this is not a VME built-in
 
   SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI, ParamTys);
-  auto *TyIt =
-      std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);
+  getParameterTypes(CI->getCalledFunction(), ParamTys);
+  auto *TyIt = std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerTy);
   assert(TyIt != ParamTys.end() && "Invalid Subgroup AVC Intel built-in call");
   unsigned SamplerIndex = TyIt - ParamTys.begin();
   Value *SamplerVal = CI->getOperand(SamplerIndex);
@@ -1678,30 +1671,24 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   SmallVector<Type *, 4> AdaptedTys;
   for (unsigned I = 0; I < CI->arg_size(); I++)
     AdaptedTys.push_back(
-        OCLTypeToSPIRVPtr->getAdaptedArgumentType(CI->getCalledFunction(), I)
-            .second);
+        OCLTypeToSPIRVPtr->getAdaptedArgumentType(CI->getCalledFunction(), I));
   auto *AdaptedIter = AdaptedTys.begin();
 
   mutateCallInst(CI, OC)
-      .mapArgs([&](Value *Arg, Type *PointerTy) {
-        if (!isOCLImageStructType(PointerTy))
-          return std::make_pair(Arg, PointerTy);
+      .mapArgs([&](IRBuilder<> &Builder, Value *Arg, Type *ArgTy) {
+        if (!isOCLImageType(ArgTy))
+          return BuiltinCallMutator::ValueTypePair(Arg, ArgTy);
 
         auto *ImageTy = *AdaptedIter++;
         if (!ImageTy)
-          ImageTy = PointerTy;
-        ImageTy = adaptSPIRVImageType(M, ImageTy);
-        auto *SampledImgStructTy = getSPIRVStructTypeByChangeBaseTypeName(
-            M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::VmeImageINTEL);
-        auto *SampledImgTy =
-            PointerType::get(SampledImgStructTy, SPIRAS_Global);
+          ImageTy = ArgTy;
+        auto *SampledImgTy = adjustImageType(ImageTy, kSPIRVTypeName::Image,
+                                             kSPIRVTypeName::VmeImageINTEL);
 
         Value *SampledImgArgs[] = {Arg, SamplerVal};
-        return std::pair<Value *, Type *>(
-            addCallInstSPIRV(M, getSPIRVFuncName(OpVmeImageINTEL), SampledImgTy,
-                             SampledImgArgs, nullptr, {PointerTy, SamplerTy},
-                             CI, kSPIRVName::TempSampledImage),
-            SampledImgStructTy);
+        return addSPIRVCallPair(Builder, OpVmeImageINTEL, SampledImgTy,
+                                SampledImgArgs, {ArgTy, SamplerTy},
+                                kSPIRVName::TempSampledImage);
       })
       .removeArg(SamplerIndex);
 }

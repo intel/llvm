@@ -43,7 +43,7 @@ loadDataFiles(const std::string &NamesFile, const std::string &AliasesFile) {
       if (FirstSemiPos == std::string::npos)
         continue;
       auto SecondSemiPos = Line.find(';', FirstSemiPos + 1);
-      if (FirstSemiPos == std::string::npos)
+      if (SecondSemiPos == std::string::npos)
         continue;
       unsigned long long CodePoint;
       if (llvm::getAsUnsignedInteger(
@@ -327,7 +327,7 @@ private:
     std::vector<std::unique_ptr<Node>> Children;
     std::string Name;
     Node *Parent = nullptr;
-    llvm::Optional<char32_t> Value;
+    std::optional<char32_t> Value;
   };
 
   std::unique_ptr<Node> Root = std::make_unique<Node>("");

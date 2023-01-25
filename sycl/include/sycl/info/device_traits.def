@@ -149,8 +149,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, printf_buffer_size, size_t,
                          PI_DEVICE_INFO_PRINTF_BUFFER_SIZE)
 __SYCL_PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, bool,
                          PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC)
-__SYCL_PARAM_TRAITS_SPEC(device, parent_device, sycl::device,
-                         PI_DEVICE_INFO_PARENT_DEVICE)
 __SYCL_PARAM_TRAITS_SPEC(device, partition_max_sub_devices, pi_uint32,
                          PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
 __SYCL_PARAM_TRAITS_SPEC(device, partition_properties,
@@ -165,6 +163,12 @@ __SYCL_PARAM_TRAITS_SPEC(device, partition_type_property,
 __SYCL_PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
                          info::partition_affinity_domain,
                          PI_DEVICE_INFO_PARTITION_TYPE)
+
+// Has custom specialization. 
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, parent_device, sycl::device,
+                         PI_DEVICE_INFO_PARENT_DEVICE)
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, aspects, std::vector<sycl::aspect>, 0)
+
 // Extensions/deprecated
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool, PI_DEVICE_INFO_ATOMIC_64)
 __SYCL_PARAM_TRAITS_SPEC(device, kernel_kernel_pipe_support, bool, 0)
@@ -193,8 +197,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
                          PI_MEM_PROPERTIES_CHANNEL)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible

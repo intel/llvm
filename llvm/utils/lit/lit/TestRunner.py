@@ -988,7 +988,7 @@ def executeScriptInternal(test, litConfig, tmpBase, commands, cwd):
         if result.exitCode != 0:
             # On Windows, a negative exit code indicates a signal, and those are
             # easier to recognize or look up if we print them in hex.
-            if litConfig.isWindows and result.exitCode < 0:
+            if litConfig.isWindows and (result.exitCode < 0 or result.exitCode > 255):
                 codeStr = hex(int(result.exitCode & 0xFFFFFFFF)).rstrip("L")
             else:
                 codeStr = str(result.exitCode)
@@ -1174,6 +1174,7 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
             ('%/p', sourcedir.replace('\\', '/')),
             ('%/t', tmpBase.replace('\\', '/') + '.tmp'),
             ('%/T', tmpDir.replace('\\', '/')),
+            ('%/et',tmpName.replace('\\', '\\\\\\\\\\\\\\\\')),
             ])
 
     # "%{/[STpst]:regex_replacement}" should be normalized like "%/[STpst]" but we're

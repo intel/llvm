@@ -131,6 +131,10 @@ void __kmp_affinity_determine_capable(const char *env_var) {
 #define KMP_CPU_SET_SIZE_LIMIT (sizeof(cpuset_t))
 #endif
 
+  int verbose = __kmp_affinity.flags.verbose;
+  int warnings = __kmp_affinity.flags.warnings;
+  enum affinity_type type = __kmp_affinity.type;
+
 #if KMP_OS_LINUX
   long gCode;
   unsigned char *buf;
@@ -145,10 +149,9 @@ void __kmp_affinity_determine_capable(const char *env_var) {
 
   if (gCode < 0 && errno != EINVAL) {
     // System call not supported
-    if (__kmp_affinity_verbose ||
-        (__kmp_affinity_warnings && (__kmp_affinity_type != affinity_none) &&
-         (__kmp_affinity_type != affinity_default) &&
-         (__kmp_affinity_type != affinity_disabled))) {
+    if (verbose ||
+        (warnings && (type != affinity_none) && (type != affinity_default) &&
+         (type != affinity_disabled))) {
       int error = errno;
       kmp_msg_t err_code = KMP_ERR(error);
       __kmp_msg(kmp_ms_warning, KMP_MSG(GetAffSysCallNotSupported, env_var),
@@ -188,11 +191,9 @@ void __kmp_affinity_determine_capable(const char *env_var) {
                       "inconsistent OS call behavior: errno == ENOSYS for mask "
                       "size %d\n",
                       size));
-        if (__kmp_affinity_verbose ||
-            (__kmp_affinity_warnings &&
-             (__kmp_affinity_type != affinity_none) &&
-             (__kmp_affinity_type != affinity_default) &&
-             (__kmp_affinity_type != affinity_disabled))) {
+        if (verbose ||
+            (warnings && (type != affinity_none) &&
+             (type != affinity_default) && (type != affinity_disabled))) {
           int error = errno;
           kmp_msg_t err_code = KMP_ERR(error);
           __kmp_msg(kmp_ms_warning, KMP_MSG(GetAffSysCallNotSupported, env_var),
@@ -239,10 +240,8 @@ void __kmp_affinity_determine_capable(const char *env_var) {
   KMP_AFFINITY_DISABLE();
   KA_TRACE(10, ("__kmp_affinity_determine_capable: "
                 "cannot determine mask size - affinity not supported\n"));
-  if (__kmp_affinity_verbose ||
-      (__kmp_affinity_warnings && (__kmp_affinity_type != affinity_none) &&
-       (__kmp_affinity_type != affinity_default) &&
-       (__kmp_affinity_type != affinity_disabled))) {
+  if (verbose || (warnings && (type != affinity_none) &&
+                  (type != affinity_default) && (type != affinity_disabled))) {
     KMP_WARNING(AffCantGetMaskSize, env_var);
   }
 }
@@ -980,7 +979,7 @@ void __kmp_exit_thread(int exit_status) {
 #if KMP_USE_MONITOR
 void __kmp_resume_monitor();
 
-void __kmp_reap_monitor(kmp_info_t *th) {
+extern "C" void __kmp_reap_monitor(kmp_info_t *th) {
   int status;
   void *exit_val;
 
@@ -1021,6 +1020,12 @@ void __kmp_reap_monitor(kmp_info_t *th) {
                 th->th.th_info.ds.ds_thread));
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
+}
+#else
+// Empty symbol to export (see exports_so.txt) when
+// monitor thread feature is disabled
+extern "C" void __kmp_reap_monitor(kmp_info_t *th) {
+  (void)th;
 }
 #endif // KMP_USE_MONITOR
 
@@ -1230,12 +1235,13 @@ static void __kmp_atfork_child(void) {
   // Set default not to bind threads tightly in the child (we're expecting
   // over-subscription after the fork and this can improve things for
   // scripting languages that use OpenMP inside process-parallel code).
-  __kmp_affinity_type = affinity_none;
   if (__kmp_nested_proc_bind.bind_types != NULL) {
     __kmp_nested_proc_bind.bind_types[0] = proc_bind_false;
   }
-  __kmp_affinity_masks = NULL;
-  __kmp_affinity_num_masks = 0;
+  for (kmp_affinity_t *affinity : __kmp_affinities)
+    *affinity = KMP_AFFINITY_INIT(affinity->env_var);
+  __kmp_affin_fullMask = nullptr;
+  __kmp_affin_origMask = nullptr;
 #endif // KMP_AFFINITY_SUPPORTED
 
 #if KMP_USE_MONITOR
@@ -2442,7 +2448,8 @@ finish: // Clean up and exit.
 
 #if !(KMP_ARCH_X86 || KMP_ARCH_X86_64 || KMP_MIC ||                            \
       ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) ||                 \
-      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64 || KMP_ARCH_LOONGARCH64)
+      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64 || KMP_ARCH_LOONGARCH64 ||            \
+      KMP_ARCH_ARM)
 
 // we really only need the case with 1 argument, because CLANG always build
 // a struct of pointers to shared variables referenced in the outlined function

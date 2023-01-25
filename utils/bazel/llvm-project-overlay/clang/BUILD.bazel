@@ -361,6 +361,7 @@ genrule(
     cmd = (
         "echo '#define CLANG_VERSION 16.0.0' >> $@\n" +
         "echo '#define CLANG_VERSION_MAJOR 16' >> $@\n" +
+        "echo '#define CLANG_VERSION_MAJOR_STRING \"16\"' >> $@\n" +
         "echo '#define CLANG_VERSION_MINOR 0' >> $@\n" +
         "echo '#define CLANG_VERSION_PATCHLEVEL 0' >> $@\n" +
         "echo '#define CLANG_VERSION_STRING \"16.0.0\"' >> $@\n"
@@ -890,6 +891,7 @@ cc_library(
         "//llvm:AllTargetsAsmParsers",
         "//llvm:AllTargetsCodeGens",
         "//llvm:Core",
+        "//llvm:FrontendHLSL",
         "//llvm:FrontendOpenMP",
         "//llvm:MC",
         "//llvm:MCParser",
@@ -1008,7 +1010,7 @@ cc_library(
         ":basic",
         ":frontend",
         "//llvm:Support",
-        "//llvm:gtest",
+        "//third-party/unittest:gtest",
     ],
 )
 
@@ -1067,6 +1069,7 @@ cc_library(
         "include/clang/Tooling/Inclusions/**/*.inc",
     ]),
     deps = [
+        ":ast",
         ":basic",
         ":lex",
         ":rewrite",
@@ -1362,7 +1365,9 @@ cc_library(
         ":parse",
         ":static_analyzer_checkers_gen",
         "//llvm:BinaryFormat",
+        "//llvm:Instrumentation",
         "//llvm:MC",
+        "//llvm:Object",
         "//llvm:Option",
         "//llvm:ProfileData",
         "//llvm:Support",
@@ -1485,7 +1490,14 @@ builtin_headers = glob(
     "lib/Headers/arm_neon.h",
     "lib/Headers/arm_sve.h",
     "lib/Headers/arm_bf16.h",
+    "lib/Headers/module.modulemap",
     "lib/Headers/riscv_vector.h",
+    "lib/Headers/cuda_wrappers/algorithm",
+    "lib/Headers/cuda_wrappers/complex",
+    "lib/Headers/cuda_wrappers/new",
+    "lib/Headers/openmp_wrappers/cmath",
+    "lib/Headers/openmp_wrappers/complex",
+    "lib/Headers/openmp_wrappers/new",
 ]
 
 genrule(
@@ -1630,8 +1642,10 @@ cc_library(
         "//llvm:Coverage",
         "//llvm:DebugInfoDWARF",
         "//llvm:Demangle",
+        "//llvm:FrontendHLSL",
         "//llvm:FrontendOpenMP",
         "//llvm:IPO",
+        "//llvm:IRPrinter",
         "//llvm:IRReader",
         "//llvm:InstCombine",
         "//llvm:Instrumentation",
@@ -1807,6 +1821,7 @@ cc_library(
         ":codegen",
         ":config",
         ":driver",
+        ":extract_api",
         ":frontend",
         ":index",
         ":lex",
@@ -1839,6 +1854,7 @@ cc_plugin_library(
         ":codegen",
         ":config",
         ":driver",
+        ":extract_api",
         ":frontend",
         ":index",
         ":lex",
@@ -2198,6 +2214,7 @@ cc_library(
         ":basic",
         ":frontend",
         ":index",
+        ":lex",
         "//llvm:Option",
         "//llvm:Support",
     ],

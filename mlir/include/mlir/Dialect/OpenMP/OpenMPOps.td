@@ -49,7 +49,7 @@ def OpenMP_PointerLikeType : TypeAlias<OpenMP_PointerLikeTypeInterface,
 def ParallelOp : OpenMP_Op<"parallel", [
                  AutomaticAllocationScope, AttrSizedOperandSegments,
                  DeclareOpInterfaceMethods<OutlineableOpenMPOpInterface>,
-                 RecursiveSideEffects, ReductionClauseInterface]> {
+                 RecursiveMemoryEffects, ReductionClauseInterface]> {
   let summary = "parallel construct";
   let description = [{
     The parallel construct includes a region of code which is to be executed
@@ -113,7 +113,7 @@ def ParallelOp : OpenMP_Op<"parallel", [
   let hasVerifier = 1;
 }
 
-def TerminatorOp : OpenMP_Op<"terminator", [Terminator, NoSideEffect]> {
+def TerminatorOp : OpenMP_Op<"terminator", [Terminator, Pure]> {
   let summary = "terminator for OpenMP regions";
   let description = [{
     A terminator operation for regions that appear in the body of OpenMP
@@ -229,7 +229,7 @@ def SingleOp : OpenMP_Op<"single", [AttrSizedOperandSegments]> {
                        Variadic<AnyType>:$allocators_vars,
                        UnitAttr:$nowait);
 
-  let regions = (region SizedRegion<1>:$region);
+  let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{
     oilist(`allocate` `(`
@@ -249,7 +249,7 @@ def SingleOp : OpenMP_Op<"single", [AttrSizedOperandSegments]> {
 
 def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
                          AllTypesMatch<["lowerBound", "upperBound", "step"]>,
-                         RecursiveSideEffects, ReductionClauseInterface]> {
+                         RecursiveMemoryEffects, ReductionClauseInterface]> {
   let summary = "worksharing-loop construct";
   let description = [{
     The worksharing-loop construct specifies that the iterations of the loop(s)
@@ -385,9 +385,17 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
     Collapsed loops are represented by the simd-loop having a list of indices,
     bounds and steps where the size of the list is equal to the collapse value.
 
+    The `alignment_values` attribute additionally specifies alignment of each
+    corresponding aligned operand. Note that `$aligned_vars` and
+    `alignment_values` should contain the same number of elements.
+
     When an if clause is present and evaluates to false, the preferred number of
     iterations to be executed concurrently is one, regardless of whether
     a simdlen clause is speciﬁed.
+
+    The optional `order` attribute specifies which order the iterations of the
+    associate loops are executed in. Currently the only option for this
+    attribute is "concurrent".
 
     When a simdlen clause is present, the preferred number of iterations to be
     executed concurrently is the value provided to the simdlen clause.
@@ -408,7 +416,10 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
   let arguments = (ins Variadic<IntLikeType>:$lowerBound,
              Variadic<IntLikeType>:$upperBound,
              Variadic<IntLikeType>:$step,
+             Variadic<OpenMP_PointerLikeType>:$aligned_vars,
+             OptionalAttr<I64ArrayAttr>:$alignment_values,
              Optional<I1>:$if_expr,
+             OptionalAttr<OrderKindAttr>:$order_val,
              ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$simdlen,
              ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$safelen,
              UnitAttr:$inclusive
@@ -416,7 +427,11 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
 
   let regions = (region AnyRegion:$region);
   let assemblyFormat = [{
-    oilist(`if` `(` $if_expr `)`
+    oilist(`aligned` `(`
+              custom<AlignedClause>($aligned_vars, type($aligned_vars),
+                                   $alignment_values) `)`
+          |`if` `(` $if_expr `)`
+          |`order` `(` custom<ClauseAttr>($order_val) `)`
           |`simdlen` `(` $simdlen  `)`
           |`safelen` `(` $safelen  `)`
     ) `for` custom<LoopControl>($region, $lowerBound, $upperBound, $step,
@@ -435,7 +450,7 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
 
 
 def YieldOp : OpenMP_Op<"yield",
-    [NoSideEffect, ReturnLike, Terminator,
+    [Pure, ReturnLike, Terminator,
      ParentOneOf<["WsLoopOp", "ReductionDeclareOp",
      "AtomicUpdateOp", "SimdLoopOp"]>]> {
   let summary = "loop yield and termination operation";
@@ -543,7 +558,7 @@ def TaskOp : OpenMP_Op<"task", [AttrSizedOperandSegments,
 }
 
 def TaskLoopOp : OpenMP_Op<"taskloop", [AttrSizedOperandSegments,
-                           AutomaticAllocationScope, RecursiveSideEffects,
+                           AutomaticAllocationScope, RecursiveMemoryEffects,
                            AllTypesMatch<["lowerBound", "upperBound", "step"]>,
                            ReductionClauseInterface]> {
   let summary = "taskloop construct";
@@ -1097,7 +1112,7 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",
                                [SingleBlockImplicitTerminator<"YieldOp">,
-                                RecursiveSideEffects]> {
+                                RecursiveMemoryEffects]> {
 
   let summary = "performs an atomic update";
 

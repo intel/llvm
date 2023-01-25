@@ -10,14 +10,15 @@
 #ifndef _LIBCPP___MEMORY_CONCEPTS_H
 #define _LIBCPP___MEMORY_CONCEPTS_H
 
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__ranges/access.h>
 #include <__ranges/concepts.h>
-#include <concepts>
-#include <type_traits>
+#include <__type_traits/is_reference.h>
+#include <__type_traits/remove_cvref.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

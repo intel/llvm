@@ -54,6 +54,7 @@ public:
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
 
+  void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();
@@ -74,10 +75,18 @@ public:
   static void registerDefaultContextReleaseHandler();
 
   void unloadPlugins();
+  void releaseDefaultContexts();
+  void drainThreadPool();
+  void prepareSchedulerToRelease();
+
+  // For testing purposes only
+  void attachScheduler(Scheduler *Scheduler);
 
 private:
-  friend void releaseDefaultContexts();
   friend void shutdown();
+  friend class ObjectUsageCounter;
+  static GlobalHandler *&getInstancePtr();
+  static SpinLock MSyclGlobalHandlerProtector;
 
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.

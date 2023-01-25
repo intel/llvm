@@ -64,11 +64,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -647,25 +650,25 @@ static void darwinPrintStab(MachOObjectFile *MachO, const NMSymbol &S) {
     outs() << format("   %02x", NType);
 }
 
-static Optional<std::string> demangle(StringRef Name) {
+static std::optional<std::string> demangle(StringRef Name) {
   std::string Demangled;
   if (nonMicrosoftDemangle(Name.str().c_str(), Demangled))
     return Demangled;
-  return None;
+  return std::nullopt;
 }
 
-static Optional<std::string> demangleXCOFF(StringRef Name) {
+static std::optional<std::string> demangleXCOFF(StringRef Name) {
   if (Name.empty() || Name[0] != '.')
     return demangle(Name);
 
   Name = Name.drop_front();
-  Optional<std::string> DemangledName = demangle(Name);
+  std::optional<std::string> DemangledName = demangle(Name);
   if (DemangledName)
     return "." + *DemangledName;
-  return None;
+  return std::nullopt;
 }
 
-static Optional<std::string> demangleMachO(StringRef Name) {
+static std::optional<std::string> demangleMachO(StringRef Name) {
   if (!Name.empty() && Name[0] == '_')
     Name = Name.drop_front();
   return demangle(Name);
@@ -762,12 +765,12 @@ static void printSymbolList(SymbolicFile &Obj,
     std::string Name = S.Name;
     MachOObjectFile *MachO = dyn_cast<MachOObjectFile>(&Obj);
     if (Demangle) {
-      function_ref<Optional<std::string>(StringRef)> Fn = ::demangle;
+      function_ref<std::optional<std::string>(StringRef)> Fn = ::demangle;
       if (Obj.isXCOFF())
         Fn = demangleXCOFF;
       if (Obj.isMachO())
         Fn = demangleMachO;
-      if (Optional<std::string> Opt = Fn(S.Name))
+      if (std::optional<std::string> Opt = Fn(S.Name))
         Name = *Opt;
     }
 
@@ -2297,7 +2300,7 @@ exportSymbolNamesFromFiles(const std::vector<std::string> &InputFilenames) {
   printExportSymbolList(SymbolList);
 }
 
-int main(int argc, char **argv) {
+int llvm_nm_main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   BumpPtrAllocator A;
   StringSaver Saver(A);
@@ -2474,4 +2477,5 @@ int main(int argc, char **argv) {
 
   if (HadError)
     return 1;
+  return 0;
 }

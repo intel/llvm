@@ -389,11 +389,11 @@ void macho::writeChainedFixup(uint8_t *buf, const Symbol *sym, int64_t addend) {
 
 void NonLazyPointerSectionBase::writeTo(uint8_t *buf) const {
   if (config->emitChainedFixups) {
-    for (size_t i = 0, n = entries.size(); i < n; ++i)
-      writeChainedFixup(&buf[i * target->wordSize], entries[i], 0);
+    for (const auto &[i, entry] : llvm::enumerate(entries))
+      writeChainedFixup(&buf[i * target->wordSize], entry, 0);
   } else {
-    for (size_t i = 0, n = entries.size(); i < n; ++i)
-      if (auto *defined = dyn_cast<Defined>(entries[i]))
+    for (const auto &[i, entry] : llvm::enumerate(entries))
+      if (auto *defined = dyn_cast<Defined>(entry))
         write64le(&buf[i * target->wordSize], defined->getVA());
   }
 }
@@ -1157,8 +1157,7 @@ void SymtabSection::emitStabs() {
       if (defined->wasIdenticalCodeFolded)
         continue;
 
-      InputSection *isec = defined->isec;
-      ObjFile *file = dyn_cast_or_null<ObjFile>(isec->getFile());
+      ObjFile *file = defined->getObjectFile();
       if (!file || !file->compileUnit)
         continue;
 
@@ -1624,11 +1623,11 @@ void CStringSection::addInput(CStringInputSection *isec) {
 
 void CStringSection::writeTo(uint8_t *buf) const {
   for (const CStringInputSection *isec : inputs) {
-    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
-      if (!isec->pieces[i].live)
+    for (const auto &[i, piece] : llvm::enumerate(isec->pieces)) {
+      if (!piece.live)
         continue;
       StringRef string = isec->getStringRef(i);
-      memcpy(buf + isec->pieces[i].outSecOff, string.data(), string.size());
+      memcpy(buf + piece.outSecOff, string.data(), string.size());
     }
   }
 }
@@ -1636,15 +1635,15 @@ void CStringSection::writeTo(uint8_t *buf) const {
 void CStringSection::finalizeContents() {
   uint64_t offset = 0;
   for (CStringInputSection *isec : inputs) {
-    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
-      if (!isec->pieces[i].live)
+    for (const auto &[i, piece] : llvm::enumerate(isec->pieces)) {
+      if (!piece.live)
         continue;
       // See comment above DeduplicatedCStringSection for how alignment is
       // handled.
-      uint32_t pieceAlign =
-          1 << countTrailingZeros(isec->align | isec->pieces[i].inSecOff);
+      uint32_t pieceAlign = 1
+                            << countTrailingZeros(isec->align | piece.inSecOff);
       offset = alignTo(offset, pieceAlign);
-      isec->pieces[i].outSecOff = offset;
+      piece.outSecOff = offset;
       isec->isFinal = true;
       StringRef string = isec->getStringRef(i);
       offset += string.size() + 1; // account for null terminator
@@ -1694,8 +1693,7 @@ void CStringSection::finalizeContents() {
 void DeduplicatedCStringSection::finalizeContents() {
   // Find the largest alignment required for each string.
   for (const CStringInputSection *isec : inputs) {
-    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
-      const StringPiece &piece = isec->pieces[i];
+    for (const auto &[i, piece] : llvm::enumerate(isec->pieces)) {
       if (!piece.live)
         continue;
       auto s = isec->getCachedHashStringRef(i);
@@ -1711,8 +1709,8 @@ void DeduplicatedCStringSection::finalizeContents() {
   // Assign an offset for each string and save it to the corresponding
   // StringPieces for easy access.
   for (CStringInputSection *isec : inputs) {
-    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
-      if (!isec->pieces[i].live)
+    for (const auto &[i, piece] : llvm::enumerate(isec->pieces)) {
+      if (!piece.live)
         continue;
       auto s = isec->getCachedHashStringRef(i);
       auto it = stringOffsetMap.find(s);
@@ -1723,7 +1721,7 @@ void DeduplicatedCStringSection::finalizeContents() {
         size =
             offsetInfo.outSecOff + s.size() + 1; // account for null terminator
       }
-      isec->pieces[i].outSecOff = offsetInfo.outSecOff;
+      piece.outSecOff = offsetInfo.outSecOff;
     }
     isec->isFinal = true;
   }
@@ -1901,6 +1899,7 @@ void ObjCImageInfoSection::writeTo(uint8_t *buf) const {
 InitOffsetsSection::InitOffsetsSection()
     : SyntheticSection(segment_names::text, section_names::initOffsets) {
   flags = S_INIT_FUNC_OFFSETS;
+  align = 4; // This section contains 32-bit integers.
 }
 
 uint64_t InitOffsetsSection::getSize() const {
@@ -2176,8 +2175,9 @@ void ChainedFixupsSection::writeTo(uint8_t *buf) const {
   uint64_t nameOffset = 0;
   for (auto [import, idx] : bindings) {
     const Symbol &sym = *import.first;
-    int16_t libOrdinal = needsWeakBind(sym) ? BIND_SPECIAL_DYLIB_WEAK_LOOKUP
-                                            : ordinalForSymbol(sym);
+    int16_t libOrdinal = needsWeakBind(sym)
+                             ? (int64_t)BIND_SPECIAL_DYLIB_WEAK_LOOKUP
+                             : ordinalForSymbol(sym);
     buf += writeImport(buf, importFormat, libOrdinal, sym.isWeakRef(),
                        nameOffset, import.second);
     nameOffset += sym.getName().size() + 1;

@@ -4,6 +4,13 @@
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   cmake_minimum_required(VERSION 3.13.4)
+  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+    message(WARNING
+      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+      "minimum version of CMake required to build LLVM will become 3.20.0, and "
+      "using an older CMake will become an error. Please upgrade your CMake to "
+      "at least 3.20.0 now to avoid issues in the future!")
+  endif()
 
   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
   project(CompilerRTBuiltins C ASM)
@@ -25,7 +32,9 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(base-config-ix)
   include(CompilerRTUtils)
 
-  load_llvm_config()
+  if (NOT LLVM_RUNTIMES_BUILD)
+    load_llvm_config()
+  endif()
   construct_compiler_rt_default_triple()
 
   include(SetPlatformToolchainTools)
@@ -373,7 +382,9 @@ else () # MSVC
   set(i386_SOURCES ${GENERIC_SOURCES} ${x86_ARCH_SOURCES})
 endif () # if (NOT MSVC)
 
-set(arm_SOURCES
+
+# builtin support for Targets that have Arm state or have Thumb2
+set(arm_or_thumb2_base_SOURCES
   arm/fp_mode.c
   arm/bswapdi2.S
   arm/bswapsi2.S
@@ -383,6 +394,13 @@ set(arm_SOURCES
   arm/divmodsi4.S
   arm/divsi3.S
   arm/modsi3.S
+  arm/udivmodsi4.S
+  arm/udivsi3.S
+  arm/umodsi3.S
+  ${GENERIC_SOURCES}
+)
+
+set(arm_sync_SOURCES
   arm/sync_fetch_and_add_4.S
   arm/sync_fetch_and_add_8.S
   arm/sync_fetch_and_and_4.S
@@ -403,13 +421,11 @@ set(arm_SOURCES
   arm/sync_fetch_and_umin_8.S
   arm/sync_fetch_and_xor_4.S
   arm/sync_fetch_and_xor_8.S
-  arm/udivmodsi4.S
-  arm/udivsi3.S
-  arm/umodsi3.S
-  ${GENERIC_SOURCES}
 )
 
-set(thumb1_SOURCES
+# builtin support for Thumb-only targets with very limited Thumb2 technology,
+# such as v6-m and v8-m.baseline
+set(thumb1_base_SOURCES
   arm/divsi3.S
   arm/udivsi3.S
   arm/comparesf2.S
@@ -488,12 +504,21 @@ set(arm_Thumb1_VFPv2_SP_SOURCES
 set(arm_Thumb1_icache_SOURCES
   arm/sync_synchronize.S
 )
+
+# thumb1 calling into Arm to cover support
 set(arm_Thumb1_SOURCES
   ${arm_Thumb1_JT_SOURCES}
   ${arm_Thumb1_SjLj_EH_SOURCES}
   ${arm_Thumb1_VFPv2_DP_SOURCES}
   ${arm_Thumb1_VFPv2_SP_SOURCES}
   ${arm_Thumb1_icache_SOURCES}
+)
+
+# base functionality for Arm Targets prior to Arm v7-a and Armv6-m such as v6,
+# v5t, v4t
+set(arm_min_SOURCES
+  ${arm_or_thumb2_base_SOURCES}
+  ${arm_EABI_SOURCES}
 )
 
 if(MINGW)
@@ -503,18 +528,24 @@ if(MINGW)
     arm/aeabi_uidivmod.S
     arm/aeabi_uldivmod.S
     arm/chkstk.S
-    ${arm_SOURCES}
+    ${arm_or_thumb2_base_SOURCES}
+    ${arm_sync_SOURCES}
+  )
+
+  set(thumb1_SOURCES
+    ${thumb1_base_SOURCES}
   )
 elseif(NOT WIN32)
   # TODO the EABI sources should only be added to EABI targets
   set(arm_SOURCES
-    ${arm_SOURCES}
+    ${arm_or_thumb2_base_SOURCES}
+    ${arm_sync_SOURCES}
     ${arm_EABI_SOURCES}
     ${arm_Thumb1_SOURCES}
   )
 
   set(thumb1_SOURCES
-    ${thumb1_SOURCES}
+    ${thumb1_base_SOURCES}
     ${arm_EABI_SOURCES}
   )
 endif()
@@ -561,6 +592,7 @@ if (MINGW)
   )
 endif()
 
+set(armv4t_SOURCES ${arm_min_SOURCES})
 set(armhf_SOURCES ${arm_SOURCES})
 set(armv7_SOURCES ${arm_SOURCES})
 set(armv7s_SOURCES ${arm_SOURCES})
@@ -620,6 +652,14 @@ set(hexagon_SOURCES
   ${GENERIC_TF_SOURCES}
 )
 
+set(loongarch_SOURCES
+  loongarch/fp_mode.c
+  ${GENERIC_SOURCES}
+  ${GENERIC_TF_SOURCES}
+)
+set(loongarch64_SOURCES
+  ${loongarch_SOURCES}
+)
 
 set(mips_SOURCES ${GENERIC_SOURCES})
 set(mipsel_SOURCES ${mips_SOURCES})
@@ -747,7 +787,7 @@ else ()
                            SOURCE "#if !(__ARM_FP & 0x8)
                                    #error No double-precision support!
                                    #endif
-                                   int main() { return 0; }")
+                                   int main(void) { return 0; }")
           if(NOT COMPILER_RT_HAS_${arch}_VFP_DP)
             list(REMOVE_ITEM ${arch}_SOURCES ${arm_Thumb1_VFPv2_DP_SOURCES})
           endif()

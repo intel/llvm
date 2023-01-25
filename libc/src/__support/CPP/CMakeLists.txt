@@ -8,12 +8,22 @@ add_header_library(
   bit
   HDRS
     bit.h
+  DEPENDS
+    libc.src.__support.compiler_features
 )
 
 add_header_library(
   bitset
   HDRS
     bitset.h
+)
+
+add_header_library(
+  cstddef
+  HDRS
+    cstddef.h
+  DEPENDS
+    .type_traits
 )
 
 add_header_library(
@@ -72,21 +82,21 @@ add_header_library(
 )
 
 add_header_library(
-  vector
-  HDRS
-    vector.h
-  DEPENDS
-    libc.include.stdlib
-)
-
-add_header_library(
   atomic
   HDRS
     atomic.h
 )
 
 add_header_library(
-  error
+  expected
   HDRS
-    error.h
+    expected.h
+)
+
+add_object_library(
+  new
+  SRCS
+    new.cpp
+  HDRS
+    new.h
 )

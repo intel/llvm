@@ -395,7 +395,7 @@ private:
           // Implausible if upperbound(Tok) < First.
           if (auto Offset = LastAffectedToken(Tok.location()))
             return *Offset < First;
-          // A prefix of the expanded tokens may be from an an implicit
+          // A prefix of the expanded tokens may be from an implicit
           // inclusion (e.g. preamble patch, or command-line -include).
           return true;
         });
@@ -517,7 +517,7 @@ private:
     // But SourceLocations for a file are numerically contiguous, so we
     // can use cheap integer operations instead.
     if (Loc < SelFileBounds.getBegin() || Loc >= SelFileBounds.getEnd())
-      return llvm::None;
+      return std::nullopt;
     // FIXME: subtracting getRawEncoding() is dubious, move this logic into SM.
     return Loc.getRawEncoding() - SelFileBounds.getBegin().getRawEncoding();
   }
@@ -860,7 +860,7 @@ private:
   // is not available to the node's children.
   // Usually empty, but sometimes children cover tokens but shouldn't own them.
   SourceRange earlySourceRange(const DynTypedNode &N) {
-    if (const Decl *D = N.get<Decl>()) {
+    if (const Decl *VD = N.get<VarDecl>()) {
       // We want the name in the var-decl to be claimed by the decl itself and
       // not by any children. Ususally, we don't need this, because source
       // ranges of children are not overlapped with their parent's.
@@ -869,8 +869,20 @@ private:
       //    auto fun = [bar = foo]() { ... }
       //                ~~~~~~~~~   VarDecl
       //                ~~~         |- AutoTypeLoc
-      if (const auto *DD = llvm::dyn_cast<VarDecl>(D))
-        return DD->getLocation();
+      return VD->getLocation();
+    }
+
+    // When referring to a destructor ~Foo(), attribute Foo to the destructor
+    // rather than the TypeLoc nested inside it.
+    // We still traverse the TypeLoc, because it may contain other targeted
+    // things like the T in ~Foo<T>().
+    if (const auto *CDD = N.get<CXXDestructorDecl>())
+      return CDD->getNameInfo().getNamedTypeInfo()->getTypeLoc().getBeginLoc();
+    if (const auto *ME = N.get<MemberExpr>()) {
+      auto NameInfo = ME->getMemberNameInfo();
+      if (NameInfo.getName().getNameKind() ==
+          DeclarationName::CXXDestructorName)
+        return NameInfo.getNamedTypeInfo()->getTypeLoc().getBeginLoc();
     }
 
     return SourceRange();

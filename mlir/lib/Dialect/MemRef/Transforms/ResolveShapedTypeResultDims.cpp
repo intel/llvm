@@ -46,7 +46,7 @@ struct DimOfShapedTypeOpInterface : public OpRewritePattern<OpTy> {
     if (!shapedTypeOp)
       return failure();
 
-    Optional<int64_t> dimIndex = dimOp.getConstantIndex();
+    std::optional<int64_t> dimIndex = dimOp.getConstantIndex();
     if (!dimIndex)
       return failure();
 
@@ -76,6 +76,8 @@ template <typename OpTy>
 struct DimOfReifyRankedShapedTypeOpInterface : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
+  void initialize() { OpRewritePattern<OpTy>::setHasBoundedRewriteRecursion(); }
+
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {
     OpResult dimValue = dimOp.getSource().template dyn_cast<OpResult>();
@@ -86,7 +88,7 @@ struct DimOfReifyRankedShapedTypeOpInterface : public OpRewritePattern<OpTy> {
     if (!rankedShapeTypeOp)
       return failure();
 
-    Optional<int64_t> dimIndex = dimOp.getConstantIndex();
+    std::optional<int64_t> dimIndex = dimOp.getConstantIndex();
     if (!dimIndex)
       return failure();
 

@@ -23,8 +23,7 @@
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/CFGPrinter.h"
-#include "llvm/Analysis/CFLAndersAliasAnalysis.h"
-#include "llvm/Analysis/CFLSteensAliasAnalysis.h"
+#include "llvm/Analysis/CFGSCCPrinter.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallPrinter.h"
@@ -72,12 +71,14 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PrintPasses.h"
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -94,6 +95,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
 #include "llvm/Transforms/Coroutines/CoroCleanup.h"
+#include "llvm/Transforms/Coroutines/CoroConditionalWrapper.h"
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
@@ -142,6 +144,7 @@
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
+#include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
@@ -258,6 +261,7 @@
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -399,7 +403,7 @@ public:
 } // namespace
 
 PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
-                         Optional<PGOOptions> PGOOpt,
+                         std::optional<PGOOptions> PGOOpt,
                          PassInstrumentationCallbacks *PIC)
     : TM(TM), PTO(PTO), PGOOpt(PGOOpt), PIC(PIC) {
   if (TM)
@@ -476,21 +480,21 @@ void PassBuilder::registerLoopAnalyses(LoopAnalysisManager &LAM) {
     C(LAM);
 }
 
-static Optional<int> parseRepeatPassName(StringRef Name) {
+static std::optional<int> parseRepeatPassName(StringRef Name) {
   if (!Name.consume_front("repeat<") || !Name.consume_back(">"))
-    return None;
+    return std::nullopt;
   int Count;
   if (Name.getAsInteger(0, Count) || Count <= 0)
-    return None;
+    return std::nullopt;
   return Count;
 }
 
-static Optional<int> parseDevirtPassName(StringRef Name) {
+static std::optional<int> parseDevirtPassName(StringRef Name) {
   if (!Name.consume_front("devirt<") || !Name.consume_back(">"))
-    return None;
+    return std::nullopt;
   int Count;
   if (Name.getAsInteger(0, Count) || Count < 0)
-    return None;
+    return std::nullopt;
   return Count;
 }
 
@@ -840,6 +844,36 @@ Expected<GVNOptions> parseGVNOptions(StringRef Params) {
   return Result;
 }
 
+Expected<IPSCCPOptions> parseIPSCCPOptions(StringRef Params) {
+  IPSCCPOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "func-spec")
+      Result.setFuncSpec(Enable);
+    else
+      return make_error<StringError>(
+          formatv("invalid IPSCCP pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+  }
+  return Result;
+}
+
+Expected<SROAOptions> parseSROAOptions(StringRef Params) {
+  if (Params.empty() || Params == "modify-cfg")
+    return SROAOptions::ModifyCFG;
+  if (Params == "preserve-cfg")
+    return SROAOptions::PreserveCFG;
+  return make_error<StringError>(
+      formatv("invalid SROA pass parameter '{0}' (either preserve-cfg or "
+              "modify-cfg can be specified)",
+              Params)
+          .str(),
+      inconvertibleErrorCode());
+}
+
 Expected<StackLifetime::LivenessType>
 parseStackLifetimeOptions(StringRef Params) {
   StackLifetime::LivenessType Result = StackLifetime::LivenessType::May;
@@ -905,6 +939,8 @@ static bool isModulePassName(StringRef Name, CallbacksT &Callbacks) {
   if (Name == "cgscc")
     return true;
   if (Name == "function" || Name == "function<eager-inv>")
+    return true;
+  if (Name == "coro-cond")
     return true;
 
   // Explicitly handle custom-parsed pass names.
@@ -1029,7 +1065,7 @@ static bool isLoopPassName(StringRef Name, CallbacksT &Callbacks,
   return callbacksAcceptPassName<LoopPassManager>(Name, Callbacks);
 }
 
-Optional<std::vector<PassBuilder::PipelineElement>>
+std::optional<std::vector<PassBuilder::PipelineElement>>
 PassBuilder::parsePipelineText(StringRef Text) {
   std::vector<PipelineElement> ResultPipeline;
 
@@ -1062,7 +1098,7 @@ PassBuilder::parsePipelineText(StringRef Text) {
     do {
       // If we try to pop the outer pipeline we have unbalanced parentheses.
       if (PipelineStack.size() == 1)
-        return None;
+        return std::nullopt;
 
       PipelineStack.pop_back();
     } while (Text.consume_front(")"));
@@ -1074,12 +1110,12 @@ PassBuilder::parsePipelineText(StringRef Text) {
     // Otherwise, the end of an inner pipeline always has to be followed by
     // a comma, and then we can continue.
     if (!Text.consume_front(","))
-      return None;
+      return std::nullopt;
   }
 
   if (PipelineStack.size() > 1)
     // Unbalanced paretheses.
-    return None;
+    return std::nullopt;
 
   assert(PipelineStack.back() == &ResultPipeline &&
          "Wrong pipeline at the bottom of the stack!");
@@ -1098,6 +1134,13 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
       if (auto Err = parseModulePassPipeline(NestedMPM, InnerPipeline))
         return Err;
       MPM.addPass(std::move(NestedMPM));
+      return Error::success();
+    }
+    if (Name == "coro-cond") {
+      ModulePassManager NestedMPM;
+      if (auto Err = parseModulePassPipeline(NestedMPM, InnerPipeline))
+        return Err;
+      MPM.addPass(CoroConditionalWrapper(std::move(NestedMPM)));
       return Error::success();
     }
     if (Name == "cgscc") {
@@ -1768,40 +1811,6 @@ Error PassBuilder::parseAAPipeline(AAManager &AA, StringRef PipelineText) {
   }
 
   return Error::success();
-}
-
-bool PassBuilder::isAAPassName(StringRef PassName) {
-#define MODULE_ALIAS_ANALYSIS(NAME, CREATE_PASS)                               \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ALIAS_ANALYSIS(NAME, CREATE_PASS)                             \
-  if (PassName == NAME)                                                        \
-    return true;
-#include "PassRegistry.def"
-  return false;
-}
-
-bool PassBuilder::isAnalysisPassName(StringRef PassName) {
-#define MODULE_ANALYSIS(NAME, CREATE_PASS)                                     \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ANALYSIS(NAME, CREATE_PASS)                                   \
-  if (PassName == NAME)                                                        \
-    return true;
-#define LOOP_ANALYSIS(NAME, CREATE_PASS)                                       \
-  if (PassName == NAME)                                                        \
-    return true;
-#define CGSCC_ANALYSIS(NAME, CREATE_PASS)                                      \
-  if (PassName == NAME)                                                        \
-    return true;
-#define MODULE_ALIAS_ANALYSIS(NAME, CREATE_PASS)                               \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ALIAS_ANALYSIS(NAME, CREATE_PASS)                             \
-  if (PassName == NAME)                                                        \
-    return true;
-#include "PassRegistry.def"
-  return false;
 }
 
 static void printPassName(StringRef PassName, raw_ostream &OS) {

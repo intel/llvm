@@ -102,24 +102,6 @@ template <PrimType OpType> bool EvalEmitter::emitRet(const SourceInfo &Info) {
   return ReturnValue<T>(S.Stk.pop<T>(), Result);
 }
 
-template <PrimType OpType>
-bool EvalEmitter::emitCall(const Function *Func, const SourceInfo &Info) {
-
-  S.Current =
-      new InterpFrame(S, const_cast<Function *>(Func), S.Current, {}, {});
-  // Result of call will be on the stack and needs to be handled by the caller.
-  return Interpret(S, Result);
-}
-
-bool EvalEmitter::emitCallVoid(const Function *Func, const SourceInfo &Info) {
-  APValue VoidResult;
-  S.Current =
-      new InterpFrame(S, const_cast<Function *>(Func), S.Current, {}, {});
-  bool Success = Interpret(S, VoidResult);
-  assert(VoidResult.isAbsent());
-  return Success;
-}
-
 bool EvalEmitter::emitRetVoid(const SourceInfo &Info) { return true; }
 
 bool EvalEmitter::emitRetValue(const SourceInfo &Info) {
@@ -141,7 +123,7 @@ bool EvalEmitter::emitRetValue(const SourceInfo &Info) {
           const Pointer &FP = Ptr.atField(F.Offset);
           QualType FieldTy = F.Decl->getType();
           if (FP.isActive()) {
-            if (llvm::Optional<PrimType> T = Ctx.classify(FieldTy)) {
+            if (std::optional<PrimType> T = Ctx.classify(FieldTy)) {
               TYPE_SWITCH(*T, Ok &= ReturnValue<T>(FP.deref<T>(), Value));
             } else {
               Ok &= Composite(FieldTy, FP, Value);
@@ -163,7 +145,7 @@ bool EvalEmitter::emitRetValue(const SourceInfo &Info) {
           const Pointer &FP = Ptr.atField(FD->Offset);
           APValue &Value = R.getStructField(I);
 
-          if (llvm::Optional<PrimType> T = Ctx.classify(FieldTy)) {
+          if (std::optional<PrimType> T = Ctx.classify(FieldTy)) {
             TYPE_SWITCH(*T, Ok &= ReturnValue<T>(FP.deref<T>(), Value));
           } else {
             Ok &= Composite(FieldTy, FP, Value);
@@ -195,7 +177,7 @@ bool EvalEmitter::emitRetValue(const SourceInfo &Info) {
       for (unsigned I = 0; I < NumElems; ++I) {
         APValue &Slot = R.getArrayInitializedElt(I);
         const Pointer &EP = Ptr.atIndex(I);
-        if (llvm::Optional<PrimType> T = Ctx.classify(ElemTy)) {
+        if (std::optional<PrimType> T = Ctx.classify(ElemTy)) {
           TYPE_SWITCH(*T, Ok &= ReturnValue<T>(EP.deref<T>(), Slot));
         } else {
           Ok &= Composite(ElemTy, EP.narrow(), Slot);

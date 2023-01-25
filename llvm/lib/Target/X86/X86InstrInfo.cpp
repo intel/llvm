@@ -1589,6 +1589,10 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
       MIB.add(ImplicitOp);
 
     NewMI = addOffset(MIB, -Imm);
+
+    // Add kills if classifyLEAReg created a new register.
+    if (LV && SrcReg != Src.getReg())
+      LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
     break;
   }
 
@@ -1692,6 +1696,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
               .add(MI.getOperand(5))
               .add(MI.getOperand(6))
               .add(MI.getOperand(7));
+    NumRegOperands = 4;
     break;
   }
 
@@ -1763,7 +1768,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
   if (LV) {  // Update live variables
     for (unsigned I = 0; I < NumRegOperands; ++I) {
       MachineOperand &Op = MI.getOperand(I);
-      if (Op.isDead() || Op.isKill())
+      if (Op.isReg() && (Op.isDead() || Op.isKill()))
         LV->replaceKillInstruction(Op.getReg(), MI, *NewMI);
     }
   }
@@ -2550,6 +2555,14 @@ bool X86InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case X86::VPDPWSSDrr:
   case X86::VPDPWSSDSYrr:
   case X86::VPDPWSSDSrr:
+  case X86::VPDPBSSDSrr:
+  case X86::VPDPBSSDSYrr:
+  case X86::VPDPBSSDrr:
+  case X86::VPDPBSSDYrr:
+  case X86::VPDPBUUDSrr:
+  case X86::VPDPBUUDSYrr:
+  case X86::VPDPBUUDrr:
+  case X86::VPDPBUUDYrr:
   case X86::VPDPWSSDZ128r:
   case X86::VPDPWSSDZ128rk:
   case X86::VPDPWSSDZ128rkz:
@@ -2568,6 +2581,8 @@ bool X86InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case X86::VPDPWSSDSZr:
   case X86::VPDPWSSDSZrk:
   case X86::VPDPWSSDSZrkz:
+  case X86::VPMADD52HUQrr:
+  case X86::VPMADD52HUQYrr:
   case X86::VPMADD52HUQZ128r:
   case X86::VPMADD52HUQZ128rk:
   case X86::VPMADD52HUQZ128rkz:
@@ -2577,6 +2592,8 @@ bool X86InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case X86::VPMADD52HUQZr:
   case X86::VPMADD52HUQZrk:
   case X86::VPMADD52HUQZrkz:
+  case X86::VPMADD52LUQrr:
+  case X86::VPMADD52LUQYrr:
   case X86::VPMADD52LUQZ128r:
   case X86::VPMADD52LUQZ128rk:
   case X86::VPMADD52LUQZ128rkz:
@@ -2942,13 +2959,26 @@ bool X86InstrInfo::isUnconditionalTailCall(const MachineInstr &MI) const {
 bool X86InstrInfo::canMakeTailCallConditional(
     SmallVectorImpl<MachineOperand> &BranchCond,
     const MachineInstr &TailCall) const {
+
+  const MachineFunction *MF = TailCall.getMF();
+
+  if (MF->getTarget().getCodeModel() == CodeModel::Kernel) {
+    // Kernel patches thunk calls in runtime, these should never be conditional.
+    const MachineOperand &Target = TailCall.getOperand(0);
+    if (Target.isSymbol()) {
+      StringRef Symbol(Target.getSymbolName());
+      // this is currently only relevant to r11/kernel indirect thunk.
+      if (Symbol.equals("__x86_indirect_thunk_r11"))
+        return false;
+    }
+  }
+
   if (TailCall.getOpcode() != X86::TCRETURNdi &&
       TailCall.getOpcode() != X86::TCRETURNdi64) {
     // Only direct calls can be done with a conditional branch.
     return false;
   }
 
-  const MachineFunction *MF = TailCall.getParent()->getParent();
   if (Subtarget.isTargetWin64() && MF->hasWinCFI()) {
     // Conditional tail calls confuse the Win64 unwinder.
     return false;
@@ -3543,11 +3573,11 @@ void X86InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   report_fatal_error("Cannot emit physreg copy instruction");
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 X86InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg())
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
-  return None;
+  return std::nullopt;
 }
 
 static unsigned getLoadStoreOpcodeForFP16(bool Load, const X86Subtarget &STI) {
@@ -3698,24 +3728,24 @@ static unsigned getLoadStoreRegOpcode(Register Reg,
   }
 }
 
-Optional<ExtAddrMode>
+std::optional<ExtAddrMode>
 X86InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
                                       const TargetRegisterInfo *TRI) const {
   const MCInstrDesc &Desc = MemI.getDesc();
   int MemRefBegin = X86II::getMemoryOperandNo(Desc.TSFlags);
   if (MemRefBegin < 0)
-    return None;
+    return std::nullopt;
 
   MemRefBegin += X86II::getOperandBias(Desc);
 
   auto &BaseOp = MemI.getOperand(MemRefBegin + X86::AddrBaseReg);
   if (!BaseOp.isReg()) // Can be an MO_FrameIndex
-    return None;
+    return std::nullopt;
 
   const MachineOperand &DispMO = MemI.getOperand(MemRefBegin + X86::AddrDisp);
   // Displacement can be symbolic
   if (!DispMO.isImm())
-    return None;
+    return std::nullopt;
 
   ExtAddrMode AM;
   AM.BaseReg = BaseOp.getReg();
@@ -3727,7 +3757,7 @@ X86InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
 
 bool X86InstrInfo::verifyInstruction(const MachineInstr &MI,
                                      StringRef &ErrInfo) const {
-  Optional<ExtAddrMode> AMOrNone = getAddrModeFromMemoryOp(MI, nullptr);
+  std::optional<ExtAddrMode> AMOrNone = getAddrModeFromMemoryOp(MI, nullptr);
   if (!AMOrNone)
     return true;
 
@@ -3896,12 +3926,10 @@ void X86InstrInfo::loadStoreTileReg(MachineBasicBlock &MBB,
   }
 }
 
-void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-                                       MachineBasicBlock::iterator MI,
-                                       Register SrcReg, bool isKill,
-                                       int FrameIdx,
-                                       const TargetRegisterClass *RC,
-                                       const TargetRegisterInfo *TRI) const {
+void X86InstrInfo::storeRegToStackSlot(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg,
+    bool isKill, int FrameIdx, const TargetRegisterClass *RC,
+    const TargetRegisterInfo *TRI, Register VReg) const {
   const MachineFunction &MF = *MBB.getParent();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
@@ -3924,7 +3952,8 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         Register DestReg, int FrameIdx,
                                         const TargetRegisterClass *RC,
-                                        const TargetRegisterInfo *TRI) const {
+                                        const TargetRegisterInfo *TRI,
+                                        Register VReg) const {
   const MachineFunction &MF = *MBB.getParent();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
@@ -4468,18 +4497,10 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
       continue;
 
     // EFLAGS is used by this instruction.
-    X86::CondCode OldCC = X86::COND_INVALID;
-    if (MI || IsSwapped || ImmDelta != 0) {
-      // We decode the condition code from opcode.
-      if (Instr.isBranch())
-        OldCC = X86::getCondFromBranch(Instr);
-      else {
-        OldCC = X86::getCondFromSETCC(Instr);
-        if (OldCC == X86::COND_INVALID)
-          OldCC = X86::getCondFromCMov(Instr);
-      }
-      if (OldCC == X86::COND_INVALID) return false;
-    }
+    X86::CondCode OldCC = X86::getCondFromMI(Instr);
+    if ((MI || IsSwapped || ImmDelta != 0) && OldCC == X86::COND_INVALID)
+      return false;
+
     X86::CondCode ReplacementCC = X86::COND_INVALID;
     if (MI) {
       switch (OldCC) {
@@ -6103,6 +6124,11 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
   if (MOs.size() == X86::AddrNumOperands &&
       MOs[X86::AddrDisp].getTargetFlags() == X86II::MO_GOTTPOFF &&
       MI.getOpcode() != X86::ADD64rr)
+    return nullptr;
+
+  // Don't fold loads into indirect calls that need a KCFI check as we'll
+  // have to unfold these in X86KCFIPass anyway.
+  if (MI.isCall() && MI.getCFIType())
     return nullptr;
 
   MachineInstr *NewMI = nullptr;
@@ -8689,8 +8715,15 @@ bool X86InstrInfo::hasReassociableOperands(const MachineInstr &Inst,
 //       1. Other data types (integer, vectors)
 //       2. Other math / logic operations (xor, or)
 //       3. Other forms of the same operation (intrinsics and other variants)
-bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
+bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
+                                               bool Invert) const {
+  if (Invert)
+    return false;
   switch (Inst.getOpcode()) {
+  case X86::ADD8rr:
+  case X86::ADD16rr:
+  case X86::ADD32rr:
+  case X86::ADD64rr:
   case X86::AND8rr:
   case X86::AND16rr:
   case X86::AND32rr:
@@ -9010,7 +9043,7 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
 /// If \p DescribedReg overlaps with the MOVrr instruction's destination
 /// register then, if possible, describe the value in terms of the source
 /// register.
-static Optional<ParamLoadedValue>
+static std::optional<ParamLoadedValue>
 describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
                          const TargetRegisterInfo *TRI) {
   Register DestReg = MI.getOperand(0).getReg();
@@ -9037,13 +9070,13 @@ describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
   // possible.
   if (MI.getOpcode() == X86::MOV8rr || MI.getOpcode() == X86::MOV16rr ||
       !TRI->isSuperRegister(DestReg, DescribedReg))
-    return None;
+    return std::nullopt;
 
   assert(MI.getOpcode() == X86::MOV32rr && "Unexpected super-register case");
   return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
 }
 
-Optional<ParamLoadedValue>
+std::optional<ParamLoadedValue>
 X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
   const MachineOperand *Op = nullptr;
   DIExpression *Expr = nullptr;
@@ -9056,12 +9089,12 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
   case X86::LEA64_32r: {
     // We may need to describe a 64-bit parameter with a 32-bit LEA.
     if (!TRI->isSuperRegisterEq(MI.getOperand(0).getReg(), Reg))
-      return None;
+      return std::nullopt;
 
     // Operand 4 could be global address. For now we do not support
     // such situation.
     if (!MI.getOperand(4).isImm() || !MI.getOperand(2).isImm())
-      return None;
+      return std::nullopt;
 
     const MachineOperand &Op1 = MI.getOperand(1);
     const MachineOperand &Op2 = MI.getOperand(3);
@@ -9072,12 +9105,12 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     // %rsi = lea %rsi, 4, ...
     if ((Op1.isReg() && Op1.getReg() == MI.getOperand(0).getReg()) ||
         Op2.getReg() == MI.getOperand(0).getReg())
-      return None;
+      return std::nullopt;
     else if ((Op1.isReg() && Op1.getReg() != X86::NoRegister &&
               TRI->regsOverlap(Op1.getReg(), MI.getOperand(0).getReg())) ||
              (Op2.getReg() != X86::NoRegister &&
               TRI->regsOverlap(Op2.getReg(), MI.getOperand(0).getReg())))
-      return None;
+      return std::nullopt;
 
     int64_t Coef = MI.getOperand(2).getImm();
     int64_t Offset = MI.getOperand(4).getImm();
@@ -9096,7 +9129,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
       if (Op && Op2.getReg() != X86::NoRegister) {
         int dwarfReg = TRI->getDwarfRegNum(Op2.getReg(), false);
         if (dwarfReg < 0)
-          return None;
+          return std::nullopt;
         else if (dwarfReg < 32) {
           Ops.push_back(dwarf::DW_OP_breg0 + dwarfReg);
           Ops.push_back(0);
@@ -9131,14 +9164,14 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
   case X86::MOV8ri:
   case X86::MOV16ri:
     // TODO: Handle MOV8ri and MOV16ri.
-    return None;
+    return std::nullopt;
   case X86::MOV32ri:
   case X86::MOV64ri:
   case X86::MOV64ri32:
     // MOV32ri may be used for producing zero-extended 32-bit immediates in
     // 64-bit parameters, so we need to consider super-registers.
     if (!TRI->isSuperRegisterEq(MI.getOperand(0).getReg(), Reg))
-      return None;
+      return std::nullopt;
     return ParamLoadedValue(MI.getOperand(1), Expr);
   case X86::MOV8rr:
   case X86::MOV16rr:
@@ -9149,10 +9182,10 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     // 64-bit parameters are zero-materialized using XOR32rr, so also consider
     // super-registers.
     if (!TRI->isSuperRegisterEq(MI.getOperand(0).getReg(), Reg))
-      return None;
+      return std::nullopt;
     if (MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
       return ParamLoadedValue(MachineOperand::CreateImm(0), Expr);
-    return None;
+    return std::nullopt;
   }
   case X86::MOVSX64rr32: {
     // We may need to describe the lower 32 bits of the MOVSX; for example, in
@@ -9162,7 +9195,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     //  $rdi = MOVSX64rr32 $ebx
     //  $esi = MOV32rr $edi
     if (!TRI->isSubRegisterEq(MI.getOperand(0).getReg(), Reg))
-      return None;
+      return std::nullopt;
 
     Expr = DIExpression::get(MI.getMF()->getFunction().getContext(), {});
 

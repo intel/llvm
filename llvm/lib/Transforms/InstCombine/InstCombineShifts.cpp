@@ -1059,11 +1059,21 @@ Instruction *InstCombinerImpl::visitShl(BinaryOperator &I) {
     }
   }
 
-  // (1 << (C - x)) -> ((1 << C) >> x) if C is bitwidth - 1
-  if (match(Op0, m_One()) &&
-      match(Op1, m_Sub(m_SpecificInt(BitWidth - 1), m_Value(X))))
-    return BinaryOperator::CreateLShr(
-        ConstantInt::get(Ty, APInt::getSignMask(BitWidth)), X);
+  if (match(Op0, m_One())) {
+    // (1 << (C - x)) -> ((1 << C) >> x) if C is bitwidth - 1
+    if (match(Op1, m_Sub(m_SpecificInt(BitWidth - 1), m_Value(X))))
+      return BinaryOperator::CreateLShr(
+          ConstantInt::get(Ty, APInt::getSignMask(BitWidth)), X);
+
+    // The only way to shift out the 1 is with an over-shift, so that would
+    // be poison with or without "nuw". Undef is excluded because (undef << X)
+    // is not undef (it is zero).
+    Constant *ConstantOne = cast<Constant>(Op0);
+    if (!I.hasNoUnsignedWrap() && !ConstantOne->containsUndefElement()) {
+      I.setHasNoUnsignedWrap();
+      return &I;
+    }
+  }
 
   return nullptr;
 }
@@ -1289,6 +1299,18 @@ Instruction *InstCombinerImpl::visitLShr(BinaryOperator &I) {
       }
     }
 
+    // Reduce add-carry of bools to logic:
+    // ((zext BoolX) + (zext BoolY)) >> 1 --> zext (BoolX && BoolY)
+    Value *BoolX, *BoolY;
+    if (ShAmtC == 1 && match(Op0, m_Add(m_Value(X), m_Value(Y))) &&
+        match(X, m_ZExt(m_Value(BoolX))) && match(Y, m_ZExt(m_Value(BoolY))) &&
+        BoolX->getType()->isIntOrIntVectorTy(1) &&
+        BoolY->getType()->isIntOrIntVectorTy(1) &&
+        (X->hasOneUse() || Y->hasOneUse() || Op0->hasOneUse())) {
+      Value *And = Builder.CreateAnd(BoolX, BoolY);
+      return new ZExtInst(And, Ty);
+    }
+
     // If the shifted-out value is known-zero, then this is an exact shift.
     if (!I.isExact() &&
         MaskedValueIsZero(Op0, APInt::getLowBitsSet(BitWidth, ShAmtC), 0, &I)) {
@@ -1482,8 +1504,11 @@ Instruction *InstCombinerImpl::visitAShr(BinaryOperator &I) {
     return R;
 
   // See if we can turn a signed shr into an unsigned shr.
-  if (MaskedValueIsZero(Op0, APInt::getSignMask(BitWidth), 0, &I))
-    return BinaryOperator::CreateLShr(Op0, Op1);
+  if (MaskedValueIsZero(Op0, APInt::getSignMask(BitWidth), 0, &I)) {
+    Instruction *Lshr = BinaryOperator::CreateLShr(Op0, Op1);
+    Lshr->setIsExact(I.isExact());
+    return Lshr;
+  }
 
   // ashr (xor %x, -1), %y  -->  xor (ashr %x, %y), -1
   if (match(Op0, m_OneUse(m_Not(m_Value(X))))) {

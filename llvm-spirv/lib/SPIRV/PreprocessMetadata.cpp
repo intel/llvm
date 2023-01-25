@@ -129,27 +129,30 @@ void PreprocessMetadataBase::visit(Module *M) {
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 17, i32 X, i32 Y, i32 Z}
     if (MDNode *WGSize = Kernel.getMetadata(kSPIR2MD::WGSize)) {
-      unsigned X, Y, Z;
-      decodeMDNode(WGSize, X, Y, Z);
+      assert(WGSize->getNumOperands() >= 1 && WGSize->getNumOperands() <= 3 &&
+             "reqd_work_group_size does not have between 1 and 3 operands.");
+      SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGSize);
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeLocalSize)
-          .add(X)
-          .add(Y)
-          .add(Z)
+          .add(DecodedVals[0])
+          .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
+          .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
           .done();
     }
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 18, i32 X, i32 Y, i32 Z}
     if (MDNode *WGSizeHint = Kernel.getMetadata(kSPIR2MD::WGSizeHint)) {
-      unsigned X, Y, Z;
-      decodeMDNode(WGSizeHint, X, Y, Z);
+      assert(WGSizeHint->getNumOperands() >= 1 &&
+             WGSizeHint->getNumOperands() <= 3 &&
+             "work_group_size_hint does not have between 1 and 3 operands.");
+      SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGSizeHint);
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeLocalSizeHint)
-          .add(X)
-          .add(Y)
-          .add(Z)
+          .add(DecodedVals[0])
+          .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
+          .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
           .done();
     }
 
@@ -175,14 +178,16 @@ void PreprocessMetadataBase::visit(Module *M) {
     //         i32 Y, i32 Z}
     if (MDNode *MaxWorkgroupSizeINTEL =
             Kernel.getMetadata(kSPIR2MD::MaxWGSize)) {
-      unsigned X, Y, Z;
-      decodeMDNode(MaxWorkgroupSizeINTEL, X, Y, Z);
+      assert(MaxWorkgroupSizeINTEL->getNumOperands() == 3 &&
+             "max_work_group_size does not have 3 operands.");
+      SmallVector<unsigned, 3> DecodedVals =
+          decodeMDNode(MaxWorkgroupSizeINTEL);
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeMaxWorkgroupSizeINTEL)
-          .add(X)
-          .add(Y)
-          .add(Z)
+          .add(DecodedVals[0])
+          .add(DecodedVals[1])
+          .add(DecodedVals[2])
           .done();
     }
 
@@ -242,7 +247,7 @@ void PreprocessMetadataBase::visit(Module *M) {
           InterfaceMode = 1;
         EM.addOp()
             .add(&Kernel)
-            .add(spv::internal::ExecutionModeStreamingInterfaceINTEL)
+            .add(spv::ExecutionModeStreamingInterfaceINTEL)
             .add(InterfaceMode)
             .done();
       }

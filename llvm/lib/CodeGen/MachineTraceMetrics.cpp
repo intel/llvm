@@ -9,7 +9,6 @@
 #include "llvm/CodeGen/MachineTraceMetrics.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -352,7 +351,7 @@ MinInstrCountEnsemble::pickTracePred(const MachineBasicBlock *MBB) {
 // Select the preferred successor for MBB.
 const MachineBasicBlock*
 MinInstrCountEnsemble::pickTraceSucc(const MachineBasicBlock *MBB) {
-  if (MBB->pred_empty())
+  if (MBB->succ_empty())
     return nullptr;
   const MachineLoop *CurLoop = getLoopFor(MBB);
   const MachineBasicBlock *Best = nullptr;
@@ -449,7 +448,7 @@ public:
 
   void finishPostorder(const MachineBasicBlock*) {}
 
-  bool insertEdge(Optional<const MachineBasicBlock *> From,
+  bool insertEdge(std::optional<const MachineBasicBlock *> From,
                   const MachineBasicBlock *To) {
     // Skip already visited To blocks.
     MachineTraceMetrics::TraceBlockInfo &TBI = LB.Blocks[To->getNumber()];

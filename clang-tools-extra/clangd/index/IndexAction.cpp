@@ -28,12 +28,12 @@ namespace clang {
 namespace clangd {
 namespace {
 
-llvm::Optional<std::string> toURI(Optional<FileEntryRef> File) {
+llvm::Optional<std::string> toURI(OptionalFileEntryRef File) {
   if (!File)
-    return llvm::None;
+    return std::nullopt;
   auto AbsolutePath = File->getFileEntry().tryGetRealPathName();
   if (AbsolutePath.empty())
-    return llvm::None;
+    return std::nullopt;
   return URI::create(AbsolutePath).toString();
 }
 
@@ -85,8 +85,7 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File,
-                          llvm::StringRef SearchPath,
+                          OptionalFileEntryRef File, llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     auto IncludeURI = toURI(File);

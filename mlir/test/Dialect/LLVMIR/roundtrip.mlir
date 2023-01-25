@@ -146,23 +146,23 @@ func.func @ops(%arg0: i32, %arg1: f32,
 // CHECK: %{{.*}} = llvm.fneg %[[FLOAT]] : f32
   %29 = llvm.fneg %arg1 : f32
 
-// CHECK: "llvm.intr.sin"(%[[FLOAT]]) : (f32) -> f32
-  %30 = "llvm.intr.sin"(%arg1) : (f32) -> f32
+// CHECK: llvm.intr.sin(%[[FLOAT]]) : (f32) -> f32
+  %30 = llvm.intr.sin(%arg1) : (f32) -> f32
 
-// CHECK: "llvm.intr.pow"(%[[FLOAT]], %[[FLOAT]]) : (f32, f32) -> f32
-  %31 = "llvm.intr.pow"(%arg1, %arg1) : (f32, f32) -> f32
+// CHECK: llvm.intr.pow(%[[FLOAT]], %[[FLOAT]]) : (f32, f32) -> f32
+  %31 = llvm.intr.pow(%arg1, %arg1) : (f32, f32) -> f32
 
-// CHECK: "llvm.intr.powi"(%[[FLOAT]], %[[I32]]) : (f32, i32) -> f32
-  %a31 = "llvm.intr.powi"(%arg1, %arg0) : (f32, i32) -> f32
+// CHECK: llvm.intr.powi(%[[FLOAT]], %[[I32]]) : (f32, i32) -> f32
+  %a31 = llvm.intr.powi(%arg1, %arg0) : (f32, i32) -> f32
 
-// CHECK: "llvm.intr.bitreverse"(%{{.*}}) : (i32) -> i32
-  %32 = "llvm.intr.bitreverse"(%arg0) : (i32) -> i32
+// CHECK: llvm.intr.bitreverse(%{{.*}}) : (i32) -> i32
+  %32 = llvm.intr.bitreverse(%arg0) : (i32) -> i32
 
-// CHECK: "llvm.intr.ctpop"(%{{.*}}) : (i32) -> i32
-  %33 = "llvm.intr.ctpop"(%arg0) : (i32) -> i32
+// CHECK: llvm.intr.ctpop(%{{.*}}) : (i32) -> i32
+  %33 = llvm.intr.ctpop(%arg0) : (i32) -> i32
 
-// CHECK: "llvm.intr.round"(%[[FLOAT]]) : (f32) -> f32
-  %34 = "llvm.intr.round"(%arg1) : (f32) -> f32
+// CHECK: llvm.intr.round(%[[FLOAT]]) : (f32) -> f32
+  %34 = llvm.intr.round(%arg1) : (f32) -> f32
 
 // CHECK: "llvm.intr.memcpy"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i32, i1) -> ()
   "llvm.intr.memcpy"(%arg2, %arg3, %arg0, %arg4) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i32, i1) -> ()
@@ -181,11 +181,11 @@ func.func @ops(%arg0: i32, %arg1: f32,
 
 // CHECK-LABEL: @gep
 llvm.func @gep(%ptr: !llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, %idx: i64,
-               %ptr2: !llvm.ptr<struct<(array<10xf32>)>>) {
+               %ptr2: !llvm.ptr<struct<(array<10 x f32>)>>) {
   // CHECK: llvm.getelementptr %{{.*}}[%{{.*}}, 1, 0] : (!llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, i64) -> !llvm.ptr<i32>
   llvm.getelementptr %ptr[%idx, 1, 0] : (!llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, i64) -> !llvm.ptr<i32>
-  // CHECK: llvm.getelementptr %{{.*}}[%{{.*}}, 0, %{{.*}}] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
-  llvm.getelementptr %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
+  // CHECK: llvm.getelementptr inbounds %{{.*}}[%{{.*}}, 0, %{{.*}}] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
+  llvm.getelementptr inbounds %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
   llvm.return
 }
 
@@ -477,12 +477,17 @@ func.func @fastmathFlags(%arg0: f32, %arg1: f32, %arg2: i32, %arg3: vector<2 x f
   %7 = llvm.call @foo(%arg2) {fastmathFlags = #llvm.fastmath<fast>} : (i32) -> !llvm.struct<(i32, f64, i32)>
 
 // CHECK: {{.*}} = llvm.fadd %arg0, %arg1 : f32
-  %8 = llvm.fadd %arg0, %arg1 {fastmathFlags = #llvm.fastmath<>} : f32
+  %8 = llvm.fadd %arg0, %arg1 {fastmathFlags = #llvm.fastmath<none>} : f32
 // CHECK: {{.*}} = llvm.fadd %arg0, %arg1 {fastmathFlags = #llvm.fastmath<nnan, ninf>} : f32
   %9 = llvm.fadd %arg0, %arg1 {fastmathFlags = #llvm.fastmath<nnan,ninf>} : f32
 
 // CHECK: {{.*}} = llvm.fneg %arg0 : f32
-  %10 = llvm.fneg %arg0 {fastmathFlags = #llvm.fastmath<>} : f32
+  %10 = llvm.fneg %arg0 {fastmathFlags = #llvm.fastmath<none>} : f32
+
+// CHECK: {{.*}} = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<fast>} : (f32) -> f32
+  %11 = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<fast>} : (f32) -> f32
+// CHECK: {{.*}} = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<afn>} : (f32) -> f32
+  %12 = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<afn>} : (f32) -> f32
   return
 }
 

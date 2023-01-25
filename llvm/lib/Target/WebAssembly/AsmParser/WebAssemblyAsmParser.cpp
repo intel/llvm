@@ -273,11 +273,11 @@ public:
 #include "WebAssemblyGenAsmMatcher.inc"
 
   // TODO: This is required to be implemented, but appears unused.
-  bool ParseRegister(unsigned & /*RegNo*/, SMLoc & /*StartLoc*/,
+  bool parseRegister(MCRegister & /*RegNo*/, SMLoc & /*StartLoc*/,
                      SMLoc & /*EndLoc*/) override {
-    llvm_unreachable("ParseRegister is not implemented.");
+    llvm_unreachable("parseRegister is not implemented.");
   }
-  OperandMatchResultTy tryParseRegister(unsigned & /*RegNo*/,
+  OperandMatchResultTy tryParseRegister(MCRegister & /*RegNo*/,
                                         SMLoc & /*StartLoc*/,
                                         SMLoc & /*EndLoc*/) override {
     llvm_unreachable("tryParseRegister is not implemented.");
@@ -835,7 +835,8 @@ public:
       auto ElemTypeName = expectIdent();
       if (ElemTypeName.empty())
         return true;
-      Optional<wasm::ValType> ElemType = WebAssembly::parseType(ElemTypeName);
+      std::optional<wasm::ValType> ElemType =
+          WebAssembly::parseType(ElemTypeName);
       if (!ElemType)
         return error("Unknown type in .tabletype directive: ", ElemTypeTok);
 

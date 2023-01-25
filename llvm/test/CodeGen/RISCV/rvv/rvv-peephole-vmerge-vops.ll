@@ -26,7 +26,7 @@ declare <vscale x 2 x i1> @llvm.vp.icmp.nxv2i32(<vscale x 2 x i32>, <vscale x 2 
 define <vscale x 2 x i32> @vpmerge_vpadd2(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> %x, <vscale x 2 x i32> %y, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vpadd2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, ma
 ; CHECK-NEXT:    vmseq.vv v0, v9, v10
 ; CHECK-NEXT:    vsetvli zero, zero, e32, m1, tu, mu
 ; CHECK-NEXT:    vadd.vv v8, v9, v10, v0.t
@@ -43,7 +43,7 @@ define <vscale x 2 x i32> @vpmerge_vpadd2(<vscale x 2 x i32> %passthru, <vscale 
 define <vscale x 2 x i32> @vpmerge_vpadd3(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> %x, <vscale x 2 x i32> %y, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vpadd3:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a0, e32, m1, tu, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, tu, ma
 ; CHECK-NEXT:    vadd.vv v8, v9, v10
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
@@ -73,7 +73,7 @@ declare <vscale x 2 x i32> @llvm.riscv.vrgatherei16.vv.nxv2i32.i64(<vscale x 2 x
 define <vscale x 2 x i32> @vpmerge_vrgatherei16(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> %x, <vscale x 2 x i16> %y, <vscale x 2 x i1> %m, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vrgatherei16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, ma
 ; CHECK-NEXT:    vrgatherei16.vv v8, v9, v10
 ; CHECK-NEXT:    ret
   %1 = zext i32 %vl to i64
@@ -173,7 +173,7 @@ define <vscale x 2 x float> @vpmerge_vpfptrunc(<vscale x 2 x float> %passthru, <
 }
 
 ; Test load operation by vp.load.
-declare <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> *, <vscale x 2 x i1>, i32)
+declare <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> *, <vscale x 2 x i1>, i32)
 define <vscale x 2 x i32> @vpmerge_vpload(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> * %p, <vscale x 2 x i1> %m, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vpload:
 ; CHECK:       # %bb.0:
@@ -182,7 +182,7 @@ define <vscale x 2 x i32> @vpmerge_vpload(<vscale x 2 x i32> %passthru, <vscale 
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.merge.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   ret <vscale x 2 x i32> %b
 }
@@ -191,14 +191,14 @@ define <vscale x 2 x i32> @vpmerge_vpload(<vscale x 2 x i32> %passthru, <vscale 
 define <vscale x 2 x i32> @vpmerge_vpload2(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> * %p, <vscale x 2 x i32> %x, <vscale x 2 x i32> %y, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vpload2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, ma
 ; CHECK-NEXT:    vmseq.vv v0, v9, v10
 ; CHECK-NEXT:    vsetvli zero, zero, e32, m1, tu, mu
 ; CHECK-NEXT:    vle32.v v8, (a0), v0.t
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %m = call <vscale x 2 x i1> @llvm.vp.icmp.nxv2i32(<vscale x 2 x i32> %x, <vscale x 2 x i32> %y, metadata !"eq", <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.merge.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   ret <vscale x 2 x i32> %b
@@ -214,7 +214,7 @@ define void @vpmerge_vpload_store(<vscale x 2 x i32> %passthru, <vscale x 2 x i3
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.merge.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   store <vscale x 2 x i32> %b, <vscale x 2 x i32> * %p
   ret void
@@ -225,9 +225,9 @@ declare { <vscale x 2 x i32>, i64 } @llvm.riscv.vleff.nxv2i32(<vscale x 2 x i32>
 define <vscale x 2 x i32> @vpmerge_vleff(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> * %p, <vscale x 2 x i1> %m, i32 zeroext %vl) {
 ; CHECK-LABEL: vpmerge_vleff:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32ff.v v9, (a0)
-; CHECK-NEXT:    vsetvli zero, a1, e32, m1, tu, mu
+; CHECK-NEXT:    vsetvli zero, a1, e32, m1, tu, ma
 ; CHECK-NEXT:    vmerge.vvm v8, v8, v9, v0
 ; CHECK-NEXT:    ret
   %1 = zext i32 %vl to i64
@@ -472,7 +472,7 @@ define <vscale x 2 x i32> @vpselect_vpadd2(<vscale x 2 x i32> %passthru, <vscale
 define <vscale x 2 x i32> @vpselect_vpadd3(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> %x, <vscale x 2 x i32> %y, i32 zeroext %vl) {
 ; CHECK-LABEL: vpselect_vpadd3:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, ma
 ; CHECK-NEXT:    vadd.vv v8, v9, v10
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
@@ -500,7 +500,7 @@ define <vscale x 2 x float> @vpselect_vpfadd(<vscale x 2 x float> %passthru, <vs
 define <vscale x 2 x i32> @vpselect_vrgatherei16(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> %x, <vscale x 2 x i16> %y, <vscale x 2 x i1> %m, i32 zeroext %vl) {
 ; CHECK-LABEL: vpselect_vrgatherei16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, ma
 ; CHECK-NEXT:    vrgatherei16.vv v8, v9, v10
 ; CHECK-NEXT:    ret
   %1 = zext i32 %vl to i64
@@ -602,7 +602,7 @@ define <vscale x 2 x i32> @vpselect_vpload(<vscale x 2 x i32> %passthru, <vscale
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.select.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   ret <vscale x 2 x i32> %b
 }
@@ -617,7 +617,7 @@ define <vscale x 2 x i32> @vpselect_vpload2(<vscale x 2 x i32> %passthru, <vscal
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %m = call <vscale x 2 x i1> @llvm.vp.icmp.nxv2i32(<vscale x 2 x i32> %x, <vscale x 2 x i32> %y, metadata !"eq", <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.select.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   ret <vscale x 2 x i32> %b
@@ -633,7 +633,7 @@ define void @vpselect_vpload_store(<vscale x 2 x i32> %passthru, <vscale x 2 x i
 ; CHECK-NEXT:    ret
   %splat = insertelement <vscale x 2 x i1> poison, i1 -1, i32 0
   %mask = shufflevector <vscale x 2 x i1> %splat, <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer
-  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0nxv2i32(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
+  %a = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(<vscale x 2 x i32> * %p, <vscale x 2 x i1> %mask, i32 %vl)
   %b = call <vscale x 2 x i32> @llvm.vp.select.nxv2i32(<vscale x 2 x i1> %m, <vscale x 2 x i32> %a, <vscale x 2 x i32> %passthru, i32 %vl)
   store <vscale x 2 x i32> %b, <vscale x 2 x i32> * %p
   ret void
@@ -643,9 +643,9 @@ define void @vpselect_vpload_store(<vscale x 2 x i32> %passthru, <vscale x 2 x i
 define <vscale x 2 x i32> @vpselect_vleff(<vscale x 2 x i32> %passthru, <vscale x 2 x i32> * %p, <vscale x 2 x i1> %m, i32 zeroext %vl) {
 ; CHECK-LABEL: vpselect_vleff:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32ff.v v9, (a0)
-; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a1, e32, m1, ta, ma
 ; CHECK-NEXT:    vmerge.vvm v8, v8, v9, v0
 ; CHECK-NEXT:    ret
   %1 = zext i32 %vl to i64
@@ -849,21 +849,21 @@ define <vscale x 2 x i32> @vpselect_trunc(<vscale x 2 x i32> %passthru, <vscale 
 define void @test_dag_loop() {
 ; CHECK-LABEL: test_dag_loop:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetivli zero, 1, e16, m8, ta, mu
+; CHECK-NEXT:    vsetivli zero, 1, e16, m8, ta, ma
 ; CHECK-NEXT:    vle16.v v8, (zero)
-; CHECK-NEXT:    vsetvli a0, zero, e8, m4, ta, mu
+; CHECK-NEXT:    vsetvli a0, zero, e8, m4, ta, ma
 ; CHECK-NEXT:    vmclr.m v0
 ; CHECK-NEXT:    vmv.v.i v16, 0
 ; CHECK-NEXT:    vsetivli zero, 0, e8, m4, tu, mu
 ; CHECK-NEXT:    vmv4r.v v20, v16
 ; CHECK-NEXT:    vssubu.vx v20, v16, zero, v0.t
-; CHECK-NEXT:    vsetvli zero, zero, e8, m4, ta, mu
+; CHECK-NEXT:    vsetvli zero, zero, e8, m4, ta, ma
 ; CHECK-NEXT:    vmseq.vv v0, v20, v16
-; CHECK-NEXT:    vsetvli a0, zero, e16, m8, ta, mu
+; CHECK-NEXT:    vsetvli a0, zero, e16, m8, ta, ma
 ; CHECK-NEXT:    vmv.v.i v16, 0
-; CHECK-NEXT:    vsetivli zero, 1, e16, m8, tu, mu
+; CHECK-NEXT:    vsetivli zero, 1, e16, m8, tu, ma
 ; CHECK-NEXT:    vmerge.vvm v16, v16, v8, v0
-; CHECK-NEXT:    vsetivli zero, 0, e16, m8, ta, mu
+; CHECK-NEXT:    vsetivli zero, 0, e16, m8, ta, ma
 ; CHECK-NEXT:    vse16.v v16, (zero)
 ; CHECK-NEXT:    ret
 entry:

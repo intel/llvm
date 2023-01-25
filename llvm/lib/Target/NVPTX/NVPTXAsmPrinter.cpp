@@ -406,8 +406,7 @@ void NVPTXAsmPrinter::printReturnValStr(const MachineFunction &MF,
 }
 
 // Return true if MBB is the header of a loop marked with
-// llvm.loop.unroll.disable.
-// TODO: consider "#pragma unroll 1" which is equivalent to "#pragma nounroll".
+// llvm.loop.unroll.disable or llvm.loop.unroll.count=1.
 bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
     const MachineBasicBlock &MBB) const {
   MachineLoopInfo &LI = getAnalysis<MachineLoopInfo>();
@@ -428,6 +427,12 @@ bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
               PBB->getTerminator()->getMetadata(LLVMContext::MD_loop)) {
         if (GetUnrollMetadata(LoopID, "llvm.loop.unroll.disable"))
           return true;
+        if (MDNode *UnrollCountMD =
+                GetUnrollMetadata(LoopID, "llvm.loop.unroll.count")) {
+          if (mdconst::extract<ConstantInt>(UnrollCountMD->getOperand(1))
+                  ->getZExtValue() == 1)
+            return true;
+        }
       }
     }
   }
@@ -895,29 +900,19 @@ bool NVPTXAsmPrinter::doFinalization(Module &M) {
 
   clearAnnotationCache(&M);
 
-  if (auto *TS = static_cast<NVPTXTargetStreamer *>(
-          OutStreamer->getTargetStreamer())) {
-    // Close the last emitted section
-    if (HasDebugInfo) {
-      TS->closeLastSection();
-      // Emit empty .debug_loc section for better support of the empty files.
-      OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
-    }
-
-    // Output last DWARF .file directives, if any.
-    TS->outputDwarfFileDirectives();
+  auto *TS =
+      static_cast<NVPTXTargetStreamer *>(OutStreamer->getTargetStreamer());
+  // Close the last emitted section
+  if (HasDebugInfo) {
+    TS->closeLastSection();
+    // Emit empty .debug_loc section for better support of the empty files.
+    OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
   }
 
-  return ret;
+  // Output last DWARF .file directives, if any.
+  TS->outputDwarfFileDirectives();
 
-  //bool Result = AsmPrinter::doFinalization(M);
-  // Instead of calling the parents doFinalization, we may
-  // clone parents doFinalization and customize here.
-  // Currently, we if NVISA out the EmitGlobals() in
-  // parent's doFinalization, which is too intrusive.
-  //
-  // Same for the doInitialization.
-  //return Result;
+  return ret;
 }
 
 // This function emits appropriate linkage directives for
@@ -1361,8 +1356,11 @@ NVPTXAsmPrinter::getPTXFundamentalTypeStr(Type *Ty, bool useB4PTR) const {
     return "f32";
   case Type::DoubleTyID:
     return "f64";
-  case Type::PointerTyID:
-    if (static_cast<const NVPTXTargetMachine &>(TM).is64Bit())
+  case Type::PointerTyID: {
+    unsigned PtrSize = TM.getPointerSizeInBits(Ty->getPointerAddressSpace());
+    assert((PtrSize == 64 || PtrSize == 32) && "Unexpected pointer size");
+
+    if (PtrSize == 64)
       if (useB4PTR)
         return "b64";
       else
@@ -1371,6 +1369,7 @@ NVPTXAsmPrinter::getPTXFundamentalTypeStr(Type *Ty, bool useB4PTR) const {
       return "b32";
     else
       return "u32";
+  }
   default:
     break;
   }
@@ -1457,9 +1456,8 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
   bool isKernelFunc = isKernelFunction(*F);
   bool isABI = (STI.getSmVersion() >= 20);
   bool hasImageHandles = STI.hasImageHandles();
-  MVT thePointerTy = TLI->getPointerTy(DL);
 
-  if (F->arg_empty()) {
+  if (F->arg_empty() && !F->isVarArg()) {
     O << "()\n";
     return;
   }
@@ -1530,10 +1528,17 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       }
       // Just a scalar
       auto *PTy = dyn_cast<PointerType>(Ty);
+      unsigned PTySizeInBits = 0;
+      if (PTy) {
+        PTySizeInBits =
+            TLI->getPointerTy(DL, PTy->getAddressSpace()).getSizeInBits();
+        assert(PTySizeInBits && "Invalid pointer size");
+      }
+
       if (isKernelFunc) {
         if (PTy) {
           // Special handling for pointer arguments to kernel
-          O << "\t.param .u" << thePointerTy.getSizeInBits() << " ";
+          O << "\t.param .u" << PTySizeInBits << " ";
 
           if (static_cast<NVPTXTargetMachine &>(TM).getDrvInterface() !=
               NVPTX::CUDA) {
@@ -1576,9 +1581,10 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       if (isa<IntegerType>(Ty)) {
         sz = cast<IntegerType>(Ty)->getBitWidth();
         sz = promoteScalarArgumentSize(sz);
-      } else if (isa<PointerType>(Ty))
-        sz = thePointerTy.getSizeInBits();
-      else if (Ty->isHalfTy())
+      } else if (PTy) {
+        assert(PTySizeInBits && "Invalid pointer size");
+        sz = PTySizeInBits;
+      } else if (Ty->isHalfTy())
         // PTX ABI requires all scalar parameters to be at least 32
         // bits in size.  fp16 normally uses .b16 as its storage type
         // in PTX, so its size must be adjusted here, too.
@@ -1653,6 +1659,15 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       --paramIndex;
       continue;
     }
+  }
+
+  if (F->isVarArg()) {
+    if (!first)
+      O << ",\n";
+    O << "\t.param .align " << STI.getMaxRequiredAlignment();
+    O << " .b8 ";
+    getSymbol(F)->print(O, MAI);
+    O << "_vararg[]";
   }
 
   O << "\n)\n";
@@ -1831,6 +1846,7 @@ void NVPTXAsmPrinter::bufferLEByte(const Constant *CPV, int Bytes,
     break;
 
   case Type::HalfTyID:
+  case Type::BFloatTyID:
   case Type::FloatTyID:
   case Type::DoubleTyID:
     AddIntToBuffer(cast<ConstantFP>(CPV)->getValueAPF().bitcastToAPInt());

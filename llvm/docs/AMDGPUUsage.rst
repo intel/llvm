@@ -21,6 +21,7 @@ User Guide for AMDGPU Backend
    AMDGPU/AMDGPUAsmGFX1011
    AMDGPU/AMDGPUAsmGFX1013
    AMDGPU/AMDGPUAsmGFX1030
+   AMDGPU/AMDGPUAsmGFX11
    AMDGPUModifierSyntax
    AMDGPUOperandSyntax
    AMDGPUInstructionSyntax
@@ -445,7 +446,7 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                                                                         Add product
                                                                                                         names.
 
-     **GCN GFX11**
+     **GCN GFX11 (RDNA 3)** [AMD-GCN-GFX11-RDNA3]_
      -----------------------------------------------------------------------------------------------------------------------
      ``gfx1100``                 ``amdgcn``   dGPU  - cumode          - Architected   - *pal-amdpal*  *TBA*
                                                     - wavefrontsize64   flat
@@ -3219,9 +3220,6 @@ same *vendor-name*.
                                                                   arguments in the
                                                                   kernarg segment. Must
                                                                   be a power of 2.
-     ".uses_dynamic_stack"               boolean                  Indicates if the generated
-                                                                  machine code is using a
-                                                                  dynamically sized stack.
      ".wavefront_size"                   integer        Required  Wavefront size. Must
                                                                   be a power of 2.
      ".sgpr_count"                       integer        Required  Number of scalar
@@ -3553,7 +3551,8 @@ Code Object V5 Metadata
 
 Code object V5 metadata is the same as
 :ref:`amdgpu-amdhsa-code-object-metadata-v4` with the changes defined in table
-:ref:`amdgpu-amdhsa-code-object-metadata-map-table-v5` and table
+:ref:`amdgpu-amdhsa-code-object-metadata-map-table-v5`, table
+:ref:`amdgpu-amdhsa-code-object-kernel-metadata-map-table-v5` and table
 :ref:`amdgpu-amdhsa-code-object-kernel-argument-metadata-map-table-v5`.
 
   .. table:: AMDHSA Code Object V5 Metadata Map Changes
@@ -3567,6 +3566,20 @@ Code object V5 metadata is the same as
                                                 - The second integer is the minor
                                                   version. Currently 2.
      ================= ============== ========= =======================================
+
+..
+
+  .. table:: AMDHSA Code Object V5 Kernel Metadata Map Additions
+     :name: amdgpu-amdhsa-code-object-kernel-metadata-map-table-v5
+
+     ============================= ============= ========== =======================================
+     String Key                    Value Type     Required? Description
+     ============================= ============= ========== =======================================
+     ".uses_dynamic_stack"         boolean                  Indicates if the generated machine code
+                                                            is using a dynamically sized stack.
+     ".workgroup_processor_mode"   boolean                  (GFX10+) Controls ENABLE_WGP_MODE in
+                                                            :ref:`amdgpu-amdhsa-kernel-descriptor-v3-table`.
+     ============================= ============= ========== =======================================
 
 ..
 
@@ -4004,6 +4017,8 @@ The fields used by CP for code objects before V3 also match those specified in
      459     1 bit   USES_DYNAMIC_STACK              Indicates if the generated
                                                      machine code is using a
                                                      dynamically sized stack.
+                                                     This is only set in code
+                                                     object v5 and later.
      463:460 1 bit                                   Reserved, must be 0.
      464     1 bit   RESERVED_464                    Deprecated, must be 0.
      467:465 3 bits                                  Reserved, must be 0.
@@ -14332,14 +14347,22 @@ in this description.
                                                                 :doc:`gfx1035<AMDGPU/AMDGPUAsmGFX1030>`
 
                                                                 :doc:`gfx1036<AMDGPU/AMDGPUAsmGFX1030>`
+
+    RDNA 3        :doc:`GFX11<AMDGPU/AMDGPUAsmGFX11>`           :doc:`gfx1100<AMDGPU/AMDGPUAsmGFX11>`
+
+                                                                :doc:`gfx1101<AMDGPU/AMDGPUAsmGFX11>`
+
+                                                                :doc:`gfx1102<AMDGPU/AMDGPUAsmGFX11>`
+
+                                                                :doc:`gfx1103<AMDGPU/AMDGPUAsmGFX11>`
     ============= ============================================= =======================================
 
 For more information about instructions, their semantics and supported
 combinations of operands, refer to one of instruction set architecture manuals
 [AMD-GCN-GFX6]_, [AMD-GCN-GFX7]_, [AMD-GCN-GFX8]_,
 [AMD-GCN-GFX900-GFX904-VEGA]_, [AMD-GCN-GFX906-VEGA7NM]_,
-[AMD-GCN-GFX908-CDNA1]_, [AMD-GCN-GFX90A-CDNA2]_, [AMD-GCN-GFX10-RDNA1]_ and
-[AMD-GCN-GFX10-RDNA2]_.
+[AMD-GCN-GFX908-CDNA1]_, [AMD-GCN-GFX90A-CDNA2]_, [AMD-GCN-GFX10-RDNA1]_,
+[AMD-GCN-GFX10-RDNA2]_ and [AMD-GCN-GFX11-RDNA3]_.
 
 Operands
 ~~~~~~~~
@@ -15141,6 +15164,7 @@ Additional Documentation
 .. [AMD-GCN-GFX90A-CDNA2] `AMD Instinct MI200 Instruction Set Architecture <https://developer.amd.com/wp-content/resources/CDNA2_Shader_ISA_4February2022.pdf>`__
 .. [AMD-GCN-GFX10-RDNA1] `AMD RDNA 1.0 Instruction Set Architecture <https://gpuopen.com/wp-content/uploads/2019/08/RDNA_Shader_ISA_5August2019.pdf>`__
 .. [AMD-GCN-GFX10-RDNA2] `AMD RDNA 2 Instruction Set Architecture <https://developer.amd.com/wp-content/resources/RDNA2_Shader_ISA_November2020.pdf>`__
+.. [AMD-GCN-GFX11-RDNA3] `AMD RDNA 3 Instruction Set Architecture <https://developer.amd.com/wp-content/resources/RDNA3_Shader_ISA_December2022.pdf>`__
 .. [AMD-RADEON-HD-2000-3000] `AMD R6xx shader ISA <http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf>`__
 .. [AMD-RADEON-HD-4000] `AMD R7xx shader ISA <http://developer.amd.com/wordpress/media/2012/10/R700-Family_Instruction_Set_Architecture.pdf>`__
 .. [AMD-RADEON-HD-5000] `AMD Evergreen shader ISA <http://developer.amd.com/wordpress/media/2012/10/AMD_Evergreen-Family_Instruction_Set_Architecture.pdf>`__

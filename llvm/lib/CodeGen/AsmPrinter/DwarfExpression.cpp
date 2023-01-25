@@ -494,7 +494,7 @@ bool DwarfExpression::addExpression(
   // and not any other parts of the following DWARF expression.
   assert(!IsEmittingEntryValue && "Can't emit entry value around expression");
 
-  Optional<DIExpression::ExprOperand> PrevConvertOp;
+  std::optional<DIExpression::ExprOperand> PrevConvertOp;
 
   while (ExprCursor) {
     auto Op = ExprCursor.take();
@@ -604,7 +604,7 @@ bool DwarfExpression::addExpression(
             emitLegacySExt(PrevConvertOp->getArg(0));
           else if (Encoding == dwarf::DW_ATE_unsigned)
             emitLegacyZExt(PrevConvertOp->getArg(0));
-          PrevConvertOp = None;
+          PrevConvertOp = std::nullopt;
         } else {
           PrevConvertOp = Op;
         }

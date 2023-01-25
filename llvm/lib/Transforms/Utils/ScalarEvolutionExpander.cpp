@@ -381,7 +381,7 @@ static void SimplifyAddOperands(SmallVectorImpl<const SCEV *> &Ops,
   // the sum into a single value, so just use that.
   Ops.clear();
   if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(Sum))
-    Ops.append(Add->op_begin(), Add->op_end());
+    append_range(Ops, Add->operands());
   else if (!Sum->isZero())
     Ops.push_back(Sum);
   // Then append the addrecs.
@@ -409,7 +409,7 @@ static void SplitAddRecs(SmallVectorImpl<const SCEV *> &Ops,
                                          A->getNoWrapFlags(SCEV::FlagNW)));
       if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(Start)) {
         Ops[i] = Zero;
-        Ops.append(Add->op_begin(), Add->op_end());
+        append_range(Ops, Add->operands());
         e += Add->getNumOperands();
       } else {
         Ops[i] = Start;
@@ -576,8 +576,7 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
     // Fold a GEP with constant operands.
     if (Constant *CLHS = dyn_cast<Constant>(V))
       if (Constant *CRHS = dyn_cast<Constant>(Idx))
-        return ConstantExpr::getGetElementPtr(Type::getInt8Ty(Ty->getContext()),
-                                              CLHS, CRHS);
+        return Builder.CreateGEP(Builder.getInt8Ty(), CLHS, CRHS);
 
     // Do a quick scan to see if we have this GEP nearby.  If so, reuse it.
     unsigned ScanLimit = 6;
@@ -1550,7 +1549,7 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
       !S->getType()->isPointerTy()) {
     SmallVector<const SCEV *, 4> NewOps(S->getNumOperands());
     for (unsigned i = 0, e = S->getNumOperands(); i != e; ++i)
-      NewOps[i] = SE.getAnyExtendExpr(S->op_begin()[i], CanonicalIV->getType());
+      NewOps[i] = SE.getAnyExtendExpr(S->getOperand(i), CanonicalIV->getType());
     Value *V = expand(SE.getAddRecExpr(NewOps, S->getLoop(),
                                        S->getNoWrapFlags(SCEV::FlagNW)));
     BasicBlock::iterator NewInsertPt =
@@ -1926,6 +1925,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     if (Value *V = SimplifyPHINode(Phi)) {
       if (V->getType() != Phi->getType())
         continue;
+      SE.forgetValue(Phi);
       Phi->replaceAllUsesWith(V);
       DeadInsts.emplace_back(Phi);
       ++NumElim;

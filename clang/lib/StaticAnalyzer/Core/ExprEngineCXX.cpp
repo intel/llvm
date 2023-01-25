@@ -10,15 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/Analysis/ConstructionContext.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/StmtCXX.h"
 #include "clang/AST/ParentMap.h"
+#include "clang/AST/StmtCXX.h"
+#include "clang/Analysis/ConstructionContext.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 
 using namespace clang;
 using namespace ento;
@@ -332,7 +333,7 @@ SVal ExprEngine::computeObjectUnderConstruction(
         // Return early if we are unable to reliably foresee
         // the future stack frame.
         if (!FutureSFC)
-          return None;
+          return std::nullopt;
 
         // This should be equivalent to Caller->getDecl() for now, but
         // FutureSFC->getDecl() is likely to support better stuff (like
@@ -341,7 +342,7 @@ SVal ExprEngine::computeObjectUnderConstruction(
 
         // FIXME: Support for variadic arguments is not implemented here yet.
         if (CallEvent::isVariadic(CalleeD))
-          return None;
+          return std::nullopt;
 
         // Operator arguments do not correspond to operator parameters
         // because this-argument is implemented as a normal argument in
@@ -349,7 +350,7 @@ SVal ExprEngine::computeObjectUnderConstruction(
         const TypedValueRegion *TVR = Caller->getParameterLocation(
             *Caller->getAdjustedParameterIndex(Idx), BldrCtx->blockCount());
         if (!TVR)
-          return None;
+          return std::nullopt;
 
         return loc::MemRegionVal(TVR);
       };
@@ -953,6 +954,11 @@ void ExprEngine::VisitCXXNewAllocatorCall(const CXXNewExpr *CNE,
     // skip it for now.
     ProgramStateRef State = I->getState();
     SVal RetVal = State->getSVal(CNE, LCtx);
+    // [basic.stc.dynamic.allocation] (on the return value of an allocation
+    // function):
+    // "The order, contiguity, and initial value of storage allocated by
+    // successive calls to an allocation function are unspecified."
+    State = State->bindDefaultInitial(RetVal, UndefinedVal{}, LCtx);
 
     // If this allocation function is not declared as non-throwing, failures
     // /must/ be signalled by exceptions, and thus the return value will never

@@ -1,8 +1,10 @@
 set(LLVM_LINK_COMPONENTS
   Core
+  FrontendHLSL
   FrontendOpenMP
   MC
   Support
+  TargetParser
   )
 
 if (MSVC)

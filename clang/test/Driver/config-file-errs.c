@@ -4,16 +4,10 @@
 // CHECK-MISSING-FILE: argument to '--config' is missing (expected 1 value)
 
 
-//--- '--config' must not be found in config files.
-//
-// RUN: not %clang --config %S/Inputs/config-6.cfg 2>&1 | FileCheck %s -check-prefix CHECK-NESTED
-// CHECK-NESTED: option '--config' is not allowed inside configuration file
-
-
 //--- Argument of '--config' must be existing file, if it is specified by path.
 //
 // RUN: not %clang --config somewhere/nonexistent-config-file 2>&1 | FileCheck %s -check-prefix CHECK-NONEXISTENT
-// CHECK-NONEXISTENT: configuration file '{{.*}}somewhere/nonexistent-config-file' does not exist
+// CHECK-NONEXISTENT: configuration file '{{.*}}somewhere{{.}}nonexistent-config-file' cannot be opened: {{[Nn]}}o such file or directory
 
 
 //--- All '--config' arguments must be existing files.

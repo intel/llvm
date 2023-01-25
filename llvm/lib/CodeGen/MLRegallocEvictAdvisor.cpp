@@ -15,7 +15,7 @@
 #include "RegAllocGreedy.h"
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/Analysis/TensorSpec.h"
-#if defined(LLVM_HAVE_TF_AOT_REGALLOCEVICTMODEL) || defined(LLVM_HAVE_TF_API)
+#if defined(LLVM_HAVE_TF_AOT_REGALLOCEVICTMODEL) || defined(LLVM_HAVE_TFLITE)
 #include "llvm/Analysis/ModelUnderTrainingRunner.h"
 #include "llvm/Analysis/NoInferenceModelRunner.h"
 #include "llvm/Analysis/Utils/TrainingLogger.h"
@@ -53,7 +53,7 @@ using CompiledModelType = NoopSavedModelImpl;
 #endif
 
 // Options that only make sense in development mode
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #include "RegAllocScore.h"
 #include "llvm/Analysis/Utils/TFUtils.h"
 
@@ -72,7 +72,7 @@ static cl::opt<bool> EnableDevelopmentFeatures(
 
 #else
 static const bool EnableDevelopmentFeatures = false;
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
 
 extern cl::opt<unsigned> EvictInterferenceCutoff;
 
@@ -191,7 +191,7 @@ static const std::vector<int64_t> PerLiveRangeShape{1, NumberOfInterferences};
     "lowest stage of an interval in this LR")                                  \
   M(float, progress, {1}, "ratio of current queue size to initial size")
 
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #define RA_EVICT_FIRST_DEVELOPMENT_FEATURE(M)                                  \
   M(int64_t, instructions, InstructionsShape,                                  \
     "Opcodes of the instructions covered by the eviction problem")
@@ -219,11 +219,11 @@ enum FeatureIDs {
 #define _FEATURE_IDX_SIMPLE(_, name, __, ___) name
 #define _FEATURE_IDX(A, B, C, D) _FEATURE_IDX_SIMPLE(A, B, C, D),
   RA_EVICT_FEATURES_LIST(_FEATURE_IDX) FeatureCount,
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
   RA_EVICT_FIRST_DEVELOPMENT_FEATURE(_FEATURE_IDX_SIMPLE) = FeatureCount,
 #else
   RA_EVICT_FIRST_DEVELOPMENT_FEATURE(_FEATURE_IDX)
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
   RA_EVICT_REST_DEVELOPMENT_FEATURES(_FEATURE_IDX) FeaturesWithDevelopmentCount
 #undef _FEATURE_IDX
 #undef _FEATURE_IDX_SIMPLE
@@ -397,7 +397,7 @@ private:
 // ===================================
 //
 // Features we log
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 static const TensorSpec Output =
     TensorSpec::createSpec<int64_t>(DecisionName, {1});
 static const TensorSpec Reward = TensorSpec::createSpec<float>("reward", {1});
@@ -517,16 +517,13 @@ private:
 
     Logger *Log = nullptr;
     if (!TrainingLog.empty()) {
-      std::vector<LoggedFeatureSpec> LFS;
-      for (const auto &FS : InputFeatures)
-        LFS.push_back({FS, None});
+      std::vector<TensorSpec> LFS = InputFeatures;
       if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(Runner.get()))
-        if (MUTR->outputLoggedFeatureSpecs().size() > 1)
-          append_range(LFS, drop_begin(MUTR->outputLoggedFeatureSpecs()));
+        append_range(LFS, MUTR->extraOutputsForLoggingSpecs());
       // We always log the output; in particular, if we're not evaluating, we
       // don't have an output spec json file. That's why we handle the
       // 'normal' output separately.
-      LFS.push_back({Output, None});
+      LFS.push_back(Output);
       auto I = LogMap.insert(std::make_pair(
           MF.getFunction().getName(),
           std::make_unique<Logger>(LFS, Reward, /*IncludeReward*/ true)));
@@ -542,7 +539,7 @@ private:
   StringMap<std::unique_ptr<Logger>> LogMap;
 };
 
-#endif //#ifdef LLVM_HAVE_TF_API
+#endif //#ifdef LLVM_HAVE_TFLITE
 } // namespace
 
 float MLEvictAdvisor::getInitialQueueSize(const MachineFunction &MF) {
@@ -721,7 +718,7 @@ MCRegister MLEvictAdvisor::tryFindEvictionCandidate(
                     /*NrUrgent*/ 0.0, LRPosInfo);
   assert(InitialQSize > 0.0 && "We couldn't have gotten here if we had "
                                "nothing to allocate initially.");
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
   if (EnableDevelopmentFeatures) {
     extractInstructionFeatures(
         LRPosInfo, Runner,
@@ -748,7 +745,7 @@ MCRegister MLEvictAdvisor::tryFindEvictionCandidate(
         FeatureIDs::mbb_frequencies, FeatureIDs::mbb_mapping,
         LIS->getSlotIndexes()->getLastIndex());
   }
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
   // Normalize the features.
   for (auto &V : Largest)
     V = V ? V : 1.0;
@@ -1065,7 +1062,7 @@ void extractMBBFrequency(const SlotIndex CurrentIndex,
 }
 
 // Development mode-specific implementations
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 
 RegAllocEvictionAdvisorAnalysis *llvm::createDevelopmentModeAdvisor() {
   return new DevelopmentModeEvictionAdvisorAnalysis();
@@ -1105,19 +1102,18 @@ int64_t DevelopmentModeEvictAdvisor::tryFindEvictionCandidatePosition(
                             getRunner().getTensorUntyped(CurrentFeature)));
   }
   if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(&getRunner()))
-    for (size_t I = 1; I < MUTR->outputLoggedFeatureSpecs().size();
+    for (size_t I = 0; I < MUTR->extraOutputsForLoggingSpecs().size();
          ++I, ++CurrentFeature)
       Log->logSpecifiedTensorValue(
           CurrentFeature,
-          reinterpret_cast<const char *>(
-              MUTR->lastEvaluationResult()->getUntypedTensorValue(I)));
+          reinterpret_cast<const char *>(MUTR->getUntypedExtraOutputValue(I)));
   // The output is right after the features and the extra outputs
   Log->logInt64Value(CurrentFeature, &Ret);
   return Ret;
 }
 
 bool RegAllocScoring::runOnMachineFunction(MachineFunction &MF) {
-  Optional<float> CachedReward;
+  std::optional<float> CachedReward;
   auto GetReward = [&]() {
     if (!CachedReward)
       CachedReward = static_cast<float>(
@@ -1132,13 +1128,13 @@ bool RegAllocScoring::runOnMachineFunction(MachineFunction &MF) {
                                                                    GetReward);
   return false;
 }
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
 
 RegAllocEvictionAdvisorAnalysis *llvm::createReleaseModeAdvisor() {
   return new ReleaseModeEvictionAdvisorAnalysis();
 }
 
 // In all cases except development mode, we don't need scoring.
-#if !defined(LLVM_HAVE_TF_API)
+#if !defined(LLVM_HAVE_TFLITE)
 bool RegAllocScoring::runOnMachineFunction(MachineFunction &) { return false; }
 #endif

@@ -46,6 +46,7 @@
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVBasicBlock.h"
+#include "SPIRVBuiltinHelper.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
 #include "SPIRVFunction.h"
@@ -68,7 +69,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-class LLVMToSPIRVBase {
+class LLVMToSPIRVBase : protected BuiltinCallHelper {
 public:
   LLVMToSPIRVBase(SPIRVModule *SMod);
   bool runLLVMToSPIRV(Module &Mod);
@@ -121,6 +122,8 @@ public:
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
   void transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
+  void transFunctionMetadataAsUserSemanticDecoration(SPIRVFunction *BF,
+                                                     Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -130,6 +133,9 @@ public:
   bool transExecutionMode();
   void transFPContract();
   SPIRVValue *transConstant(Value *V);
+  /// Translate a reference to a constant in a constant expression. This may
+  /// involve inserting extra bitcasts to correct type issues.
+  SPIRVValue *transConstantUse(Constant *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true,
                          FuncTransMode FuncTrans = FuncTransMode::Decl);
@@ -178,7 +184,7 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
-  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
+  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr = nullptr;
   std::vector<llvm::Instruction *> UnboundInst;
   std::unique_ptr<SPIRVTypeScavenger> Scavenger;
 

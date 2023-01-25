@@ -5,15 +5,6 @@ ld64 vs LLD-MachO
 This doc lists all significant deliberate differences in behavior between ld64
 and LLD-MachO.
 
-String Literal Deduplication
-****************************
-ld64 always deduplicates string literals. LLD only does it when the ``--icf=``
-or the ``--deduplicate-literals`` flag is passed. Omitting deduplication by
-default ensures that our link is as fast as possible. However, it may also break
-some programs which have (incorrectly) relied on string deduplication always
-occurring. In particular, programs which compare string literals via pointer
-equality must be fixed to use value equality instead.
-
 Dead Stripping Duplicate Symbols
 ********************************
 ld64 strips dead code before reporting duplicate symbols. By default, LLD does
@@ -55,3 +46,11 @@ result in duplicate symbol errors. LLD does not check for duplicate aliases;
 instead we perform alias resolution first, and only then do we check for
 duplicate symbols. In particular, we will not report a duplicate symbol error if
 the aliased symbols turn out to be weak definitions, but ld64 will.
+
+``ZERO_AR_DATE`` enabled by default
+***********************************
+ld64 has a special mode where it sets some stabs modification times to 0 for
+hermetic builds, enabled by setting any value for the ``ZERO_AR_DATE``
+environment variable. LLD flips this default to perfer hermetic builds, but
+allows disabling this behavior by setting ``ZERO_AR_DATE=0``. Any other value
+of ``ZERO_AR_DATE`` will be ignored.

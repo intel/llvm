@@ -60,7 +60,7 @@ private:
   static void registerSignalHandler();
 
   /// The textual description of the currently executing pipeline.
-  std::string pipeline;
+  std::string pipelineElements;
 
   /// The MLIR operation representing the IR before the crash.
   Operation *preCrashOperation;
@@ -93,8 +93,8 @@ llvm::ManagedStatic<llvm::SmallSetVector<RecoveryReproducerContext *, 1>>
 RecoveryReproducerContext::RecoveryReproducerContext(
     std::string passPipelineStr, Operation *op,
     PassManager::ReproducerStreamFactory &streamFactory, bool verifyPasses)
-    : pipeline(std::move(passPipelineStr)), preCrashOperation(op->clone()),
-      streamFactory(streamFactory),
+    : pipelineElements(std::move(passPipelineStr)),
+      preCrashOperation(op->clone()), streamFactory(streamFactory),
       disableThreads(!op->getContext()->isMultithreadingEnabled()),
       verifyPasses(verifyPasses) {
   enable();
@@ -118,6 +118,9 @@ void RecoveryReproducerContext::generate(std::string &description) {
   }
   descOS << "reproducer generated at `" << stream->description() << "`";
 
+  std::string pipeline = (preCrashOperation->getName().getStringRef() + "(" +
+                          pipelineElements + ")")
+                             .str();
   AsmState state(preCrashOperation);
   state.attachResourcePrinter(
       "mlir_reproducer", [&](Operation *op, AsmResourceBuilder &builder) {
@@ -255,6 +258,8 @@ void PassCrashReproducerGenerator::finalize(Operation *rootOp,
                             formatPassOpReproducerMessage(note, value);
                           });
     note << "]: " << description;
+    impl->runningPasses.clear();
+    impl->activeContexts.clear();
     return;
   }
 
@@ -275,6 +280,7 @@ void PassCrashReproducerGenerator::finalize(Operation *rootOp,
   note << ": " << description;
 
   impl->activeContexts.clear();
+  impl->runningPasses.clear();
 }
 
 void PassCrashReproducerGenerator::prepareReproducerFor(Pass *pass,
@@ -356,12 +362,18 @@ struct CrashReproducerInstrumentation : public PassInstrumentation {
   }
 
   void runAfterPassFailed(Pass *pass, Operation *op) override {
+    // Only generate one reproducer per crash reproducer instrumentation.
+    if (alreadyFailed)
+      return;
+
+    alreadyFailed = true;
     generator.finalize(op, /*executionResult=*/failure());
   }
 
 private:
   /// The generator used to create crash reproducers.
   PassCrashReproducerGenerator &generator;
+  bool alreadyFailed = false;
 };
 } // namespace
 
@@ -470,9 +482,12 @@ void PassReproducerOptions::attachResourceParser(ParserConfig &config) {
 }
 
 LogicalResult PassReproducerOptions::apply(PassManager &pm) const {
-  if (pipeline.has_value())
-    if (failed(parsePassPipeline(*pipeline, pm)))
+  if (pipeline.has_value()) {
+    FailureOr<OpPassManager> reproPm = parsePassPipeline(*pipeline);
+    if (failed(reproPm))
       return failure();
+    static_cast<OpPassManager &>(pm) = std::move(*reproPm);
+  }
 
   if (disableThreading.has_value())
     pm.getContext()->disableMultithreading(*disableThreading);

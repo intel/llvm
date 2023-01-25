@@ -89,7 +89,7 @@ gpu.module @test_module {
     // CHECK: nvvm.shfl.sync bfly {{.*}}
     // CHECK: nvvm.barrier0
     // CHECK: llvm.fadd
-    %result = gpu.all_reduce add %arg0 {} : (f32) -> (f32)
+    %result = gpu.all_reduce add %arg0 uniform {} : (f32) -> (f32)
 
     gpu.return
   }
@@ -104,7 +104,7 @@ gpu.module @test_module {
     // TODO: Check full IR expansion once lowering has settled.
     // CHECK: nvvm.shfl.sync bfly {{.*}}
     // CHECK: nvvm.barrier0
-    %result = gpu.all_reduce %arg0 {
+    %result = gpu.all_reduce %arg0 uniform {
     ^bb(%lhs : i32, %rhs : i32):
       %xor = arith.xori %lhs, %rhs : i32
       "gpu.yield"(%xor) : (i32) -> ()
@@ -473,6 +473,20 @@ gpu.module @test_module {
     %result64 = math.powf %arg_f64, %arg_f64 : f64
     // CHECK: llvm.call @__nv_pow(%{{.*}}, %{{.*}}) : (f64, f64) -> f64
     func.return %result32, %result64 : f32, f64
+  }
+}
+
+// -----
+
+gpu.module @test_module {
+  // CHECK-LABEL: func @gpu_unroll
+  func.func @gpu_unroll(%arg0 : vector<4xf32>) -> vector<4xf32> {
+    %result = math.exp %arg0 : vector<4xf32>
+    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    func.return %result : vector<4xf32>
   }
 }
 

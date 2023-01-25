@@ -1663,8 +1663,8 @@ static size_t LookupTypeInModule(Target *target,
         typedef_type_sp = typedefed_type_sp;
         typedefed_type_sp = typedef_type_sp->GetTypedefType();
       }
+      strm.EOL();
     }
-    strm.EOL();
   }
   return type_list.GetSize();
 }
@@ -5093,8 +5093,9 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // Go over every scratch TypeSystem and dump to the command output.
-    for (TypeSystem *ts : GetSelectedTarget().GetScratchTypeSystems())
-      ts->Dump(result.GetOutputStream().AsRawOstream());
+    for (lldb::TypeSystemSP ts : GetSelectedTarget().GetScratchTypeSystems())
+      if (ts)
+        ts->Dump(result.GetOutputStream().AsRawOstream());
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();

@@ -3,8 +3,8 @@
 ! and C733, C734 and C779, C780, C782, C783, C784, and C785.
 
 module m
-  !WARNING: A derived type with the BIND attribute is empty
   !ERROR: An ABSTRACT derived type must be extensible
+  !PORTABILITY: A derived type with the BIND attribute is empty
   type, abstract, bind(c) :: badAbstract1
   end type
   !ERROR: An ABSTRACT derived type must be extensible
@@ -214,6 +214,24 @@ contains
     return 1
   end subroutine
 end module m7
+
+module m8 ! C1529 - warning only
+  type t
+    procedure(mysubr), pointer, nopass :: pp
+   contains
+    procedure, nopass :: tbp => mysubr
+  end type
+ contains
+  subroutine mysubr
+  end subroutine
+  subroutine test
+    type(t) a(2)
+    !PORTABILITY: Base of NOPASS type-bound procedure reference should be scalar
+    call a%tbp
+    !ERROR: Base of procedure component reference must be scalar
+    call a%pp
+  end subroutine
+end module
 
 program test
   use m1

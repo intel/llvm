@@ -197,13 +197,13 @@ GetTemplateArguments(QualType Type) {
       return TemplateDecl->getTemplateArgs().asArray();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static Optional<QualType> TemplateArgumentToQualType(const TemplateArgument &A) {
   if (A.getKind() == TemplateArgument::Type)
     return A.getAsType();
-  return None;
+  return std::nullopt;
 }
 
 static Optional<QualType>
@@ -220,7 +220,7 @@ FindTemplateArgumentTypeAt(ArrayRef<TemplateArgument> TA, unsigned index) {
       return TemplateArgumentToQualType(A);
     current++;
   }
-  return None;
+  return std::nullopt;
 }
 
 CXType clang_getCursorType(CXCursor C) {
@@ -1339,8 +1339,7 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
   if (T.isNull())
     return CXTypeNullability_Invalid;
 
-  ASTContext &Ctx = cxtu::getASTUnit(GetTU(CT))->getASTContext();
-  if (auto nullability = T->getNullability(Ctx)) {
+  if (auto nullability = T->getNullability()) {
     switch (*nullability) {
       case NullabilityKind::NonNull:
         return CXTypeNullability_NonNull;

@@ -40,7 +40,8 @@ static const unsigned DirectXAddrSpaceMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    3, // hlsl_groupshared
 };
 
 class LLVM_LIBRARY_VISIBILITY DirectXTargetInfo : public TargetInfo {
@@ -69,11 +70,15 @@ public:
     return Feature == "directx";
   }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override {
+    return std::nullopt;
+  }
 
   const char *getClobbers() const override { return ""; }
 
-  ArrayRef<const char *> getGCCRegNames() const override { return None; }
+  ArrayRef<const char *> getGCCRegNames() const override {
+    return std::nullopt;
+  }
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override {
@@ -81,7 +86,7 @@ public:
   }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {

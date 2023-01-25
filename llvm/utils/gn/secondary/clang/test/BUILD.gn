@@ -19,7 +19,6 @@ template("write_lit_config") {
       "CLANG_BINARY_DIR=" +
           rebase_path(get_label_info("//clang", "target_out_dir"), dir),
       "CLANG_SOURCE_DIR=" + rebase_path("//clang", dir),
-      "ENABLE_SHARED=0",
       "LLVM_BINARY_DIR=" +
           rebase_path(get_label_info("//llvm", "target_out_dir"), dir),
       "LLVM_LIBS_DIR=",  # needed only for shared builds
@@ -46,10 +45,8 @@ write_lit_config("lit_site_cfg") {
     "LLVM_WITH_Z3=0",
     "CLANG_BUILD_EXAMPLES=0",
     "CLANG_BUILT_STANDALONE=0",
-    "CLANG_DEFAULT_STD_CXX=",
     "CLANG_DEFAULT_CXX_STDLIB=",  # Empty string means "default value" here.
     "CLANG_DEFAULT_PIE_ON_LINUX=0",
-    "CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL=1",
     "CLANG_PLUGIN_SUPPORT=0",  # FIXME: Analysis/plugins need global -fPIC
     "CURRENT_TOOLS_DIR=" + rebase_path("$root_out_dir/bin", dir),
     "CLANG_VENDOR_UTI=org.llvm.clang",
@@ -63,6 +60,7 @@ write_lit_config("lit_site_cfg") {
     "CMAKE_CXX_COMPILER=c++",
     "CMAKE_C_COMPILER=cc",
     "ENABLE_BACKTRACES=1",
+    "ENABLE_SHARED=0",
     "LLVM_ENABLE_ZSTD=0",
     "LLVM_EXTERNAL_LIT=",
     "LLVM_HOST_TRIPLE=$llvm_current_triple",
@@ -70,6 +68,7 @@ write_lit_config("lit_site_cfg") {
     "LLVM_USE_SANITIZER=",
     "Python3_EXECUTABLE=$python_path",
     "USE_Z3_SOLVER=",
+    "PPC_LINUX_DEFAULT_IEEELONGDOUBLE=0",
   ]
 
   if (clang_enable_arcmt) {

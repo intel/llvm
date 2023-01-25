@@ -10,15 +10,14 @@
 
 #include <sycl/aspects.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <array>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 // Trait for checking that all size_t values are non-zero.
 template <size_t... Xs> struct AllNonZero {
@@ -27,49 +26,6 @@ template <size_t... Xs> struct AllNonZero {
 template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
   static inline constexpr bool value = X > 0 && AllNonZero<Xs...>::value;
 };
-
-// Simple helpers for containing primitive types as template arguments.
-template <size_t... Sizes> struct SizeList {};
-template <char... Sizes> struct CharList {};
-
-// Helper for converting characters to a constexpr string.
-template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
-};
-
-// Helper for converting a list of size_t values to a comma-separated string
-// representation. This is done by extracting the digit one-by-one and when
-// finishing a value, the parsed result is added to a separate list of
-// "parsed" characters with the delimiter.
-template <typename List, typename ParsedList, char... Chars>
-struct SizeListToStrHelper;
-template <size_t Value, size_t... Values, char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<Value, Values...>, CharList<ParsedChars...>,
-                           Chars...>
-    : SizeListToStrHelper<SizeList<Value / 10, Values...>,
-                          CharList<ParsedChars...>, '0' + (Value % 10),
-                          Chars...> {};
-template <size_t... Values, char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<0, Values...>, CharList<ParsedChars...>,
-                           Chars...>
-    : SizeListToStrHelper<SizeList<Values...>,
-                          CharList<ParsedChars..., Chars..., ','>> {};
-template <size_t... Values, char... ParsedChars>
-struct SizeListToStrHelper<SizeList<0, Values...>, CharList<ParsedChars...>>
-    : SizeListToStrHelper<SizeList<Values...>,
-                          CharList<ParsedChars..., '0', ','>> {};
-template <char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<0>, CharList<ParsedChars...>, Chars...>
-    : CharsToStr<ParsedChars..., Chars...> {};
-template <char... ParsedChars>
-struct SizeListToStrHelper<SizeList<0>, CharList<ParsedChars...>>
-    : CharsToStr<ParsedChars..., '0'> {};
-template <>
-struct SizeListToStrHelper<SizeList<>, CharList<>> : CharsToStr<> {};
-
-// Converts size_t values to a comma-separated string representation.
-template <size_t... Sizes>
-struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 } // namespace detail
 
 struct properties_tag {};
@@ -225,9 +181,7 @@ struct HasKernelPropertiesGetMethod<
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

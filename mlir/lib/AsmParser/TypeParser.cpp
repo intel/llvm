@@ -30,6 +30,8 @@ OptionalParseResult Parser::parseOptionalType(Type &type) {
   case Token::kw_tuple:
   case Token::kw_vector:
   case Token::inttype:
+  case Token::kw_f8E5M2:
+  case Token::kw_f8E4M3FN:
   case Token::kw_bf16:
   case Token::kw_f16:
   case Token::kw_f32:
@@ -42,7 +44,7 @@ OptionalParseResult Parser::parseOptionalType(Type &type) {
     return failure(!(type = parseType()));
 
   default:
-    return llvm::None;
+    return std::nullopt;
   }
 }
 
@@ -271,7 +273,7 @@ Type Parser::parseNonFunctionType() {
     auto width = getToken().getIntTypeBitwidth();
     if (!width.has_value())
       return (emitError("invalid integer width"), nullptr);
-    if (width.value() > IntegerType::kMaxWidth) {
+    if (*width > IntegerType::kMaxWidth) {
       emitError(getToken().getLoc(), "integer bitwidth is limited to ")
           << IntegerType::kMaxWidth << " bits";
       return nullptr;
@@ -286,6 +288,12 @@ Type Parser::parseNonFunctionType() {
   }
 
   // float-type
+  case Token::kw_f8E5M2:
+    consumeToken(Token::kw_f8E5M2);
+    return builder.getFloat8E5M2Type();
+  case Token::kw_f8E4M3FN:
+    consumeToken(Token::kw_f8E4M3FN);
+    return builder.getFloat8E4M3FNType();
   case Token::kw_bf16:
     consumeToken(Token::kw_bf16);
     return builder.getBF16Type();
@@ -506,7 +514,7 @@ Parser::parseDimensionListRanked(SmallVectorImpl<int64_t> &dimensions,
     if (consumeIf(Token::question)) {
       if (!allowDynamic)
         return emitError(loc, "expected static shape");
-      dimensions.push_back(-1);
+      dimensions.push_back(ShapedType::kDynamic);
     } else {
       int64_t value;
       if (failed(parseIntegerInDimensionList(value)))

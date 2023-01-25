@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
-option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
+option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" ON)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
 
@@ -31,7 +31,7 @@ include(SYCLUtils)
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
 set(SYCL_MAJOR_VERSION 6)
-set(SYCL_MINOR_VERSION 1)
+set(SYCL_MINOR_VERSION 2)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 0)
@@ -71,8 +71,6 @@ if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
-  set(LLVM_REQUIRES_EH ON)
-  set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
   # Add PDB debug information
@@ -143,6 +141,14 @@ file(COPY ${OpenCL_INCLUDE_DIR}/CL
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
+
+# Option to enable online kernel fusion via a JIT compiler
+option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
+if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
+  message(WARNING "Kernel fusion not yet supported on Windows")
+  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE 
+      BOOL "Kernel fusion not yet supported on Windows" FORCE)
+endif()
 
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -295,8 +301,12 @@ add_custom_target(sycl-compiler
           opencl-aot
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
+)
+
+add_custom_target( sycl-toolchain
+  DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
           ${XPTIFW_LIBS}
@@ -336,7 +346,7 @@ if(SYCL_INCLUDE_TESTS)
       message(FATAL_ERROR
         "Can't build SYCL tests without LLVM_INCLUDE_TESTS enabled.")
   endif()
-  if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include/gtest/gtest.h)
+  if(EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
     add_subdirectory(unittests)
     list(APPEND SYCL_TEST_DEPS SYCLUnitTests)
   endif()
@@ -355,8 +365,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-deps
      clang-offload-extract
      file-table-tform
-     level-zero-loader
-     level-zero-headers
      llc
      llvm-ar
      llvm-foreach
@@ -374,6 +382,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
+     level-zero-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )

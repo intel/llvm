@@ -26,7 +26,7 @@ static void addOperands(Operation *op, SetVector<Value> &operandSet) {
     return;
   TypeSwitch<Operation *, void>(op)
       .Case<linalg::LinalgOp>([&](linalg::LinalgOp linalgOp) {
-        SmallVector<Value> inputOperands = linalgOp.getInputOperands();
+        SmallVector<Value> inputOperands{linalgOp.getDpsInputOperands()};
         operandSet.insert(inputOperands.begin(), inputOperands.end());
       })
       .Default([&](Operation *operation) {
@@ -75,6 +75,12 @@ struct TestLinalgElementwiseFusion
       llvm::cl::desc("Test fusion of generic operations."),
       llvm::cl::init(false)};
 
+  Option<bool> fuseGenericOpsControl{
+      *this, "fuse-generic-ops-control",
+      llvm::cl::desc(
+          "Test fusion of generic operations with a control function."),
+      llvm::cl::init(false)};
+
   Option<bool> fuseWithReshapeByExpansion{
       *this, "fuse-with-reshape-by-expansion",
       llvm::cl::desc(
@@ -99,12 +105,24 @@ struct TestLinalgElementwiseFusion
                      "fusion patterns that "
                      "collapse the iteration space of the consumer"),
       llvm::cl::init(false)};
+  ListOption<int64_t> collapseDimensions{
+      *this, "collapse-dimensions-control",
+      llvm::cl::desc("Test controlling dimension collapse pattern")};
 
   void runOnOperation() override {
     MLIRContext *context = &this->getContext();
     func::FuncOp funcOp = this->getOperation();
 
     if (fuseGenericOps) {
+      RewritePatternSet fusionPatterns(context);
+      auto controlFn = [](OpOperand *operand) { return true; };
+      linalg::populateElementwiseOpsFusionPatterns(fusionPatterns, controlFn);
+      (void)applyPatternsAndFoldGreedily(funcOp.getBody(),
+                                         std::move(fusionPatterns));
+      return;
+    }
+
+    if (fuseGenericOpsControl) {
       RewritePatternSet fusionPatterns(context);
       linalg::populateElementwiseOpsFusionPatterns(fusionPatterns,
                                                    setFusedOpOperandLimit<4>);
@@ -144,7 +162,7 @@ struct TestLinalgElementwiseFusion
               if (expandOp->hasOneUse()) {
                 OpOperand &use = *expandOp->getUses().begin();
                 auto linalgOp = dyn_cast<linalg::LinalgOp>(use.getOwner());
-                if (linalgOp && linalgOp.isOutputTensor(&use))
+                if (linalgOp && linalgOp.isDpsInit(&use))
                   return true;
               }
               return false;
@@ -177,6 +195,20 @@ struct TestLinalgElementwiseFusion
         return true;
       };
       linalg::populateFoldReshapeOpsByCollapsingPatterns(patterns, controlFn);
+      (void)applyPatternsAndFoldGreedily(funcOp.getBody(), std::move(patterns));
+    }
+
+    if (!collapseDimensions.empty()) {
+      SmallVector<int64_t, 2> dims(collapseDimensions.begin(),
+                                   collapseDimensions.end());
+      linalg::GetCollapsableDimensionsFn collapseFn =
+          [&dims](linalg::GenericOp op) {
+            SmallVector<ReassociationIndices> reassociations;
+            reassociations.emplace_back(dims);
+            return reassociations;
+          };
+      RewritePatternSet patterns(context);
+      linalg::populateCollapseDimensions(patterns, collapseFn);
       (void)applyPatternsAndFoldGreedily(funcOp.getBody(), std::move(patterns));
     }
   }

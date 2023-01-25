@@ -61,6 +61,7 @@ private:
   llvm::DenseMap<const BlockDecl*, unsigned> GlobalBlockIds;
   llvm::DenseMap<const BlockDecl*, unsigned> LocalBlockIds;
   llvm::DenseMap<const NamedDecl*, uint64_t> AnonStructIds;
+  llvm::DenseMap<const FunctionDecl*, unsigned> FuncAnonStructSize;
 
 public:
   ManglerKind getKind() const { return Kind; }
@@ -87,9 +88,17 @@ public:
     return Result.first->second;
   }
 
-  uint64_t getAnonymousStructId(const NamedDecl *D) {
+  uint64_t getAnonymousStructId(const NamedDecl *D,
+                                const FunctionDecl *FD = nullptr) {
+    auto FindResult = AnonStructIds.find(D);
+    if (FindResult != AnonStructIds.end())
+      return FindResult->second;
+
+    // If FunctionDecl is passed in, the anonymous structID will be per-function
+    // based.
+    unsigned Id = FD ? FuncAnonStructSize[FD]++ : AnonStructIds.size();
     std::pair<llvm::DenseMap<const NamedDecl *, uint64_t>::iterator, bool>
-        Result = AnonStructIds.insert(std::make_pair(D, AnonStructIds.size()));
+        Result = AnonStructIds.insert(std::make_pair(D, Id));
     return Result.first->second;
   }
 
@@ -157,10 +166,10 @@ public:
   virtual void mangleDynamicAtExitDestructor(const VarDecl *D,
                                              raw_ostream &) = 0;
 
-  virtual void mangleSEHFilterExpression(const NamedDecl *EnclosingDecl,
+  virtual void mangleSEHFilterExpression(GlobalDecl EnclosingDecl,
                                          raw_ostream &Out) = 0;
 
-  virtual void mangleSEHFinallyBlock(const NamedDecl *EnclosingDecl,
+  virtual void mangleSEHFinallyBlock(GlobalDecl EnclosingDecl,
                                      raw_ostream &Out) = 0;
 
   /// Generates a unique string for an externally visible type for use with TBAA

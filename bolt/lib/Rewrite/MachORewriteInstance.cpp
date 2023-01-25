@@ -229,7 +229,7 @@ Optional<uint64_t> readStartAddress(const MachOObjectFile &O) {
   }
   return (TextVMAddr && StartOffset)
              ? Optional<uint64_t>(*TextVMAddr + *StartOffset)
-             : llvm::None;
+             : std::nullopt;
 }
 
 } // anonymous namespace
@@ -334,7 +334,7 @@ void MachORewriteInstance::disassembleFunctions() {
       continue;
     Function.disassemble();
     if (opts::PrintDisasm)
-      Function.print(outs(), "after disassembly", true);
+      Function.print(outs(), "after disassembly");
   }
 }
 
@@ -357,7 +357,7 @@ void MachORewriteInstance::postProcessFunctions() {
       continue;
     Function.postProcessCFG();
     if (opts::PrintCFG)
-      Function.print(outs(), "after building cfg", true);
+      Function.print(outs(), "after building cfg");
   }
 }
 
@@ -508,6 +508,8 @@ void MachORewriteInstance::emitAndLink() {
       static_cast<MCObjectStreamer *>(Streamer.get())->getAssembler());
 
   BC->EFMM.reset(new ExecutableFileMemoryManager(*BC, /*AllowStubs*/ false));
+  BC->EFMM->setOrgSecPrefix(getOrgSecPrefix());
+  BC->EFMM->setNewSecPrefix(getNewSecPrefix());
 
   RTDyld.reset(new decltype(RTDyld)::element_type(*BC->EFMM, Resolver));
   RTDyld->setProcessAllSections(true);

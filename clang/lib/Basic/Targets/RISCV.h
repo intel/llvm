@@ -27,7 +27,6 @@ class RISCVTargetInfo : public TargetInfo {
 protected:
   std::string ABI, CPU;
   std::unique_ptr<llvm::RISCVISAInfo> ISAInfo;
-  static const Builtin::Info BuiltinInfo[];
 
 public:
   RISCVTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
@@ -90,6 +89,9 @@ public:
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
 
+  Optional<std::pair<unsigned, unsigned>>
+  getVScaleRange(const LangOptions &LangOpts) const override;
+
   bool hasFeature(StringRef Feature) const override;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
@@ -137,7 +139,7 @@ public:
       : RISCVTargetInfo(Triple, Opts) {
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
     IntMaxType = Int64Type = SignedLong;
-    resetDataLayout("e-m:e-p:64:64-i64:64-i128:128-n64-S128");
+    resetDataLayout("e-m:e-p:64:64-i64:64-i128:128-n32:64-S128");
   }
 
   bool setABI(const std::string &Name) override {

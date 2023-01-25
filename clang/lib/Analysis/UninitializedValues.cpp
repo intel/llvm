@@ -28,7 +28,6 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PackedVector.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -46,7 +45,8 @@ static bool isTrackedVar(const VarDecl *vd, const DeclContext *dc) {
       !vd->isExceptionVariable() && !vd->isInitCapture() &&
       !vd->isImplicit() && vd->getDeclContext() == dc) {
     QualType ty = vd->getType();
-    return ty->isScalarType() || ty->isVectorType() || ty->isRecordType();
+    return ty->isScalarType() || ty->isVectorType() || ty->isRecordType() ||
+           ty->isRVVType();
   }
   return false;
 }
@@ -89,7 +89,7 @@ void DeclToIndex::computeMap(const DeclContext &dc) {
 Optional<unsigned> DeclToIndex::getValueIndex(const VarDecl *d) const {
   llvm::DenseMap<const VarDecl *, unsigned>::const_iterator I = map.find(d);
   if (I == map.end())
-    return None;
+    return std::nullopt;
   return I->second;
 }
 
@@ -147,9 +147,8 @@ public:
 
   Value getValue(const CFGBlock *block, const CFGBlock *dstBlock,
                  const VarDecl *vd) {
-    const Optional<unsigned> &idx = declToIndex.getValueIndex(vd);
-    assert(idx);
-    return getValueVector(block)[idx.value()];
+    Optional<unsigned> idx = declToIndex.getValueIndex(vd);
+    return getValueVector(block)[*idx];
   }
 };
 
@@ -208,9 +207,7 @@ void CFGBlockValues::resetScratch() {
 }
 
 ValueVector::reference CFGBlockValues::operator[](const VarDecl *vd) {
-  const Optional<unsigned> &idx = declToIndex.getValueIndex(vd);
-  assert(idx);
-  return scratch[idx.value()];
+  return scratch[*declToIndex.getValueIndex(vd)];
 }
 
 //------------------------------------------------------------------------====//

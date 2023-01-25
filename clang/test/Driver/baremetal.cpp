@@ -77,6 +77,22 @@
 // CHECK-V6M-NDL-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}baremetal_arm{{[/\\]+}}lib"
 // CHECK-V6M-NDL-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 
+// RUN: rm -rf %T/baremetal_cxx_sysroot
+// RUN: mkdir -p %T/baremetal_cxx_sysroot/usr/include/c++/v1
+// RUN: %clangxx %s -### 2>&1 \
+// RUN:     --target=armv6m-none-eabi \
+// RUN:     --sysroot=%T/baremetal_cxx_sysroot \
+// RUN:     -stdlib=libc++ \
+// RUN:   | FileCheck --check-prefix=CHECK-V6M-LIBCXX-USR %s
+// CHECK-V6M-LIBCXX-USR: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
+// CHECK-V6M-LIBCXX-USR-NOT: "-internal-isystem" "{{[^"]+}}baremetal_cxx_sysroot{{[/\\]+}}include{{[/\\]+}}c++{{[/\\]+}}{{[^v].*}}"
+// CHECK-V6M-LIBCXX-USR-SAME: "-internal-isystem" "{{[^"]+}}baremetal_cxx_sysroot{{[/\\]+}}usr{{[/\\]+}}include{{[/\\]+}}c++{{[/\\]+}}v1"
+// CHECK-V6M-LIBCXX-USR: "{{[^"]*}}-Bstatic"
+// CHECK-V6M-LIBCXX-USR-SAME: "-L{{[^"]*}}{{[/\\]+}}baremetal_cxx_sysroot{{[/\\]+}}lib"
+// CHECK-V6M-LIBCXX-USR-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
+// CHECK-V6M-LIBCXX-USR-SAME: "-lc++" "-lc++abi" "-lunwind"
+// CHECK-V6M-LIBCXX-USR-SAME: "-lc" "-lm" "-lclang_rt.builtins-armv6m"
+
 // RUN: %clangxx --target=arm-none-eabi -v 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-THREAD-MODEL
 // CHECK-THREAD-MODEL: Thread model: posix
@@ -97,7 +113,7 @@
 // RUN:   | FileCheck %s --check-prefix=CHECK-SYSROOT-INC
 // CHECK-SYSROOT-INC-NOT: "-internal-isystem" "include"
 
-// RUN: %clang %s -### --target=aarch64-none-elf 2>&1 \
+// RUN: %clang -no-canonical-prefixes %s -### --target=aarch64-none-elf 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-AARCH64-NO-HOST-INC %s
 // Verify that the bare metal driver does not include any host system paths:
 // CHECK-AARCH64-NO-HOST-INC: InstalledDir: [[INSTALLEDDIR:.+]]
@@ -324,3 +340,27 @@
 // CHECK-RV32IMAFC-NEXT: ld{{(.exe)?}}" "{{.*}}.o" "-Bstatic"
 // CHECK-RV32IMAFC-SAME: "-L[[SYSROOT:[^"]+]]{{[/\\]+}}rv32imafc{{[/\\]+}}ilp32f{{[/\\]+}}lib"
 // CHECK-RV32IMAFC-SAME: "-L[[RESOURCE_DIR:[^"]+]]{{[/\\]+}}lib{{[/\\]+}}baremetal{{[/\\]+}}rv32imafc{{[/\\]+}}ilp32f"
+
+// Check that compiler-rt library without the arch filename suffix will
+// be used if present.
+// RUN: rm -rf %T/baremetal_clang_rt_noarch
+// RUN: mkdir -p %T/baremetal_clang_rt_noarch/lib
+// RUN: touch %T/baremetal_clang_rt_noarch/lib/libclang_rt.builtins.a
+// RUN: %clang %s -### 2>&1 \
+// RUN:     --target=armv6m-none-eabi \
+// RUN:     --sysroot=%T/baremetal_clang_rt_noarch \
+// RUN:   | FileCheck --check-prefix=CHECK-CLANGRT-NOARCH %s
+// CHECK-CLANGRT-NOARCH: "-lclang_rt.builtins"
+// CHECK-CLANGRT-NOARCH-NOT: "-lclang_rt.builtins-armv6m"
+
+// Check that compiler-rt library with the arch filename suffix will be
+// used if present.
+// RUN: rm -rf %T/baremetal_clang_rt_arch
+// RUN: mkdir -p %T/baremetal_clang_rt_arch/lib
+// RUN: touch %T/baremetal_clang_rt_arch/lib/libclang_rt.builtins-armv6m.a
+// RUN: %clang %s -### 2>&1 \
+// RUN:     --target=armv6m-none-eabi \
+// RUN:     --sysroot=%T/baremetal_clang_rt_arch \
+// RUN:   | FileCheck --check-prefix=CHECK-CLANGRT-ARCH %s
+// CHECK-CLANGRT-ARCH: "-lclang_rt.builtins-armv6m"
+// CHECK-CLANGRT-ARCH-NOT: "-lclang_rt.builtins"

@@ -38,7 +38,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   const std::string &getTarget() const { return Target; }
@@ -75,7 +75,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   const std::string &getInstructions() const { return Instructions; }
@@ -89,8 +89,8 @@ protected:
     assert(WordCount > FixedWC);
     assert(OpCode == OC);
   }
-  SPIRVAsmTargetINTEL *Target;
-  SPIRVTypeFunction *FunctionType;
+  SPIRVAsmTargetINTEL *Target = nullptr;
+  SPIRVTypeFunction *FunctionType = nullptr;
   std::string Instructions;
   std::string Constraints;
 };
@@ -113,7 +113,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   bool isOperandLiteral(unsigned int Index) const override { return false; }
@@ -134,7 +134,7 @@ protected:
     assert(getBasicBlock() && "Invalid BB");
     assert(getBasicBlock()->getModule() == Asm->getModule());
   }
-  SPIRVAsmINTEL *Asm;
+  SPIRVAsmINTEL *Asm = nullptr;
   std::vector<SPIRVWord> Args;
 };
 

@@ -32,7 +32,6 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -60,7 +59,7 @@ llvm::Optional<SourceLocation> getSemicolonForDecl(const FunctionDecl *FD) {
   SourceLocation CurLoc = FD->getEndLoc();
   auto NextTok = Lexer::findNextToken(CurLoc, SM, LangOpts);
   if (!NextTok || !NextTok->is(tok::semi))
-    return llvm::None;
+    return std::nullopt;
   return NextTok->getLocation();
 }
 
@@ -353,17 +352,17 @@ llvm::Optional<tooling::Replacement>
 addInlineIfInHeader(const FunctionDecl *FD) {
   // This includes inline functions and constexpr functions.
   if (FD->isInlined() || llvm::isa<CXXMethodDecl>(FD))
-    return llvm::None;
+    return std::nullopt;
   // Primary template doesn't need inline.
   if (FD->isTemplated() && !FD->isFunctionTemplateSpecialization())
-    return llvm::None;
+    return std::nullopt;
 
   const SourceManager &SM = FD->getASTContext().getSourceManager();
   llvm::StringRef FileName = SM.getFilename(FD->getLocation());
 
   // If it is not a header we don't need to mark function as "inline".
   if (!isHeaderFile(FileName, FD->getASTContext().getLangOpts()))
-    return llvm::None;
+    return std::nullopt;
 
   return tooling::Replacement(SM, FD->getInnerLocStart(), 0, "inline ");
 }

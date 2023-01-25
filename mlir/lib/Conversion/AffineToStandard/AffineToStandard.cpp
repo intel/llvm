@@ -103,7 +103,7 @@ public:
   LogicalResult matchAndRewrite(AffineMinOp op,
                                 PatternRewriter &rewriter) const override {
     Value reduced =
-        lowerAffineMapMin(rewriter, op.getLoc(), op.getMap(), op.operands());
+        lowerAffineMapMin(rewriter, op.getLoc(), op.getMap(), op.getOperands());
     if (!reduced)
       return failure();
 
@@ -119,7 +119,7 @@ public:
   LogicalResult matchAndRewrite(AffineMaxOp op,
                                 PatternRewriter &rewriter) const override {
     Value reduced =
-        lowerAffineMapMax(rewriter, op.getLoc(), op.getMap(), op.operands());
+        lowerAffineMapMax(rewriter, op.getLoc(), op.getMap(), op.getOperands());
     if (!reduced)
       return failure();
 
@@ -141,7 +141,7 @@ public:
       rewriter.replaceOpWithNewOp<scf::YieldOp>(op);
       return success();
     }
-    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, op.operands());
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, op.getOperands());
     return success();
   }
 };
@@ -223,7 +223,7 @@ public:
       // initialization of the result values.
       Attribute reduction = std::get<0>(pair);
       Type resultType = std::get<1>(pair);
-      Optional<arith::AtomicRMWKind> reductionOp =
+      std::optional<arith::AtomicRMWKind> reductionOp =
           arith::symbolizeAtomicRMWKind(
               static_cast<uint64_t>(reduction.cast<IntegerAttr>().getInt()));
       assert(reductionOp && "Reduction operation cannot be of None Type");
@@ -243,7 +243,7 @@ public:
            "Unequal number of reductions and operands.");
     for (unsigned i = 0, end = reductions.size(); i < end; i++) {
       // For each of the reduction operations get the respective mlir::Value.
-      Optional<arith::AtomicRMWKind> reductionOp =
+      std::optional<arith::AtomicRMWKind> reductionOp =
           arith::symbolizeAtomicRMWKind(
               reductions[i].cast<IntegerAttr>().getInt());
       assert(reductionOp && "Reduction Operation cannot be of None Type");

@@ -143,20 +143,11 @@ ModulePass *createDeadArgHackingPass();
 ModulePass *createDeadArgEliminationSYCLPass();
 
 //===----------------------------------------------------------------------===//
-/// createOpenMPOptLegacyPass - OpenMP specific optimizations.
-Pass *createOpenMPOptCGSCCLegacyPass();
-
-//===----------------------------------------------------------------------===//
 /// createIPSCCPPass - This pass propagates constants from call sites into the
 /// bodies of functions, and keeps track of whether basic blocks are executable
 /// in the process.
 ///
 ModulePass *createIPSCCPPass();
-
-//===----------------------------------------------------------------------===//
-/// createFunctionSpecializationPass - This pass propagates constants from call
-/// sites to the specialized version of the callee function.
-ModulePass *createFunctionSpecializationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -169,18 +160,6 @@ Pass *createLoopExtractorPass();
 /// program into a function if it can.  This is used by bugpoint.
 ///
 Pass *createSingleLoopExtractorPass();
-
-/// createBlockExtractorPass - This pass extracts all the specified blocks
-/// from the functions in the module.
-///
-ModulePass *createBlockExtractorPass();
-ModulePass *
-createBlockExtractorPass(const SmallVectorImpl<BasicBlock *> &BlocksToExtract,
-                         bool EraseFunctions);
-ModulePass *
-createBlockExtractorPass(const SmallVectorImpl<SmallVector<BasicBlock *, 16>>
-                             &GroupsOfBlocksToExtract,
-                         bool EraseFunctions);
 
 /// createStripDeadPrototypesPass - This pass removes any function declarations
 /// (prototypes) that are not used.

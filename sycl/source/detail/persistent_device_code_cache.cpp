@@ -333,8 +333,10 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
     return {};
   }
 
-  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
-                        Img.getSize()};
+  std::string ImgString = "";
+  if (Img.getRawData().BinaryStart)
+    ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
+
   std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};

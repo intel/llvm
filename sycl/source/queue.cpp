@@ -9,8 +9,10 @@
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
@@ -202,6 +204,8 @@ bool queue::is_in_order() const {
 
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
+bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
+
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
@@ -212,5 +216,11 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+
+bool queue::ext_codeplay_supports_fusion() const {
+  return impl->has_property<
+      ext::codeplay::experimental::property::queue::enable_fusion>();
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

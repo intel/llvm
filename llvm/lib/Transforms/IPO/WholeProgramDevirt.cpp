@@ -814,8 +814,8 @@ void updatePublicTypeTestCalls(Module &M,
     for (Use &U : make_early_inc_range(PublicTypeTestFunc->uses())) {
       auto *CI = cast<CallInst>(U.getUser());
       auto *NewCI = CallInst::Create(
-          TypeTestFunc, {CI->getArgOperand(0), CI->getArgOperand(1)}, None, "",
-          CI);
+          TypeTestFunc, {CI->getArgOperand(0), CI->getArgOperand(1)},
+          std::nullopt, "", CI);
       CI->replaceAllUsesWith(NewCI);
       CI->eraseFromParent();
     }
@@ -1836,10 +1836,9 @@ void DevirtModule::rebuildGlobal(VTableBits &B) {
 bool DevirtModule::areRemarksEnabled() {
   const auto &FL = M.getFunctionList();
   for (const Function &Fn : FL) {
-    const auto &BBL = Fn.getBasicBlockList();
-    if (BBL.empty())
+    if (Fn.empty())
       continue;
-    auto DI = OptimizationRemark(DEBUG_TYPE, "", DebugLoc(), &BBL.front());
+    auto DI = OptimizationRemark(DEBUG_TYPE, "", DebugLoc(), &Fn.front());
     return DI.isEnabled();
   }
   return false;

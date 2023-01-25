@@ -3954,14 +3954,14 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 ///
 /// \code
 /// auto x = int(3);
-/// \code
+/// \endcode
 /// cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("int"))))
 ///   matches int(3)
 ///
 /// \code
 /// struct Foo { Foo(int, int); };
 /// auto x = Foo(1, 2);
-/// \code
+/// \endcode
 /// cxxFunctionalCastExpr(hasTypeLoc(loc(asString("struct Foo"))))
 ///   matches Foo(1, 2)
 ///
@@ -4175,7 +4175,7 @@ AST_MATCHER_P(DeclRefExpr, to, internal::Matcher<Decl>,
 ///   namespace a { class X{}; }
 ///   using a::X;
 ///   X x;
-/// \code
+/// \endcode
 /// typeLoc(loc(usingType(throughUsingDecl(anything()))))
 ///   matches \c X
 ///
@@ -7812,6 +7812,30 @@ AST_MATCHER(NamespaceDecl, isAnonymous) {
 /// \endcode
 /// cxxRecordDecl(hasName("vector"), isInStdNamespace()) will match only #1.
 AST_MATCHER(Decl, isInStdNamespace) { return Node.isInStdNamespace(); }
+
+/// Matches declarations in an anonymous namespace.
+///
+/// Given
+/// \code
+///   class vector {};
+///   namespace foo {
+///     class vector {};
+///     namespace {
+///       class vector {}; // #1
+///     }
+///   }
+///   namespace {
+///     class vector {}; // #2
+///     namespace foo {
+///       class vector{}; // #3
+///     }
+///   }
+/// \endcode
+/// cxxRecordDecl(hasName("vector"), isInAnonymousNamespace()) will match
+/// #1, #2 and #3.
+AST_MATCHER(Decl, isInAnonymousNamespace) {
+  return Node.isInAnonymousNamespace();
+}
 
 /// If the given case statement does not use the GNU case range
 /// extension, matches the constant given in the statement.

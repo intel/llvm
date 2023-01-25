@@ -52,11 +52,11 @@ std::vector<std::vector<int>> Progs = {
 
 static unsigned char DeviceCodeID = 2;
 
-static pi_result redefinedProgramGetInfo(pi_program program,
-                                         pi_program_info param_name,
-                                         size_t param_value_size,
-                                         void *param_value,
-                                         size_t *param_value_size_ret) {
+static pi_result redefinedProgramGetInfoAfter(pi_program program,
+                                              pi_program_info param_name,
+                                              size_t param_value_size,
+                                              void *param_value,
+                                              size_t *param_value_size_ret) {
   if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
     auto value = reinterpret_cast<unsigned int *>(param_value);
     *value = Progs[DeviceCodeID].size();
@@ -70,9 +70,11 @@ static pi_result redefinedProgramGetInfo(pi_program program,
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
     auto value = reinterpret_cast<unsigned char **>(param_value);
-    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
-      for (int j = 0; j < Progs[DeviceCodeID][i]; ++j)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i) {
+      for (int j = 0; j < Progs[DeviceCodeID][i]; ++j) {
         value[i][j] = i;
+      }
+    }
   }
 
   return PI_SUCCESS;
@@ -169,7 +171,8 @@ public:
     RootSYCLCacheDir = SYCLCacheDir;
 
     Dev = Plt.get_devices()[0];
-    Mock.redefine<detail::PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
+    Mock.redefineAfter<detail::PiApiKind::piProgramGetInfo>(
+        redefinedProgramGetInfoAfter);
   }
 
   /* Helper function for concurent cache item read/write from diffrent number

@@ -60,35 +60,39 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
+    // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    return;
-  }
-
-  if (MState == HES_Discarded)
+  } else if (MState == HES_Discarded) {
+    // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
+  }
 
-  if (MState == HES_Complete)
-    return;
-
-  std::unique_lock<std::mutex> lock(MMutex);
-  cv.wait(lock, [this] { return MState == HES_Complete; });
+  // Wait for connected events(e.g. streams prints)
+  for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->wait(Event);
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock<std::mutex> lock(MMutex);
+    {
+      std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
-    int Expected = HES_NotComplete;
-    int Desired = HES_Complete;
+      int Expected = HES_NotComplete;
+      int Desired = HES_Complete;
 
-    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+      bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-    assert(Succeeded && "Unexpected state of event");
+      assert(Succeeded && "Unexpected state of event");
 #else
-    MState.store(static_cast<int>(HES_Complete));
+      MState.store(static_cast<int>(HES_Complete));
 #endif
+    }
     cv.notify_all();
     return;
   }
@@ -142,8 +146,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -227,7 +231,6 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
-  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -236,33 +239,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
-
-  QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
-  }
-  if (submittedQueue)
-    submittedQueue->throw_asynchronous();
-}
-
-void event_impl::cleanupCommand(
-    std::shared_ptr<sycl::detail::event_impl> Self) const {
-  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
+  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+    SubmittedQueue->throw_asynchronous();
 }
 
 void event_impl::checkProfilingPreconditions() const {
@@ -285,16 +265,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_submit>(
-          this->getHandleRef(), this->getPlugin());
-    return 0;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
+  return MSubmitTime;
 }
 
 template <>
@@ -442,6 +413,27 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   for (auto &Event : MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
+}
+
+void event_impl::setSubmissionTime() {
+  if (!MIsProfilingEnabled)
+    return;
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    } catch (feature_not_supported &e) {
+      throw sycl::exception(make_error_code(errc::profiling),
+          std::string("Unable to get command group submission time: ") +
+              e.what());
+    }
+  }
+}
+
+uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
+
+bool event_impl::isCompleted() {
+  return get_info<info::event::command_execution_status>() ==
+         info::event_command_status::complete;
 }
 
 } // namespace detail

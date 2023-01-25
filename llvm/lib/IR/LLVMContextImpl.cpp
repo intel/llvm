@@ -119,6 +119,7 @@ LLVMContextImpl::~LLVMContextImpl() {
 
   CAZConstants.clear();
   CPNConstants.clear();
+  CTNConstants.clear();
   UVConstants.clear();
   PVConstants.clear();
   IntConstants.clear();
@@ -246,7 +247,7 @@ void LLVMContextImpl::getSyncScopeNames(
 /// singleton OptBisect if not explicitly set.
 OptPassGate &LLVMContextImpl::getOptPassGate() const {
   if (!OPG)
-    OPG = &getOptBisector();
+    OPG = &getGlobalPassGate();
   return *OPG;
 }
 
@@ -265,7 +266,7 @@ bool LLVMContextImpl::getOpaquePointers() {
 }
 
 void LLVMContextImpl::setOpaquePointers(bool OP) {
-  assert((!OpaquePointers || OpaquePointers.value() == OP) &&
+  assert((!OpaquePointers || *OpaquePointers == OP) &&
          "Cannot change opaque pointers mode once set");
   OpaquePointers = OP;
 }

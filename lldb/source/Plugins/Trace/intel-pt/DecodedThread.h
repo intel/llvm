@@ -61,15 +61,6 @@ class DecodedThread : public std::enable_shared_from_this<DecodedThread> {
 public:
   using TSC = uint64_t;
 
-  // Struct holding counts for libipts errors;
-  struct LibiptErrorsStats {
-    // libipt error -> count
-    llvm::DenseMap<const char *, int> libipt_errors_counts;
-    size_t total_count = 0;
-
-    void RecordError(int libipt_error_code);
-  };
-
   /// A structure that represents a maximal range of trace items associated to
   /// the same TSC value.
   struct TSCRange {
@@ -125,14 +116,36 @@ public:
     bool InRange(uint64_t item_index) const;
   };
 
-  // Struct holding counts for events;
+  // Struct holding counts for events
   struct EventsStats {
     /// A count for each individual event kind. We use an unordered map instead
     /// of a DenseMap because DenseMap can't understand enums.
-    std::unordered_map<lldb::TraceEvent, size_t> events_counts;
-    size_t total_count = 0;
+    ///
+    /// Note: We can't use DenseMap because lldb::TraceEvent is not
+    /// automatically handled correctly by DenseMap. We'd need to implement a
+    /// custom DenseMapInfo struct for TraceEvent and that's a bit too much for
+    /// such a simple structure.
+    std::unordered_map<lldb::TraceEvent, uint64_t> events_counts;
+    uint64_t total_count = 0;
 
     void RecordEvent(lldb::TraceEvent event);
+  };
+
+  // Struct holding counts for errors
+  struct ErrorStats {
+    /// The following counters are mutually exclusive
+    /// \{
+    uint64_t other_errors = 0;
+    uint64_t fatal_errors = 0;
+    // libipt error -> count
+    llvm::DenseMap<const char *, uint64_t> libipt_errors;
+    /// \}
+
+    uint64_t GetTotalCount() const;
+
+    void RecordError(int libipt_error_code);
+
+    void RecordError(bool fatal);
   };
 
   DecodedThread(
@@ -175,7 +188,7 @@ public:
   ///   The trace item index to compare with.
   ///
   /// \return
-  ///   The requested TSC range, or \a llvm::None if not available.
+  ///   The requested TSC range, or \a std::nullopt if not available.
   llvm::Optional<DecodedThread::TSCRange>
   GetTSCRangeByIndex(uint64_t item_index) const;
 
@@ -186,7 +199,7 @@ public:
   ///   The trace item index to compare with.
   ///
   /// \return
-  ///   The requested nanoseconds range, or \a llvm::None if not available.
+  ///   The requested nanoseconds range, or \a std::nullopt if not available.
   llvm::Optional<DecodedThread::NanosecondsRange>
   GetNanosecondsRangeByIndex(uint64_t item_index);
 
@@ -194,11 +207,21 @@ public:
   ///     The load address of the instruction at the given index.
   lldb::addr_t GetInstructionLoadAddress(uint64_t item_index) const;
 
+  /// \return
+  ///     The number of instructions in this trace (not trace items).
+  uint64_t GetTotalInstructionCount() const;
+
   /// Return an object with statistics of the trace events that happened.
   ///
   /// \return
   ///   The stats object of all the events.
   const EventsStats &GetEventsStats() const;
+
+  /// Return an object with statistics of the trace errors that happened.
+  ///
+  /// \return
+  ///   The stats object of all the events.
+  const ErrorStats &GetErrorStats() const;
 
   /// The approximate size in bytes used by this instance,
   /// including all the already decoded instructions.
@@ -221,7 +244,14 @@ public:
   void AppendError(const IntelPTError &error);
 
   /// Append a custom decoding.
-  void AppendCustomError(llvm::StringRef error);
+  ///
+  /// \param[in] error
+  ///   The error message.
+  ///
+  /// \param[in] fatal
+  ///   If \b true, then the whole decoded thread should be discarded because a
+  ///   fatal anomaly has been found.
+  void AppendCustomError(llvm::StringRef error, bool fatal = false);
 
   /// Append an event.
   void AppendEvent(lldb::TraceEvent);
@@ -266,7 +296,7 @@ private:
   std::map<uint64_t, TSCRange> m_tscs;
   /// This is the chronologically last TSC that has been added.
   llvm::Optional<std::map<uint64_t, TSCRange>::iterator> m_last_tsc =
-      llvm::None;
+      std::nullopt;
   /// This map contains the non-interpolated nanoseconds timestamps of the
   /// decoded trace items. It maps `item index -> nanoseconds`, where `item
   /// index` is the first index at which the mapped nanoseconds first appears.
@@ -274,14 +304,14 @@ private:
   /// them as ranges.
   std::map<uint64_t, NanosecondsRange> m_nanoseconds;
   llvm::Optional<std::map<uint64_t, NanosecondsRange>::iterator>
-      m_last_nanoseconds = llvm::None;
+      m_last_nanoseconds = std::nullopt;
 
   // The cpu information is stored as a map. It maps `item index -> CPU`.
   // A CPU is associated with the next instructions that follow until the next
   // cpu is seen.
   std::map<uint64_t, lldb::cpu_id_t> m_cpus;
   /// This is the chronologically last CPU ID.
-  llvm::Optional<uint64_t> m_last_cpu = llvm::None;
+  llvm::Optional<uint64_t> m_last_cpu = std::nullopt;
 
   // The PSB offsets are stored as a map. It maps `item index -> psb offset`.
   llvm::DenseMap<uint64_t, lldb::addr_t> m_psb_offsets;
@@ -289,10 +319,16 @@ private:
   /// TSC -> nanos conversion utility.
   llvm::Optional<LinuxPerfZeroTscConversion> m_tsc_conversion;
 
+  /// Statistics of all tracing errors.
+  ErrorStats m_error_stats;
+
   /// Statistics of all tracing events.
   EventsStats m_events_stats;
   /// Total amount of time spent decoding.
   std::chrono::milliseconds m_total_decoding_time{0};
+
+  /// Total number of instructions in the trace.
+  uint64_t m_insn_count = 0;
 };
 
 using DecodedThreadSP = std::shared_ptr<DecodedThread>;

@@ -31,7 +31,7 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];

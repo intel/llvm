@@ -49,40 +49,52 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
   return Result;
 }
 
-static bool areEquivalentIndirectionValues(Value *Val1, Value *Val2) {
-  if (auto *IndVal1 = dyn_cast<ReferenceValue>(Val1)) {
-    auto *IndVal2 = cast<ReferenceValue>(Val2);
-    return &IndVal1->getReferentLoc() == &IndVal2->getReferentLoc();
-  }
-  if (auto *IndVal1 = dyn_cast<PointerValue>(Val1)) {
-    auto *IndVal2 = cast<PointerValue>(Val2);
-    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
-  }
-  return false;
-}
+static bool compareDistinctValues(QualType Type, Value &Val1,
+                                  const Environment &Env1, Value &Val2,
+                                  const Environment &Env2,
+                                  Environment::ValueModel &Model) {
+  // Note: Potentially costly, but, for booleans, we could check whether both
+  // can be proven equivalent in their respective environments.
 
-/// Returns true if and only if `Val1` is equivalent to `Val2`.
-static bool equivalentValues(QualType Type, Value *Val1,
-                             const Environment &Env1, Value *Val2,
-                             const Environment &Env2,
-                             Environment::ValueModel &Model) {
-  return Val1 == Val2 || areEquivalentIndirectionValues(Val1, Val2) ||
-         Model.compareEquivalent(Type, *Val1, Env1, *Val2, Env2);
+  // FIXME: move the reference/pointers logic from `areEquivalentValues` to here
+  // and implement separate, join/widen specific handling for
+  // reference/pointers.
+  switch (Model.compare(Type, Val1, Env1, Val2, Env2)) {
+  case ComparisonResult::Same:
+    return true;
+  case ComparisonResult::Different:
+    return false;
+  case ComparisonResult::Unknown:
+    switch (Val1.getKind()) {
+    case Value::Kind::Integer:
+    case Value::Kind::Reference:
+    case Value::Kind::Pointer:
+    case Value::Kind::Struct:
+      // FIXME: this choice intentionally introduces unsoundness to allow
+      // for convergence. Once we have widening support for the
+      // reference/pointer and struct built-in models, this should be
+      // `false`.
+      return true;
+    default:
+      return false;
+    }
+  }
+  llvm_unreachable("All cases covered in switch");
 }
 
 /// Attempts to merge distinct values `Val1` and `Val2` in `Env1` and `Env2`,
 /// respectively, of the same type `Type`. Merging generally produces a single
 /// value that (soundly) approximates the two inputs, although the actual
 /// meaning depends on `Model`.
-static Value *mergeDistinctValues(QualType Type, Value *Val1,
-                                  const Environment &Env1, Value *Val2,
+static Value *mergeDistinctValues(QualType Type, Value &Val1,
+                                  const Environment &Env1, Value &Val2,
                                   const Environment &Env2,
                                   Environment &MergedEnv,
                                   Environment::ValueModel &Model) {
   // Join distinct boolean values preserving information about the constraints
   // in the respective path conditions.
-  if (auto *Expr1 = dyn_cast<BoolValue>(Val1)) {
-    auto *Expr2 = cast<BoolValue>(Val2);
+  if (auto *Expr1 = dyn_cast<BoolValue>(&Val1)) {
+    auto *Expr2 = cast<BoolValue>(&Val2);
     auto &MergedVal = MergedEnv.makeAtomicBoolValue();
     MergedEnv.addToFlowCondition(MergedEnv.makeOr(
         MergedEnv.makeAnd(Env1.getFlowConditionToken(),
@@ -92,18 +104,38 @@ static Value *mergeDistinctValues(QualType Type, Value *Val1,
     return &MergedVal;
   }
 
-  // FIXME: add unit tests that cover this statement.
-  if (areEquivalentIndirectionValues(Val1, Val2)) {
-    return Val1;
-  }
-
   // FIXME: Consider destroying `MergedValue` immediately if `ValueModel::merge`
   // returns false to avoid storing unneeded values in `DACtx`.
   if (Value *MergedVal = MergedEnv.createValue(Type))
-    if (Model.merge(Type, *Val1, Env1, *Val2, Env2, *MergedVal, MergedEnv))
+    if (Model.merge(Type, Val1, Env1, Val2, Env2, *MergedVal, MergedEnv))
       return MergedVal;
 
   return nullptr;
+}
+
+// When widening does not change `Current`, return value will equal `&Prev`.
+static Value &widenDistinctValues(QualType Type, Value &Prev,
+                                  const Environment &PrevEnv, Value &Current,
+                                  Environment &CurrentEnv,
+                                  Environment::ValueModel &Model) {
+  // Boolean-model widening.
+  if (isa<BoolValue>(&Prev)) {
+    assert(isa<BoolValue>(Current));
+    // Widen to Top, because we know they are different values. If previous was
+    // already Top, re-use that to (implicitly) indicate that no change occured.
+    if (isa<TopBoolValue>(Prev))
+      return Prev;
+    return CurrentEnv.makeTopBoolValue();
+  }
+
+  // FIXME: Add other built-in model widening.
+
+  // Custom-model widening.
+  if (auto *W = Model.widen(Type, Prev, PrevEnv, Current, CurrentEnv))
+    return *W;
+
+  // Default of widening is a no-op: leave the current value unchanged.
+  return Current;
 }
 
 /// Initializes a global storage value.
@@ -199,6 +231,15 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
         if (Value *ThisPointeeVal = createValue(ThisPointeeType))
           setValue(*ThisPointeeLoc, *ThisPointeeVal);
       }
+    }
+  }
+
+  // Look for global variable references in the constructor-initializers.
+  if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(&DeclCtx)) {
+    for (const auto *Init : CtorDecl->inits()) {
+      const Expr *E = Init->getInit();
+      assert(E != nullptr);
+      initGlobalVars(*E, *this);
     }
   }
 }
@@ -320,11 +361,74 @@ bool Environment::equivalentTo(const Environment &Other,
       continue;
     assert(It->second != nullptr);
 
-    if (!equivalentValues(Loc->getType(), Val, *this, It->second, Other, Model))
+    if (!areEquivalentValues(*Val, *It->second) &&
+        !compareDistinctValues(Loc->getType(), *Val, *this, *It->second, Other,
+                               Model))
       return false;
   }
 
   return true;
+}
+
+LatticeJoinEffect Environment::widen(const Environment &PrevEnv,
+                                     Environment::ValueModel &Model) {
+  assert(DACtx == PrevEnv.DACtx);
+  assert(ReturnLoc == PrevEnv.ReturnLoc);
+  assert(ThisPointeeLoc == PrevEnv.ThisPointeeLoc);
+  assert(CallStack == PrevEnv.CallStack);
+
+  auto Effect = LatticeJoinEffect::Unchanged;
+
+  // By the API, `PrevEnv` is a previous version of the environment for the same
+  // block, so we have some guarantees about its shape. In particular, it will
+  // be the result of a join or widen operation on previous values for this
+  // block. For `DeclToLoc` and `ExprToLoc`, join guarantees that these maps are
+  // subsets of the maps in `PrevEnv`. So, as long as we maintain this property
+  // here, we don't need change their current values to widen.
+  //
+  // FIXME: `MemberLocToStruct` does not share the above property, because
+  // `join` can cause the map size to increase (when we add fresh data in places
+  // of conflict). Once this issue with join is resolved, re-enable the
+  // assertion below or replace with something that captures the desired
+  // invariant.
+  assert(DeclToLoc.size() <= PrevEnv.DeclToLoc.size());
+  assert(ExprToLoc.size() <= PrevEnv.ExprToLoc.size());
+  // assert(MemberLocToStruct.size() <= PrevEnv.MemberLocToStruct.size());
+
+  llvm::DenseMap<const StorageLocation *, Value *> WidenedLocToVal;
+  for (auto &Entry : LocToVal) {
+    const StorageLocation *Loc = Entry.first;
+    assert(Loc != nullptr);
+
+    Value *Val = Entry.second;
+    assert(Val != nullptr);
+
+    auto PrevIt = PrevEnv.LocToVal.find(Loc);
+    if (PrevIt == PrevEnv.LocToVal.end())
+      continue;
+    assert(PrevIt->second != nullptr);
+
+    if (areEquivalentValues(*Val, *PrevIt->second)) {
+      WidenedLocToVal.insert({Loc, Val});
+      continue;
+    }
+
+    Value &WidenedVal = widenDistinctValues(Loc->getType(), *PrevIt->second,
+                                            PrevEnv, *Val, *this, Model);
+    WidenedLocToVal.insert({Loc, &WidenedVal});
+    if (&WidenedVal != PrevIt->second)
+      Effect = LatticeJoinEffect::Changed;
+  }
+  LocToVal = std::move(WidenedLocToVal);
+  // FIXME: update the equivalence calculation for `MemberLocToStruct`, once we
+  // have a systematic way of soundly comparing this map.
+  if (DeclToLoc.size() != PrevEnv.DeclToLoc.size() ||
+      ExprToLoc.size() != PrevEnv.ExprToLoc.size() ||
+      LocToVal.size() != PrevEnv.LocToVal.size() ||
+      MemberLocToStruct.size() != PrevEnv.MemberLocToStruct.size())
+    Effect = LatticeJoinEffect::Changed;
+
+  return Effect;
 }
 
 LatticeJoinEffect Environment::join(const Environment &Other,
@@ -356,6 +460,8 @@ LatticeJoinEffect Environment::join(const Environment &Other,
     Effect = LatticeJoinEffect::Changed;
 
   // FIXME: set `Effect` as needed.
+  // FIXME: update join to detect backedges and simplify the flow condition
+  // accordingly.
   JoinedEnv.FlowConditionToken = &DACtx->joinFlowConditions(
       *FlowConditionToken, *Other.FlowConditionToken);
 
@@ -371,14 +477,17 @@ LatticeJoinEffect Environment::join(const Environment &Other,
       continue;
     assert(It->second != nullptr);
 
-    if (Val == It->second) {
+    if (areEquivalentValues(*Val, *It->second)) {
       JoinedEnv.LocToVal.insert({Loc, Val});
       continue;
     }
 
-    if (Value *MergedVal = mergeDistinctValues(
-            Loc->getType(), Val, *this, It->second, Other, JoinedEnv, Model))
+    if (Value *MergedVal =
+            mergeDistinctValues(Loc->getType(), *Val, *this, *It->second, Other,
+                                JoinedEnv, Model)) {
       JoinedEnv.LocToVal.insert({Loc, MergedVal});
+      Effect = LatticeJoinEffect::Changed;
+    }
   }
   if (LocToVal.size() != JoinedEnv.LocToVal.size())
     Effect = LatticeJoinEffect::Changed;
@@ -522,6 +631,9 @@ Value *Environment::createValueUnlessSelfReferential(
   }
 
   if (Type->isIntegerType()) {
+    // FIXME: consider instead `return nullptr`, given that we do nothing useful
+    // with integers, and so distinguishing them serves no purpose, but could
+    // prevent convergence.
     CreatedValuesCount++;
     return &takeOwnership(std::make_unique<IntegerValue>());
   }

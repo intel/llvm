@@ -16,6 +16,7 @@
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/IR/RegionKindInterface.td"
+include "mlir/Dialect/SCF/IR/DeviceMappingInterface.td"
 include "mlir/Interfaces/ParallelCombiningOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
@@ -37,7 +38,7 @@ class SCF_Op<string mnemonic, list<Trait> traits = []> :
 def ConditionOp : SCF_Op<"condition", [
   HasParent<"WhileOp">,
   DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
-  NoSideEffect,
+  Pure,
   Terminator
 ]> {
   let summary = "loop continuation condition";
@@ -119,9 +120,10 @@ def ForOp : SCF_Op<"for",
       [AutomaticAllocationScope, DeclareOpInterfaceMethods<LoopLikeOpInterface,
        ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep",
         "getSingleUpperBound"]>,
+       ConditionallySpeculatable,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
        SingleBlockImplicitTerminator<"scf::YieldOp">,
-       RecursiveSideEffects]> {
+       RecursiveMemoryEffects]> {
   let summary = "for operation";
   let description = [{
     The "scf.for" operation represents a loop taking 3 SSA value as operands
@@ -220,7 +222,7 @@ def ForOp : SCF_Op<"for",
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "Value":$lowerBound, "Value":$upperBound, "Value":$step,
-      CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"ValueRange", "std::nullopt">:$iterArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -235,7 +237,7 @@ def ForOp : SCF_Op<"for",
     }
     /// Return the `index`-th region iteration argument.
     BlockArgument getRegionIterArg(unsigned index) {
-      assert(index < getNumRegionIterArgs() && 
+      assert(index < getNumRegionIterArgs() &&
         "expected an index less than the number of region iter args");
       return getBody()->getArguments().drop_front(getNumInductionVars())[index];
     }
@@ -271,13 +273,13 @@ def ForOp : SCF_Op<"for",
       return getOperation()->getNumOperands() - getNumControlOperands();
     }
     /// Get the iter arg number for an operand. If it isnt an iter arg
-    /// operand return llvm::None.
-    Optional<unsigned> getIterArgNumberForOpOperand(OpOperand &opOperand) {
+    /// operand return std::nullopt.
+    std::optional<unsigned> getIterArgNumberForOpOperand(OpOperand &opOperand) {
       if (opOperand.getOwner() != getOperation())
-        return llvm::None;
+        return std::nullopt;
       unsigned operandNumber = opOperand.getOperandNumber();
       if (operandNumber < getNumControlOperands())
-        return llvm::None;
+        return std::nullopt;
       return operandNumber - getNumControlOperands();
     }
 
@@ -329,7 +331,13 @@ def ForOp : SCF_Op<"for",
     /// correspond to the loop iterator operands, i.e., those exclusing the
     /// induction variable. LoopOp only has one region, so 0 is the only valid
     /// value for `index`.
-    OperandRange getSuccessorEntryOperands(Optional<unsigned> index);
+    OperandRange getSuccessorEntryOperands(std::optional<unsigned> index);
+
+    /// Returns the step as an `APInt` if it is constant.
+    std::optional<APInt> getConstantStep();
+
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
   }];
 
   let hasCanonicalizer = 1;
@@ -345,7 +353,7 @@ def ForOp : SCF_Op<"for",
 def ForeachThreadOp : SCF_Op<"foreach_thread", [
        AttrSizedOperandSegments,
        SingleBlockImplicitTerminator<"scf::PerformConcurrentlyOp">,
-       RecursiveSideEffects,
+       RecursiveMemoryEffects,
        AutomaticAllocationScope,
       ]> {
   let summary = "evaluate a block multiple times in parallel";
@@ -371,14 +379,14 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
     application per thread. Further lowerings are responsible for specifying
     how this is materialized on concrete hardware resources.
 
-    An optional thread_dim_mapping index array attribute specifies for each
-    virtual thread dimension, how it remaps 1-1 to a set of concrete processing
+    An optional `mapping` is an attribute array that specifies processing units
+    with their dimension, how it remaps 1-1 to a set of concrete processing
     element resources (e.g. a CUDA grid dimension or a level of concrete nested
-    async parallelism). At this time, the specification is backend-dependent and
-    is not verified by the op, beyond being an index array attribute.
-    It is the reponsibility of the lowering to interpret the index array in the
-    context of the concrete target the op is lowered to, or to ignore it when
-    the specification is ill-formed or unsupported for a particular target.
+    async parallelism). It is expressed via any attribute that implements the
+    device mapping interface. It is the reponsibility of the lowering mechanism
+    to interpret the `mapping` attributes in the context of the concrete target
+    the op is lowered to, or to ignore it when the specification is ill-formed
+    or unsupported for a particular target.
 
     The only allowed terminator is `scf.foreach_thread.perform_concurrently`.
     `scf.foreach_thread` returns one value per `shared_out` operand. The
@@ -433,9 +441,12 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
     //
     ```
 
-    Example with thread_dim_mapping attribute:
+    Example with mapping attribute:
+
+    ```mlir
     //
-    // Sequential context.
+    // Sequential context. Here `mapping` is expressed as GPU thread mapping
+    // attributes
     //
     %matmul_and_pointwise:2 = scf.foreach_thread (%thread_id_1, %thread_id_2) in
         (%num_threads_1, %numthread_id_2) shared_outs(...)
@@ -447,12 +458,15 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
        scf.foreach_thread.perform_concurrently {
          ...
       }
-    } { thread_dim_mapping = [1, 0] }
+    } { mapping = [#gpu.thread<y>, #gpu.thread<x>] }
     // Implicit synchronization point.
     // Sequential context.
     //
+    ```
 
     Example with privatized tensors:
+
+    ```mlir
     %t0 = ...
     %t1 = ...
     %r = scf.foreach_thread ... shared_outs(%o = t0) -> tensor<?xf32> {
@@ -464,14 +478,16 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
       "some_use"(%t0)
       "some_use"(%t1)
     }
+    ```
   }];
   let arguments = (ins Variadic<Index>:$num_threads,
                        Variadic<AnyRankedTensor>:$outputs,
-                       DefaultValuedAttr<I64ArrayAttr, "{}">:$thread_dim_mapping);
+                       OptionalAttr<DeviceMappingArrayAttr>:$mapping);
 
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$region);
 
+  let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 
@@ -480,10 +496,10 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
   let builders = [
     // Bodyless builder, outputs must be specified.
     OpBuilder<(ins "ValueRange":$outputs, "ValueRange":$num_threads,
-                   CArg<"ArrayRef<int64_t>", "{}">:$thread_dim_mapping)>,
+                   "std::optional<ArrayAttr>":$mapping)>,
     // Builder that takes a bodyBuilder lambda.
     OpBuilder<(ins "ValueRange":$outputs, "ValueRange":$num_threads,
-                   "ArrayRef<int64_t>":$thread_dim_mapping,
+                   "ArrayRef<Attribute>":$mapping,
                    "function_ref<void(OpBuilder &, Location, ValueRange)>":$bodyBuilder)>
   ];
   let extraClassDeclaration = [{
@@ -495,9 +511,18 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
           opOperand->getOperandNumber() - getRank());
     }
 
+    /// Return the num_threads operand that is tied to the given thread id
+    /// block argument.
     OpOperand *getTiedOpOperand(BlockArgument bbArg) {
       assert(bbArg.getArgNumber() >= getRank() && "invalid bbArg");
       return &getOperation()->getOpOperand(bbArg.getArgNumber());
+    }
+
+    /// Return the shared_outs operand that is tied to the given OpResult.
+    OpOperand *getTiedOpOperand(OpResult opResult) {
+      assert(opResult.getDefiningOp() == getOperation() && "invalid OpResult");
+      return &getOperation()->getOpOperand(
+          opResult.getResultNumber() + getRank());
     }
 
     BlockArgument getTiedBlockArgument(OpOperand *opOperand) {
@@ -521,15 +546,14 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
       return getBody()->getArguments().drop_front(getRank());
     }
 
-    /// Return the thread indices in the order specified by the 
-    /// thread_dim_mapping attribute. Return failure is 
-    /// thread_dim_mapping is not a valid permutation.
-    FailureOr<SmallVector<Value>> getPermutedThreadIndices();
-
-    /// Return the number of threads in the order specified by the
-    /// thread_dim_mapping attribute.
-    /// Return failure is thread_dim_mapping is not a valid permutation.
-    FailureOr<SmallVector<OpFoldResult>> getPermutedNumThreads(OpBuilder &b);
+    /// Helper to sort `values` according to matching `keys`.
+    /// Take a custom `compare` binary comparator which returns true if the first
+    /// element is smaller than the second (i.e. compatible with std::sort).
+    /// This is a helper typically used to sort numThreads values before they are
+    /// mapped to concrete physical dimensions of hardware.
+    static SmallVector<Value> getValuesSortedByKey(
+      ArrayRef<Attribute> keys, ValueRange values,
+      llvm::function_ref<bool(Attribute, Attribute)> compare);
 
     // The ensureTerminator method generated by SingleBlockImplicitTerminator is
     // unaware of the fact that our terminator also needs a region to be
@@ -545,7 +569,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
 //===----------------------------------------------------------------------===//
 
 def PerformConcurrentlyOp : SCF_Op<"foreach_thread.perform_concurrently", [
-       NoSideEffect,
+       Pure,
        Terminator,
        DeclareOpInterfaceMethods<ParallelCombiningOpInterface>,
        HasParent<"ForeachThreadOp">,
@@ -589,7 +613,7 @@ def IfOp : SCF_Op<"if",
       [DeclareOpInterfaceMethods<RegionBranchOpInterface,
                                  ["getNumRegionInvocations",
                                   "getRegionInvocationBounds"]>,
-       SingleBlockImplicitTerminator<"scf::YieldOp">, RecursiveSideEffects,
+       SingleBlockImplicitTerminator<"scf::YieldOp">, RecursiveMemoryEffects,
        NoRegionArguments]> {
   let summary = "if-then-else operation";
   let description = [{
@@ -687,7 +711,7 @@ def ParallelOp : SCF_Op<"parallel",
     [AutomaticAllocationScope,
      AttrSizedOperandSegments,
      DeclareOpInterfaceMethods<LoopLikeOpInterface>,
-     RecursiveSideEffects,
+     RecursiveMemoryEffects,
      SingleBlockImplicitTerminator<"scf::YieldOp">]> {
   let summary = "parallel for operation";
   let description = [{
@@ -826,7 +850,7 @@ def ReduceOp : SCF_Op<"reduce", [HasParent<"ParallelOp">]> {
 //===----------------------------------------------------------------------===//
 
 def ReduceReturnOp :
-    SCF_Op<"reduce.return", [HasParent<"ReduceOp">, NoSideEffect,
+    SCF_Op<"reduce.return", [HasParent<"ReduceOp">, Pure,
                               Terminator]> {
   let summary = "terminator for reduce operation";
   let description = [{
@@ -850,7 +874,7 @@ def ReduceReturnOp :
 
 def WhileOp : SCF_Op<"while",
     [DeclareOpInterfaceMethods<RegionBranchOpInterface>,
-     RecursiveSideEffects]> {
+     RecursiveMemoryEffects]> {
   let summary = "a generic 'while' loop";
   let description = [{
     This operation represents a generic "while"/"do-while" loop that keeps
@@ -921,7 +945,7 @@ def WhileOp : SCF_Op<"while",
 
     Note that the types of region arguments need not to match with each other.
     The op expects the operand types to match with argument types of the
-    "before" region"; the result types to match with the trailing operand types
+    "before" region; the result types to match with the trailing operand types
     of the terminator of the "before" region, and with the argument types of the
     "after" region. The following scheme can be used to share the results of
     some operations executed in the "before" region with the "after" region,
@@ -969,8 +993,17 @@ def WhileOp : SCF_Op<"while",
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$before, SizedRegion<1>:$after);
 
+  let builders = [
+    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$operands,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>":$beforeBuilder,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>":$afterBuilder)>
+  ];
+
   let extraClassDeclaration = [{
-    OperandRange getSuccessorEntryOperands(Optional<unsigned> index);
+    using BodyBuilderFn =
+        function_ref<void(OpBuilder &, Location, ValueRange)>;
+
+    OperandRange getSuccessorEntryOperands(std::optional<unsigned> index);
     ConditionOp getConditionOp();
     YieldOp getYieldOp();
     Block::BlockArgListType getBeforeArguments();
@@ -983,12 +1016,76 @@ def WhileOp : SCF_Op<"while",
 }
 
 //===----------------------------------------------------------------------===//
+// IndexSwitchOp
+//===----------------------------------------------------------------------===//
+
+def IndexSwitchOp : SCF_Op<"index_switch", [RecursiveMemoryEffects,
+    SingleBlockImplicitTerminator<"scf::YieldOp">,
+    DeclareOpInterfaceMethods<RegionBranchOpInterface,
+                              ["getRegionInvocationBounds"]>]> {
+  let summary = "switch-case operation on an index argument";
+  let description = [{
+    The `scf.index_switch` is a control-flow operation that branches to one of
+    the given regions based on the values of the argument and the cases. The
+    argument is always of type `index`.
+
+    The operation always has a "default" region and any number of case regions
+    denoted by integer constants. Control-flow transfers to the case region
+    whose constant value equals the value of the argument. If the argument does
+    not equal any of the case values, control-flow transfer to the "default"
+    region.
+
+    Example:
+
+    ```mlir
+    %0 = scf.index_switch %arg0 : index -> i32
+    case 2 {
+      %1 = arith.constant 10 : i32
+      scf.yield %1 : i32
+    }
+    case 5 {
+      %2 = arith.constant 20 : i32
+      scf.yield %2 : i32
+    }
+    default {
+      %3 = arith.constant 30 : i32
+      scf.yield %3 : i32
+    }
+    ```
+  }];
+
+  let arguments = (ins Index:$arg, DenseI64ArrayAttr:$cases);
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region SizedRegion<1>:$defaultRegion,
+                        VariadicRegion<SizedRegion<1>>:$caseRegions);
+
+  let assemblyFormat = [{
+    $arg attr-dict (`->` type($results)^)?
+    custom<SwitchCases>($cases, $caseRegions) `\n`
+    `` `default` $defaultRegion
+  }];
+
+  let extraClassDeclaration = [{
+    /// Get the number of cases.
+    unsigned getNumCases();
+
+    /// Get the default region body.
+    Block &getDefaultBlock();
+
+    /// Get the body of a case region.
+    Block &getCaseBlock(unsigned idx);
+  }];
+
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // YieldOp
 //===----------------------------------------------------------------------===//
 
-def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["ExecuteRegionOp, ForOp",
-                                            "IfOp, ParallelOp, WhileOp"]>]> {
+def YieldOp : SCF_Op<"yield", [Pure, ReturnLike, Terminator,
+    ParentOneOf<["ExecuteRegionOp, ForOp", "IfOp", "IndexSwitchOp",
+                 "ParallelOp", "WhileOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "scf.yield" yields an SSA value from the SCF dialect op region and

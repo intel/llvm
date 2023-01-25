@@ -56,7 +56,7 @@ auto hasOptionalType() { return hasType(optionalOrAliasType()); }
 
 auto isOptionalMemberCallWithName(
     llvm::StringRef MemberName,
-    llvm::Optional<StatementMatcher> Ignorable = llvm::None) {
+    const llvm::Optional<StatementMatcher> &Ignorable = std::nullopt) {
   auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
                                     : cxxThisExpr());
   return cxxMemberCallExpr(
@@ -66,7 +66,7 @@ auto isOptionalMemberCallWithName(
 
 auto isOptionalOperatorCallWithName(
     llvm::StringRef operator_name,
-    llvm::Optional<StatementMatcher> Ignorable = llvm::None) {
+    const llvm::Optional<StatementMatcher> &Ignorable = std::nullopt) {
   return cxxOperatorCallExpr(
       hasOverloadedOperatorName(operator_name),
       callee(cxxMethodDecl(ofClass(optionalClass()))),
@@ -80,10 +80,19 @@ auto isMakeOptionalCall() {
       hasOptionalType());
 }
 
-auto hasNulloptType() {
-  return hasType(namedDecl(
-      hasAnyName("std::nullopt_t", "absl::nullopt_t", "base::nullopt_t")));
+auto nulloptTypeDecl() {
+  return namedDecl(
+      hasAnyName("std::nullopt_t", "absl::nullopt_t", "base::nullopt_t"));
 }
+
+auto hasNulloptType() { return hasType(nulloptTypeDecl()); }
+
+// `optional` or `nullopt_t`
+auto hasAnyOptionalType() {
+  return hasType(hasUnqualifiedDesugaredType(
+      recordType(hasDeclaration(anyOf(nulloptTypeDecl(), optionalClass())))));
+}
+
 
 auto inPlaceClass() {
   return recordDecl(
@@ -115,6 +124,11 @@ auto isOptionalValueOrConversionAssignment() {
       unless(hasDeclaration(cxxMethodDecl(
           anyOf(isCopyAssignmentOperator(), isMoveAssignmentOperator())))),
       argumentCountIs(2), hasArgument(1, unless(hasNulloptType())));
+}
+
+auto isNulloptConstructor() {
+  return cxxConstructExpr(hasNulloptType(), argumentCountIs(1),
+                          hasArgument(0, hasNulloptType()));
 }
 
 auto isOptionalNulloptAssignment() {
@@ -172,6 +186,27 @@ auto isCallReturningOptional() {
       optionalOrAliasType(), referenceType(pointee(optionalOrAliasType()))))));
 }
 
+template <typename L, typename R>
+auto isComparisonOperatorCall(L lhs_arg_matcher, R rhs_arg_matcher) {
+  return cxxOperatorCallExpr(
+      anyOf(hasOverloadedOperatorName("=="), hasOverloadedOperatorName("!=")),
+      argumentCountIs(2), hasArgument(0, lhs_arg_matcher),
+      hasArgument(1, rhs_arg_matcher));
+}
+
+// Ensures that `Expr` is mapped to a `BoolValue` and returns it.
+BoolValue &forceBoolValue(Environment &Env, const Expr &Expr) {
+  auto *Value = cast_or_null<BoolValue>(Env.getValue(Expr, SkipPast::None));
+  if (Value != nullptr)
+    return *Value;
+
+  auto &Loc = Env.createStorageLocation(Expr);
+  Value = &Env.makeAtomicBoolValue();
+  Env.setValue(Loc, *Value);
+  Env.setStorageLocation(Expr, Loc);
+  return *Value;
+}
+
 /// Sets `HasValueVal` as the symbolic value that represents the "has_value"
 /// property of the optional value `OptionalVal`.
 void setHasValue(Value &OptionalVal, BoolValue &HasValueVal) {
@@ -208,7 +243,7 @@ QualType stripReference(QualType Type) {
 }
 
 /// Returns true if and only if `Type` is an optional type.
-bool IsOptionalType(QualType Type) {
+bool isOptionalType(QualType Type) {
   if (!Type->isRecordType())
     return false;
   // FIXME: Optimize this by avoiding the `getQualifiedNameAsString` call.
@@ -222,7 +257,7 @@ bool IsOptionalType(QualType Type) {
 /// For example, if `Type` is `optional<optional<int>>`, the result of this
 /// function will be 2.
 int countOptionalWrappers(const ASTContext &ASTCtx, QualType Type) {
-  if (!IsOptionalType(Type))
+  if (!isOptionalType(Type))
     return 0;
   return 1 + countOptionalWrappers(
                  ASTCtx,
@@ -357,16 +392,8 @@ void transferValueOrImpl(const clang::Expr *ValueOrPredExpr,
   if (HasValueVal == nullptr)
     return;
 
-  auto *ExprValue = cast_or_null<BoolValue>(
-      State.Env.getValue(*ValueOrPredExpr, SkipPast::None));
-  if (ExprValue == nullptr) {
-    auto &ExprLoc = State.Env.createStorageLocation(*ValueOrPredExpr);
-    ExprValue = &State.Env.makeAtomicBoolValue();
-    State.Env.setValue(ExprLoc, *ExprValue);
-    State.Env.setStorageLocation(*ValueOrPredExpr, ExprLoc);
-  }
-
-  Env.addToFlowCondition(ModelPred(Env, *ExprValue, *HasValueVal));
+  Env.addToFlowCondition(
+      ModelPred(Env, forceBoolValue(Env, *ValueOrPredExpr), *HasValueVal));
 }
 
 void transferValueOrStringEmptyCall(const clang::Expr *ComparisonExpr,
@@ -411,21 +438,20 @@ void transferCallReturningOptional(const CallExpr *E,
       Loc, createOptionalValue(State.Env, State.Env.makeAtomicBoolValue()));
 }
 
-void assignOptionalValue(const Expr &E, LatticeTransferState &State,
+void assignOptionalValue(const Expr &E, Environment &Env,
                          BoolValue &HasValueVal) {
   if (auto *OptionalLoc =
-          State.Env.getStorageLocation(E, SkipPast::ReferenceThenPointer)) {
-    State.Env.setValue(*OptionalLoc,
-                       createOptionalValue(State.Env, HasValueVal));
+          Env.getStorageLocation(E, SkipPast::ReferenceThenPointer)) {
+    Env.setValue(*OptionalLoc, createOptionalValue(Env, HasValueVal));
   }
 }
 
 /// Returns a symbolic value for the "has_value" property of an `optional<T>`
 /// value that is constructed/assigned from a value of type `U` or `optional<U>`
 /// where `T` is constructible from `U`.
-BoolValue &value_orConversionHasValue(const FunctionDecl &F, const Expr &E,
-                                      const MatchFinder::MatchResult &MatchRes,
-                                      LatticeTransferState &State) {
+BoolValue &valueOrConversionHasValue(const FunctionDecl &F, const Expr &E,
+                                     const MatchFinder::MatchResult &MatchRes,
+                                     LatticeTransferState &State) {
   assert(F.getTemplateSpecializationArgs()->size() > 0);
 
   const int TemplateParamOptionalWrappersCount = countOptionalWrappers(
@@ -452,10 +478,10 @@ void transferValueOrConversionConstructor(
     LatticeTransferState &State) {
   assert(E->getNumArgs() > 0);
 
-  assignOptionalValue(*E, State,
-                      value_orConversionHasValue(*E->getConstructor(),
-                                                 *E->getArg(0), MatchRes,
-                                                 State));
+  assignOptionalValue(*E, State.Env,
+                      valueOrConversionHasValue(*E->getConstructor(),
+                                                *E->getArg(0), MatchRes,
+                                                State));
 }
 
 void transferAssignment(const CXXOperatorCallExpr *E, BoolValue &HasValueVal,
@@ -478,8 +504,8 @@ void transferValueOrConversionAssignment(
     LatticeTransferState &State) {
   assert(E->getNumArgs() > 1);
   transferAssignment(E,
-                     value_orConversionHasValue(*E->getDirectCallee(),
-                                                *E->getArg(1), MatchRes, State),
+                     valueOrConversionHasValue(*E->getDirectCallee(),
+                                               *E->getArg(1), MatchRes, State),
                      State);
 }
 
@@ -533,33 +559,83 @@ void transferStdSwapCall(const CallExpr *E, const MatchFinder::MatchResult &,
   transferSwap(*OptionalLoc1, *OptionalLoc2, State);
 }
 
+BoolValue &evaluateEquality(Environment &Env, BoolValue &EqVal, BoolValue &LHS,
+                            BoolValue &RHS) {
+  // Logically, an optional<T> object is composed of two values - a `has_value`
+  // bit and a value of type T. Equality of optional objects compares both
+  // values. Therefore, merely comparing the `has_value` bits isn't sufficient:
+  // when two optional objects are engaged, the equality of their respective
+  // values of type T matters. Since we only track the `has_value` bits, we
+  // can't make any conclusions about equality when we know that two optional
+  // objects are engaged.
+  //
+  // We express this as two facts about the equality:
+  // a) EqVal => (LHS & RHS) v (!RHS & !LHS)
+  //    If they are equal, then either both are set or both are unset.
+  // b) (!LHS & !RHS) => EqVal
+  //    If neither is set, then they are equal.
+  // We rewrite b) as !EqVal => (LHS v RHS), for a more compact formula.
+  return Env.makeAnd(
+      Env.makeImplication(
+          EqVal, Env.makeOr(Env.makeAnd(LHS, RHS),
+                            Env.makeAnd(Env.makeNot(LHS), Env.makeNot(RHS)))),
+      Env.makeImplication(Env.makeNot(EqVal), Env.makeOr(LHS, RHS)));
+}
+
+void transferOptionalAndOptionalCmp(const clang::CXXOperatorCallExpr *CmpExpr,
+                                    const MatchFinder::MatchResult &,
+                                    LatticeTransferState &State) {
+  Environment &Env = State.Env;
+  auto *CmpValue = &forceBoolValue(Env, *CmpExpr);
+  if (auto *LHasVal = getHasValue(
+          Env, Env.getValue(*CmpExpr->getArg(0), SkipPast::Reference)))
+    if (auto *RHasVal = getHasValue(
+            Env, Env.getValue(*CmpExpr->getArg(1), SkipPast::Reference))) {
+      if (CmpExpr->getOperator() == clang::OO_ExclaimEqual)
+        CmpValue = &State.Env.makeNot(*CmpValue);
+      Env.addToFlowCondition(
+          evaluateEquality(Env, *CmpValue, *LHasVal, *RHasVal));
+    }
+}
+
+void transferOptionalAndValueCmp(const clang::CXXOperatorCallExpr *CmpExpr,
+                                 const clang::Expr *E, Environment &Env) {
+  auto *CmpValue = &forceBoolValue(Env, *CmpExpr);
+  if (auto *HasVal = getHasValue(Env, Env.getValue(*E, SkipPast::Reference))) {
+    if (CmpExpr->getOperator() == clang::OO_ExclaimEqual)
+      CmpValue = &Env.makeNot(*CmpValue);
+    Env.addToFlowCondition(evaluateEquality(Env, *CmpValue, *HasVal,
+                                            Env.getBoolLiteralValue(true)));
+  }
+}
+
 llvm::Optional<StatementMatcher>
 ignorableOptional(const UncheckedOptionalAccessModelOptions &Options) {
-  if (Options.IgnoreSmartPointerDereference)
-    return memberExpr(hasObjectExpression(ignoringParenImpCasts(
-        cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("->"),
-                                  hasOverloadedOperatorName("*")),
-                            unless(hasArgument(0, expr(hasOptionalType())))))));
-  return llvm::None;
+  if (Options.IgnoreSmartPointerDereference) {
+    auto SmartPtrUse = expr(ignoringParenImpCasts(cxxOperatorCallExpr(
+        anyOf(hasOverloadedOperatorName("->"), hasOverloadedOperatorName("*")),
+        unless(hasArgument(0, expr(hasOptionalType()))))));
+    return expr(
+        anyOf(SmartPtrUse, memberExpr(hasObjectExpression(SmartPtrUse))));
+  }
+  return std::nullopt;
 }
 
 StatementMatcher
-valueCall(llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueCall(const llvm::Optional<StatementMatcher> &IgnorableOptional) {
   return isOptionalMemberCallWithName("value", IgnorableOptional);
 }
 
 StatementMatcher
-valueOperatorCall(llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueOperatorCall(const llvm::Optional<StatementMatcher> &IgnorableOptional) {
   return expr(anyOf(isOptionalOperatorCallWithName("*", IgnorableOptional),
                     isOptionalOperatorCallWithName("->", IgnorableOptional)));
 }
 
-auto buildTransferMatchSwitch(
-    const UncheckedOptionalAccessModelOptions &Options) {
+auto buildTransferMatchSwitch() {
   // FIXME: Evaluate the efficiency of matchers. If using matchers results in a
   // lot of duplicated work (e.g. string comparisons), consider providing APIs
   // that avoid it through memoization.
-  auto IgnorableOptional = ignorableOptional(Options);
   return CFGMatchSwitchBuilder<LatticeTransferState>()
       // Attach a symbolic "has_value" state to optional values that we see for
       // the first time.
@@ -570,22 +646,34 @@ auto buildTransferMatchSwitch(
       // make_optional
       .CaseOfCFGStmt<CallExpr>(isMakeOptionalCall(), transferMakeOptionalCall)
 
-      // optional::optional
+      // optional::optional (in place)
       .CaseOfCFGStmt<CXXConstructExpr>(
           isOptionalInPlaceConstructor(),
           [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E, State, State.Env.getBoolLiteralValue(true));
+            assignOptionalValue(*E, State.Env,
+                                State.Env.getBoolLiteralValue(true));
           })
+      // nullopt_t::nullopt_t
+      .CaseOfCFGStmt<CXXConstructExpr>(
+          isNulloptConstructor(),
+          [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
+             LatticeTransferState &State) {
+            assignOptionalValue(*E, State.Env,
+                                State.Env.getBoolLiteralValue(false));
+          })
+      // optional::optional(nullopt_t)
       .CaseOfCFGStmt<CXXConstructExpr>(
           isOptionalNulloptConstructor(),
           [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E, State,
+            assignOptionalValue(*E, State.Env,
                                 State.Env.getBoolLiteralValue(false));
           })
+      // optional::optional (value/conversion)
       .CaseOfCFGStmt<CXXConstructExpr>(isOptionalValueOrConversionConstructor(),
                                        transferValueOrConversionConstructor)
+
 
       // optional::operator=
       .CaseOfCFGStmt<CXXOperatorCallExpr>(
@@ -596,14 +684,14 @@ auto buildTransferMatchSwitch(
 
       // optional::value
       .CaseOfCFGStmt<CXXMemberCallExpr>(
-          valueCall(IgnorableOptional),
+          valueCall(std::nullopt),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
             transferUnwrapCall(E, E->getImplicitObjectArgument(), State);
           })
 
       // optional::operator*, optional::operator->
-      .CaseOfCFGStmt<CallExpr>(valueOperatorCall(IgnorableOptional),
+      .CaseOfCFGStmt<CallExpr>(valueOperatorCall(std::nullopt),
                                [](const CallExpr *E,
                                   const MatchFinder::MatchResult &,
                                   LatticeTransferState &State) {
@@ -625,7 +713,7 @@ auto buildTransferMatchSwitch(
           isOptionalMemberCallWithName("emplace"),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E->getImplicitObjectArgument(), State,
+            assignOptionalValue(*E->getImplicitObjectArgument(), State.Env,
                                 State.Env.getBoolLiteralValue(true));
           })
 
@@ -634,7 +722,7 @@ auto buildTransferMatchSwitch(
           isOptionalMemberCallWithName("reset"),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E->getImplicitObjectArgument(), State,
+            assignOptionalValue(*E->getImplicitObjectArgument(), State.Env,
                                 State.Env.getBoolLiteralValue(false));
           })
 
@@ -651,6 +739,25 @@ auto buildTransferMatchSwitch(
 
       // opt.value_or(X) != X
       .CaseOfCFGStmt<Expr>(isValueOrNotEqX(), transferValueOrNotEqX)
+
+      // Comparisons (==, !=):
+      .CaseOfCFGStmt<CXXOperatorCallExpr>(
+          isComparisonOperatorCall(hasAnyOptionalType(), hasAnyOptionalType()),
+          transferOptionalAndOptionalCmp)
+      .CaseOfCFGStmt<CXXOperatorCallExpr>(
+          isComparisonOperatorCall(hasOptionalType(),
+                                   unless(hasAnyOptionalType())),
+          [](const clang::CXXOperatorCallExpr *Cmp,
+             const MatchFinder::MatchResult &, LatticeTransferState &State) {
+            transferOptionalAndValueCmp(Cmp, Cmp->getArg(0), State.Env);
+          })
+      .CaseOfCFGStmt<CXXOperatorCallExpr>(
+          isComparisonOperatorCall(unless(hasAnyOptionalType()),
+                                   hasOptionalType()),
+          [](const clang::CXXOperatorCallExpr *Cmp,
+             const MatchFinder::MatchResult &, LatticeTransferState &State) {
+            transferOptionalAndValueCmp(Cmp, Cmp->getArg(1), State.Env);
+          })
 
       // returns optional
       .CaseOfCFGStmt<CallExpr>(isCallReturningOptional(),
@@ -709,10 +816,9 @@ UncheckedOptionalAccessModel::optionalClassDecl() {
   return optionalClass();
 }
 
-UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(
-    ASTContext &Ctx, UncheckedOptionalAccessModelOptions Options)
+UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(ASTContext &Ctx)
     : DataflowAnalysis<UncheckedOptionalAccessModel, NoopLattice>(Ctx),
-      TransferMatchSwitch(buildTransferMatchSwitch(Options)) {}
+      TransferMatchSwitch(buildTransferMatchSwitch()) {}
 
 void UncheckedOptionalAccessModel::transfer(const CFGElement *Elt,
                                             NoopLattice &L, Environment &Env) {
@@ -720,12 +826,14 @@ void UncheckedOptionalAccessModel::transfer(const CFGElement *Elt,
   TransferMatchSwitch(*Elt, getASTContext(), State);
 }
 
-bool UncheckedOptionalAccessModel::compareEquivalent(QualType Type,
-                                                     const Value &Val1,
-                                                     const Environment &Env1,
-                                                     const Value &Val2,
-                                                     const Environment &Env2) {
-  return isNonEmptyOptional(Val1, Env1) == isNonEmptyOptional(Val2, Env2);
+ComparisonResult UncheckedOptionalAccessModel::compare(
+    QualType Type, const Value &Val1, const Environment &Env1,
+    const Value &Val2, const Environment &Env2) {
+  if (!isOptionalType(Type))
+    return ComparisonResult::Unknown;
+  return isNonEmptyOptional(Val1, Env1) == isNonEmptyOptional(Val2, Env2)
+             ? ComparisonResult::Same
+             : ComparisonResult::Different;
 }
 
 bool UncheckedOptionalAccessModel::merge(QualType Type, const Value &Val1,
@@ -734,7 +842,7 @@ bool UncheckedOptionalAccessModel::merge(QualType Type, const Value &Val1,
                                          const Environment &Env2,
                                          Value &MergedVal,
                                          Environment &MergedEnv) {
-  if (!IsOptionalType(Type))
+  if (!isOptionalType(Type))
     return true;
 
   auto &HasValueVal = MergedEnv.makeAtomicBoolValue();

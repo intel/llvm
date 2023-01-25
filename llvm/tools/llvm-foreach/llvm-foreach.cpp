@@ -99,8 +99,9 @@ int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
   std::string ErrMsg;
   auto It = JobsSubmitted.begin();
   while (It != JobsSubmitted.end()) {
-    sys::ProcessInfo WaitResult =
-        sys::Wait(*It, 0, /*WaitUntilTerminates*/ BlockingWait, &ErrMsg);
+    sys::ProcessInfo WaitResult = sys::Wait(
+        *It, /*SecondsToWait*/ BlockingWait ? std::nullopt : std::optional(0),
+        &ErrMsg);
 
     // Check if the job has finished (PID will be 0 if it's not).
     if (!BlockingWait && !WaitResult.Pid) {
@@ -278,8 +279,9 @@ int main(int argc, char **argv) {
               checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
         Res = Result;
 
-    JobsSubmitted.emplace_back(sys::ExecuteNoWait(
-        Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
+    JobsSubmitted.emplace_back(
+        sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt,
+                           /*Redirects=*/std::nullopt, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.

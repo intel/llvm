@@ -12,6 +12,7 @@
 #===------------------------------------------------------------------------===#
 
 System=`uname -s`
+Machine=`uname -m`
 if [ "$System" = "FreeBSD" ]; then
     MAKE=gmake
 else
@@ -35,7 +36,6 @@ do_libcxxabi="yes"
 do_libunwind="yes"
 do_test_suite="yes"
 do_openmp="yes"
-do_bolt="no"
 do_lld="yes"
 do_lldb="yes"
 do_polly="yes"
@@ -46,6 +46,15 @@ BuildDir="`pwd`"
 ExtraConfigureFlags=""
 ExportBranch=""
 git_ref=""
+
+do_bolt="no"
+if [ "$System" = "Linux" ]; then
+    case $Machine in
+        x86_64 | arm64 | aarch64 )
+            do_bolt="yes"
+            ;;
+    esac
+fi
 
 function usage() {
     echo "usage: `basename $0` -release X.Y.Z -rc NUM [OPTIONS]"
@@ -396,6 +405,10 @@ function configure_llvmCore() {
     esac
 
     project_list=${projects// /;}
+    # Leading spaces will result in ";<runtime name>". This causes a CMake
+    # error because the empty string before the first ';' is treated as an
+    # unknown runtime name.
+    runtimes=$(echo $runtimes | sed -e 's/^\s*//')
     runtime_list=${runtimes// /;}
     echo "# Using C compiler: $c_compiler"
     echo "# Using C++ compiler: $cxx_compiler"

@@ -14,12 +14,10 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace property {
-namespace reduction {
+namespace property::reduction {
 class initialize_to_identity
     : public detail::DataLessProperty<detail::InitializeToIdentity> {};
-} // namespace reduction
-} // namespace property
+} // namespace property::reduction
 
 // Reduction property trait specializations
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

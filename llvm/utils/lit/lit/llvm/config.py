@@ -88,12 +88,15 @@ class LLVMConfig(object):
             features.add('system-aix')
         elif platform.system() == 'SunOS':
             features.add('system-solaris')
+        elif platform.system() == 'OS/390':
+            features.add('system-zos')
 
         # Native compilation: host arch == default triple arch
         # Both of these values should probably be in every site config (e.g. as
         # part of the standard header.  But currently they aren't)
         host_triple = getattr(config, 'host_triple', None)
         target_triple = getattr(config, 'target_triple', None)
+        features.add('target=%s' % target_triple)
         if host_triple and host_triple == target_triple:
             features.add('native')
 
@@ -644,7 +647,7 @@ class LLVMConfig(object):
         self.with_environment('PATH', paths, append_path=True)
 
         lib_dir_props = [self.config.name.lower() + '_libs_dir',
-                         'lld_libs_dir', 'llvm_libs_dir']
+                         'lld_libs_dir', 'llvm_shlib_dir', 'llvm_libs_dir']
         lib_paths = [getattr(self.config, pp) for pp in lib_dir_props
                      if getattr(self.config, pp, None)]
 

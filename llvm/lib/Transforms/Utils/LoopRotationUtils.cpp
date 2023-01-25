@@ -349,7 +349,9 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       SE->forgetTopmostLoop(L);
       // We may hoist some instructions out of loop. In case if they were cached
       // as "loop variant" or "loop computable", these caches must be dropped.
-      SE->forgetLoopDispositions();
+      // We also may fold basic blocks, so cached block dispositions also need
+      // to be dropped.
+      SE->forgetBlockAndLoopDispositions();
     }
 
     LLVM_DEBUG(dbgs() << "LoopRotation: rotating "; L->dump());
@@ -792,6 +794,11 @@ bool LoopRotate::simplifyLoopLatch(Loop *L) {
   DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
   MergeBlockIntoPredecessor(Latch, &DTU, LI, MSSAU, nullptr,
                             /*PredecessorWithTwoSuccessors=*/true);
+
+    if (SE) {
+      // Merging blocks may remove blocks reference in the block disposition cache. Clear the cache.
+      SE->forgetBlockAndLoopDispositions();
+    }
 
   if (MSSAU && VerifyMemorySSA)
     MSSAU->getMemorySSA()->verifyMemorySSA();

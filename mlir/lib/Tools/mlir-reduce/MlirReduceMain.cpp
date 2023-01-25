@@ -22,7 +22,7 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Tools/ParseUtilties.h"
+#include "mlir/Tools/ParseUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -41,8 +41,8 @@ OwningOpRef<Operation *> loadModule(MLIRContext &context,
     return nullptr;
   }
 
-  llvm::SourceMgr sourceMgr;
-  sourceMgr.AddNewSourceBuffer(std::move(file), SMLoc());
+  auto sourceMgr = std::make_shared<llvm::SourceMgr>();
+  sourceMgr->AddNewSourceBuffer(std::move(file), SMLoc());
   return parseSourceFileForTool(sourceMgr, &context, insertImplictModule);
 }
 

@@ -282,7 +282,8 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
     DataMember,
     StaticDataMember,
     InlineVariable,
-    VariableTemplate
+    VariableTemplate,
+    Concept
   } Kind = Normal;
 
   // Default arguments of member function parameters that appear in a class
@@ -307,6 +308,8 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
       }
     } else if (isa<FieldDecl>(ManglingContextDecl)) {
       Kind = DataMember;
+    } else if (isa<ImplicitConceptSpecializationDecl>(ManglingContextDecl)) {
+      Kind = Concept;
     }
   }
 
@@ -330,6 +333,11 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
     return std::make_tuple(nullptr, nullptr);
   }
 
+  case Concept:
+    // Concept definitions aren't code generated and thus aren't mangled,
+    // however the ManglingContextDecl is important for the purposes of
+    // re-forming the template argument list of the lambda for constraint
+    // evaluation.
   case StaticDataMember:
     //  -- the initializers of nonspecialized static members of template classes
     if (!IsInNonspecializedTemplate)
@@ -767,8 +775,8 @@ void Sema::deduceClosureReturnType(CapturingScopeInfo &CSI) {
     if (Context.getCanonicalFunctionResultType(ReturnType) ==
           Context.getCanonicalFunctionResultType(CSI.ReturnType)) {
       // Use the return type with the strictest possible nullability annotation.
-      auto RetTyNullability = ReturnType->getNullability(Ctx);
-      auto BlockNullability = CSI.ReturnType->getNullability(Ctx);
+      auto RetTyNullability = ReturnType->getNullability();
+      auto BlockNullability = CSI.ReturnType->getNullability();
       if (BlockNullability &&
           (!RetTyNullability ||
            hasWeakerNullability(*RetTyNullability, *BlockNullability)))
@@ -879,11 +887,12 @@ VarDecl *Sema::createLambdaInitCaptureVarDecl(SourceLocation Loc,
   return NewVD;
 }
 
-void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var) {
+void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var,
+                          bool isReferenceType) {
   assert(Var->isInitCapture() && "init capture flag should be set");
-  LSI->addCapture(Var, /*isBlock*/false, Var->getType()->isReferenceType(),
-                  /*isNested*/false, Var->getLocation(), SourceLocation(),
-                  Var->getType(), /*Invalid*/false);
+  LSI->addCapture(Var, /*isBlock*/ false, isReferenceType,
+                  /*isNested*/ false, Var->getLocation(), SourceLocation(),
+                  Var->getType(), /*Invalid*/ false);
 }
 
 void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
@@ -916,11 +925,11 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   SourceLocation EndLoc;
   SmallVector<ParmVarDecl *, 8> Params;
 
-  assert(ParamInfo.getDeclSpec().getStorageClassSpec() ==
-             DeclSpec::SCS_unspecified ||
-         ParamInfo.getDeclSpec().getStorageClassSpec() ==
-                 DeclSpec::SCS_static &&
-             "Unexpected storage specifier");
+  assert(
+      (ParamInfo.getDeclSpec().getStorageClassSpec() ==
+           DeclSpec::SCS_unspecified ||
+       ParamInfo.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static) &&
+      "Unexpected storage specifier");
   bool IsLambdaStatic =
       ParamInfo.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static;
 
@@ -945,8 +954,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     QualType DefaultTypeForNoTrailingReturn =
         getLangOpts().CPlusPlus14 ? Context.getAutoDeductType()
                                   : Context.DependentTy;
-    QualType MethodTy =
-        Context.getFunctionType(DefaultTypeForNoTrailingReturn, None, EPI);
+    QualType MethodTy = Context.getFunctionType(DefaultTypeForNoTrailingReturn,
+                                                std::nullopt, EPI);
     MethodTyInfo = Context.getTrivialTypeSourceInfo(MethodTy);
     ExplicitParams = false;
     ExplicitResultType = false;
@@ -970,6 +979,18 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     EndLoc = ParamInfo.getSourceRange().getEnd();
 
     ExplicitResultType = FTI.hasTrailingReturnType();
+
+    if (ExplicitResultType && getLangOpts().HLSL) {
+      QualType RetTy = FTI.getTrailingReturnType().get();
+      if (!RetTy.isNull()) {
+        // HLSL does not support specifying an address space on a lambda return
+        // type.
+        LangAS AddressSpace = RetTy.getAddressSpace();
+        if (AddressSpace != LangAS::Default)
+          Diag(FTI.getTrailingReturnTypeLoc(),
+               diag::err_return_value_with_address_space);
+      }
+    }
 
     if (FTIHasNonVoidParameters(FTI)) {
       Params.reserve(FTI.NumParams);
@@ -1241,7 +1262,7 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     }
 
     if (C->Init.isUsable()) {
-      addInitCapture(LSI, cast<VarDecl>(Var));
+      addInitCapture(LSI, cast<VarDecl>(Var), C->Kind == LCK_ByRef);
     } else {
       TryCaptureKind Kind = C->Kind == LCK_ByRef ? TryCapture_ExplicitByRef :
                                                    TryCapture_ExplicitByVal;
@@ -1391,7 +1412,7 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
   ConvExtInfo.TypeQuals.addConst();
   ConvExtInfo.ExceptionSpec.Type = EST_BasicNoexcept;
   QualType ConvTy =
-      S.Context.getFunctionType(PtrToFunctionTy, None, ConvExtInfo);
+      S.Context.getFunctionType(PtrToFunctionTy, std::nullopt, ConvExtInfo);
 
   SourceLocation Loc = IntroducerRange.getBegin();
   DeclarationName ConversionName
@@ -1568,7 +1589,8 @@ static void addBlockPointerConversion(Sema &S,
           /*IsVariadic=*/false, /*IsCXXMethod=*/true));
   ConversionEPI.TypeQuals = Qualifiers();
   ConversionEPI.TypeQuals.addConst();
-  QualType ConvTy = S.Context.getFunctionType(BlockPtrTy, None, ConversionEPI);
+  QualType ConvTy =
+      S.Context.getFunctionType(BlockPtrTy, std::nullopt, ConversionEPI);
 
   SourceLocation Loc = IntroducerRange.getBegin();
   DeclarationName Name

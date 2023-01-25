@@ -54,9 +54,10 @@ static std::string getOptionSpelling(const Record &R) {
 
 static void emitNameUsingSpelling(raw_ostream &OS, const Record &R) {
   size_t PrefixLength;
-  OS << "&";
-  write_cstring(OS, StringRef(getOptionSpelling(R, PrefixLength)));
-  OS << "[" << PrefixLength << "]";
+  OS << "llvm::StringLiteral(";
+  write_cstring(
+      OS, StringRef(getOptionSpelling(R, PrefixLength)).substr(PrefixLength));
+  OS << ")";
 }
 
 class MarshallingInfo {
@@ -129,7 +130,7 @@ struct SimpleEnumValueTable {
     OS << TableIndex;
   }
 
-  Optional<StringRef> emitValueTable(raw_ostream &OS) const {
+  std::optional<StringRef> emitValueTable(raw_ostream &OS) const {
     if (TableIndex == -1)
       return {};
     OS << "static const SimpleEnumValue " << ValueTableName << "[] = {\n";
@@ -251,8 +252,9 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
     // Prefix values.
     OS << ", {";
     for (const auto &PrefixKey : Prefix.first)
-      OS << "\"" << PrefixKey << "\" COMMA ";
-    OS << "nullptr})\n";
+      OS << "llvm::StringLiteral(\"" << PrefixKey << "\") COMMA ";
+    // Append an empty element to avoid ending up with an empty array.
+    OS << "llvm::StringLiteral(\"\")})\n";
   }
   OS << "#undef COMMA\n";
   OS << "#endif // PREFIX\n\n";
@@ -265,7 +267,7 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
     OS << "OPTION(";
 
     // The option prefix;
-    OS << "nullptr";
+    OS << "llvm::ArrayRef<llvm::StringLiteral>()";
 
     // The option string.
     OS << ", \"" << R.getValueAsString("Name") << '"';
@@ -424,6 +426,7 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
                  CmpMarshallingOpts);
 
   std::vector<MarshallingInfo> MarshallingInfos;
+  MarshallingInfos.reserve(OptsWithMarshalling.size());
   for (const auto *R : OptsWithMarshalling)
     MarshallingInfos.push_back(createMarshallingInfo(*R));
 
@@ -448,12 +451,10 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
 
   OS << MarshallingInfo::ValueTablesDecl << "{";
   for (auto ValueTableName : ValueTableNames)
-    OS << "{" << ValueTableName << ", sizeof(" << ValueTableName
-       << ") / sizeof(SimpleEnumValue)"
-       << "},\n";
+    OS << "{" << ValueTableName << ", std::size(" << ValueTableName << ")},\n";
   OS << "};\n";
   OS << "static const unsigned SimpleEnumValueTablesSize = "
-        "sizeof(SimpleEnumValueTables) / sizeof(SimpleEnumValueTable);\n";
+        "std::size(SimpleEnumValueTables);\n";
 
   OS << "#endif // SIMPLE_ENUM_VALUE_TABLE\n";
   OS << "\n";

@@ -44,6 +44,8 @@ llvm::StringRef debugString(Value::Kind Kind) {
     return "Struct";
   case Value::Kind::AtomicBool:
     return "AtomicBool";
+  case Value::Kind::TopBool:
+    return "TopBool";
   case Value::Kind::Conjunction:
     return "Conjunction";
   case Value::Kind::Disjunction:
@@ -183,7 +185,7 @@ Constraints
 
     auto StatusString = clang::dataflow::debugString(Result.getStatus());
     auto Solution = Result.getSolution();
-    auto SolutionString = Solution ? "\n" + debugString(Solution.value()) : "";
+    auto SolutionString = Solution ? "\n" + debugString(*Solution) : "";
 
     return formatv(
         Template,

@@ -83,7 +83,7 @@ Expr<SomeDerived> FoldOperation(
         isConstant &= IsInitialDataTarget(expr);
       }
     } else {
-      isConstant &= IsActuallyConstant(expr);
+      isConstant &= IsActuallyConstant(expr) || IsNullPointer(expr);
       if (auto valueShape{GetConstantExtents(context, expr)}) {
         if (auto componentShape{GetConstantExtents(context, symbol)}) {
           if (GetRank(*componentShape) > 0 && GetRank(*valueShape) == 0) {
@@ -205,24 +205,9 @@ ComplexPart FoldOperation(FoldingContext &context, ComplexPart &&complexPart) {
       FoldOperation(context, std::move(complex)), complexPart.part()};
 }
 
-std::optional<std::int64_t> GetInt64Arg(
-    const std::optional<ActualArgument> &arg) {
-  if (const auto *intExpr{UnwrapExpr<Expr<SomeInteger>>(arg)}) {
-    return ToInt64(*intExpr);
-  } else {
-    return std::nullopt;
-  }
-}
-
 std::optional<std::int64_t> GetInt64ArgOr(
     const std::optional<ActualArgument> &arg, std::int64_t defaultValue) {
-  if (!arg) {
-    return defaultValue;
-  } else if (const auto *intExpr{UnwrapExpr<Expr<SomeInteger>>(arg)}) {
-    return ToInt64(*intExpr);
-  } else {
-    return std::nullopt;
-  }
+  return arg ? ToInt64(*arg) : defaultValue;
 }
 
 Expr<ImpliedDoIndex::Result> FoldOperation(
@@ -276,14 +261,21 @@ std::optional<Expr<SomeType>> FoldTransfer(
     }
   }
   if (sourceBytes && IsActuallyConstant(*source) && moldType && extents) {
-    InitialImage image{*sourceBytes};
-    InitialImage::Result imageResult{
-        image.Add(0, *sourceBytes, *source, context)};
-    CHECK(imageResult == InitialImage::Ok);
-    return image.AsConstant(context, *moldType, *extents, true /*pad with 0*/);
-  } else {
-    return std::nullopt;
+    std::size_t elements{
+        extents->empty() ? 1 : static_cast<std::size_t>((*extents)[0])};
+    std::size_t totalBytes{*sourceBytes * elements};
+    // Don't fold intentional overflow cases from sneaky tests
+    if (totalBytes < std::size_t{1000000} &&
+        (elements == 0 || totalBytes / elements == *sourceBytes)) {
+      InitialImage image{*sourceBytes};
+      InitialImage::Result imageResult{
+          image.Add(0, *sourceBytes, *source, context)};
+      CHECK(imageResult == InitialImage::Ok);
+      return image.AsConstant(
+          context, *moldType, *extents, true /*pad with 0*/);
+    }
   }
+  return std::nullopt;
 }
 
 template class ExpressionBase<SomeDerived>;

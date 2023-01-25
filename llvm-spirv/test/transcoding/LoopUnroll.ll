@@ -35,6 +35,16 @@
 ;
 ; Command:
 ; clang -cc1 -triple spir64 -O0 LoopUnroll.cl -emit-llvm -o /test/SPIRV/transcoding/LoopUnroll.ll
+;
+; unroll_full() test was generated from the following source with -O2
+; void foo();
+;
+; void unroll_full() {
+;   #pragma clang unroll(full)
+;   for (int i = 0; i != 1024; ++i) {
+;     foo();
+;   }
+; }
 
 ; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -235,6 +245,30 @@ for.end:                                           ; preds = %for.cond
   ret void
 }
 
+; CHECK-SPIRV: Function
+; CHECK-SPIRV: Label
+; CHECK-SPIRV: Branch [[#Header:]]
+; CHECK-SPIRV: LoopMerge [[#Return:]] [[#Header]] 257 1
+; CHECK-SPIRV: BranchConditional [[#]] [[#Return]] [[#Header]]
+; CHECK-SPIRV: Label [[#Return]]
+; Function Attrs: noinline nounwind optnone
+define spir_func void @unroll_full() {
+  br label %2
+
+1:                                                ; preds = %2
+  ret void
+
+2:                                                ; preds = %0, %2
+  %3 = phi i32 [ 0, %0 ], [ %4, %2 ]
+  tail call void @_Z3foov()
+  %4 = add nuw nsw i32 %3, 1
+  %5 = icmp eq i32 %4, 1024
+  ; CHECK-LLVM: br i1 %[[#]], label %[[#]], label %[[#]], !llvm.loop ![[#FULL:]]
+  br i1 %5, label %1, label %2, !llvm.loop !11
+}
+
+declare void @_Z3foov()
+
 attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
@@ -257,6 +291,8 @@ attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-ma
 !8 = !{!"llvm.loop.unroll.count", i32 8}
 !9 = distinct !{!9, !10}
 !10 = !{!"llvm.loop.unroll.enable"}
+!11 = distinct !{!11, !12}
+!12 = !{!"llvm.loop.unroll.full"}
 
 ; CHECK-LLVM: ![[#UNROLLDISABLE]] = distinct !{![[#UNROLLDISABLE]], ![[#DISABLE:]]}
 ; CHECK-LLVM: ![[#DISABLE]] = !{!"llvm.loop.unroll.disable"}
@@ -265,3 +301,5 @@ attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-ma
 ; CHECK-LLVM: ![[#UNROLLENABLE1]] = distinct !{![[#UNROLLENABLE1]], ![[#ENABLE:]]}
 ; CHECK-LLVM: ![[#ENABLE]] = !{!"llvm.loop.unroll.enable"}
 ; CHECK-LLVM: ![[#UNROLLENABLE2]] = distinct !{![[#UNROLLENABLE2]], ![[#ENABLE]]}
+; CHECK-LLVM: ![[#FULL]] = distinct !{![[#FULL]], ![[#UNROLLFULL:]]}
+; CHECK-LLVM: ![[#UNROLLFULL]] = !{!"llvm.loop.unroll.full"}

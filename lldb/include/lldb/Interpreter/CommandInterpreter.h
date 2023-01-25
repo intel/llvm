@@ -559,6 +559,9 @@ public:
   bool GetSaveSessionOnQuit() const;
   void SetSaveSessionOnQuit(bool enable);
 
+  bool GetOpenTranscriptInEditor() const;
+  void SetOpenTranscriptInEditor(bool enable);
+
   FileSpec GetSaveSessionDirectory() const;
   void SetSaveSessionDirectory(llvm::StringRef path);
 
@@ -624,7 +627,7 @@ public:
   /// \return \b true if the session transcript was successfully written to
   /// disk, \b false otherwise.
   bool SaveTranscript(CommandReturnObject &result,
-                      llvm::Optional<std::string> output_file = llvm::None);
+                      std::optional<std::string> output_file = std::nullopt);
 
   FileSpec GetCurrentSourceDir();
 

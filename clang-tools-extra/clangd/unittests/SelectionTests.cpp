@@ -466,7 +466,10 @@ TEST(SelectionTest, CommonAncestor) {
       {"struct foo { [[int has^h<:32:>]]; };", "FieldDecl"},
       {"struct foo { [[op^erator int()]]; };", "CXXConversionDecl"},
       {"struct foo { [[^~foo()]]; };", "CXXDestructorDecl"},
-      // FIXME: The following to should be class itself instead.
+      {"struct foo { [[~^foo()]]; };", "CXXDestructorDecl"},
+      {"template <class T> struct foo { ~foo<[[^T]]>(){} };",
+       "TemplateTypeParmTypeLoc"},
+      {"struct foo {}; void bar(foo *f) { [[f->~^foo]](); }", "MemberExpr"},
       {"struct foo { [[fo^o(){}]] };", "CXXConstructorDecl"},
 
       {R"cpp(
@@ -531,6 +534,33 @@ TEST(SelectionTest, CommonAncestor) {
         void func() { [[__^func__]]; }
         )cpp",
        "PredefinedExpr"},
+
+      // using enum
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        using enum ns::[[^A]];
+        )cpp",
+       "EnumTypeLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; using B = A; };
+        using enum ns::[[^B]];
+        )cpp",
+       "TypedefTypeLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        using enum [[^ns::]]A;
+        )cpp",
+       "NestedNameSpecifierLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        [[using ^enum ns::A]];
+        )cpp",
+       "UsingEnumDecl"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        [[^using enum ns::A]];
+        )cpp",
+       "UsingEnumDecl"},
   };
 
   for (const Case &C : Cases) {
@@ -541,6 +571,7 @@ TEST(SelectionTest, CommonAncestor) {
     TU.Code = std::string(Test.code());
 
     TU.ExtraArgs.push_back("-xobjective-c++");
+    TU.ExtraArgs.push_back("-std=c++20");
 
     auto AST = TU.build();
     auto T = makeSelectionTree(C.Code, AST);
@@ -706,8 +737,24 @@ TEST(SelectionTest, MacroArgExpansion) {
   Test = Annotations(Case);
   AST = TestTU::withCode(Test.code()).build();
   T = makeSelectionTree(Case, AST);
-
   EXPECT_EQ("IntegerLiteral", T.commonAncestor()->kind());
+
+  // Reduced from private bug involving RETURN_IF_ERROR.
+  // Due to >>-splitting and a bug in isBeforeInTranslationUnit, the inner
+  // S<int> would claim way too many tokens.
+  Case = R"cpp(
+    #define ID(x) x
+    template <typename T> class S {};
+    ID(
+      ID(S<S<int>> x);
+      int ^y;
+    )
+  )cpp";
+  Test = Annotations(Case);
+  AST = TestTU::withCode(Test.code()).build();
+  T = makeSelectionTree(Case, AST);
+  // not TemplateSpecializationTypeLoc!
+  EXPECT_EQ("VarDecl", T.commonAncestor()->kind());
 }
 
 TEST(SelectionTest, Implicit) {

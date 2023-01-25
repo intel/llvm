@@ -11,10 +11,10 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include <optional>
 
 namespace llvm {
 
@@ -52,7 +52,7 @@ class TargetLibraryInfoImpl {
   unsigned char AvailableArray[(NumLibFuncs+3)/4];
   DenseMap<unsigned, std::string> CustomNames;
   static StringLiteral const StandardNames[NumLibFuncs];
-  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param;
+  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param, ShouldSignExtI32Return;
   unsigned SizeOfInt;
 
   enum AvailabilityState {
@@ -189,6 +189,12 @@ public:
     ShouldSignExtI32Param = Val;
   }
 
+  /// Set to true iff i32 results from library functions should have signext
+  /// attribute if they correspond to C-level int or unsigned int.
+  void setShouldSignExtI32Return(bool Val) {
+    ShouldSignExtI32Return = Val;
+  }
+
   /// Returns the size of the wchar_t type in bytes or 0 if the size is unknown.
   /// This queries the 'wchar_size' metadata.
   unsigned getWCharSize(const Module &M) const;
@@ -235,7 +241,7 @@ class TargetLibraryInfo {
 
 public:
   explicit TargetLibraryInfo(const TargetLibraryInfoImpl &Impl,
-                             Optional<const Function *> F = None)
+                             std::optional<const Function *> F = std::nullopt)
       : Impl(&Impl), OverrideAsUnavailable(NumLibFuncs) {
     if (!F)
       return;
@@ -401,6 +407,8 @@ public:
   Attribute::AttrKind getExtAttrForI32Return(bool Signed = true) const {
     if (Impl->ShouldExtI32Return)
       return Signed ? Attribute::SExt : Attribute::ZExt;
+    if (Impl->ShouldSignExtI32Return)
+      return Attribute::SExt;
     return Attribute::None;
   }
 
@@ -468,12 +476,12 @@ private:
   friend AnalysisInfoMixin<TargetLibraryAnalysis>;
   static AnalysisKey Key;
 
-  Optional<TargetLibraryInfoImpl> BaselineInfoImpl;
+  std::optional<TargetLibraryInfoImpl> BaselineInfoImpl;
 };
 
 class TargetLibraryInfoWrapperPass : public ImmutablePass {
   TargetLibraryAnalysis TLA;
-  Optional<TargetLibraryInfo> TLI;
+  std::optional<TargetLibraryInfo> TLI;
 
   virtual void anchor();
 

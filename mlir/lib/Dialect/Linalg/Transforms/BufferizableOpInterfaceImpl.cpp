@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 
 using namespace mlir;
 using namespace linalg;
@@ -40,8 +41,8 @@ bufferizeDestinationStyleOpInterface(RewriterBase &rewriter,
 
   // New input operands for the cloned op.
   SmallVector<Value> newInputBuffers;
-  newInputBuffers.reserve(op.getNumInputs());
-  for (OpOperand *opOperand : op.getInputOperands()) {
+  newInputBuffers.reserve(op.getNumDpsInputs());
+  for (OpOperand *opOperand : op.getDpsInputOperands()) {
     if (op.isScalar(opOperand)) {
       newInputBuffers.push_back(opOperand->get());
       continue;
@@ -55,7 +56,7 @@ bufferizeDestinationStyleOpInterface(RewriterBase &rewriter,
   // New output operands for the cloned op.
   SmallVector<Value> newOutputBuffers;
   for (OpResult opResult : op->getOpResults()) {
-    OpOperand *opOperand = op.getOutputOperand(opResult.getResultNumber());
+    OpOperand *opOperand = op.getDpsInitOperand(opResult.getResultNumber());
     FailureOr<Value> resultBuffer =
         getBuffer(rewriter, opOperand->get(), options);
     if (failed(resultBuffer))
@@ -73,8 +74,8 @@ bufferizeDestinationStyleOpInterface(RewriterBase &rewriter,
   // new op. Since the new op does not have any tensor results, it does not
   // return anything.
   assert(op->getNumRegions() == 1 && "expected that op has 1 region");
-  auto newOp = cast<DestinationStyleOpInterface>(op.cloneWithoutRegions(
-      rewriter, op.getLoc(), /*resultTypes=*/TypeRange{}, newOperands));
+  auto newOp = cast<DestinationStyleOpInterface>(cloneWithoutRegions(
+      rewriter, op, /*newResultTypes=*/TypeRange{}, newOperands));
   rewriter.inlineRegionBefore(op->getRegion(0), newOp->getRegion(0),
                               newOp->getRegion(0).begin());
 
@@ -110,15 +111,15 @@ struct LinalgOpInterface
     auto genericOp = cast<DestinationStyleOpInterface>(op);
 
     // The i-th OpResult may alias with the i-th "out" tensor.
-    return {genericOp.getOutputOperand(opResult.getResultNumber())};
+    return {genericOp.getDpsInitOperand(opResult.getResultNumber())};
   }
 
   SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
-    auto genericOp = cast<linalg::DestinationStyleOpInterface>(op);
+    auto genericOp = cast<DestinationStyleOpInterface>(op);
 
     // The i-th "out" tensor may alias with the i-th OpResult.
-    if (genericOp.isOutputTensor(&opOperand))
+    if (genericOp.isDpsInit(&opOperand))
       return {genericOp.getTiedOpResult(&opOperand)};
     return {};
   }

@@ -11,7 +11,7 @@ using namespace sycl::ext::intel::esimd;
 namespace old = sycl::ext::intel::experimental::esimd;
 namespace xmx = sycl::ext::intel::esimd::xmx;
 
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 using half = sycl::half;
 
 constexpr auto bf16 = xmx::dpas_argument_type::bf16;

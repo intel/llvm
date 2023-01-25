@@ -13,6 +13,8 @@
 #ifndef MLIR_DIALECT_VECTOR_IR_VECTOROPS_H
 #define MLIR_DIALECT_VECTOR_IR_VECTOROPS_H
 
+#include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.h"
+#include "mlir/Dialect/Vector/Interfaces/MaskingOpInterface.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -20,6 +22,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
@@ -48,6 +51,10 @@ class VectorDialect;
 namespace detail {
 struct BitmaskEnumStorage;
 } // namespace detail
+
+/// Default callback to build a region with a 'vector.yield' terminator with no
+/// arguments.
+void buildTerminatedBody(OpBuilder &builder, Location loc);
 
 /// Return whether `srcType` can be broadcast to `dstVectorType` under the
 /// semantics of the `vector.broadcast` op.
@@ -111,7 +118,7 @@ void populateBubbleVectorBitCastOpPatterns(RewritePatternSet &patterns,
 /// VectorToSCF, which reduces the rank of vector transfer ops.
 void populateVectorTransferLoweringPatterns(
     RewritePatternSet &patterns,
-    llvm::Optional<unsigned> maxTransferRank = llvm::None,
+    std::optional<unsigned> maxTransferRank = std::nullopt,
     PatternBenefit benefit = 1);
 
 /// These patterns materialize masks for various vector ops such as transfers.
@@ -134,6 +141,11 @@ void populateVectorMaskOpLoweringPatterns(RewritePatternSet &patterns,
 /// ops.
 void populateVectorShapeCastLoweringPatterns(RewritePatternSet &patterns,
                                              PatternBenefit benefit = 1);
+
+/// Collects patterns that lower scalar vector transfer ops to memref loads and
+/// stores when beneficial.
+void populateScalarVectorTransferLoweringPatterns(RewritePatternSet &patterns,
+                                                  PatternBenefit benefit = 1);
 
 /// Returns the integer type required for subscripts in the vector dialect.
 IntegerType getVectorSubscriptType(Builder &builder);

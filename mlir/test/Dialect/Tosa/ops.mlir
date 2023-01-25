@@ -73,7 +73,7 @@ func.func @test_max_pool2d(%arg0: tensor<1x32x32x8xf32>) -> tensor<1x32x32x8xf32
 }
 
 // -----
-/// CHECK-LABEL: transpose_conv2d
+// CHECK-LABEL: transpose_conv2d
 func.func @test_transpose_conv2d(%arg0: tensor<1x32x32x8xf32>, %arg1: tensor<16x1x1x8xf32>, %arg2: tensor<16xf32>) -> tensor<1x32x32x16xf32> {
   %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {out_pad = [0, 0, 0, 0], out_shape = [1, 32, 32, 16], stride = [1, 1]} : (tensor<1x32x32x8xf32>, tensor<16x1x1x8xf32>, tensor<16xf32>) -> tensor<1x32x32x16xf32>
   return %0 : tensor<1x32x32x16xf32>
@@ -448,7 +448,7 @@ func.func @test_scatter(%arg0: tensor<13x21x3xf32>, %arg1: tensor<13x26xi32>, %a
 // -----
 // CHECK-LABEL: resize
 func.func @test_resize(%arg0: tensor<1x32x32x8xf32>) -> tensor<1x64x64x8xf32> {
-  %1 = "tosa.resize"(%arg0) {output_size = [64, 64], stride = [1024, 1024], offset = [0, 0], shift = 10 : i32, stride_fp = [0.0 : f32, 0.0 : f32], offset_fp = [0.0 : f32, 0.0 : f32], mode = "BILINEAR"} : (tensor<1x32x32x8xf32>) -> tensor<1x64x64x8xf32>
+  %1 = "tosa.resize"(%arg0) { scale = [4, 2, 4, 2], offset = [-1, -1], border = [1, 1], mode = "BILINEAR"} : (tensor<1x32x32x8xf32>) -> tensor<1x64x64x8xf32>
   return %1 : tensor<1x64x64x8xf32>
 }
 
@@ -528,4 +528,11 @@ func.func @test_while_loop(%arg0: tensor<10xi32>, %arg1: tensor<i32>) {
     "tosa.yield"(%6, %3, %5) : (tensor<i32>, tensor<i32>, tensor<10xi32>) -> ()
   }) : (tensor<i32>, tensor<i32>, tensor<10xi32>) -> (tensor<i32>, tensor<i32>, tensor<10xi32>)
   return
+}
+
+// -----
+// CHECK-LABEL: custom
+func.func @test_custom(%arg0: tensor<10xi32>) -> tensor<10xi32> {
+  %0 = "tosa.custom"(%arg0) {identifier="custom_test", config="tosa_mlir_test", implementation_attrs=""} : (tensor<10xi32>) -> (tensor<10xi32>)
+  return %0 : tensor<10xi32>
 }

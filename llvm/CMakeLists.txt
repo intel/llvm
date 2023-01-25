@@ -1,17 +1,17 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
 
 cmake_minimum_required(VERSION 3.13.4)
+if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+  message(WARNING
+    "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+    "minimum version of CMake required to build LLVM will become 3.20.0, and "
+    "using an older CMake will become an error. Please upgrade your CMake to "
+    "at least 3.20.0 now to avoid issues in the future!")
+endif()
 
-# CMP0114: ExternalProject step targets fully adopt their steps.
-# New in CMake 3.19: https://cmake.org/cmake/help/latest/policy/CMP0114.html
-if(POLICY CMP0114)
-  cmake_policy(SET CMP0114 OLD)
-endif()
-# CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
-# New in CMake 3.20. https://cmake.org/cmake/help/latest/policy/CMP0116.html
-if(POLICY CMP0116)
-  cmake_policy(SET CMP0116 OLD)
-endif()
+set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
+  NO_POLICY_SCOPE)
 
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
@@ -166,7 +166,7 @@ if(LLVM_ENABLE_RUNTIMES STREQUAL "all")
 endif()
 foreach(proj IN LISTS LLVM_ENABLE_RUNTIMES)
   if (NOT "${proj}" IN_LIST LLVM_SUPPORTED_RUNTIMES)
-    message(FATAL_ERROR "Runtime ${proj} is not a supported runtime. Supported runtimes are: ${LLVM_SUPPORTED_RUNTIMES}")
+    message(FATAL_ERROR "Runtime \"${proj}\" is not a supported runtime. Supported runtimes are: ${LLVM_SUPPORTED_RUNTIMES}")
   endif()
 endforeach()
 
@@ -283,8 +283,6 @@ if(LLVM_ENABLE_GISEL_COV)
   set(LLVM_GISEL_COV_PREFIX "${CMAKE_BINARY_DIR}/gisel-coverage-" CACHE STRING "Provide a filename prefix to collect the GlobalISel rule coverage")
 endif()
 
-set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
-
 # Add path for custom modules
 list(INSERT CMAKE_MODULE_PATH 0
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
@@ -301,6 +299,11 @@ option(LLVM_INSTALL_BINUTILS_SYMLINKS
 
 option(LLVM_INSTALL_CCTOOLS_SYMLINKS
   "Install symlinks from the cctools tool names to the corresponding LLVM tools." OFF)
+
+# By default we use symlinks on Unix platforms and copy binaries on Windows
+# If you have the correct setup on Windows you can use this option to enable
+# symlinks and save a lot of diskspace.
+option(LLVM_USE_SYMLINKS "Use symlinks instead of copying binaries" ${CMAKE_HOST_UNIX})
 
 option(LLVM_INSTALL_UTILS "Include utility binaries in the 'install' target." OFF)
 
@@ -331,23 +334,31 @@ set(BUG_REPORT_URL "${PACKAGE_BUGREPORT}" CACHE STRING
   "Default URL where bug reports are to be submitted.")
 
 # Configure CPack.
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "LLVM")
-set(CPACK_PACKAGE_VENDOR "LLVM")
+if(NOT DEFINED CPACK_PACKAGE_INSTALL_DIRECTORY)
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "LLVM")
+endif()
+if(NOT DEFINED CPACK_PACKAGE_VENDOR)
+  set(CPACK_PACKAGE_VENDOR "LLVM")
+endif()
 set(CPACK_PACKAGE_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${LLVM_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${LLVM_VERSION_PATCH})
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.TXT")
-set(CPACK_NSIS_COMPRESSOR "/SOLID lzma \r\n SetCompressorDictSize 32")
 if(WIN32 AND NOT UNIX)
-  set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "LLVM")
+  set(CPACK_NSIS_COMPRESSOR "/SOLID lzma \r\n SetCompressorDictSize 32")
+  if(NOT DEFINED CPACK_PACKAGE_INSTALL_REGISTRY_KEY)
+    set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "LLVM")
+  endif()
   set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_logo.bmp")
   set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
   set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
   set(CPACK_NSIS_MODIFY_PATH "ON")
   set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
   if( CMAKE_CL_64 )
-    set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
+    if(NOT DEFINED CPACK_NSIS_INSTALL_ROOT)
+      set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
+    endif()
   endif()
 endif()
 include(CPack)
@@ -407,7 +418,6 @@ set(LLVM_MAIN_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}  ) # --src-root
 set(LLVM_MAIN_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/include ) # --includedir
 set(LLVM_BINARY_DIR       ${CMAKE_CURRENT_BINARY_DIR}  ) # --prefix
 
-set(LLVM_THIRD_PARTY_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../third-party)
 
 # Note: LLVM_CMAKE_DIR does not include generated files
 set(LLVM_CMAKE_DIR ${LLVM_MAIN_SRC_DIR}/cmake/modules)
@@ -699,7 +709,6 @@ endif(LLVM_BUILD_EXAMPLES)
 option(LLVM_BUILD_TESTS
   "Build LLVM unit tests. If OFF, just generate build targets." OFF)
 option(LLVM_INCLUDE_TESTS "Generate build targets for the LLVM unit tests." ON)
-option(LLVM_INCLUDE_GO_TESTS "Include the Go bindings tests in test build targets." OFF)
 
 option(LLVM_BUILD_BENCHMARKS "Add LLVM benchmark targets to the list of default
 targets. If OFF, benchmarks still could be built using Benchmarks target." OFF)
@@ -844,20 +853,14 @@ include(config-ix)
 if("${LLVM_HOST_TRIPLE}" MATCHES "^powerpc64-ibm-aix")
   string(REGEX REPLACE "^powerpc64" "powerpc" LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
 else()
-  set(LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+  # Only set default triple when native target is enabled.
+  if (LLVM_NATIVE_TARGET)
+    set(LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+  endif()
 endif()
 
-set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE_default}" CACHE STRING
-  "Default target for which LLVM will generate code." )
-if (TARGET_TRIPLE)
-  message(WARNING "TARGET_TRIPLE is deprecated and will be removed in a future release. "
-                  "Please use LLVM_DEFAULT_TARGET_TRIPLE instead.")
-  set(LLVM_TARGET_TRIPLE "${TARGET_TRIPLE}")
-else()
-  set(LLVM_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
-endif()
-message(STATUS "LLVM host triple: ${LLVM_HOST_TRIPLE}")
-message(STATUS "LLVM default target triple: ${LLVM_DEFAULT_TARGET_TRIPLE}")
+include(SetTargetTriple)
+set_llvm_target_triple()
 
 if(WIN32 OR CYGWIN)
   if(BUILD_SHARED_LIBS OR LLVM_BUILD_LLVM_DYLIB)
@@ -976,36 +979,12 @@ endif()
 
 # For up-to-date instructions for installing the TFLite dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/main/buildbot/buildbot_init.sh
-set(TENSORFLOW_C_LIB_PATH "" CACHE PATH "Path to TensorFlow C library install")
 set(LLVM_HAVE_TFLITE "" CACHE BOOL "Use tflite")
 if (LLVM_HAVE_TFLITE)
   find_package(protobuf REQUIRED)
   find_package(tensorflow-lite REQUIRED)
-  set(LLVM_HAVE_TF_API "ON" CACHE BOOL "Full Tensorflow API available")
   set(LLVM_PROTOBUF_OUT_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/protobuf_gen)
   include_directories(${LLVM_PROTOBUF_OUT_DIR})
-elseif (TENSORFLOW_C_LIB_PATH)
-  find_library(tensorflow_c_api tensorflow PATHS ${TENSORFLOW_C_LIB_PATH}/lib NO_DEFAULT_PATH REQUIRED)
-  # Currently, the protobuf headers are distributed with the pip package that corresponds to the version
-  # of the C API library.
-  find_library(tensorflow_fx tensorflow_framework PATHS ${TENSORFLOW_C_LIB_PATH}/lib NO_DEFAULT_PATH REQUIRED)
-  set(LLVM_HAVE_TF_API "ON" CACHE BOOL "Full Tensorflow API available")
-  include_directories(${TENSORFLOW_C_LIB_PATH}/include)
-  if (NOT TF_PROTO_HEADERS)
-    message(STATUS "TF_PROTO_HEADERS not defined. Looking for tensorflow pip package.")
-    execute_process(COMMAND
-      ${Python3_EXECUTABLE} "-c" "import tensorflow as tf; import os; print(os.path.dirname(tf.__file__))"
-      OUTPUT_VARIABLE TF_PIP)
-    if ("${TF_PIP}" STREQUAL "")
-      message(FATAL ERROR "Tensorflow pip package is also required for 'development' mode (protobuf headers)")
-    endif()
-    string(STRIP ${TF_PIP} TF_PIP)
-    set(TF_PROTO_HEADERS "${TF_PIP}/include")
-  endif()
-  message(STATUS "Using Tensorflow headers under: ${TF_PROTO_HEADERS}")
-  include_directories(${TF_PROTO_HEADERS})
-  add_definitions("-DGOOGLE_PROTOBUF_NO_RTTI")
-  add_definitions("-D_GLIBCXX_USE_CXX11_ABI=0")
 endif()
 
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
@@ -1204,7 +1183,7 @@ if( LLVM_INCLUDE_UTILS )
   add_subdirectory(utils/yaml-bench)
   add_subdirectory(utils/split-file)
   if( LLVM_INCLUDE_TESTS )
-    add_subdirectory(utils/unittest)
+    add_subdirectory(${LLVM_THIRD_PARTY_DIR}/unittest ${CMAKE_CURRENT_BINARY_DIR}/third-party/unittest)
   endif()
 else()
   if ( LLVM_INCLUDE_TESTS )

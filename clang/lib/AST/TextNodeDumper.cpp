@@ -1579,8 +1579,16 @@ void TextNodeDumper::VisitTemplateTypeParmType(const TemplateTypeParmType *T) {
 
 void TextNodeDumper::VisitSubstTemplateTypeParmType(
     const SubstTemplateTypeParmType *T) {
+  dumpDeclRef(T->getAssociatedDecl());
+  VisitTemplateTypeParmDecl(T->getReplacedParameter());
   if (auto PackIndex = T->getPackIndex())
     OS << " pack_index " << *PackIndex;
+}
+
+void TextNodeDumper::VisitSubstTemplateTypeParmPackType(
+    const SubstTemplateTypeParmPackType *T) {
+  dumpDeclRef(T->getAssociatedDecl());
+  VisitTemplateTypeParmDecl(T->getReplacedParameter());
 }
 
 void TextNodeDumper::VisitAutoType(const AutoType *T) {
@@ -1801,6 +1809,8 @@ void TextNodeDumper::VisitVarDecl(const VarDecl *D) {
     case VarDecl::ListInit:
       OS << " listinit";
       break;
+    case VarDecl::ParenListInit:
+      OS << " parenlistinit";
     }
   }
   if (D->needsDestruction(D->getASTContext()))
@@ -1926,6 +1936,8 @@ void TextNodeDumper::VisitNamespaceDecl(const NamespaceDecl *D) {
   dumpName(D);
   if (D->isInline())
     OS << " inline";
+  if (D->isNested())
+    OS << " nested";
   if (!D->isOriginalNamespace())
     dumpDeclRef(D->getOriginalNamespace(), "original");
 }

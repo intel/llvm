@@ -122,13 +122,13 @@ public:
   /// and range length. `operandSegments` is an optional set of operand segments
   /// to be updated when mutating the operand list.
   MutableOperandRange(Operation *owner, unsigned start, unsigned length,
-                      ArrayRef<OperandSegment> operandSegments = llvm::None);
+                      ArrayRef<OperandSegment> operandSegments = std::nullopt);
   MutableOperandRange(Operation *owner);
 
   /// Slice this range into a sub range, with the additional operand segment.
   MutableOperandRange
   slice(unsigned subStart, unsigned subLen,
-        Optional<OperandSegment> segment = llvm::None) const;
+        Optional<OperandSegment> segment = std::nullopt) const;
 
   /// Append the given values to the range.
   void append(ValueRange values);
@@ -356,7 +356,7 @@ public:
   using RangeBaseT::RangeBaseT;
 
   template <typename Arg,
-            typename = typename std::enable_if_t<
+            typename = std::enable_if_t<
                 std::is_constructible<ArrayRef<Value>, Arg>::value &&
                 !std::is_convertible<Arg, Value>::value>>
   ValueRange(Arg &&arg) : ValueRange(ArrayRef<Value>(std::forward<Arg>(arg))) {}
@@ -369,7 +369,7 @@ public:
       : ValueRange(ResultRange(values)) {}
   ValueRange(ArrayRef<BlockArgument> values)
       : ValueRange(ArrayRef<Value>(values.data(), values.size())) {}
-  ValueRange(ArrayRef<Value> values = llvm::None);
+  ValueRange(ArrayRef<Value> values = std::nullopt);
   ValueRange(OperandRange values);
   ValueRange(ResultRange values);
 

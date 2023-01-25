@@ -245,6 +245,14 @@ func.func @reduce_invalid_op_type(%arg0 : f32) {
 
 // -----
 
+func.func @subgroup_reduce_invalid_op_type(%arg0 : f32) {
+  // expected-error@+1 {{`and` accumulator is only compatible with Integer type}}
+  %res = gpu.subgroup_reduce and %arg0 : (f32) -> (f32)
+  return
+}
+
+// -----
+
 func.func @reduce_incorrect_region_arguments(%arg0 : f32) {
   // expected-error@+1 {{expected two region arguments}}
   %res = gpu.all_reduce %arg0 {
@@ -507,11 +515,9 @@ func.func @mmaLoadOp_identity_layout(){
 
 // -----
 
-func.func @mmaLoadOp_invalid_mem_space(){
-    %wg = memref.alloca() {alignment = 32} : memref<32x32xf16, 5>
-    %i = arith.constant 16 : index
-    // expected-error @+1 {{source memorySpace kGenericMemorySpace, kSharedMemorySpace or kGlobalMemorySpace only allowed}}
-    %0 = gpu.subgroup_mma_load_matrix %wg[%i, %i] {leadDimension = 32 : index} : memref<32x32xf16, 5> -> !gpu.mma_matrix<16x16xf16, "AOp">
+func.func @mma_invalid_memref_type(%src: memref<32x4xvector<4x8xf32>>, %i: index) {
+    // expected-error @+1 {{operand #0 must be memref of 16-bit float or 32-bit float or vector of 16-bit float or 32-bit float values of ranks 1 values}}
+    %0 = gpu.subgroup_mma_load_matrix %src[%i, %i] {leadDimension = 4 : index} : memref<32x4xvector<4x8xf32>> -> !gpu.mma_matrix<16x16xf16, "AOp">
     return
 }
 
@@ -525,17 +531,6 @@ func.func @wmmaStoreOp_invalid_map(%arg0 : !gpu.mma_matrix<16x16xf16, "COp">) ->
     %j = arith.constant 16 : index
     // expected-error @+1 {{expected destination memref most minor dim must have unit stride}}
     gpu.subgroup_mma_store_matrix %arg0, %sg[%i,%j] {leadDimension= 32 : index} : !gpu.mma_matrix<16x16xf16, "COp">, memref<32x32xf16,#layout_map_col_major, 3>
-    return
-}
-
-// -----
-
-func.func @wmmaStoreOp_invalid_mem_space(%arg0 : !gpu.mma_matrix<16x16xf16, "COp">) -> () {
-    %sg = memref.alloca(){alignment = 32} : memref<32x32xf16, 5>
-    %i = arith.constant 16 : index
-    %j = arith.constant 16 : index
-    // expected-error @+1 {{destination memorySpace of kGenericMemorySpace, kGlobalMemorySpace or kSharedMemorySpace only allowed}}
-    gpu.subgroup_mma_store_matrix %arg0, %sg[%i,%j] {leadDimension= 32 : index} : !gpu.mma_matrix<16x16xf16, "COp">, memref<32x32xf16, 5>
     return
 }
 

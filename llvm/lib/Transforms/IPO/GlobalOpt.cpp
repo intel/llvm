@@ -68,6 +68,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -882,7 +883,7 @@ OptimizeGlobalAddressOfAllocation(GlobalVariable *GV, CallInst *CI,
   if (!isa<UndefValue>(InitVal)) {
     IRBuilder<> Builder(CI->getNextNode());
     // TODO: Use alignment above if align!=1
-    Builder.CreateMemSet(NewGV, InitVal, AllocSize, None);
+    Builder.CreateMemSet(NewGV, InitVal, AllocSize, std::nullopt);
   }
 
   // Update users of the allocation to use the new global instead.
@@ -2009,7 +2010,7 @@ OptimizeFunctions(Module &M,
     // FIXME: We should also hoist alloca affected by this to the entry
     // block if possible.
     if (F.getAttributes().hasAttrSomewhere(Attribute::InAlloca) &&
-        !F.hasAddressTaken() && !hasMustTailCallers(&F)) {
+        !F.hasAddressTaken() && !hasMustTailCallers(&F) && !F.isVarArg()) {
       RemoveAttribute(&F, Attribute::InAlloca);
       Changed = true;
     }
@@ -2468,7 +2469,7 @@ optimizeGlobalsInModule(Module &M, const DataLayout &DL,
   SmallPtrSet<const Comdat *, 8> NotDiscardableComdats;
   bool Changed = false;
   bool LocalChange = true;
-  Optional<uint32_t> FirstNotFullyEvaluatedPriority;
+  std::optional<uint32_t> FirstNotFullyEvaluatedPriority;
 
   while (LocalChange) {
     LocalChange = false;

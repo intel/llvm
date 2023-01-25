@@ -15,7 +15,7 @@ func.func @generic_op_reshape_producer_fusion(%arg0 : tensor<?x?x4x?xf32>,
      iterator_types = ["parallel", "parallel", "parallel"]}
        ins(%0, %arg1, %arg2 : tensor<?x?x?xf32>, tensor<?x?x?xf32>, f32)
        outs(%arg1 : tensor<?x?x?xf32>) {
-    ^bb0(%arg3: f32, %arg4: f32, %arg5: f32, %s: f32):       
+    ^bb0(%arg3: f32, %arg4: f32, %arg5: f32, %s: f32):
       %1 = arith.mulf %arg3, %arg4 : f32
       %2 = arith.addf %1, %arg5 : f32
       linalg.yield %2 : f32
@@ -58,7 +58,7 @@ func.func @generic_op_reshape_consumer_fusion(%arg0 : tensor<?x?xf32>,
      iterator_types = ["parallel", "parallel"]}
        ins(%arg0, %arg1, %arg2 : tensor<?x?xf32>, tensor<?x?xf32>, f32)
        outs(%arg0 : tensor<?x?xf32>) {
-    ^bb0(%arg3: f32, %arg4: f32, %arg5: f32, %s: f32):       
+    ^bb0(%arg3: f32, %arg4: f32, %arg5: f32, %s: f32):
       %1 = arith.mulf %arg3, %arg4 : f32
       %2 = arith.addf %1, %arg5 : f32
       linalg.yield %2 : f32
@@ -148,7 +148,7 @@ func.func @generic_op_reshape_consumer_static(%arg0: tensor<264x4xf32>)
      iterator_types = ["parallel", "parallel"]}
        ins(%arg0, %cst : tensor<264x4xf32>, tensor<264x4xf32>)
        outs(%0 : tensor<264x4xf32>) {
-    ^bb0(%arg1: f32, %arg2: f32, %s: f32):  
+    ^bb0(%arg1: f32, %arg2: f32, %s: f32):
       %2 = arith.mulf %arg1, %arg2 : f32
       linalg.yield %2 : f32
     } -> tensor<264x4xf32>
@@ -212,8 +212,8 @@ func.func @indexed_consumer_reshape_producer_fusion(%arg0 : tensor<?x?x4x?xi32>,
 //       CHECK: func @indexed_consumer_reshape_producer_fusion
 //       CHECK:   linalg.generic
 //       CHECK:   ^{{.*}}(
-//  CHECK-SAME:     %[[ARG3:[a-zA-Z0-9]+]]: i32, %[[ARG4:[a-zA-Z0-9]+]]: i32,
-//  CHECK-SAME:     %[[ARG8:[a-zA-Z0-9]+]]: i32)
+//  CHECK-SAME:     %[[ARG3:[a-zA-Z0-9_]+]]: i32, %[[ARG4:[a-zA-Z0-9_]+]]: i32,
+//  CHECK-SAME:     %[[ARG8:[a-zA-Z0-9_]+]]: i32)
 //   CHECK-DAG:     %[[IDX0:.+]] = linalg.index 0 : index
 //   CHECK-DAG:     %[[IDX1:.+]] = linalg.index 1 : index
 //   CHECK-DAG:     %[[IDX2:.+]] = linalg.index 2 : index
@@ -240,7 +240,7 @@ func.func @indexed_producer_reshape_consumer_fusion(%arg0 : tensor<?x?xi32>,
      iterator_types = ["parallel", "parallel"]}
        ins(%arg0, %arg1 : tensor<?x?xi32>, tensor<?x?xi32>)
       outs(%arg0 : tensor<?x?xi32>) {
-    ^bb0(%arg3: i32, %arg4: i32, %s: i32):       
+    ^bb0(%arg3: i32, %arg4: i32, %s: i32):
       %idx0 = linalg.index 0 : index
       %idx1 = linalg.index 1 : index
       %1 = arith.muli %arg3, %arg4 : i32
@@ -261,8 +261,8 @@ func.func @indexed_producer_reshape_consumer_fusion(%arg0 : tensor<?x?xi32>,
 //       CHECK: func @indexed_producer_reshape_consumer_fusion
 //       CHECK:   linalg.generic
 //       CHECK:   ^{{.*}}(
-//  CHECK-SAME:     %[[ARG3:[a-zA-Z0-9]+]]: i32, %[[ARG4:[a-zA-Z0-9]+]]: i32,
-//  CHECK-SAME:     %[[ARG5:[a-zA-Z0-9]+]]: i32)
+//  CHECK-SAME:     %[[ARG3:[a-zA-Z0-9_]+]]: i32, %[[ARG4:[a-zA-Z0-9_]+]]: i32,
+//  CHECK-SAME:     %[[ARG5:[a-zA-Z0-9_]+]]: i32)
 //   CHECK-DAG:     %[[IDX0:.+]] = linalg.index 0 : index
 //   CHECK-DAG:     %[[IDX1:.+]] = linalg.index 1 : index
 //   CHECK-DAG:     %[[IDX2:.+]] = linalg.index 2 : index
@@ -331,8 +331,8 @@ func.func @reshape_as_consumer_permutation
 //  CHECK-SAME:     ins(%[[T1]], %[[T2]] : tensor<5x6x7x2x3x4xi32>, tensor<5x6x7x4xi32>)
 //  CHECK-SAME:     outs(%[[T3]] : tensor<2x3x4x5x6x7xi32>)
 //       CHECK:   ^{{.+}}(
-//  CHECK-SAME:     %[[ARG8:[a-zA-Z0-9]+]]: i32, %[[ARG9:[a-zA-Z0-9]+]]: i32,
-//  CHECK-SAME:     %[[ARG10:[a-zA-Z0-9]+]]: i32)
+//  CHECK-SAME:     %[[ARG8:[a-zA-Z0-9_]+]]: i32, %[[ARG9:[a-zA-Z0-9_]+]]: i32,
+//  CHECK-SAME:     %[[ARG10:[a-zA-Z0-9_]+]]: i32)
 //   CHECK-DAG:       %[[IDX0:.+]] = linalg.index 0 : index
 //   CHECK-DAG:       %[[IDX1:.+]] = linalg.index 1 : index
 //   CHECK-DAG:       %[[IDX2:.+]] = linalg.index 2 : index
@@ -363,7 +363,7 @@ func.func @reshape_as_producer_projected_permutation(
      iterator_types = ["parallel", "parallel", "parallel"]}
      ins(%0 : tensor<264x?xi32>)
     outs(%shape : tensor<264x?x4xi32>) {
-  ^bb0(%arg1: i32, %s: i32):  
+  ^bb0(%arg1: i32, %s: i32):
     %idx0 = linalg.index 0 : index
     %idx1 = linalg.index 1 : index
     %idx2 = linalg.index 2 : index
@@ -419,7 +419,7 @@ func.func @generic_op_reshape_consumer_fusion_projected(%arg0 : tensor<?x?xf32>,
      iterator_types = ["parallel", "parallel"]}
        ins(%arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32>)
        outs(%arg0 : tensor<?x?xf32>) {
-    ^bb0(%arg3: f32, %arg4: f32, %s: f32):       
+    ^bb0(%arg3: f32, %arg4: f32, %s: f32):
       %1 = arith.mulf %arg3, %arg4 : f32
       linalg.yield %1 : f32
   } -> tensor<?x?xf32>
@@ -485,7 +485,7 @@ func.func @no_fuse_mismatched_dynamism(%arg0: tensor<2x1xi64>, %arg1: tensor<?xi
      iterator_types = ["parallel"]}
     ins(%0, %arg1 : tensor<2xi64>, tensor<?xi64>)
     outs(%1 : tensor<2xi64>) {
-  ^bb0(%arg4: i64, %arg5: i64, %arg6: i64):  
+  ^bb0(%arg4: i64, %arg5: i64, %arg6: i64):
     %3 = arith.addi %arg4, %arg5 : i64
     linalg.yield %3 : i64
   } -> tensor<2xi64>

@@ -1,5 +1,9 @@
 # Contributing to DPC++
 
+## General guidelines
+
+Read [CONTRIBUTING.md](/CONTRIBUTING.md) first.
+
 ## Maintaining stable ABI/API
 
 All changes made to the DPC++ compiler and runtime library should generally

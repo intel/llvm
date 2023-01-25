@@ -16,7 +16,6 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
@@ -67,15 +66,21 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_114;
   if (raw_version < 11060)
     return CudaVersion::CUDA_115;
+  if (raw_version < 11070)
+    return CudaVersion::CUDA_116;
+  if (raw_version < 11080)
+    return CudaVersion::CUDA_117;
+  if (raw_version < 11090)
+    return CudaVersion::CUDA_118;
   return CudaVersion::NEW;
 }
 
 CudaVersion parseCudaHFile(llvm::StringRef Input) {
   // Helper lambda which skips the words if the line starts with them or returns
-  // None otherwise.
+  // std::nullopt otherwise.
   auto StartsWithWords =
       [](llvm::StringRef Line,
-         const SmallVector<StringRef, 3> words) -> llvm::Optional<StringRef> {
+         const SmallVector<StringRef, 3> words) -> std::optional<StringRef> {
     for (StringRef word : words) {
       if (!Line.consume_front(word))
         return {};
@@ -669,6 +674,9 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(118, 78);
+    CASE_CUDA_VERSION(117, 77);
+    CASE_CUDA_VERSION(116, 76);
     CASE_CUDA_VERSION(115, 75);
     CASE_CUDA_VERSION(114, 74);
     CASE_CUDA_VERSION(113, 73);
@@ -722,8 +730,8 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
 // Windows
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   if (HostTC.getTriple().isOSWindows())
-    return "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
-  return "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
+    return "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
+  return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
 }
 
 void CudaToolChain::addClangTargetOptions(
@@ -746,6 +754,11 @@ void CudaToolChain::addClangTargetOptions(
     if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                            options::OPT_fno_cuda_approx_transcendentals, false))
       CC1Args.push_back("-fcuda-approx-transcendentals");
+
+    if (DriverArgs.hasArg(options::OPT_fsycl)) {
+      // Add these flags for .cu SYCL compilation.
+      CC1Args.append({"-std=c++17", "-fsycl-is-host"});
+    }
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {

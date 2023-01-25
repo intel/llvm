@@ -166,9 +166,10 @@ public:
   /// when the caller knows it is safe to do so.
   unsigned getDimPosition(unsigned idx) const;
 
-  /// Extracts the permuted position where given input index resides.
-  /// Fails when called on a non-permutation.
-  unsigned getPermutedPosition(unsigned input) const;
+  /// Extracts the first result position where `input` dimension resides.
+  /// Returns `std::nullopt` if `input` is not a dimension expression or cannot
+  /// be found in results.
+  Optional<unsigned> getResultPosition(AffineExpr input) const;
 
   /// Return true if any affine expression involves AffineDimExpr `position`.
   bool isFunctionOfDim(unsigned position) const {
@@ -243,19 +244,18 @@ public:
 
   /// Returns a new AffineMap with the same number of dims and symbols and one
   /// less result at `pos`, dropped.
-  AffineMap dropResult(int64_t pos) {
-    auto exprs = llvm::to_vector<4>(getResults());
-    exprs.erase(exprs.begin() + pos);
-    return AffineMap::get(getNumDims(), getNumSymbols(), exprs, getContext());
-  }
+  AffineMap dropResult(int64_t pos) { return dropResults({pos}); }
 
   // Returns a new AffineMap with the same number of dims and symbols, but all
   // positions in `positions` dropped from results.
   AffineMap dropResults(ArrayRef<int64_t> positions) {
-    AffineMap resultMap = *this;
-    for (int64_t pos : positions)
-      resultMap = resultMap.dropResult(pos);
-    return resultMap;
+    SmallVector<int64_t> reverse_sorted_positions = llvm::to_vector(positions);
+    llvm::sort(reverse_sorted_positions, std::greater<int64_t>());
+
+    auto exprs = llvm::to_vector<4>(getResults());
+    for (int64_t pos : reverse_sorted_positions)
+      exprs.erase(exprs.begin() + pos);
+    return AffineMap::get(getNumDims(), getNumSymbols(), exprs, getContext());
   }
 
   /// Returns a new AffineMap with the same number of dims and symbols and an

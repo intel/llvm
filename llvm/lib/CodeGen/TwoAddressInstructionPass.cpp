@@ -1681,6 +1681,13 @@ bool TwoAddressInstructionPass::processStatepoint(
       continue;
     }
 
+    if (!MRI->constrainRegClass(RegB, MRI->getRegClass(RegA))) {
+      LLVM_DEBUG(dbgs() << "MRI: couldn't constrain" << printReg(RegB, TRI, 0)
+                        << " to register class of " << printReg(RegA, TRI, 0)
+                        << '\n');
+      NeedCopy = true;
+      continue;
+    }
     MRI->replaceRegWith(RegA, RegB);
 
     if (LIS) {
@@ -1706,6 +1713,7 @@ bool TwoAddressInstructionPass::processStatepoint(
       LiveVariables::VarInfo &SrcInfo = LV->getVarInfo(RegB);
       LiveVariables::VarInfo &DstInfo = LV->getVarInfo(RegA);
       SrcInfo.AliveBlocks |= DstInfo.AliveBlocks;
+      DstInfo.AliveBlocks.clear();
       for (auto *KillMI : DstInfo.Kills)
         LV->addVirtualRegisterKilled(RegB, *KillMI, false);
     }

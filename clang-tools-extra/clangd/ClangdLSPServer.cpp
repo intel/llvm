@@ -27,7 +27,6 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringRef.h"
@@ -58,16 +57,16 @@ constexpr trace::Metric LSPLatency("lsp_latency", trace::Metric::Distribution,
 
 // LSP defines file versions as numbers that increase.
 // ClangdServer treats them as opaque and therefore uses strings instead.
-std::string encodeVersion(llvm::Optional<int64_t> LSPVersion) {
+std::string encodeVersion(std::optional<int64_t> LSPVersion) {
   return LSPVersion ? llvm::to_string(*LSPVersion) : "";
 }
-llvm::Optional<int64_t> decodeVersion(llvm::StringRef Encoded) {
+std::optional<int64_t> decodeVersion(llvm::StringRef Encoded) {
   int64_t Result;
   if (llvm::to_integer(Encoded, Result, 10))
     return Result;
   if (!Encoded.empty()) // Empty can be e.g. diagnostics on close.
     elog("unexpected non-numeric version {0}", Encoded);
-  return llvm::None;
+  return std::nullopt;
 }
 
 const llvm::StringLiteral ApplyFixCommand = "clangd.applyFix";
@@ -502,14 +501,14 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
     CDBOpts.ContextProvider = Opts.ContextProvider;
     BaseCDB =
         std::make_unique<DirectoryBasedGlobalCompilationDatabase>(CDBOpts);
-    BaseCDB = getQueryDriverDatabase(llvm::makeArrayRef(Opts.QueryDriverGlobs),
-                                     std::move(BaseCDB));
   }
   auto Mangler = CommandMangler::detect();
+  Mangler.SystemIncludeExtractor =
+      getSystemIncludeExtractor(llvm::makeArrayRef(Opts.QueryDriverGlobs));
   if (Opts.ResourceDir)
     Mangler.ResourceDir = *Opts.ResourceDir;
   CDB.emplace(BaseCDB.get(), Params.initializationOptions.fallbackFlags,
-              tooling::ArgumentsAdjuster(std::move(Mangler)));
+              std::move(Mangler));
   {
     // Switch caller's context with LSPServer's background context. Since we
     // rather want to propagate information from LSPServer's context into the
@@ -671,8 +670,8 @@ void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics)
-    WantDiags = Params.wantDiagnostics.value() ? WantDiagnostics::Yes
-                                               : WantDiagnostics::No;
+    WantDiags =
+        *Params.wantDiagnostics ? WantDiagnostics::Yes : WantDiagnostics::No;
 
   PathRef File = Params.textDocument.uri.file();
   auto Code = Server->getDraft(File);
@@ -806,9 +805,9 @@ void ClangdLSPServer::onWorkspaceSymbol(
 }
 
 void ClangdLSPServer::onPrepareRename(const TextDocumentPositionParams &Params,
-                                      Callback<llvm::Optional<Range>> Reply) {
+                                      Callback<std::optional<Range>> Reply) {
   Server->prepareRename(
-      Params.textDocument.uri.file(), Params.position, /*NewName*/ llvm::None,
+      Params.textDocument.uri.file(), Params.position, /*NewName*/ std::nullopt,
       Opts.Rename,
       [Reply = std::move(Reply)](llvm::Expected<RenameResult> Result) mutable {
         if (!Result)
@@ -890,7 +889,7 @@ void ClangdLSPServer::onDocumentFormatting(
   auto File = Params.textDocument.uri.file();
   auto Code = Server->getDraft(File);
   Server->formatFile(File,
-                     /*Rng=*/llvm::None,
+                     /*Rng=*/std::nullopt,
                      [Code = std::move(Code), Reply = std::move(Reply)](
                          llvm::Expected<tooling::Replacements> Result) mutable {
                        if (Result)
@@ -951,14 +950,14 @@ void ClangdLSPServer::onFoldingRange(
 static llvm::Optional<Command> asCommand(const CodeAction &Action) {
   Command Cmd;
   if (Action.command && Action.edit)
-    return None; // Not representable. (We never emit these anyway).
+    return std::nullopt; // Not representable. (We never emit these anyway).
   if (Action.command) {
     Cmd = *Action.command;
   } else if (Action.edit) {
     Cmd.command = std::string(ApplyFixCommand);
     Cmd.argument = *Action.edit;
   } else {
-    return None;
+    return std::nullopt;
   }
   Cmd.title = Action.title;
   if (Action.kind && *Action.kind == CodeAction::QUICKFIX_KIND)
@@ -1144,7 +1143,7 @@ void ClangdLSPServer::onGoToDeclaration(
 
 void ClangdLSPServer::onSwitchSourceHeader(
     const TextDocumentIdentifier &Params,
-    Callback<llvm::Optional<URIForFile>> Reply) {
+    Callback<std::optional<URIForFile>> Reply) {
   Server->switchSourceHeader(
       Params.uri.file(),
       [Reply = std::move(Reply),
@@ -1153,7 +1152,7 @@ void ClangdLSPServer::onSwitchSourceHeader(
           return Reply(Path.takeError());
         if (*Path)
           return Reply(URIForFile::canonicalize(**Path, Params.uri.file()));
-        return Reply(llvm::None);
+        return Reply(std::nullopt);
       });
 }
 
@@ -1165,14 +1164,14 @@ void ClangdLSPServer::onDocumentHighlight(
 }
 
 void ClangdLSPServer::onHover(const TextDocumentPositionParams &Params,
-                              Callback<llvm::Optional<Hover>> Reply) {
+                              Callback<std::optional<Hover>> Reply) {
   Server->findHover(Params.textDocument.uri.file(), Params.position,
-                    [Reply = std::move(Reply), this](
-                        llvm::Expected<llvm::Optional<HoverInfo>> H) mutable {
+                    [Reply = std::move(Reply),
+                     this](llvm::Expected<std::optional<HoverInfo>> H) mutable {
                       if (!H)
                         return Reply(H.takeError());
                       if (!*H)
-                        return Reply(llvm::None);
+                        return Reply(std::nullopt);
 
                       Hover R;
                       R.contents.kind = HoverContentFormat;
@@ -1245,7 +1244,7 @@ void ClangdLSPServer::onResolveTypeHierarchy(
     Callback<llvm::json::Value> Reply) {
   auto Serialize =
       [Reply = std::move(Reply)](
-          llvm::Expected<llvm::Optional<TypeHierarchyItem>> Resp) mutable {
+          llvm::Expected<std::optional<TypeHierarchyItem>> Resp) mutable {
         if (!Resp) {
           Reply(Resp.takeError());
           return;
@@ -1269,7 +1268,7 @@ void ClangdLSPServer::onPrepareTypeHierarchy(
 
 void ClangdLSPServer::onSuperTypes(
     const ResolveTypeHierarchyItemParams &Params,
-    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>> Reply) {
+    Callback<std::optional<std::vector<TypeHierarchyItem>>> Reply) {
   Server->superTypes(Params.item, std::move(Reply));
 }
 
@@ -1546,7 +1545,7 @@ void ClangdLSPServer::onMemoryUsage(const NoParams &,
 }
 
 void ClangdLSPServer::onAST(const ASTParams &Params,
-                            Callback<llvm::Optional<ASTNode>> CB) {
+                            Callback<std::optional<ASTNode>> CB) {
   Server->getAST(Params.textDocument.uri.file(), Params.range, std::move(CB));
 }
 
@@ -1815,5 +1814,6 @@ void ClangdLSPServer::onSemanticsMaybeChanged(PathRef File) {
     });
   }
 }
+
 } // namespace clangd
 } // namespace clang

@@ -103,7 +103,7 @@ static void visitPrebuiltModule(StringRef PrebuiltModuleFilename,
 
   while (!Worklist.empty())
     ASTReader::readASTFileControlBlock(
-        Worklist.pop_back_val(), CI.getFileManager(),
+        Worklist.pop_back_val(), CI.getFileManager(), CI.getModuleCache(),
         CI.getPCHContainerReader(),
         /*FindModuleFileExtensions=*/false, Listener,
         /*ValidateDiagnosticOptions=*/false);
@@ -135,8 +135,8 @@ static void sanitizeDiagOpts(DiagnosticOptions &DiagOpts) {
   DiagOpts.ShowCarets = false;
   // Don't write out diagnostic file.
   DiagOpts.DiagnosticSerializationFile.clear();
-  // Don't treat warnings as errors.
-  DiagOpts.Warnings.push_back("no-error");
+  // Don't emit warnings as errors (and all other warnings too).
+  DiagOpts.IgnoreWarnings = true;
 }
 
 /// A clang tool that runs the preprocessor in a mode that's optimized for
@@ -147,7 +147,7 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ScanningOutputFormat Format, bool OptimizeArgs, bool EagerLoadModules,
-      bool DisableFree, llvm::Optional<StringRef> ModuleName = None)
+      bool DisableFree, llvm::Optional<StringRef> ModuleName = std::nullopt)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), Format(Format), OptimizeArgs(OptimizeArgs),
         EagerLoadModules(EagerLoadModules), DisableFree(DisableFree),
@@ -191,8 +191,12 @@ public:
     ScanInstance.getFrontendOpts().UseGlobalModuleIndex = false;
     ScanInstance.getFrontendOpts().ModulesShareFileManager = false;
 
-    FileMgr->getFileSystemOpts().WorkingDir = std::string(WorkingDirectory);
     ScanInstance.setFileManager(FileMgr);
+    // Support for virtual file system overlays.
+    FileMgr->setVirtualFileSystem(createVFSFromCompilerInvocation(
+        ScanInstance.getInvocation(), ScanInstance.getDiagnostics(),
+        FileMgr->getVirtualFileSystemPtr()));
+
     ScanInstance.createSourceManager(*FileMgr);
 
     llvm::StringSet<> PrebuiltModulesInputFiles;
@@ -207,11 +211,6 @@ public:
 
     // Use the dependency scanning optimized file system if requested to do so.
     if (DepFS) {
-      // Support for virtual file system overlays on top of the caching
-      // filesystem.
-      FileMgr->setVirtualFileSystem(createVFSFromCompilerInvocation(
-          ScanInstance.getInvocation(), ScanInstance.getDiagnostics(), DepFS));
-
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> LocalDepFS =
           DepFS;
       ScanInstance.getPreprocessorOpts().DependencyDirectivesForFile =
@@ -220,7 +219,7 @@ public:
         if (llvm::ErrorOr<EntryRef> Entry =
                 LocalDepFS->getOrCreateFileSystemEntry(File.getName()))
           return Entry->getDirectiveTokens();
-        return None;
+        return std::nullopt;
       };
     }
 
@@ -270,8 +269,6 @@ public:
       Action = std::make_unique<ReadPCHAndPreprocessAction>();
 
     const bool Result = ScanInstance.ExecuteAction(*Action);
-    if (!DepFS)
-      FileMgr->clearStatCache();
 
     if (Result)
       setLastCC1Arguments(std::move(OriginalInvocation));
@@ -327,17 +324,17 @@ DependencyScanningWorker::DependencyScanningWorker(
   PCHContainerOps->registerWriter(
       std::make_unique<ObjectFilePCHContainerWriter>());
 
-  auto OverlayFS =
-      llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(std::move(FS));
-  InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
-  OverlayFS->pushOverlay(InMemoryFS);
-  RealFS = OverlayFS;
-
-  if (Service.getMode() == ScanningMode::DependencyDirectivesScan)
-    DepFS = new DependencyScanningWorkerFilesystem(Service.getSharedCache(),
-                                                   RealFS);
-  if (Service.canReuseFileManager())
-    Files = new FileManager(FileSystemOptions(), RealFS);
+  switch (Service.getMode()) {
+  case ScanningMode::DependencyDirectivesScan:
+    DepFS =
+        new DependencyScanningWorkerFilesystem(Service.getSharedCache(), FS);
+    BaseFS = DepFS;
+    break;
+  case ScanningMode::CanonicalPreprocessing:
+    DepFS = nullptr;
+    BaseFS = FS;
+    break;
+  }
 }
 
 llvm::Error DependencyScanningWorker::computeDependencies(
@@ -374,12 +371,6 @@ static bool forEachDriverJob(
   for (const std::string &Arg : Args)
     Argv.push_back(Arg.c_str());
 
-  // The "input file not found" diagnostics from the driver are useful.
-  // The driver is only aware of the VFS working directory, but some clients
-  // change this at the FileManager level instead.
-  // In this case the checks have false positives, so skip them.
-  if (!FM.getFileSystemOpts().WorkingDir.empty())
-    Driver->setCheckInputsExist(false);
   const std::unique_ptr<driver::Compilation> Compilation(
       Driver->BuildCompilation(llvm::makeArrayRef(Argv)));
   if (!Compilation)
@@ -397,22 +388,31 @@ bool DependencyScanningWorker::computeDependencies(
     DependencyConsumer &Consumer, DiagnosticConsumer &DC,
     llvm::Optional<StringRef> ModuleName) {
   // Reset what might have been modified in the previous worker invocation.
-  RealFS->setCurrentWorkingDirectory(WorkingDirectory);
-  if (Files)
-    Files->setVirtualFileSystem(RealFS);
-
-  llvm::IntrusiveRefCntPtr<FileManager> CurrentFiles =
-      Files ? Files : new FileManager(FileSystemOptions(), RealFS);
+  BaseFS->setCurrentWorkingDirectory(WorkingDirectory);
 
   Optional<std::vector<std::string>> ModifiedCommandLine;
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> ModifiedFS;
   if (ModuleName) {
     ModifiedCommandLine = CommandLine;
-    InMemoryFS->addFile(*ModuleName, 0, llvm::MemoryBuffer::getMemBuffer(""));
     ModifiedCommandLine->emplace_back(*ModuleName);
+
+    auto OverlayFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(BaseFS);
+    auto InMemoryFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+    InMemoryFS->setCurrentWorkingDirectory(WorkingDirectory);
+    InMemoryFS->addFile(*ModuleName, 0, llvm::MemoryBuffer::getMemBuffer(""));
+    OverlayFS->pushOverlay(InMemoryFS);
+    ModifiedFS = OverlayFS;
   }
 
   const std::vector<std::string> &FinalCommandLine =
       ModifiedCommandLine ? *ModifiedCommandLine : CommandLine;
+
+  FileSystemOptions FSOpts;
+  FSOpts.WorkingDir = WorkingDirectory.str();
+  auto FileMgr = llvm::makeIntrusiveRefCnt<FileManager>(
+      FSOpts, ModifiedFS ? ModifiedFS : BaseFS);
 
   std::vector<const char *> FinalCCommandLine(CommandLine.size(), nullptr);
   llvm::transform(CommandLine, FinalCCommandLine.begin(),
@@ -426,7 +426,7 @@ bool DependencyScanningWorker::computeDependencies(
 
   // Although `Diagnostics` are used only for command-line parsing, the
   // custom `DiagConsumer` might expect a `SourceManager` to be present.
-  SourceManager SrcMgr(*Diags, *CurrentFiles);
+  SourceManager SrcMgr(*Diags, *FileMgr);
   Diags->setSourceManager(&SrcMgr);
   // DisableFree is modified by Tooling for running
   // in-process; preserve the original value, which is
@@ -436,7 +436,7 @@ bool DependencyScanningWorker::computeDependencies(
                                   OptimizeArgs, EagerLoadModules, DisableFree,
                                   ModuleName);
   bool Success = forEachDriverJob(
-      FinalCommandLine, *Diags, *CurrentFiles, [&](const driver::Command &Cmd) {
+      FinalCommandLine, *Diags, *FileMgr, [&](const driver::Command &Cmd) {
         if (StringRef(Cmd.getCreator().getName()) != "clang") {
           // Non-clang command. Just pass through to the dependency
           // consumer.
@@ -455,7 +455,7 @@ bool DependencyScanningWorker::computeDependencies(
         // system to ensure that any file system requests that
         // are made by the driver do not go through the
         // dependency scanning filesystem.
-        ToolInvocation Invocation(std::move(Argv), &Action, &*CurrentFiles,
+        ToolInvocation Invocation(std::move(Argv), &Action, &*FileMgr,
                                   PCHContainerOps);
         Invocation.setDiagnosticConsumer(Diags->getClient());
         Invocation.setDiagnosticOptions(&Diags->getDiagnosticOptions());

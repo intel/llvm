@@ -41,9 +41,9 @@ else:
 
 if 'SYCL_DEVICELIB_NO_FALLBACK' in os.environ:
     config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = os.environ['SYCL_DEVICELIB_NO_FALLBACK']
-else:
-    # Disable device library fallback for unit tests by default.
-    config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = "1"
+# We do not have any default for SYCL_DEVICELIB_NO_FALLBACK, which means that
+# env variable won't be defined. That is ok, because we expect tests to pass
+# even without it.
 
 # Propagate path to symbolizer for ASan/MSan.
 for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
@@ -76,7 +76,7 @@ else:
 # The mock plugin currently appears as an opencl plugin, but could be changed in
 # the future. To avoid it being filtered out we set the filter to use the *
 # wildcard.
-config.environment['SYCL_DEVICE_FILTER'] = "*"
+config.environment['ONEAPI_DEVICE_SELECTOR'] = "'*:*'"
 lit_config.note("Using Mock Plugin.")
 
 config.environment['SYCL_CACHE_DIR'] = config.llvm_obj_root + "/sycl_cache"

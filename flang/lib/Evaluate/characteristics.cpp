@@ -73,11 +73,10 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
   return common::visit(
       common::visitors{
           [&](const semantics::ProcEntityDetails &proc) {
-            const semantics::ProcInterface &interface { proc.interface() };
-            if (interface.type()) {
-              return Characterize(*interface.type(), context);
-            } else if (interface.symbol()) {
-              return Characterize(*interface.symbol(), context);
+            if (proc.procInterface()) {
+              return Characterize(*proc.procInterface(), context);
+            } else if (proc.type()) {
+              return Characterize(*proc.type(), context);
             } else {
               return std::optional<TypeAndShape>{};
             }
@@ -404,6 +403,13 @@ bool DummyProcedure::IsCompatibleWith(
   return true;
 }
 
+bool DummyProcedure::CanBePassedViaImplicitInterface() const {
+  if ((attrs & Attrs{Attr::Optional, Attr::Pointer}).any()) {
+    return false; // 15.4.2.2(3)(a)
+  }
+  return true;
+}
+
 static std::string GetSeenProcs(
     const semantics::UnorderedSymbolSet &seenProcs) {
   // Sort the symbols so that they appear in the same order on all platforms
@@ -499,10 +505,8 @@ static std::optional<Procedure> CharacterizeProcedure(
               }
               return intrinsic;
             }
-            const semantics::ProcInterface &interface {
-              proc.interface()
-            };
-            if (const semantics::Symbol * interfaceSymbol{interface.symbol()}) {
+            if (const semantics::Symbol *
+                interfaceSymbol{proc.procInterface()}) {
               auto interface {
                 CharacterizeProcedure(*interfaceSymbol, context, seenProcs)
               };
@@ -512,7 +516,7 @@ static std::optional<Procedure> CharacterizeProcedure(
               return interface;
             } else {
               result.attrs.set(Procedure::Attr::ImplicitInterface);
-              const semantics::DeclTypeSpec *type{interface.type()};
+              const semantics::DeclTypeSpec *type{proc.type()};
               if (symbol.test(semantics::Symbol::Flag::Subroutine)) {
                 // ignore any implicit typing
                 result.attrs.set(Procedure::Attr::Subroutine);
@@ -766,6 +770,8 @@ common::Intent DummyArgument::GetIntent() const {
 bool DummyArgument::CanBePassedViaImplicitInterface() const {
   if (const auto *object{std::get_if<DummyDataObject>(&u)}) {
     return object->CanBePassedViaImplicitInterface();
+  } else if (const auto *proc{std::get_if<DummyProcedure>(&u)}) {
+    return proc->CanBePassedViaImplicitInterface();
   } else {
     return true;
   }
@@ -914,7 +920,7 @@ bool FunctionResult::IsCompatibleWith(
         if (whyNot) {
           *whyNot = "function results have distinct constant extents";
         }
-      } else if (!ifaceTypeShape->type().IsTkCompatibleWith(
+      } else if (!ifaceTypeShape->type().IsTkLenCompatibleWith(
                      actualTypeShape->type())) {
         if (whyNot) {
           *whyNot = "function results have incompatible types: "s +
@@ -993,7 +999,7 @@ bool Procedure::IsCompatibleWith(const Procedure &actual, std::string *whyNot,
       auto sep{": "s};
       *whyNot = "incompatible procedure attributes";
       differences.IterateOverMembers([&](Attr x) {
-        *whyNot += sep + EnumToString(x);
+        *whyNot += sep + std::string{EnumToString(x)};
         sep = ", ";
       });
     }

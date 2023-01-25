@@ -366,7 +366,8 @@ class Format:
     mlir_storage_format = [f.value for f in self.format_pack.formats]
     return sparse_tensor.EncodingAttr.get(mlir_storage_format,
                                           ir.AffineMap.get_permutation(order),
-                                          _POINTER_BIT_WIDTH, _INDEX_BIT_WIDTH)
+                                          None, _POINTER_BIT_WIDTH,
+                                          _INDEX_BIT_WIDTH)
 
 
 def _make_format(formats: List[ModeFormat],
@@ -908,7 +909,7 @@ class _StructOpInfo:
     mlir_type = _mlir_tensor_type(self.dst_dtype, self.dst_dims,
                                   self.dst_format.mlir_tensor_attr())
     index_type = ir.IndexType.get()
-    return bufferization.AllocTensorOp(mlir_type, [], None, None)
+    return bufferization.AllocTensorOp(mlir_type, [], None, None, None)
 
 
 class _Stats:
