@@ -1027,8 +1027,8 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
   }
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
-                          reinterpret_cast<char *>(Dest) + Offset, DepEvents,
-                          OutEvent);
+                          reinterpret_cast<char *>(Dest) + Offset,
+                          ActualDepEvents, OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
