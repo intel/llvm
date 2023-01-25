@@ -57,7 +57,7 @@ DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
-    const std::shared_ptr<queue_impl> &QueueImpl, bool ZeroInit) {
+    const std::shared_ptr<queue_impl> &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
@@ -81,8 +81,8 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
 
-  // If zero-initialization was requested, do it here and save the event.
-  if (ZeroInit) {
+  // Zero-initialize here and save the event.
+  {
     std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
     RT::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,

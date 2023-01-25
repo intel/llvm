@@ -997,15 +997,9 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
                                     const void *Src,
                                     const std::vector<RT::PiEvent> &DepEvents,
                                     RT::PiEvent *OutEvent) {
-  // Zero-initialization is only needed if we do not overwrite the entire
-  // device_global.
-  bool NeedZeroInit =
-      Offset != 0 || NumBytes != DeviceGlobalEntry->MDeviceGlobalTSize;
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
-      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(
-          Queue,
-          /*ZeroInit=*/NeedZeroInit);
+      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Dest = DeviceGlobalUSM.getPtr();
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration
@@ -1040,7 +1034,7 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it zero-initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
-      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue, /*ZeroInit=*/true);
+      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Src = DeviceGlobalUSM.getPtr();
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration

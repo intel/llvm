@@ -359,10 +359,11 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
 
-  // Device global should not have been written to yet. Fill operation is not
-  // needed since the device_global will have a new value.
+  // Device global should not have been written to yet. Fill operation is
+  // required for full copies as certain orderings could get invalid reads
+  // otherwise.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -370,11 +371,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
-  // The device global should now have its USM memory pointer written, but fill
-  // should still not have happened as an explicit write have happened to the
-  // underlying memory.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
@@ -390,10 +387,11 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
 
-  // Device global should not have been written to yet. Fill operation is not
-  // needed since the device_global will have a new value.
+  // Device global should not have been written to yet. Fill operation is
+  // required for full copies as certain orderings could get invalid reads
+  // otherwise.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -405,7 +403,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   // should still not have happened as an explicit write have happened to the
   // underlying memory.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
