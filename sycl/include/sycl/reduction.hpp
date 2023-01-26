@@ -626,7 +626,7 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // MSVC (19.32.31329) has problems compiling the line below when used
         // as a host compiler in c++17 mode (but not in c++latest)
         //   accessor Mem{*Buf, CopyHandler};
         // so use the old-style API.
@@ -751,67 +751,26 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            enable_if_t<_self::is_known_identity && !_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known.
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self,
-            enable_if_t<_self::is_known_identity && _self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
+            enable_if_t<_self::is_known_identity> * = nullptr>
+  reduction_impl(RedOutVar Var, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, VarPtr) {}
-
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
-                                                    !_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Acc) {
-    associateWithHandler(CGH, &Acc, access::target::device);
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
+             InitializeToIdentity, Var) {
+    if constexpr (!is_usm)
+      if (Var.size() != 1)
+        throw sycl::runtime_error(errc::invalid,
+                                  "Reduction variable must be a scalar.",
+                                  PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(chooseIdentity(Identity), BOp, false, Acc) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, enable_if_t<_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity = false)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
-
-  /// For placeholder accessor.
-  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
-                 BinaryOperation BOp, bool InitializeToIdentity)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
-    associateWithHandler(CGH, &Acc, access::target::device);
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
+  reduction_impl(RedOutVar &Var, const T &Identity, BinaryOperation BOp,
+                 bool InitializeToIdentity)
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Var) {
+    if constexpr (!is_usm)
+      if (Var.size() != 1)
+        throw sycl::runtime_error(errc::invalid,
+                                  "Reduction variable must be a scalar.",
+                                  PI_ERROR_INVALID_VALUE);
   }
 };
 
@@ -989,7 +948,7 @@ struct NDRangeReduction<
         // Signal this work-group has finished after all values are reduced
         if (LID == 0) {
           auto NFinished =
-              sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+              sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
           DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
@@ -1107,7 +1066,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // Signal this work-group has finished after all values are reduced
       if (LID == 0) {
         auto NFinished =
-            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+            sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::global_space>(
                 NWorkGroupsFinished[0]);
         DoReducePartialSumsInLastWG[0] =
@@ -2321,6 +2280,11 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
       if constexpr (Strategy != reduction::strategy::auto_select)
         return Strategy;
 
+      // TODO: Both group_reduce_and_last_wg_detection and range_basic require
+      // memory_order::acq_rel support that isn't guaranteed by the
+      // specification. However, implementing run-time check for that would
+      // result in an extra kernel compilation(s). We probably need to
+      // investigate if the usage of kernel_bundles can mitigate that.
       if constexpr (Reduction::has_fast_reduce)
         return reduction::strategy::group_reduce_and_last_wg_detection;
       else if constexpr (Reduction::has_fast_atomics)
@@ -2351,7 +2315,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH}, CGH,
+  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH},
                                                        InitializeToIdentity);
 }
 
@@ -2415,7 +2379,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor{Var, CGH}, CGH, Identity, Combiner, InitializeToIdentity);
+      accessor{Var, CGH}, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
