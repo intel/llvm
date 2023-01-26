@@ -28,6 +28,7 @@ piPluginGetLastError
 piPluginInit
 piProgramCreate
 piProgramCreateWithBinary
+piProgramGetBuildInfo
 piProgramGetInfo
 piProgramLink
 piQueueCreate

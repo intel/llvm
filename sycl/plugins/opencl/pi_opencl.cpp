@@ -2024,7 +2024,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramCompile, clCompileProgram)
   _PI_CL(piProgramBuild, clBuildProgram)
   _PI_CL(piProgramLink, piProgramLink)
-  _PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
+  _PI_CL(piProgramGetBuildInfo, piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, clRetainProgram)
   _PI_CL(piProgramRelease, clReleaseProgram)
   _PI_CL(piextProgramSetSpecializationConstant,
