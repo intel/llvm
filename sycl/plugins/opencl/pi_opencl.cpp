@@ -1241,6 +1241,32 @@ pi_result piProgramGetInfo(pi_program program, pi_program_info paramName,
   }
 }
 
+pi_result piProgramCompile(
+    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
+    const char *options, pi_uint32 num_input_headers,
+    const pi_program *input_headers, const char **header_include_names,
+    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+  std::vector<cl_device_id> cl_devices = getClDevices(num_devices, device_list);
+  cl_int result = clCompileProgram(
+      cast<cl_program>(program), cast<cl_uint>(num_devices), cl_devices.data(),
+      options, cast<cl_uint>(num_input_headers),
+      cast<const cl_program *>(input_headers), header_include_names,
+      cast<void (*)(cl_program, void *)>(pfn_notify), user_data);
+  return static_cast<pi_result>(result);
+}
+
+pi_result piProgramBuild(pi_program program, pi_uint32 num_devices,
+                         const pi_device *device_list, const char *options,
+                         void (*pfn_notify)(pi_program program,
+                                            void *user_data),
+                         void *user_data) {
+  std::vector<cl_device_id> cl_devices = getClDevices(num_devices, device_list);
+  cl_int result = clBuildProgram(
+      cast<cl_program>(program), cast<cl_uint>(num_devices), cl_devices.data(),
+      options, cast<void (*)(cl_program, void *)>(pfn_notify), user_data);
+  return static_cast<pi_result>(result);
+}
+
 pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
                         const pi_device *device_list, const char *options,
                         pi_uint32 num_input_programs,
@@ -2166,8 +2192,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, piProgramGetInfo)
-  _PI_CL(piProgramCompile, clCompileProgram)
-  _PI_CL(piProgramBuild, clBuildProgram)
+  _PI_CL(piProgramCompile, piProgramCompile)
+  _PI_CL(piProgramBuild, piProgramBuild)
   _PI_CL(piProgramLink, piProgramLink)
   _PI_CL(piProgramGetBuildInfo, piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, clRetainProgram)

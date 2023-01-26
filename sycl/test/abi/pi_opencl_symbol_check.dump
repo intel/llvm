@@ -27,6 +27,8 @@ piMemImageCreate
 piPlatformsGet
 piPluginGetLastError
 piPluginInit
+piProgramBuild
+piProgramCompile
 piProgramCreate
 piProgramCreateWithBinary
 piProgramGetBuildInfo
