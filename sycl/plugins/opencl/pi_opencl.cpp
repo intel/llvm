@@ -308,7 +308,7 @@ static bool isGPU(pi_device device) {
   // Identify device type.
   cl_device_type device_type;
   cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_TYPE,
-                                sizeof(cl_device_type), &device_type, nullptr);
+                               sizeof(cl_device_type), &device_type, nullptr);
   return (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
 }
 // End of helper functions
@@ -435,8 +435,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         // Find out number of CCSes.
         bool supported = false;
         cl_int ret_err = CL_SUCCESS;
-        ret_err = checkDeviceExtensions(
-            getClDevice(device), {"cl_intel_command_queue_families"}, supported);
+        ret_err = checkDeviceExtensions(getClDevice(device),
+                                        {"cl_intel_command_queue_families"},
+                                        supported);
         if (ret_err != CL_SUCCESS)
           return static_cast<pi_result>(ret_err);
         if (!supported)
@@ -444,8 +445,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         cl_queue_family_properties_intel qfprops[3];
         size_t qsize = 0;
         clGetDeviceInfo(getClDevice(device),
-                        CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL, sizeof(qfprops),
-                        qfprops, &qsize);
+                        CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
+                        sizeof(qfprops), qfprops, &qsize);
         qsize = qsize / sizeof(cl_queue_family_properties_intel);
         for (size_t q = 0; q < qsize; q++) {
           if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
@@ -479,8 +480,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         struct {
           pi_device_partition_property arr[3];
         } partition_properties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                                  PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
-                                  0}};
+                                   PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
+                                   0}};
         return return_value(partition_properties);
       } else { // it is CCS
         struct {
