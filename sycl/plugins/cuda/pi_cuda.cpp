@@ -163,6 +163,8 @@ pi_result check_error(CUresult result, const char *function, int line,
 
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
+// Use (void) to silence unused warnings.
+#define assertm(exp, msg) assert(((void)msg, exp))
 
 /// ScopedContext is used across all PI CUDA plugin implementation to ensure
 /// that the proper CUDA context is active for the given PI context.
@@ -1067,7 +1069,6 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
@@ -5425,39 +5426,59 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
       (*event)->start();
     }
 
-    // Determine the direction of Copy using cuPointerGetAttributes
+    // Determine the direction of copy using cuPointerGetAttribute
     // for both the src_ptr and dst_ptr
-    // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
-    CUpointer_attribute attributes = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
-
-    CUmemorytype src_type = static_cast<CUmemorytype>(0);
-    void *src_attribute_values[] = {(void *)(&src_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, src_attribute_values, (CUdeviceptr)src_ptr));
-    assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
-
-    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
-    void *dst_attribute_values[] = {(void *)(&dst_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
-    assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
-
     CUDA_MEMCPY2D cpyDesc = {0};
 
-    cpyDesc.srcMemoryType = src_type;
-    cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(src_ptr)
-                            : 0;
-    cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
-    cpyDesc.srcPitch = src_pitch;
+    CUmemorytype src_type = static_cast<CUmemorytype>(0);
+    // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+    // checks with PI_CHECK_ERROR are not suggested
+    CUresult ret = cuPointerGetAttribute(
+        &src_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)src_ptr);
+    assertm(
+        (src_type != CU_MEMORYTYPE_ARRAY && src_type != CU_MEMORYTYPE_UNIFIED),
+        "ARRAY, UNIFIED types are not supported!");
 
-    cpyDesc.dstMemoryType = dst_type;
-    cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
-                            : 0;
-    cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
+    // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+    if (ret == CUDA_ERROR_INVALID_VALUE) {
+      cpyDesc.srcMemoryType = CU_MEMORYTYPE_HOST;
+      cpyDesc.srcDevice = 0;
+      cpyDesc.srcHost = src_ptr;
+      // todo: resets the above "non-sticky" error
+    } else if (ret == CUDA_SUCCESS) {
+      cpyDesc.srcMemoryType = src_type;
+      cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
+                              ? reinterpret_cast<CUdeviceptr>(src_ptr)
+                              : 0;
+      cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
+    }
+
+    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
+    // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+    // checks with PI_CHECK_ERROR are not suggested
+    ret = cuPointerGetAttribute(&dst_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                (CUdeviceptr)dst_ptr);
+    assertm(
+        (dst_type != CU_MEMORYTYPE_ARRAY && dst_type != CU_MEMORYTYPE_UNIFIED),
+        "ARRAY, UNIFIED types are not supported!");
+
+    // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+    if (ret == CUDA_ERROR_INVALID_VALUE) {
+      cpyDesc.dstMemoryType = CU_MEMORYTYPE_HOST;
+      cpyDesc.dstDevice = 0;
+      cpyDesc.dstHost = dst_ptr;
+
+      // todo: resets the above "non-stick" error
+    } else if (ret == CUDA_SUCCESS) {
+      cpyDesc.dstMemoryType = dst_type;
+      cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
+                              ? reinterpret_cast<CUdeviceptr>(dst_ptr)
+                              : 0;
+      cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
+    }
+
     cpyDesc.dstPitch = dst_pitch;
-
+    cpyDesc.srcPitch = src_pitch;
     cpyDesc.WidthInBytes = width;
     cpyDesc.Height = height;
 
