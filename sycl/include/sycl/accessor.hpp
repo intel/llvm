@@ -1098,7 +1098,7 @@ protected:
   // range and offset are not supported.
   void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
 
-  ConcreteASPtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
 
   template <typename DataT_, int Dimensions_, access::mode AccessMode_,
             access::target AccessTarget_, access::placeholder IsPlaceholder_,
@@ -1176,7 +1176,7 @@ public:
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
                sizeof(MAccData)];
 
-  PtrType getQualifiedPtr() const {
+  PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
       return reinterpret_cast<PtrType>(MAccData->MData);
     else
@@ -2021,7 +2021,12 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
-  DataT *get_pointer() const {
+#if SYCL_LANGUAGE_VERSION >= 202001
+  std::add_pointer_t<value_type> get_pointer() const noexcept
+#else
+  DataT *get_pointer() const
+#endif
+  {
     return getPointerAdjusted();
   }
 
@@ -2124,7 +2129,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  size_t getTotalOffset() const {
+  size_t getTotalOffset() const noexcept {
     size_t TotalOffset = 0;
     detail::dim_loop<Dimensions>([&, this](size_t I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
@@ -2143,7 +2148,7 @@ private:
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
-  auto getPointerAdjusted() const {
+  auto getPointerAdjusted() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return getQualifiedPtr() - getTotalOffset();
 #else
