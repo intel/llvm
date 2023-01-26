@@ -1783,11 +1783,11 @@ else:
     _urEnqueueUSMPrefetch_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_migration_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urEnqueueUSMMemAdvice
+## @brief Function-pointer for urEnqueueUSMMemAdvise
 if __use_win_types:
-    _urEnqueueUSMMemAdvice_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemAdvise_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemAdvice_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemAdvise_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMFill2D
@@ -1847,7 +1847,7 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnUSMMemset", c_void_p),                                     ## _urEnqueueUSMMemset_t
         ("pfnUSMMemcpy", c_void_p),                                     ## _urEnqueueUSMMemcpy_t
         ("pfnUSMPrefetch", c_void_p),                                   ## _urEnqueueUSMPrefetch_t
-        ("pfnUSMMemAdvice", c_void_p),                                  ## _urEnqueueUSMMemAdvice_t
+        ("pfnUSMMemAdvise", c_void_p),                                  ## _urEnqueueUSMMemAdvise_t
         ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
         ("pfnUSMMemset2D", c_void_p),                                   ## _urEnqueueUSMMemset2D_t
         ("pfnUSMMemcpy2D", c_void_p),                                   ## _urEnqueueUSMMemcpy2D_t
@@ -2265,7 +2265,7 @@ class UR_DDI:
         self.urEnqueueUSMMemset = _urEnqueueUSMMemset_t(self.__dditable.Enqueue.pfnUSMMemset)
         self.urEnqueueUSMMemcpy = _urEnqueueUSMMemcpy_t(self.__dditable.Enqueue.pfnUSMMemcpy)
         self.urEnqueueUSMPrefetch = _urEnqueueUSMPrefetch_t(self.__dditable.Enqueue.pfnUSMPrefetch)
-        self.urEnqueueUSMMemAdvice = _urEnqueueUSMMemAdvice_t(self.__dditable.Enqueue.pfnUSMMemAdvice)
+        self.urEnqueueUSMMemAdvise = _urEnqueueUSMMemAdvise_t(self.__dditable.Enqueue.pfnUSMMemAdvise)
         self.urEnqueueUSMFill2D = _urEnqueueUSMFill2D_t(self.__dditable.Enqueue.pfnUSMFill2D)
         self.urEnqueueUSMMemset2D = _urEnqueueUSMMemset2D_t(self.__dditable.Enqueue.pfnUSMMemset2D)
         self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)

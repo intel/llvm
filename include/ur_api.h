@@ -1293,10 +1293,10 @@ typedef enum ur_mem_advice_t
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMMemAdvice(
+urEnqueueUSMMemAdvise(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     const void* pMem,                               ///< [in] pointer to the USM memory object
-    size_t size,                                    ///< [in] size in bytes to be adviced
+    size_t size,                                    ///< [in] size in bytes to be advised
     ur_mem_advice_t advice,                         ///< [in] USM memory advice
     ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
                                                     ///< particular command instance.
@@ -6763,26 +6763,26 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMPrefetchCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEnqueueUSMMemAdvice 
+/// @brief Callback function parameters for urEnqueueUSMMemAdvise 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_mem_advice_params_t
+typedef struct ur_enqueue_usm_mem_advise_params_t
 {
     ur_queue_handle_t* phQueue;
     const void** ppMem;
     size_t* psize;
     ur_mem_advice_t* padvice;
     ur_event_handle_t** pphEvent;
-} ur_enqueue_usm_mem_advice_params_t;
+} ur_enqueue_usm_mem_advise_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEnqueueUSMMemAdvice 
+/// @brief Callback function-pointer for urEnqueueUSMMemAdvise 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnEnqueueUSMMemAdviceCb_t)(
-    ur_enqueue_usm_mem_advice_params_t* params,
+typedef void (UR_APICALL *ur_pfnEnqueueUSMMemAdviseCb_t)(
+    ur_enqueue_usm_mem_advise_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -6965,7 +6965,7 @@ typedef struct ur_enqueue_callbacks_t
     ur_pfnEnqueueUSMMemsetCb_t                                      pfnUSMMemsetCb;
     ur_pfnEnqueueUSMMemcpyCb_t                                      pfnUSMMemcpyCb;
     ur_pfnEnqueueUSMPrefetchCb_t                                    pfnUSMPrefetchCb;
-    ur_pfnEnqueueUSMMemAdviceCb_t                                   pfnUSMMemAdviceCb;
+    ur_pfnEnqueueUSMMemAdviseCb_t                                   pfnUSMMemAdviseCb;
     ur_pfnEnqueueUSMFill2DCb_t                                      pfnUSMFill2DCb;
     ur_pfnEnqueueUSMMemset2DCb_t                                    pfnUSMMemset2DCb;
     ur_pfnEnqueueUSMMemcpy2DCb_t                                    pfnUSMMemcpy2DCb;
