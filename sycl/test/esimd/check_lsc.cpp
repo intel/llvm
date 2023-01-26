@@ -20,7 +20,7 @@ using namespace sycl;
 template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
           bool TRANSPOSE, bool TRANSFORM, cache_hint L1H, cache_hint L3H,
           int N = __ESIMD_EDNS::get_lsc_block_2d_data_size<
-              T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, TRANSPOSE>()>
+              T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, TRANSPOSE, TRANSFORM>()>
 SYCL_EXTERNAL auto test_load(T *ptr, int width, int height,
                              int pitch) SYCL_ESIMD_FUNCTION {
   return lsc_load2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, NUM_BLOCKS, TRANSPOSE,
@@ -31,7 +31,7 @@ SYCL_EXTERNAL auto test_load(T *ptr, int width, int height,
 template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
           cache_hint L1H, cache_hint L3H,
           int N = __ESIMD_EDNS::get_lsc_block_2d_data_size<
-              T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, false>()>
+              T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, false, false>()>
 SYCL_EXTERNAL void test_store(T *ptr, simd<T, N> v, int width, int height,
                               int pitch) SYCL_ESIMD_FUNCTION {
   lsc_store2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, L1H, L3H>(
@@ -45,7 +45,7 @@ test_load<float, 16, 16, 1, false, false, cache_hint::none, cache_hint::none>(
     float *, int, int, int) SYCL_ESIMD_FUNCTION;
 
 constexpr int N16_8 =
-    __ESIMD_EDNS::get_lsc_block_2d_data_size<float, 1, 16, 8, false>();
+    __ESIMD_EDNS::get_lsc_block_2d_data_size<float, 1, 16, 8, false, false>();
 template void test_store<float, 8, 16, 1, cache_hint::none, cache_hint::none>(
     float *, simd<float, N16_8>, int, int, int) SYCL_ESIMD_FUNCTION;
 
@@ -57,7 +57,7 @@ test_load<float, 32, 32, 1, false, false, cache_hint::none, cache_hint::none>(
 // CHECK: {{.*}}error: {{.*}}2D load supports 2048 bytes max
 
 constexpr int N16_16 =
-    __ESIMD_EDNS::get_lsc_block_2d_data_size<float, 1, 16, 16, false>();
+    __ESIMD_EDNS::get_lsc_block_2d_data_size<float, 1, 16, 16, false, false>();
 template void test_store<float, 16, 16, 1, cache_hint::none, cache_hint::none>(
     float *, simd<float, N16_16>, int, int, int) SYCL_ESIMD_FUNCTION;
 // CHECK: {{.*}}error: {{.*}}Unsupported block width
