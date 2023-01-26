@@ -306,7 +306,7 @@ Some hardware supports partitioning sub-groups into smaller groups.
 This could be achieved with a `ballot_group`, but when the group size is known
 at compile-time, the size can be used for optimizations such as loop unrolling.
 
-To allow for predictable behaviour and optimizations, clusters/cluster-groups
+To allow for predictable behaviour and optimizations, cluster-groups
 will have a number of properties:
 
 * The work items in a cluster will be contiguous in the sub_group.
