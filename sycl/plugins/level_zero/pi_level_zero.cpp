@@ -793,11 +793,12 @@ pi_result _pi_context::initialize() {
       [createUSMAllocators,
        &createUSMAllocatorsRecursive](pi_device Device) -> void {
     createUSMAllocators(Device);
-    for (auto &SubDevice : Device->SubDevices)
+    for (auto &SubDevice : Device->SubDevices) {
       if (SubDevice->isCCS())
       	// CCS share USMAllocContext with its root device.
 	continue;
       createUSMAllocatorsRecursive(SubDevice);
+    }
   };
 
   // Create USM allocator context for each pair (device, context).
