@@ -1994,6 +1994,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
         SourceLocation(), getModifiedName(RD->getIdentifier()));
     ModifiedRD->startDefinition();
+    if (RD->hasAttrs())
+      ModifiedRD->setAttrs(RD->getAttrs());
     ModifiedRecords.push_back(ModifiedRD);
   }
 
@@ -2008,6 +2010,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         Ctx.getTrivialTypeSourceInfo(FieldTy, SourceLocation()), /*BW=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(FD->getAccess());
+    if (FD->hasAttrs())
+      Field->setAttrs(FD->getAttrs());
     // Add generated field to generated record.
     ModifiedRecords.back()->addDecl(Field);
   }
