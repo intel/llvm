@@ -1147,20 +1147,20 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
-urEnqueueUSMMemAdvice(
+urEnqueueUSMMemAdvise(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     const void* pMem,                               ///< [in] pointer to the USM memory object
-    size_t size,                                    ///< [in] size in bytes to be adviced
+    size_t size,                                    ///< [in] size in bytes to be advised
     ur_mem_advice_t advice,                         ///< [in] USM memory advice
     ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
                                                     ///< particular command instance.
     )
 {
-    auto pfnUSMMemAdvice = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemAdvice;
-    if( nullptr == pfnUSMMemAdvice )
+    auto pfnUSMMemAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemAdvise;
+    if( nullptr == pfnUSMMemAdvise )
         return UR_RESULT_ERROR_UNINITIALIZED;
 
-    return pfnUSMMemAdvice( hQueue, pMem, size, advice, phEvent );
+    return pfnUSMMemAdvise( hQueue, pMem, size, advice, phEvent );
 }
 
 ///////////////////////////////////////////////////////////////////////////////

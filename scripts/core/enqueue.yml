@@ -988,7 +988,7 @@ etors:
 type: function
 desc: "Enqueue a command to set USM memory advice" 
 class: $xEnqueue
-name: USMMemAdvice
+name: USMMemAdvise
 ordinal: "0"
 params:
     - type: $x_queue_handle_t
@@ -999,7 +999,7 @@ params:
       desc: "[in] pointer to the USM memory object"
     - type: size_t
       name: size
-      desc: "[in] size in bytes to be adviced"
+      desc: "[in] size in bytes to be advised"
     - type: $x_mem_advice_t
       name: advice
       desc: "[in] USM memory advice"
