@@ -43,8 +43,8 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SubGroupMask/SubGroupMask.asciidoc[sub group mask proposal]
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/sycl_ext_oneapi_root_group/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
+* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc[sycl_ext_oneapi_sub_group_mask]
+* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
 
 
 == Status
