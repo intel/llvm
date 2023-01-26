@@ -7333,6 +7333,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
     CmdArgs.push_back("-no-opaque-pointers");
+  else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
+           !SPIRV_ENABLE_OPAQUE_POINTERS)
+    CmdArgs.push_back("-no-opaque-pointers");
 
   ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, Inputs, CmdArgs, rewriteKind);
   RenderObjCOptions(TC, D, RawTriple, Args, Runtime, rewriteKind != RK_None,
