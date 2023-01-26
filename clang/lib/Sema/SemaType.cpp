@@ -1530,7 +1530,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     if (!S.Context.getTargetInfo().hasBFloat16Type() &&
         !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice) &&
         !S.getLangOpts().SYCLIsDevice)
-      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__bf16";
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__bf16";
     Result = Context.BFloat16Ty;
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
