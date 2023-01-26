@@ -687,7 +687,7 @@ template <typename Group>
 opportunistic_group get_opportunistic_group(Group group) const; // (4)
 
 }  // namespace ext::oneapi
-```
+----
 
 1. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
    std::is_same_v<Group, sycl::sub_group>` is true.
