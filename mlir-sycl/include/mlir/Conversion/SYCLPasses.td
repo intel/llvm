@@ -25,4 +25,21 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
   let dependentDialects = ["LLVM::LLVMDialect"];
 }
 
+//===----------------------------------------------------------------------===//
+// SYCLToGPU
+//===----------------------------------------------------------------------===//
+
+def ConvertSYCLToGPU : Pass<"convert-sycl-to-gpu", "ModuleOp"> {
+  let summary = "Convert SYCL dialect to GPU dialect";
+  let description = [{
+    Pass to convert supported operations to the GPU dialect.
+  }];
+  let constructor = "mlir::sycl::createConvertSYCLToGPUPass()";
+  let dependentDialects = [
+      "arith::ArithDialect",
+      "gpu::GPUDialect",
+      "memref::MemRefDialect",
+  ];
+}
+
 #endif // MLIR_CONVERSION_SYCLPASSES

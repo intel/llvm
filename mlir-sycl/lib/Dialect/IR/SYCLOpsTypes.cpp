@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 llvm::StringRef mlir::sycl::memoryAccessModeAsString(
     mlir::sycl::MemoryAccessMode MemAccessMode) {
@@ -214,4 +215,13 @@ mlir::sycl::VecType::verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
   }
 
   return success();
+}
+
+unsigned mlir::sycl::getDimensions(mlir::Type Type) {
+  if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>()) {
+    Type = MemRefTy.getElementType();
+  }
+  return TypeSwitch<mlir::Type, unsigned>(Type)
+      .Case<AccessorType, ItemType, NdRangeType, GroupType, IDType, NdItemType,
+            RangeType>([](auto Ty) { return Ty.getDimension(); });
 }
