@@ -20,24 +20,6 @@
 #include <string_view>
 #include <thread>
 
-// contract with runtime:
-enum XPTIPayloadType {
-  UNDEFINED = 0,
-  PAYLOAD_T,
-  // FUNC_ARGS as example for future extension
-};
-
-struct XPTIUnifiedPayload {
-  uint32_t Type;
-  uint32_t Size;
-  void *Data;
-};
-
-struct XPTIAggregatedData {
-  uint32_t PayloadsCount;
-  XPTIUnifiedPayload **Payloads;
-};
-
 extern sycl::detail::SpinLock GlobalLock;
 
 extern bool HasSYCLPrinter;

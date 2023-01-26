@@ -10,8 +10,6 @@
 
 #include <sycl/detail/spinlock.hpp>
 
-#include <iostream>
-
 sycl::detail::SpinLock GlobalLock;
 
 bool HasZEPrinter = false;
@@ -45,9 +43,9 @@ XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
                                   uint64_t Instance, const void *UserData);
 #endif
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t *Parent,
-                                  xpti::trace_event_data_t *Event,
-                                  uint64_t Instance, const void *UserData);
+                                    xpti::trace_event_data_t *Parent,
+                                    xpti::trace_event_data_t *Event,
+                                    uint64_t Instance, const void *UserData);
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,

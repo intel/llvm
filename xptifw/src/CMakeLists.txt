@@ -1,5 +1,5 @@
 file(GLOB SOURCES *.cpp)
-add_definitions(-gdwarf-4 -O0)
+
 remove_definitions(-DXPTI_STATIC_LIBRARY)
 add_library(xptifw SHARED ${SOURCES})
 target_compile_definitions(xptifw PRIVATE -DXPTI_API_EXPORTS)

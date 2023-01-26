@@ -56,7 +56,7 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
     "sycl.experimental.buffer";
 
-inline constexpr const char *SYCL_SYCLCALL_STREAM_NAME = "sycl.api";
+inline constexpr const char *SYCL_API_STREAM_NAME = "sycl.api";
 
 class XPTIRegistry {
 public:

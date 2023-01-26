@@ -67,17 +67,17 @@ GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 void GlobalHandler::InitXPTIStuff() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   // Let subscribers know a new stream is being initialized
-  getXPTIRegistry().initializeStream(SYCL_SYCLCALL_STREAM_NAME, GMajVer,
-                                     GMinVer, GVerStr);
+  getXPTIRegistry().initializeStream(SYCL_API_STREAM_NAME, GMajVer, GMinVer,
+                                     GVerStr);
   xpti::payload_t SYCLPayload("SYCL Interface Layer");
   uint64_t SYCLInstanceNo;
   GSYCLCallEvent =
       xptiMakeEvent("SYCL API Layer", &SYCLPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &SYCLInstanceNo);
+#endif
 }
-
-bool hasValue(const char *Value) { return Value && Value[0] != '\0'; }
 
 void GlobalHandler::TraceEventXPTI(const char *Message) {
   if (!Message)
@@ -85,7 +85,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
-    uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
+    uint8_t StreamID = xptiRegisterStream(SYCL_API_STREAM_NAME);
 
     detail::tls_code_loc_t Tls;
     auto CodeLocation = Tls.query();
@@ -93,7 +93,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
                             CodeLocation.fileName(), CodeLocation.lineNumber(),
                             CodeLocation.columnNumber(), nullptr);
 
-    uint64_t EventInstanceNo;
+    uint64_t EventInstanceNo{};
     auto Event =
         xptiMakeEvent("SYCL RT exception", &Payload, xpti::trace_diagnostics,
                       xpti_at::active, &EventInstanceNo);

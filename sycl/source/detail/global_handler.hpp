@@ -81,8 +81,7 @@ public:
   void prepareSchedulerToRelease();
 
   void InitXPTIStuff();
-  void
-  TraceEventXPTI(const char *Message);
+  void TraceEventXPTI(const char *Message);
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);

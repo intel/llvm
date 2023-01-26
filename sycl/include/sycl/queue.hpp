@@ -1449,7 +1449,6 @@ public:
     constexpr detail::code_location CodeLoc(
         KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
         KI::getColumnNumber());
-    std::cout << "KI::getFileName() = " << KI::getFileName() << std::endl;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {

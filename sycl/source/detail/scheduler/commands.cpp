@@ -305,7 +305,12 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Host task is executed async and in a separate thread that do not allow to
+    // use code location data stored in TLS. So we keep submission code location
+    // as Command field and put it here to TLS so that thrown exception could
+    // query and report it.
     std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
     if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
       AsyncCodeLocationPtr.reset(
@@ -315,9 +320,9 @@ public:
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
-      std::string Message("Couldn't wait for host-task's dependencies");
-      std::exception_ptr EPtr =
-          std::make_exception_ptr(sycl::runtime_error(Message, WaitResult));
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+          std::string("Couldn't wait for host-task's dependencies"),
+          WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
@@ -338,6 +343,9 @@ public:
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+      // sycl::exception emit tracing of message with code location if
+      // available. For other types of exception we need to explicitly trigger
+      // tracing by calling TraceEventXPTI.
       if (xptiTraceEnabled()) {
         try {
           rethrow_exception(CurrentException);
@@ -355,9 +363,12 @@ public:
     }
 
     HostTask.MHostTask.reset();
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     // Host Task is done, clear its submittion location to not interfere with
     // following dependent kernels submission.
     AsyncCodeLocationPtr.reset();
+#endif
 
     try {
       // If we enqueue blocked users - pi level could throw exception that
@@ -735,6 +746,9 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  // If command is enqueued from host task thread - it will not have valid
+  // submission code location set. So we set it manually to properly trace
+  // failures if pi level report any.
   std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
   if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
     AsyncCodeLocationPtr.reset(
@@ -874,6 +888,9 @@ const char *Command::getBlockReason() const {
 
 void Command::copySubmissionCodeLocation() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
   detail::tls_code_loc_t Tls;
   auto TData = Tls.query();
   if (TData.fileName())
