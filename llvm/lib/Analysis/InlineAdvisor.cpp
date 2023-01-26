@@ -130,7 +130,7 @@ void DefaultInlineAdvice::recordInliningImpl() {
                                Advisor->getAnnotatedInlinePassName());
 }
 
-llvm::Optional<llvm::InlineCost> static getDefaultInlineAdvice(
+std::optional<llvm::InlineCost> static getDefaultInlineAdvice(
     CallBase &CB, FunctionAnalysisManager &FAM, const InlineParams &Params) {
   Function &Caller = *CB.getCaller();
   ProfileSummaryInfo *PSI =
@@ -196,11 +196,18 @@ void InlineAdvice::recordInliningWithCalleeDeleted() {
 }
 
 AnalysisKey InlineAdvisorAnalysis::Key;
+AnalysisKey PluginInlineAdvisorAnalysis::Key;
+bool PluginInlineAdvisorAnalysis::HasBeenRegistered = false;
 
 bool InlineAdvisorAnalysis::Result::tryCreate(
     InlineParams Params, InliningAdvisorMode Mode,
     const ReplayInlinerSettings &ReplaySettings, InlineContext IC) {
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  if (PluginInlineAdvisorAnalysis::HasBeenRegistered) {
+    auto &DA = MAM.getResult<PluginInlineAdvisorAnalysis>(M);
+    Advisor.reset(DA.Factory(M, FAM, Params, IC));
+    return !!Advisor;
+  }
   switch (Mode) {
   case InliningAdvisorMode::Default:
     LLVM_DEBUG(dbgs() << "Using default inliner heuristic.\n");
@@ -366,7 +373,7 @@ void llvm::setInlineRemark(CallBase &CB, StringRef Message) {
 /// CallSite. If we return the cost, we will emit an optimisation remark later
 /// using that cost, so we won't do so from this function. Return std::nullopt
 /// if inlining should not be attempted.
-Optional<InlineCost>
+std::optional<InlineCost>
 llvm::shouldInline(CallBase &CB,
                    function_ref<InlineCost(CallBase &CB)> GetInlineCost,
                    OptimizationRemarkEmitter &ORE, bool EnableDeferral) {
@@ -514,7 +521,7 @@ void llvm::emitInlinedIntoBasedOnCost(
 }
 
 InlineAdvisor::InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
-                             Optional<InlineContext> IC)
+                             std::optional<InlineContext> IC)
     : M(M), FAM(FAM), IC(IC),
       AnnotatedInlinePassName((IC && AnnotateInlinePhase)
                                   ? llvm::AnnotateInlinePassName(*IC)

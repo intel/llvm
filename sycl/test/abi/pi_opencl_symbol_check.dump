@@ -16,6 +16,7 @@ piDeviceRetain
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
+piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo
 piKernelGetSubGroupInfo

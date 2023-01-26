@@ -132,7 +132,11 @@ bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 /// \brief Partially load SPIR-V from the stream and decode only instructions
 /// needed to get information about specialization constants.
 /// \returns true if succeeds.
-using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
+struct SpecConstInfoTy {
+  uint32_t ID;
+  uint32_t Size;
+  std::string Type;
+};
 bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 

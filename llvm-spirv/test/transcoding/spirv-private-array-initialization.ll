@@ -1,5 +1,5 @@
-; RUN: llvm-as <%s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-as -opaque-pointers=0 <%s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t_4mspirv.bc
 ; RUN: llvm-dis %t_4mspirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM

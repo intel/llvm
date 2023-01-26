@@ -160,8 +160,8 @@ program_impl::program_impl(ContextImplPtr Context,
       });
   SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
   MDevices = SyclContextDevices;
-  RT::PiDevice Device = getSyclObjImpl(MDevices[0])->getHandleRef();
   assert(!MDevices.empty() && "No device found for this program");
+  RT::PiDevice Device = getSyclObjImpl(MDevices[0])->getHandleRef();
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(

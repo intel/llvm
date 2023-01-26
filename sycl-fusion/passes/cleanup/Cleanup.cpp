@@ -55,7 +55,7 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F) {
   NF->takeName(F);
 
   // Copy body
-  NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
+  NF->splice(NF->begin(), F);
   {
     // Transfer uses to new arguments.
     auto *ArgsIt = NF->arg_begin();

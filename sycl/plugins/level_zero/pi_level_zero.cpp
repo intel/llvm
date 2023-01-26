@@ -1968,19 +1968,19 @@ pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
     return CommandListMap.end();
   }
 
-  const auto &ComputeEventList =
-      ComputeCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{false}) &&
-      std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
-          ComputeEventList.end()) {
-    return ComputeCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{false})) {
+    const auto &ComputeEventList =
+        ComputeCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
+        ComputeEventList.end())
+      return ComputeCommandBatch.OpenCommandList;
   }
-  const auto &CopyEventList =
-      CopyCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{true}) &&
-      std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
-          CopyEventList.end()) {
-    return CopyCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{true})) {
+    const auto &CopyEventList =
+        CopyCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
+        CopyEventList.end())
+      return CopyCommandBatch.OpenCommandList;
   }
   return CommandListMap.end();
 }
@@ -5949,7 +5949,10 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when Level Zero supported is added.
+    // Note: No users for this case
+    // TODO: Implement commmand submission time when needed,
+    //        by recording device timestamp (using zeDeviceGetGlobalTimestamps)
+    //        before submitting command to device
     return ReturnValue(uint64_t{0});
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
@@ -8883,6 +8886,96 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+/// API for writing data from host to a device global variable.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
+/// \param BlockingWrite is true if the write should block
+/// \param Count is the number of bytes to copy
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
+/// \param Src is a pointer to where the data must be copied from
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingWrite,
+    size_t Count, size_t Offset, const void *Src, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
+
+  // Find global variable pointer
+  size_t GlobalVarSize = 0;
+  void *GlobalVarPtr = nullptr;
+  ZE_CALL(zeModuleGetGlobalPointer,
+          (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Write device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE,
+                              Queue, pi_cast<char *>(GlobalVarPtr) + Offset,
+                              BlockingWrite, Count, Src, NumEventsInWaitList,
+                              EventsWaitList, Event, PreferCopyEngine);
+}
+
+/// API reading data from a device global variable to host.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
+/// \param BlockingRead is true if the read should block
+/// \param Count is the number of bytes to copy
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
+/// \param Dst is a pointer to where the data must be copied to
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingRead,
+    size_t Count, size_t Offset, void *Dst, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
+
+  // Find global variable pointer
+  size_t GlobalVarSize = 0;
+  void *GlobalVarPtr = nullptr;
+  ZE_CALL(zeModuleGetGlobalPointer,
+          (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Read from device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead,
+      Count, pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
+      EventsWaitList, Event, PreferCopyEngine);
+}
+
 pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
                               size_t ParamValueSize, const void *ParamValue) {
   (void)ParamValueSize;
@@ -9321,4 +9414,22 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  const uint64_t &ZeTimerResolution =
+      Device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxCount =
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  uint64_t DeviceClockCount, Dummy;
+
+  ZE_CALL(zeDeviceGetGlobalTimestamps,
+          (Device->ZeDevice, HostTime == nullptr ? &Dummy : HostTime,
+           &DeviceClockCount));
+
+  if (DeviceTime != nullptr) {
+
+    *DeviceTime = (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+  }
+  return PI_SUCCESS;
+}
 } // extern "C"

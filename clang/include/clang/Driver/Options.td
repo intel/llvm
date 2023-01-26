@@ -169,6 +169,8 @@ def m_arm_Features_Group : OptionGroup<"<arm features group>">,
                            Group<m_Group>, DocName<"ARM">;
 def m_hexagon_Features_Group : OptionGroup<"<hexagon features group>">,
                                Group<m_Group>, DocName<"Hexagon">;
+def m_sparc_Features_Group : OptionGroup<"<sparc features group>">,
+                               Group<m_Group>, DocName<"SPARC">;
 // The features added by this group will not be added to target features.
 // These are explicitly handled.
 def m_hexagon_Features_HVX_Group : OptionGroup<"<hexagon features group>">,
@@ -870,6 +872,10 @@ def Xoffload_linker : JoinedAndSeparate<["-"], "Xoffload-linker">,
 def Xpreprocessor : Separate<["-"], "Xpreprocessor">, Group<Preprocessor_Group>,
   HelpText<"Pass <arg> to the preprocessor">, MetaVarName<"<arg>">;
 def X_Flag : Flag<["-"], "X">, Group<Link_Group>;
+// Used by some macOS projects. IgnoredGCCCompat is a misnomer since GCC doesn't allow it.
+def : Flag<["-"], "Xparser">, IgnoredGCCCompat;
+// FIXME -Xcompiler is misused by some ChromeOS packages. Remove it after a while.
+def : Flag<["-"], "Xcompiler">, IgnoredGCCCompat;
 def Z_Flag : Flag<["-"], "Z">, Group<Link_Group>;
 def all__load : Flag<["-"], "all_load">;
 def allowable__client : Separate<["-"], "allowable_client">;
@@ -2082,8 +2088,6 @@ def fcf_protection_EQ : Joined<["-"], "fcf-protection=">, Flags<[CoreOption, CC1
 def fcf_protection : Flag<["-"], "fcf-protection">, Group<f_Group>, Flags<[CoreOption, CC1Option]>,
   Alias<fcf_protection_EQ>, AliasArgs<["full"]>,
   HelpText<"Enable cf-protection in 'full' mode">;
-def mibt_seal : Flag<["-"], "mibt-seal">, Group<m_Group>, Flags<[CoreOption, CC1Option]>,
-  HelpText<"Optimize fcf-protection=branch/full (requires LTO).">;
 def mfunction_return_EQ : Joined<["-"], "mfunction-return=">,
   Group<m_Group>, Flags<[CoreOption, CC1Option]>,
   HelpText<"Replace returns with jumps to ``__x86_return_thunk`` (x86 only, error otherwise)">,
@@ -3699,10 +3703,10 @@ def msave_restore : Flag<["-"], "msave-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Enable using library calls for save and restore">;
 def mno_save_restore : Flag<["-"], "mno-save-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Disable using library calls for save and restore">;
-def mcmodel_EQ_medlow : Flag<["-"], "mcmodel=medlow">, Group<m_riscv_Features_Group>,
+def mcmodel_EQ_medlow : Flag<["-"], "mcmodel=medlow">, Group<m_Group>,
   Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["small"]>,
   HelpText<"Equivalent to -mcmodel=small, compatible with RISC-V gcc.">;
-def mcmodel_EQ_medany : Flag<["-"], "mcmodel=medany">, Group<m_riscv_Features_Group>,
+def mcmodel_EQ_medany : Flag<["-"], "mcmodel=medany">, Group<m_Group>,
   Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["medium"]>,
   HelpText<"Equivalent to -mcmodel=medium, compatible with RISC-V gcc.">;
 def menable_experimental_extensions : Flag<["-"], "menable-experimental-extensions">, Group<m_Group>,
@@ -4013,6 +4017,8 @@ def msmall_data_threshold_EQ : Joined <["-"], "msmall-data-threshold=">,
 def msoft_float : Flag<["-"], "msoft-float">, Group<m_Group>, Flags<[CC1Option]>,
   HelpText<"Use software floating point">,
   MarshallingInfoFlag<CodeGenOpts<"SoftFloat">>;
+def mno_fmv : Flag<["-"], "mno-fmv">, Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Disable function multiversioning">;
 def moutline_atomics : Flag<["-"], "moutline-atomics">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Generate local calls to out-of-line atomic operations">;
 def mno_outline_atomics : Flag<["-"], "mno-outline-atomics">, Group<f_clang_Group>, Flags<[CC1Option]>,
@@ -4684,6 +4690,22 @@ def mnvs : Flag<["-"], "mnvs">, Group<m_hexagon_Features_Group>,
   Flags<[CC1Option]>, HelpText<"Enable generation of new-value stores">;
 def mno_nvs : Flag<["-"], "mno-nvs">, Group<m_hexagon_Features_Group>,
   Flags<[CC1Option]>, HelpText<"Disable generation of new-value stores">;
+
+// SPARC feature flags
+def mfpu : Flag<["-"], "mfpu">, Group<m_sparc_Features_Group>;
+def mno_fpu : Flag<["-"], "mno-fpu">, Group<m_sparc_Features_Group>;
+def mfsmuld : Flag<["-"], "mfsmuld">, Group<m_sparc_Features_Group>;
+def mno_fsmuld : Flag<["-"], "mno-fsmuld">, Group<m_sparc_Features_Group>;
+def mpopc : Flag<["-"], "mpopc">, Group<m_sparc_Features_Group>;
+def mno_popc : Flag<["-"], "mno-popc">, Group<m_sparc_Features_Group>;
+def mvis : Flag<["-"], "mvis">, Group<m_sparc_Features_Group>;
+def mno_vis : Flag<["-"], "mno-vis">, Group<m_sparc_Features_Group>;
+def mvis2 : Flag<["-"], "mvis2">, Group<m_sparc_Features_Group>;
+def mno_vis2 : Flag<["-"], "mno-vis2">, Group<m_sparc_Features_Group>;
+def mvis3 : Flag<["-"], "mvis3">, Group<m_sparc_Features_Group>;
+def mno_vis3 : Flag<["-"], "mno-vis3">, Group<m_sparc_Features_Group>;
+def mhard_quad_float : Flag<["-"], "mhard-quad-float">, Group<m_sparc_Features_Group>;
+def msoft_quad_float : Flag<["-"], "msoft-quad-float">, Group<m_sparc_Features_Group>;
 
 // M68k features flags
 def m68000 : Flag<["-"], "m68000">, Group<m_m68k_Features_Group>;
