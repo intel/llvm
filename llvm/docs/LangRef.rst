@@ -22923,6 +22923,1189 @@ Returns another pointer that aliases its argument but which has no associated
 ``invariant.group`` metadata.
 It does not read any memory and can be speculated.
 
+.. _fpbuiltin:
+
+Floating-Point Builtin Intrinsics
+-------------------------------------
+
+These intrinsics are used to represent common floating-point operations with
+the explicit expectation that the semantics of the operation may be modified
+by call-site attributes that are specific to these intrinsics. Although many
+of these operations correspond directly to functions defined by the standard
+C math library, these intrinsics are intended to allow replacement of the
+intrinsic with implementation outside the standard library, such as vector
+implementations of the operation or alternate implementations to satisfy
+different accuracy requirements.
+
+The following call-site attributes are currently recognized as being associated
+with the floating-point builtin intrinsics:
+
+``"fpbuiltin-max-error"="<ulp>"``
+    This attribute specifies the required accuracy for the operation in ULPs.
+    The accuracy value must be a non-negative floating-point number. A value
+    of 0.5 or less indicates that the result is required to be correctly
+    rounded according to IEEE-754 rules. The default rounding mode
+    (round-to-nearest) may be assumed.
+
+    If this attribute is absent, basic operations (fadd, fsub, fmul, fdiv,
+    frem, and sqrt) are assumed to provide correctly rounded result. The
+    accuracy of other operations is target-dependent, corresponding to the
+    accuracy of the target-default implementation of the operation (usually
+    the implementation provided by the standard math library). If this
+    attribute is present, the intrinsic may only be replaced with
+    implementations which are known to provide at least the accuracy described.
+    An implementation which is more accurate than required by this attribute
+    may be used.
+
+The semantics of the fpbuiltin intrinsics may be further constrained by defining
+new callsite attributes beginning with "fpbuiltin-". All such string attribute
+identifiers are considered reserved for use with fpbuiltin intrinsics.
+
+No transformation should be performed on any fpbuiltin intrinsic if the
+intrinsic has any callsite attributes begining with "fpbuiltin-" that that code
+performing the transformation does not recognize.
+
+Unless otherwise specified using callsite attributes, the fpbuiltin intrinsics
+do not set ``errno`` or and may be assumed not to trap or raise floating-point
+exceptions.
+
+All fpbuiltin intrinsics are overloaded intrinsics which may operate on any
+scalar or vector floating-point type. Not all targets support all types.
+
+'``llvm.fpbuiltin.fadd``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fadd(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fadd``' intrinsic returns the sum of its two operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fadd``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point sum of the two value operands and has
+the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.fsub``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fsub(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fsub``' intrinsic returns the difference of its two
+operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fsub``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point difference of the two value operands
+and has the same type as the operands. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to be correctly
+rounded.
+
+
+'``llvm.fpbuiltin.fmul``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fmul(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fmul``' intrinsic returns the product of its two operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fmul``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point product of the two value operands and
+has the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.fdiv``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fdiv(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fdiv``' intrinsic returns the quotient of its two
+operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fdiv``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point quotient of the two value operands and
+has the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.frem``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.frem(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.frem``' intrinsic returns the remainder from the division
+of its two operands.
+
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.frem``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point remainder from the division of the two
+value operands and has the same type as the operands.  The remainder has the
+same sign as the dividend. Unless modified by the "fpbuiltin-max-error" callsite
+attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuilt.sin``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sin(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sin``' intrinsics return the sine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sin``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point sine of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the sine operation for the input type.
+
+
+'``llvm.fpbuilt.cos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.cos(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.cos``' intrinsics return the cosine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.cos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point cosine of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the cosine operation for the input type.
+
+
+'``llvm.fpbuilt.tan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.tan(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tan``' intrinsics return the tangent of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.tan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point tangent of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the tangent operation for the input type.
+
+
+'``llvm.fpbuilt.sinh^``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sinh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sinh``' intrinsics return the hyperbolic sine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sinh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic sine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic sine
+operation for the input type.
+
+
+'``llvm.fpbuilt.cosh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.cosh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.cosh``' intrinsics return the hyperbolic cosine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.cosh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic cosine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic cosine
+operation for the input type.
+
+
+'``llvm.fpbuilt.tanh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.tanh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tanh``' intrinsics return the hyperbolic tangent of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.tanh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic tangent of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic tangent
+operation for the input type.
+
+
+'``llvm.fpbuilt.asin``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.asin(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.asin``' intrinsics return the principal value of the
+arc sine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.asin``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc sine of
+the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc sine operation
+for the input type.
+
+
+'``llvm.fpbuilt.acos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.acos(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.acos``' intrinsics return the principal value of the
+arc cosine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.acos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc cosine
+of the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc cosine operation
+for the input type.
+
+
+'``llvm.fpbuilt.atan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atan(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.atan``' intrinsics return the principal value of the
+arc tangent of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.atan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc tangent
+of the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc tangent operation
+for the input type.
+
+
+'``llvm.fpbuilt.atan2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atan2(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.atan2``' intrinsics return the principal value of the
+arc tangent of op1/op2, expressed in radians.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.atan2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc tangent
+of the quotient of the operands, expressed in radians, and has the same type
+as the operands. Unless modified by the "fpbuiltin-max-error" callsite
+attribute, the result is assumed to have the accuracy of the target-default
+implementation of the atan2 operation for the input type.
+
+
+'``llvm.fpbuilt.asinh^``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.asinh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.asinh``' intrinsics return the area hyperbolic sine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.asinh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic sine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic sine
+operation for the input type.
+
+
+'``llvm.fpbuilt.acosh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.acosh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.acosh``' intrinsics return the area hyperbolic cosine of
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.acosh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic cosine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic cosine
+operation for the input type.
+
+
+'``llvm.fpbuilt.atanh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atanh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tanh``' intrinsics return the area hyperbolic tangent of
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.atanh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic tangent of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic
+tangent operation for the input type.
+
+
+'``llvm.fpbuilt.exp``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp``' intrinsics return the base-e exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-e exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp operation for
+the input type.
+
+
+'``llvm.fpbuilt.exp2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp2(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp2``' intrinsics return the base-2 exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-2 exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp2 operation for
+the input type.
+
+
+'``llvm.fpbuilt.exp10``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp10(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp10``' intrinsics return the base-10 exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp10``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-10 exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp10 operation
+for the input type.
+
+
+'``llvm.fpbuilt.expm1``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.expm1(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.expm1``' intrinsics return e raised to the power of the
+operand minus one.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.expm1``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of e raised to the power the
+operand minus one and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the expm1 operation
+for the input type.
+
+
+'``llvm.fpbuilt.log``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log``' intrinsics return the natural logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point natural logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log operation for the input type.
+
+
+'``llvm.fpbuilt.log2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log2(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log2``' intrinsics return the base-2 logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-2 logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log2 operation for the input type.
+
+
+'``llvm.fpbuilt.log10``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log10(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log10``' intrinsics return the base-10 logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log10``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-10 logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log10 operation for the input type.
+
+
+'``llvm.fpbuilt.log1p``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log``' intrinsics return the natural logarithm of
+one plus the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log1p``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point natural logarithm of one plus
+the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the log1p operation
+for the input type.
+
+
+'``llvm.fpbuilt.hypot``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.hypot(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.hypot``' intrinsics return the hypotenuse of a
+right triangle whose legs are op1 and op2.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.hypot``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hypotenuse of a right triangle
+whose legs are the operands and has the same type as the operands. Unless
+modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of the
+hypot operation for the input type.
+
+
+'``llvm.fpbuilt.pow``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.pow(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.pow``' intrinsics return the value of op1 raised
+to the power of op2.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.pow``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of the first operand raised
+to the power of the second operand and has the same type as the operands.
+Unless modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of the pow
+operation for the input type.
+
+
+'``llvm.fpbuilt.ldexp``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.ldexp(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.ldexp``' intrinsics return the value of op1 multiplied by
+by two raised to the power of op2.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.fpbuiltin.ldexp``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. The second argument must be a 32-bit integer value
+or a :ref:`vector <t_vector>` of 32-bit integers with the same number of
+elements as the first operand.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of the first operand multiplied
+by two raised to the power of the second operand and has the same type as the
+operands. Unless modified by the "fpbuiltin-max-error" callsite attribute,
+the result is assumed to have the accuracy of the target-default implementation
+of the ldexp operation for the input type.
+
+
+'``llvm.fpbuilt.sqrt``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sqrt(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sqrt``' intrinsics return the square root of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sqrt``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point square root the operand and
+has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to be
+correctly rounded.
+
+
+'``llvm.fpbuilt.rsqrt``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.rsqrt(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sqrt``' intrinsics return the inverse square root of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.rsqrt``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point inverse square root the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the rsqrt operation
+for the input type.
+
+
+'``llvm.fpbuilt.erf``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.erf(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.erf``' intrinsics return the error function value for
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.erf``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point error function value for the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the erf operation for
+the input type.
+
+
+'``llvm.fpbuilt.erfc``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.erfc(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.erfc``' intrinsics return the error function value for
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.erfc``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point complementary error function value
+for the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the erf operation for
+the input type.
+
+
+'``llvm.fpbuilt.sincos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sincos(<type> <op1>, ptr <sin>, ptr <cos>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sincos``' intrinsics compute the sine and cosine of the
+first operand and returns the results via the pointers passed as the second
+and third operands.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.fpbuiltin.sincos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. The second and third arguments must be dereferenceable
+pointers to memory which can hold a value of the first operand's type.
+
+Semantics:
+""""""""""
+
+The values produced are the floating-point sine and cosine of the first
+operand and are stored using the same type as the first operand. Unless
+modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of
+the sincos operation for the input type.
+
 
 
 .. _constrainedfp:

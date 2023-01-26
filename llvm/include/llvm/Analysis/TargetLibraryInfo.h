@@ -12,6 +12,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <optional>
@@ -22,6 +23,15 @@ template <typename T> class ArrayRef;
 class Function;
 class Module;
 class Triple;
+
+/// Describes a possible implementation of a floating point builtin operation
+struct AltMathDesc {
+  Intrinsic::ID IntrinID;
+  Type::TypeID BaseFPType;
+  ElementCount VectorizationFactor;
+  StringRef FnImplName;
+  float Accuracy;
+};
 
 /// Describes a possible vectorization of a function.
 /// Function 'VectorFnName' is equivalent to 'ScalarFnName' vectorized
@@ -68,6 +78,10 @@ class TargetLibraryInfoImpl {
     return static_cast<AvailabilityState>((AvailableArray[F/4] >> 2*(F&3)) & 3);
   }
 
+  /// Alternate math library functions - sorted by intrinsic ID, then type,
+  ///   then vector size, then accuracy
+  std::vector<AltMathDesc> AltMathFuncDescs;
+
   /// Vectorization descriptors - sorted by ScalarFnName.
   std::vector<VecDesc> VectorDescs;
   /// Scalarization descriptors - same content as VectorDescs but sorted based
@@ -94,6 +108,19 @@ public:
     LIBMVEC_X86,      // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
     SVML              // Intel short vector math library.
+  };
+
+  /// List of known alternate math libraries.
+  ///
+  /// The alternate math library provides a set of functions that can ve used
+  /// to replace llvm.fpbuiltin intrinsic calls when one or more constraining
+  /// attributes are specified.
+  /// The library can be specified by either frontend or a commandline option,
+  /// and then used by addAltMathFunctionsFromLib for populating the tables of
+  /// math function implementations.
+  enum AltMathLibrary {
+    NoAltMathLibrary,   // Don't use any alternate math library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   TargetLibraryInfoImpl();
@@ -146,6 +173,19 @@ public:
   ///
   /// This can be used for options like -fno-builtin.
   void disableAllFunctions();
+
+  /// Add a set of alternate math library function implementations with
+  /// attributes that can be used to select an implementation for an
+  /// llvm.fpbuiltin intrinsic
+  void addAltMathFunctions(ArrayRef<AltMathDesc> Fns);
+
+  /// Calls addAltMathFunctions with a known preset of functions for the
+  /// given alternate math library.
+  void addAltMathFunctionsFromLib(enum AltMathLibrary AltLib);
+
+  /// Select an alternate math library implementation that meets the criteria
+  /// described by an FPBuiltinIntrinsic call.
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const;
 
   /// Add a set of scalar -> vector mappings, queryable via
   /// getVectorizedFunction and getScalarizedFunction.
@@ -342,6 +382,9 @@ public:
   }
   bool isFunctionVectorizable(StringRef F) const {
     return Impl->isFunctionVectorizable(F);
+  }
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const {
+    return Impl->selectFPBuiltinImplementation(Builtin);
   }
   StringRef getVectorizedFunction(StringRef F, const ElementCount &VF) const {
     return Impl->getVectorizedFunction(F, VF);

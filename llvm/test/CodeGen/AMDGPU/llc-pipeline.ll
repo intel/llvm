@@ -50,6 +50,7 @@
 ; GCN-O0-NEXT:      Expand vector predication intrinsics
 ; GCN-O0-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O0-NEXT:      Expand reduction intrinsics
+; GCN-O0-NEXT:      FPBuiltin Function Selection
 ; GCN-O0-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O0-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O0-NEXT:    AMDGPU Attributor
@@ -228,6 +229,7 @@
 ; GCN-O1-NEXT:      Expand reduction intrinsics
 ; GCN-O1-NEXT:      Natural Loop Information
 ; GCN-O1-NEXT:      TLS Variable Hoist
+; GCN-O1-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O1-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-NEXT:    AMDGPU Attributor
@@ -516,6 +518,7 @@
 ; GCN-O1-OPTS-NEXT:      Natural Loop Information
 ; GCN-O1-OPTS-NEXT:      TLS Variable Hoist
 ; GCN-O1-OPTS-NEXT:      Early CSE
+; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-OPTS-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O1-OPTS-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-OPTS-NEXT:    AMDGPU Attributor
@@ -818,6 +821,7 @@
 ; GCN-O2-NEXT:      Natural Loop Information
 ; GCN-O2-NEXT:      TLS Variable Hoist
 ; GCN-O2-NEXT:      Early CSE
+; GCN-O2-NEXT:      FPBuiltin Function Selection
 ; GCN-O2-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O2-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O2-NEXT:    AMDGPU Attributor
@@ -1133,6 +1137,7 @@
 ; GCN-O3-NEXT:      Lazy Block Frequency Analysis
 ; GCN-O3-NEXT:      Optimization Remark Emitter
 ; GCN-O3-NEXT:      Global Value Numbering
+; GCN-O3-NEXT:      FPBuiltin Function Selection
 ; GCN-O3-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O3-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O3-NEXT:    AMDGPU Attributor

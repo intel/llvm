@@ -23,6 +23,7 @@
 #ifndef LLVM_IR_INTRINSICINST_H
 #define LLVM_IR_INTRINSICINST_H
 
+#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -585,6 +586,31 @@ public:
   static bool classof(const IntrinsicInst *I) {
     return VPCmpIntrinsic::isVPCmp(I->getIntrinsicID());
   }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+  /// @}
+};
+
+/// This is the common base class for floating point builtin intrinsics.
+class FPBuiltinIntrinsic : public IntrinsicInst {
+public:
+  static const std::string FPBUILTIN_PREFIX;
+  static const std::string FP_MAX_ERROR;
+
+  std::optional<float> getRequiredAccuracy() const;
+
+  Type::TypeID getBaseTypeID() const;
+  ElementCount getElementCount() const;
+
+  /// Check the callsite attributes for this FPBuiltinIntrinsic against a list
+  /// of FP attributes that the caller knows how to process to see if the
+  /// current intrinsic has unrecognized attributes
+  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs);
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// @{
+  static bool classof(const IntrinsicInst *I);    
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }

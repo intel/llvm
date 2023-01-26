@@ -137,6 +137,7 @@ void initializeExpandVectorPredicationPass(PassRegistry &);
 void initializeMakeGuardsExplicitLegacyPassPass(PassRegistry&);
 void initializeExternalAAWrapperPassPass(PassRegistry&);
 void initializeFEntryInserterPass(PassRegistry&);
+void initializeFPBuiltinFnSelectionLegacyPassPass(PassRegistry&);
 void initializeFinalizeISelPass(PassRegistry&);
 void initializeFinalizeMachineBundlesPass(PassRegistry&);
 void initializeFixIrreduciblePass(PassRegistry &);

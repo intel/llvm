@@ -17,6 +17,15 @@
 #include "llvm/Support/CommandLine.h"
 using namespace llvm;
 
+static cl::opt<TargetLibraryInfoImpl::AltMathLibrary> ClAltMathLibrary(
+    "alt-math-library", cl::Hidden,
+    cl::desc("Alternate floating point math library"),
+    cl::init(TargetLibraryInfoImpl::NoAltMathLibrary),
+    cl::values(clEnumValN(TargetLibraryInfoImpl::NoAltMathLibrary, "none",
+                          "No alternate math library"),
+               clEnumValN(TargetLibraryInfoImpl::TestAltMathLibrary, "test",
+                          "Fake library used for testing")));
+
 static cl::opt<TargetLibraryInfoImpl::VectorLibrary> ClVectorLibrary(
     "vector-library", cl::Hidden, cl::desc("Vector functions library"),
     cl::init(TargetLibraryInfoImpl::NoLibrary),
@@ -868,6 +877,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   }
 
   TLI.addVectorizableFunctionsFromVecLib(ClVectorLibrary);
+  TLI.addAltMathFunctionsFromLib(ClAltMathLibrary);
 }
 
 TargetLibraryInfoImpl::TargetLibraryInfoImpl() {
@@ -893,6 +903,7 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI)
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
   VectorDescs = TLI.VectorDescs;
   ScalarDescs = TLI.ScalarDescs;
+  AltMathFuncDescs = TLI.AltMathFuncDescs;
 }
 
 TargetLibraryInfoImpl::TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI)
@@ -906,6 +917,7 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI)
             AvailableArray);
   VectorDescs = TLI.VectorDescs;
   ScalarDescs = TLI.ScalarDescs;
+  AltMathFuncDescs = TLI.AltMathFuncDescs;
 }
 
 TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(const TargetLibraryInfoImpl &TLI) {
@@ -916,6 +928,9 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(const TargetLibraryInfoI
   ShouldSignExtI32Return = TLI.ShouldSignExtI32Return;
   SizeOfInt = TLI.SizeOfInt;
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
+  VectorDescs = TLI.VectorDescs;
+  ScalarDescs = TLI.ScalarDescs;
+  AltMathFuncDescs = TLI.AltMathFuncDescs;
   return *this;
 }
 
@@ -928,6 +943,9 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(TargetLibraryInfoImpl &&
   SizeOfInt = TLI.SizeOfInt;
   std::move(std::begin(TLI.AvailableArray), std::end(TLI.AvailableArray),
             AvailableArray);
+  VectorDescs = TLI.VectorDescs;
+  ScalarDescs = TLI.ScalarDescs;
+  AltMathFuncDescs = TLI.AltMathFuncDescs;
   return *this;
 }
 
@@ -1126,6 +1144,80 @@ bool TargetLibraryInfoImpl::getLibFunc(const Function &FDecl,
 
 void TargetLibraryInfoImpl::disableAllFunctions() {
   memset(AvailableArray, 0, sizeof(AvailableArray));
+}
+
+static bool compareAltMathDescs(const AltMathDesc &LHS,
+                                const AltMathDesc &RHS) {
+  if (LHS.IntrinID != RHS.IntrinID)
+    return LHS.IntrinID < RHS.IntrinID;
+  if (LHS.BaseFPType != RHS.BaseFPType)
+    return LHS.BaseFPType < RHS.BaseFPType;
+  if (LHS.VectorizationFactor != RHS.VectorizationFactor) {
+    // Sort scalar types ahead of vector types
+    if (LHS.VectorizationFactor.isScalar() !=
+        RHS.VectorizationFactor.isScalar())
+      return LHS.VectorizationFactor.isScalar() >
+             RHS.VectorizationFactor.isScalar();
+    assert((LHS.VectorizationFactor.isVector() &&
+            RHS.VectorizationFactor.isVector()) &&
+           "Unexpected vectorization factor in alt math fn desc");
+    // Sort scaleable vector types ahead of fixed vector types
+    if (LHS.VectorizationFactor.isScalable() !=
+        RHS.VectorizationFactor.isScalable())
+      return LHS.VectorizationFactor.isScalable() >
+             RHS.VectorizationFactor
+                 .isScalable();
+    // For non-scaleable vectors, this will be the fixed size
+    // For scaleable vectors, it's the size that's multiplied by the vscale
+    return LHS.VectorizationFactor.getKnownMinValue() <
+           RHS.VectorizationFactor.getKnownMinValue();
+  }
+  // Sort in order of descending accuracy
+  return LHS.Accuracy > RHS.Accuracy;
+}
+
+void TargetLibraryInfoImpl::addAltMathFunctions(ArrayRef<AltMathDesc> Fns) {
+  llvm::append_range(AltMathFuncDescs, Fns);
+  llvm::sort(AltMathFuncDescs, compareAltMathDescs);
+}
+
+void TargetLibraryInfoImpl::addAltMathFunctionsFromLib(
+    enum AltMathLibrary AltLib) {
+  switch (AltLib) {
+  case TestAltMathLibrary: {
+    const AltMathDesc AltMathFuncs[] = {
+    #define TLI_DEFINE_TEST_ALTMATHFUNCS
+    #include "llvm/Analysis/AltMathLibFuncs.def"
+    };
+    addAltMathFunctions(AltMathFuncs);
+    break;
+  }
+  case NoAltMathLibrary:
+    break;
+  }
+}
+
+/// Select an alternate math library implementation that meets the criteria
+/// described by an FPBuiltinIntrinsic call.
+StringRef TargetLibraryInfoImpl::selectFPBuiltinImplementation(
+    FPBuiltinIntrinsic *Builtin) const {
+  // TODO: Handle the case of no specified accuracy.
+  if (Builtin->getRequiredAccuracy() == std::nullopt)
+    return StringRef();
+  AltMathDesc RequiredDesc = {Builtin->getIntrinsicID(),
+                              Builtin->getBaseTypeID(),
+                              Builtin->getElementCount(),
+                              "", Builtin->getRequiredAccuracy().value()};
+  std::vector<AltMathDesc>::const_iterator I =
+      llvm::lower_bound(AltMathFuncDescs, RequiredDesc, compareAltMathDescs);
+  if (I == AltMathFuncDescs.end())
+      return StringRef(); // TODO: Report fatal error?
+  // No match found
+  if (I->IntrinID != Builtin->getIntrinsicID() ||
+      I->BaseFPType != Builtin->getBaseTypeID() ||
+      I->Accuracy > Builtin->getRequiredAccuracy().value())
+    return StringRef(); // TODO: Report fatal error?
+  return I->FnImplName;
 }
 
 static bool compareByScalarFnName(const VecDesc &LHS, const VecDesc &RHS) {

@@ -30,6 +30,7 @@
 ; CHECK-NEXT:       Expand vector predication intrinsics
 ; CHECK-NEXT:       Scalarize Masked Memory Intrinsics
 ; CHECK-NEXT:       Expand reduction intrinsics
+; CHECK-NEXT:       FPBuiltin Function Selection
 ; CHECK-NEXT:       Exception handling preparation
 ; CHECK-NEXT:       Safe Stack instrumentation pass
 ; CHECK-NEXT:       Insert stack protectors

@@ -275,6 +275,75 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
+Type::TypeID FPBuiltinIntrinsic::getBaseTypeID() const {
+  // All currently supported FP builtins are characterized by the type of their
+  // first argument. Since llvm.fpbuiltin.sincos doesn't return a value, using
+  // the type of the first argument is the most consistent technique.
+  Type *OperandTy = getArgOperand(0)->getType();
+  assert((OperandTy->isFloatingPointTy() ||
+          (OperandTy->isVectorTy() &&
+           OperandTy->getScalarType()->isFloatingPointTy())) &&
+             "Unexpected type for floating point builtin intrinsic!");
+  return OperandTy->getScalarType()->getTypeID();
+}
+
+ElementCount FPBuiltinIntrinsic::getElementCount() const {
+  Type *OperandTy = getArgOperand(0)->getType();
+  assert((OperandTy->isFloatingPointTy() ||
+          (OperandTy->isVectorTy() &&
+           OperandTy->getScalarType()->isFloatingPointTy())) &&
+             "Unexpected type for floating point builtin intrinsic!");
+  if (auto *VecTy = dyn_cast<VectorType>(OperandTy))
+    return VecTy->getElementCount();
+  return ElementCount::getFixed(1);
+}
+
+const std::string FPBuiltinIntrinsic::FPBUILTIN_PREFIX = "fpbuiltin-";
+const std::string FPBuiltinIntrinsic::FP_MAX_ERROR = "fpbuiltin-max-error";
+
+std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
+  if (!hasFnAttr(FP_MAX_ERROR))
+    return std::nullopt;
+  // This should be a string attribute with a floating-point value
+  // If it isn't the IR verifier should report the problem. Here
+  // we handle that as if the attribute were absent.
+  // TODO: Create Attribute::getValueAsDouble()?
+  double Accuracy;
+  // getAsDouble returns false if it succeeds
+  if (getFnAttr(FP_MAX_ERROR).getValueAsString().getAsDouble(Accuracy))
+    return std::nullopt;
+  return (float)Accuracy;
+}
+
+bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
+    const StringSet<> recognizedAttrs) {
+  AttributeSet FnAttrs = getAttributes().getFnAttrs();
+  for (const Attribute &Attr : FnAttrs) {
+    if (!Attr.isStringAttribute())
+      continue;
+    auto AttrStr = Attr.getKindAsString();
+    if (!AttrStr.starts_with(FPBUILTIN_PREFIX))
+      continue;
+    if (!recognizedAttrs.contains(AttrStr))
+      return true;
+  }
+  return false;
+}
+
+bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
+  switch (I->getIntrinsicID()) {
+#define OPERATION(NAME, INTRINSIC)                        \
+  case Intrinsic::INTRINSIC:
+#include "llvm/IR/FPBuiltinOps.def"
+    return true;
+  default:
+    return false;
+  }
+}
+
+
+
+
 std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;

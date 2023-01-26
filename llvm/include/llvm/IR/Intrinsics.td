@@ -767,6 +767,108 @@ def int_is_fpclass
                             [llvm_anyfloat_ty, llvm_i32_ty],
                             [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>]>;
 
+//===----------------- Floating Point Builtin Intrinsics ------------------===//
+//
+// These intrinsics are intended as explicitly replaceable versions of common
+// floating point math operations. Passes must check for call site attributes
+// that constrain the behavior of these intrinsics before transforming them in
+// any way.
+//
+// While many of these operations correspond to functions in the standard C
+// math library, these intrinsics are explicitly intended to be replaceable by
+// by alternate implementations.
+//
+
+let IntrProperties = [IntrNoMem, IntrWillReturn] in {
+  def int_fpbuiltin_fadd : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_fsub : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_fmul : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_fdiv : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_frem : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+
+  def int_fpbuiltin_sin : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_cos : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_tan : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_sinh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_cosh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_tanh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_asin : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_acos : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_atan : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_atan2 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_asinh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_acosh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_atanh : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+
+  def int_fpbuiltin_exp : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_exp2 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_exp10 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_expm1 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_log : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_log2 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_log10 : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_log1p : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+
+  def int_fpbuiltin_hypot : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_pow : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      LLVMMatchType<0> ]>;
+  def int_fpbuiltin_ldexp : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                               [ LLVMMatchType<0>,
+                                 LLVMScalarOrSameVectorWidth<0, llvm_i32_ty> ]>;
+
+  def int_fpbuiltin_sqrt : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_rsqrt : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+
+  def int_fpbuiltin_erf : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+  def int_fpbuiltin_erfc : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0> ]>;
+}
+
+let IntrProperties = [IntrArgMemOnly, IntrWillReturn] in {
+ def int_fpbuiltin_sincos : DefaultAttrsIntrinsic<[],
+                                                    [ llvm_anyfloat_ty,
+                                                      llvm_ptr_ty,
+                                                      llvm_ptr_ty ]>;
+}
+
 //===--------------- Constrained Floating Point Intrinsics ----------------===//
 //
 

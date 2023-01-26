@@ -28,6 +28,7 @@
 ; CHECK-NEXT:       Expand reduction intrinsics
 ; CHECK-NEXT:       AArch64 Stack Tagging
 ; CHECK-NEXT:       SME ABI Pass
+; CHECK-NEXT:       FPBuiltin Function Selection
 ; CHECK-NEXT:       Exception handling preparation
 ; CHECK-NEXT:       Safe Stack instrumentation pass
 ; CHECK-NEXT:       Insert stack protectors
