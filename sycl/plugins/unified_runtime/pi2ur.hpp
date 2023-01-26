@@ -481,7 +481,7 @@ inline pi_result piDevicePartition(
   }
 
   // Some partitioning types require a value
-  uint32_t Value = (int)Properties[1];
+  auto Value = uint32_t(Properties[1]);
   if (PropertyIt->second ==
       ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN) {
     static std::unordered_map<pi_device_affinity_domain,
@@ -507,7 +507,8 @@ inline pi_result piDevicePartition(
   // https://github.com/oneapi-src/unified-runtime/issues/183
   //
   zer_device_partition_property_value_t UrProperties[] = {
-      {PropertyIt->second, Value}, {0, 0}};
+      {zer_device_partition_property_flags_t(PropertyIt->second), Value},
+      {0, 0}};
 
   uint32_t Count = NumEntries;
   auto hDevice = reinterpret_cast<zer_device_handle_t>(Device);
