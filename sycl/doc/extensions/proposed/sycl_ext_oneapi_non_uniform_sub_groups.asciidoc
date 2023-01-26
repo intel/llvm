@@ -43,7 +43,6 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:https://github.com/intel/llvm/pull/4950[prospective proposal]
 * link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SubGroupMask/SubGroupMask.asciidoc[sub group mask proposal]
 * link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/sycl_ext_oneapi_root_group/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
 
@@ -761,16 +760,6 @@ The following group algorithms support `ballot_group`, `cluster_group`,
 * `reduce_over_group`
 * `joint_exclusive_scan` and `exclusive_scan_over_group`
 * `joint_inclusive_scan` and `inclusive_scan_over_group`
-
-This proposal would also build on the
-link:https://github.com/intel/llvm/pull/4950[prospective proposal] to generalize
-`sycl::group::async_work_group_copy` and `sycl::group::wait_for` to work with
-sub-groups.
-
-Both `sycl::ext::oneapi::experimental::async_group_copy` and
-`sycl::ext::oneapi::experimental::wait_for` would work with
-`opportunistic_group`, `ballot_group`, and `cluster_group` with the same
-semantics.
 
 == Examples
 
