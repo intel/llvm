@@ -306,20 +306,6 @@ public:
   /// and appends it to the given MPM.
   void addDefaultSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM);
 
-  /// Constructs a simplification pipeline which operates only on
-  /// "SYCL framework" functions and appends it to the given MPM.
-  /// Mostly a copy-paste of buildModuleSimplificationPipeline.
-  /// Module Passes from buildModuleSimplificationPipeline are excluded
-  /// here because they can't skip non "SYCL framework" functions.
-  void addSYCLFrameworkSimplificationPipeline(ModulePassManager &MPM);
-
-  /// Constructs an optimization pipeline which operates only on
-  /// "SYCL framework" functions and appends it to the given MPM.
-  /// Mostly a copy-paste of buildModuleOptimizationPipeline.
-  /// Module Passes from buildModuleOptimizationPipeline are excluded
-  /// here because they can't skip non "SYCL framework" functions.
-  void addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM);
-
   /// Build the default `AAManager` with the default alias analysis pipeline
   /// registered.
   ///
