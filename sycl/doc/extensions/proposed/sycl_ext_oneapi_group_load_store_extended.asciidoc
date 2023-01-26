@@ -55,13 +55,13 @@ namespace sycl::ext::oneapi::experimental {
 template<typename Group, typename InputIteratorT,
          typename OutputT, typename Properties = properties<>>
 void group_load(Group g, InputIteratorT in_ptr,
-                      OutputT& out, Properties = {}); (1)
+                      OutputT& out, Properties = {}); // (1)
 
 // Store API scalar
 template<typename Group, typename InputT,
          typename OutputIteratorT, typename Properties = properties<>>
 void group_store(Group g, const InputT& in,
-                      OutputIteratorT out_ptr, Properties = {}); (2)
+                      OutputIteratorT out_ptr, Properties = {}); // (2)
 
 }
 ----
@@ -71,7 +71,10 @@ in the group.
 
 _Constraints_: Only available if `Group` is a work-group or sub-group.
 
-_Effects_: Loads single element from `in_ptr` to `out`.
+_Effects_: Loads single element from `in_ptr` to `out` by using the `g` group
+object to identify memory location. For the 1d case it would be:
+`g.get_group_id(0) * g.get_local_range(0)  + g.get_local_id(0)`
+
 Properties TBD (setting boundary values or limiting numbers of work items).
 
 
@@ -80,7 +83,10 @@ in the group.
 
 _Constraints_: Only available if `Group` is a work-group or sub-group.
 
-_Effects_: Stores single element `in` to `out_ptr`.
+_Effects_: Stores single element `in` to `out_ptr` by using the `g` group
+object to identify memory location. For the 1d case it would be:
+`g.get_group_id(0) * g.get_local_range(0)  + g.get_local_id(0)`
+
 Properties TBD (setting boundary values or limiting numbers of work items).
 
 == `sycl::vec` Functions
@@ -93,13 +99,13 @@ namespace sycl::ext::oneapi::experimental {
 template<typename Group, typename InputIteratorT,
          typename OutputT, int N, typename Properties = properties<>>
 void group_load(Group g, InputIteratorT in_ptr,
-                      sycl::vec<OutputT, N>& out, Properties = {}); (3)
+                      sycl::vec<OutputT, N>& out, Properties = {}); // (3)
 
 // Store API sycl::vec overload
 template<typename Group, typename InputT, int N,
          typename OutputIteratorT, typename Properties = properties<>>
 void group_store(Group g, const sycl::vec<InputT, N>& in,
-                      OutputIteratorT out_ptr, Properties = {}); (4)
+                      OutputIteratorT out_ptr, Properties = {}); // (4)
 
 }
 ----
@@ -141,14 +147,14 @@ namespace sycl::ext::oneapi::experimental {
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void group_load(GroupHelper gh, InputIteratorT in_ptr,
-                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); (6)
+                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); // (6)
 
 
 // Store API
 template<typename GroupHelper, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
-void group_store(GroupHelper gh, OutputIteratorT out_ptr,
-                  sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (7)
+void group_store(GroupHelper gh, sycl::span<InputT, ItemsPerWorkItem> in,
+                 OutputIteratorT out_ptr,  Properties = {}); // (7)
 
 
 // Properties:
@@ -162,7 +168,7 @@ enum class group_algorithm_data_placement {
 
 template<typename T, std::size_t ElementsPerWorkItem>
 constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                      std::size_t block_size); (8)
+                                      std::size_t block_size); // (8)
 
 }
 ----
