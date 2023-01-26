@@ -37,6 +37,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <variant>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -2220,11 +2221,45 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     // Drop 8 bytes describing the size of the byte array.
     ReqdWGSize.dropBytes(8);
     int ReqdWGSizeAllDimsTotal = 1;
-    while (!ReqdWGSize.empty())
-      ReqdWGSizeAllDimsTotal *= ReqdWGSize.consume<int>();
+    std::vector<int> ReqdWGSizeVec;
+    int Dims = 0;
+    while (!ReqdWGSize.empty()) {
+      int SingleDimSize = ReqdWGSize.consume<int>();
+      ReqdWGSizeAllDimsTotal *= SingleDimSize;
+      ReqdWGSizeVec.push_back(SingleDimSize);
+      Dims++;
+    }
     if (static_cast<long unsigned int>(ReqdWGSizeAllDimsTotal) >
         Dev.get_info<info::device::max_work_group_size>())
       return false;
+    // Creating std::variant to call max_work_item_sizes one time to avoid
+    // performance drop
+    std::variant<id<1>, id<2>, id<3>> MaxWorkItemSizesVariant;
+    if (Dims == 1)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<1>>();
+    else if (Dims == 2)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<2>>();
+    else // (Dims == 3)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<3>>();
+    std::vector<int> MaxWorkItemSizes;
+    // Extracting value from std::variant to avoid dealing with type-safety
+    // issues after that
+    for (int i = 0; i < Dims; i++) {
+      if (Dims == 1)
+        MaxWorkItemSizes.push_back(std::get<id<1>>(MaxWorkItemSizesVariant)[i]);
+      else if (Dims == 2)
+        MaxWorkItemSizes.push_back(std::get<id<2>>(MaxWorkItemSizesVariant)[i]);
+      else // (Dims == 3)
+        MaxWorkItemSizes.push_back(std::get<id<3>>(MaxWorkItemSizesVariant)[i]);
+    }
+    for (int i = 0; i < Dims; i++) {
+      // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
+      if (ReqdWGSizeVec[i] > MaxWorkItemSizes[Dims - i - 1])
+        return false;
+    }
   }
   return true;
 }
