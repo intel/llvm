@@ -19,7 +19,6 @@
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
-#include "PassDetail.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/PatternMatch.h"
@@ -27,8 +26,15 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "polygeist/Ops.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-method-to-sycl-call"
+
+namespace mlir {
+#define GEN_PASS_DEF_SYCLMETHODTOSYCLCALL
+#include "mlir/Dialect/SYCL/Transforms/Passes.h.inc"
+#undef GEN_PASS_DEF_SYCLMETHODTOSYCLCALL
+} // namespace mlir
 
 using namespace mlir;
 using namespace sycl;
@@ -207,7 +213,8 @@ static void addSYCLMethodPatterns(RewritePatternSet &patterns) {
       >(patterns);
 }
 
-struct SYCLMethodToSYCLCall : SYCLMethodToSYCLCallBase<SYCLMethodToSYCLCall> {
+struct SYCLMethodToSYCLCall
+    : impl::SYCLMethodToSYCLCallBase<SYCLMethodToSYCLCall> {
   LogicalResult initialize(MLIRContext *context) final {
     RewritePatternSet owningPatterns(context);
     addSYCLMethodPatterns(owningPatterns);
