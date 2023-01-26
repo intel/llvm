@@ -462,6 +462,43 @@ inline pi_result piDevicePartition(
   if (!Properties || !Properties[0])
     return PI_ERROR_INVALID_VALUE;
 
+  static std::unordered_map<pi_device_partition_property,
+                            zer_device_partition_property_flag_t>
+      PropertyMap = {
+          {PI_DEVICE_PARTITION_EQUALLY,
+           ZER_DEVICE_PARTITION_PROPERTY_FLAG_EQUALLY},
+          {PI_DEVICE_PARTITION_BY_COUNTS,
+           ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_COUNTS},
+          {PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+           ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN},
+          {PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE,
+           ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE},
+      };
+
+  auto PropertyIt = PropertyMap.find(Properties[0]);
+  if (PropertyIt == PropertyMap.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  // Some partitioning types require a value
+  uint32_t Value = (int)Properties[1];
+  if (PropertyIt->second ==
+      ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN) {
+    static std::unordered_map<pi_device_affinity_domain,
+                              zer_device_affinity_domain_flag_t>
+        ValueMap = {
+            {PI_DEVICE_AFFINITY_DOMAIN_NUMA,
+             ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA},
+            {PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
+             ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE},
+        };
+    auto ValueIt = ValueMap.find(Properties[1]);
+    if (ValueIt == ValueMap.end()) {
+      return PI_ERROR_UNKNOWN;
+    }
+    Value = ValueIt->second;
+  }
+
   // Translate partitioning properties from PI-way
   // (array of uintptr_t values) to UR-way
   // (array of {uint32_t, uint32_t} pairs)
@@ -470,7 +507,7 @@ inline pi_result piDevicePartition(
   // https://github.com/oneapi-src/unified-runtime/issues/183
   //
   zer_device_partition_property_value_t UrProperties[] = {
-      {(uint32_t)Properties[0], (uint32_t)Properties[1]}, {0, 0}};
+      {PropertyIt->second, Value}, {0, 0}};
 
   uint32_t Count = NumEntries;
   auto hDevice = reinterpret_cast<zer_device_handle_t>(Device);

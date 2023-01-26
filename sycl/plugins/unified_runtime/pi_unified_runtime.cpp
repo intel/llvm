@@ -57,6 +57,13 @@ __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device Device,
                                 ParamValueSizeRet);
 }
 
+__SYCL_EXPORT pi_result piDevicePartition(
+    pi_device Device, const pi_device_partition_property *Properties,
+    pi_uint32 NumDevices, pi_device *OutDevices, pi_uint32 *OutNumDevices) {
+  return pi2ur::piDevicePartition(Device, Properties, NumDevices, OutDevices,
+                                  OutNumDevices);
+}
+
 // Stub for the not yet supported API
 __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device Device,
                                                 pi_device_binary *Binaries,
@@ -100,6 +107,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piDeviceRetain)
   _PI_API(piDeviceRelease)
   _PI_API(piDeviceGetInfo)
+  _PI_API(piDevicePartition)
   _PI_API(piextDeviceSelectBinary)
   _PI_API(piTearDown)
 
