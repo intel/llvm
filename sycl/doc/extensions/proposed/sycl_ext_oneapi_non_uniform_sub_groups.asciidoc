@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 4 specification.  All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
