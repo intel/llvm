@@ -421,7 +421,7 @@ def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 // SYCL GRID OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-def SYCLNumWorkItems : SYCL_Op<"num_work_items", [SYCLIndexSpaceGetRange]> {
+def SYCLNumWorkItemsOp : SYCL_Op<"num_work_items", [SYCLIndexSpaceGetRange]> {
   let summary = "Retrieve the number of work-items.";
   let description = [{
     This operation returns the number of work-items in the index space. If the
@@ -436,7 +436,7 @@ def SYCLNumWorkItems : SYCL_Op<"num_work_items", [SYCLIndexSpaceGetRange]> {
   }];
 }
 
-def SYCLGlobalID : SYCL_Op<"global_id", [SYCLIndexSpaceGetID]> {
+def SYCLGlobalIDOp : SYCL_Op<"global_id", [SYCLIndexSpaceGetID]> {
   let summary = "Retrieve the global ID of the item.";
   let description = [{
     This operation returns the global ID of the item in the index space. If the
@@ -451,7 +451,7 @@ def SYCLGlobalID : SYCL_Op<"global_id", [SYCLIndexSpaceGetID]> {
   }];
 }
 
-def SYCLLocalID : SYCL_Op<"local_id", [SYCLIndexSpaceGetID]> {
+def SYCLLocalIDOp : SYCL_Op<"local_id", [SYCLIndexSpaceGetID]> {
   let summary = "Retrieve the local ID of the item.";
   let description = [{
     This operation returns the local ID of the item within the work-group. If
@@ -466,7 +466,7 @@ def SYCLLocalID : SYCL_Op<"local_id", [SYCLIndexSpaceGetID]> {
   }];
 }
 
-def SYCLGlobalOffset : SYCL_Op<"global_offset", [SYCLIndexSpaceGetID]>,
+def SYCLGlobalOffsetOp : SYCL_Op<"global_offset", [SYCLIndexSpaceGetID]>,
                        Deprecated<"deprecated in SYCL 2020"> {
   let summary = "Retrieve the global offset of the item.";
   let description = [{
@@ -484,7 +484,7 @@ def SYCLGlobalOffset : SYCL_Op<"global_offset", [SYCLIndexSpaceGetID]>,
   }];
 }
 
-def SYCLNumWorkGroups : SYCL_Op<"num_work_groups", [SYCLIndexSpaceGetRange]> {
+def SYCLNumWorkGroupsOp : SYCL_Op<"num_work_groups", [SYCLIndexSpaceGetRange]> {
   let summary = "Retrieve the number of work-groups.";
   let description = [{
     This operation returns the number of work-groups in the index space. If the
@@ -499,7 +499,7 @@ def SYCLNumWorkGroups : SYCL_Op<"num_work_groups", [SYCLIndexSpaceGetRange]> {
   }];
 }
 
-def SYCLWorkGroupSize : SYCL_Op<"work_group_size", [SYCLIndexSpaceGetRange]> {
+def SYCLWorkGroupSizeOp : SYCL_Op<"work_group_size", [SYCLIndexSpaceGetRange]> {
   let summary = "Retrieve the number of work-items in a work-group.";
   let description = [{
     This operation returns the number of work-items per work-group. If the
@@ -514,7 +514,7 @@ def SYCLWorkGroupSize : SYCL_Op<"work_group_size", [SYCLIndexSpaceGetRange]> {
   }];
 }
 
-def SYCLWorkGroupID : SYCL_Op<"work_group_id", [SYCLIndexSpaceGetID]> {
+def SYCLWorkGroupIDOp : SYCL_Op<"work_group_id", [SYCLIndexSpaceGetID]> {
   let summary = "Retrieve the ID of the work-group.";
   let description = [{
     This operation returns the ID of the work-group. If the optional argument is
@@ -528,7 +528,7 @@ def SYCLWorkGroupID : SYCL_Op<"work_group_id", [SYCLIndexSpaceGetID]> {
   }];
 }
 
-def SYCLNumSubGroups : SYCL_Op<"num_sub_groups"> {
+def SYCLNumSubGroupsOp : SYCL_Op<"num_sub_groups"> {
   let summary = "Retrieve the number of sub-groups.";
   let description = [{
     This operation returns the number of sub-groups.
@@ -541,7 +541,7 @@ def SYCLNumSubGroups : SYCL_Op<"num_sub_groups"> {
   }];
 }
 
-def SYCLSubGroupMaxSize : SYCL_Op<"sub_group_max_size"> {
+def SYCLSubGroupMaxSizeOp : SYCL_Op<"sub_group_max_size"> {
   let summary = "Retrieve the maximum size of a sub-group.";
   let description = [{
     This operation returns the maximum size of a sub-group.
@@ -554,7 +554,7 @@ def SYCLSubGroupMaxSize : SYCL_Op<"sub_group_max_size"> {
   }];
 }
 
-def SYCLSubGroupSize : SYCL_Op<"sub_group_size"> {
+def SYCLSubGroupSizeOp : SYCL_Op<"sub_group_size"> {
   let summary = "Retrieve the sub-group size.";
   let description = [{
     This operation returns the sub-group size.
@@ -567,7 +567,7 @@ def SYCLSubGroupSize : SYCL_Op<"sub_group_size"> {
   }];
 }
 
-def SYCLSubGroupID : SYCL_Op<"sub_group_id"> {
+def SYCLSubGroupIDOp : SYCL_Op<"sub_group_id"> {
   let summary = "Retrieve the ID of the sub-group.";
   let description = [{
     This operation returns the ID of the sub-group.
@@ -580,7 +580,7 @@ def SYCLSubGroupID : SYCL_Op<"sub_group_id"> {
   }];
 }
 
-def SYCLSubGroupLocalID : SYCL_Op<"sub_group_local_id"> {
+def SYCLSubGroupLocalIDOp : SYCL_Op<"sub_group_local_id"> {
   let summary = "Retrieve the local ID of the sub-group.";
   let description = [{
     This operation returns the local ID of the sub-group.
