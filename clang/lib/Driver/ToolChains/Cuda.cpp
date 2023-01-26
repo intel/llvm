@@ -447,7 +447,7 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Args.MakeArgString(CudaArchToString(gpu_arch)));
   CmdArgs.push_back("--output-file");
-  const char *OutputFileName = Args.MakeArgString(TC.getInputFilename(Output));
+  std::string OutputFileName = TC.getInputFilename(Output);
 
   // If we are invoking `nvlink` internally we need to output a `.cubin` file.
   // Checking if the output is a temporary is the cleanest way to determine
@@ -461,12 +461,12 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   if (Output.isFilename() && findName != C.getTempFiles().end()) {
     SmallString<256> Filename(Output.getFilename());
     llvm::sys::path::replace_extension(Filename, "cubin");
-    OutputFileName = Args.MakeArgString(Filename);
+    OutputFileName = Filename.str();
   }
   if (Output.isFilename() && OutputFileName != Output.getFilename())
-    C.addTempFile(OutputFileName);
+    C.addTempFile(Args.MakeArgString(OutputFileName));
 
-  CmdArgs.push_back(OutputFileName);
+  CmdArgs.push_back(Args.MakeArgString(OutputFileName));
   for (const auto &II : Inputs)
     CmdArgs.push_back(Args.MakeArgString(II.getFilename()));
 

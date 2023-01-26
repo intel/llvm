@@ -1598,9 +1598,6 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
 
     // TypeQuals handled by caller.
     Result = Context.getTypeDeclType(D);
-    if (const auto *Using =
-            dyn_cast_or_null<UsingShadowDecl>(DS.getRepAsFoundDecl()))
-      Result = Context.getUsingType(Using, Result);
 
     // In both C and C++, make an ElaboratedType.
     ElaboratedTypeKeyword Keyword
@@ -6282,9 +6279,6 @@ namespace {
         TL.setArgLocInfo(I, TemplateArgsInfo.arguments()[I].getLocInfo());
     }
     void VisitTagTypeLoc(TagTypeLoc TL) {
-      TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
-    }
-    void VisitUsingTypeLoc(UsingTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
     }
     void VisitAtomicTypeLoc(AtomicTypeLoc TL) {
