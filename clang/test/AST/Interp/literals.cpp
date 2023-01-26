@@ -350,6 +350,46 @@ namespace strings {
 #endif
 
 #pragma clang diagnostic pop
+
+  constexpr char foo[12] = "abc";
+  static_assert(foo[0] == 'a', "");
+  static_assert(foo[1] == 'b', "");
+  static_assert(foo[2] == 'c', "");
+  static_assert(foo[3] == 0, "");
+  static_assert(foo[11] == 0, "");
+
+  constexpr char foo2[] = "abc\0def";
+  static_assert(foo2[0] == 'a', "");
+  static_assert(foo2[3] == '\0', "");
+  static_assert(foo2[6] == 'f', "");
+  static_assert(foo2[7] == '\0', "");
+  static_assert(foo2[8] == '\0', ""); // expected-error {{not an integral constant expression}} \
+                                      // expected-note {{read of dereferenced one-past-the-end pointer}} \
+                                      // ref-error {{not an integral constant expression}} \
+                                      // ref-note {{read of dereferenced one-past-the-end pointer}}
+
+  constexpr char foo3[4] = "abc";
+  static_assert(foo3[3] == '\0', "");
+  static_assert(foo3[4] == '\0', ""); // expected-error {{not an integral constant expression}} \
+                                      // expected-note {{read of dereferenced one-past-the-end pointer}} \
+                                      // ref-error {{not an integral constant expression}} \
+                                      // ref-note {{read of dereferenced one-past-the-end pointer}}
+
+  constexpr char foo4[2] = "abcd"; // expected-error {{initializer-string for char array is too long}} \
+                                   // ref-error {{initializer-string for char array is too long}}
+  static_assert(foo4[0] == 'a', "");
+  static_assert(foo4[1] == 'b', "");
+  static_assert(foo4[2] == '\0', ""); // expected-error {{not an integral constant expression}} \
+                                      // expected-note {{read of dereferenced one-past-the-end pointer}} \
+                                      // ref-error {{not an integral constant expression}} \
+                                      // ref-note {{read of dereferenced one-past-the-end pointer}}
+
+constexpr char foo5[12] = "abc\xff";
+#if defined(__CHAR_UNSIGNED__) || __CHAR_BIT__ > 8
+static_assert(foo5[3] == 255, "");
+#else
+static_assert(foo5[3] == -1, "");
+#endif
 };
 
 #if __cplusplus > 201402L
@@ -412,10 +452,11 @@ namespace IncDec {
   static_assert(uninit(), ""); // ref-error {{not an integral constant expression}} \
                                // ref-note {{in call to 'uninit()'}}
 
-  constexpr int OverFlow() { // ref-error {{never produces a constant expression}}
+  constexpr int OverFlow() { // ref-error {{never produces a constant expression}} \
+                             // expected-error {{never produces a constant expression}}
     int a = INT_MAX;
     ++a; // ref-note 2{{is outside the range}} \
-         // expected-note {{is outside the range}}
+         // expected-note 2{{is outside the range}}
     return -1;
   }
   static_assert(OverFlow() == -1, "");  // expected-error {{not an integral constant expression}} \
@@ -424,10 +465,11 @@ namespace IncDec {
                                         // ref-note {{in call to 'OverFlow()'}}
 
 
-  constexpr int UnderFlow() { // ref-error {{never produces a constant expression}}
+  constexpr int UnderFlow() { // ref-error {{never produces a constant expression}} \
+                              // expected-error {{never produces a constant expression}}
     int a = INT_MIN;
     --a; // ref-note 2{{is outside the range}} \
-         // expected-note {{is outside the range}}
+         // expected-note 2{{is outside the range}}
     return -1;
   }
   static_assert(UnderFlow() == -1, "");  // expected-error {{not an integral constant expression}} \
