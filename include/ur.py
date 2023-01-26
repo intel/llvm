@@ -772,8 +772,8 @@ class ur_device_info_v(IntEnum):
     PRINTF_BUFFER_SIZE = 73                         ## size_t: Maximum size in bytes of internal printf buffer
     PREFERRED_INTEROP_USER_SYNC = 74                ## bool: prefer user synchronization when sharing object with other API
     PARENT_DEVICE = 75                              ## ::ur_device_handle_t: return parent device handle
-    PARTITION_PROPERTIES = 76                       ## uint32_t: return a bit-field of partition properties
-                                                    ## ::ur_device_partition_property_flags_t
+    PARTITION_PROPERTIES = 76                       ## ::ur_device_partition_property_t[]: Returns the list of partition
+                                                    ## types supported by the device
     PARTITION_MAX_SUB_DEVICES = 77                  ## uint32_t: maximum number of sub-devices when the device is partitioned
     PARTITION_AFFINITY_DOMAIN = 78                  ## uint32_t: return a bit-field of affinity domain
                                                     ## ::ur_device_affinity_domain_flags_t
@@ -809,24 +809,23 @@ class ur_device_info_t(c_int):
 
 
 ###############################################################################
-## @brief Device partition property
-class ur_device_partition_property_flags_v(IntEnum):
-    EQUALLY = UR_BIT(0)                             ## Support equal partition
-    BY_COUNTS = UR_BIT(1)                           ## Support partition by count
-    BY_AFFINITY_DOMAIN = UR_BIT(2)                  ## Support partition by affinity domain
-
-class ur_device_partition_property_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
+## @brief Device partition property type
+class ur_device_partition_property_t(c_intptr_t):
+    pass
 
 ###############################################################################
-## @brief Partition property value
-class ur_device_partition_property_value_t(Structure):
-    _fields_ = [
-        ("property", ur_device_partition_property_flags_t),             ## [in] device partition property flags
-        ("value", c_ulong)                                              ## [in] partition value
-    ]
+## @brief Partition Properties
+class ur_device_partition_v(IntEnum):
+    EQUALLY = 0x1086                                ## Partition Equally
+    BY_COUNTS = 0x1087                              ## Partition by counts
+    BY_COUNTS_LIST_END = 0x0                        ## End of by counts list
+    BY_AFFINITY_DOMAIN = 0x1088                     ## Partition by affinity domain
+    BY_CSLICE = 0x1089                              ## Partition by c-slice
+
+class ur_device_partition_t(c_int):
+    def __str__(self):
+        return str(ur_device_partition_v(self.value))
+
 
 ###############################################################################
 ## @brief FP capabilities
@@ -2020,9 +2019,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDevicePartition
 if __use_win_types:
-    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 else:
-    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary

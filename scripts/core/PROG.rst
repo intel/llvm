@@ -117,9 +117,10 @@ fixed part of the parent device, which can explicitly be programmed individually
 .. parsed-literal::
 
     ${x}_device_handle_t hDevice;
-    ${x}_device_partition_property_value_t properties = { 
-               ${X}_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
-               ${X}_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE };
+    ${x}_device_partition_property_t properties[] = { 
+               ${X}_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+               ${X}_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
+               0};
 
     uint32_t count = 0;
     std::vector<${x}_device_handle_t> subDevices;

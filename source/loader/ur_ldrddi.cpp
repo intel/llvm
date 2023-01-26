@@ -3000,7 +3000,7 @@ namespace loader
     __urdlllocal ur_result_t UR_APICALL
     urDevicePartition(
         ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
-        ur_device_partition_property_value_t* Properties,   ///< [in] null-terminated array of <property, value> pair of the requested partitioning.
+        const ur_device_partition_property_t* Properties,   ///< [in] null-terminated array of <property, value> pairs.
         uint32_t NumDevices,                            ///< [in] the number of sub-devices.
         ur_device_handle_t* phSubDevices,               ///< [out][optional][range(0, NumDevices)] array of handle of devices.
                                                         ///< If NumDevices is less than the number of sub-devices available, then

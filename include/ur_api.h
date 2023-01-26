@@ -3016,8 +3016,8 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,         ///< size_t: Maximum size in bytes of internal printf buffer
     UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,///< bool: prefer user synchronization when sharing object with other API
     UR_DEVICE_INFO_PARENT_DEVICE = 75,              ///< ::ur_device_handle_t: return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,       ///< uint32_t: return a bit-field of partition properties
-                                                    ///< ::ur_device_partition_property_flags_t
+    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,       ///< ::ur_device_partition_property_t[]: Returns the list of partition
+                                                    ///< types supported by the device
     UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,  ///< uint32_t: maximum number of sub-devices when the device is partitioned
     UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,  ///< uint32_t: return a bit-field of affinity domain
                                                     ///< ::ur_device_affinity_domain_flags_t
@@ -3132,25 +3132,21 @@ urDeviceRelease(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Device partition property
-typedef uint32_t ur_device_partition_property_flags_t;
-typedef enum ur_device_partition_property_flag_t
-{
-    UR_DEVICE_PARTITION_PROPERTY_FLAG_EQUALLY = UR_BIT(0),  ///< Support equal partition
-    UR_DEVICE_PARTITION_PROPERTY_FLAG_BY_COUNTS = UR_BIT(1),///< Support partition by count
-    UR_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN = UR_BIT(2),   ///< Support partition by affinity domain
-    UR_DEVICE_PARTITION_PROPERTY_FLAG_FORCE_UINT32 = 0x7fffffff
-
-} ur_device_partition_property_flag_t;
+/// @brief Device partition property type
+typedef intptr_t ur_device_partition_property_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Partition property value
-typedef struct ur_device_partition_property_value_t
+/// @brief Partition Properties
+typedef enum ur_device_partition_t
 {
-    ur_device_partition_property_flags_t property;  ///< [in] device partition property flags
-    uint32_t value;                                 ///< [in] partition value
+    UR_DEVICE_PARTITION_EQUALLY = 0x1086,           ///< Partition Equally
+    UR_DEVICE_PARTITION_BY_COUNTS = 0x1087,         ///< Partition by counts
+    UR_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0,   ///< End of by counts list
+    UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088,///< Partition by affinity domain
+    UR_DEVICE_PARTITION_BY_CSLICE = 0x1089,         ///< Partition by c-slice
+    UR_DEVICE_PARTITION_FORCE_UINT32 = 0x7fffffff
 
-} ur_device_partition_property_value_t;
+} ur_device_partition_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition the device into sub-devices
@@ -3179,7 +3175,7 @@ typedef struct ur_device_partition_property_value_t
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
-    ur_device_partition_property_value_t* Properties,   ///< [in] null-terminated array of <property, value> pair of the requested partitioning.
+    const ur_device_partition_property_t* Properties,   ///< [in] null-terminated array of <property, value> pairs.
     uint32_t NumDevices,                            ///< [in] the number of sub-devices.
     ur_device_handle_t* phSubDevices,               ///< [out][optional][range(0, NumDevices)] array of handle of devices.
                                                     ///< If NumDevices is less than the number of sub-devices available, then
@@ -7446,7 +7442,7 @@ typedef void (UR_APICALL *ur_pfnDeviceReleaseCb_t)(
 typedef struct ur_device_partition_params_t
 {
     ur_device_handle_t* phDevice;
-    ur_device_partition_property_value_t** pProperties;
+    const ur_device_partition_property_t** pProperties;
     uint32_t* pNumDevices;
     ur_device_handle_t** pphSubDevices;
     uint32_t** ppNumDevicesRet;
