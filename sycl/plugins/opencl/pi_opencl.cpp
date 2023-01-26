@@ -258,6 +258,7 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 extern "C" {
 
 // Helper functions
+
 // Returns true if the device is a cslice subdevice.
 static bool isCCS(pi_device device) {
   if (!device)
@@ -296,6 +297,15 @@ static std::vector<cl_device_id> getClDevices(pi_uint32 num_devices,
   for (size_t i = 0; i < num_devices; ++i)
     cl_devices[i] = getClDevice(devices[i]);
   return cl_devices;
+}
+
+// Return true if the device is a GPU device
+static bool isGPU(pi_device device) {
+  // Identify device type.
+  cl_device_type device_type;
+  cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_TYPE,
+                                sizeof(cl_device_type), &device_type, nullptr);
+  return (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
 }
 // End of helper functions
 
@@ -401,75 +411,79 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return return_value(partition_properties);
     };
 
-    // Identify device type.
-    cl_device_type device_type;
-    cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_TYPE,
-                                 sizeof(cl_device_type), &device_type, nullptr);
-    cl_bool is_gpu = (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
     // Partition property for non GPU backends.
     // For non-GPU backends, partition property are obtained by calling
     // clGetDeviceInfo.
-    if (!is_gpu) {
+    if (!isGPU(device)) {
       if (num_sub_devices < 2)
         return return_value(pi_device_partition_property{0});
-      return ReturnHelper(CL_DEVICE_PARTITION_EQUALLY,
-                          CL_DEVICE_PARTITION_BY_COUNTS);
-    }
-
-    // Partition property for GPU
-    if (isRootDevice(device)) {
-      if (num_sub_devices < 2)
-        return return_value(pi_device_partition_property{0});
-      return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
-    } else if (!isCCS(device)) { // it is subdevice
-      // Find out number of CCSes.
-      bool supported = false;
-      cl_int ret_err = CL_SUCCESS;
-      ret_err = checkDeviceExtensions(
-          getClDevice(device), {"cl_intel_command_queue_families"}, supported);
-      if (ret_err != CL_SUCCESS)
-        return static_cast<pi_result>(ret_err);
-      if (!supported)
-        return return_value(pi_device_partition_property{0});
-      cl_queue_family_properties_intel qfprops[3];
-      size_t qsize = 0;
-      clGetDeviceInfo(getClDevice(device),
-                      CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL, sizeof(qfprops),
-                      qfprops, &qsize);
-      qsize = qsize / sizeof(cl_queue_family_properties_intel);
-      for (size_t q = 0; q < qsize; q++) {
-        if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
-            qfprops[q].count > num_sub_devices) {
-          num_sub_devices = qfprops[q].count;
+      cl_int result =
+          clGetDeviceInfo(getClDevice(device), cast<cl_device_info>(paramName),
+                          paramValueSize, paramValue, paramValueSizeRet);
+      return static_cast<pi_result>(result);
+    } else {
+      // Partition property for GPU
+      if (isRootDevice(device)) {
+        if (num_sub_devices < 2)
+          return return_value(pi_device_partition_property{0});
+        return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+      } else if (!isCCS(device)) { // it is subdevice
+        // Find out number of CCSes.
+        bool supported = false;
+        cl_int ret_err = CL_SUCCESS;
+        ret_err = checkDeviceExtensions(
+            getClDevice(device), {"cl_intel_command_queue_families"}, supported);
+        if (ret_err != CL_SUCCESS)
+          return static_cast<pi_result>(ret_err);
+        if (!supported)
+          return return_value(pi_device_partition_property{0});
+        cl_queue_family_properties_intel qfprops[3];
+        size_t qsize = 0;
+        clGetDeviceInfo(getClDevice(device),
+                        CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL, sizeof(qfprops),
+                        qfprops, &qsize);
+        qsize = qsize / sizeof(cl_queue_family_properties_intel);
+        for (size_t q = 0; q < qsize; q++) {
+          if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
+              qfprops[q].count > num_sub_devices) {
+            num_sub_devices = qfprops[q].count;
+          }
         }
-      }
-      if (num_sub_devices < 2) {
+        if (num_sub_devices < 2) {
+          return return_value(pi_device_partition_property{0});
+        }
+        return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
+      } else // it is CCS
         return return_value(pi_device_partition_property{0});
-      }
-      return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
-    } else // it is CCS
-      return return_value(pi_device_partition_property{0});
+    }
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     return return_value(pi_device_affinity_domain{
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    // For root-device there is no partitioning to report.
-    if (isRootDevice(device))
-      return return_value(pi_device_partition_property{0});
-    if (!isCCS(device)) { // is subdevice
-      struct {
-        pi_device_partition_property arr[3];
-      } partition_properties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                                 PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
-                                 0}};
-      return return_value(partition_properties);
-    } else { // it is CCS
-      struct {
-        pi_device_partition_property arr[2];
-      } partition_properties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
-      return return_value(partition_properties);
+    if (!isGPU(device)) {
+      cl_int result =
+          clGetDeviceInfo(getClDevice(device), cast<cl_device_info>(paramName),
+                          paramValueSize, paramValue, paramValueSizeRet);
+      return static_cast<pi_result>(result);
+    } else {
+      // For root-device there is no partitioning to report.
+      if (isRootDevice(device))
+        return return_value(pi_device_partition_property{0});
+      if (!isCCS(device)) { // is subdevice
+        struct {
+          pi_device_partition_property arr[3];
+        } partition_properties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                                  PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
+                                  0}};
+        return return_value(partition_properties);
+      } else { // it is CCS
+        struct {
+          pi_device_partition_property arr[2];
+        } partition_properties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
+        return return_value(partition_properties);
+      }
     }
     return return_value(pi_device_partition_property{0});
   }
