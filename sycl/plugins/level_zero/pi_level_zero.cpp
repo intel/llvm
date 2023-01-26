@@ -770,62 +770,32 @@ pi_device _pi_context::getRootDevice() const {
 pi_result _pi_context::initialize() {
 
   // Helper lambda to create various USM allocators for a device.
-  // For SubDevices, create a shared pointer.
   auto createUSMAllocators = [this](pi_device Device) {
     SharedMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(
-            std::make_shared<USMAllocContext>(std::unique_ptr<SystemMemory>(
-                new USMSharedMemoryAlloc(this, Device)))));
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedMemoryAlloc(this, Device))));
 
     SharedReadOnlyMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(
-            std::make_shared<USMAllocContext>(std::unique_ptr<SystemMemory>(
-                new USMSharedReadOnlyMemoryAlloc(this, Device)))));
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedReadOnlyMemoryAlloc(this, Device))));
 
     DeviceMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(std::make_shared<USMAllocContext>(
-            std::unique_ptr<USMDeviceMemoryAlloc>(
-                new USMDeviceMemoryAlloc(this, Device)))));
-  };
-
-  auto copyUSMAllocatorOfSubDeviceToCCS = [this](pi_device CCS,
-                                                 pi_device SubDevice) {
-    if (SharedMemAllocContexts.find(SubDevice) !=
-        SharedMemAllocContexts.end()) {
-      SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(CCS),
-          std::make_tuple(SharedMemAllocContexts[SubDevice]));
-    }
-
-    if (SharedReadOnlyMemAllocContexts.find(SubDevice) !=
-        SharedReadOnlyMemAllocContexts.end()) {
-      SharedReadOnlyMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(CCS),
-          std::make_tuple(SharedReadOnlyMemAllocContexts[SubDevice]));
-    }
-
-    if (DeviceMemAllocContexts.find(SubDevice) !=
-        DeviceMemAllocContexts.end()) {
-      DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(CCS),
-          std::tuple(DeviceMemAllocContexts[SubDevice]));
-    }
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMDeviceMemoryAlloc(this, Device))));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
   std::function<void(pi_device)> createUSMAllocatorsRecursive;
   createUSMAllocatorsRecursive =
-      [createUSMAllocators, copyUSMAllocatorOfSubDeviceToCCS,
+      [createUSMAllocators,
        &createUSMAllocatorsRecursive](pi_device Device) -> void {
     createUSMAllocators(Device);
     for (auto &SubDevice : Device->SubDevices)
       // Share USMAllocCOntext of CCS and sub-device.
-      if (SubDevice->isCCS())
-        copyUSMAllocatorOfSubDeviceToCCS(SubDevice, Device);
-      else
+      if (!SubDevice->isCCS())
         createUSMAllocatorsRecursive(SubDevice);
   };
 
@@ -841,8 +811,9 @@ pi_result _pi_context::initialize() {
       std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
 
   // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
-                              DeviceMemAllocContexts.end()) {
+  if (SingleRootDevice &&
+      DeviceMemAllocContexts.find(SingleRootDevice->ZeDevice) ==
+          DeviceMemAllocContexts.end()) {
     createUSMAllocators(SingleRootDevice);
   }
 
@@ -8225,11 +8196,11 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->DeviceMemAllocContexts.find(Device);
+    auto It = Context->DeviceMemAllocContexts.find(Device->ZeDevice);
     if (It == Context->DeviceMemAllocContexts.end())
       return PI_ERROR_INVALID_VALUE;
 
-    *ResultPtr = It->second->allocate(Size, Alignment);
+    *ResultPtr = It->second.allocate(Size, Alignment);
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -8303,11 +8274,11 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   try {
     auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemAllocContexts
                                       : Context->SharedMemAllocContexts);
-    auto It = Allocator.find(Device);
+    auto It = Allocator.find(Device->ZeDevice);
     if (It == Allocator.end())
       return PI_ERROR_INVALID_VALUE;
 
-    *ResultPtr = It->second->allocate(Size, Alignment);
+    *ResultPtr = It->second.allocate(Size, Alignment);
     if (DeviceReadOnly) {
       Context->SharedReadOnlyAllocs.insert(*ResultPtr);
     }
@@ -8466,16 +8437,16 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
     auto DeallocationHelper =
-        [Context, Device, Ptr, OwnZeMemHandle](
-            std::unordered_map<pi_device, std::shared_ptr<USMAllocContext>>
-                &AllocContextMap) {
+        [Context, Device, Ptr,
+         OwnZeMemHandle](std::unordered_map<ze_device_handle_t, USMAllocContext>
+                             &AllocContextMap) {
           try {
-            auto It = AllocContextMap.find(Device);
+            auto It = AllocContextMap.find(Device->ZeDevice);
             if (It == AllocContextMap.end())
               return PI_ERROR_INVALID_VALUE;
 
             // The right context is found, deallocate the pointer
-            It->second->deallocate(Ptr, OwnZeMemHandle);
+            It->second.deallocate(Ptr, OwnZeMemHandle);
           } catch (const UsmAllocationException &Ex) {
             return Ex.getError();
           }
