@@ -120,17 +120,17 @@ of statements.
 ==== Active control flow
 
 A work-item is considered to have active control flow for a given point of
-execution if it follows the sequence of statements currently being executed​.
+execution if it follows the sequence of statements currently being executed.
 
 ==== Concurrent execution
 
 Two or more work-items are considered to have concurrent execution at a given
 point if they execute together. The amount of and granularity of concurrent
-execution is implementation defined​.
+execution is implementation defined.
 
 It’s permitted for two or more work-items to have concurrent execution without
 having active control flow, when this happens the work-items without active
-control flow are said to be masked​.
+control flow are said to be masked.
 
 ==== Tangle
 
@@ -157,21 +157,21 @@ of the SYCL specification.
 
 A cluster-group is a subset of a sub-group, representing a contiguous
 collection of work-items within the sub-group resulting from an equal
-subdivision of the sub-group​.
+subdivision of the sub-group.
 
 The work-items of a cluster-group are required to be contiguous.
 
 ==== Ballot-group
 
 A ballot-group is a subset of a sub-group, representing a collection of
-work-items within the sub-group resulting from a predicate​.
+work-items within the sub-group resulting from a predicate.
 
 The work-items of a ballot-group are not required to be contiguous.
 
 ==== Tangle-group
 
 A tangle-group is a subset of a sub-group, representing the work-items of a
-tangle​.
+tangle.
 
 The work-items of a tangle-group are not required to be contiguous.
 
