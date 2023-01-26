@@ -394,9 +394,9 @@ params:
       desc: |
             [in] handle of the device to partition.
     - type: const $x_device_partition_property_t*
-      name: Properties
+      name: pProperties
       desc: |
-            [in] null-terminated array of <property, value> pairs.
+            [in] null-terminated array of <$_device_partition_t enum, value> pairs.
     - type: "uint32_t"
       name: NumDevices
       desc: |

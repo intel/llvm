@@ -3000,7 +3000,7 @@ namespace loader
     __urdlllocal ur_result_t UR_APICALL
     urDevicePartition(
         ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
-        const ur_device_partition_property_t* Properties,   ///< [in] null-terminated array of <property, value> pairs.
+        const ur_device_partition_property_t* pProperties,  ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
         uint32_t NumDevices,                            ///< [in] the number of sub-devices.
         ur_device_handle_t* phSubDevices,               ///< [out][optional][range(0, NumDevices)] array of handle of devices.
                                                         ///< If NumDevices is less than the number of sub-devices available, then
@@ -3021,7 +3021,7 @@ namespace loader
         hDevice = reinterpret_cast<ur_device_object_t*>( hDevice )->handle;
 
         // forward to device-platform
-        result = pfnPartition( hDevice, Properties, NumDevices, phSubDevices, pNumDevicesRet );
+        result = pfnPartition( hDevice, pProperties, NumDevices, phSubDevices, pNumDevicesRet );
 
         if( UR_RESULT_SUCCESS != result )
             return result;

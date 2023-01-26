@@ -3171,11 +3171,11 @@ typedef enum ur_device_partition_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == Properties`
+///         + `NULL == pProperties`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t* Properties,   ///< [in] null-terminated array of <property, value> pairs.
+    const ur_device_partition_property_t* pProperties,  ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
     uint32_t NumDevices,                            ///< [in] the number of sub-devices.
     ur_device_handle_t* phSubDevices,               ///< [out][optional][range(0, NumDevices)] array of handle of devices.
                                                     ///< If NumDevices is less than the number of sub-devices available, then
@@ -7442,7 +7442,7 @@ typedef void (UR_APICALL *ur_pfnDeviceReleaseCb_t)(
 typedef struct ur_device_partition_params_t
 {
     ur_device_handle_t* phDevice;
-    const ur_device_partition_property_t** pProperties;
+    const ur_device_partition_property_t** ppProperties;
     uint32_t* pNumDevices;
     ur_device_handle_t** pphSubDevices;
     uint32_t** ppNumDevicesRet;
