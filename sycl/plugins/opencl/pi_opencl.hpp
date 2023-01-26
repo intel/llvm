@@ -143,10 +143,10 @@ std::map<pi_queue, const pi_device> queue2dev;
 
 // This map is used to capture pi_device info during context creation and
 // retrieve it during getinfo calls.
-std::map<pi_context, std::pair<const pi_device *, size_t>> context2devlist;
+std::map<pi_context, std::vector<pi_device>> context2devlist;
 
 // This map is used to capture pi_device info during program creation and
 // retrieve it during getinfo calls.
-std::map<pi_program, std::pair<const pi_device *, size_t>> program2devlist;
+std::map<pi_program, std::vector<pi_device>> program2devlist;
 
 #endif // PI_OPENCL_HPP

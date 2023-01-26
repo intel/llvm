@@ -406,29 +406,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_TYPE,
                                  sizeof(cl_device_type), &device_type, nullptr);
     cl_bool is_gpu = (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
-
     // Partition property for non GPU backends.
     // For non-GPU backends, partition property are obtained by calling
     // clGetDeviceInfo.
     if (!is_gpu) {
       if (num_sub_devices < 2)
         return return_value(pi_device_partition_property{0});
-      cl_device_partition_property props[2] = {0, 0};
-      size_t props_ret_size = 0;
-      clGetDeviceInfo(getClDevice(device), CL_DEVICE_PARTITION_PROPERTIES,
-                      sizeof(props), &props, &props_ret_size);
-      switch (props_ret_size) {
-      case 0:
-        return return_value(pi_device_partition_property{0});
-      case 1:
-        ReturnHelper(props[0]);
-        [[fallthrough]];
-      case 2:
-        ReturnHelper(props[0], props[1]);
-        [[fallthrough]];
-      default:
-        return PI_ERROR_INVALID_VALUE;
-      }
+      return ReturnHelper(CL_DEVICE_PARTITION_EQUALLY,
+                          CL_DEVICE_PARTITION_BY_COUNTS);
     }
 
     // Partition property for GPU
@@ -764,14 +749,15 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
     // OpenCL doesn't provide API to check the status of the queue.
     return PI_ERROR_INVALID_VALUE;
   case PI_QUEUE_INFO_DEVICE: {
-    if (queue2dev.find(queue) == queue2dev.end())
-      return PI_ERROR_INVALID_VALUE;
-    pi_device dev = queue2dev[queue];
-    assert(param_value);
-    std::memcpy(param_value, &dev, sizeof(dev));
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_device);
-    return PI_SUCCESS;
+    if (queue2dev.find(queue) != queue2dev.end()) {
+      pi_device dev = queue2dev[queue];
+      if (param_value)
+        std::memcpy(param_value, &dev, sizeof(dev));
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(pi_device);
+      return PI_SUCCESS;
+    }
+    [[fallthrough]];
   }
   default:
     cl_int CLErr = clGetCommandQueueInfo(
@@ -1050,8 +1036,12 @@ pi_result piContextCreate(const pi_context_properties *properties,
   *retcontext = cast<pi_context>(
       clCreateContext(properties, cast<cl_uint>(num_devices), cl_devices.data(),
                       pfn_notify, user_data, cast<cl_int *>(&ret)));
-  if (ret == PI_SUCCESS)
-    context2devlist.insert({*retcontext, std::make_pair(devices, num_devices)});
+  if (ret == PI_SUCCESS) {
+    std::vector<pi_device> device_list_vec(num_devices);
+    for (size_t i = 0; i < num_devices; ++i)
+      device_list_vec[i] = devices[i];
+    context2devlist.insert({*retcontext, device_list_vec});
+  }
   return ret;
 }
 
@@ -1066,7 +1056,10 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   assert(piContext != nullptr);
   assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
-  context2devlist.insert({*piContext, std::make_pair(devices, num_devices)});
+  std::vector<pi_device> device_list_vec(num_devices);
+  for (size_t i = 0; i < num_devices; ++i)
+    device_list_vec[i] = devices[i];
+  context2devlist.insert({*piContext, device_list_vec});
   return PI_SUCCESS;
 }
 
@@ -1085,15 +1078,15 @@ pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
   case PI_CONTEXT_INFO_DEVICES: {
     if (context2devlist.find(context) != context2devlist.end()) {
       auto devlist = context2devlist[context];
-      const pi_device *devices = devlist.first;
-      size_t num_devices = devlist.second;
+      size_t num_devices = devlist.size();
       if (paramValueSizeRet)
         *paramValueSizeRet = num_devices * sizeof(pi_device);
-      assert(paramValue);
-      std::memcpy(paramValue, devices, num_devices * sizeof(pi_device));
+      if (paramValue)
+        std::memcpy(paramValue, devlist.data(),
+                    num_devices * sizeof(pi_device));
       return PI_SUCCESS;
     }
-    return PI_ERROR_INVALID_VALUE;
+    [[fallthrough]];
   }
   default:
     cl_int result = clGetContextInfo(
@@ -1191,9 +1184,12 @@ pi_result piProgramCreateWithBinary(
       cast<cl_context>(context), cast<cl_uint>(num_devices), cl_devices.data(),
       lengths, binaries, cast<cl_int *>(binary_status),
       cast<cl_int *>(&ret_err)));
-  if (ret_err == PI_SUCCESS)
-    program2devlist.insert(
-        {*ret_program, std::make_pair(device_list, num_devices)});
+  if (ret_err == PI_SUCCESS) {
+    std::vector<pi_device> device_list_vec(num_devices);
+    for (size_t i = 0; i < num_devices; ++i)
+      device_list_vec[i] = device_list[i];
+    program2devlist.insert({*ret_program, device_list_vec});
+  }
   return ret_err;
 }
 
@@ -1205,15 +1201,15 @@ pi_result piProgramGetInfo(pi_program program, pi_program_info paramName,
   case PI_PROGRAM_INFO_DEVICES: {
     if (program2devlist.find(program) != program2devlist.end()) {
       auto devlist = program2devlist[program];
-      const pi_device *devices = devlist.first;
-      size_t num_devices = devlist.second;
+      size_t num_devices = devlist.size();
       if (paramValueSizeRet)
         *paramValueSizeRet = num_devices * sizeof(pi_device);
-      assert(paramValue);
-      std::memcpy(paramValue, devices, num_devices * sizeof(pi_device));
+      if (paramValue)
+        std::memcpy(paramValue, devlist.data(),
+                    num_devices * sizeof(pi_device));
       return PI_SUCCESS;
     }
-    return PI_ERROR_INVALID_VALUE;
+    [[fallthrough]];
   }
   default:
     cl_int result = clGetProgramInfo(
@@ -1238,10 +1234,24 @@ pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
       cast<const cl_program *>(input_programs),
       cast<void (*)(cl_program, void *)>(pfn_notify), user_data,
       cast<cl_int *>(&ret_err)));
-  if (ret_err == PI_SUCCESS)
-    program2devlist.insert(
-        {*ret_program, std::make_pair(device_list, num_devices)});
+  if (ret_err == PI_SUCCESS) {
+    std::vector<pi_device> device_list_vec(num_devices);
+    for (size_t i = 0; i < num_devices; ++i)
+      device_list_vec[i] = device_list[i];
+    program2devlist.insert({*ret_program, device_list_vec});
+  }
   return ret_err;
+}
+
+pi_result piProgramGetBuildInfo(pi_program program, pi_device device,
+                                pi_program_build_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  cl_int result = clGetProgramBuildInfo(
+      cast<cl_program>(program), getClDevice(device),
+      cast<cl_program_build_info>(param_name), param_value_size, param_value,
+      param_value_size_ret);
+  return static_cast<pi_result>(result);
 }
 
 pi_result piKernelCreate(pi_program program, const char *kernel_name,
