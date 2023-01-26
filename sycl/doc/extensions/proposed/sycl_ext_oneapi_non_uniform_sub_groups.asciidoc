@@ -724,7 +724,7 @@ The following group functions support `ballot_group`, `cluster_group`,
 `tangle_group` and `opportunistic_group` group types:
 
 * `group_barrier`
-* `broadbast`
+* `broadcast`
 
 === Group Algorithms
 
