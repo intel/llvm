@@ -563,11 +563,13 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     return ReturnValue(Device->Platform);
   case ZER_DEVICE_INFO_VENDOR_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->vendorId});
-  case ZER_DEVICE_INFO_UUID:
+  case ZER_DEVICE_INFO_UUID: {
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    return ReturnValue(Device->ZeDeviceProperties->uuid.id);
+    const auto &UUID = Device->ZeDeviceProperties->uuid.id;
+    return ReturnValue(UUID, sizeof(UUID));
+  }
   case ZER_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(uint32_t{Device->ZeDeviceModuleProperties->flags &
                                 ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS});
