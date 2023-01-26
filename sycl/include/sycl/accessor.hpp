@@ -344,8 +344,9 @@ protected:
     }
 
     template <int CurDims = SubDims,
-              typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
-    RefType operator[](size_t Index) const {
+              typename = detail::enable_if_t<
+                  CurDims == 1 && (IsAccessReadOnly || IsAccessAnyWrite)>>
+    typename AccType::reference operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -355,13 +356,6 @@ protected:
                                  atomic<DataT, AS>>
     operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
-      return MAccessor[MIDs];
-    }
-
-    template <int CurDims = SubDims,
-              typename = detail::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
-    ConstRefType operator[](size_t Index) const {
-      MIDs[Dims - SubDims] = Index;
       return MAccessor[MIDs];
     }
   };
@@ -1213,7 +1207,7 @@ public:
   // otherwise
   using value_type = typename std::conditional<AccessMode == access_mode::read,
                                                const DataT, DataT>::type;
-  using reference = DataT &;
+  using reference = value_type &;
   using const_reference = const DataT &;
 
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
@@ -1973,30 +1967,17 @@ public:
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
-                                           !std::is_const<RefT>::value>>
-  operator RefType() const {
+            typename = detail::enable_if_t<Dims == 0 && (IsAccessAnyWrite ||
+                                                         IsAccessReadOnly)>>
+  operator reference() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
-  operator ConstRefType() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return *(getQualifiedPtr() + LinearIndex);
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
-  RefType operator[](id<Dimensions> Index) const {
-    const size_t LinearIndex = getLinearIndex(Index);
-    return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions>
-  typename detail::enable_if_t<(Dims > 0) && IsAccessReadOnly, ConstRefType>
-  operator[](id<Dimensions> Index) const {
+            typename = detail::enable_if_t<(Dims > 0) && (IsAccessAnyWrite ||
+                                                          IsAccessReadOnly)>>
+  reference operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
