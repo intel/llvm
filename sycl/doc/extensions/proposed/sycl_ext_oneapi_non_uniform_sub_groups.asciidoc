@@ -300,7 +300,7 @@ work-item is the leader of the ballot-group, and `false` for all other
 work-items in the ballot-group. The leader of the ballot-group is guaranteed to
 be the work-item for which `get_local_id()` returns 0.
 
-==== Class `cluster_group`
+=== Class `cluster_group`
 
 Some hardware supports partitioning sub-groups into smaller groups.
 This could be achieved with a `ballot_group`, but when the group size is known
