@@ -7,8 +7,7 @@ using urDevicePartitionTest = uur::urAllDevicesTest;
 TEST_F(urDevicePartitionTest, PartitionEquallySuccess) {
   for (auto device : devices) {
 
-    if (!uur::hasDevicePartitionSupport(
-            device, UR_DEVICE_PARTITION_PROPERTY_FLAG_EQUALLY)) {
+    if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
       GTEST_SKIP();
     }
 
@@ -20,14 +19,8 @@ TEST_F(urDevicePartitionTest, PartitionEquallySuccess) {
     ASSERT_NE(n_compute_units, 0);
 
     for (uint32_t i = 1; i < n_compute_units; ++i) {
-      // TODO - I don't think the API is clear here as to how we should
-      // terminate the array of property values. The spec says "null
-      // terminated", which doesn't mean much for array of structs???
-      // Additionally - if we want to use BY_COUNTS we need to supply an array
-      // of counts of Compute Units to partition. This is not really possible
-      // with the property_value struct here.
-      ur_device_partition_property_value_t properties[] = {
-          {UR_DEVICE_PARTITION_PROPERTY_FLAG_EQUALLY, i}, {}};
+      ur_device_partition_property_t properties[] = {
+          UR_DEVICE_PARTITION_EQUALLY, i, 0};
 
       // Get the number of devices that will be created
       uint32_t n_devices;
