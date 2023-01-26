@@ -199,7 +199,7 @@ of two; the first containing all work-items where the predicate is true, and the
 second containing all work-items where the predicate is false.
 
 The `ballot_group` class represents a ballot-group, the work-items of sub-group
-for which trhe predicate was either true or false.
+for which the predicate was either true or false.
 
 [source, c++]
 ----
