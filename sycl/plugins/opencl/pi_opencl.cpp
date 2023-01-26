@@ -303,14 +303,17 @@ static std::vector<cl_device_id> getClDevices(pi_uint32 num_devices,
   return cl_devices;
 }
 
-// Return true if the device is a GPU device
-static bool isGPU(pi_device device) {
-  // Identify device type.
-  cl_device_type device_type;
-  cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_TYPE,
-                               sizeof(cl_device_type), &device_type, nullptr);
-  return (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
+// Return true if the device is a PVC device
+static bool isPVC(pi_device device) {
+  // Identify device name.
+  const size_t MAXDEVICENAMELEN = 64;
+  std::string device_name(MAXDEVICENAMELEN, ' ');
+  cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_NAME,
+                               MAXDEVICENAMELEN, &device_name[0], nullptr);
+  return (res == CL_SUCCESS) &&
+         (device_name.find("0x0bd5") != std::string::npos);
 }
+
 // End of helper functions
 
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
@@ -415,10 +418,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return return_value(partition_properties);
     };
 
-    // Partition property for non GPU backends.
+    // Partition property for non PVC backends.
     // For non-GPU backends, partition property are obtained by calling
     // clGetDeviceInfo.
-    if (!isGPU(device)) {
+    if (!isPVC(device)) {
       if (num_sub_devices < 2)
         return return_value(pi_device_partition_property{0});
       cl_int result =
@@ -467,7 +470,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (!isGPU(device)) {
+    if (!isPVC(device)) {
       cl_int result =
           clGetDeviceInfo(getClDevice(device), cast<cl_device_info>(paramName),
                           paramValueSize, paramValue, paramValueSizeRet);
