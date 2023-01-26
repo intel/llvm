@@ -23,6 +23,7 @@ using namespace mlir;
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTSYCLTOLLVM
 #include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DEF_CONVERTSYCLTOLLVM
 } // namespace mlir
 
 namespace {

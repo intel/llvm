@@ -33,6 +33,7 @@
 namespace mlir {
 #define GEN_PASS_DEF_SYCLMETHODTOSYCLCALL
 #include "mlir/Dialect/SYCL/Transforms/Passes.h.inc"
+#undef GEN_PASS_DEF_SYCLMETHODTOSYCLCALL
 } // namespace mlir
 
 using namespace mlir;

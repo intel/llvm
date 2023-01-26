@@ -22,6 +22,7 @@ template <typename T> class OperationPass;
 
 #define GEN_PASS_DECL_CONVERTSYCLTOLLVM
 #include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DECL_CONVERTSYCLTOLLVM
 
 namespace sycl {
 
