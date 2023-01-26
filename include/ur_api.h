@@ -1466,14 +1466,58 @@ urEnqueueDeviceGlobalVariableRead(
 #pragma region event
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Command type
+typedef enum ur_command_t
+{
+    UR_COMMAND_KERNEL_LAUNCH = 0,                   ///< Event created by ::urEnqueueKernelLaunch
+    UR_COMMAND_EVENTS_WAIT = 1,                     ///< Event created by ::urEnqueueEventsWait
+    UR_COMMAND_EVENTS_WAIT_WITH_BARRIER = 2,        ///< Event created by ::urEnqueueEventsWaitWithBarrier
+    UR_COMMAND_MEM_BUFFER_READ = 3,                 ///< Event created by ::urEnqueueMemBufferRead
+    UR_COMMAND_MEM_BUFFER_WRITE = 4,                ///< Event created by ::urEnqueueMemBufferWrite
+    UR_COMMAND_MEM_BUFFER_READ_RECT = 5,            ///< Event created by ::urEnqueueMemBufferReadRect
+    UR_COMMAND_MEM_BUFFER_WRITE_RECT = 6,           ///< Event created by ::urEnqueueMemBufferWriteRect
+    UR_COMMAND_MEM_BUFFER_COPY = 7,                 ///< Event created by ::urEnqueueMemBufferCopy
+    UR_COMMAND_MEM_BUFFER_COPY_RECT = 8,            ///< Event created by ::urEnqueueMemBufferCopyRect
+    UR_COMMAND_MEM_BUFFER_FILL = 9,                 ///< Event created by ::urEnqueueMemBufferFill
+    UR_COMMAND_MEM_IMAGE_READ = 10,                 ///< Event created by ::urEnqueueMemImageRead
+    UR_COMMAND_MEM_IMAGE_WRITE = 11,                ///< Event created by ::urEnqueueMemImageWrite
+    UR_COMMAND_MEM_IMAGE_COPY = 12,                 ///< Event created by ::urEnqueueMemImageCopy
+    UR_COMMAND_MEM_BUFFER_MAP = 14,                 ///< Event created by ::urEnqueueMemBufferMap
+    UR_COMMAND_MEM_UNMAP = 16,                      ///< Event created by ::urEnqueueMemUnmap
+    UR_COMMAND_USM_MEMSET = 17,                     ///< Event created by ::urEnqueueUSMMemset
+    UR_COMMAND_USM_MEMCPY = 18,                     ///< Event created by ::urEnqueueUSMMemcpy
+    UR_COMMAND_USM_PREFETCH = 19,                   ///< Event created by ::urEnqueueUSMPrefetch
+    UR_COMMAND_USM_MEM_ADVICE = 20,                 ///< Event created by ::urEnqueueUSMMemAdvice
+    UR_COMMAND_USM_FILL_2D = 21,                    ///< Event created by ::urEnqueueUSMFill2D
+    UR_COMMAND_USM_MEMSET_2D = 22,                  ///< Event created by ::urEnqueueUSMMemset2D
+    UR_COMMAND_USM_MEMCPY_2D = 23,                  ///< Event created by ::urEnqueueUSMMemcpy2D
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 24,   ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 25,    ///< Event created by ::urEnqueueDeviceGlobalVariableRead
+    UR_COMMAND_FORCE_UINT32 = 0x7fffffff
+
+} ur_command_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Event Status
+typedef enum ur_event_status_t
+{
+    UR_EVENT_STATUS_COMPLETE = 0,                   ///< Command is complete
+    UR_EVENT_STATUS_RUNNING = 1,                    ///< Command is running
+    UR_EVENT_STATUS_SUBMITTED = 2,                  ///< Command is submitted
+    UR_EVENT_STATUS_QUEUED = 3,                     ///< Command is queued
+    UR_EVENT_STATUS_FORCE_UINT32 = 0x7fffffff
+
+} ur_event_status_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Event query information type
 typedef enum ur_event_info_t
 {
-    UR_EVENT_INFO_COMMAND_QUEUE = 0,                ///< Command queue information of an event object
-    UR_EVENT_INFO_CONTEXT = 1,                      ///< Context information of an event object
-    UR_EVENT_INFO_COMMAND_TYPE = 2,                 ///< Command type information of an event object
-    UR_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3,     ///< Command execution status of an event object
-    UR_EVENT_INFO_REFERENCE_COUNT = 4,              ///< Reference count of an event object
+    UR_EVENT_INFO_COMMAND_QUEUE = 0,                ///< [::ur_queue_handle_t] Command queue information of an event object
+    UR_EVENT_INFO_CONTEXT = 1,                      ///< [::ur_context_handle_t] Context information of an event object
+    UR_EVENT_INFO_COMMAND_TYPE = 2,                 ///< [::ur_command_t] Command type information of an event object
+    UR_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3,     ///< [::ur_event_status_t] Command execution status of an event object
+    UR_EVENT_INFO_REFERENCE_COUNT = 4,              ///< [uint32_t] Reference count of an event object
     UR_EVENT_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_event_info_t;

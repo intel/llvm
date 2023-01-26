@@ -297,13 +297,59 @@ class ur_mem_advice_t(c_int):
 
 
 ###############################################################################
+## @brief Command type
+class ur_command_v(IntEnum):
+    KERNEL_LAUNCH = 0                               ## Event created by ::urEnqueueKernelLaunch
+    EVENTS_WAIT = 1                                 ## Event created by ::urEnqueueEventsWait
+    EVENTS_WAIT_WITH_BARRIER = 2                    ## Event created by ::urEnqueueEventsWaitWithBarrier
+    MEM_BUFFER_READ = 3                             ## Event created by ::urEnqueueMemBufferRead
+    MEM_BUFFER_WRITE = 4                            ## Event created by ::urEnqueueMemBufferWrite
+    MEM_BUFFER_READ_RECT = 5                        ## Event created by ::urEnqueueMemBufferReadRect
+    MEM_BUFFER_WRITE_RECT = 6                       ## Event created by ::urEnqueueMemBufferWriteRect
+    MEM_BUFFER_COPY = 7                             ## Event created by ::urEnqueueMemBufferCopy
+    MEM_BUFFER_COPY_RECT = 8                        ## Event created by ::urEnqueueMemBufferCopyRect
+    MEM_BUFFER_FILL = 9                             ## Event created by ::urEnqueueMemBufferFill
+    MEM_IMAGE_READ = 10                             ## Event created by ::urEnqueueMemImageRead
+    MEM_IMAGE_WRITE = 11                            ## Event created by ::urEnqueueMemImageWrite
+    MEM_IMAGE_COPY = 12                             ## Event created by ::urEnqueueMemImageCopy
+    MEM_BUFFER_MAP = 14                             ## Event created by ::urEnqueueMemBufferMap
+    MEM_UNMAP = 16                                  ## Event created by ::urEnqueueMemUnmap
+    USM_MEMSET = 17                                 ## Event created by ::urEnqueueUSMMemset
+    USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
+    USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
+    USM_MEM_ADVICE = 20                             ## Event created by ::urEnqueueUSMMemAdvice
+    USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
+    USM_MEMSET_2D = 22                              ## Event created by ::urEnqueueUSMMemset2D
+    USM_MEMCPY_2D = 23                              ## Event created by ::urEnqueueUSMMemcpy2D
+    DEVICE_GLOBAL_VARIABLE_WRITE = 24               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
+    DEVICE_GLOBAL_VARIABLE_READ = 25                ## Event created by ::urEnqueueDeviceGlobalVariableRead
+
+class ur_command_t(c_int):
+    def __str__(self):
+        return str(ur_command_v(self.value))
+
+
+###############################################################################
+## @brief Event Status
+class ur_event_status_v(IntEnum):
+    COMPLETE = 0                                    ## Command is complete
+    RUNNING = 1                                     ## Command is running
+    SUBMITTED = 2                                   ## Command is submitted
+    QUEUED = 3                                      ## Command is queued
+
+class ur_event_status_t(c_int):
+    def __str__(self):
+        return str(ur_event_status_v(self.value))
+
+
+###############################################################################
 ## @brief Event query information type
 class ur_event_info_v(IntEnum):
-    COMMAND_QUEUE = 0                               ## Command queue information of an event object
-    CONTEXT = 1                                     ## Context information of an event object
-    COMMAND_TYPE = 2                                ## Command type information of an event object
-    COMMAND_EXECUTION_STATUS = 3                    ## Command execution status of an event object
-    REFERENCE_COUNT = 4                             ## Reference count of an event object
+    COMMAND_QUEUE = 0                               ## [::ur_queue_handle_t] Command queue information of an event object
+    CONTEXT = 1                                     ## [::ur_context_handle_t] Context information of an event object
+    COMMAND_TYPE = 2                                ## [::ur_command_t] Command type information of an event object
+    COMMAND_EXECUTION_STATUS = 3                    ## [::ur_event_status_t] Command execution status of an event object
+    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of an event object
 
 class ur_event_info_t(c_int):
     def __str__(self):
