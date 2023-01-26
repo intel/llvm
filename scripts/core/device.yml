@@ -230,7 +230,7 @@ etors:
     - name: PARENT_DEVICE
       desc: "$x_device_handle_t: return parent device handle"
     - name: PARTITION_PROPERTIES
-      desc: "uint32_t: return a bit-field of partition properties $x_device_partition_property_flags_t"
+      desc: "$x_device_partition_property_t[]: Returns the list of partition types supported by the device"
     - name: PARTITION_MAX_SUB_DEVICES
       desc: "uint32_t: maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
@@ -350,32 +350,30 @@ params:
       desc: |
             [in] handle of the device to release.
 --- #--------------------------------------------------------------------------
+type: typedef
+desc: "Device partition property type"
+name: $x_device_partition_property_t
+value: intptr_t
+--- #--------------------------------------------------------------------------
 type: enum
-desc: "Device partition property"
-class: $xDevice
-name: $x_device_partition_property_flags_t
+desc: "Partition Properties"
+name: $x_device_partition_t
 etors:
     - name: EQUALLY
-      desc: "Support equal partition"
-      value: "$X_BIT(0)"
-    - name: BY_COUNTS      
-      desc: "Support partition by count"
-      value: "$X_BIT(1)"
+      desc: "Partition Equally"
+      value: "0x1086"
+    - name: BY_COUNTS
+      desc: "Partition by counts"
+      value: "0x1087"
+    - name: BY_COUNTS_LIST_END
+      desc: "End of by counts list"
+      value: "0x0"
     - name: BY_AFFINITY_DOMAIN
-      desc: "Support partition by affinity domain"
-      value: "$X_BIT(2)"
---- #--------------------------------------------------------------------------
-type: struct
-desc: "Partition property value"
-class: $xDevice
-name: $x_device_partition_property_value_t
-members:
-    - type: $x_device_partition_property_flags_t
-      name: property
-      desc: "[in] device partition property flags"
-    - type: uint32_t
-      name: value
-      desc: "[in] partition value"
+      desc: "Partition by affinity domain"
+      value: "0x1088"
+    - name: BY_CSLICE
+      desc: "Partition by c-slice"
+      value: "0x1089"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Partition the device into sub-devices"
@@ -395,10 +393,10 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to partition.
-    - type: "$x_device_partition_property_value_t*"
+    - type: const $x_device_partition_property_t*
       name: Properties
       desc: |
-            [in] null-terminated array of <property, value> pair of the requested partitioning.
+            [in] null-terminated array of <property, value> pairs.
     - type: "uint32_t"
       name: NumDevices
       desc: |

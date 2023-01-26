@@ -44,14 +44,31 @@ GetDevices(ur_platform_handle_t platform) {
 
 inline bool
 hasDevicePartitionSupport(ur_device_handle_t device,
-                          const ur_device_partition_property_flags_t property) {
-  ur_device_partition_property_flags_t flags = 0;
-  auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES,
-                                sizeof(flags), &flags, nullptr);
+                          const ur_device_partition_property_t property) {
+  size_t size = 0;
+  auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, 0,
+                                nullptr, &size);
   if (result != UR_RESULT_SUCCESS) {
     return false;
   }
-  return (flags & property);
+  if (size == 0) {
+    return false;
+  }
+  std::vector<ur_device_partition_property_t> properties(
+      size / sizeof(ur_device_partition_property_t));
+  result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, size,
+                           properties.data(), nullptr);
+  if (result != UR_RESULT_SUCCESS) {
+    return false;
+  }
+
+  for (auto prop : properties) {
+    if (prop == property) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 struct urAllDevicesTest : urPlatformTest {
