@@ -666,7 +666,8 @@ The `is_group` is `std::true_type` if `T` is either `ballot_group`,
 
 === Free functions
 
-Free functions are introduced for creating the new group types from a sub-group.
+Several free functions are introduced for creating the new group types from a
+sub-group.
 
 [source, c++]
 ----
@@ -686,7 +687,8 @@ tangle_group get_tangle_group(Group group) const; // (3)
 template <typename Group>
 opportunistic_group get_opportunistic_group(Group group) const; // (4)
 
-}  // namespace ext::oneapi
+} // namespace ext::oneapi
+
 ----
 
 1. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
@@ -717,6 +719,23 @@ opportunistic_group get_opportunistic_group(Group group) const; // (4)
 NOTE: It is expected that in the future these functions will be expanded to
 allow the creation of these group types from other kinds of groups, however, for
 now only sub-groups are supported.
+
+An additional free-function is available in the `this_kernel` namespace to
+provide direct access to an `opportunistic_group` created implicitly from
+a `sub_group`.
+
+[source, c++]
+----
+namespace ext::oneapi::this_kernel {
+
+opportunistic_group get_opportunistic_group(); // (5)
+
+} // namespace ext::oneapi::this_kernel
+----
+
+5. _Returns_: An `opportunistic_group` consisting of all work-items in the
+   same sub-group as the calling work-item which are also part of the same
+   concurrent tangle.
 
 === Group Functions
 
