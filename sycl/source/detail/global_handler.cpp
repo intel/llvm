@@ -97,8 +97,9 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
     auto Event =
         xptiMakeEvent("SYCL RT exception", &Payload, xpti::trace_diagnostics,
                       xpti_at::active, &EventInstanceNo);
-    xptiNotifySubscribers(StreamID, xpti::trace_diagnostics, GSYCLCallEvent,
-                          Event, Uid, static_cast<const void *>(Message));
+    xptiNotifySubscribers(StreamID, xpti::trace_diagnostics,
+                          static_cast<xpti_td *>(GSYCLCallEvent), Event, Uid,
+                          static_cast<const void *>(Message));
   }
 
 #endif

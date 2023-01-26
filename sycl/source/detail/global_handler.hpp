@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <detail/xpti_registry.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
@@ -88,7 +87,7 @@ public:
 
 private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  xpti_td *GSYCLCallEvent = nullptr;
+  void *GSYCLCallEvent = nullptr;
 #endif
 
   friend void shutdown();
