@@ -151,7 +151,7 @@ executing or which instructions other work-items are executing.
 Portable SYCL programs must assume independent forward progress may be supported
 by the hardware, since this ability is implementation defined as specified in
 link:https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_forward_progress[section 3.8.3.4]
-of the specification.
+of the SYCL specification.
 
 ==== Cluster-group
 
