@@ -2229,7 +2229,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
       ReqdWGSizeVec.push_back(SingleDimSize);
       Dims++;
     }
-    if (static_cast<long unsigned int>(ReqdWGSizeAllDimsTotal) >
+    if (static_cast<size_t>(ReqdWGSizeAllDimsTotal) >
         Dev.get_info<info::device::max_work_group_size>())
       return false;
     // Creating std::variant to call max_work_item_sizes one time to avoid
@@ -2244,21 +2244,22 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     else // (Dims == 3)
       MaxWorkItemSizesVariant =
           Dev.get_info<info::device::max_work_item_sizes<3>>();
-    std::vector<int> MaxWorkItemSizes;
-    // Extracting value from std::variant to avoid dealing with type-safety
-    // issues after that
     for (int i = 0; i < Dims; i++) {
-      if (Dims == 1)
-        MaxWorkItemSizes.push_back(std::get<id<1>>(MaxWorkItemSizesVariant)[i]);
-      else if (Dims == 2)
-        MaxWorkItemSizes.push_back(std::get<id<2>>(MaxWorkItemSizesVariant)[i]);
-      else // (Dims == 3)
-        MaxWorkItemSizes.push_back(std::get<id<3>>(MaxWorkItemSizesVariant)[i]);
-    }
-    for (int i = 0; i < Dims; i++) {
-      // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
-      if (ReqdWGSizeVec[i] > MaxWorkItemSizes[Dims - i - 1])
-        return false;
+      // Extracting value from std::variant to avoid dealing with type-safety
+      // issues after that
+      if (Dims == 1) {
+        // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else if (Dims == 2) {
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else // (Dims == 3)
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
     }
   }
   return true;
