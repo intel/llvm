@@ -11,20 +11,94 @@ desc: "Intel $OneApi Level-Zero Runtime APIs"
 ordinal: "0"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Command type"
+class: $xEvent
+name: $x_command_t
+etors:
+    - name: KERNEL_LAUNCH
+      desc: Event created by $xEnqueueKernelLaunch
+    - name: EVENTS_WAIT
+      desc: Event created by $xEnqueueEventsWait
+    - name: EVENTS_WAIT_WITH_BARRIER
+      desc: Event created by $xEnqueueEventsWaitWithBarrier
+    - name: MEM_BUFFER_READ
+      desc: Event created by $xEnqueueMemBufferRead
+    - name: MEM_BUFFER_WRITE
+      desc: Event created by $xEnqueueMemBufferWrite
+    - name: MEM_BUFFER_READ_RECT
+      desc: Event created by $xEnqueueMemBufferReadRect
+    - name: MEM_BUFFER_WRITE_RECT
+      desc: Event created by $xEnqueueMemBufferWriteRect
+    - name: MEM_BUFFER_COPY
+      desc: Event created by $xEnqueueMemBufferCopy
+    - name: MEM_BUFFER_COPY_RECT
+      desc: Event created by $xEnqueueMemBufferCopyRect
+    - name: MEM_BUFFER_FILL
+      desc: Event created by $xEnqueueMemBufferFill
+    - name: MEM_IMAGE_READ
+      desc: Event created by $xEnqueueMemImageRead
+    - name: MEM_IMAGE_WRITE
+      desc: Event created by $xEnqueueMemImageWrite
+    - name: MEM_IMAGE_COPY
+      desc: Event created by $xEnqueueMemImageCopy
+    - name: MEM_IMAGE_FILL
+      desc: Event created by $xEnqueueMemImageFill
+      version: "9999.0" # See #50
+    - name: MEM_BUFFER_MAP
+      desc: Event created by $xEnqueueMemBufferMap
+    - name: MEM_IMAGE_MAP
+      desc: Event created by $xEnqueueMemImageMap
+      version: "9999.0" # See #50
+    - name: MEM_UNMAP
+      desc: Event created by $xEnqueueMemUnmap
+    - name: USM_MEMSET
+      desc: Event created by $xEnqueueUSMMemset
+    - name: USM_MEMCPY
+      desc: Event created by $xEnqueueUSMMemcpy
+    - name: USM_PREFETCH
+      desc: Event created by $xEnqueueUSMPrefetch
+    - name: USM_MEM_ADVICE
+      desc: Event created by $xEnqueueUSMMemAdvice
+    - name: USM_FILL_2D
+      desc: Event created by $xEnqueueUSMFill2D
+    - name: USM_MEMSET_2D
+      desc: Event created by $xEnqueueUSMMemset2D
+    - name: USM_MEMCPY_2D
+      desc: Event created by $xEnqueueUSMMemcpy2D
+    - name: DEVICE_GLOBAL_VARIABLE_WRITE
+      desc: Event created by $xEnqueueDeviceGlobalVariableWrite
+    - name: DEVICE_GLOBAL_VARIABLE_READ
+      desc: Event created by $xEnqueueDeviceGlobalVariableRead
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Event Status"
+class: $xEvent
+name: $x_event_status_t
+etors:
+    - name: COMPLETE
+      desc: Command is complete
+    - name: RUNNING
+      desc: Command is running
+    - name: SUBMITTED
+      desc: Command is submitted
+    - name: QUEUED
+      desc: Command is queued
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Event query information type"
 class: $xEvent
 name: $x_event_info_t
 etors:
     - name: COMMAND_QUEUE
-      desc: "Command queue information of an event object"
+      desc: "[$x_queue_handle_t] Command queue information of an event object"
     - name: CONTEXT
-      desc: "Context information of an event object"
+      desc: "[$x_context_handle_t] Context information of an event object"
     - name: COMMAND_TYPE
-      desc: "Command type information of an event object"
+      desc: "[$x_command_t] Command type information of an event object"
     - name: COMMAND_EXECUTION_STATUS
-      desc: "Command execution status of an event object"
+      desc: "[$x_event_status_t] Command execution status of an event object"
     - name: REFERENCE_COUNT
-      desc: "Reference count of an event object"
+      desc: "[uint32_t] Reference count of an event object"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Profiling query information type"
