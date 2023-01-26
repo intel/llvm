@@ -21,7 +21,7 @@
 using namespace sycl;
 
 template <typename GoldFnTy>
-bool verify(int testcase, int range_length, int *ptr, GoldFnTy get_gold) {
+bool verify(int testcase, int range_length, const int *ptr, GoldFnTy get_gold) {
   int err_cnt = 0;
 
   for (int i = 0; i < range_length; i++) {

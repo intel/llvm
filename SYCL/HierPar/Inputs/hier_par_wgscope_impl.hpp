@@ -157,7 +157,7 @@ static bool testWgScope(queue &Q) {
 }
 
 template <typename GoldFnTy>
-bool verify(int testcase, int RangeLength, int *Ptr, GoldFnTy get_gold) {
+bool verify(int testcase, int RangeLength, const int *Ptr, GoldFnTy get_gold) {
   int ErrCnt = 0;
 
   for (int I = 0; I < RangeLength; I++) {
