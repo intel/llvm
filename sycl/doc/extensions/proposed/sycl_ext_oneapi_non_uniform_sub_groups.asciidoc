@@ -681,28 +681,28 @@ opportunistic_group get_opportunistic_group(Group group) const; // (4)
 
 ----
 
-1. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
+1. _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
    std::is_same_v<Group, sycl::sub_group>` is true.
-   Returns: A `ballot_group` consisting of the work-items in
+   _Returns_: A `ballot_group` consisting of the work-items in
    `group` for which `predicate` is true if the precidate is true for the
    executing work-item, otherwise consisting of the work-items in `group` for
    which `predicate` is false.
    This will cause synchronization of the source_group.
-2. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
+2. _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
    std::is_same_v<Group, sycl::sub_group>` is true.
-   Returns: A `cluster_group<ClusterSize>` consisting of the work-items in
+   _Returns_: A `cluster_group<ClusterSize>` consisting of the work-items in
    `group` that are in the same cluster as the executing work-item.
    This can be called in divergent control flow since no synchronization is
    needed.
-3. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
+3. _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
    std::is_same_v<Group, sycl::sub_group>` is true.
-   Returns: A `tangle_group` consisting of the work-items in `group` which
+   _Returns_: A `tangle_group` consisting of the work-items in `group` which
    are part of the same tangle. This function must be called in convergent
    control flow as synchronization may be required to establish the full
    tangle-group.
-4. Constraints: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
+4. _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
    std::is_same_v<Group, sycl::sub_group>` is true.
-   Returns: A `opportunistic_group` consisting of the work-items in
+   _Returns_: A `opportunistic_group` consisting of the work-items in
    `group` which are part of the same concurrent tangle. This can be called in
    divergent control flow since no synchronization is required.
 
