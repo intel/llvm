@@ -207,8 +207,7 @@ The following group algorithms support `ballot_group`, `cluster_group`,
 * `shift_group_right`
 * `permute_group_by_xor`
 * `select_from_group`
-* `joint_reduce`
-* `reduce_over_group`
+* `joint_reduce` and `reduce_over_group`
 * `joint_exclusive_scan` and `exclusive_scan_over_group`
 * `joint_inclusive_scan` and `inclusive_scan_over_group`
 
