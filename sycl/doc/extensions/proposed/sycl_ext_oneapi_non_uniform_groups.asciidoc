@@ -767,7 +767,7 @@ Opportunistic groups are created by calls to the `get_opportunistic_group()`
 free-function. Each call to `get_opportunistic_group()` returns a different
 group. There are no guarantees that a group returned by
 `get_opportunistic_group()` will contain all work-items executing the same
-control flow, nor the the same set of work-items as the group returned by any
+control flow, nor the same set of work-items as the group returned by any
 previous call to `get_opportunistic_group()`.
 
 NOTE: Creating an opportunistic group does not require synchronization because
