@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_non_uniform_sub_groups
+= sycl_ext_oneapi_non_uniform_groups
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -58,27 +58,24 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-To fully exploit the available resources, modern hardware architectures allow
-for further sub-divisions of sub-groups. Managing synchronization in divergent
-control-flow can become awkward, especially when programming library code.
-This proposal introduces new classes to represent sub-divisions of SYCL
-sub-groups, allowing for easier synchronization and cooperation. These new
-classes can be used as function arguments to convey exactly what group the
-function is expecting, simplifying the interface and greatly reducing the amount
-of delicate wording needed in function documentation. The group functions and
-algorithms will also be updated to simplify use of these groups.
+Many modern hardware architectures support flexible sub-divisions of
+work-groups and sub-groups to support fine-grained work scheduling. A common
+use-case for such flexibility is communication and synchronization between
+work-items in divergent control flow.
 
-This extension introduces additions to the SYCL execution model which allows for
-non-uniform sub-group types which can be created from sub-groups in order to
-support various use cases of divergent control flow and forward progress
-guarantees.
+This proposal introduces new classes to represent sub-divisions of SYCL's
+built-in group types, traits for detecting these classes, and free functions
+for creating new instances of these classes.
 
-The extension introduces new classes for these group types, traits for detecting
-them and free functions for creating them.
+These new classes can be used as arguments to group functions, group algorithms,
+and custom functions to convey exactly which work-items an operation is expecting,
+simplifying interfaces and greatly reducing the amount of delicate wording
+needed in function documentation.
 
-NOTE: It is expected that in the future these functions will be expanded to
-allow the creation of these group types from other kinds of groups, however, for
-now only sub-groups are supported.
+NOTE: The first version of this extension only supports partitioning of
+sub-groups. It is expected that in the future, these functions will be expanded
+to also allow partitioning of root-groups, work-groups and user-constructed
+groups.
 
 
 == Specification
@@ -271,14 +268,14 @@ _Returns_: A `ballot_group` consisting of the work-items in `group` for which
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename ParentGroup>
 class ballot_group {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
-  static constexpr sycl::memory_scope fence_scope =
-    sycl::memory_scope::sub_group;
+  static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
   
   id_type get_group_id() const;
 
@@ -301,6 +298,10 @@ public:
 
 }
 ----
+
+NOTE: `ballot_group` is templated on a `ParentGroup` because it is expected
+that it will eventually be possible to construct a ballot-group from more
+than only sub-groups.
 
 [source,c++]
 ----
@@ -448,15 +449,14 @@ _Returns_: A `cluster_group<ClusterSize>` consisting of all work-items in
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <std::size_t ClusterSize>
+template <std::size_t ClusterSize, typename ParentGroup>
 class cluster_group {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
-  static constexpr sycl::memory_scope fence_scope =
-    sycl::memory_scope::sub_group;
+  static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
     
   id_type get_group_id() const;
 
@@ -479,6 +479,10 @@ public:
 
 }
 ----
+
+NOTE: `cluster_group` is templated on a `ParentGroup` because it is expected
+that it will eventually be possible to construct a ballot-group from more
+than only sub-groups.
 
 [source,c++]
 ----
@@ -1132,5 +1136,4 @@ sum = sycl::reduce_over_group(sg, x, sycl::plus<>());
 
 == Issues
 
-* Wording needs to be introduced to describe when particular non-uniform
-sub-groups can be created from other non-uniform sub-groups.
+None.
