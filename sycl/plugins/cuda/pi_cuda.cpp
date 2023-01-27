@@ -1067,6 +1067,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    // 2D USM memcpy is supported.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM operations currently not supported.
@@ -1949,10 +1952,12 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     CUresult current_ctx_device_ret = cuCtxGetDevice(&current_ctx_device);
     if (current_ctx_device_ret != CUDA_ERROR_INVALID_CONTEXT)
       PI_CHECK_ERROR(current_ctx_device_ret);
-    bool need_primary_ctx = current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
-                            current_ctx_device != device->get();
+    bool need_primary_ctx =
+        current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
+        current_ctx_device != device->get();
     if (need_primary_ctx) {
-      // Use the primary context for the device if no context with the device is set.
+      // Use the primary context for the device if no context with the device is
+      // set.
       CUcontext primary_context;
       PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&primary_context, device->get()));
       PI_CHECK_ERROR(cuCtxSetCurrent(primary_context));
@@ -5383,14 +5388,91 @@ pi_result cuda_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
   return {};
 }
 
-// TODO: Implement this. Remember to return true for
-//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
-pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
-                                       const void *, size_t, size_t, size_t,
-                                       pi_uint32, const pi_event *,
-                                       pi_event *) {
-  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
-  return {};
+/// 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
+                                       void *dst_ptr, size_t dst_pitch,
+                                       const void *src_ptr, size_t src_pitch,
+                                       size_t width, size_t height,
+                                       pi_uint32 num_events_in_wait_list,
+                                       const pi_event *event_wait_list,
+                                       pi_event *event) {
+
+  assert(queue != nullptr);
+
+  pi_result result = PI_SUCCESS;
+
+  try {
+    ScopedContext active(queue->get_context());
+    CUstream cuStream = queue->get_next_transfer_stream();
+    result = enqueueEventsWait(queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
+    if (event) {
+      (*event) = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT,
+                                        queue, cuStream);
+      (*event)->start();
+    }
+
+    // Determine the direction of Copy using cuPointerGetAttributes
+    // for both the src_ptr and dst_ptr
+    // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
+    CUpointer_attribute attributes = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+
+    CUmemorytype src_type = static_cast<CUmemorytype>(0);
+    void *src_attribute_values[] = {(void *)(&src_type)};
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        1, &attributes, src_attribute_values, (CUdeviceptr)src_ptr));
+    assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
+
+    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
+    void *dst_attribute_values[] = {(void *)(&dst_type)};
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        1, &attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
+    assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
+
+    CUDA_MEMCPY2D cpyDesc = {0};
+
+    cpyDesc.srcMemoryType = src_type;
+    cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
+                            ? reinterpret_cast<CUdeviceptr>(src_ptr)
+                            : 0;
+    cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
+    cpyDesc.srcPitch = src_pitch;
+
+    cpyDesc.dstMemoryType = dst_type;
+    cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
+                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
+                            : 0;
+    cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
+    cpyDesc.dstPitch = dst_pitch;
+
+    cpyDesc.WidthInBytes = width;
+    cpyDesc.Height = height;
+
+    result = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
+
+    if (event) {
+      (*event)->record();
+    }
+    if (blocking) {
+      result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+  return result;
 }
 
 /// API to query information about USM allocated pointers

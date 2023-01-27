@@ -166,7 +166,7 @@ template<class T>
 #include <__functional/invoke.h>
 #include <__functional/unary_function.h>
 #include <__memory/construct_at.h>
-#include <__tuple/sfinae_helpers.h>
+#include <__tuple_dir/sfinae_helpers.h>
 #include <__utility/forward.h>
 #include <__utility/in_place.h>
 #include <__utility/move.h>
@@ -1573,10 +1573,6 @@ struct _LIBCPP_TEMPLATE_VIS hash<
 _LIBCPP_END_NAMESPACE_STD
 
 #endif // _LIBCPP_STD_VER > 14
-
-#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
-#  include <chrono>
-#endif
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
 #  include <atomic>

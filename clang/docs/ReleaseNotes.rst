@@ -199,6 +199,8 @@ Major New Features
 
 Bug Fixes
 ---------
+- ``stdatomic.h`` will use the internal declarations when targeting pre-C++-23
+  on Windows platforms as the MSVC support requires newer C++ standard.
 - Correct ``_Static_assert`` to accept the same set of extended integer
   constant expressions as is accpted in other contexts that accept them.
   This fixes `Issue 57687 <https://github.com/llvm/llvm-project/issues/57687>`_.
@@ -321,6 +323,12 @@ Bug Fixes
   `Issue 59100 <https://github.com/llvm/llvm-project/issues/59100>`_
 - Fix issue using __attribute__((format)) on non-variadic functions that expect
   more than one formatted argument.
+- Fix bug where constant evaluation treated a pointer to member that points to
+  a weak member as never being null. Such comparisons are now treated as
+  non-constant.
+- Fix sanity check when value initializing an empty union so that it takes into
+  account anonymous structs which is a GNU extension. This fixes
+  `Issue 58800 <https://github.com/llvm/llvm-project/issues/58800>`_
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -436,6 +444,11 @@ Non-comprehensive list of changes in this release
 - Unicode support has been updated to support Unicode 15.0.
   New unicode codepoints are supported as appropriate in diagnostics,
   C and C++ identifiers, and escape sequences.
+- In identifiers, Clang allows a restricted set of additional mathematical symbols
+  as an extension. These symbols correspond to a proposed Unicode
+  `Mathematical notation profile for default identifiers
+  <https://www.unicode.org/L2/L2022/22230-math-profile.pdf>`_.
+  This resolves `Issue 54732 <https://github.com/llvm/llvm-project/issues/54732>`_.
 - Clang now supports loading multiple configuration files. The files from
   default configuration paths are loaded first, unless ``--no-default-config``
   option is used. All files explicitly specified using ``--config=`` option
@@ -542,6 +555,11 @@ Attribute Changes in Clang
   based on the final date specified by the C2x committee draft. We previously
   used ``201904L`` (the date the proposal was seen by the committee) by mistake.
   There were no other changes to the attribute behavior.
+
+- Introduced a new record declaration attribute ``__attribute__((enforce_read_only_placement))``
+  to support analysis of instances of a given type focused on read-only program
+  memory placement. It emits a warning if something in the code provably prevents
+  an instance from a read-only memory placement.
 
 Windows Support
 ---------------
@@ -694,6 +712,10 @@ C++20 Feature Support
   (useful specially for constrained members). Fixes `GH50886 <https://github.com/llvm/llvm-project/issues/50886>`_.
 - Implemented CWG2635 as a Defect Report, which prohibits structured bindings from being constrained.
 
+- Implemented `P0960R3: <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p0960r3.html>`_
+  and `P1975R0: <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1975r0.html>`_,
+  which allows parenthesized aggregate-initialization.
+
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -702,6 +724,7 @@ C++2b Feature Support
 - Implemented "char8_t Compatibility and Portability Fix" (`P2513R3 <https://wg21.link/P2513R3>`_).
   This change was applied to C++20 as a Defect Report.
 - Implemented "Permitting static constexpr variables in constexpr functions" (`P2647R1 <https://wg21.link/P2647R1>_`).
+- Implemented `CWG2640 Allow more characters in an n-char sequence <https://wg21.link/CWG2640>_`.
 
 CUDA/HIP Language Changes in Clang
 ----------------------------------
@@ -780,6 +803,8 @@ X86 Support in Clang
 - ``-march=raptorlake`` and ``-march=meteorlake`` are now supported.
 - ``-march=sierraforest``, ``-march=graniterapids`` and ``-march=grandridge`` are now supported.
 - Lift _BitInt() supported max width from 128 to 8388608.
+- Support intrinsics of ``_mm(256)_reduce_(add|mul|or|and)_epi8/16``.
+- Support intrinsics of ``_mm(256)_reduce_(max|min)_ep[i|u]8/16``.
 
 WebAssembly Support in Clang
 ----------------------------
@@ -834,6 +859,7 @@ Build System Changes
 
 AST Matchers
 ------------
+- Add ``isInAnoymousNamespace`` matcher to match declarations in an anonymous namespace.
 
 clang-format
 ------------

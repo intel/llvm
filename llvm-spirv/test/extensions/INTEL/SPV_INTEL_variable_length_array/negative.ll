@@ -1,6 +1,6 @@
-; RUN: llvm-as < %s -o %t.bc
-; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-INTRINSIC
-; RUN: not llvm-spirv %t.bc -spirv-allow-unknown-intrinsics -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ALLOCA
+; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: not llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-INTRINSIC
+; RUN: not llvm-spirv %t.bc -opaque-pointers=0 -spirv-allow-unknown-intrinsics -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ALLOCA
 
 ; CHECK-INTRINSIC: InvalidFunctionCall: Unexpected llvm intrinsic:
 ; CHECK-INTRINSIC-NEXT: Translation of llvm.stacksave intrinsic requires SPV_INTEL_variable_length_array extension or -spirv-allow-unknown-intrinsics option.
