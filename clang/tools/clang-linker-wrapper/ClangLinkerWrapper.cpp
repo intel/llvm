@@ -389,7 +389,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 
   // If this is CPU offloading we copy the input libraries.
   if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
-    CmdArgs.push_back("-Bsymbolic");
+    CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
     for (const opt::Arg *Arg :
@@ -513,8 +513,6 @@ std::unique_ptr<lto::LTO> createLTO(
   assert(CGOptLevelOrNone && "Invalid optimization level");
   Conf.CGOptLevel = *CGOptLevelOrNone;
   Conf.OptLevel = OptLevel[1] - '0';
-  if (Conf.OptLevel > 0)
-    Conf.UseDefaultPipeline = true;
   Conf.DefaultTriple = Triple.getTriple();
 
   LTOError = false;
@@ -1269,7 +1267,15 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
   // Try to extract device code from the linker input files.
   SmallVector<OffloadFile> InputFiles;
   DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
-  for (const opt::Arg *Arg : Args.filtered(OPT_INPUT, OPT_library)) {
+  bool WholeArchive = false;
+  for (const opt::Arg *Arg : Args.filtered(
+           OPT_INPUT, OPT_library, OPT_whole_archive, OPT_no_whole_archive)) {
+    if (Arg->getOption().matches(OPT_whole_archive) ||
+        Arg->getOption().matches(OPT_no_whole_archive)) {
+      WholeArchive = Arg->getOption().matches(OPT_whole_archive);
+      continue;
+    }
+
     std::optional<std::string> Filename =
         Arg->getOption().matches(OPT_library)
             ? searchLibrary(Arg->getValue(), Root, LibraryPaths)
@@ -1308,7 +1314,7 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
 
         // If we don't have an object file for this architecture do not
         // extract.
-        if (IsArchive && !Syms.count(Binary))
+        if (IsArchive && !WholeArchive && !Syms.count(Binary))
           continue;
 
         Expected<bool> ExtractOrErr =
@@ -1316,9 +1322,9 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
         if (!ExtractOrErr)
           return ExtractOrErr.takeError();
 
-        Extracted = IsArchive && *ExtractOrErr;
+        Extracted = IsArchive && !WholeArchive && *ExtractOrErr;
 
-        if (!IsArchive || Extracted)
+        if (!IsArchive || WholeArchive || Extracted)
           InputFiles.emplace_back(std::move(Binary));
 
         // If we extracted any files we need to check all the symbols again.

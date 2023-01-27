@@ -21,6 +21,8 @@ else()
   include(HandleInLLVMTree)
 endif()
 
+set(CMAKE_CXX_STANDARD 17)
+
 include( GNUInstallDirs )
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   amdgcn-amdhsa/lib/SOURCES;
@@ -165,6 +167,23 @@ enable_language( CLC LLAsm )
 
 # Configure prepare_builtins
 add_subdirectory(utils)
+
+# This needs to be set before any target that needs it
+# We need to use LLVM_INCLUDE_DIRS here, because if we are linking to an
+# llvm build directory, this includes $src/llvm/include which is where all the
+# headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
+include_directories( ${LLVM_INCLUDE_DIRS} )
+
+# Setup prepare_builtins tools
+set(LLVM_LINK_COMPONENTS
+  BitReader
+  BitWriter
+  Core
+)
+add_llvm_executable( prepare_builtins utils/prepare-builtins.cpp )
+target_compile_definitions( prepare_builtins PRIVATE ${LLVM_VERSION_DEFINE} )
+# These were not properly reported in early LLVM and we don't need them
+target_compile_options( prepare_builtins PRIVATE -fno-rtti -fno-exceptions )
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
