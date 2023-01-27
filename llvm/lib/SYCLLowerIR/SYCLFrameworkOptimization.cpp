@@ -15,24 +15,10 @@ using namespace llvm;
 using namespace sycl;
 
 PreservedAnalyses
-RemoveFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
+AddDebugFuncAttrs::run(Module &M, ModuleAnalysisManager &) {
   for (Function &F : M) {
-    if (F.hasMetadata("sycl-framework")) {
-      F.removeFnAttr(Attribute::NoInline);
-      F.removeFnAttr(Attribute::OptimizeNone);
-    }
-  }
-
-  return PreservedAnalyses::all();
-}
-
-PreservedAnalyses
-AddFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
-  for (Function &F : M) {
-    if (F.hasMetadata("sycl-framework")) {
-      F.addFnAttr(Attribute::NoInline);
-      F.addFnAttr(Attribute::OptimizeNone);
-    }
+    F.addFnAttr(Attribute::NoInline);
+    F.addFnAttr(Attribute::OptimizeNone);
   }
 
   return PreservedAnalyses::all();

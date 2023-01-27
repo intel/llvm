@@ -2155,6 +2155,23 @@ CodeGenModule::GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr) {
   return FTRTTIProxy;
 }
 
+/// Function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl"
+static bool checkIfDeclaredInSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  if (!ND)
+    return false;
+
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
+
 void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B(F->getContext());
@@ -2276,6 +2293,12 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   }
 
   F->addFnAttrs(B);
+
+  if (getLangOpts().SYCLIsDevice && getCodeGenOpts().OptimizeSYCLFramework &&
+      checkIfDeclaredInSYCLNamespace(D)) {
+    F->removeFnAttr(llvm::Attribute::OptimizeNone);
+    F->removeFnAttr(llvm::Attribute::NoInline);
+  }
 
   unsigned alignment = D->getMaxAlignment() / Context.getCharWidth();
   if (alignment)

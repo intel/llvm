@@ -20,14 +20,8 @@
 namespace llvm {
 namespace sycl {
 
-class RemoveFuncAttrsFromSYCLFrameworkFuncs
-    : public PassInfoMixin<RemoveFuncAttrsFromSYCLFrameworkFuncs> {
-public:
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-};
-
-class AddFuncAttrsFromSYCLFrameworkFuncs
-    : public PassInfoMixin<AddFuncAttrsFromSYCLFrameworkFuncs> {
+class AddDebugFuncAttrs
+    : public PassInfoMixin<AddDebugFuncAttrs> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
