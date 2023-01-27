@@ -83,51 +83,34 @@ now only sub-groups are supported.
 
 == Specification
 
-=== Execution model extensions
+=== Control Flow
 
-The SYCL execution model is extended in order to support the introduction of
-non-uniform sub-group types and the associated algorithms.
+The SYCL specification defines
+link:https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#control-flow[control
+flow] as below:
 
-==== Control flow
+> When all work-items in a group are executing the same sequence of statements,
+> they are said to be executing under _converged_ control flow. Control flow
+> _diverges_ when different work-items in a group execute a different sequence of
+> statements, typically as a result of evaluating conditions differently (e.g.
+> in selection statements or loops).
 
-Control flow is defined in the SYCL specification link:https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#glossary[glossary].
+This extension introduces some new terminology to describe other kinds of
+control flow, to simplify the description of the behavior for new group types.
 
-==== Common control flow
-
-Two or more work-items are considered to have common control flow for a given
-point if at some point during execution they will execute the same sequence of
-statements.
-
-==== Divergent control flow
-
-Two or more work-items are considered to have divergent control flow for a given
-point if at some point during execution they will execute a different sequence
-of statements.
-
-==== Active control flow
-
-A work-item is considered to have active control flow for a given point of
+A work-item is said to have _active_ control flow for a given point of
 execution if it follows the sequence of statements currently being executed.
 
-==== Concurrent execution
-
-Two or more work-items are considered to have concurrent execution at a given
+Two or more work-items are considered to have _concurrent_ execution at a given
 point if they execute together. The amount of and granularity of concurrent
-execution is implementation defined.
+execution is implementation-defined.
 
-It’s permitted for two or more work-items to have concurrent execution without
-having active control flow, when this happens the work-items without active
-control flow are said to be masked.
+A _tangle_ is a collection of work-items from the same sub-group executing
+under converged control flow.
 
-==== Tangle
-
-A tangle is a collection of work-items from the same sub-group which have common
-control flow.
-
-==== Concurrent tangle
-
-A concurrent tangle is a collection of work-items from the same sub-group which
-have common control flow and concurrent execution.
+A _concurrent tangle_ is a subset of a tangle representing a set of
+work-items executing under converged control flow and with concurrent
+execution.
 
 
 === Group Taxonomy
