@@ -101,15 +101,15 @@ control flow, to simplify the description of the behavior for new group types.
 A work-item is said to have _active_ control flow for a given point of
 execution if it follows the sequence of statements currently being executed.
 
-Two or more work-items are considered to have _concurrent_ execution at a given
-point if they execute together. The amount of and granularity of concurrent
+Two or more work-items are considered to have _simultaneous_ execution at a given
+point if they execute together. The amount of and granularity of simultaneous
 execution is implementation-defined.
 
 A _tangle_ is a collection of work-items from the same sub-group executing
 under converged control flow.
 
-A _concurrent tangle_ is a subset of a tangle representing a set of
-work-items executing under converged control flow and with concurrent
+A _simultaneous tangle_ is a subset of a tangle representing a set of
+work-items executing under converged control flow and with simultaneous
 execution.
 
 
@@ -655,12 +655,12 @@ TODO: Usage example for tangle groups.
 === Opportunistic-Groups
 
 An opportunistic-group is a non-contiguous subset of a sub-group, representing
-the work-items of a concurrent tangle.
+the work-items of a simultaneous tangle.
 
 In SYCL implementations where work-items have strong forward progress
 guarantees (and can therefore make progress independently of other work-items
 in the same sub-group), divergent control flow can lead to work-items in a
-sub-group executing in a tangle but not in a concurrent tangle.
+sub-group executing in a tangle but not in a simultaneous tangle.
 
 In some cases it may be helpful to capture this group and use it for
 opportunistic optimizations.
@@ -689,7 +689,7 @@ opportunistic_group get_opportunistic_group();
 ----
 
 _Returns_: An `opportunistic_group` consisting of all work-items in the same
-sub-group as the calling work-item which are also part of the same concurrent
+sub-group as the calling work-item which are also part of the same simultaneous
 tangle.
 
 
