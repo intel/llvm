@@ -1134,6 +1134,28 @@ sum = sycl::reduce_over_group(sg, x, sycl::plus<>());
 ----
 
 
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+For SPIR-V backends, all user-constructed group types are expected to be
+implemented using SPIR-V's
+link:https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_non_uniform_instructions[non-uniform
+instructions]. `cluster_group` functionality is expected to leverage the
+optional `ClusterSize` argument of those instructions. Each group type will
+require slightly different usage of those instructions to ensure that distinct
+groups encounter unique control flow when appropriate.
+
+For CUDA backends, all user-constructed group types are expected to be lowered
+to PTX instructions with explicit masks. The only expected difference in
+implementation for the different group types is how the mask is initially
+constructed. Supporting `tangle_group` may require the compiler to construct
+masks when encountering control flow constructs, and to pass those masks
+across call boundaries.
+
+
 == Issues
 
 None.
