@@ -1173,7 +1173,8 @@ public:
     } else if (NameRef.contains("broadcast")) {
       addUnsignedArg(-1);
     } else if (NameRef.startswith(kOCLBuiltinName::SampledReadImage)) {
-      NameRef.consume_front(kOCLBuiltinName::Sampled);
+      if (!NameRef.consume_front(kOCLBuiltinName::Sampled))
+        report_fatal_error(llvm::Twine("Builtin name illformed"));
       addSamplerArg(1);
     } else if (NameRef.contains(kOCLSubgroupsAVCIntel::Prefix)) {
       if (NameRef.contains("evaluate_ipe"))
