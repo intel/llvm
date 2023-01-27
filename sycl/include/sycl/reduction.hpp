@@ -527,16 +527,18 @@ struct get_red_t<
   using type = T;
 };
 
+namespace reduction {
 // Kernel name wrapper for initializing reduction-related memory through
 // reduction_impl_algo::withInitializedMem.
-template <typename KernelName> struct __sycl_init_mem_for;
+template <typename KernelName> struct InitMemKrn;
+}
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
 template <class KernelName>
-using __sycl_init_mem_for_wrapper =
+using __sycl_init_mem_for =
     std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
-                       __sycl_init_mem_for<KernelName>>;
+                       reduction::InitMemKrn<KernelName>>;
 
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
@@ -653,7 +655,7 @@ public:
           // between host/device in lambda captures.
           size_t NElements = num_elements;
 
-          CopyHandler.single_task<__sycl_init_mem_for_wrapper<KernelName>>([=] {
+          CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
             for (int i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
