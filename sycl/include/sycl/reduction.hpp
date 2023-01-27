@@ -823,6 +823,7 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
 namespace reduction {
 template <typename KernelName, strategy S, class... Ts> struct MainKrn;
 template <typename KernelName, strategy S, class... Ts> struct AuxKrn;
+template <typename KernelName, aspect... A> struct AspectDepKrn;
 } // namespace reduction
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
@@ -2147,8 +2148,12 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
     };
 
     if constexpr (Reduction::has_float64_atomics) {
+      // Device aspect needs to be checked at runtime and therefore may generate
+      // a conflicting kernel.
       if (getDeviceFromHandler(CGH).has(aspect::atomic64))
-        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
+        return Impl<Strat::group_reduce_and_atomic_cross_wg>{}
+            .run<reduction::AspectDepKrn<KernelName, aspect::atomic64>>(
+                CGH, Queue, NDRange, Properties, Redu, KernelFunc);
 
       if constexpr (Reduction::has_fast_reduce)
         return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
