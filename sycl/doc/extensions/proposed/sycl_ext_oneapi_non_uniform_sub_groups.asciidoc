@@ -152,6 +152,7 @@ following user-constructed groups:
 - `cluster_group`
 - `tangle_group`
 - `opportunistic_group`
+- `masked_sub_group`
 
 The `is_fixed_topology_group` and `is_user_constructed_group` traits can be
 used to detect whether a group type represents a fixed topology or
@@ -183,13 +184,14 @@ namespace sycl::ext::oneapi::experimental {
 `root_group`, `group` or `sub_group`.
 
 `is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
-`ballot_group`, `cluster_group`, `tangle_group` or `opportunisic_group`.
+`ballot_group`, `cluster_group`, `tangle_group`, `opportunisic_group` or
+`masked_sub_group`.
 
 
 === Group Functions
 
-The following group functions support `ballot_group`, `cluster_group`,
-`tangle_group` and `opportunistic_group` group types:
+The following group functions support the `ballot_group`, `cluster_group`,
+`tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
 
 * `group_barrier`
 * `broadcast`
@@ -198,7 +200,7 @@ The following group functions support `ballot_group`, `cluster_group`,
 === Group Algorithms
 
 The following group algorithms support `ballot_group`, `cluster_group`,
-`tangle_group` and `opportunistic_group` group types:
+`tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
 
 * `joint_any_of` and `any_of_group`
 * `joint_all_of` and `all_of_group`
@@ -906,6 +908,216 @@ int atomic_aggregate_inc(sycl::sub_group sg, sycl::atomic_ref<int, Order, Scope,
 ----
 
 
+=== Masked Sub-groups
+
+A masked sub-group is a non-contiguous subset of a sub-group, representing an
+arbitrary user-defined subset of work-items. The members of a masked sub-group
+are described by a bitmask, where a 1 denotes membership of the group.
+
+The work-items within a masked sub-group retain information about the original
+sub-group, and many member functions of the `masked_sub_group` class reflect
+this. Developers are strongly recommended to use other user-constructed groups
+that match their use-case, both for improved performance and a simplified
+mental model.
+
+NOTE: Masked sub-groups exist primarily to support experimentation with
+arbitrary subsets of work-items within a sub-group, and to support the
+migration of algorithms already expressed via masks.
+
+[source, c++]
+----
+namespace ext::oneapi::experimental {
+
+masked_sub_group get_masked_sub_group(sub_group sg, sub_group_mask mask);
+
+} // namespace ext::oneapi::experimental
+----
+
+_Preconditions_: All work-items in `sg` with a corresponding bit set in `mask`
+must encounter this function in converged control flow.
+
+_Returns_: A `masked_sub_group` consisting of the work-items in `sg` with a
+corresponding bit set in `mask`.
+
+
+==== Creation
+
+Masked sub-groups are created by calls to the `get_masked_sub_group()`
+function, which applies a bitmask to an existing sub-group.
+
+NOTE: Creating a masked sub-group does not require synchronization of the
+parent sub-group, since work-items can independently identify members directly
+from the specified membership mask.
+
+
+==== `masked_sub_group` Class
+
+The `masked_sub_group` class contains an additional `get_mask()` function,
+returning the membership mask. Since the other member functions of
+`masked_sub_group` reflect the original sub-group, developers must use this
+mask to reason about the numbering of active work-items in the group.
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+class masked_sub_group {
+public:
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+    sycl::memory_scope::sub_group;
+
+  id_type get_group_id() const;
+
+  id_type get_local_id() const;
+
+  range_type get_group_range() const;
+
+  range_type get_local_range() const;
+
+  linear_id_type get_group_linear_id() const;
+
+  linear_id_type get_local_linear_id() const;
+
+  linear_id_type get_group_linear_range() const;
+
+  linear_id_type get_local_linear_range() const;
+
+  bool leader() const;
+
+  sub_group_mask get_mask() const;
+};
+
+}
+----
+
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the sub-group within the
+parent work-group.
+
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the sub-group.
+
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of sub-groups within the parent
+work-group.
+
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the sub-group.
+
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
+
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+
+[source,c++]
+----
+range_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+
+[source,c++]
+----
+range_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the masked sub-group, if the
+calling work-item is the leader of the masked sub-group, and `false` for all
+other work-items in the masked sub-group. The leader of the masked sub-group
+is guaranteed to be the lowest-numbered active work-item (i.e. the work-item
+corresponding to the least-significant bit in the mask).
+
+[source,c++]
+----
+sub_group_mask get_mask() const;
+----
+_Returns_: A `sub_group_mask` representing which work-items from the sub-group
+are considered a member of this `masked_sub_group`.
+
+
+==== Usage Example
+
+A `masked_sub_group` can be used to implement algorithms where some sort of
+active mask is already present:
+
+[source, c++]
+----
+// set initial mask to full sub-group
+auto sg = it.get_sub_group();
+auto active = std::pow(2, sg.get_max_local_range()) - 1;
+
+float sum = x;
+for (int shift = sg.get_max_local_range() / 2; shift > 0; shift /= 2)
+{
+  // create representation of work-items still active in this phase
+  auto masked_sg = sycl::ext::oneapi::experimental::get_masked_sub_group(sg, active);
+
+  // call shift only for work-items that are still active
+  // using the parent sub_group would have been unsafe due to divergence
+  sum += sycl::shift_group_left(masked_sg, x, shift);
+
+  // remove half of the work-items from the group
+  active >>= shift;
+}
+----
+
+Note that in many cases these algorithms can be translated (manually) to use
+one of the alternative group types:
+
+[source, c++]
+----
+// set initial mask to full sub-group
+auto sg = it.get_sub_group();
+
+float sum = x;
+for (int phase = 1; phase < sg.get_max_local_range() / 2; phase *= 2)
+{
+  // create representation of work-items still active in this phase
+  auto active_items = sycl::ext::oneapi::experimental::get_tangle_group(sg);
+
+  // call shift only for work-items that are still active
+  // note that the shift is now 1, because of how tangle-group local IDs are defined
+  sum += sycl::shift_group_left(active_items, x, 1);
+}
+----
+
+Or, even more simply, one of the SYCL group algorithms:
+
+[source, c++]
+----
+auto sg = it.get_sub_group();
+sum = sycl::reduce_over_group(sg, x, sycl::plus<>());
+----
+
+
 == Issues
 
 * Wording needs to be introduced to describe when particular non-uniform
@@ -917,9 +1129,6 @@ detectable? Should it be possible to call group algorithms and group functions
 with different group at the same time? Multiple ballot-groups with
 non-overlapping members trying to do a reduce at the same time seems like a
 common use case, but will hardware support it?
-* If the main purpose of `group_ballot` from the
-link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SubGroupMask/SubGroupMask.asciidoc[sub group mask proposal]
-is to represent subsets of sub-groups, then this work would make that redundant.
 * To create a ballot-group, members of a sub-groups, ballot-groups,
 opportunistic-groups, and cluster-groups could all broadcast the result of some
 predicate function.
