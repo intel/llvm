@@ -37,6 +37,7 @@ public:
 };
 
 namespace sycl {
+const static specialization_id<int> SpecConst1{42};
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 struct MockKernelInfo {
@@ -56,6 +57,9 @@ template <> struct KernelInfo<CacheTestKernel> : public MockKernelInfo {
 };
 template <> struct KernelInfo<CacheTestKernel2> : public MockKernelInfo {
   static constexpr const char *getName() { return "CacheTestKernel2"; }
+};
+template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
+  return "SC1";
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
@@ -172,18 +176,111 @@ TEST_F(KernelAndProgramCacheTest,
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
 
-// Check that programs built without options are cached.
-TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositive) {
-  context Ctx{Plt};
-  //   program Prg1{Ctx};
-  //   program Prg2{Ctx};
+// Check that kernel_bundles with input_state are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  sycl::context Ctx(Devices);
 
-  //   Prg1.build_with_kernel_type<CacheTestKernel>();
-  //   Prg2.build_with_kernel_type<CacheTestKernel>();
+  auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
+  sycl::kernel_bundle KernelBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID1});
+
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for programs";
+
+  EXPECT_EQ(Cache.size(), 0U)
+    << "Expect empty cache for kernel_bundles build with input_state.";
+}
+
+// Check that kernel_bundles with object_state are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelBundleObjectState) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  sycl::context Ctx(Devices);
+
+  auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
+  sycl::kernel_bundle KernelBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::object>(Ctx, {KernelID1});
+
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::KernelProgramCache::ProgramCacheT &Cache =
+      CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+
+  EXPECT_EQ(Cache.size(), 0U)
+    << "Expect empty cache for kernel_bundles build with object_state.";
+}
+
+// Check that kernel_bundles with executable_state are cached.
+TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  sycl::context Ctx(Devices);
+
+  auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
+  auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
+  sycl::kernel_bundle KernelBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID1});
+  sycl::kernel_bundle KernelBundle2 =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID2});
+
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::KernelProgramCache::ProgramCacheT &Cache =
+      CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+
+  EXPECT_EQ(Cache.size(), 1U)
+    << "Expect non-empty cache for kernel_bundles with executable_state.";
+}
+
+// Check that kernel_bundle built with specialization constants are cached.
+TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  sycl::context Ctx(Devices);
+
+  auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
+  auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
+
+  sycl::kernel_bundle KernelBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID1});
+  KernelBundle1.set_specialization_constant<SpecConst1>(80);
+  sycl::build(KernelBundle1);
+  EXPECT_EQ(KernelBundle1.get_specialization_constant<SpecConst1>(), 80)
+      << "Wrong specialization constant";
+
+  sycl::kernel_bundle KernelBundle2 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID2});
+  KernelBundle2.set_specialization_constant<SpecConst1>(70);
+  sycl::build(KernelBundle2);
+  EXPECT_EQ(KernelBundle2.get_specialization_constant<SpecConst1>(), 70)
+      << "Wrong specialization constant";
+
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::KernelProgramCache::ProgramCacheT &Cache =
+      CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache";
+}
+
+// Check that kernel_bundle created through join() is not cached.
+TEST_F(KernelAndProgramCacheTest, KernelBundleJoin) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  sycl::context Ctx(Devices);
+
+  auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
+  auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
+  sycl::kernel_bundle KernelBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID1});
+  sycl::kernel_bundle KernelBundle2 =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID2});
+
+  std::vector<kernel_bundle<sycl::bundle_state::executable>>
+      KernelBundles {KernelBundle1, KernelBundle2};
+  sycl::kernel_bundle KernelBundle3 = sycl::join(KernelBundles);
+
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::KernelProgramCache::ProgramCacheT &Cache =
+      CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+
+  EXPECT_EQ(Cache.size(), 1U)
+      << "Expect no caching for kennel_bundle created via join.";
 }
 
 // Check that programs built with options are cached.
@@ -299,27 +396,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
   //   Prg.compile_with_kernel_type<CacheTestKernel>();
   //   Prg.link("-g");
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-  detail::KernelProgramCache::KernelCacheT &Cache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
-}
-
-// Check that kernels are not cached if program is created from multiple
-// programs.
-TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkedProgs) {
-  context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
-
-  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
-
-  //   program Prg1{Ctx};
-  //   program Prg2{Ctx};
-
-  //   Prg1.compile_with_kernel_type<CacheTestKernel>();
-  //   Prg2.compile_with_kernel_type<CacheTestKernel2>();
-  //   program Prg({Prg1, Prg2});
-  //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
