@@ -188,7 +188,7 @@ __ESIMD_API simd<Tx, N> gather(const Tx *p,
 ///   undefined.
 ///
 template <typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
   return gather<Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
@@ -266,7 +266,7 @@ __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
 scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
@@ -687,7 +687,7 @@ gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value,
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(const T *p, Toffset offset, simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), mask);
@@ -794,7 +794,7 @@ scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
 scatter_rgba(T *p, Toffset offset,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
@@ -1056,7 +1056,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
 /// scalar.
 ///
 /// @tparam Op The atomic operation - can be \c atomic_op::inc or
-///   atomic_op::dec.
+/// \c atomic_op::dec, \c atomic_op::load.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -1067,7 +1067,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
@@ -1124,7 +1124,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::save.
+/// atomic_op::store.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -1163,7 +1163,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, mask);
 }
@@ -1249,7 +1249,7 @@ atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral<Toffset>::value, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
               simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, src1,
@@ -1883,3 +1883,4 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
 } // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
+
