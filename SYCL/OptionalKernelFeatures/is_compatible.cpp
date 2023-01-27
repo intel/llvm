@@ -13,6 +13,10 @@
 class KernelCPU;
 class KernelGPU;
 class KernelACC;
+class GoodWGSize;
+class WrongReqWGSize;
+
+constexpr int SIZE = 2;
 
 int main() {
   bool Compatible = true;
@@ -40,6 +44,30 @@ int main() {
     Q.wait();
     Compatible &= Dev.is_accelerator();
     Called = true;
+  }
+
+  if (sycl::is_compatible<GoodWGSize>(Dev)) {
+    Q.submit([&](sycl::handler &h) {
+      h.parallel_for<class GoodWGSize>(
+          sycl::range<2>(4, 2),
+          [=](sycl::item<2> it) [[sycl::reqd_work_group_size(SIZE, SIZE)]] {});
+    });
+    Q.wait();
+    Compatible &= (Dev.get_info<sycl::info::device::max_work_group_size>() >
+                   (SIZE * SIZE));
+    Called = true;
+  }
+
+  if (Dev.get_info<sycl::info::device::max_work_group_size>() > INT_MAX) {
+    Compatible &= true;
+  }
+  if (sycl::is_compatible<WrongReqWGSize>(Dev)) {
+    assert(false && "sycl::is_compatible<WrongReqWGSize> must be false");
+    Q.submit([&](sycl::handler &h) {
+      h.parallel_for<class WrongReqWGSize>(
+          sycl::range<1>(2),
+          [=](sycl::item<1> it) [[sycl::reqd_work_group_size(INT_MAX)]] {});
+    });
   }
 
   return (Compatible && Called) ? 0 : 1;
