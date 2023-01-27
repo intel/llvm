@@ -1210,6 +1210,11 @@ public:
   using reference = value_type &;
   using const_reference = const DataT &;
 
+  template <access::decorated IsDecorated>
+  using accessor_ptr =
+      std::conditional_t<AccessTarget == access::target::device,
+                         global_ptr<value_type, IsDecorated>, value_type *>;
+
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
       typename detail::accessor_iterator<const value_type, Dimensions>;
@@ -2674,6 +2679,9 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+
+  template <access::decorated IsDecorated>
+  using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
