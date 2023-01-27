@@ -74,7 +74,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   PiPropertySet PropSet;
   if (!Aspects.empty())
-    addAspects(PropSet, Aspects);
+    addDeviceRequirementsProps(PropSet, Aspects);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
