@@ -20,8 +20,7 @@
 namespace llvm {
 namespace sycl {
 
-class AddDebugFuncAttrs
-    : public PassInfoMixin<AddDebugFuncAttrs> {
+class AddDebugFuncAttrs : public PassInfoMixin<AddDebugFuncAttrs> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

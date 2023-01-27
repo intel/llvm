@@ -14,8 +14,7 @@
 using namespace llvm;
 using namespace sycl;
 
-PreservedAnalyses
-AddDebugFuncAttrs::run(Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses AddDebugFuncAttrs::run(Module &M, ModuleAnalysisManager &) {
   for (Function &F : M) {
     F.addFnAttr(Attribute::NoInline);
     F.addFnAttr(Attribute::OptimizeNone);
