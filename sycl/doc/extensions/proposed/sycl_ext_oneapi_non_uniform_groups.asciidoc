@@ -481,7 +481,7 @@ public:
 ----
 
 NOTE: `cluster_group` is templated on a `ParentGroup` because it is expected
-that it will eventually be possible to construct a ballot-group from more
+that it will eventually be possible to construct a cluster-group from more
 than only sub-groups.
 
 [source,c++]
