@@ -60,7 +60,7 @@ template <> struct KernelInfo<CacheTestKernel2> : public MockKernelInfo {
 };
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
-};
+}
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
