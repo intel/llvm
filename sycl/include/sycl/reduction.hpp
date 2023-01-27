@@ -2328,9 +2328,7 @@ template <
     typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
 detail::reduction_impl<
     T, BinaryOperation, 0, 1,
-    accessor<T, 1, access::mode::read_write, access::target::device,
-             access::placeholder::true_t,
-             ext::oneapi::accessor_property_list<>>>
+    accessor<T, 1, access::mode::read_write, access::target::device>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
