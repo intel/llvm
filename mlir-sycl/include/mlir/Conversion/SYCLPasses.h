@@ -11,6 +11,7 @@
 
 #include "mlir/Conversion/SYCLToGPU/SYCLToGPUPass.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVMPass.h"
+#include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRVPass.h"
 
 namespace mlir {
 namespace sycl {

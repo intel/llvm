@@ -60,4 +60,32 @@ def ConvertSYCLToGPU : Pass<"convert-sycl-to-gpu", "ModuleOp"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// SYCLToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertSYCLToSPIRV : Pass<"convert-sycl-to-spirv", "ModuleOp"> {
+  let summary = "Convert SYCL dialect to SPIRV dialect";
+  let description = [{
+    Pass to convert supported operations to the SPIRV dialect.
+
+    This pass converts `sycl.global_offset`, `sycl.num_work_groups`,
+    `sycl.sub_group_max_size` and `sycl.sub_group_local_id` operations to calls
+    to the `GlobalOffset`, `NumWorkgroups`, `SubgroupMaxSize` and
+    `SubgroupLocalInvocationId` SPIR-V builtins, respectively.
+
+    While operations querying subgroup information are lowered to a single
+    operation, the rest of the operations require a different treatment, as the
+    operation might or might not be passed an argument querying for a specific
+    dimension.
+  }];
+  let constructor = "mlir::sycl::createConvertSYCLToSPIRVPass()";
+  let dependentDialects = [
+      "AffineDialect",
+      "arith::ArithDialect",
+      "spirv::SPIRVDialect",
+      "memref::MemRefDialect",
+  ];
+}
+
 #endif // MLIR_CONVERSION_SYCLPASSES

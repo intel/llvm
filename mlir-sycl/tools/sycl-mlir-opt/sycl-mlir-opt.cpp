@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
   sycl::registerSYCLPasses();
   sycl::registerConvertSYCLToLLVMPass();
   sycl::registerConvertSYCLToGPUPass();
+  sycl::registerConvertSYCLToSPIRVPass();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry,
