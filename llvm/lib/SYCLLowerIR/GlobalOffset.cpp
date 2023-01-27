@@ -339,7 +339,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // Clone metadata of the old function, including debug info descriptor.
     SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
     Func->getAllMetadata(MDs);
-    for (auto MD : MDs)
+    for (const auto &MD : MDs)
       NewFunc->addMetadata(MD.first, *MD.second);
 
     ImplicitOffset = std::prev(NewFunc->arg_end());

@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -43,33 +43,29 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
-[comment]
---
-_Add the following paragraph when this specification becomes "experimental"._
-
-There are important limitations with the DPC++ implementation of this
+There are important limitations with the {dpcpp} implementation of this
 experimental extension.  In particular, this extension may only be used when
 the application is compiled in AOT mode.  See the section below titled
 "Limitations with the experimental version" for a full description of the
 limitations.
---
 
 
 == Overview
 
 This extension provides a way for device code to query the device architecture
 on which it is running.  This is similar to the
-link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension
-except the comparison is for the device's architecture not the device's
-aspects.  In some cases, low-level application code can use special features or
-do specific optimizations depending on the device architecture, and this
-extension enables such applications.
+link:../proposed/sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
+extension except the comparison is for the device's architecture not the
+device's aspects.  In some cases, low-level application code can use special
+features or do specific optimizations depending on the device architecture, and
+this extension enables such applications.
 
 
 == Specification
@@ -503,11 +499,11 @@ template<architecture ...Archs, typename ...Args, typename T>
 ```
 
 This function operates exactly like `if_device_has` from the
-link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension
-except that the condition gating execution of the callable function `fn` is
-determined by the `Archs` parameter pack.  This condition is `true` if the
-device which executes `if_architecture_is` matches **any** of the architectures
-listed in this pack.
+link:../proposed/sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
+extension except that the condition gating execution of the callable function
+`fn` is determined by the `Archs` parameter pack.  This condition is `true` if
+the device which executes `if_architecture_is` matches **any** of the
+architectures listed in this pack.
 
 The value returned by `if_architecture_is` is an object _F_ of an unspecified
 type, which provides the following member functions:
@@ -524,14 +520,24 @@ class /* unspecified */ {
 ```
 
 The `otherwise` function behaves exactly like the `otherwise` function from the
-link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension.
-The `else_if_architecture_is` function behaves exactly like
+link:../proposed/sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
+extension.  The `else_if_architecture_is` function behaves exactly like
 `else_if_device_has` from that extension except that the condition gating
 execution of the callable object `fn` is determined by the `Archs` parameter
 pack.  This condition is `true` only if the object _F_ comes from a previous
 call to `if_architecture_is` or `else_if_architecture_is` whose condition is
 `false` *and* if the device calling `else_if_architecture_is` has one of the
 architectures in the `Archs` parameter pack.
+
+
+== Limitations with the experimental version
+
+The {dpcpp} implementation of this extension currently has some important
+limitations.  The application must be compiled in ahead-of-time (AOT) mode
+using `-fsycl-targets=<special-target>` where `<special-target>` is one of the
+"special target values" listed in the link:../../UsersManual.md[users manual]
+description of the `-fsycl-targets` option.  These are the target names of the
+form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
 
 
 == Future direction
