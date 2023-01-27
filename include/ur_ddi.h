@@ -1101,8 +1101,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMPrefetch_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueUSMMemAdvice 
-typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemAdvice_t)(
+/// @brief Function-pointer for urEnqueueUSMMemAdvise 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemAdvise_t)(
     ur_queue_handle_t,
     const void*,
     size_t,
@@ -1207,7 +1207,7 @@ typedef struct ur_enqueue_dditable_t
     ur_pfnEnqueueUSMMemset_t                                    pfnUSMMemset;
     ur_pfnEnqueueUSMMemcpy_t                                    pfnUSMMemcpy;
     ur_pfnEnqueueUSMPrefetch_t                                  pfnUSMPrefetch;
-    ur_pfnEnqueueUSMMemAdvice_t                                 pfnUSMMemAdvice;
+    ur_pfnEnqueueUSMMemAdvise_t                                 pfnUSMMemAdvise;
     ur_pfnEnqueueUSMFill2D_t                                    pfnUSMFill2D;
     ur_pfnEnqueueUSMMemset2D_t                                  pfnUSMMemset2D;
     ur_pfnEnqueueUSMMemcpy2D_t                                  pfnUSMMemcpy2D;
