@@ -37,6 +37,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <variant>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -1711,7 +1712,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     for (const sycl::device &Dev : Devs) {
       if (!compatibleWithDevice(BinImage, Dev) ||
-          !doesDevSupportImgAspects(Dev, *BinImage))
+          !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -2178,25 +2179,88 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
                         &(BuildResult->MBuildResultMutex));
 }
 
-bool doesDevSupportImgAspects(const device &Dev,
-                              const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &PropRange =
-      Img.getDeviceRequirements();
-  RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
-      PropRange.begin(), PropRange.end(),
-      [](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
-        using namespace std::literals;
-        return (*Prop)->Name == "aspects"sv;
-      });
-  if (PropIt == PropRange.end())
+bool doesDevSupportDeviceRequirements(const device &Dev,
+                                      const RTDeviceBinaryImage &Img) {
+  auto getPropIt = [&Img](const std::string &PropName) {
+    const RTDeviceBinaryImage::PropertyRange &PropRange =
+        Img.getDeviceRequirements();
+    RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
+        PropRange.begin(), PropRange.end(),
+        [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+          return (*Prop)->Name == PropName;
+        });
+    return (PropIt == PropRange.end())
+               ? std::nullopt
+               : std::optional<
+                     RTDeviceBinaryImage::PropertyRange::ConstIterator>{PropIt};
+  };
+
+  auto AspectsPropIt = getPropIt("aspects");
+  auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
+
+  if (!AspectsPropIt && !ReqdWGSizePropIt)
     return true;
-  ByteArray Aspects = DeviceBinaryProperty(*PropIt).asByteArray();
-  // Drop 8 bytes describing the size of the byte array.
-  Aspects.dropBytes(8);
-  while (!Aspects.empty()) {
-    aspect Aspect = Aspects.consume<aspect>();
-    if (!Dev.has(Aspect))
+
+  // Checking if device supports defined aspects
+  if (AspectsPropIt) {
+    ByteArray Aspects =
+        DeviceBinaryProperty(*(AspectsPropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    Aspects.dropBytes(8);
+    while (!Aspects.empty()) {
+      aspect Aspect = Aspects.consume<aspect>();
+      if (!Dev.has(Aspect))
+        return false;
+    }
+  }
+
+  // Checking if device supports defined required work group size
+  if (ReqdWGSizePropIt) {
+    ByteArray ReqdWGSize =
+        DeviceBinaryProperty(*(ReqdWGSizePropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    ReqdWGSize.dropBytes(8);
+    int ReqdWGSizeAllDimsTotal = 1;
+    std::vector<int> ReqdWGSizeVec;
+    int Dims = 0;
+    while (!ReqdWGSize.empty()) {
+      int SingleDimSize = ReqdWGSize.consume<int>();
+      ReqdWGSizeAllDimsTotal *= SingleDimSize;
+      ReqdWGSizeVec.push_back(SingleDimSize);
+      Dims++;
+    }
+    if (static_cast<size_t>(ReqdWGSizeAllDimsTotal) >
+        Dev.get_info<info::device::max_work_group_size>())
       return false;
+    // Creating std::variant to call max_work_item_sizes one time to avoid
+    // performance drop
+    std::variant<id<1>, id<2>, id<3>> MaxWorkItemSizesVariant;
+    if (Dims == 1)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<1>>();
+    else if (Dims == 2)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<2>>();
+    else // (Dims == 3)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<3>>();
+    for (int i = 0; i < Dims; i++) {
+      // Extracting value from std::variant to avoid dealing with type-safety
+      // issues after that
+      if (Dims == 1) {
+        // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else if (Dims == 2) {
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else // (Dims == 3)
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+    }
   }
   return true;
 }
