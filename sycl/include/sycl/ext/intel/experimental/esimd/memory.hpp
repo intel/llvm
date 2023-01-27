@@ -266,12 +266,10 @@ namespace detail {
 template <typename T, int NBlocks, int Height, int Width, bool Transposed,
           bool Transformed>
 constexpr int get_lsc_block_2d_data_size() {
-  constexpr int GRFRowSize = Transposed ? Height : Width;
-  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
-  constexpr int GRFBlockSize = GRFRowPitch * (Transposed ? Width : Height);
-  constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
-  return NBlocks * GRFBlockPitch;
+  if (Transformed)
+    return detail::roundUpNextMultiple<Height, 4 / sizeof(T)>() *
+           __ESIMD_DNS::getNextPowerOf2<Width>() * NBlocks;
+  return Width * Height * NBlocks;
 }
 
 // Format u8u32 and u16u32 back to u8 and u16.
@@ -1231,6 +1229,17 @@ lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed>();
+  constexpr int ElemsPerDword = 4 / sizeof(T);
+  constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
+  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
+  constexpr int GRFBlockSize =
+      GRFRowPitch * (Transposed ? BlockWidth : BlockHeight);
+  constexpr int GRFBlockPitch =
+      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+  constexpr int ActualN = NBlocks * GRFBlockPitch;
+  static_assert(
+      ActualN == N,
+      "These parameters require unpadding. It is not implemented yet");
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -1568,6 +1577,17 @@ lsc_load2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed, false>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr int ElemsPerDword = 4 / sizeof(T);
+  constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
+  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
+  constexpr int GRFBlockSize =
+      GRFRowPitch * (Transposed ? BlockWidth : BlockHeight);
+  constexpr int GRFBlockPitch =
+      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+  constexpr int ActualN = NBlocks * GRFBlockPitch;
+  static_assert(
+      ActualN == N,
+      "These parameters require unpadding. It is not implemented yet");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
