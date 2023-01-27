@@ -51,10 +51,9 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
 
 int main() {
   const size_t array_size = 4;
-  std::array<sycl::cl_int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}},
-                                       C;
-  std::array<sycl::cl_float, array_size> D = {{1.f, 2.f, 3.f, 4.f}},
-                                         E = {{1.f, 2.f, 3.f, 4.f}}, F;
+  std::array<int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}}, C;
+  std::array<float, array_size> D = {{1.f, 2.f, 3.f, 4.f}},
+                                E = {{1.f, 2.f, 3.f, 4.f}}, F;
   simple_vadd(A, B, C);
   simple_vadd(D, E, F);
   for (unsigned int i = 0; i < array_size; i++) {

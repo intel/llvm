@@ -11,7 +11,7 @@ using namespace sycl;
 struct F1 {};
 struct F2 {};
 struct F : F1, F2 {
-  sycl::cl_char x;
+  char x;
 };
 
 bool test0() {

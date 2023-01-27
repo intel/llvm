@@ -23,7 +23,7 @@ int main() {
   if (!D.has(sycl::aspect::fp16))
     return 0; // Skip the test if halfs are not supported
 
-  sycl::buffer<sycl::cl_half> Buf(1);
+  sycl::buffer<sycl::half> Buf(1);
 
   Q.submit([&](sycl::handler &CGH) {
     auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);

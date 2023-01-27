@@ -18,15 +18,15 @@ using namespace sycl;
 
 int main() {
   {
-    sycl::cl_float results[3] = {0};
+    float results[3] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(3));
+      buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_1>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float c = ab.x() * ab.y();
+          float2 ab = {4, 2};
+          float c = ab.x() * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c;
@@ -39,15 +39,15 @@ int main() {
   }
 
   {
-    sycl::cl_float results[3] = {0};
+    float results[3] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(3));
+      buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_2>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float c = ab.x() * 2;
+          float2 ab = {4, 2};
+          float c = ab.x() * 2;
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c;
@@ -60,15 +60,15 @@ int main() {
   }
 
   {
-    sycl::cl_float results[3] = {0};
+    float results[3] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(3));
+      buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_3>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float c = 4 * ab.y();
+          float2 ab = {4, 2};
+          float c = 4 * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c;
@@ -81,15 +81,15 @@ int main() {
   }
 
   {
-    sycl::cl_float results[4] = {0};
+    float results[4] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(4));
+      buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_4>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float2 c = {0, 0};
+          float2 ab = {4, 2};
+          float2 c = {0, 0};
           c.x() = ab.x() * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
@@ -105,15 +105,15 @@ int main() {
   }
 
   {
-    sycl::cl_float results[4] = {0};
+    float results[4] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(4));
+      buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_5>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float2 c = {0, 0};
+          float2 ab = {4, 2};
+          float2 c = {0, 0};
           c.x() = 4 * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
@@ -129,15 +129,15 @@ int main() {
   }
 
   {
-    sycl::cl_float results[4] = {0};
+    float results[4] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(4));
+      buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_6>([=]() {
-          sycl::cl_float2 ab = {4, 2};
-          sycl::cl_float2 c = {0, 0};
+          float2 ab = {4, 2};
+          float2 c = {0, 0};
           c.x() = ab.x() * 2;
           B[0] = ab.x();
           B[1] = ab.y();
@@ -153,21 +153,21 @@ int main() {
   }
 
   {
-    sycl::cl_float results[6] = {0};
+    float results[6] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(6));
+      buffer<float, 1> b(results, range<1>(6));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_7>([=]() {
-          sycl::uchar4 abc = {4, 2, 1, 0};
+          uchar4 abc = {4, 2, 1, 0};
 
-          sycl::uchar4 c_each;
+          uchar4 c_each;
           c_each.x() = abc.x();
           c_each.y() = abc.y();
           c_each.z() = abc.z();
 
-          sycl::uchar4 c_full;
+          uchar4 c_full;
           c_full = abc;
 
           B[0] = c_each.x();
@@ -188,24 +188,24 @@ int main() {
   }
 
   {
-    sycl::cl_float results[4] = {0};
+    float results[4] = {0};
     {
-      buffer<sycl::cl_float, 1> b(results, range<1>(4));
+      buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_8>([=]() {
-          sycl::uchar4 cba;
-          sycl::uchar x = 1;
-          sycl::uchar y = 2;
-          sycl::uchar z = 3;
-          sycl::uchar w = 4;
+          uchar4 cba;
+          unsigned char x = 1;
+          unsigned char y = 2;
+          unsigned char z = 3;
+          unsigned char w = 4;
           cba.x() = x;
           cba.y() = y;
           cba.z() = z;
           cba.w() = w;
 
-          sycl::uchar4 abc = {1, 2, 3, 4};
+          uchar4 abc = {1, 2, 3, 4};
           abc.x() = cba.s0();
           abc.y() = cba.s1();
           abc.z() = cba.s2();
@@ -228,16 +228,16 @@ int main() {
   }
 
   {
-    sycl::cl_uint results[4] = {0};
+    unsigned int results[4] = {0};
     {
-      buffer<sycl::cl_uint, 1> b(results, range<1>(4));
+      buffer<unsigned int, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_9>([=]() {
-          sycl::uchar4 vec;
-          sycl::uint add = 254;
-          sycl::uchar factor = 2;
+          uchar4 vec;
+          unsigned int add = 254;
+          unsigned char factor = 2;
           vec.x() = 2;
           vec.y() = 4;
           vec.z() = 6;
@@ -259,13 +259,12 @@ int main() {
   {
     int FF[8] = {1, 1, 1, 0, 1, 1, 1, 0};
     {
-      buffer<sycl::int3, 1> b((sycl::int3 *)FF, range<1>(2));
+      buffer<int3, 1> b((int3 *)FF, range<1>(2));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
-        cgh.parallel_for<class test_10>(sycl::range<1>{2}, [=](sycl::id<1> ID) {
-          B[ID] = sycl::int3{ID[0]} / B[ID];
-        });
+        cgh.parallel_for<class test_10>(
+            range<1>{2}, [=](id<1> ID) { B[ID] = int3{ID[0]} / B[ID]; });
       });
     }
     assert(FF[0] == 0);
@@ -276,15 +275,15 @@ int main() {
     assert(FF[6] == 1);
   }
   {
-    sycl::int3 result = {0, 0, 0};
+    int3 result = {0, 0, 0};
     {
-      buffer<sycl::int3, 1> b(&result, range<1>(1));
+      buffer<int3, 1> b(&result, range<1>(1));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_11>([=]() {
-          sycl::int3 testVec1 = {2, 2, 2};
-          sycl::int3 testVec2 = {1, 1, 1};
+          int3 testVec1 = {2, 2, 2};
+          int3 testVec2 = {1, 1, 1};
           B[0] = testVec1 / testVec2;
         });
       });
