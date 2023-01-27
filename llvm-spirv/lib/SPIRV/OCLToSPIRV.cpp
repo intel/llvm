@@ -811,8 +811,8 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
                                   .Case("ballot_inclusive_scan", "add")
                                   .Case("ballot_exclusive_scan", "add")
                                   .Default(FuncName.take_back(
-                                      3)); // assumes op is three characters
-          GroupOp.consume_front("_");      // when op is two characters
+                                      3));    // assumes op is three characters
+          (void)(GroupOp.consume_front("_")); // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
           auto OpTy = F->getReturnType();
