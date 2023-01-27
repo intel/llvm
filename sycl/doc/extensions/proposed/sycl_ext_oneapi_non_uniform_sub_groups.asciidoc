@@ -1129,6 +1129,3 @@ detectable? Should it be possible to call group algorithms and group functions
 with different group at the same time? Multiple ballot-groups with
 non-overlapping members trying to do a reduce at the same time seems like a
 common use case, but will hardware support it?
-* To create a ballot-group, members of a sub-groups, ballot-groups,
-opportunistic-groups, and cluster-groups could all broadcast the result of some
-predicate function.
