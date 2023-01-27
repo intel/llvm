@@ -770,6 +770,8 @@ pi_device _pi_context::getRootDevice() const {
 pi_result _pi_context::initialize() {
 
   // Helper lambda to create various USM allocators for a device.
+  // Note that the CCS devices and their respective subdevices share a
+  // common ze_device_handle and therefore, also share USM allocators.
   auto createUSMAllocators = [this](pi_device Device) {
     SharedMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
@@ -793,12 +795,8 @@ pi_result _pi_context::initialize() {
       [createUSMAllocators,
        &createUSMAllocatorsRecursive](pi_device Device) -> void {
     createUSMAllocators(Device);
-    for (auto &SubDevice : Device->SubDevices) {
-      if (SubDevice->isCCS())
-      	// CCS share USMAllocContext with its root device.
-	continue;
+    for (auto &SubDevice : Device->SubDevices)
       createUSMAllocatorsRecursive(SubDevice);
-    }
   };
 
   // Create USM allocator context for each pair (device, context).
