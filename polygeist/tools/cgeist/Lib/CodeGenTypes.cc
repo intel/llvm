@@ -1591,8 +1591,14 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     return Builder.getIntegerType(cast<llvm::IntegerType>(Ty)->getBitWidth());
   }
 
-  if (T->isBuiltinType())
-    return getMLIRType(cast<clang::BuiltinType>(T));
+  if (T->isBuiltinType()) {
+    if (BuiltinTypeCache.find(T) != BuiltinTypeCache.end())
+      return BuiltinTypeCache[T];
+
+    mlir::Type Ty = getMLIRType(cast<clang::BuiltinType>(T));
+    BuiltinTypeCache[T] = Ty;
+    return Ty;
+  }
 
   LLVM_DEBUG(llvm::dbgs() << "QT: "; QT->dump(); llvm::dbgs() << "\n");
   llvm_unreachable("unhandled type");
