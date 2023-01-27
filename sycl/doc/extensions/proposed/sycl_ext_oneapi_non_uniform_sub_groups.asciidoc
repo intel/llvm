@@ -188,16 +188,28 @@ namespace sycl::ext::oneapi::experimental {
 `masked_sub_group`.
 
 
-=== Group Functions
+=== Group Functions and Algorithms
+
+When a user-constructed group is passed to a group function or group algorithm,
+all work-items in the group must call exactly the same function under the same
+set of conditions -- calling the same function under different conditions
+(e.g. in different iterations of a loop, or different branches of a conditional
+statement) results in undefined behavior.
+
+If a work-item calls a group function or group algorithm using an object that
+represents a group to which the work-item does not belong, this results in
+undefined behavior.
+
+NOTE: Using group functions and algorithms in the presence of overlapping
+groups is discouraged, since it is highly likely that such code would have to
+make assumptions regarding work-item scheduling and forward progress
+guarantees.
 
 The following group functions support the `ballot_group`, `cluster_group`,
 `tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
 
 * `group_barrier`
 * `broadcast`
-
-
-=== Group Algorithms
 
 The following group algorithms support `ballot_group`, `cluster_group`,
 `tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
@@ -1122,10 +1134,3 @@ sum = sycl::reduce_over_group(sg, x, sycl::plus<>());
 
 * Wording needs to be introduced to describe when particular non-uniform
 sub-groups can be created from other non-uniform sub-groups.
-* The conditions for calling the group functions and algorithms need to be
-decided on. It makes sense that reaching a group algorithm from a different
-control-flow should be undefined behaviour, but is that at all enforcable or
-detectable? Should it be possible to call group algorithms and group functions
-with different group at the same time? Multiple ballot-groups with
-non-overlapping members trying to do a reduce at the same time seems like a
-common use case, but will hardware support it?
