@@ -259,30 +259,30 @@ namespace sycl::ext::oneapi::experimental {
 
 class ballot_group {
 public:
-    using id_type = id<1>;
-    using range_type = range<1>;
-    using linear_id_type = uint32_t;
-    static constexpr int dimensions = 1;
-    static constexpr sycl::memory_scope fence_scope =
-        sycl::memory_scope::sub_group;
-    
-    id_type get_group_id() const;
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+    sycl::memory_scope::sub_group;
+  
+  id_type get_group_id() const;
 
-    id_type get_local_id() const;
+  id_type get_local_id() const;
 
-    range_type get_group_range() const;
+  range_type get_group_range() const;
 
-    range_type get_local_range() const;
+  range_type get_local_range() const;
 
-    linear_id_type get_group_linear_id() const;
+  linear_id_type get_group_linear_id() const;
 
-    linear_id_type get_local_linear_id() const;
+  linear_id_type get_local_linear_id() const;
 
-    linear_id_type get_group_linear_range() const;
+  linear_id_type get_group_linear_range() const;
 
-    linear_id_type get_local_linear_range() const;
+  linear_id_type get_local_linear_range() const;
 
-    bool leader() const;
+  bool leader() const;
 };
 
 }
@@ -437,30 +437,30 @@ namespace sycl::ext::oneapi::experimental {
 template <std::size_t ClusterSize>
 class cluster_group {
 public:
-    using id_type = id<1>;
-    using range_type = range<1>;
-    using linear_id_type = uint32_t;
-    static constexpr int dimensions = 1;
-    static constexpr sycl::memory_scope fence_scope =
-        sycl::memory_scope::sub_group;
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+    sycl::memory_scope::sub_group;
     
-    id_type get_group_id() const;
+  id_type get_group_id() const;
 
-    id_type get_local_id() const;
+  id_type get_local_id() const;
 
-    range_type get_group_range() const;
+  range_type get_group_range() const;
 
-    range_type get_local_range() const;
+  range_type get_local_range() const;
 
-    linear_id_type get_group_linear_id() const;
+  linear_id_type get_group_linear_id() const;
 
-    linear_id_type get_local_linear_id() const;
+  linear_id_type get_local_linear_id() const;
 
-    linear_id_type get_group_linear_range() const;
+  linear_id_type get_group_linear_range() const;
 
-    linear_id_type get_local_linear_range() const;
+  linear_id_type get_local_linear_range() const;
 
-    bool leader() const;
+  bool leader() const;
 };
 
 }
@@ -599,30 +599,30 @@ namespace sycl::ext::oneapi::experimental {
 
 class tangle_group {
 public:
-    using id_type = id<1>;
-    using range_type = range<1>;
-    using linear_id_type = uint32_t;
-    static constexpr int dimensions = 1;
-    static constexpr sycl::memory_scope fence_scope =
-        sycl::memory_scope::sub_group;
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+    sycl::memory_scope::sub_group;
     
-    id_type get_group_id() const;
+  id_type get_group_id() const;
 
-    id_type get_local_id() const;
+  id_type get_local_id() const;
 
-    range_type get_group_range() const;
+  range_type get_group_range() const;
 
-    range_type get_local_range() const;
+  range_type get_local_range() const;
 
-    linear_id_type get_group_linear_id() const;
+  linear_id_type get_group_linear_id() const;
 
-    linear_id_type get_local_linear_id() const;
+  linear_id_type get_local_linear_id() const;
 
-    linear_id_type get_group_linear_range() const;
+  linear_id_type get_group_linear_range() const;
 
-    linear_id_type get_local_linear_range() const;
+  linear_id_type get_local_linear_range() const;
 
-    bool leader() const;
+  bool leader() const;
 };
 
 }
@@ -778,30 +778,30 @@ namespace sycl::ext::oneapi::experimental {
 
 class opportunistic_group {
 public:
-    using id_type = id<1>;
-    using range_type = range<1>;
-    using linear_id_type = uint32_t;
-    static constexpr int dimensions = 1;
-    static constexpr sycl::memory_scope fence_scope =
-        sycl::memory_scope::sub_group;
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+    sycl::memory_scope::sub_group;
     
-    id_type get_group_id() const;
+  id_type get_group_id() const;
 
-    id_type get_local_id() const;
+  id_type get_local_id() const;
 
-    range_type get_group_range() const;
+  range_type get_group_range() const;
 
-    range_type get_local_range() const;
+  range_type get_local_range() const;
 
-    linear_id_type get_group_linear_id() const;
+  linear_id_type get_group_linear_id() const;
 
-    linear_id_type get_local_linear_id() const;
+  linear_id_type get_local_linear_id() const;
 
-    linear_id_type get_group_linear_range() const;
+  linear_id_type get_group_linear_range() const;
 
-    linear_id_type get_local_linear_range() const;
+  linear_id_type get_local_linear_range() const;
 
-    bool leader() const;
+  bool leader() const;
 };
 
 }
