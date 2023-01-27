@@ -355,18 +355,19 @@ work-items in the ballot-group. The leader of the ballot-group is guaranteed to
 be the work-item for which `get_local_id()` returns 0.
 
 
-==== Usage Example
+==== Usage Examples
 
-In the following example a sub-group is split up and one branch of the control
-flow performs a group barrier with a subset of the sub-group. This subset is
-then further subdivided.
+A `ballot_group` can be used in conjunction with constructs like loops and
+branches to safely communicate between all work-items still executing:
 
 [source, c++]
 ----
-auto sub_group = it.get_sub_group();
-auto will_branch = sub_group.get_local_linear_id() % 2 == 0;
-// get group representing the subset of the sub-group that took the branch
-sycl::ext::oneapi::experimental::ballot_group inner = sycl::ext::oneapi::experimental::get_ballot_group(sub_group, will_branch);
+auto sg = it.get_sub_group();
+
+// get group representing the subset of the sub-group that will take the branch
+auto will_branch = sg.get_local_linear_id() % 2 == 0;
+auto inner = sycl::ext::oneapi::experimental::get_ballot_group(sg, will_branch);
+
 if (will_branch)
 {
   // synchronize across the work-items that took the branch
@@ -375,21 +376,17 @@ if (will_branch)
   // reduce across subset of outer work-items that took the branch
   float ix = sycl::reduce_over_group(inner, x, plus<>());
 
-  // once again diverge the groups
+  // further subdivide group into work-items that will branch further
   auto will_branch_further = inner.get_local_linear_id() < 8;
-  auto inner_inner = get_ballot_group(inner, will_branch_further);
-  if (will_branch_further) {
-      // still synchronizing without deadlock
-      sycl::group_barrier(inner_inner);
+  auto inner_inner = sycl::ext::oneapi::experimental::get_ballot_group(inner, will_branch_further);
+
+  if (will_branch_further)
+  {
+    // synchronize across the work-items that took both branches
+    sycl::group_barrier(inner_inner);
   }
 }
-
-// take a subset of an opportunistic group
-auto matching_active_items = get_ballot_group(get_opportunistic_group(sub_group), some_predicate());
 ----
-
-This will allow functions to cause divergent control flow without having to
-consider how to converge again to synchronize.
 
 
 === Cluster-Groups
@@ -530,21 +527,24 @@ to be the work-item for which `get_local_id()` returns 0.
 
 ==== Usage Examples
 
+A `cluster_group` can be used to apply group algorithms to subsets of data:
+
 [source, c++]
 ----
-// sum the buffer in groups of 8
-constexpr std::size_t cluster_size = 8;
-auto sub_group = it.get_sub_group();
-auto cluster = get_cluster_group<cluster_size>(sub_group);
-// compiler knows that exactly 3 shuffles are needed to sum the values
+auto sg = it.get_sub_group();
+
+// reduce over contiguous groups of 8 elements
+auto cluster = sycl::ext::oneapi::experimental::get_cluster_group<8>(sg);
 auto result = sycl::reduce_over_group(cluster, buf[it.get_local_linear_id()], sycl::plus<>());
+
+// write result out once per group
 if (cluster.leader()){
-    buf[it.get_local_linear_id()/cluster_size] = result;
+  buf[cluster.get_group_id()] = result;
 }
 ----
 
-Another use of `cluster_group` would be to provide an interface with a
-compile-time known size of cluster-group as an argument.
+A `cluster_group` can be used to provide an interface accepting a specific
+number of work-items:
 
 [source, c++]
 ----
@@ -695,7 +695,38 @@ be the work-item for which `get_local_id()` returns 0.
 
 ==== Usage Examples
 
-TODO: Usage example for tangle groups.
+A `tangle_group` can be used in conjunction with constructs like loops and
+branches to safely communicate between all work-items executing the same
+control flow.
+
+NOTE: This differs from a `ballot_group` because a `tangle_group` requires the
+implementation to track group membership. Which group type to use will depend
+on a combination of implementation/backend/device and programmer preference.
+
+[source, c++]
+----
+auto sg = it.get_sub_group();
+
+auto will_branch = sg.get_local_linear_id() % 2 == 0;
+if (will_branch)
+{
+  // synchronize across the work-items that took the branch
+  auto inner = sycl::ext::oneapi::experimental::get_tangle_group(sg);
+  sycl::group_barrier(inner);
+
+  // reduce across subset of outer work-items that took the branch
+  float ix = sycl::reduce_over_group(inner, x, plus<>());
+
+  // further subdivide group into work-items that will branch further
+  auto will_branch_further = inner.get_local_linear_id() < 8;
+  if (will_branch_further)
+  {
+    // synchronize across the work-items that took both branches
+    auto inner_inner = sycl::ext::oneapi::experimental::get_tangle_group(inner);
+    sycl::group_barrier(inner_inner);
+  }
+}
+----
 
 
 === Opportunistic-Groups
@@ -851,17 +882,26 @@ arrive to this point in the control flow.
 
 [source, c++]
 ----
-template <sycl::memory_order order, sycl::memory_scope scope, sycl::access::address_space addr_space>
-int atomic_aggregate_inc(sycl::sub_group sub_group, sycl::atomic_ref<int, order, scope, addr_space> ptr) {
-    sycl::ext::oneapi::experimental::opportunistic_group active_group = sycl::ext::oneapi::experimental::get_opportunistic_group(sub_group);
-    int count = active_group.get_local_linear_range();
-    int old_value;
-    if (active_group.leader()) {
-        old_value = ptr.fetch_add(count);
-    }
-    // return the value the individual work-item might have received if it had worked alone.
-    auto index_in_group = active_group.get_local_linear_id();
-    return sycl::select_from_group(active_group, old_value, 0) + index_in_group;
+template <sycl::memory_order Order,
+          sycl::memory_scope Scope,
+          sycl::access::address_space AddressSpace>
+int atomic_aggregate_inc(sycl::sub_group sg, sycl::atomic_ref<int, Order, Scope, AddressSpace> ptr) {
+
+  // get the set of work-items that called this function simultaneously
+  auto active_group = sycl::ext::oneapi::experimental::get_opportunistic_group(sub_group);
+
+  // increment the atomic once on behalf of all active work-items
+  int count = active_group.get_local_linear_range();
+  int old_value;
+  if (active_group.leader()) {
+    old_value = ptr.fetch_add(count);
+  }
+
+  // return the value the individual work-item might have received if it had worked alone
+  auto base = sycl::group_broadcast(active_group, old_value);
+  auto idx = active_group.get_local_linear_id();
+  return base + idx;
+
 }
 ----
 
