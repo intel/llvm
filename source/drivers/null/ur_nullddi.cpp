@@ -881,12 +881,12 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urEnqueueUSMMemAdvice
+    /// @brief Intercept function for urEnqueueUSMMemAdvise
     __urdlllocal ur_result_t UR_APICALL
-    urEnqueueUSMMemAdvice(
+    urEnqueueUSMMemAdvise(
         ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
         const void* pMem,                               ///< [in] pointer to the USM memory object
-        size_t size,                                    ///< [in] size in bytes to be adviced
+        size_t size,                                    ///< [in] size in bytes to be advised
         ur_mem_advice_t advice,                         ///< [in] USM memory advice
         ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
                                                         ///< particular command instance.
@@ -895,10 +895,10 @@ namespace driver
         ur_result_t result = UR_RESULT_SUCCESS;
 
         // if the driver has created a custom function, then call it instead of using the generic path
-        auto pfnUSMMemAdvice = d_context.urDdiTable.Enqueue.pfnUSMMemAdvice;
-        if( nullptr != pfnUSMMemAdvice )
+        auto pfnUSMMemAdvise = d_context.urDdiTable.Enqueue.pfnUSMMemAdvise;
+        if( nullptr != pfnUSMMemAdvise )
         {
-            result = pfnUSMMemAdvice( hQueue, pMem, size, advice, phEvent );
+            result = pfnUSMMemAdvise( hQueue, pMem, size, advice, phEvent );
         }
         else
         {
@@ -3424,7 +3424,7 @@ urGetEnqueueProcAddrTable(
 
     pDdiTable->pfnUSMPrefetch                            = driver::urEnqueueUSMPrefetch;
 
-    pDdiTable->pfnUSMMemAdvice                           = driver::urEnqueueUSMMemAdvice;
+    pDdiTable->pfnUSMMemAdvise                           = driver::urEnqueueUSMMemAdvise;
 
     pDdiTable->pfnUSMFill2D                              = driver::urEnqueueUSMFill2D;
 
