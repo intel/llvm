@@ -25,7 +25,6 @@ std::unique_ptr<Pass> createLegalizeForSPIRVPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
-std::unique_ptr<Pass> createConvertToLLVMABIPass();
 
 } // namespace polygeist
 } // namespace mlir
