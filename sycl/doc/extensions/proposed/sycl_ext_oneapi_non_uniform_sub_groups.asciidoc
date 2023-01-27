@@ -83,6 +83,26 @@ now only sub-groups are supported.
 
 == Specification
 
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_NON_UNIFORM_GROUPS` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
 === Control Flow
 
 The SYCL specification defines
@@ -139,7 +159,7 @@ user-constructed group, respectively.
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
   template <class T>
   struct is_fixed_topology_group;
@@ -156,7 +176,7 @@ namespace sycl::ext::oneapi {
   inline constexpr bool
   is_user_constructed_group_v = is_user_constructed_group<T>::value;
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 `is_fixed_topology_group<T>::value` is `std::true_type` if `T` is one of:
@@ -186,12 +206,12 @@ membership.
 
 [source, c++]
 ----
-namespace ext::oneapi {
+namespace ext::oneapi::experimental {
 
 template <typename Group>
 ballot_group get_ballot_group(Group group, bool predicate);
 
-} // namespace ext::oneapi
+} // namespace ext::oneapi::experimental
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
 std::is_same_v<Group, sycl::sub_group>` is true.
@@ -209,7 +229,7 @@ _Returns_: A `ballot_group` consisting of the work-items in `group` for which
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 class ballot_group {
 public:
@@ -320,7 +340,7 @@ then further subdivided.
 auto sub_group = it.get_sub_group();
 auto will_branch = sub_group.get_local_linear_id() % 2 == 0;
 // get group representing the subset of the sub-group that took the branch
-sycl::ext::oneapi::ballot_group inner = sycl::ext::oneapi::get_ballot_group(sub_group, will_branch);
+sycl::ext::oneapi::experimental::ballot_group inner = sycl::ext::oneapi::experimental::get_ballot_group(sub_group, will_branch);
 if (will_branch)
 {
   // synchronize across the work-items that took the branch
@@ -365,12 +385,12 @@ fixed cluster size.
 
 [source, c++]
 ----
-namespace ext::oneapi {
+namespace ext::oneapi::experimental {
 
 template <size_t ClusterSize, typename Group> 
 cluster_group<ClusterSize> get_cluster_group(Group group);
 
-} // namespace ext::oneapi
+} // namespace ext::oneapi::experimental
 ----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
@@ -389,7 +409,7 @@ _Returns_: A `cluster_group<ClusterSize>` consisting of all work-items in
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 template <std::size_t ClusterSize>
 class cluster_group {
@@ -502,7 +522,7 @@ compile-time known size of cluster-group as an argument.
 
 [source, c++]
 ----
-void func_that_needs_4_work_items(sycl::ext::oneapi::cluster_group<4> group);
+void func_that_needs_4_work_items(sycl::ext::oneapi::experimental::cluster_group<4> group);
 ----
 
 
@@ -525,12 +545,12 @@ implementations.
 
 [source, c++]
 ----
-namespace ext::oneapi {
+namespace ext::oneapi::experimental {
 
 template <typename Group>
 tangle_group get_tangle_group(Group group);
 
-} // namespace ext::oneapi
+} // namespace ext::oneapi::experimental
 ----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
@@ -549,7 +569,7 @@ part of the same tangle.
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 class tangle_group {
 public:
@@ -681,11 +701,11 @@ it is designed to capture whichever set of work-items happen to call
 
 [source, c++]
 ----
-namespace ext::oneapi::this_kernel {
+namespace ext::oneapi::experimental::this_kernel {
 
 opportunistic_group get_opportunistic_group();
 
-} // namespace ext::oneapi::this_kernel
+} // namespace ext::oneapi::experimental::this_kernel
 ----
 
 _Returns_: An `opportunistic_group` consisting of all work-items in the same
@@ -697,7 +717,7 @@ tangle.
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 class opportunistic_group {
 public:
@@ -807,7 +827,7 @@ arrive to this point in the control flow.
 ----
 template <sycl::memory_order order, sycl::memory_scope scope, sycl::access::address_space addr_space>
 int atomic_aggregate_inc(sycl::sub_group sub_group, sycl::atomic_ref<int, order, scope, addr_space> ptr) {
-    sycl::ext::oneapi::opportunistic_group active_group = sycl::ext::oneapi::get_opportunistic_group(sub_group);
+    sycl::ext::oneapi::experimental::opportunistic_group active_group = sycl::ext::oneapi::experimental::get_opportunistic_group(sub_group);
     int count = active_group.get_local_linear_range();
     int old_value;
     if (active_group.leader()) {
