@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 /// \file
-/// This header defines utility pass for SYCL framework optimization removing
-/// optnone and noinline attributes from function marked with
-/// "!sycl-framework" metadata.
+/// This header defines utility pass for SYCL framework optimization adding
+/// back noinline and optnone function attributes since Backends might expect
+/// them.
 ///
 //===----------------------------------------------------------------------===//
 //
