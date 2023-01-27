@@ -186,6 +186,33 @@ namespace sycl::ext::oneapi::experimental {
 `ballot_group`, `cluster_group`, `tangle_group` or `opportunisic_group`.
 
 
+=== Group Functions
+
+The following group functions support `ballot_group`, `cluster_group`,
+`tangle_group` and `opportunistic_group` group types:
+
+* `group_barrier`
+* `broadcast`
+
+
+=== Group Algorithms
+
+The following group algorithms support `ballot_group`, `cluster_group`,
+`tangle_group` and `opportunistic_group` group types:
+
+* `joint_any_of` and `any_of_group`
+* `joint_all_of` and `all_of_group`
+* `joint_none_of` and `none_of_group`
+* `shift_group_left`
+* `shift_group_right`
+* `permute_group_by_xor`
+* `select_from_group`
+* `joint_reduce`
+* `reduce_over_group`
+* `joint_exclusive_scan` and `exclusive_scan_over_group`
+* `joint_inclusive_scan` and `inclusive_scan_over_group`
+
+
 === Ballot-Groups
 
 A ballot-group is a non-contiguous subset of a group, representing a collection
@@ -838,32 +865,6 @@ int atomic_aggregate_inc(sycl::sub_group sub_group, sycl::atomic_ref<int, order,
     return sycl::select_from_group(active_group, old_value, 0) + index_in_group;
 }
 ----
-
-=== Group Functions
-
-The following group functions support `ballot_group`, `cluster_group`,
-`tangle_group` and `opportunistic_group` group types:
-
-* `group_barrier`
-* `broadcast`
-
-
-=== Group Algorithms
-
-The following group algorithms support `ballot_group`, `cluster_group`,
-`tangle_group` and `opportunistic_group` group types:
-
-* `joint_any_of` and `any_of_group`
-* `joint_all_of` and `all_of_group`
-* `joint_none_of` and `none_of_group`
-* `shift_group_left`
-* `shift_group_right`
-* `permute_group_by_xor`
-* `select_from_group`
-* `joint_reduce`
-* `reduce_over_group`
-* `joint_exclusive_scan` and `exclusive_scan_over_group`
-* `joint_inclusive_scan` and `inclusive_scan_over_group`
 
 
 == Issues
