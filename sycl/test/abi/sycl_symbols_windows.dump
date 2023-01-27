@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -173,6 +173,7 @@
 ??$get_info@Uversion@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uversion@platform@info@_V1@sycl@@@platform@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
+??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ

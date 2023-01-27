@@ -2376,8 +2376,8 @@ void Clang::AddHexagonTargetArgs(const ArgList &Args,
 
   if (auto G = toolchains::HexagonToolChain::getSmallDataThreshold(Args)) {
     CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back(Args.MakeArgString("-hexagon-small-data-threshold=" +
-                                         Twine(G.value())));
+    CmdArgs.push_back(
+        Args.MakeArgString("-hexagon-small-data-threshold=" + Twine(*G)));
   }
 
   if (!Args.hasArg(options::OPT_fno_short_enums))
@@ -4999,6 +4999,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Wno-sycl-strict");
     }
 
+    // Set O2 optimization level by default
+    if (!Args.getLastArg(options::OPT_O_Group))
+      CmdArgs.push_back("-O2");
+
     // Add the integration header option to generate the header.
     StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
     if (!Header.empty()) {
@@ -5028,6 +5032,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       A->render(Args, CmdArgs);
 
     if (SYCLStdArg) {
+      // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.
+      // TODO: remove support at next approprate major release.
+      StringRef StdValue(SYCLStdArg->getValue());
+      if (StdValue == "1.2.1" || StdValue == "121" ||
+          StdValue == "sycl-1.2.1" || StdValue == "2017")
+        D.Diag(diag::warn_drv_deprecated_argument_option_release)
+            << StdValue << SYCLStdArg->getSpelling();
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
@@ -5044,6 +5055,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_force_inline_kernel_lambda,
                       !DisableSYCLForceInlineKernelLambda))
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
+
+    // Add -ffine-grained-bitfield-accesses option. This will be added
+    // only for SPIR based targets.
+    if (Triple.isSPIR())
+      CmdArgs.push_back("-ffine-grained-bitfield-accesses");
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
                       options::OPT_fno_sycl_unnamed_lambda, true))
@@ -6076,10 +6092,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // the command line.  This is to allow for CMake based builds using the
   // Linux based driver on Windows to correctly pull in the expected debug
   // library.
-  if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment() &&
-      Args.hasArg(options::OPT_fsycl)) {
-    if (isDependentLibAdded(Args, "msvcrtd"))
-      CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+  if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
+    if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
+      if (isDependentLibAdded(Args, "msvcrtd"))
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+    } else if (!D.IsCLMode() && TC.getTriple().isWindowsGNUEnvironment()) {
+      CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION ".dll");
+    }
+    CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
   }
 
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
@@ -6981,9 +7001,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(Twine("-fcf-protection=") + A->getValue()));
   }
 
-  if (IsUsingLTO)
-    Args.AddLastArg(CmdArgs, options::OPT_mibt_seal);
-
   if (Arg *A = Args.getLastArg(options::OPT_mfunction_return_EQ))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-mfunction-return=") + A->getValue()));
@@ -7253,6 +7270,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fmodules-debuginfo");
 
   if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
+    CmdArgs.push_back("-no-opaque-pointers");
+  else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
+           !SPIRV_ENABLE_OPAQUE_POINTERS)
     CmdArgs.push_back("-no-opaque-pointers");
 
   ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, Inputs, CmdArgs, rewriteKind);
@@ -7874,6 +7894,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
              getToolChain().IsAArch64OutlineAtomicsDefault(Args)) {
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back("+outline-atomics");
+  }
+
+  if (Triple.isAArch64() &&
+      (Args.hasArg(options::OPT_mno_fmv) ||
+       getToolChain().GetRuntimeLibType(Args) != ToolChain::RLT_CompilerRT)) {
+    // Disable Function Multiversioning on AArch64 target.
+    CmdArgs.push_back("-target-feature");
+    CmdArgs.push_back("-fmv");
   }
 
   if (Args.hasFlag(options::OPT_faddrsig, options::OPT_fno_addrsig,

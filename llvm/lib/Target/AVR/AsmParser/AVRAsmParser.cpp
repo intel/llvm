@@ -55,8 +55,9 @@ class AVRAsmParser : public MCTargetAsmParser {
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
@@ -447,32 +448,21 @@ bool AVRAsmParser::tryParseRelocExpression(OperandVector &Operands) {
 
   SMLoc S = Parser.getTok().getLoc();
 
-  // Check for sign
+  // Reject the form in which sign comes first. This behaviour is
+  // in accordance with avr-gcc.
+  AsmToken::TokenKind CurTok = Parser.getLexer().getKind();
+  if (CurTok == AsmToken::Minus || CurTok == AsmToken::Plus)
+    return true;
+
+  // Check for sign.
   AsmToken tokens[2];
-  size_t ReadCount = Parser.getLexer().peekTokens(tokens);
-
-  if (ReadCount == 2) {
-    if ((tokens[0].getKind() == AsmToken::Identifier &&
-         tokens[1].getKind() == AsmToken::LParen) ||
-        (tokens[0].getKind() == AsmToken::LParen &&
-         tokens[1].getKind() == AsmToken::Minus)) {
-
-      AsmToken::TokenKind CurTok = Parser.getLexer().getKind();
-      if (CurTok == AsmToken::Minus || tokens[1].getKind() == AsmToken::Minus) {
+  if (Parser.getLexer().peekTokens(tokens) == 2)
+      if (tokens[0].getKind() == AsmToken::LParen &&
+          tokens[1].getKind() == AsmToken::Minus)
         isNegated = true;
-      } else {
-        assert(CurTok == AsmToken::Plus);
-        isNegated = false;
-      }
-
-      // Eat the sign
-      if (CurTok == AsmToken::Minus || CurTok == AsmToken::Plus)
-        Parser.Lex();
-    }
-  }
 
   // Check if we have a target specific modifier (lo8, hi8, &c)
-  if (Parser.getTok().getKind() != AsmToken::Identifier ||
+  if (CurTok != AsmToken::Identifier ||
       Parser.getLexer().peekTok().getKind() != AsmToken::LParen) {
     // Not a reloc expr
     return true;
@@ -600,7 +590,7 @@ OperandMatchResultTy AVRAsmParser::parseMemriOperand(OperandVector &Operands) {
   return MatchOperand_Success;
 }
 
-bool AVRAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool AVRAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                  SMLoc &EndLoc) {
   StartLoc = Parser.getTok().getLoc();
   RegNo = parseRegister(/*RestoreOnFailure=*/false);
@@ -609,7 +599,7 @@ bool AVRAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
   return (RegNo == AVR::NoRegister);
 }
 
-OperandMatchResultTy AVRAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy AVRAsmParser::tryParseRegister(MCRegister &RegNo,
                                                     SMLoc &StartLoc,
                                                     SMLoc &EndLoc) {
   StartLoc = Parser.getTok().getLoc();

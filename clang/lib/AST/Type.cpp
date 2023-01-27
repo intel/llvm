@@ -524,6 +524,10 @@ template <> const TypedefType *Type::getAs() const {
   return getAsSugar<TypedefType>(this);
 }
 
+template <> const UsingType *Type::getAs() const {
+  return getAsSugar<UsingType>(this);
+}
+
 template <> const TemplateSpecializationType *Type::getAs() const {
   return getAsSugar<TemplateSpecializationType>(this);
 }
@@ -4147,8 +4151,7 @@ LinkageInfo Type::getLinkageAndVisibility() const {
   return LinkageComputer{}.getTypeLinkageAndVisibility(this);
 }
 
-Optional<NullabilityKind>
-Type::getNullability(const ASTContext &Context) const {
+Optional<NullabilityKind> Type::getNullability() const {
   QualType Type(this, 0);
   while (const auto *AT = Type->getAs<AttributedType>()) {
     // Check whether this is an attributed type with nullability

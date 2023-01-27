@@ -42,8 +42,11 @@ Design Documents for the oneAPI DPC++ Compiler
    design/ITTAnnotations
    design/DeviceGlobal
    design/CompileTimeProperties
+   design/HostPipes
    design/ESIMDStatelesAccessors
+   design/ESIMDDesignNotes
    design/DeviceIf
+   design/NonRelocatableDeviceCode
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=NONE,ALL
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=primary -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=PRIM_DEF,ALL
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=10 -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=TEN_DEF,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=NONE,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=primary -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=PRIM_DEF,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=10 -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=TEN_DEF,ALL
 
 // Ensure that both forms of the new sub_group_size properly emit their metadata
 // on sycl-kernel and sycl-external functions.

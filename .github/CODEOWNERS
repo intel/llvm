@@ -61,10 +61,10 @@ sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-review
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
-sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @rolandschulz @kbobrovs
-sycl/include/std/experimental/simd.hpp @rolandschulz @kbobrovs
-llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @kbobrovs @v-klochkov @rolandschulz
-llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @kbobrovs @v-klochkov @rolandschulz
+sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+sycl/include/std/experimental/simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
+llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
