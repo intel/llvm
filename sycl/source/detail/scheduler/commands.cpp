@@ -2107,7 +2107,12 @@ pi_int32 enqueueImpKernel(
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
   RT::PiKernel Kernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
+  // Cacheable kernels use per-kernel mutexes that will be fetched from the
+  // cache, others (e.g. interoperability kernels) share a single mutex.
+  // TODO consider adding a PiKernel -> mutex map for allowing to enqueue
+  // different PiKernel's in parallel.
+  static std::mutex NoncacheableEnqueueMutex;
+  std::mutex *KernelMutex = &NoncacheableEnqueueMutex;
   RT::PiProgram Program = nullptr;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
@@ -2180,18 +2185,13 @@ pi_int32 enqueueImpKernel(
         detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
             OSModuleHandle, Program, KernelName);
   }
-  if (KernelMutex != nullptr) {
-    // For cacheable kernels, we use per-kernel mutex
+  {
+    assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
-  } else {
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEvent,
-                                     EliminatedArgMask, getMemAllocationFunc);
   }
-
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong

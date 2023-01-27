@@ -898,7 +898,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   const detail::plugin &Plugin = SrcQueue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
-                                                /* blocking */ false, DstMem,
+                                                /* blocking */ PI_FALSE, DstMem,
                                                 SrcMem, Len, DepEvents.size(),
                                                 DepEvents.data(), OutEvent);
 }
@@ -973,7 +973,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                           "NULL pointer argument in 2D memory copy operation.");
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
-      Queue->getHandleRef(), /*blocking=*/false, DstMem, DstPitch, SrcMem,
+      Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
       SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
