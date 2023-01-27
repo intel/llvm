@@ -554,8 +554,9 @@ public:
   event memset(void *Ptr, int Value, size_t Count,
                const std::vector<event> &DepEvents);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -566,8 +567,9 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -579,8 +581,9 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -594,8 +597,9 @@ public:
   event memcpy(void *Dest, const void *Src, size_t Count,
                const std::vector<event> &DepEvents);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -603,13 +607,18 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -618,14 +627,19 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -634,10 +648,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 

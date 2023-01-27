@@ -35,7 +35,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE"
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
 
   windows_default:
     name: Windows

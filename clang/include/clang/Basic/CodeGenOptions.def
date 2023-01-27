@@ -105,7 +105,6 @@ CODEGENOPT(CFProtectionReturn , 1, 0) ///< if -fcf-protection is
                                       ///< set to full or return.
 CODEGENOPT(CFProtectionBranch , 1, 0) ///< if -fcf-protection is
                                       ///< set to full or branch.
-CODEGENOPT(IBTSeal, 1, 0)             ///< set to optimize CFProtectionBranch.
 CODEGENOPT(FunctionReturnThunks, 1, 0) ///< -mfunction-return={keep|thunk-extern}
 CODEGENOPT(IndirectBranchCSPrefix, 1, 0) ///< if -mindirect-branch-cs-prefix
                                          ///< is set.
@@ -512,6 +511,9 @@ CODEGENOPT(OpaquePointers, 1, 0)
 /// Modify C++ ABI to returning `this` pointer from constructors and
 /// non-deleting destructors. (No effect on Microsoft ABI.)
 CODEGENOPT(CtorDtorReturnThis, 1, 0)
+
+/// Whether to disable the standard optimization pipeline for the SYCL device compiler.
+CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT

@@ -45,6 +45,7 @@
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
@@ -781,11 +782,12 @@ public:
 
   void Initialize(ASTContext &C) override {
     ContextAST = &C;
-
+    SMDiagnostic Err;
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
     std::unique_ptr<llvm::Module> const M =
-        ExitOnErr(parseBitcodeFile(Buff.get()->getMemBufferRef(), ContextLLVM));
+        ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
+            parseIR(Buff.get()->getMemBufferRef(), Err, ContextLLVM)));
 
     handleModule(M.get());
   }
@@ -794,7 +796,7 @@ private:
   bool createClones(llvm::Module *M, std::string OriginalMangledName,
                     std::string RemangledName,
                     const itanium_demangle::Node *FunctionTree,
-                    TargetTypeReplacements Replacements) {
+                    TargetTypeReplacements &Replacements) {
     // create clone of original function
     if (!createCloneFromMap(M, OriginalMangledName, FunctionTree,
                             Replacements.getCloneTypeReplacements(),

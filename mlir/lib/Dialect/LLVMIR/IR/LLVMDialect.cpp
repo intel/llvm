@@ -20,6 +20,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/AsmParser/Parser.h"
@@ -146,7 +147,7 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
   // Replace the string attribute `predicate` with an integer attribute.
   int64_t predicateValue = 0;
   if (std::is_same<CmpPredicateType, ICmpPredicate>()) {
-    Optional<ICmpPredicate> predicate =
+    std::optional<ICmpPredicate> predicate =
         symbolizeICmpPredicate(predicateAttr.getValue());
     if (!predicate)
       return parser.emitError(predicateLoc)
@@ -154,7 +155,7 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
              << "' is an incorrect value of the 'predicate' attribute";
     predicateValue = static_cast<int64_t>(*predicate);
   } else {
-    Optional<FCmpPredicate> predicate =
+    std::optional<FCmpPredicate> predicate =
         symbolizeFCmpPredicate(predicateAttr.getValue());
     if (!predicate)
       return parser.emitError(predicateLoc)
@@ -219,8 +220,7 @@ ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
   Optional<NamedAttribute> alignmentAttr =
       result.attributes.getNamed("alignment");
   if (alignmentAttr.has_value()) {
-    auto alignmentInt =
-        alignmentAttr.value().getValue().dyn_cast<IntegerAttr>();
+    auto alignmentInt = alignmentAttr->getValue().dyn_cast<IntegerAttr>();
     if (!alignmentInt)
       return parser.emitError(parser.getNameLoc(),
                               "expected integer alignment");
@@ -252,7 +252,7 @@ ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
 /// Checks that the elemental type is present in either the pointer type or
 /// the attribute, but not both.
 static LogicalResult verifyOpaquePtr(Operation *op, LLVMPointerType ptrType,
-                                     Optional<Type> ptrElementType) {
+                                     std::optional<Type> ptrElementType) {
   if (ptrType.isOpaque() && !ptrElementType.has_value()) {
     return op->emitOpError() << "expected '" << kElemTypeAttrName
                              << "' attribute if opaque pointer type is used";
@@ -418,7 +418,7 @@ static Type extractVectorElementType(Type type) {
 }
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
-                  Value basePtr, ArrayRef<GEPArg> indices,
+                  Value basePtr, ArrayRef<GEPArg> indices, bool inbounds,
                   ArrayRef<NamedAttribute> attributes) {
   auto ptrType =
       extractVectorElementType(basePtr.getType()).cast<LLVMPointerType>();
@@ -426,7 +426,7 @@ void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
          "expected non-opaque pointer, provide elementType explicitly when "
          "opaque pointers are used");
   build(builder, result, resultType, ptrType.getElementType(), basePtr, indices,
-        attributes);
+        inbounds, attributes);
 }
 
 /// Destructures the 'indices' parameter into 'rawConstantIndices' and
@@ -481,7 +481,7 @@ static void destructureIndices(Type currType, ArrayRef<GEPArg> indices,
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
                   Type elementType, Value basePtr, ArrayRef<GEPArg> indices,
-                  ArrayRef<NamedAttribute> attributes) {
+                  bool inbounds, ArrayRef<NamedAttribute> attributes) {
   SmallVector<int32_t> rawConstantIndices;
   SmallVector<Value> dynamicIndices;
   destructureIndices(elementType, indices, rawConstantIndices, dynamicIndices);
@@ -490,6 +490,10 @@ void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
   result.addAttributes(attributes);
   result.addAttribute(getRawConstantIndicesAttrName(result.name),
                       builder.getDenseI32ArrayAttr(rawConstantIndices));
+  if (inbounds) {
+    result.addAttribute(getInboundsAttrName(result.name),
+                        builder.getUnitAttr());
+  }
   if (extractVectorElementType(basePtr.getType())
           .cast<LLVMPointerType>()
           .isOpaque())
@@ -499,17 +503,17 @@ void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
 }
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
-                  Value basePtr, ValueRange indices,
+                  Value basePtr, ValueRange indices, bool inbounds,
                   ArrayRef<NamedAttribute> attributes) {
   build(builder, result, resultType, basePtr, SmallVector<GEPArg>(indices),
-        attributes);
+        inbounds, attributes);
 }
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
                   Type elementType, Value basePtr, ValueRange indices,
-                  ArrayRef<NamedAttribute> attributes) {
+                  bool inbounds, ArrayRef<NamedAttribute> attributes) {
   build(builder, result, resultType, elementType, basePtr,
-        SmallVector<GEPArg>(indices), attributes);
+        SmallVector<GEPArg>(indices), inbounds, attributes);
 }
 
 static ParseResult
@@ -660,7 +664,7 @@ LogicalResult LLVM::GEPOp::verify() {
 }
 
 Type LLVM::GEPOp::getSourceElementType() {
-  if (Optional<Type> elemType = getElemType())
+  if (std::optional<Type> elemType = getElemType())
     return *elemType;
 
   return extractVectorElementType(getBase().getType())
@@ -1848,7 +1852,7 @@ LogicalResult GlobalOp::verify() {
     }
   }
 
-  Optional<uint64_t> alignAttr = getAlignment();
+  std::optional<uint64_t> alignAttr = getAlignment();
   if (alignAttr.has_value()) {
     uint64_t value = alignAttr.value();
     if (!llvm::isPowerOf2_64(value))
@@ -2580,6 +2584,22 @@ struct LLVMOpAsmDialectInterface : public OpAsmDialectInterface {
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// DialectInlinerInterface
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct LLVMInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  /// Conservatively only allow inlining of pure ops.
+  bool isLegalToInline(Operation *op, Region *, bool,
+                       BlockAndValueMapping &) const final {
+    return isPure(op);
+  }
+};
+} // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
 // LLVMDialect initialization, type parsing, and registration.
 //===----------------------------------------------------------------------===//
 
@@ -2607,7 +2627,10 @@ void LLVMDialect::initialize() {
 
   // Support unknown operations because not all LLVM operations are registered.
   allowUnknownOperations();
-  addInterfaces<LLVMOpAsmDialectInterface>();
+  // clang-format off
+  addInterfaces<LLVMOpAsmDialectInterface,
+                LLVMInlinerInterface>();
+  // clang-format on
 }
 
 #define GET_OP_CLASSES

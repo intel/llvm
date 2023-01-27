@@ -78,7 +78,7 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
     FPM.addPass(createFunctionToLoopPassAdaptor(IndVarSimplifyPass{}));
     LoopUnrollOptions UnrollOptions;
     FPM.addPass(LoopUnrollPass{UnrollOptions});
-    FPM.addPass(SROAPass{});
+    FPM.addPass(SROAPass{SROAOptions::ModifyCFG});
     // Run the InferAddressSpace pass to remove as many address-space casts
     // to/from generic address-space as possible, because these hinder
     // internalization.
@@ -94,11 +94,11 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   // Run additional optimization passes after completing fusion.
   {
     FunctionPassManager FPM;
-    FPM.addPass(SROAPass{});
+    FPM.addPass(SROAPass{SROAOptions::ModifyCFG});
     FPM.addPass(SCCPPass{});
     FPM.addPass(InstCombinePass{});
     FPM.addPass(SimplifyCFGPass{});
-    FPM.addPass(SROAPass{});
+    FPM.addPass(SROAPass{SROAOptions::ModifyCFG});
     FPM.addPass(InstCombinePass{});
     FPM.addPass(SimplifyCFGPass{});
     FPM.addPass(ADCEPass{});

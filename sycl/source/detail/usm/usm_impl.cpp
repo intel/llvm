@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <detail/queue_impl.hpp>
+#include <detail/usm/usm_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/aligned_allocator.hpp>
 #include <sycl/detail/os_util.hpp>
@@ -23,19 +24,7 @@
 // Include the headers necessary for emitting
 // traces using the trace framework
 #include "xpti/xpti_trace_framework.hpp"
-
-#define XPTI_CREATE_TRACEPOINT(CodeLoc)                                        \
-  std::unique_ptr<xpti::framework::tracepoint_t> _TP(nullptr);                 \
-  if (xptiTraceEnabled()) {                                                    \
-    xpti::payload_t Payload{CodeLoc.functionName(), CodeLoc.fileName(),        \
-                            static_cast<int>(CodeLoc.lineNumber()),            \
-                            static_cast<int>(CodeLoc.columnNumber()),          \
-                            nullptr};                                          \
-    _TP = std::make_unique<xpti::framework::tracepoint_t>(&Payload);           \
-  }                                                                            \
-  (void)_TP;
-#else
-#define XPTI_CREATE_TRACEPOINT(CodeLoc)
+#include <detail/xpti_registry.hpp>
 #endif
 
 namespace sycl {
@@ -43,12 +32,32 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 using alloc = sycl::usm::alloc;
 
-namespace detail::usm {
+namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+#endif
+namespace usm {
 
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
                        const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAllocHost,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
+    xpti::addMetadata(TEvent, "sycl_device", 0);
+    xpti::addMetadata(TEvent, "memory_size", Size);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+#endif
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -113,15 +122,14 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   return RetVal;
 }
 
-void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
-                   const device &Dev, alloc Kind, const property_list &PropList,
-                   const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+void *alignedAllocInternal(size_t Alignment, size_t Size,
+                           const context_impl *CtxImpl,
+                           const device_impl *DevImpl, alloc Kind,
+                           const property_list &PropList) {
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
 
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   if (CtxImpl->is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
@@ -147,7 +155,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
     switch (Kind) {
     case alloc::device: {
-      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      Id = DevImpl->getHandleRef();
 
       std::array<pi_usm_mem_properties, 3> Props;
       auto PropsIter = Props.begin();
@@ -155,7 +163,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       // Buffer location is only supported on FPGA devices
       if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
                                     buffer_location>() &&
-          Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
+          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
                            .get_property<sycl::ext::intel::experimental::
@@ -172,7 +180,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       break;
     }
     case alloc::shared: {
-      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      Id = DevImpl->getHandleRef();
 
       std::array<pi_usm_mem_properties, 5> Props;
       auto PropsIter = Props.begin();
@@ -185,7 +193,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
       if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
                                     buffer_location>() &&
-          Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
+          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
                            .get_property<sycl::ext::intel::experimental::
@@ -217,13 +225,35 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   return RetVal;
 }
 
-void free(void *Ptr, const context &Ctxt,
-          const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
+                   const device &Dev, alloc Kind, const property_list &PropList,
+                   const detail::code_location &CodeLoc) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAlloc,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::alignedAlloc");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device_name",
+                      Dev.get_info<info::device::name>());
+    // Need to determine how to get the device handle reference
+    // xpti::addMetadata(TEvent, "sycl_device", Dev.getHandleRef()));
+    xpti::addMetadata(TEvent, "memory_size", Size);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+#endif
+  return alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
+                              getSyclObjImpl(Dev).get(), Kind, PropList);
+}
+
+void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
-
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   if (CtxImpl->is_host()) {
     // need to use alignedFree here for Windows
     detail::OSUtil::alignedFree(Ptr);
@@ -234,7 +264,28 @@ void free(void *Ptr, const context &Ctxt,
   }
 }
 
-} // namespace detail::usm
+void free(void *Ptr, const context &Ctxt,
+          const detail::code_location &CodeLoc) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)free,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::free");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_release_begin);
+#endif
+  freeInternal(Ptr, detail::getSyclObjImpl(Ctxt).get());
+}
+
+} // namespace usm
+} // namespace detail
 
 void *malloc_device(size_t Size, const device &Dev,
                     const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {

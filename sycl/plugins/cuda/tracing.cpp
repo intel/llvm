@@ -12,7 +12,9 @@
 #endif
 
 #include <cuda.h>
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <cupti.h>
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
 #include <exception>
 #include <iostream>

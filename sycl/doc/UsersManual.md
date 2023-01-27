@@ -4,7 +4,7 @@ This is the list of SYCL specific options supported by compiler and some
 examples.
 
 Options marked as [DEPRECATED] are going to be removed in some future updates.
-Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+Options marked as [EXPERIMENTAL] are expected to be used only in limited cases
 and not recommended to use in production environment.
 
 ## Generic options
@@ -32,9 +32,9 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
-    Special target values specific to Intel, NVIDIA and AMD Processor Graphics support are
-    accepted, providing a streamlined interface for AOT. Only one of these
-    values at a time is supported.
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics
+    support are accepted, providing a streamlined interface for AOT. Only one of
+    these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
     * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
@@ -98,7 +98,7 @@ and not recommended to use in production environment.
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
     SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1
+    * 121 - SYCL 1.2.1 [DEPRECATED]
     * 2020 - SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
@@ -240,7 +240,8 @@ and not recommended to use in production environment.
       kernels grouped on per-source basis and all their dependencies, such as
       all used variables and called functions, including the `SYCL_EXTERNAL`
       macro-marked functions from other translation units.
-    * off - creates a single module for all kernels.
+    * off - creates a single module for all kernels. If `-fsycl-no-rdc` is
+      specified, the behavior is the same as per_source.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
@@ -299,6 +300,16 @@ and not recommended to use in production environment.
     the expected unbundling type even though the target given does not match.
     The forced target applies to all objects, archives and default device
     libraries.
+
+**`-f[no-]sycl-rdc`**
+
+    Enables/disables relocatable device code. If relocatable device code is
+    disabled, device code cannot use SYCL_EXTERNAL functions, which allows
+    the compiler to link device code on a per-translation-unit basis.
+    This may result in compile time and compiler memory usage improvements.
+    '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
+    additional device linking parallism for fat static archives.
+    Relocatable device code is enabled by default.
 
 ## Intel FPGA specific options
 

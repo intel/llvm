@@ -3,9 +3,9 @@
 
 ; REQUIRES: x86-registered-target
 
-; RUN: opt -thinlto-bc -o %t1.bc %s
-; RUN: opt -thinlto-bc -o %t2.bc %S/Inputs/comdat.ll
-; RUN: llvm-lto2 run -save-temps -o %t3 %t1.bc %t2.bc \
+; RUN: opt -opaque-pointers -thinlto-bc -o %t1.bc %s
+; RUN: opt -opaque-pointers -thinlto-bc -o %t2.bc %S/Inputs/comdat.ll
+; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t3 %t1.bc %t2.bc \
 ; RUN:          -r %t1.bc,lwt_fun,plx \
 ; RUN:          -r %t2.bc,main,plx \
 ; RUN:          -r %t2.bc,lwt_fun,
@@ -18,15 +18,14 @@ target triple = "x86_64-pc-windows-msvc19.0.24215"
 $lwt = comdat any
 
 ; CHECK: @lwt_aliasee = private unnamed_addr global {{.*}}, comdat($lwt.llvm.[[HASH]])
-@lwt_aliasee = private unnamed_addr global [1 x i8*] [i8* null], comdat($lwt)
+@lwt_aliasee = private unnamed_addr global [1 x ptr] [ptr null], comdat($lwt)
 
 ; CHECK: @lwt.llvm.[[HASH]] = hidden unnamed_addr alias
-@lwt = internal unnamed_addr alias [1 x i8*], [1 x i8*]* @lwt_aliasee
+@lwt = internal unnamed_addr alias [1 x ptr], ptr @lwt_aliasee
 
 ; Below function should get imported into other module, resulting in @lwt being
 ; promoted and renamed.
-define i8* @lwt_fun() {
-  %1 = getelementptr inbounds [1 x i8*], [1 x i8*]* @lwt, i32 0, i32 0
-  %2 = load i8*, i8** %1
-  ret i8* %2
+define ptr @lwt_fun() {
+  %1 = load ptr, ptr @lwt
+  ret ptr %1
 }

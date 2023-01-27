@@ -90,6 +90,8 @@ the PR with:
   - link to existing open issue
   - if author cannot identify any of these, the minimal action expected is to
     open a new [issue](/../../issues)
+  - list of unrelated tests failing in pre-commit CI. This would enable easy
+    access to them via github search functionality.
 
 ### Merge
 

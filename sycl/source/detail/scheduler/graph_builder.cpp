@@ -9,6 +9,10 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <sycl/feature_test.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -538,8 +542,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd =
-      addEmptyCmd<Requirement>(UpdateHostAccCmd, {Req}, HostQueue,
-                               Command::BlockReason::HostAccessor, ToEnqueue);
+      addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue,
+                  Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -851,15 +855,10 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-template <typename T>
-typename detail::enable_if_t<
-    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
-    EmptyCommand *>
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
-                                     const QueueImplPtr &Queue,
-                                     Command::BlockReason Reason,
-                                     std::vector<Command *> &ToEnqueue,
-                                     const bool AddDepsToLeaves) {
+EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
+    Command *Cmd, const std::vector<Requirement *> &Reqs,
+    const QueueImplPtr &Queue, Command::BlockReason Reason,
+    std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -870,7 +869,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Reason;
 
-  for (T *Req : Reqs) {
+  for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
     AllocaCommandBase *AllocaCmd =
         getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
@@ -933,7 +932,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
-  const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
+  std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
@@ -946,7 +945,40 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
   if (isInFusionMode(QUniqueID) && !NewCmd->isHostTask()) {
     auto *FusionCmd = findFusionList(QUniqueID)->second.get();
-    FusionCmd->addToFusionList(NewCmd.get());
+
+    bool dependsOnFusion = false;
+    for (auto Ev = Events.begin(); Ev != Events.end();) {
+      auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
+      if (!EvDepCmd) {
+        continue;
+      }
+      // Handle event dependencies on any commands part of another active
+      // fusion.
+      if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
+        printFusionWarning("Aborting fusion because of event dependency from a "
+                           "different fusion");
+        cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
+      }
+      // Check if this command depends on the placeholder command for the fusion
+      // itself participates in.
+      if (EvDepCmd == FusionCmd) {
+        Ev = Events.erase(Ev);
+        dependsOnFusion = true;
+      } else {
+        ++Ev;
+      }
+    }
+
+    // If this command has an explicit event dependency on the placeholder
+    // command for this fusion (because it used depends_on on the event returned
+    // by submitting another kernel to this fusion earlier), add a dependency on
+    // all the commands in the fusion list so far.
+    if (dependsOnFusion) {
+      for (auto *Cmd : FusionCmd->getFusionList()) {
+        Events.push_back(Cmd->getEvent());
+      }
+    }
+
     // Add the kernel to the graph, but delay the enqueue of any auxiliary
     // commands (e.g., allocations) resulting from that process by adding them
     // to the list of auxiliary commands of the fusion command.
@@ -969,21 +1001,10 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
         cancelFusion(DepCmd->getQueue(), ToEnqueue);
       }
     }
-    // Handle event dependencies on any commands part of another active fusion.
-    for (auto &Ev : Events) {
-      auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-      if (!EvDepCmd) {
-        continue;
-      }
-      if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
-        printFusionWarning("Aborting fusion because of event dependency from a "
-                           "different fusion");
-        cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
-      }
-    }
 
     // Set the fusion command, so we recognize when another command depends on a
     // kernel in the fusion list.
+    FusionCmd->addToFusionList(NewCmd.get());
     NewCmd->MFusionCmd = FusionCmd;
     std::vector<Command *> ToCleanUp;
     // Add an event dependency from the fusion placeholder command to the new
@@ -1432,7 +1453,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
 
   // TODO: The logic to invoke the JIT compiler to create a fused kernel from
   // the list will be added in a later PR.
-  auto FusedCG = nullptr;
+  auto FusedCG = detail::jit_compiler::get_instance().fuseKernels(
+      Queue, CmdList, PropList);
 
   if (!FusedCG) {
     // If the JIT compiler returns a nullptr, JIT compilation of the fused

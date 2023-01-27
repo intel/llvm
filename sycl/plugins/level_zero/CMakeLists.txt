@@ -8,6 +8,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+  # Prevent L0 loader from exporting extra symbols
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
   message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
@@ -61,12 +63,15 @@ endif()
 
 find_package(Python3 REQUIRED)
 
-add_custom_target(ze-api
+add_custom_target(ze-api DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/ze_api_generator.py
   ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
-  BYPRODUCTS
-    ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
+  DEPENDS
+  ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
   )
 
 find_package(Threads REQUIRED)
@@ -104,6 +109,24 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
+
+#FIXME: We should stop shipping level zero loader and headers as part of the
+#       toolchain installation. Instead these should be avaialble in the system.
+#       We keep shipping it until all environments are updated.
+if (TARGET ze_loader)
+  install(TARGETS ze_loader
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+          NAMELINK_SKIP
+  )
+  file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
+  install(FILES ${LEVEL_ZERO_API_HEADERS}
+      DESTINATION ${CMAKE_INSTALL_PREFIX}/include/sycl/level_zero/
+      COMPONENT level-zero-sycl-dev
+  )
+endif()
+# end of FIXME
 
 add_dependencies(pi_level_zero ze-api)
 

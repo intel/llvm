@@ -2713,7 +2713,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (II->isStr("fuchsia")) {
-    Optional<unsigned> Min, Sub;
+    std::optional<unsigned> Min, Sub;
     if ((Min = Introduced.Version.getMinor()) ||
         (Sub = Introduced.Version.getSubminor())) {
       S.Diag(AL.getLoc(), diag::warn_availability_fuchsia_unavailable_minor);
@@ -2756,7 +2756,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         if (IOSToWatchOSMapping) {
           if (auto MappedVersion = IOSToWatchOSMapping->map(
                   Version, MinimumWatchOSVersion, std::nullopt)) {
-            return MappedVersion.value();
+            return *MappedVersion;
           }
         }
 
@@ -2765,10 +2765,10 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         if (NewMajor >= 2) {
           if (Version.getMinor()) {
             if (Version.getSubminor())
-              return VersionTuple(NewMajor, Version.getMinor().value(),
-                                  Version.getSubminor().value());
+              return VersionTuple(NewMajor, *Version.getMinor(),
+                                  *Version.getSubminor());
             else
-              return VersionTuple(NewMajor, Version.getMinor().value());
+              return VersionTuple(NewMajor, *Version.getMinor());
           }
           return VersionTuple(NewMajor);
         }
@@ -3275,6 +3275,9 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // Handles reqd_work_group_size and work_group_size_hint.
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(S, 3))
+    return;
+
   uint32_t WGSize[3];
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
@@ -3348,24 +3351,24 @@ bool Sema::AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
                       [](DupArgResult V) { return V == DupArgResult::Same; });
 }
 
-void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim) {
+void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
+  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
     // We can only check if the expression is not value dependent.
-    if (!E->isValueDependent()) {
+    if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
       ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
       if (Res.isInvalid())
-        return nullptr;
+        return std::nullopt;
       E = Res.get();
 
       // This attribute requires a strictly positive value.
       if (ArgVal <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*positive*/ 0;
-        return nullptr;
+        return std::nullopt;
       }
     }
 
@@ -3374,15 +3377,18 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  XDim = CheckAndConvertArg(XDim);
-  YDim = CheckAndConvertArg(YDim);
-  ZDim = CheckAndConvertArg(ZDim);
-  if (!XDim || !YDim || !ZDim)
+  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
+  XDim = XDimConvert.value();
+  YDim = YDimConvert.value();
+  ZDim = ZDimConvert.value();
 
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
-  if (const auto *Existing = D->getAttr<WorkGroupSizeHintAttr>()) {
+  if (const auto *Existing = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (AnyWorkGroupSizesDiffer(XDim, YDim, ZDim, Existing->getXDim(),
@@ -3400,13 +3406,14 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   D->addAttr(::new (Context)
-                 WorkGroupSizeHintAttr(Context, CI, XDim, YDim, ZDim));
+                 SYCLWorkGroupSizeHintAttr(Context, CI, XDim, YDim, ZDim));
 }
 
-WorkGroupSizeHintAttr *
-Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
+SYCLWorkGroupSizeHintAttr *
+Sema::MergeSYCLWorkGroupSizeHintAttr(Decl *D,
+                                     const SYCLWorkGroupSizeHintAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
-  if (const auto *DeclAttr = D->getAttr<WorkGroupSizeHintAttr>()) {
+  if (const auto *DeclAttr = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (AnyWorkGroupSizesDiffer(DeclAttr->getXDim(), DeclAttr->getYDim(),
@@ -3424,12 +3431,13 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
                               A.getZDim()))
       return nullptr;
   }
-  return ::new (Context)
-      WorkGroupSizeHintAttr(Context, A, A.getXDim(), A.getYDim(), A.getZDim());
+  return ::new (Context) SYCLWorkGroupSizeHintAttr(Context, A, A.getXDim(),
+                                                   A.getYDim(), A.getZDim());
 }
 
-// Handles work_group_size_hint.
-static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+// Handles SYCL work_group_size_hint.
+static void handleSYCLWorkGroupSizeHint(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   // __attribute__((work_group_size_hint) requires exactly three arguments.
@@ -3437,27 +3445,22 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
       (AL.hasScope() && !AL.getScopeName()->isStr("sycl"))) {
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
-  }
-
-  // FIXME: NumArgs checking is disabled in Attr.td to keep consistent
-  // disgnostics with OpenCL C that does not have optional values here.
-  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
+  } else if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
 
-  // Handles default arguments in [[sycl::work_group_size_hint]] attribute.
-  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
-    assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
-           AL.getScopeName()->isStr("sycl"));
-    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                  S.Context.IntTy, AL.getLoc());
-  };
+  size_t NumArgs = AL.getNumArgs();
+  Expr *XDimExpr = NumArgs > 0 ? AL.getArgAsExpr(0) : nullptr;
+  Expr *YDimExpr = NumArgs > 1 ? AL.getArgAsExpr(1) : nullptr;
+  Expr *ZDimExpr = NumArgs > 2 ? AL.getArgAsExpr(2) : nullptr;
+  S.AddSYCLWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
+}
 
-  Expr *XDimExpr = AL.getArgAsExpr(0);
-  Expr *YDimExpr =
-      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
-  Expr *ZDimExpr =
-      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
-  S.AddWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
+static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // Handle the attribute based on whether we are targeting SYCL or not.
+  if (S.getLangOpts().SYCLIsDevice || S.getLangOpts().SYCLIsHost)
+    handleSYCLWorkGroupSizeHint(S, D, AL);
+  else
+    handleWorkGroupSize<WorkGroupSizeHintAttr>(S, D, AL);
 }
 
 // Checks correctness of mutual usage of different work_group_size attributes:
@@ -4060,6 +4063,7 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
                                                                 SizeType)) {
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+    return;
   }
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
@@ -4750,6 +4754,42 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   return false;
 }
 
+// Check Target Version attrs
+bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, StringRef &AttrStr,
+                                  bool &isDefault) {
+  enum FirstParam { Unsupported };
+  enum SecondParam { None };
+  enum ThirdParam { Target, TargetClones, TargetVersion };
+  if (AttrStr.trim() == "default")
+    isDefault = true;
+  llvm::SmallVector<StringRef, 8> Features;
+  AttrStr.split(Features, "+");
+  for (auto &CurFeature : Features) {
+    CurFeature = CurFeature.trim();
+    if (CurFeature == "default")
+      continue;
+    if (!Context.getTargetInfo().validateCpuSupports(CurFeature))
+      return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
+             << Unsupported << None << CurFeature << TargetVersion;
+  }
+  return false;
+}
+
+static void handleTargetVersionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Str;
+  SourceLocation LiteralLoc;
+  bool isDefault = false;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &LiteralLoc) ||
+      S.checkTargetVersionAttr(LiteralLoc, Str, isDefault))
+    return;
+  // Do not create default only target_version attribute
+  if (!isDefault) {
+    TargetVersionAttr *NewAttr =
+        ::new (S.Context) TargetVersionAttr(S.Context, AL, Str);
+    D->addAttr(NewAttr);
+  }
+}
+
 static void handleTargetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   StringRef Str;
   SourceLocation LiteralLoc;
@@ -4761,10 +4801,10 @@ static void handleTargetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(NewAttr);
 }
 
-bool Sema::checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
-                                       const StringLiteral *Literal,
-                                       bool &HasDefault, bool &HasCommas,
-                                       SmallVectorImpl<StringRef> &Strings) {
+bool Sema::checkTargetClonesAttrString(
+    SourceLocation LiteralLoc, StringRef Str, const StringLiteral *Literal,
+    bool &HasDefault, bool &HasCommas, bool &HasNotDefault,
+    SmallVectorImpl<SmallString<64>> &StringsBuffer) {
   enum FirstParam { Unsupported, Duplicate, Unknown };
   enum SecondParam { None, CPU, Tune };
   enum ThirdParam { Target, TargetClones };
@@ -4783,27 +4823,73 @@ bool Sema::checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
         getLangOpts(), Context.getTargetInfo());
 
     bool DefaultIsDupe = false;
+    bool HasCodeGenImpact = false;
     if (Cur.empty())
       return Diag(CurLoc, diag::warn_unsupported_target_attribute)
              << Unsupported << None << "" << TargetClones;
-
-    if (Cur.startswith("arch=")) {
-      if (!Context.getTargetInfo().isValidCPUName(
-              Cur.drop_front(sizeof("arch=") - 1)))
+    if (Context.getTargetInfo().getTriple().isAArch64()) {
+      // AArch64 target clones specific
+      if (Cur == "default") {
+        DefaultIsDupe = HasDefault;
+        HasDefault = true;
+        if (llvm::is_contained(StringsBuffer, Cur) || DefaultIsDupe)
+          Diag(CurLoc, diag::warn_target_clone_duplicate_options);
+        else
+          StringsBuffer.push_back(Cur);
+      } else {
+        std::pair<StringRef, StringRef> CurParts = {{}, Cur};
+        llvm::SmallVector<StringRef, 8> CurFeatures;
+        while (!CurParts.second.empty()) {
+          CurParts = CurParts.second.split('+');
+          StringRef CurFeature = CurParts.first.trim();
+          if (!Context.getTargetInfo().validateCpuSupports(CurFeature)) {
+            Diag(CurLoc, diag::warn_unsupported_target_attribute)
+                << Unsupported << None << CurFeature << TargetClones;
+            continue;
+          }
+          std::string Options;
+          if (Context.getTargetInfo().getFeatureDepOptions(CurFeature, Options))
+            HasCodeGenImpact = true;
+          CurFeatures.push_back(CurFeature);
+        }
+        // Canonize TargetClones Attributes
+        llvm::sort(CurFeatures);
+        SmallString<64> Res;
+        for (auto &CurFeat : CurFeatures) {
+          if (!Res.equals(""))
+            Res.append("+");
+          Res.append(CurFeat);
+        }
+        if (llvm::is_contained(StringsBuffer, Res) || DefaultIsDupe)
+          Diag(CurLoc, diag::warn_target_clone_duplicate_options);
+        else if (!HasCodeGenImpact)
+          // Ignore features in target_clone attribute that don't impact
+          // code generation
+          Diag(CurLoc, diag::warn_target_clone_no_impact_options);
+        else if (!Res.empty()) {
+          StringsBuffer.push_back(Res);
+          HasNotDefault = true;
+        }
+      }
+    } else {
+      // Other targets ( currently X86 )
+      if (Cur.startswith("arch=")) {
+        if (!Context.getTargetInfo().isValidCPUName(
+                Cur.drop_front(sizeof("arch=") - 1)))
+          return Diag(CurLoc, diag::warn_unsupported_target_attribute)
+                 << Unsupported << CPU << Cur.drop_front(sizeof("arch=") - 1)
+                 << TargetClones;
+      } else if (Cur == "default") {
+        DefaultIsDupe = HasDefault;
+        HasDefault = true;
+      } else if (!Context.getTargetInfo().isValidFeatureName(Cur))
         return Diag(CurLoc, diag::warn_unsupported_target_attribute)
-               << Unsupported << CPU << Cur.drop_front(sizeof("arch=") - 1)
-               << TargetClones;
-    } else if (Cur == "default") {
-      DefaultIsDupe = HasDefault;
-      HasDefault = true;
-    } else if (!Context.getTargetInfo().isValidFeatureName(Cur))
-      return Diag(CurLoc, diag::warn_unsupported_target_attribute)
-             << Unsupported << None << Cur << TargetClones;
-
-    if (llvm::is_contained(Strings, Cur) || DefaultIsDupe)
-      Diag(CurLoc, diag::warn_target_clone_duplicate_options);
-    // Note: Add even if there are duplicates, since it changes name mangling.
-    Strings.push_back(Cur);
+               << Unsupported << None << Cur << TargetClones;
+      if (llvm::is_contained(StringsBuffer, Cur) || DefaultIsDupe)
+        Diag(CurLoc, diag::warn_target_clone_duplicate_options);
+      // Note: Add even if there are duplicates, since it changes name mangling.
+      StringsBuffer.push_back(Cur);
+    }
   }
 
   if (Str.rtrim().endswith(","))
@@ -4813,6 +4899,10 @@ bool Sema::checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
 }
 
 static void handleTargetClonesAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (S.Context.getTargetInfo().getTriple().isAArch64() &&
+      !S.Context.getTargetInfo().hasFeature("fmv"))
+    return;
+
   // Ensure we don't combine these with themselves, since that causes some
   // confusing behavior.
   if (const auto *Other = D->getAttr<TargetClonesAttr>()) {
@@ -4824,7 +4914,8 @@ static void handleTargetClonesAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   SmallVector<StringRef, 2> Strings;
-  bool HasCommas = false, HasDefault = false;
+  SmallVector<SmallString<64>, 2> StringsBuffer;
+  bool HasCommas = false, HasDefault = false, HasNotDefault = false;
 
   for (unsigned I = 0, E = AL.getNumArgs(); I != E; ++I) {
     StringRef CurStr;
@@ -4833,12 +4924,21 @@ static void handleTargetClonesAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         S.checkTargetClonesAttrString(
             LiteralLoc, CurStr,
             cast<StringLiteral>(AL.getArgAsExpr(I)->IgnoreParenCasts()),
-            HasDefault, HasCommas, Strings))
+            HasDefault, HasCommas, HasNotDefault, StringsBuffer))
       return;
   }
 
+  for (auto &SmallStr : StringsBuffer)
+    Strings.push_back(SmallStr.str());
+
   if (HasCommas && AL.getNumArgs() > 1)
     S.Diag(AL.getLoc(), diag::warn_target_clone_mixed_values);
+
+  if (S.Context.getTargetInfo().getTriple().isAArch64() && !HasDefault) {
+    // Add default attribute if there is no one
+    HasDefault = true;
+    Strings.push_back("default");
+  }
 
   if (!HasDefault) {
     S.Diag(AL.getLoc(), diag::err_target_clone_must_have_default);
@@ -4855,6 +4955,10 @@ static void handleTargetClonesAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
   }
+
+  // No multiversion if we have default version only.
+  if (S.Context.getTargetInfo().getTriple().isAArch64() && !HasNotDefault)
+    return;
 
   cast<FunctionDecl>(D)->setIsMultiVersion();
   TargetClonesAttr *NewAttr = ::new (S.Context)
@@ -7911,7 +8015,7 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{
            D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
            D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<WorkGroupSizeHintAttr>(),
+           D->getAttr<SYCLWorkGroupSizeHintAttr>(),
            D->getAttr<SYCLDeviceHasAttr>()})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
@@ -10710,6 +10814,11 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLDeviceHasAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host side because aspects may not
+  // be marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));
@@ -10751,6 +10860,11 @@ void Sema::AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLUsesAspectsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host because aspects may not be
+  // marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));
@@ -11249,6 +11363,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_X86ForceAlignArgPointer:
     handleX86ForceAlignArgPointerAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_ReadOnlyPlacement:
+    handleSimpleAttribute<ReadOnlyPlacementAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_DLLExport:
   case ParsedAttr::AT_DLLImport:
     handleDLLAttr(S, D, AL);
@@ -11608,6 +11725,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_Target:
     handleTargetAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_TargetVersion:
+    handleTargetVersionAttr(S, D, AL);
     break;
   case ParsedAttr::AT_TargetClones:
     handleTargetClonesAttr(S, D, AL);
@@ -12044,6 +12164,9 @@ void Sema::ProcessDeclAttributeList(
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {

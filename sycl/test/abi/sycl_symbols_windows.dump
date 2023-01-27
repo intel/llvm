@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -173,6 +173,7 @@
 ??$get_info@Uversion@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uversion@platform@info@_V1@sycl@@@platform@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
+??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
@@ -522,6 +523,8 @@
 ??0stream_impl@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0stream_impl@detail@_V1@sycl@@QEAA@_K0AEAVhandler@23@@Z
 ??0stream_impl@detail@_V1@sycl@@QEAA@_K0AEBVproperty_list@23@@Z
+??0tls_code_loc_t@detail@_V1@sycl@@QEAA@AEBUcode_location@123@@Z
+??0tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorImplHost@detail@_V1@sycl@@QEAA@XZ
 ??1LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
@@ -557,6 +560,7 @@
 ??1sampler_impl@detail@_V1@sycl@@QEAA@XZ
 ??1stream@_V1@sycl@@QEAA@XZ
 ??1stream_impl@detail@_V1@sycl@@QEAA@XZ
+??1tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
@@ -636,6 +640,7 @@
 ??4stream@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4tls_code_loc_t@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??8context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
@@ -1104,6 +1109,7 @@
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@@Z
 ?prefetch_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
+?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z

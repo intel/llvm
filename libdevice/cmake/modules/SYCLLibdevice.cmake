@@ -1,5 +1,5 @@
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-if (WIN32)
+if (MSVC)
   set(lib-suffix obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
   set(install_dest_spv bin)
@@ -31,6 +31,16 @@ set(compile_opts
   -Wno-undefined-internal
   -sycl-std=2020
   )
+
+if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
+  list(APPEND compile_opts "-Xclang" "-no-opaque-pointers")
+endif()
+
+set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
 
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
@@ -116,7 +126,7 @@ add_devicelib_obj(libsycl-imf SRC imf_wrapper.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-fp64 SRC imf_wrapper_fp64.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-bf16 SRC imf_wrapper_bf16.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-bfloat16 SRC bfloat16_wrapper.cpp DEP ${cmath_obj_deps} )
-if(WIN32)
+if(MSVC)
 add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
 endif()
 
@@ -294,7 +304,8 @@ add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${li
 add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
 add_custom_target(imf_bf16_host_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${lib-suffix})
 
-add_custom_target(imf_host_obj
+add_custom_target(imf_host_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static})
+add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
                   COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static}
                           ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                           ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
