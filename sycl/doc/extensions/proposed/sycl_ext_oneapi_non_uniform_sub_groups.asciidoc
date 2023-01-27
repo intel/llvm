@@ -908,8 +908,6 @@ int atomic_aggregate_inc(sycl::sub_group sg, sycl::atomic_ref<int, Order, Scope,
 
 == Issues
 
-* The wording of the group functions and group algorithms is still to be fleshed
-out fully.
 * Wording needs to be introduced to describe when particular non-uniform
 sub-groups can be created from other non-uniform sub-groups.
 * What happens when work-items in different control-flow call
@@ -927,14 +925,3 @@ is to represent subsets of sub-groups, then this work would make that redundant.
 * To create a ballot-group, members of a sub-groups, ballot-groups,
 opportunistic-groups, and cluster-groups could all broadcast the result of some
 predicate function.
-* The creation of a cluster-group only depends on the size of a sub-group and
-the location of a work-item within that sub-group, meaning any work-item can
-calculate the cluster-group it belongs in with no synchronization. It is
-indirect to use another group in the creation of a cluster-group when the
-implementation will be querying the containing sub-group and ignoring other
-information.
-* To create an opportunistic-group from another group, would likely involve
-finding the intersection of a new opportunistic-group and another group. Without
-hardware support, this would require synchronization between work-items and is
-effectively equal to creating a ballot-group, so a ballot-group should be used
-instead.
