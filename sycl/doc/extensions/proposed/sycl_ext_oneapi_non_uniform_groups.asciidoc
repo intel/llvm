@@ -426,7 +426,7 @@ fixed cluster size.
 namespace ext::oneapi::experimental {
 
 template <size_t ClusterSize, typename Group> 
-cluster_group<ClusterSize> get_cluster_group(Group group);
+cluster_group<ClusterSize, Group> get_cluster_group(Group group);
 
 } // namespace ext::oneapi::experimental
 ----
