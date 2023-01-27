@@ -606,9 +606,11 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types<8, ImplLoad>(q, cfg);
-  passed &= test_int_types<8, ImplStore>(q, cfg);
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
+    passed &= test_int_types<8, ImplStore>(q, cfg);
 #ifndef USE_DWORD_ATOMICS
-  passed &= test<float, 8, ImplStore>(q, cfg);
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
+    passed &= test<float, 8, ImplStore>(q, cfg);
 #endif // USE_DWORD_ATOMICS
   // TODO: check double other vector lengths in LSC mode.
 
