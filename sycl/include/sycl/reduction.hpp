@@ -531,7 +531,7 @@ namespace reduction {
 // Kernel name wrapper for initializing reduction-related memory through
 // reduction_impl_algo::withInitializedMem.
 template <typename KernelName> struct InitMemKrn;
-}
+} // namespace reduction
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
