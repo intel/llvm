@@ -4,7 +4,8 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
 
-// Test validity of events after cancel_fusion.
+// Test complete fusion where one kernel in the fusion list specifies an
+// explicit dependency (via events) on another kernel in the fusion list.
 
 #include "fusion_event_test_common.h"
 
@@ -51,22 +52,18 @@ int main() {
         dataSize, [=](id<1> i) { out[i] = tmp[i] * in3[i]; });
   });
 
-  fw.cancel_fusion();
+  auto complete = fw.complete_fusion(
+      {ext::codeplay::experimental::property::no_barriers{}});
 
   assert(!fw.is_in_fusion_mode() &&
          "Queue should not be in fusion mode anymore");
 
-  kernel1.wait();
-  assert(isEventComplete(kernel1) && "Event should be complete");
-  // The event returned by submit while in fusion mode depends on both
-  // individual kernels to be executed.
-  assert(kernel1.get_wait_list().size() == 2);
+  complete.wait();
+  assert(isEventComplete(complete) && "Event should be complete");
 
-  kernel2.wait();
+  assert(isEventComplete(kernel1) && "Event should be complete");
+
   assert(isEventComplete(kernel2) && "Event should be complete");
-  // The event returned by submit while in fusion mode depends on both
-  // individual kernels to be executed.
-  assert(kernel2.get_wait_list().size() == 2);
 
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {

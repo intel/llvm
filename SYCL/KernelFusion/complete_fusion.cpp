@@ -4,7 +4,7 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
 
-// Test cancel fusion
+// Test complete fusion without any internalization
 
 #include <sycl/sycl.hpp>
 
@@ -52,7 +52,7 @@ int main() {
           dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
     });
 
-    fw.cancel_fusion();
+    fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");

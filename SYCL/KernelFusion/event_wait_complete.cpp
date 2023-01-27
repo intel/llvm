@@ -4,7 +4,7 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
 
-// Test validity of events after cancel_fusion.
+// Test validity of events after complete_fusion.
 
 #include "fusion_event_test_common.h"
 
@@ -46,29 +46,34 @@ int main() {
   });
 
   auto kernel2 = q.submit([&](handler &cgh) {
-    cgh.depends_on(kernel1);
     cgh.parallel_for<class KernelTwo>(
         dataSize, [=](id<1> i) { out[i] = tmp[i] * in3[i]; });
   });
 
-  fw.cancel_fusion();
+  auto complete = fw.complete_fusion(
+      {ext::codeplay::experimental::property::no_barriers{}});
 
   assert(!fw.is_in_fusion_mode() &&
          "Queue should not be in fusion mode anymore");
 
-  kernel1.wait();
+  complete.wait();
+  assert(isEventComplete(complete) && "Event should be complete");
+  // The execution of the fused kennel does not depend on any events.
+  assert(complete.get_wait_list().size() == 0);
+
   assert(isEventComplete(kernel1) && "Event should be complete");
-  // The event returned by submit while in fusion mode depends on both
-  // individual kernels to be executed.
-  assert(kernel1.get_wait_list().size() == 2);
+  // The event returned for submissions while in fusion mode depends on three
+  // events, for the two original kernels (which do not execute) and the fused
+  // kernel to be executed.
+  assert(kernel1.get_wait_list().size() == 3);
 
-  kernel2.wait();
   assert(isEventComplete(kernel2) && "Event should be complete");
-  // The event returned by submit while in fusion mode depends on both
-  // individual kernels to be executed.
-  assert(kernel2.get_wait_list().size() == 2);
+  // The event returned for submissions while in fusion mode depends on three
+  // events, for the two original kernels (which do not execute) and the fused
+  // kernel to be executed.
+  assert(kernel2.get_wait_list().size() == 3);
 
-  // Check the results
+  // Check the results.
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (20 * i * i) && "Computation error");
   }

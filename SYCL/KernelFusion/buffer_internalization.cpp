@@ -4,7 +4,8 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
 
-// Test cancel fusion
+// Test complete fusion with private internalization specified on the
+// buffer.
 
 #include <sycl/sycl.hpp>
 
@@ -28,7 +29,10 @@ int main() {
     buffer<int> bIn1{in1, range{dataSize}};
     buffer<int> bIn2{in2, range{dataSize}};
     buffer<int> bIn3{in3, range{dataSize}};
-    buffer<int> bTmp{tmp, range{dataSize}};
+    buffer<int> bTmp{
+        tmp,
+        range{dataSize},
+        {sycl::ext::codeplay::experimental::property::promote_private{}}};
     buffer<int> bOut{out, range{dataSize}};
 
     ext::codeplay::experimental::fusion_wrapper fw{q};
@@ -52,7 +56,7 @@ int main() {
           dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
     });
 
-    fw.cancel_fusion();
+    fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");
@@ -61,6 +65,7 @@ int main() {
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (20 * i * i) && "Computation error");
+    assert(tmp[i] == -1 && "Not internalized");
   }
 
   return 0;

@@ -4,10 +4,8 @@
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
 // RUN: %GPU_CHECK_PLACEHOLDER
 // UNSUPPORTED: cuda || hip
-
-// For this test, complete_fusion must be supported, which is currently not the
-// case on Windows.
-// REQUIRES: linux
+// For this test, complete_fusion must be supported.
+// REQUIRES: fusion
 
 // Test fusion cancellation on event dependency between two active fusions.
 

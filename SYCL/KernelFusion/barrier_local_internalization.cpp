@@ -4,7 +4,8 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
 
-// Test cancel fusion
+// Test complete fusion with local internalization and a combination of kernels
+// that require a work-group barrier to be inserted by fusion.
 
 #include <sycl/sycl.hpp>
 
@@ -28,7 +29,10 @@ int main() {
     buffer<int> bIn1{in1, range{dataSize}};
     buffer<int> bIn2{in2, range{dataSize}};
     buffer<int> bIn3{in3, range{dataSize}};
-    buffer<int> bTmp{tmp, range{dataSize}};
+    buffer<int> bTmp{
+        tmp,
+        range{dataSize},
+        {sycl::ext::codeplay::experimental::property::promote_local{}}};
     buffer<int> bOut{out, range{dataSize}};
 
     ext::codeplay::experimental::fusion_wrapper fw{q};
@@ -41,7 +45,15 @@ int main() {
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(cgh);
       cgh.parallel_for<class KernelOne>(
-          dataSize, [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
+          nd_range<1>{{dataSize}, {32}}, [=](nd_item<1> i) {
+            auto workgroupSize = i.get_local_range(0);
+            auto baseOffset = i.get_group_linear_id() * workgroupSize;
+            auto localIndex = i.get_local_linear_id();
+            auto localOffset = (workgroupSize - 1) - localIndex;
+            accTmp[baseOffset + localOffset] =
+                accIn1[baseOffset + localOffset] +
+                accIn2[baseOffset + localOffset];
+          });
     });
 
     q.submit([&](handler &cgh) {
@@ -49,10 +61,13 @@ int main() {
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
+          nd_range<1>{{dataSize}, {32}}, [=](nd_item<1> i) {
+            auto index = i.get_global_linear_id();
+            accOut[index] = accTmp[index] * accIn3[index];
+          });
     });
 
-    fw.cancel_fusion();
+    fw.complete_fusion();
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");
@@ -61,6 +76,7 @@ int main() {
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (20 * i * i) && "Computation error");
+    assert(tmp[i] == -1 && "Not internalized");
   }
 
   return 0;
