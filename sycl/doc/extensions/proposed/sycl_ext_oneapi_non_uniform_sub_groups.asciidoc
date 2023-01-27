@@ -910,8 +910,6 @@ int atomic_aggregate_inc(sycl::sub_group sg, sycl::atomic_ref<int, Order, Scope,
 
 * Wording needs to be introduced to describe when particular non-uniform
 sub-groups can be created from other non-uniform sub-groups.
-* What happens when work-items in different control-flow call
-ext_oneapi_get_opportunistic_group?
 * The conditions for calling the group functions and algorithms need to be
 decided on. It makes sense that reaching a group algorithm from a different
 control-flow should be undefined behaviour, but is that at all enforcable or
