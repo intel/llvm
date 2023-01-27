@@ -427,6 +427,23 @@ for aot_tool in aot_tools:
     else:
         lit_config.warning("Couldn't find pre-installed AOT device compiler " + aot_tool)
 
+# Check if kernel fusion is available by compiling a small program that will
+# be ill-formed (compilation stops with non-zero exit code) if the feature
+# test macro for kernel fusion is not defined.
+check_fusion_file = 'check_fusion.cpp'
+with open(check_fusion_file, 'w') as ff:
+    ff.write('#include <sycl/sycl.hpp>\n')
+    ff.write('#ifndef SYCL_EXT_CODEPLAY_KERNEL_FUSION\n')
+    ff.write('#error \"Feature test for fusion failed\"\n')
+    ff.write('#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION\n')
+    ff.write('int main() { return 0; }\n')
+
+status = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' +
+                                    check_fusion_file)
+if status[0] == 0:
+    lit_config.note('Kernel fusion extension enabled')
+    config.available_features.add('fusion')
+
 # Set timeout for a single test
 try:
     import psutil
