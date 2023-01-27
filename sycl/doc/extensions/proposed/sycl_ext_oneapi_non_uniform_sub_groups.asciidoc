@@ -1,21 +1,27 @@
 = sycl_ext_oneapi_non_uniform_sub_groups
 
-:source-highlighter: coderay :coderay-linenums-mode: table
+:source-highlighter: coderay
+:coderay-linenums-mode: table
 
 // This section needs to be after the document title.
-:doctype: book :toc2: :toc: left :encoding: utf-8 :lang: en
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
 
 :blank: pass:[ +]
 
-// Set the default source code type in this document to C++, for syntax
-// highlighting purposes.  This is needed because docbook uses c++ and html5
-// uses cpp.
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
 
 == Notice
 
-[%hardbreaks] Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -58,21 +64,21 @@ control-flow can become awkward, especially when programming library code.
 This proposal introduces new classes to represent sub-divisions of SYCL
 sub-groups, allowing for easier synchronization and cooperation. These new
 classes can be used as function arguments to convey exactly what group the
-function is expecting, simplifying the interface and greatly reducing the
-amount of delicate wording needed in function documentation. The group
-functions and algorithms will also be updated to simplify use of these groups.
+function is expecting, simplifying the interface and greatly reducing the amount
+of delicate wording needed in function documentation. The group functions and
+algorithms will also be updated to simplify use of these groups.
 
-This extension introduces additions to the SYCL execution model which allows
-for non-uniform sub-group types which can be created from sub-groups in order
-to support various use cases of divergent control flow and forward progress
+This extension introduces additions to the SYCL execution model which allows for
+non-uniform sub-group types which can be created from sub-groups in order to
+support various use cases of divergent control flow and forward progress
 guarantees.
 
-The extension introduces new classes for these group types, traits for
-detecting them and free functions for creating them.
+The extension introduces new classes for these group types, traits for detecting
+them and free functions for creating them.
 
 NOTE: It is expected that in the future these functions will be expanded to
-allow the creation of these group types from other kinds of groups, however,
-for now only sub-groups are supported.
+allow the creation of these group types from other kinds of groups, however, for
+now only sub-groups are supported.
 
 
 == Specification
@@ -85,9 +91,9 @@ flow] as below:
 
 > When all work-items in a group are executing the same sequence of statements,
 > they are said to be executing under _converged_ control flow. Control flow
-> _diverges_ when different work-items in a group execute a different sequence
-> of statements, typically as a result of evaluating conditions differently
-> (e.g.  in selection statements or loops).
+> _diverges_ when different work-items in a group execute a different sequence of
+> statements, typically as a result of evaluating conditions differently (e.g.
+> in selection statements or loops).
 
 This extension introduces some new terminology to describe other kinds of
 control flow, to simplify the description of the behavior for new group types.
@@ -95,15 +101,15 @@ control flow, to simplify the description of the behavior for new group types.
 A work-item is said to have _active_ control flow for a given point of
 execution if it follows the sequence of statements currently being executed.
 
-Two or more work-items are considered to have _simultaneous_ execution at a
-given point if they execute together. The amount of and granularity of
-simultaneous execution is implementation-defined.
+Two or more work-items are considered to have _concurrent_ execution at a given
+point if they execute together. The amount of and granularity of concurrent
+execution is implementation-defined.
 
 A _tangle_ is a collection of work-items from the same sub-group executing
 under converged control flow.
 
-A _simultaneous tangle_ is a subset of a tangle representing a set of
-work-items executing under converged control flow and with simultaneous
+A _concurrent tangle_ is a subset of a tangle representing a set of
+work-items executing under converged control flow and with concurrent
 execution.
 
 
@@ -131,20 +137,27 @@ The `is_fixed_topology_group` and `is_user_constructed_group` traits can be
 used to detect whether a group type represents a fixed topology or
 user-constructed group, respectively.
 
-[source, c++] ---- namespace sycl::ext::oneapi {
+[source, c++]
+----
+namespace sycl::ext::oneapi {
 
-  template <class T> struct is_fixed_topology_group;
+  template <class T>
+  struct is_fixed_topology_group;
 
-  template <class T> inline constexpr bool is_fixed_topology_group_v =
-is_fixed_topology_group<T>::value;
+  template <class T>
+  inline constexpr
+  bool is_fixed_topology_group_v = is_fixed_topology_group<T>::value;
 
 
-  template <class T> struct is_user_constructed_group;
+  template <class T>
+  struct is_user_constructed_group;
 
-  template <class T> inline constexpr bool is_user_constructed_group_v =
-is_user_constructed_group<T>::value;
+  template <class T>
+  inline constexpr bool
+  is_user_constructed_group_v = is_user_constructed_group<T>::value;
 
-} // namespace sycl::ext::oneapi ----
+} // namespace sycl::ext::oneapi
+----
 
 `is_fixed_topology_group<T>::value` is `std::true_type` if `T` is one of:
 `root_group`, `group` or `sub_group`.
@@ -171,14 +184,17 @@ NOTE: Creating a ballot-group requires synchronization of the parent group,
 since work-items must exchange predicate values in order to determine group
 membership.
 
-[source, c++] ---- namespace ext::oneapi {
+[source, c++]
+----
+namespace ext::oneapi {
 
-template <typename Group> ballot_group get_ballot_group(Group group, bool
-predicate);
+template <typename Group>
+ballot_group get_ballot_group(Group group, bool predicate);
 
-} // namespace ext::oneapi ---- _Constraints_: Available only if
-`sycl::is_group_v<std::decay_t<Group>> && std::is_same_v<Group,
-sycl::sub_group>` is true.
+} // namespace ext::oneapi
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
+std::is_same_v<Group, sycl::sub_group>` is true.
 
 _Preconditions_: All work-items in `group` must encounter this function in
 converged control flow.
@@ -191,12 +207,18 @@ _Returns_: A `ballot_group` consisting of the work-items in `group` for which
 
 ==== `ballot_group` Class
 
-[source, c++] ---- namespace sycl::ext::oneapi {
+[source, c++]
+----
+namespace sycl::ext::oneapi {
 
-class ballot_group { public: using id_type = id<1>; using range_type =
-range<1>; using linear_id_type = uint32_t; static constexpr int dimensions = 1;
-static constexpr sycl::memory_scope fence_scope =
-sycl::memory_scope::sub_group;
+class ballot_group {
+public:
+    using id_type = id<1>;
+    using range_type = range<1>;
+    using linear_id_type = uint32_t;
+    static constexpr int dimensions = 1;
+    static constexpr sycl::memory_scope fence_scope =
+        sycl::memory_scope::sub_group;
     
     id_type get_group_id() const;
 
@@ -214,47 +236,77 @@ sycl::memory_scope::sub_group;
 
     linear_id_type get_local_linear_range() const;
 
-    bool leader() const; };
+    bool leader() const;
+};
 
-} ----
+}
+----
 
-[source,c++] ---- id_type get_group_id() const; ---- _Returns_: An `id`
-representing the index of the ballot-group.
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the ballot-group.
 
 NOTE: This will always be either 0 (representing the group of work-items where
 the predicate was true) or 1 (representing the group of work-items where the
 predicate was false).
 
-[source,c++] ---- id_type get_local_id() const; ---- _Returns_: An `id`
-representing the calling work-item's position within the ballot-group.
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the ballot-group.
 
-[source,c++] ---- range_type get_group_range() const; ---- _Returns_: A `range`
-representing the number of ballot-groups.
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of ballot-groups.
 
-NOTE: This will always return a `range` of 2, as there will always be two
-groups; one representing the group of work-items where the predicate was true
-and another representing the group of work-items where the predicate was false.
+NOTE: This will always return a `range` of 2, as there will always be two groups;
+one representing the group of work-items where the predicate was true and
+another representing the group of work-items where the predicate was false.
 
-[source,c++] ---- range_type get_local_range() const; ---- _Returns_: A `range`
-representing the number of work-items in the ballot-group.
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the ballot-group.
 
-[source,c++] ---- id_type get_group_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_id()`.
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
 
-[source,c++] ---- id_type get_local_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_linear_id()`.
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
 
-[source,c++] ---- range_type get_group_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_range()`.
+[source,c++]
+----
+range_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_range()`.
 
-[source,c++] ---- range_type get_local_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_range()`.
+[source,c++]
+----
+range_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_range()`.
 
-[source,c++] ---- bool leader() const; ---- _Returns_: `true` for exactly one
-work-item in the ballot-group, if the calling work-item is the leader of the
-ballot-group, and `false` for all other work-items in the ballot-group. The
-leader of the ballot-group is guaranteed to be the work-item for which
-`get_local_id()` returns 0.
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the ballot-group, if the calling
+work-item is the leader of the ballot-group, and `false` for all other
+work-items in the ballot-group. The leader of the ballot-group is guaranteed to
+be the work-item for which `get_local_id()` returns 0.
 
 
 ==== Usage Example
@@ -263,11 +315,14 @@ In the following example a sub-group is split up and one branch of the control
 flow performs a group barrier with a subset of the sub-group. This subset is
 then further subdivided.
 
-[source, c++] ---- auto sub_group = it.get_sub_group(); auto will_branch =
-sub_group.get_local_linear_id() % 2 == 0;
+[source, c++]
+----
+auto sub_group = it.get_sub_group();
+auto will_branch = sub_group.get_local_linear_id() % 2 == 0;
 // get group representing the subset of the sub-group that took the branch
-sycl::ext::oneapi::ballot_group inner =
-sycl::ext::oneapi::get_ballot_group(sub_group, will_branch); if (will_branch) {
+sycl::ext::oneapi::ballot_group inner = sycl::ext::oneapi::get_ballot_group(sub_group, will_branch);
+if (will_branch)
+{
   // synchronize across the work-items that took the branch
   sycl::group_barrier(inner);
 
@@ -275,14 +330,17 @@ sycl::ext::oneapi::get_ballot_group(sub_group, will_branch); if (will_branch) {
   float ix = sycl::reduce_over_group(inner, x, plus<>());
 
   // once again diverge the groups
-  auto will_branch_further = inner.get_local_linear_id() < 8; auto inner_inner
-= get_ballot_group(inner, will_branch_further); if (will_branch_further) {
+  auto will_branch_further = inner.get_local_linear_id() < 8;
+  auto inner_inner = get_ballot_group(inner, will_branch_further);
+  if (will_branch_further) {
       // still synchronizing without deadlock
-      sycl::group_barrier(inner_inner); } }
+      sycl::group_barrier(inner_inner);
+  }
+}
 
 // take a subset of an opportunistic group
-auto matching_active_items =
-get_ballot_group(get_opportunistic_group(sub_group), some_predicate()); ----
+auto matching_active_items = get_ballot_group(get_opportunistic_group(sub_group), some_predicate());
+----
 
 This will allow functions to cause divergent control flow without having to
 consider how to converge again to synchronize.
@@ -305,12 +363,15 @@ NOTE: Creating a cluster-group does not require synchronization of the parent
 group, since work-items can independently identify cluster members given a
 fixed cluster size.
 
-[source, c++] ---- namespace ext::oneapi {
+[source, c++]
+----
+namespace ext::oneapi {
 
-template <size_t ClusterSize, typename Group> cluster_group<ClusterSize>
-get_cluster_group(Group group);
+template <size_t ClusterSize, typename Group> 
+cluster_group<ClusterSize> get_cluster_group(Group group);
 
-} // namespace ext::oneapi ----
+} // namespace ext::oneapi
+----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
 std::is_same_v<Group, sycl::sub_group>` is true. `ClusterSize` must be positive
@@ -326,12 +387,19 @@ _Returns_: A `cluster_group<ClusterSize>` consisting of all work-items in
 
 ==== `cluster_group` Class
 
-[source, c++] ---- namespace sycl::ext::oneapi {
+[source, c++]
+----
+namespace sycl::ext::oneapi {
 
-template <std::size_t ClusterSize> class cluster_group { public: using id_type
-= id<1>; using range_type = range<1>; using linear_id_type = uint32_t; static
-constexpr int dimensions = 1; static constexpr sycl::memory_scope fence_scope =
-sycl::memory_scope::sub_group;
+template <std::size_t ClusterSize>
+class cluster_group {
+public:
+    using id_type = id<1>;
+    using range_type = range<1>;
+    using linear_id_type = uint32_t;
+    static constexpr int dimensions = 1;
+    static constexpr sycl::memory_scope fence_scope =
+        sycl::memory_scope::sub_group;
     
     id_type get_group_id() const;
 
@@ -349,57 +417,93 @@ sycl::memory_scope::sub_group;
 
     linear_id_type get_local_linear_range() const;
 
-    bool leader() const; };
+    bool leader() const;
+};
 
-} ----
+}
+----
 
-[source,c++] ---- id_type get_group_id() const; ---- _Returns_: An `id`
-representing the index of the cluster-group.
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the cluster-group.
 
-[source,c++] ---- id_type get_local_id() const; ---- _Returns_: An `id`
-representing the calling work-item's position within the cluster-group.
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the cluster-group.
 
-[source,c++] ---- range_type get_group_range() const; ---- _Returns_: A `range`
-representing the number of cluster-groups.
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of cluster-groups.
 
-[source,c++] ---- range_type get_local_range() const; ---- _Returns_: A `range`
-representing the number of work-items in the cluster-group.
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the cluster-group.
 
-[source,c++] ---- id_type get_group_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_id()`.
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
 
-[source,c++] ---- id_type get_local_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_linear_id()`.
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
 
-[source,c++] ---- range_type get_group_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_range()`.
+[source,c++]
+----
+range_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_range()`.
 
-[source,c++] ---- range_type get_local_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_range()`.
+[source,c++]
+----
+range_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_range()`.
 
-[source,c++] ---- bool leader() const; ---- _Returns_: `true` for exactly one
-work-item in the cluster-group, if the calling work-item is the leader of the
-cluster-group, and `false` for all other work-items in the cluster-group. The
-leader of the cluster-group is guaranteed to be the work-item for which
-`get_local_id()` returns 0.
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the cluster-group, if the calling
+work-item is the leader of the cluster-group, and `false` for all other
+work-items in the cluster-group. The leader of the cluster-group is guaranteed
+to be the work-item for which `get_local_id()` returns 0.
 
 
 ==== Usage Examples
 
-[source, c++] ----
+[source, c++]
+----
 // sum the buffer in groups of 8
-constexpr std::size_t cluster_size = 8; auto sub_group = it.get_sub_group();
+constexpr std::size_t cluster_size = 8;
+auto sub_group = it.get_sub_group();
 auto cluster = get_cluster_group<cluster_size>(sub_group);
 // compiler knows that exactly 3 shuffles are needed to sum the values
-auto result = sycl::reduce_over_group(cluster, buf[it.get_local_linear_id()],
-sycl::plus<>()); if (cluster.leader()){
-buf[it.get_local_linear_id()/cluster_size] = result; } ----
+auto result = sycl::reduce_over_group(cluster, buf[it.get_local_linear_id()], sycl::plus<>());
+if (cluster.leader()){
+    buf[it.get_local_linear_id()/cluster_size] = result;
+}
+----
 
 Another use of `cluster_group` would be to provide an interface with a
 compile-time known size of cluster-group as an argument.
 
-[source, c++] ---- void
-func_that_needs_4_work_items(sycl::ext::oneapi::cluster_group<4> group); ----
+[source, c++]
+----
+void func_that_needs_4_work_items(sycl::ext::oneapi::cluster_group<4> group);
+----
 
 
 === Tangle-Groups
@@ -419,11 +523,15 @@ on some devices, since it may be necessary to wait for work-items to
 reconverge. For consistency, synchronization is required by all
 implementations.
 
-[source, c++] ---- namespace ext::oneapi {
+[source, c++]
+----
+namespace ext::oneapi {
 
-template <typename Group> tangle_group get_tangle_group(Group group);
+template <typename Group>
+tangle_group get_tangle_group(Group group);
 
-} // namespace ext::oneapi ----
+} // namespace ext::oneapi
+----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
 std::is_same_v<Group, sycl::sub_group>` is true.
@@ -439,12 +547,18 @@ part of the same tangle.
 
 ==== `tangle_group` Class
 
-[source, c++] ---- namespace sycl::ext::oneapi {
+[source, c++]
+----
+namespace sycl::ext::oneapi {
 
-class tangle_group { public: using id_type = id<1>; using range_type =
-range<1>; using linear_id_type = uint32_t; static constexpr int dimensions = 1;
-static constexpr sycl::memory_scope fence_scope =
-sycl::memory_scope::sub_group;
+class tangle_group {
+public:
+    using id_type = id<1>;
+    using range_type = range<1>;
+    using linear_id_type = uint32_t;
+    static constexpr int dimensions = 1;
+    static constexpr sycl::memory_scope fence_scope =
+        sycl::memory_scope::sub_group;
     
     id_type get_group_id() const;
 
@@ -462,45 +576,75 @@ sycl::memory_scope::sub_group;
 
     linear_id_type get_local_linear_range() const;
 
-    bool leader() const; };
+    bool leader() const;
+};
 
-} ----
+}
+----
 
-[source,c++] ---- id_type get_group_id() const; ---- _Returns_: An `id`
-representing the index of the tangle-group.
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the tangle-group.
 
 NOTE: This will always be an `id` with all values set to 0, since there can
 only be one tangle-group.
 
-[source,c++] ---- id_type get_local_id() const; ---- _Returns_: An `id`
-representing the calling work-item's position within the tangle-group.
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the tangle-group.
 
-[source,c++] ---- range_type get_group_range() const; ---- _Returns_: A `range`
-representing the number of tangle-groups.
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of tangle-groups.
 
 NOTE: This will always return a `range` of 1 as there can only be one
 tangle-group.
 
-[source,c++] ---- range_type get_local_range() const; ---- _Returns_: A `range`
-representing the number of work-items in the tangle-group.
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the tangle-group.
 
-[source,c++] ---- id_type get_group_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_id()`.
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
 
-[source,c++] ---- id_type get_local_linear_id() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_linear_id()`.
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
 
-[source,c++] ---- range_type get_group_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_group_range()`.
+[source,c++]
+----
+range_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_range()`.
 
-[source,c++] ---- range_type get_local_linear_range() const; ---- _Returns_: A
-linearized version of the `id` returned by `get_local_range()`.
+[source,c++]
+----
+range_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_range()`.
 
-[source,c++] ---- bool leader() const; ---- _Returns_: `true` for exactly one
-work-item in the tangle-group, if the calling work-item is the leader of the
-tangle-group, and `false` for all other work-items in the tangle-group. The
-leader of the tangle-group is guaranteed to be the work-item for which
-`get_local_id()` returns 0.
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the tangle-group, if the calling
+work-item is the leader of the tangle-group, and `false` for all other
+work-items in the tangle-group. The leader of the tangle-group is guaranteed to
+be the work-item for which `get_local_id()` returns 0.
 
 
 ==== Usage Examples
@@ -511,12 +655,12 @@ TODO: Usage example for tangle groups.
 === Opportunistic-Groups
 
 An opportunistic-group is a non-contiguous subset of a sub-group, representing
-the work-items of a simultaneous tangle.
+the work-items of a concurrent tangle.
 
 In SYCL implementations where work-items have strong forward progress
 guarantees (and can therefore make progress independently of other work-items
 in the same sub-group), divergent control flow can lead to work-items in a
-sub-group executing in a tangle but not in a simultaneous tangle.
+sub-group executing in a tangle but not in a concurrent tangle.
 
 In some cases it may be helpful to capture this group and use it for
 opportunistic optimizations.
@@ -535,14 +679,17 @@ NOTE: Creating an opportunistic group does not require synchronization because
 it is designed to capture whichever set of work-items happen to call
 `get_opportunistic_group()` simultaneously.
 
-[source, c++] ---- namespace ext::oneapi::this_kernel {
+[source, c++]
+----
+namespace ext::oneapi::this_kernel {
 
 opportunistic_group get_opportunistic_group();
 
-} // namespace ext::oneapi::this_kernel ----
+} // namespace ext::oneapi::this_kernel
+----
 
 _Returns_: An `opportunistic_group` consisting of all work-items in the same
-sub-group as the calling work-item which are also part of the same simultaneous
+sub-group as the calling work-item which are also part of the same concurrent
 tangle.
 
 
