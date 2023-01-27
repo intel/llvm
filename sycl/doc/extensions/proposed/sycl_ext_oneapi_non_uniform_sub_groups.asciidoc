@@ -172,12 +172,9 @@ ballot-group contains all work-items where the predicate is false.
 New ballot-groups are created by partitioning an existing group, using the
 `get_ballot_group` free-function.
 
-[NOTE]
-----
-Creating a ballot-group requires synchronization of the parent group, since
-work-items must exchange predicate values in order to determine group
+NOTE: Creating a ballot-group requires synchronization of the parent group,
+since work-items must exchange predicate values in order to determine group
 membership.
-----
 
 [source, c++]
 ----
@@ -354,12 +351,9 @@ property.
 New cluster-groups are created by partitioning an existing group, using the
 `get_cluster_group` free-function.
 
-[NOTE]
-----
-Creating a cluster-group does not require synchronization of the parent group,
-since work-items can independently identify cluster members given a fixed
-cluster size.
-----
+NOTE: Creating a cluster-group does not require synchronization of the parent
+group, since work-items can independently identify cluster members given a
+fixed cluster size.
 
 [source, c++]
 ----
@@ -516,12 +510,10 @@ work-items currently executing the same control flow.
 New tangle-groups are created by partitioning an existing group, using the
 `get_tangle_group` free-function.
 
-[NOTE]
-----
-Creating a tangle-group may require synchronization of the parent group on some
-devices, since it may be necessary to wait for work-items to reconverge. For
-consistency, synchronization is required by all implementations.
-----
+NOTE: Creating a tangle-group may require synchronization of the parent group
+on some devices, since it may be necessary to wait for work-items to
+reconverge. For consistency, synchronization is required by all
+implementations.
 
 [source, c++]
 ----
@@ -675,12 +667,9 @@ group. There are no guarantees that a group returned by
 control flow, nor the the same set of work-items as the group returned by any
 previous call to `get_opportunistic_group()`.
 
-[NOTE]
-----
-Creating an opportunistic group does not require synchronization because it
-is designed to capture whichever set of work-items happen to call
+NOTE: Creating an opportunistic group does not require synchronization because
+it is designed to capture whichever set of work-items happen to call
 `get_opportunistic_group()` simultaneously.
-----
 
 [source, c++]
 ----
