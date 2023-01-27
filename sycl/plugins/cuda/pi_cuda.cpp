@@ -5465,7 +5465,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
   pi_result result = PI_SUCCESS;
 
   try {
-    ScopedContext active(queue->get_context());
+    ScopedContext active(queue->get_native_context());
     CUstream cuStream = queue->get_next_transfer_stream();
     result = enqueueEventsWait(queue, cuStream, num_events_in_wait_list,
                                event_wait_list);
