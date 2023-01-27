@@ -527,6 +527,10 @@ struct get_red_t<
   using type = T;
 };
 
+// Kernel name wrapper for initializing reduction-related memory through
+// reduction_impl_algo::withInitializedMem.
+template <typename KernelName> struct __sycl_init_mem_for;
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo : public reduction_impl_common<T, BinaryOperation> {
@@ -642,7 +646,7 @@ public:
           // between host/device in lambda captures.
           size_t NElements = num_elements;
 
-          CopyHandler.single_task<KernelName>([=] {
+          CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
             for (int i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
@@ -823,7 +827,6 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
 namespace reduction {
 template <typename KernelName, strategy S, class... Ts> struct MainKrn;
 template <typename KernelName, strategy S, class... Ts> struct AuxKrn;
-template <typename KernelName, aspect... A> struct AspectDepKrn;
 } // namespace reduction
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
@@ -846,14 +849,13 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_atomic_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       local_accessor<typename Reduction::result_type, 1> GroupSum{NElements,
                                                                   CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_atomic_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -1112,12 +1114,11 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::group_reduce_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::group_reduce_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's function. Reducer.MValue gets initialized there.
@@ -1145,7 +1146,10 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       size_t WGSize = NDRange.get_local_range().size();
       bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
@@ -1158,10 +1162,6 @@ struct NDRangeReduction<
       size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
       local_accessor<typename Reduction::result_type, 1> LocalReds{
           NLocalElements, CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -2148,12 +2148,8 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
     };
 
     if constexpr (Reduction::has_float64_atomics) {
-      // Device aspect needs to be checked at runtime and therefore may generate
-      // a conflicting kernel.
       if (getDeviceFromHandler(CGH).has(aspect::atomic64))
-        return Impl<Strat::group_reduce_and_atomic_cross_wg>{}
-            .run<reduction::AspectDepKrn<KernelName, aspect::atomic64>>(
-                CGH, Queue, NDRange, Properties, Redu, KernelFunc);
+        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
 
       if constexpr (Reduction::has_fast_reduce)
         return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
