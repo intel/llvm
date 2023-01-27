@@ -88,34 +88,6 @@ now only sub-groups are supported.
 The SYCL execution model is extended in order to support the introduction of
 non-uniform sub-group types and the associated algorithms.
 
-==== Fixed topology groups
-
-The group types which form the existing SYCL execution model topology of
-nd-range, work-group and sub-group are part of the fixed nd-range topology, and
-are considered fixed topology group types. These are established at the point a
-SYCL kernel function is enqueued and do not change throughout execution.
-
-If the sycl_ext_oneapi_root_group extension is supported, then the `root_group`
-class introduced by that extension is considered a fixed topology group type.
-
-==== User-constructed groups
-
-Other group types which do not fall into the fixed nd-range topology and are
-instead constructed within a SYCL kernel function during execution are
-considered user-constructed group types.
-
-Currently in SYCL, synchronization cannot be performed on divergent control flow;
-all work-items must converge. A ballot-group is a non-uniform sub-group type
-which represents a subset of the work-items within a sub-group for which a given
-predicate is either true or false. This allows group algorithms to be performed
-on a subset of the work-items within a sub-group which all follow the same
-control flow.
-
-The sub-group or non-uniform sub-group that is divided will be referred to as
-the source group. The creation of a ballot-group requires the synchronization of
-the source group since details of the other work-items in the ballot-group will
-be broadcast to participating work-items.
-
 ==== Control flow
 
 Control flow is defined in the SYCL specification link:https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#glossary[glossary].
@@ -156,6 +128,59 @@ control flow.
 
 A concurrent tangle is a collection of work-items from the same sub-group which
 have common control flow and concurrent execution.
+
+
+=== Group Taxonomy
+
+_Fixed topology groups_ are groups which represent the hierarchical execution
+model topology used by SYCL kernels. These groups are implicitly created by an
+implementation when a SYCL kernel function is enqueued. The following group
+types are fixed topology groups:
+
+- `root_group` (if sycl_ext_oneapi_root_group is supported)
+- `group`
+- `sub_group`
+
+_User-constructed groups_ are explicitly created by a developer (e.g. by
+partitioning one of the fixed topology groups). This extension introduces the
+following user-constructed groups:
+
+- `ballot_group`
+- `cluster_group`
+- `tangle_group`
+- `opportunistic_group`
+
+The `is_fixed_topology_group` and `is_user_constructed_group` traits can be
+used to detect whether a group type represents a fixed topology or
+user-constructed group, respectively.
+
+[source, c++]
+----
+namespace sycl::ext::oneapi {
+
+  template <class T>
+  struct is_fixed_topology_group;
+
+  template <class T>
+  inline constexpr
+  bool is_fixed_topology_group_v = is_fixed_topology_group<T>::value;
+
+
+  template <class T>
+  struct is_user_constructed_group;
+
+  template <class T>
+  inline constexpr bool
+  is_user_constructed_group_v = is_user_constructed_group<T>::value;
+
+} // namespace sycl::ext::oneapi
+----
+
+`is_fixed_topology_group<T>::value` is `std::true_type` if `T` is one of:
+`root_group`, `group` or `sub_group`.
+
+`is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
+`ballot_group`, `cluster_group`, `tangle_group` or `opportunisic_group`.
 
 
 === Ballot-Groups
@@ -810,36 +835,6 @@ int atomic_aggregate_inc(sycl::sub_group sub_group, sycl::atomic_ref<int, order,
     return sycl::select_from_group(active_group, old_value, 0) + index_in_group;
 }
 ----
-
-=== Sub-group traits
-
-Additional traits are introduced for detecting whether a group type is a fixed
-topology group type or a user-constructed group type.
-
-[source, c++]
-----
-namespace sycl {
-  template <class T>
-  struct is_fixed_topology_group;
-  template <class T>
-  struct is_user_constructed_group;
-
-  template <class T>
-  inline constexpr bool is_fixed_topology_group_v
-   = is_fixed_topology_group<T>::value;
-  template <class T>
-  inline constexpr bool is_user_constructed_group_v
-    = is_user_constructed_group<T>::value;
-}
-----
-
-`is_fixed_group` is `std::true_type` if `T` is either `group` or `sub_group` and
-`is_user_constructed_group` is `std::true_type` if `T` is either `ballot_group`,
-`cluster_group`, `tangle_group` or `opportunisic_group`.
-
-The `is_group` is `std::true_type` if `T` is either `ballot_group`,
-`cluster_group`, `tangle_group` or `opportunisic_group`.
-
 
 === Group Functions
 
