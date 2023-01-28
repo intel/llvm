@@ -1354,7 +1354,10 @@ public:
   /// <summary>
   /// Default constructor
   /// </summary>
-  config_2d_mem_access() : payload(0) {}
+  config_2d_mem_access() : payload(0) {
+    payload.template select<1, 1>(7) =
+        ((NBlocks - 1) << 16) | ((BlockHeight - 1) << 8) | (BlockWidth - 1);
+  }
 
   /// <summary>
   /// Copy constructor
@@ -1376,7 +1379,7 @@ public:
   config_2d_mem_access(const T *Ptr, uint32_t SurfaceWidth,
                        uint32_t SurfaceHeight, uint32_t SurfacePitch, int32_t X,
                        int32_t Y)
-      : payload(0) {
+      : config_2d_mem_access() {
     payload.template bit_cast_view<uint64_t>().template select<1, 1>(0) =
         (uint64_t)Ptr;
     payload.template select<1, 1>(2) = SurfaceWidth;
@@ -1384,12 +1387,6 @@ public:
     payload.template select<1, 1>(4) = SurfacePitch;
     payload.template select<1, 1>(5) = X;
     payload.template select<1, 1>(6) = Y;
-    payload.template bit_cast_view<uchar>().template select<1, 1>(28) =
-        BlockWidth - 1;
-    payload.template bit_cast_view<uchar>().template select<1, 1>(29) =
-        BlockHeight - 1;
-    payload.template bit_cast_view<uchar>().template select<1, 1>(30) =
-        NBlocks - 1;
   }
 
   /// <summary>
