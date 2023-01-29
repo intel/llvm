@@ -36,6 +36,9 @@ double __imf_floor(double);
 _iml_half_internal __imf_floorf16(_iml_half_internal);
 float __imf_rintf(float);
 double __imf_rint(double);
+_iml_half_internal __imf_invf16(_iml_half_internal);
+float __imf_invf(float);
+double __imf_inv(double);
 _iml_half_internal __imf_rintf16(_iml_half_internal);
 float __imf_sqrtf(float);
 double __imf_sqrt(double);
@@ -118,6 +121,23 @@ sycl::half2 floor(sycl::half2 x) {
   return sycl::half2{floor(x.s0()), floor(x.s1())};
 }
 
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, float>, float> inv(Tp x) {
+  return __imf_invf(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, double>, double> inv(Tp x) {
+  return __imf_inv(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> inv(Tp x) {
+  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
+  return __builtin_bit_cast(sycl::half, __imf_invf16(xi));
+}
+
+sycl::half2 inv(sycl::half2 x) { return sycl::half2{inv(x.s0()), inv(x.s1())}; }
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, float>, float> rint(Tp x) {
   return __imf_rintf(x);
