@@ -764,17 +764,17 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
-    cl_int Range = getRangeInternal();
+    int Range = getRangeInternal();
     return range<1>(Range);
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
-    cl_int2 Range = getRangeInternal();
+    int2 Range = getRangeInternal();
     return range<2>(Range[0], Range[1]);
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
   range<3> get_range() const {
-    cl_int3 Range = getRangeInternal();
+    int3 Range = getRangeInternal();
     return range<3>(Range[0], Range[1], Range[2]);
   }
 
@@ -922,12 +922,12 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
-    cl_int2 Count = MBaseAcc.getRangeInternal();
+    int2 Count = MBaseAcc.getRangeInternal();
     return range<1>(Count.x());
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
-    cl_int3 Count = MBaseAcc.getRangeInternal();
+    int3 Count = MBaseAcc.getRangeInternal();
     return range<2>(Count.x(), Count.y());
   }
 
