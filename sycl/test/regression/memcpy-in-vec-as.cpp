@@ -3,10 +3,10 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  using res_vec_type = sycl::vec<sycl::opencl::cl_ushort, 4>;
+  using res_vec_type = sycl::vec<unsigned short, 4>;
   res_vec_type res;
 
-  sycl::vec<sycl::opencl::cl_uchar, 8> RefData(1, 2, 3, 4, 5, 6, 7, 8);
+  sycl::vec<unsigned char, 8> RefData(1, 2, 3, 4, 5, 6, 7, 8);
   {
     sycl::buffer<res_vec_type, 1> OutBuf(&res, sycl::range<1>(1));
     sycl::buffer<decltype(RefData), 1> InBuf(&RefData, sycl::range<1>(1));

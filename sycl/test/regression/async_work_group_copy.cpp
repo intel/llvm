@@ -57,6 +57,7 @@ int main() {
   test<int32_t>();
   test<int64_t>();
   test<sycl::opencl::cl_half>();
+  test<sycl::half>();
   test<float>();
   test<double>();
   return 1;

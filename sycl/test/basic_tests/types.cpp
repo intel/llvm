@@ -99,7 +99,8 @@ int main() {
   // Table 4.93: Additional scalar data types supported by SYCL.
   static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
-  // Table 4.94: Scalar data type aliases supported by SYCL
+  // SYCL 2020: Table 193. Scalar data type aliases supported by SYCL OpenCL
+  // backend
   static_assert(is_same<s::opencl::cl_bool, decltype(0 != 1)>::value, "");
   checkSizeForSignedIntegral<s::opencl::cl_char, sizeof(int8_t)>();
   checkSizeForUnsignedIntegral<s::opencl::cl_uchar, sizeof(uint8_t)>();
