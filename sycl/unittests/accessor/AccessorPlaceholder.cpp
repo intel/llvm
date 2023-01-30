@@ -54,7 +54,7 @@ TEST(AccessorPlaceholderTest, PlaceholderNoneTargetDevice) {
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);
-    ASSERT_FALSE(acc.is_placeholder());
+    EXPECT_FALSE(acc.is_placeholder());
   });
 }
 
@@ -72,7 +72,7 @@ TEST(AccessorPlaceholderTest, PlaceholderTrueTargetDevice) {
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);
-    ASSERT_FALSE(acc.is_placeholder());
+    EXPECT_FALSE(acc.is_placeholder());
   });
 }
 
@@ -90,7 +90,7 @@ TEST(AccessorPlaceholderTest, PlaceholderFalseTargetDevice) {
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);
-    ASSERT_FALSE(acc.is_placeholder());
+    EXPECT_FALSE(acc.is_placeholder());
   });
 }
 
@@ -103,8 +103,8 @@ TEST(AccessorPlaceholderTest, PlaceholderNoneTargetHost) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_FALSE(acc.is_placeholder());
-  ASSERT_EQ(acc[0], data);
+  EXPECT_FALSE(acc.is_placeholder());
+  EXPECT_EQ(acc[0], data);
 }
 
 TEST(AccessorPlaceholderTest, PlaceholderTrueTargetHost) {
@@ -118,7 +118,7 @@ TEST(AccessorPlaceholderTest, PlaceholderTrueTargetHost) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_FALSE(acc.is_placeholder());
+  EXPECT_FALSE(acc.is_placeholder());
 }
 
 TEST(AccessorPlaceholderTest, PlaceholderFalseTargetHost) {
@@ -132,5 +132,5 @@ TEST(AccessorPlaceholderTest, PlaceholderFalseTargetHost) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_FALSE(acc.is_placeholder());
+  EXPECT_FALSE(acc.is_placeholder());
 }
