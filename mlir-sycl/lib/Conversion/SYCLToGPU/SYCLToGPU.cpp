@@ -179,7 +179,7 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    const auto opName = GPUOpTy::getOperationName();
+    constexpr auto opName = GPUOpTy::getOperationName();
     ::rewrite(opName,
               GPUOpTy::getDimensionAttrName({opName, rewriter.getContext()}),
               op, opAdaptor.getOperands(), rewriter);
