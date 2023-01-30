@@ -118,8 +118,10 @@ control flow, to simplify the description of the behavior for new group types.
 A work-item is said to have _active_ control flow for a given point of
 execution if it follows the sequence of statements currently being executed.
 
-Two or more work-items are considered to have _simultaneous_ execution at a given
-point if they execute together. The amount of and granularity of simultaneous
+Two or more work-items are considered to have _simultaneous_ execution at a
+given point if they execute statements at the same time. A common example of
+simultaneous execution is when work-items are mapped to different lanes of the
+same SIMD instruction(s). The amount of and granularity of simultaneous
 execution is implementation-defined.
 
 A _tangle_ is a collection of work-items from the same sub-group executing
