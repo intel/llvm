@@ -17,6 +17,8 @@ LogicalResult verifySYCLGetIDTrait(Operation *Op);
 LogicalResult verifySYCLGetComponentTrait(Operation *Op);
 LogicalResult verifySYCLGetRangeTrait(Operation *Op);
 LogicalResult verifySYCLGetGroupTrait(Operation *Op);
+LogicalResult verifySYCLIndexSpaceGetIDTrait(Operation *Op);
+LogicalResult verifySYCLIndexSpaceGetRangeTrait(Operation *Op);
 
 ///  This interface describes an SYCLMethodOpInterface that returns a range if
 ///  called with a single argument and a size_t if called with two arguments.
@@ -62,6 +64,28 @@ class SYCLGetGroup : public OpTrait::TraitBase<ConcreteType, SYCLGetGroup> {
 public:
   static LogicalResult verifyTrait(Operation *Op) {
     return verifySYCLGetGroupTrait(Op);
+  }
+};
+
+///  This interface describes an operation returning either a SYCL ID type (for
+///  cardinality 0) or an MLIR index type (for cardinality 1).
+template <typename ConcreteType>
+class SYCLIndexSpaceGetID
+    : public OpTrait::TraitBase<ConcreteType, SYCLIndexSpaceGetID> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLIndexSpaceGetIDTrait(Op);
+  }
+};
+
+///  This interface describes an operation returning either a SYCL range type
+///  (for cardinality 0) or an MLIR index type (for cardinality 1).
+template <typename ConcreteType>
+class SYCLIndexSpaceGetRange
+    : public OpTrait::TraitBase<ConcreteType, SYCLIndexSpaceGetRange> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLIndexSpaceGetRangeTrait(Op);
   }
 };
 } // namespace sycl

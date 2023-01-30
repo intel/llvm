@@ -413,9 +413,187 @@ def SYCLMemref : AnyTypeOf<[
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
+def SYCLIndexSpaceGetIDResult : AnyTypeOf<[Index, SYCL_IDType]>;
+def SYCLIndexSpaceGetRangeResult : AnyTypeOf<[Index, SYCL_RangeType]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
 def VectorSplatArg : MemRefOf<[VectorEltTy]>;
+
+////////////////////////////////////////////////////////////////////////////////
+// SYCL GRID OPERATIONS
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNumWorkItemsOp : SYCL_Op<"num_work_items", [SYCLIndexSpaceGetRange]> {
+  let summary = "Retrieve the number of work-items.";
+  let description = [{
+    This operation returns the number of work-items in the index space. If the
+    optional argument is passed, the number of work-items in the given dimension
+    is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetRangeResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLGlobalIDOp : SYCL_Op<"global_id", [SYCLIndexSpaceGetID]> {
+  let summary = "Retrieve the global ID of the item.";
+  let description = [{
+    This operation returns the global ID of the item in the index space. If the
+    optional argument is passed, the global ID of the item in the given
+    dimension is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetIDResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLLocalIDOp : SYCL_Op<"local_id", [SYCLIndexSpaceGetID]> {
+  let summary = "Retrieve the local ID of the item.";
+  let description = [{
+    This operation returns the local ID of the item within the work-group. If
+    the optional argument is passed, the local ID of the item in the given
+    dimension is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetIDResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLGlobalOffsetOp : SYCL_Op<"global_offset", [SYCLIndexSpaceGetID]>,
+                       Deprecated<"deprecated in SYCL 2020"> {
+  let summary = "Retrieve the global offset of the item.";
+  let description = [{
+    This operation returns the global offset of the item in the index space. If
+    the optional argument is passed, the global offset of the item in the given
+    dimension is returned.
+
+    Note that this is deprecated in SYCL 2020.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetIDResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLNumWorkGroupsOp : SYCL_Op<"num_work_groups", [SYCLIndexSpaceGetRange]> {
+  let summary = "Retrieve the number of work-groups.";
+  let description = [{
+    This operation returns the number of work-groups in the index space. If the
+    optional argument is passed, the number of work-groups in the given
+    dimension is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetRangeResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLWorkGroupSizeOp : SYCL_Op<"work_group_size", [SYCLIndexSpaceGetRange]> {
+  let summary = "Retrieve the number of work-items in a work-group.";
+  let description = [{
+    This operation returns the number of work-items per work-group. If the
+    optional argument is passed, the number of work-items per work-group in the
+    given dimension is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetRangeResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLWorkGroupIDOp : SYCL_Op<"work_group_id", [SYCLIndexSpaceGetID]> {
+  let summary = "Retrieve the ID of the work-group.";
+  let description = [{
+    This operation returns the ID of the work-group. If the optional argument is
+    passed, the ID of the work-group in the given dimension is returned.
+  }];
+
+  let arguments = (ins Optional<I32>:$dimension);
+  let results = (outs SYCLIndexSpaceGetIDResult:$result);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLNumSubGroupsOp : SYCL_Op<"num_sub_groups"> {
+  let summary = "Retrieve the number of sub-groups.";
+  let description = [{
+    This operation returns the number of sub-groups.
+  }];
+
+  let arguments = (ins);
+  let results = (outs I32:$result);
+  let assemblyFormat = [{
+    attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLSubGroupMaxSizeOp : SYCL_Op<"sub_group_max_size"> {
+  let summary = "Retrieve the maximum size of a sub-group.";
+  let description = [{
+    This operation returns the maximum size of a sub-group.
+  }];
+
+  let arguments = (ins);
+  let results = (outs I32:$result);
+  let assemblyFormat = [{
+    attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLSubGroupSizeOp : SYCL_Op<"sub_group_size"> {
+  let summary = "Retrieve the sub-group size.";
+  let description = [{
+    This operation returns the sub-group size.
+  }];
+
+  let arguments = (ins);
+  let results = (outs I32:$result);
+  let assemblyFormat = [{
+    attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLSubGroupIDOp : SYCL_Op<"sub_group_id"> {
+  let summary = "Retrieve the ID of the sub-group.";
+  let description = [{
+    This operation returns the ID of the sub-group.
+  }];
+
+  let arguments = (ins);
+  let results = (outs I32:$result);
+  let assemblyFormat = [{
+    attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def SYCLSubGroupLocalIDOp : SYCL_Op<"sub_group_local_id"> {
+  let summary = "Retrieve the local ID of the sub-group.";
+  let description = [{
+    This operation returns the local ID of the sub-group.
+  }];
+
+  let arguments = (ins);
+  let results = (outs I32:$result);
+  let assemblyFormat = [{
+    attr-dict `:` functional-type(operands, results)
+  }];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTRUCTOR OPERATION

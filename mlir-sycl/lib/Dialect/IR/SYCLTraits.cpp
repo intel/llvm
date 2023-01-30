@@ -10,9 +10,13 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpTraits.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
 #include "llvm/ADT/TypeSwitch.h"
+
+using namespace mlir;
+using namespace mlir::sycl;
 
 static unsigned getDimensions(mlir::Type Type) {
   if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>()) {
@@ -173,4 +177,38 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetRangeTrait(Operation *Op) {
 mlir::LogicalResult mlir::sycl::verifySYCLGetGroupTrait(Operation *Op) {
   return verifyGetSYCLTyOperation(cast<mlir::sycl::SYCLMethodOpInterface>(Op),
                                   "group");
+}
+
+static LogicalResult verifyIndexSpaceTrait(Operation *Op) {
+  const auto Ty = Op->getResultTypes();
+  assert(Ty.size() == 1 && "Expecting a single return value");
+  const auto IsIndex = Ty[0].isa<IndexType>();
+  switch (Op->getNumOperands()) {
+  case 0:
+    return !IsIndex ? success()
+                    : Op->emitOpError("Not expecting an index return value for "
+                                      "this cardinality");
+  case 1:
+    if (auto C = Op->getOperand(0).getDefiningOp<arith::ConstantOp>()) {
+      const auto Value = static_cast<arith::ConstantIntOp>(C).value();
+      if (!(0 <= Value && Value < 3)) {
+        return Op->emitOpError(
+            "The SYCL index space can only be 1, 2, or 3 dimensional");
+      }
+    }
+    return IsIndex
+               ? success()
+               : Op->emitOpError(
+                     "Expecting an index return value for this cardinality");
+  default:
+    llvm_unreachable("Invalid cardinality");
+  }
+}
+
+LogicalResult mlir::sycl::verifySYCLIndexSpaceGetIDTrait(Operation *Op) {
+  return verifyIndexSpaceTrait(Op);
+}
+
+LogicalResult mlir::sycl::verifySYCLIndexSpaceGetRangeTrait(Operation *Op) {
+  return verifyIndexSpaceTrait(Op);
 }
