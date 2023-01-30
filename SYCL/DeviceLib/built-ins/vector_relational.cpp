@@ -16,22 +16,22 @@ namespace s = sycl;
 int main() {
   // isequal
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isequalF4F4>([=]() {
-          AccR[0] = s::isequal(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                               s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                               s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == 0);
@@ -41,22 +41,22 @@ int main() {
 
   // isnotequal
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnotequalF4F4>([=]() {
-          AccR[0] = s::isnotequal(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                                  s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isnotequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                                  s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == -1);
@@ -66,22 +66,22 @@ int main() {
 
   // isgreater
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isgreaterF4F4>([=]() {
-          AccR[0] = s::isgreater(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                                 s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isgreater(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                                 s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == -1);
@@ -91,22 +91,22 @@ int main() {
 
   // isgreaterequal
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isgreaterequalF4F4>([=]() {
-          AccR[0] = s::isgreaterequal(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                                      s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isgreaterequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                                      s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == -1);
@@ -116,22 +116,22 @@ int main() {
 
   // isless
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class islessF4F4>([=]() {
-          AccR[0] = s::isless(s::cl_float4{0.5f, 0.4f, NAN, INFINITY},
-                              s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isless(s::float4{0.5f, 0.4f, NAN, INFINITY},
+                              s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == -1);
@@ -141,22 +141,22 @@ int main() {
 
   // islessequal
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class islessequalF4F4>([=]() {
-          AccR[0] = s::islessequal(s::cl_float4{0.5f, 0.4f, NAN, INFINITY},
-                                   s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::islessequal(s::float4{0.5f, 0.4f, NAN, INFINITY},
+                                   s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == -1);
@@ -166,22 +166,22 @@ int main() {
 
   // islessgreater
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class islessgreaterF4F4>([=]() {
-          AccR[0] = s::islessgreater(s::cl_float4{0.5f, 0.4f, NAN, INFINITY},
-                                     s::cl_float4{0.5f, 0.5f, 0.5f, INFINITY});
+          AccR[0] = s::islessgreater(s::float4{0.5f, 0.4f, NAN, INFINITY},
+                                     s::float4{0.5f, 0.5f, 0.5f, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == -1);
@@ -192,21 +192,21 @@ int main() {
 
   // isfinite
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isfiniteF4F4>([=]() {
-          AccR[0] = s::isfinite(s::cl_float4{0.5f, 0.4f, NAN, INFINITY});
+          AccR[0] = s::isfinite(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == -1);
@@ -216,21 +216,21 @@ int main() {
 
   // isinf
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isinfF4F4>([=]() {
-          AccR[0] = s::isinf(s::cl_float4{0.5f, 0.4f, NAN, INFINITY});
+          AccR[0] = s::isinf(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == 0);
@@ -240,21 +240,21 @@ int main() {
 
   // isnan
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnanF4F4>([=]() {
-          AccR[0] = s::isnan(s::cl_float4{0.5f, 0.4f, NAN, INFINITY});
+          AccR[0] = s::isnan(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == 0);
@@ -264,21 +264,21 @@ int main() {
 
   // isnormal
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnormalF4F4>([=]() {
-          AccR[0] = s::isnormal(s::cl_float4{0.5f, 0.4f, NAN, INFINITY});
+          AccR[0] = s::isnormal(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == -1);
@@ -288,22 +288,22 @@ int main() {
 
   // isordered
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isorderedF4F4>([=]() {
-          AccR[0] = s::isordered(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                                 s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isordered(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                                 s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == -1);
     assert(r2 == -1);
@@ -313,22 +313,22 @@ int main() {
 
   // isunordered
   {
-    s::cl_int4 r{0};
+    s::int4 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isunorderedF4F4>([=]() {
-          AccR[0] = s::isunordered(s::cl_float4{0.5f, 0.6f, NAN, INFINITY},
-                                   s::cl_float4{0.5f, 0.5f, 0.5f, 0.5f});
+          AccR[0] = s::isunordered(s::float4{0.5f, 0.6f, NAN, INFINITY},
+                                   s::float4{0.5f, 0.5f, 0.5f, 0.5f});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
+    int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == 0);
@@ -338,20 +338,20 @@ int main() {
 
   // signbit
   {
-    s::cl_int3 r{0};
+    s::int3 r{0};
     {
-      s::buffer<s::cl_int3, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::int3, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class signbitF3>([=]() {
-          AccR[0] = s::signbit(s::cl_float3{0.5f, -12.0f, INFINITY});
+          AccR[0] = s::signbit(s::float3{0.5f, -12.0f, INFINITY});
         });
       });
     }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    s::cl_int r3 = r.z();
+    int r1 = r.x();
+    int r2 = r.y();
+    int r3 = r.z();
 
     assert(r1 == 0);
     assert(r2 == -1);
@@ -361,18 +361,18 @@ int main() {
   // any.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class anyI4>([=]() {
-          AccR[0] = s::any(s::cl_int4{-12, -12, 0, 1});
+          AccR[0] = s::any(s::int4{-12, -12, 0, 1});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 1);
   }
@@ -380,18 +380,18 @@ int main() {
   // any.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class anyI4negative>([=]() {
-          AccR[0] = s::any(s::cl_int4{-12, -12, -12, -12});
+          AccR[0] = s::any(s::int4{-12, -12, -12, -12});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 1);
   }
@@ -399,18 +399,18 @@ int main() {
   // any.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class anyI4zero>([=]() {
-          AccR[0] = s::any(s::cl_int4{0, 0, 0, 0});
+          AccR[0] = s::any(s::int4{0, 0, 0, 0});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 0);
   }
@@ -418,18 +418,18 @@ int main() {
   // any.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class anyI4positive>([=]() {
-          AccR[0] = s::any(s::cl_int4{12, 12, 12, 12});
+          AccR[0] = s::any(s::int4{12, 12, 12, 12});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 0);
   }
@@ -437,21 +437,21 @@ int main() {
   // all.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class allI4>([=]() {
-          AccR[0] = s::all(s::cl_int4{-12, -12, -12, -12});
+          AccR[0] = s::all(s::int4{-12, -12, -12, -12});
           // Infinity (positive or negative) or Nan are not integers.
           // Passing them creates inconsistent results between host and device
           // execution.
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 1);
   }
@@ -459,18 +459,18 @@ int main() {
   // all.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class allI4negative>([=]() {
-          AccR[0] = s::all(s::cl_int4{-12, -12, -12, -12});
+          AccR[0] = s::all(s::int4{-12, -12, -12, -12});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 1);
   }
@@ -478,18 +478,18 @@ int main() {
   // all.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class allI4zero>([=]() {
-          AccR[0] = s::all(s::cl_int4{0, 0, 0, 0});
+          AccR[0] = s::all(s::int4{0, 0, 0, 0});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 0);
   }
@@ -497,42 +497,42 @@ int main() {
   // all.
   // Call to the device function with vector parameters work. Scalars do not.
   {
-    s::cl_int r{0};
+    int r{0};
     {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class allI4positive>([=]() {
-          AccR[0] = s::all(s::cl_int4{12, 12, 12, 12});
+          AccR[0] = s::all(s::int4{12, 12, 12, 12});
         });
       });
     }
-    s::cl_int r1 = r;
+    int r1 = r;
 
     assert(r1 == 0);
   }
 
   // bitselect
   {
-    s::cl_float4 r{0};
+    s::float4 r{0};
     {
-      s::buffer<s::cl_float4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::float4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class bitselectF4F4F4>([=]() {
-          AccR[0] = s::bitselect(s::cl_float4{112.112f, 12.12f, 0, 0.0f},
-                                 s::cl_float4{34.34f, 23.23f, 1, 0.0f},
-                                 s::cl_float4{3.3f, 6.6f, 1, 0.0f});
+          AccR[0] = s::bitselect(s::float4{112.112f, 12.12f, 0, 0.0f},
+                                 s::float4{34.34f, 23.23f, 1, 0.0f},
+                                 s::float4{3.3f, 6.6f, 1, 0.0f});
         }); // Using NAN/INFINITY as any float produced consistent results
             // between host and device.
       });
     }
-    s::cl_float r1 = r.x();
-    s::cl_float r2 = r.y();
-    s::cl_float r3 = r.z();
-    s::cl_float r4 = r.w();
+    float r1 = r.x();
+    float r2 = r.y();
+    float r3 = r.z();
+    float r4 = r.w();
 
     assert(abs(r1 - 80.5477f) < 0.0001);
     assert(abs(r2 - 18.2322f) < 0.0001);
@@ -542,25 +542,25 @@ int main() {
 
   // select
   {
-    s::cl_float4 r{0};
+    s::float4 r{0};
     {
-      s::buffer<s::cl_float4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::float4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class selectF4F4I4>([=]() {
-          AccR[0] = s::select(s::cl_float4{112.112f, 34.34f, 112.112f, 34.34f},
-                              s::cl_float4{34.34f, 112.112f, 34.34f, 112.112f},
-                              s::cl_int4{0, -1, 0, 1});
+          AccR[0] = s::select(s::float4{112.112f, 34.34f, 112.112f, 34.34f},
+                              s::float4{34.34f, 112.112f, 34.34f, 112.112f},
+                              s::int4{0, -1, 0, 1});
           // Using NAN/infinity as an input, which gets
           // selected by -1, produces a NAN/infinity as expected.
         });
       });
     }
-    s::cl_float r1 = r.x();
-    s::cl_float r2 = r.y();
-    s::cl_float r3 = r.z();
-    s::cl_float r4 = r.w();
+    float r1 = r.x();
+    float r2 = r.y();
+    float r3 = r.z();
+    float r4 = r.w();
 
     assert(r1 == 112.112f);
     assert(r2 == 112.112f);

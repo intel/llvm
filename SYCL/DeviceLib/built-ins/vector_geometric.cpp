@@ -19,18 +19,18 @@ int main() {
 
   // dot
   {
-    s::cl_float r{0};
+    float r{0};
     {
-      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::buffer<float, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class dotF2F2>([=]() {
           AccR[0] = s::dot(
-              s::cl_float2{
+              s::float2{
                   1.f,
                   2.f,
               },
-              s::cl_float2{4.f, 6.f});
+              s::float2{4.f, 6.f});
         });
       });
     }
@@ -39,20 +39,20 @@ int main() {
 
   // cross (float)
   {
-    s::cl_float4 r{0};
+    s::float4 r{0};
     {
-      s::buffer<s::cl_float4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::float4, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class crossF4>([=]() {
           AccR[0] = s::cross(
-              s::cl_float4{
+              s::float4{
                   2.f,
                   3.f,
                   4.f,
                   0.f,
               },
-              s::cl_float4{
+              s::float4{
                   5.f,
                   6.f,
                   7.f,
@@ -62,10 +62,10 @@ int main() {
       });
     }
 
-    s::cl_float r1 = r.x();
-    s::cl_float r2 = r.y();
-    s::cl_float r3 = r.z();
-    s::cl_float r4 = r.w();
+    float r1 = r.x();
+    float r2 = r.y();
+    float r3 = r.z();
+    float r4 = r.w();
 
     assert(r1 == -3.f);
     assert(r2 == 6.f);
@@ -75,20 +75,20 @@ int main() {
 
   // cross (double)
   if (myQueue.get_device().has(sycl::aspect::fp64)) {
-    s::cl_double4 r{0};
+    s::double4 r{0};
     {
-      s::buffer<s::cl_double4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::double4, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class crossD4>([=]() {
           AccR[0] = s::cross(
-              s::cl_double4{
+              s::double4{
                   2.5,
                   3.0,
                   4.0,
                   0.0,
               },
-              s::cl_double4{
+              s::double4{
                   5.2,
                   6.0,
                   7.0,
@@ -98,10 +98,10 @@ int main() {
       });
     }
 
-    s::cl_double r1 = r.x();
-    s::cl_double r2 = r.y();
-    s::cl_double r3 = r.z();
-    s::cl_double r4 = r.w();
+    double r1 = r.x();
+    double r2 = r.y();
+    double r3 = r.z();
+    double r4 = r.w();
 
     assert(isEqualTo<double>(r1, -3.0));
     assert(isEqualTo<double>(r2, 3.3));
@@ -111,18 +111,18 @@ int main() {
 
   // distance
   {
-    s::cl_float r{0};
+    float r{0};
     {
-      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::buffer<float, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class distanceF2>([=]() {
           AccR[0] = s::distance(
-              s::cl_float2{
+              s::float2{
                   1.f,
                   2.f,
               },
-              s::cl_float2{
+              s::float2{
                   3.f,
                   4.f,
               });
@@ -134,13 +134,13 @@ int main() {
 
   // length
   {
-    s::cl_float r{0};
+    float r{0};
     {
-      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::buffer<float, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class lengthF2>([=]() {
-          AccR[0] = s::length(s::cl_float2{
+          AccR[0] = s::length(s::float2{
               1.f,
               2.f,
           });
@@ -152,21 +152,21 @@ int main() {
 
   // normalize
   {
-    s::cl_float2 r{0};
+    s::float2 r{0};
     {
-      s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class normalizeF2>([=]() {
-          AccR[0] = s::normalize(s::cl_float2{
+          AccR[0] = s::normalize(s::float2{
               1.f,
               2.f,
           });
         });
       });
     }
-    s::cl_float r1 = r.x();
-    s::cl_float r2 = r.y();
+    float r1 = r.x();
+    float r2 = r.y();
 
     assert(isEqualTo<float>(r1, 0.447214f));
     assert(isEqualTo<float>(r2, 0.894427f));
@@ -174,18 +174,18 @@ int main() {
 
   // fast_distance
   {
-    s::cl_float r{0};
+    float r{0};
     {
-      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::buffer<float, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fast_distanceF2>([=]() {
           AccR[0] = s::fast_distance(
-              s::cl_float2{
+              s::float2{
                   1.f,
                   2.f,
               },
-              s::cl_float2{
+              s::float2{
                   3.f,
                   4.f,
               });
@@ -197,13 +197,13 @@ int main() {
 
   // fast_length
   {
-    s::cl_float r{0};
+    float r{0};
     {
-      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::buffer<float, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fast_lengthF2>([=]() {
-          AccR[0] = s::fast_length(s::cl_float2{
+          AccR[0] = s::fast_length(s::float2{
               1.f,
               2.f,
           });
@@ -215,21 +215,21 @@ int main() {
 
   // fast_normalize
   {
-    s::cl_float2 r{0};
+    s::float2 r{0};
     {
-      s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fast_normalizeF2>([=]() {
-          AccR[0] = s::fast_normalize(s::cl_float2{
+          AccR[0] = s::fast_normalize(s::float2{
               1.f,
               2.f,
           });
         });
       });
     }
-    s::cl_float r1 = r.x();
-    s::cl_float r2 = r.y();
+    float r1 = r.x();
+    float r2 = r.y();
 
     assert(isEqualTo<float>(r1, 0.447144));
     assert(isEqualTo<float>(r2, 0.894287));
