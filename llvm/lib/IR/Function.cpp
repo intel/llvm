@@ -1944,6 +1944,7 @@ bool Function::hasAddressTaken(const User **PutOffender,
           })) {
         continue;
       }
+
       if (IgnoreLLVMUsed && !FU->user_empty()) {
         const User *FUU = FU;
         if (isa<BitCastOperator, AddrSpaceCastOperator>(FU) &&
@@ -1962,6 +1963,13 @@ bool Function::hasAddressTaken(const User **PutOffender,
         *PutOffender = FU;
       return true;
     }
+
+    if (IgnoreAssumeLikeCalls) {
+      if (const auto *I = dyn_cast<IntrinsicInst>(Call))
+        if (I->isAssumeLikeIntrinsic())
+          continue;
+    }
+
     if (!Call->isCallee(&U) || Call->getFunctionType() != getFunctionType()) {
       if (IgnoreARCAttachedCall &&
           Call->isOperandBundleOfType(LLVMContext::OB_clang_arc_attachedcall,
