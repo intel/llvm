@@ -255,7 +255,7 @@ params:
       desc: "[in] size in bytes of the memory object to be allocated"
     - type: "void*"
       name: pHost
-      desc: "[in] pointer to the buffer data"
+      desc: "[in][optional] pointer to the buffer data"
     - type: $x_mem_handle_t*
       name: phBuffer     
       desc: "[out] pointer to handle of the memory buffer created"
