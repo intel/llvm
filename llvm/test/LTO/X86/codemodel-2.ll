@@ -1,5 +1,5 @@
 ; RUN: llvm-as -opaque-pointers=1 %s -o %t.o
-; RUN: llvm-lto2 run -opaque-pointers -r %t.o,_start,px %t.o -o %t.s
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers -r %t.o,_start,px %t.o -o %t.s
 ; RUN: llvm-objdump --no-print-imm-hex -d %t.s.0 | FileCheck %s --check-prefix=CHECK-LARGE
 
 target triple = "x86_64-unknown-linux-gnu"
