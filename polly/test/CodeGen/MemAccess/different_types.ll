@@ -1,4 +1,4 @@
-; RUN: opt -opaque-pointers=0 %loadPolly -polly-import-jscop \
+; RUN: opt %loadPolly -polly-import-jscop \
 ; RUN: \
 ; RUN: -polly-codegen -S < %s | FileCheck %s
 ;
