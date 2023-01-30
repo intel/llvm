@@ -9,7 +9,7 @@
 
 constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
 
-using DataType = sycl::cl_int;
+using DataType = sycl::opencl::cl_int;
 
 int main() {
   DataType DataA[DEFAULT_PROBLEM_SIZE], DataB[DEFAULT_PROBLEM_SIZE],
