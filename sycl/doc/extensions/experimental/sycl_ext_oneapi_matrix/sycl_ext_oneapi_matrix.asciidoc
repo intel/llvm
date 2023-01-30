@@ -780,18 +780,18 @@ enum class matrix_type {
   tf32,
   fp32,
   fp64,
-  sint2_t,
-  sint4_t,
-  sint8_t,
-  sint16_t,
-  sint32_t, 
-  sint64_t,
-  uint2_t,
-  uint4_t,
-  uint8_t,
-  uint16_t,
-  uint32_t,
-  uint64_t
+  sint2,
+  sint4,
+  sint8,
+  sint16,
+  sint32, 
+  sint64,
+  uint2,
+  uint4,
+  uint8,
+  uint16,
+  uint32,
+  uint64
 };
 
 enum class scope_t {
@@ -853,8 +853,8 @@ using the `tpu_params` query class.
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| `matrix_type::(u)int8_t`  | `matrix_type::(u)int8_t` |
-`matrix_type::sint32_t`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+| `matrix_type::(u)int8`  | `matrix_type::(u)int8` |
+`matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |======================
@@ -864,8 +864,8 @@ using the `tpu_params` query class.
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| `matrix_type::(u)int8_t`  | `matrix_type::(u)int8_t` |
-`matrix_type::int32_t`  |  +<=+ 8 |  16 |  32
+| `matrix_type::(u)int8`  | `matrix_type::(u)int8` |
+`matrix_type::int32`  |  +<=+ 8 |  16 |  32
 |  `matrix_type::fp16`       |  `matrix_type::fp16`   |
 `matrix_type::fp32`   |  +<=+ 8 |  16   |  16
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
