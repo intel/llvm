@@ -42,11 +42,11 @@ struct HoverInfo {
   /// - template <ParamType Name = DefaultType> class Foo {};
   struct Param {
     /// The printable parameter type, e.g. "int", or "typename" (in
-    /// TemplateParameters), might be None for macro parameters.
+    /// TemplateParameters), might be std::nullopt for macro parameters.
     llvm::Optional<PrintedType> Type;
-    /// None for unnamed parameters.
-    llvm::Optional<std::string> Name;
-    /// None if no default is provided.
+    /// std::nullopt for unnamed parameters.
+    std::optional<std::string> Name;
+    /// std::nullopt if no default is provided.
     llvm::Optional<std::string> Default;
   };
 
@@ -136,9 +136,9 @@ inline bool operator==(const HoverInfo::Param &LHS,
 }
 
 /// Get the hover information when hovering at \p Pos.
-llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
-                                   const format::FormatStyle &Style,
-                                   const SymbolIndex *Index);
+std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
+                                  const format::FormatStyle &Style,
+                                  const SymbolIndex *Index);
 
 } // namespace clangd
 } // namespace clang

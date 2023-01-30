@@ -8,7 +8,7 @@
 // names. (It is a copy of clang/test/CodeGenSYCL/save-user-names.cpp with just
 // additional compilation steps).
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct NestedSimple {
   int NestedSimpleField;
@@ -16,31 +16,31 @@ struct NestedSimple {
 
 struct NestedComplex {
   int NestedComplexField;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> NestedAccField;
+  sycl::accessor<char, 1, sycl::access::mode::read> NestedAccField;
 };
 
 struct KernelFunctor {
   int IntField;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> AccField1;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> AccField2;
+  sycl::accessor<char, 1, sycl::access::mode::read> AccField1;
+  sycl::accessor<char, 1, sycl::access::mode::read> AccField2;
   NestedSimple NestedSimpleObj;
   NestedComplex NestedComplexObj;
   void operator()() const {}
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     KernelFunctor FunctorObj;
     cgh.single_task<class Kernel1>(FunctorObj);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     int Data;
     NestedSimple NestedSimpleObj;
     NestedComplex NestedComplexObj;
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> CapturedAcc1,
+    sycl::accessor<char, 1, sycl::access::mode::read> CapturedAcc1,
         CapturedAcc2;
     cgh.single_task<class Kernel2>([=]() {
       Data;

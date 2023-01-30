@@ -4,7 +4,7 @@ This is the list of SYCL specific options supported by compiler and some
 examples.
 
 Options marked as [DEPRECATED] are going to be removed in some future updates.
-Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+Options marked as [EXPERIMENTAL] are expected to be used only in limited cases
 and not recommended to use in production environment.
 
 ## Generic options
@@ -32,13 +32,73 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics
+    support are accepted, providing a streamlined interface for AOT. Only one of
+    these values at a time is supported.
+    * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
+    * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
+    * intel_gpu_acm_g10 - Alchemist G10 Intel graphics architecture
+    * intel_gpu_dg1, intel_gpu_12_10_0 - DG1 Intel graphics architecture
+    * intel_gpu_adl_n - Alder Lake N Intel graphics architecture
+    * intel_gpu_adl_p - Alder Lake P Intel graphics architecture
+    * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture
+    * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
+    * intel_gpu_rkl - Rocket Lake Intel graphics architecture
+    * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
+    * intel_gpu_ehl, intel_gpu_11_2_0 - Elkhart Lake Intel graphics architecture
+    * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
+    * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
+    * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
+    * intel_gpu_whl, intel_gpu_9_5_0 - Whiskey Lake Intel graphics architecture
+    * intel_gpu_glk, intel_gpu_9_4_0 - Gemini Lake Intel graphics architecture
+    * intel_gpu_apl, intel_gpu_9_3_0 - Apollo Lake Intel graphics architecture
+    * intel_gpu_cfl, intel_gpu_9_2_9 - Coffee Lake Intel graphics architecture
+    * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
+    * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
+    * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
+    * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
+    * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
+    * nvidia_gpu_sm_60 - NVIDIA Pascal architecture (compute capability 6.0)
+    * nvidia_gpu_sm_61 - NVIDIA Pascal architecture (compute capability 6.1)
+    * nvidia_gpu_sm_62 - NVIDIA Pascal architecture (compute capability 6.2)
+    * nvidia_gpu_sm_70 - NVIDIA Volta architecture (compute capability 7.0)
+    * nvidia_gpu_sm_72 - NVIDIA Volta architecture (compute capability 7.2)
+    * nvidia_gpu_sm_75 - NVIDIA Turing architecture (compute capability 7.5)
+    * nvidia_gpu_sm_80 - NVIDIA Ampere architecture (compute capability 8.0)
+    * nvidia_gpu_sm_86 - NVIDIA Ampere architecture (compute capability 8.6)
+    * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
+    * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx805 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx810 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx900 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1013 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
     SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1
+    * 121 - SYCL 1.2.1 [DEPRECATED]
     * 2020 - SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
@@ -49,7 +109,8 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Disabled by default.
+    The default value depends on the SYCL language standard: it is enabled
+    by default for SYCL 2020, and disabled for SYCL 1.2.1.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -81,6 +142,13 @@ and not recommended to use in production environment.
     * nd_item class get_global_id()/get_global_linear_id() member functions
     Enabled by default.
 
+**`-f[no-]sycl-force-inline-kernel-lambda`**
+
+  Enables/Disables inlining of the kernel lambda operator into the compiler
+  generated entry point function. This flag does not apply to ESIMD
+  kernels.
+  Disabled when optimizations are disabled (-O0 or equivalent). Enabled
+  otherwise.
 
 **`-fgpu-inline-threshold=<n>`**
 
@@ -172,9 +240,20 @@ and not recommended to use in production environment.
       kernels grouped on per-source basis and all their dependencies, such as
       all used variables and called functions, including the `SYCL_EXTERNAL`
       macro-marked functions from other translation units.
-    * off - creates a single module for all kernels.
+    * off - creates a single module for all kernels. If `-fsycl-no-rdc` is
+      specified, the behavior is the same as per_source.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
+
+**`-f[no-]sycl-device-code-split-esimd`** [EXPERIMENTAL]
+
+     Controls SYCL/ESIMD device code splitting. When enabled (this is the
+     default), SYCL and ESIMD entry points along with their call graphs are
+     put into separate device binary images. Otherwise, SYCL and ESIMD parts
+     of the device code are kept in the same device binary image and get
+     compiled by the Intel GPU compiler back end as a single module. This
+     option has effect only for SPIR-based targets and apps containing ESIMD
+     kernels.
 
 **`-fsycl-max-parallel-link-jobs=<N>`**
 
@@ -190,6 +269,47 @@ and not recommended to use in production environment.
     Enables/disables linking of the device libraries. Supported libraries:
     libm-fp32, libm-fp64, libc, all. Use of 'all' will enable/disable all of
     the device libraries.
+
+**`-f[no-]sycl-device-lib-jit-link`** [EXPERIMENTAL]
+
+    Enables/disables jit link mechanism for SYCL device library in JIT
+    compilation. If jit link is enabled, all required device libraries will
+    be linked with user's device image by SYCL runtime during execution time,
+    otherwise the link will happen in build time, jit link is disabled by
+    default currently. This option is ignored in AOT compilation.
+
+**`-f[no-]sycl-instrument-device-code`** [EXPERIMENTAL]
+
+    Enables/disables linking of the Instrumentation and Tracing Technology (ITT)
+    device libraries for VTune(R). This provides annotations to intercept
+    various events inside JIT generated kernels. These device libraries are
+    linked in by default.
+
+**`-f[no-]sycl-link-huge-device-code`**
+
+    Place device code later in the linked binary in order to avoid precluding
+    32-bit PC relative relocations between surrounding ELF sections when device
+    code is larger than 2GiB. This is disabled by default.
+
+    NOTE: This option is currently only supported on Linux.
+
+**`-fsycl-force-target=<T>`**
+
+    When used along with '-fsycl-targets', force the device object being
+    unbundled to match the target <T> given.  This allows the user to override
+    the expected unbundling type even though the target given does not match.
+    The forced target applies to all objects, archives and default device
+    libraries.
+
+**`-f[no-]sycl-rdc`**
+
+    Enables/disables relocatable device code. If relocatable device code is
+    disabled, device code cannot use SYCL_EXTERNAL functions, which allows
+    the compiler to link device code on a per-translation-unit basis.
+    This may result in compile time and compiler memory usage improvements.
+    '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
+    additional device linking parallism for fat static archives.
+    Relocatable device code is enabled by default.
 
 ## Intel FPGA specific options
 
@@ -264,6 +384,31 @@ and not recommended to use in production environment.
     ULP.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
+
+**`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
+
+    Enforces stateless memory access and enables the automatic conversion of
+    "stateful" memory access via SYCL accessors to "stateless" within ESIMD
+    (Explicit SIMD) kernels.
+
+    -fsycl-esimd-force-stateless-mem disables the intrinsics and methods
+    accepting SYCL accessors or "surface-index" which cannot be automatically
+    converted to their "stateless" equivalents.
+
+    -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
+    enforce usage of stateless memory accesses. This is the default behavior.
+
+    NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
+    of "surface-index" + 32-bit byte-offset and uses specific memory access
+    data port messages to read/write/fetch.
+    "Stateless" memory access uses memory location represented with virtual
+    memory address pointer such as USM pointer.
+
+    The "stateless" memory may be beneficial as it does not have the limit
+    of 4Gb per surface.
+    Also, some of Intel GPUs or GPU run-time/drivers may support only
+    "stateless" memory accesses.
 
 # Example: SYCL device code compilation
 

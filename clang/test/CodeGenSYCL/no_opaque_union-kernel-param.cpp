@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks a kernel argument that is union with both array and non-array fields.
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 union MyUnion {
   int FldInt;
@@ -31,7 +31,7 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A(%union.MyUnion* noundef byval(%union.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
 
 // Check lambda object alloca
-// CHECK: [[LOCAL_OBJECT:%0]] = alloca %class.anon, align 4
+// CHECK: [[LOCAL_OBJECT:%__SYCLKernel]] = alloca %class.anon, align 4
 
 // CHECK: [[LOCAL_OBJECTAS:%.*]] = addrspacecast %class.anon* [[LOCAL_OBJECT]] to %class.anon addrspace(4)*
 // CHECK: [[MEM_ARGAS:%.*]] = addrspacecast %union.MyUnion* [[MEM_ARG]] to %union.MyUnion addrspace(4)*

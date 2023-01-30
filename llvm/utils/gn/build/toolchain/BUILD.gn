@@ -174,7 +174,11 @@ template("unix_toolchain") {
 
 unix_toolchain("unix") {
   if (current_os != "ios" && current_os != "mac") {
-    ar = "ar"
+    if (clang_base_path != "") {
+      ar = rebase_path(clang_base_path, root_build_dir) + "/bin/llvm-ar"
+    } else {
+      ar = "ar"
+    }
   }
 
   toolchain_args = {
@@ -249,6 +253,12 @@ stage2_unix_toolchain("stage2_baremetal_aarch64") {
   toolchain_args = {
     current_os = "baremetal"
     current_cpu = "arm64"
+
+    # FIXME: These should be set in all toolchains building sanitizers,
+    # see discussion at https://reviews.llvm.org/D127906#3587329
+    use_asan = false
+    use_tsan = false
+    use_ubsan = false
   }
 }
 

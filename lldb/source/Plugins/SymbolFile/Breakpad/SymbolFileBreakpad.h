@@ -20,7 +20,7 @@ namespace lldb_private {
 
 namespace breakpad {
 
-class SymbolFileBreakpad : public SymbolFile {
+class SymbolFileBreakpad : public SymbolFileCommon {
   /// LLVM RTTI support.
   static char ID;
 
@@ -28,7 +28,7 @@ public:
   /// LLVM RTTI support.
   /// \{
   bool isA(const void *ClassID) const override {
-    return ClassID == &ID || SymbolFile::isA(ClassID);
+    return ClassID == &ID || SymbolFileCommon::isA(ClassID);
   }
   static bool classof(const SymbolFile *obj) { return obj->isA(&ID); }
   /// \}
@@ -49,7 +49,7 @@ public:
 
   // Constructors and Destructors
   SymbolFileBreakpad(lldb::ObjectFileSP objfile_sp)
-      : SymbolFile(std::move(objfile_sp)) {}
+      : SymbolFileCommon(std::move(objfile_sp)) {}
 
   ~SymbolFileBreakpad() override = default;
 
@@ -95,7 +95,7 @@ public:
   llvm::Optional<ArrayInfo> GetDynamicArrayInfoForUID(
       lldb::user_id_t type_uid,
       const lldb_private::ExecutionContext *exe_ctx) override {
-    return llvm::None;
+    return std::nullopt;
   }
 
   bool CompleteType(CompilerType &compiler_type) override { return false; }
@@ -110,9 +110,8 @@ public:
   void GetTypes(SymbolContextScope *sc_scope, lldb::TypeClass type_mask,
                 TypeList &type_list) override {}
 
-  void FindFunctions(ConstString name,
+  void FindFunctions(const Module::LookupInfo &lookup_info,
                      const CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines, SymbolContextList &sc_list) override;
 
   void FindFunctions(const RegularExpression &regex, bool include_inlines,
@@ -127,7 +126,7 @@ public:
                  llvm::DenseSet<SymbolFile *> &searched_symbol_files,
                  TypeMap &types) override;
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override {
     return llvm::make_error<llvm::StringError>(
         "SymbolFileBreakpad does not support GetTypeSystemForLanguage",

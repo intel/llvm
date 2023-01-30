@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
@@ -10,23 +10,24 @@ template <unsigned ID> struct ethernet_pipe_id {
   static constexpr unsigned id = ID;
 };
 
-template <typename T, cl::sycl::access::address_space space>
-void lsu_body(cl::sycl::multi_ptr<T, space> input_ptr,
-              cl::sycl::multi_ptr<T, space> output_ptr) {
+template <typename T, sycl::access::address_space space,
+          sycl::access::decorated is_decorated>
+void lsu_body(sycl::multi_ptr<T, space, is_decorated> input_ptr,
+              sycl::multi_ptr<T, space, is_decorated> output_ptr) {
   using PrefetchingLSU =
-      cl::sycl::ext::intel::lsu<cl::sycl::ext::intel::prefetch<true>,
-                           cl::sycl::ext::intel::statically_coalesce<false>>;
+      sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,
+                            sycl::ext::intel::statically_coalesce<false>>;
 
   using BurstCoalescedLSU =
-      cl::sycl::ext::intel::lsu<cl::sycl::ext::intel::burst_coalesce<true>,
-                           cl::sycl::ext::intel::statically_coalesce<false>>;
+      sycl::ext::intel::lsu<sycl::ext::intel::burst_coalesce<true>,
+                            sycl::ext::intel::statically_coalesce<false>>;
 
   using CachingLSU =
-      cl::sycl::ext::intel::lsu<cl::sycl::ext::intel::burst_coalesce<true>,
-                           cl::sycl::ext::intel::cache<1024>,
-                           cl::sycl::ext::intel::statically_coalesce<false>>;
+      sycl::ext::intel::lsu<sycl::ext::intel::burst_coalesce<true>,
+                            sycl::ext::intel::cache<1024>,
+                            sycl::ext::intel::statically_coalesce<false>>;
 
-  using PipelinedLSU = cl::sycl::ext::intel::lsu<>;
+  using PipelinedLSU = sycl::ext::intel::lsu<>;
 
   int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
   int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
@@ -63,15 +64,15 @@ int main() {
 
   /*Check FPGA-related device parameters*/
   if (!Queue.get_device()
-           .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
+           .get_info<sycl::info::device::kernel_kernel_pipe_support>()) {
     std::cout << "SYCL_INTEL_data_flow_pipes not supported, skipping"
               << std::endl;
     return 0;
   }
 
   /*Check pipes interfaces*/
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = Buf.get_access<cl::sycl::access::mode::write>(cgh);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = Buf.get_access<sycl::access::mode::write>(cgh);
 
     cgh.single_task<class bl_io_transfer>([=]() {
       write_acc[0] = intelfpga::ethernet_read_pipe::read();
@@ -79,9 +80,9 @@ int main() {
     });
   });
 
-  using Pipe = cl::sycl::ext::intel::pipe<class PipeName, int>;
-  cl::sycl::buffer<int, 1> readBuf(1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  using Pipe = sycl::ext::intel::pipe<class PipeName, int>;
+  sycl::buffer<int, 1> readBuf(1);
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer>([=]() {
       bool SuccessCode = false;
       do {
@@ -94,39 +95,39 @@ int main() {
   {
 
     {
-      auto *out_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
-      auto *in_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
+      auto *out_ptr = sycl::malloc_host<int>(1, Queue.get_context());
+      auto *in_ptr = sycl::malloc_host<int>(1, Queue.get_context());
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class HostAnnotation>([=]() {
-          cl::sycl::host_ptr<int> input_ptr(in_ptr);
-          cl::sycl::host_ptr<int> output_ptr(out_ptr);
+          sycl::host_ptr<int> input_ptr(in_ptr);
+          sycl::host_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
-              int, cl::sycl::access::address_space::global_host_space>(
+              int, sycl::access::address_space::ext_intel_global_host_space>(
               input_ptr, output_ptr);
         });
       });
     }
     {
-      auto *out_ptr = cl::sycl::malloc_device<int>(1, Queue);
-      auto *in_ptr = cl::sycl::malloc_device<int>(1, Queue);
+      auto *out_ptr = sycl::malloc_device<int>(1, Queue);
+      auto *in_ptr = sycl::malloc_device<int>(1, Queue);
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class DeviceAnnotation>([=]() {
-          cl::sycl::device_ptr<int> input_ptr(in_ptr);
-          cl::sycl::device_ptr<int> output_ptr(out_ptr);
+          sycl::ext::intel::device_ptr<int> input_ptr(in_ptr);
+          sycl::ext::intel::device_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
-              int, cl::sycl::access::address_space::global_device_space>(
+              int, sycl::access::address_space::ext_intel_global_device_space>(
               input_ptr, output_ptr);
         });
       });
     }
     {
-      cl::sycl::buffer<int, 1> output_buffer(1);
-      cl::sycl::buffer<int, 1> input_buffer(1);
+      sycl::buffer<int, 1> output_buffer(1);
+      sycl::buffer<int, 1> input_buffer(1);
       Queue.submit([&](sycl::handler &cgh) {
         auto output_accessor =
-            output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+            output_buffer.get_access<sycl::access::mode::write>(cgh);
         auto input_accessor =
-            input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+            input_buffer.get_access<sycl::access::mode::read>(cgh);
         cgh.single_task<class AccessorAnnotation>([=]() {
           auto input_ptr = input_accessor.get_pointer();
           auto output_ptr = output_accessor.get_pointer();
@@ -137,13 +138,13 @@ int main() {
   }
 
   /*Check DSP control interface*/
-  cl::sycl::buffer<int, 1> output_buffer(1);
-  cl::sycl::buffer<int, 1> input_buffer(1);
+  sycl::buffer<int, 1> output_buffer(1);
+  sycl::buffer<int, 1> input_buffer(1);
   Queue.submit([&](sycl::handler &cgh) {
     auto output_accessor =
-        output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+        output_buffer.get_access<sycl::access::mode::write>(cgh);
     auto input_accessor =
-        input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+        input_buffer.get_access<sycl::access::mode::read>(cgh);
     cgh.single_task<class DSPControlKernel>([=]() {
       float sum = input_accessor[0];
       sycl::ext::intel::math_dsp_control<

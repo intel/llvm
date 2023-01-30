@@ -236,7 +236,7 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   return Res;
 }
 
-MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
+MDNode *generateSpecConstDefaultValueMetadata(Value *Default) {
   LLVMContext &Ctx = Default->getContext();
   return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
@@ -724,6 +724,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
 
       bool IsNewSpecConstant = false;
+      unsigned Padding = 0;
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
@@ -772,6 +773,69 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
             unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
+            unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
+
+            // Ensure correct alignment
+            if (CurrentOffset % Align != 0) {
+              // Compute necessary padding to correctly align the constant.
+              Padding = Align - CurrentOffset % Align;
+
+              // Update offsets.
+              NextOffset += Padding;
+              CurrentOffset += Padding;
+              OffsetMap[SymID] = NextOffset;
+
+              assert(CurrentOffset % Align == 0 &&
+                     "Alignment calculation error");
+
+              // The spec constant map can't be empty as the first offset is 0
+              // and so it can't be misaligned.
+              assert(!SCMetadata.empty() &&
+                     "Cannot add padding to first spec constant");
+
+              // To communicate the padding to the runtime, update the metadata
+              // node of the previous spec constant to append a padding node. It
+              // can't be added in front of the current spec constant, as doing
+              // so would require the spec constant node to have a non-zero
+              // CompositeOffset which breaks accessing it in the runtime.
+              auto Prev = SCMetadata.back();
+
+              // Emulated spec constants don't use composite so should
+              // always be formatted as (SymID, ID, Offset, Size), except when
+              // they include padding, but since padding is added at insertion
+              // of the next element, the last element of the map can never be
+              // padded.
+              assert(Prev.second->getNumOperands() == 4 &&
+                     "Incorrect emulated spec constant format");
+
+              LLVMContext &Ctx = M.getContext();
+              auto *Int32Ty = Type::getInt32Ty(Ctx);
+              SmallVector<Metadata *, 16> MDOps;
+
+              // Copy the existing metadata.
+              MDOps.push_back(Prev.second->getOperand(0));
+              MDOps.push_back(Prev.second->getOperand(1));
+              MDOps.push_back(Prev.second->getOperand(2));
+              auto &SizeOp = Prev.second->getOperand(3);
+              MDOps.push_back(SizeOp);
+
+              // Extract the size of the previous node to use as CompositeOffset
+              // for the padding node.
+              auto PrevSize = mdconst::extract<ConstantInt>(SizeOp)->getValue();
+
+              // The max value is a magic value used for padding that the
+              // runtime knows to skip.
+              MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+                  Int32Ty, APInt(32, std::numeric_limits<unsigned>::max()))));
+              MDOps.push_back(ConstantAsMetadata::get(
+                  Constant::getIntegerValue(Int32Ty, PrevSize)));
+              MDOps.push_back(ConstantAsMetadata::get(
+                  Constant::getIntegerValue(Int32Ty, APInt(32, Padding))));
+
+              // Replace previous metadata node with the node including the
+              // padding.
+              SCMetadata[Prev.first] = MDNode::get(Ctx, MDOps);
+            }
 
             SCMetadata[SymID] = generateSpecConstantMetadata(
                 M, SymID, SCTy, NextID, /* is native spec constant */ false);
@@ -806,9 +870,18 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
-      if (IsNewSpecConstant && DefaultValue)
+      if (IsNewSpecConstant && DefaultValue) {
+        if (Padding != 0) {
+          // Initialize the padding with null data
+          LLVMContext &Ctx = DefaultValue->getContext();
+          auto PadTy = ArrayType::get(Type::getInt8Ty(Ctx), Padding);
+          DefaultsMetadata.push_back(MDNode::get(
+              Ctx,
+              ConstantAsMetadata::get(llvm::Constant::getNullValue(PadTy))));
+        }
         DefaultsMetadata.push_back(
-            generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
+            generateSpecConstDefaultValueMetadata(DefaultValue));
+      }
 
       if (HasSretParameter) {
         // If __sycl_getCompositeSpecConstant returns through argument, then the

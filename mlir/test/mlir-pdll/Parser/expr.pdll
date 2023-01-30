@@ -90,6 +90,26 @@ Pattern {
 
 // -----
 
+// CHECK: Module
+// CHECK: `-VariableDecl {{.*}} Name<op> Type<Op<my_dialect.unregistered_foo>>
+// CHECK:   `-OperationExpr {{.*}} Type<Op<my_dialect.unregistered_foo>>
+// CHECK:     `-OpNameDecl {{.*}} Name<my_dialect.unregistered_foo>
+// CHECK:     `Operands`
+// CHECK:       `-MemberAccessExpr {{.*}} Member<0> Type<Value>
+// CHECK:         `-OperationExpr {{.*}} Type<Op<my_dialect.unregistered_bar>>
+// CHECK:           `-OpNameDecl {{.*}} Name<my_dialect.unregistered_bar>
+// CHECK:           `Operands`
+// CHECK:             `-DeclRefExpr {{.*}} Type<ValueRange>
+// CHECK:               `-VariableDecl {{.*}} Name<_> Type<ValueRange>
+// CHECK:                 `Constraints`
+// CHECK:                   `-ValueRangeConstraintDecl
+Pattern {
+  let op = op<my_dialect.unregistered_foo>(op<my_dialect.unregistered_bar>.0);
+  erase op;
+}
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // OperationExpr
 //===----------------------------------------------------------------------===//
@@ -193,6 +213,34 @@ Pattern {
 
 // -----
 
+// Test that we don't need to provide values if all elements
+// are optional.
+
+#include "include/ops.td"
+
+// CHECK: Module
+// CHECK:  -OperationExpr {{.*}} Type<Op<test.multi_variadic>>
+// CHECK-NOT:   `Operands`
+// CHECK-NOT:   `Result Types`
+// CHECK:  -OperationExpr {{.*}} Type<Op<test.all_variadic>>
+// CHECK-NOT:   `Operands`
+// CHECK-NOT:   `Result Types`
+// CHECK:  -OperationExpr {{.*}} Type<Op<test.multi_variadic>>
+// CHECK:    `Operands`
+// CHECK:      -RangeExpr {{.*}} Type<ValueRange>
+// CHECK:      -RangeExpr {{.*}} Type<ValueRange>
+// CHECK:    `Result Types`
+// CHECK:      -RangeExpr {{.*}} Type<TypeRange>
+// CHECK:      -RangeExpr {{.*}} Type<TypeRange>
+Pattern {
+  rewrite op<test.multi_variadic>() -> () with {
+    op<test.all_variadic> -> ();
+    op<test.multi_variadic> -> ();
+  };
+}
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // TupleExpr
 //===----------------------------------------------------------------------===//
@@ -211,6 +259,29 @@ Pattern {
   let mixedTuple = (arg1 = _: Attr, value);
 
   erase _: Op;
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// RangeExpr
+//===----------------------------------------------------------------------===//
+
+// CHECK: Module
+// CHECK: `Operands`
+// CHECK:   -RangeExpr {{.*}} Type<ValueRange>
+// CHECK:   -RangeExpr {{.*}} Type<ValueRange>
+// CHECK:     -MemberAccessExpr {{.*}} Member<0> Type<Value>
+// CHECK:     -MemberAccessExpr {{.*}} Member<1> Type<ValueRange>
+// CHECK: `Result Types`
+// CHECK:   -RangeExpr {{.*}} Type<TypeRange>
+// CHECK:   -RangeExpr {{.*}} Type<TypeRange>
+// CHECK:     -MemberAccessExpr {{.*}} Member<0> Type<Type>
+// CHECK:     -MemberAccessExpr {{.*}} Member<1> Type<TypeRange>
+Pattern {
+  rewrite op<>(arg: Value, args: ValueRange) -> (type: Type, types: TypeRange) with {
+    op<test.op>((), (arg, args)) -> ((), (type, types));
+  };
 }
 
 // -----

@@ -15,13 +15,13 @@ int main() {
     };
 
     cgh.parallel_for_work_group<class kernel_class>(
-        cl::sycl::range<1>(), cl::sycl::range<1>(), kernel_);
+        sycl::range<1>(), sycl::range<1>(), kernel_);
   });
   return 0;
 }
 
 // CHECK: define dso_local spir_kernel void @{{.*}}main{{.*}}kernel_class() {{.*}} !intel_reqd_sub_group_size ![[SUBGROUPSIZE:[0-9]+]]
-// CHECK: tail call spir_func void @{{.*}}__spirv_ControlBarrier{{.*}}({{.*}})
+// CHECK: call spir_func void @{{.*}}__spirv_ControlBarrier{{.*}}({{.*}})
 
 // CHECK: declare spir_func void @{{.*}}__spirv_ControlBarrier{{.*}}({{.*}})
 

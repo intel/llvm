@@ -126,6 +126,8 @@ int omp_get_default_device(void);
 
 int omp_get_num_devices(void);
 
+int omp_get_device_num(void);
+
 int omp_get_num_teams(void);
 
 int omp_get_team_num();
@@ -215,9 +217,9 @@ uint32_t __kmpc_get_warp_size();
 int8_t __kmpc_is_spmd_exec_mode();
 
 int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
-                           bool UseGenericStateMachine, bool);
+                           bool UseGenericStateMachine);
 
-void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool);
+void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode);
 
 ///}
 

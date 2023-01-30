@@ -146,7 +146,7 @@ struct StreamState {
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddPointer(LastOperation);
     ID.AddInteger(State);
-    ID.AddInteger(ErrorState);
+    ErrorState.Profile(ID);
     ID.AddBoolean(FilePositionIndeterminate);
   }
 };
@@ -236,42 +236,43 @@ public:
 
 private:
   CallDescriptionMap<FnDescription> FnDescriptions = {
-      {{"fopen"}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
-      {{"freopen", 3},
+      {{{"fopen"}}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
+      {{{"freopen"}, 3},
        {&StreamChecker::preFreopen, &StreamChecker::evalFreopen, 2}},
-      {{"tmpfile"}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
-      {{"fclose", 1},
+      {{{"tmpfile"}}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
+      {{{"fclose"}, 1},
        {&StreamChecker::preDefault, &StreamChecker::evalFclose, 0}},
-      {{"fread", 4},
+      {{{"fread"}, 4},
        {&StreamChecker::preFread,
         std::bind(&StreamChecker::evalFreadFwrite, _1, _2, _3, _4, true), 3}},
-      {{"fwrite", 4},
+      {{{"fwrite"}, 4},
        {&StreamChecker::preFwrite,
         std::bind(&StreamChecker::evalFreadFwrite, _1, _2, _3, _4, false), 3}},
-      {{"fseek", 3}, {&StreamChecker::preFseek, &StreamChecker::evalFseek, 0}},
-      {{"ftell", 1}, {&StreamChecker::preDefault, nullptr, 0}},
-      {{"rewind", 1}, {&StreamChecker::preDefault, nullptr, 0}},
-      {{"fgetpos", 2}, {&StreamChecker::preDefault, nullptr, 0}},
-      {{"fsetpos", 2}, {&StreamChecker::preDefault, nullptr, 0}},
-      {{"clearerr", 1},
+      {{{"fseek"}, 3},
+       {&StreamChecker::preFseek, &StreamChecker::evalFseek, 0}},
+      {{{"ftell"}, 1}, {&StreamChecker::preDefault, nullptr, 0}},
+      {{{"rewind"}, 1}, {&StreamChecker::preDefault, nullptr, 0}},
+      {{{"fgetpos"}, 2}, {&StreamChecker::preDefault, nullptr, 0}},
+      {{{"fsetpos"}, 2}, {&StreamChecker::preDefault, nullptr, 0}},
+      {{{"clearerr"}, 1},
        {&StreamChecker::preDefault, &StreamChecker::evalClearerr, 0}},
-      {{"feof", 1},
+      {{{"feof"}, 1},
        {&StreamChecker::preDefault,
         std::bind(&StreamChecker::evalFeofFerror, _1, _2, _3, _4, ErrorFEof),
         0}},
-      {{"ferror", 1},
+      {{{"ferror"}, 1},
        {&StreamChecker::preDefault,
         std::bind(&StreamChecker::evalFeofFerror, _1, _2, _3, _4, ErrorFError),
         0}},
-      {{"fileno", 1}, {&StreamChecker::preDefault, nullptr, 0}},
+      {{{"fileno"}, 1}, {&StreamChecker::preDefault, nullptr, 0}},
   };
 
   CallDescriptionMap<FnDescription> FnTestDescriptions = {
-      {{"StreamTesterChecker_make_feof_stream", 1},
+      {{{"StreamTesterChecker_make_feof_stream"}, 1},
        {nullptr,
         std::bind(&StreamChecker::evalSetFeofFerror, _1, _2, _3, _4, ErrorFEof),
         0}},
-      {{"StreamTesterChecker_make_ferror_stream", 1},
+      {{{"StreamTesterChecker_make_ferror_stream"}, 1},
        {nullptr,
         std::bind(&StreamChecker::evalSetFeofFerror, _1, _2, _3, _4,
                   ErrorFError),
@@ -368,7 +369,7 @@ private:
     // (and matching name) as stream functions.
     if (!Call.isGlobalCFunction())
       return nullptr;
-    for (auto P : Call.parameters()) {
+    for (auto *P : Call.parameters()) {
       QualType T = P->getType();
       if (!T->isIntegralOrEnumerationType() && !T->isPointerType())
         return nullptr;
@@ -672,24 +673,19 @@ void StreamChecker::evalFreadFwrite(const FnDescription *Desc,
   if (!IsFread || (OldSS->ErrorState != ErrorFEof)) {
     ProgramStateRef StateNotFailed =
         State->BindExpr(CE, C.getLocationContext(), *NMembVal);
-    if (StateNotFailed) {
-      StateNotFailed = StateNotFailed->set<StreamMap>(
-          StreamSym, StreamState::getOpened(Desc));
-      C.addTransition(StateNotFailed);
-    }
+    StateNotFailed =
+        StateNotFailed->set<StreamMap>(StreamSym, StreamState::getOpened(Desc));
+    C.addTransition(StateNotFailed);
   }
 
   // Add transition for the failed state.
-  Optional<NonLoc> RetVal = makeRetVal(C, CE).castAs<NonLoc>();
-  assert(RetVal && "Value should be NonLoc.");
+  NonLoc RetVal = makeRetVal(C, CE).castAs<NonLoc>();
   ProgramStateRef StateFailed =
-      State->BindExpr(CE, C.getLocationContext(), *RetVal);
-  if (!StateFailed)
-    return;
-  auto Cond = C.getSValBuilder()
-                  .evalBinOpNN(State, BO_LT, *RetVal, *NMembVal,
-                               C.getASTContext().IntTy)
-                  .getAs<DefinedOrUnknownSVal>();
+      State->BindExpr(CE, C.getLocationContext(), RetVal);
+  auto Cond =
+      C.getSValBuilder()
+          .evalBinOpNN(State, BO_LT, RetVal, *NMembVal, C.getASTContext().IntTy)
+          .getAs<DefinedOrUnknownSVal>();
   if (!Cond)
     return;
   StateFailed = StateFailed->assume(*Cond, true);

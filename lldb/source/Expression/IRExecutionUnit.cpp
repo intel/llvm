@@ -200,7 +200,9 @@ Status IRExecutionUnit::DisassembleFunction(Stream &stream,
                                       UINT32_MAX, false, false);
 
   InstructionList &instruction_list = disassembler_sp->GetInstructionList();
-  instruction_list.Dump(&stream, true, true, &exe_ctx);
+  instruction_list.Dump(&stream, true, true, /*show_control_flow_kind=*/true,
+                        &exe_ctx);
+
   return ret;
 }
 
@@ -702,7 +704,7 @@ public:
 
   llvm::Optional<lldb::addr_t> Resolve(SymbolContextList &sc_list) {
     if (sc_list.IsEmpty())
-      return llvm::None;
+      return std::nullopt;
 
     lldb::addr_t load_address = LLDB_INVALID_ADDRESS;
 
@@ -756,7 +758,7 @@ public:
     if (m_symbol_was_missing_weak)
       return 0;
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   lldb::addr_t GetBestInternalLoadAddress() const {

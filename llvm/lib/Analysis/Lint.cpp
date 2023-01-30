@@ -187,8 +187,8 @@ void Lint::visitFunction(Function &F) {
 void Lint::visitCallBase(CallBase &I) {
   Value *Callee = I.getCalledOperand();
 
-  visitMemoryReference(I, MemoryLocation::getAfter(Callee), None, nullptr,
-                       MemRef::Callee);
+  visitMemoryReference(I, MemoryLocation::getAfter(Callee), std::nullopt,
+                       nullptr, MemRef::Callee);
 
   if (Function *F = dyn_cast<Function>(findValue(Callee,
                                                  /*OffsetOk=*/false))) {
@@ -229,7 +229,7 @@ void Lint::visitCallBase(CallBase &I) {
         if (Formal->hasNoAliasAttr() && Actual->getType()->isPointerTy()) {
           AttributeList PAL = I.getAttributes();
           unsigned ArgNo = 0;
-          for (auto BI = I.arg_begin(); BI != AE; ++BI, ++ArgNo) {
+          for (auto *BI = I.arg_begin(); BI != AE; ++BI, ++ArgNo) {
             // Skip ByVal arguments since they will be memcpy'd to the callee's
             // stack so we're not really passing the pointer anyway.
             if (PAL.hasParamAttr(ArgNo, Attribute::ByVal))
@@ -335,32 +335,38 @@ void Lint::visitCallBase(CallBase &I) {
                            MSI->getDestAlign(), nullptr, MemRef::Write);
       break;
     }
+    case Intrinsic::memset_inline: {
+      MemSetInlineInst *MSII = cast<MemSetInlineInst>(&I);
+      visitMemoryReference(I, MemoryLocation::getForDest(MSII),
+                           MSII->getDestAlign(), nullptr, MemRef::Write);
+      break;
+    }
 
     case Intrinsic::vastart:
       Check(I.getParent()->getParent()->isVarArg(),
             "Undefined behavior: va_start called in a non-varargs function",
             &I);
 
-      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI), None,
-                           nullptr, MemRef::Read | MemRef::Write);
+      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI),
+                           std::nullopt, nullptr, MemRef::Read | MemRef::Write);
       break;
     case Intrinsic::vacopy:
-      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI), None,
-                           nullptr, MemRef::Write);
-      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 1, TLI), None,
-                           nullptr, MemRef::Read);
+      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI),
+                           std::nullopt, nullptr, MemRef::Write);
+      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 1, TLI),
+                           std::nullopt, nullptr, MemRef::Read);
       break;
     case Intrinsic::vaend:
-      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI), None,
-                           nullptr, MemRef::Read | MemRef::Write);
+      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI),
+                           std::nullopt, nullptr, MemRef::Read | MemRef::Write);
       break;
 
     case Intrinsic::stackrestore:
       // Stackrestore doesn't read or write memory, but it sets the
       // stack pointer, which the compiler may read from or write to
       // at any time, so check it for both readability and writeability.
-      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI), None,
-                           nullptr, MemRef::Read | MemRef::Write);
+      visitMemoryReference(I, MemoryLocation::getForArgument(&I, 0, TLI),
+                           std::nullopt, nullptr, MemRef::Read | MemRef::Write);
       break;
     case Intrinsic::get_active_lane_mask:
       if (auto *TripCount = dyn_cast<ConstantInt>(I.getArgOperand(1)))
@@ -582,13 +588,13 @@ void Lint::visitAllocaInst(AllocaInst &I) {
 }
 
 void Lint::visitVAArgInst(VAArgInst &I) {
-  visitMemoryReference(I, MemoryLocation::get(&I), None, nullptr,
+  visitMemoryReference(I, MemoryLocation::get(&I), std::nullopt, nullptr,
                        MemRef::Read | MemRef::Write);
 }
 
 void Lint::visitIndirectBrInst(IndirectBrInst &I) {
-  visitMemoryReference(I, MemoryLocation::getAfter(I.getAddress()), None,
-                       nullptr, MemRef::Branchee);
+  visitMemoryReference(I, MemoryLocation::getAfter(I.getAddress()),
+                       std::nullopt, nullptr, MemRef::Branchee);
 
   Check(I.getNumDestinations() != 0,
         "Undefined behavior: indirectbr with no destinations", &I);
@@ -680,17 +686,12 @@ Value *Lint::findValueImpl(Value *V, bool OffsetOk,
                                CE->getOperand(0)->getType(), CE->getType(),
                                *DL))
         return findValueImpl(CE->getOperand(0), OffsetOk, Visited);
-    } else if (CE->getOpcode() == Instruction::ExtractValue) {
-      ArrayRef<unsigned> Indices = CE->getIndices();
-      if (Value *W = FindInsertedValue(CE->getOperand(0), Indices))
-        if (W != V)
-          return findValueImpl(W, OffsetOk, Visited);
     }
   }
 
   // As a last resort, try SimplifyInstruction or constant folding.
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
-    if (Value *W = SimplifyInstruction(Inst, {*DL, TLI, DT, AC}))
+    if (Value *W = simplifyInstruction(Inst, {*DL, TLI, DT, AC}))
       return findValueImpl(W, OffsetOk, Visited);
   } else if (auto *C = dyn_cast<Constant>(V)) {
     Value *W = ConstantFoldConstant(C, *DL, TLI);

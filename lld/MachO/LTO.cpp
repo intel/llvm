@@ -34,6 +34,9 @@ using namespace llvm::sys;
 static lto::Config createConfig() {
   lto::Config c;
   c.Options = initTargetOptionsFromCodeGenFlags();
+  c.Options.EmitAddrsig = config->icfLevel == ICFLevel::safe;
+  for (StringRef C : config->mllvmOpts)
+    c.MllvmArgs.emplace_back(C.str());
   c.CodeModel = getCodeModelFromCMModel();
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
@@ -49,6 +52,18 @@ static lto::Config createConfig() {
     checkError(c.addSaveTemps(config->outputFile.str() + ".",
                               /*UseInputModulePath=*/true));
   return c;
+}
+
+// If `originalPath` exists, hardlinks `path` to `originalPath`. If that fails,
+// or `originalPath` is not set, saves `buffer` to `path`.
+static void saveOrHardlinkBuffer(StringRef buffer, const Twine &path,
+                                 std::optional<StringRef> originalPath) {
+  if (originalPath) {
+    auto err = fs::create_hard_link(*originalPath, path);
+    if (!err)
+      return;
+  }
+  saveBuffer(buffer, path);
 }
 
 BitcodeCompiler::BitcodeCompiler() {
@@ -95,7 +110,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // load the ObjFile emitted by LTO compilation.
     if (r.Prevailing)
       replaceSymbol<Undefined>(sym, sym->getName(), sym->getFile(),
-                               RefState::Strong);
+                               RefState::Strong, /*wasBitcodeSymbol=*/true);
 
     // TODO: set the other resolution configs properly
   }
@@ -114,51 +129,74 @@ std::vector<ObjFile *> BitcodeCompiler::compile() {
   // specified, configure LTO to use it as the cache directory.
   FileCache cache;
   if (!config->thinLTOCacheDir.empty())
-    cache =
-        check(localCache("ThinLTO", "Thin", config->thinLTOCacheDir,
-                         [&](size_t task, std::unique_ptr<MemoryBuffer> mb) {
-                           files[task] = std::move(mb);
-                         }));
+    cache = check(localCache("ThinLTO", "Thin", config->thinLTOCacheDir,
+                             [&](size_t task, const Twine &moduleName,
+                                 std::unique_ptr<MemoryBuffer> mb) {
+                               files[task] = std::move(mb);
+                             }));
 
   checkError(ltoObj->run(
-      [&](size_t task) {
+      [&](size_t task, const Twine &moduleName) {
         return std::make_unique<CachedFileStream>(
             std::make_unique<raw_svector_ostream>(buf[task]));
       },
       cache));
 
   if (!config->thinLTOCacheDir.empty())
-    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy);
+    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy, files);
 
-  if (config->saveTemps) {
-    if (!buf[0].empty())
-      saveBuffer(buf[0], config->outputFile + ".lto.o");
-    for (unsigned i = 1; i != maxTasks; ++i)
-      saveBuffer(buf[i], config->outputFile + Twine(i) + ".lto.o");
+  // In ThinLTO mode, Clang passes a temporary directory in -object_path_lto,
+  // while the argument is a single file in FullLTO mode.
+  bool objPathIsDir = true;
+  if (!config->ltoObjPath.empty()) {
+    if (std::error_code ec = fs::create_directories(config->ltoObjPath))
+      fatal("cannot create LTO object path " + config->ltoObjPath + ": " +
+            ec.message());
+
+    if (!fs::is_directory(config->ltoObjPath)) {
+      objPathIsDir = false;
+      unsigned objCount =
+          count_if(buf, [](const SmallString<0> &b) { return !b.empty(); });
+      if (objCount > 1)
+        fatal("-object_path_lto must specify a directory when using ThinLTO");
+    }
   }
 
-  if (!config->ltoObjPath.empty())
-    fs::create_directories(config->ltoObjPath);
-
   std::vector<ObjFile *> ret;
-  for (unsigned i = 0; i != maxTasks; ++i) {
-    if (buf[i].empty())
+  for (unsigned i = 0; i < maxTasks; ++i) {
+    // Get the native object contents either from the cache or from memory.  Do
+    // not use the cached MemoryBuffer directly to ensure dsymutil does not
+    // race with the cache pruner.
+    StringRef objBuf;
+    std::optional<StringRef> cachePath = std::nullopt;
+    if (files[i]) {
+      objBuf = files[i]->getBuffer();
+      cachePath = files[i]->getBufferIdentifier();
+    } else {
+      objBuf = buf[i];
+    }
+    if (objBuf.empty())
       continue;
+
+    // FIXME: should `saveTemps` and `ltoObjPath` use the same file name?
+    if (config->saveTemps)
+      saveBuffer(objBuf,
+                 config->outputFile + ((i == 0) ? "" : Twine(i)) + ".lto.o");
+
     SmallString<261> filePath("/tmp/lto.tmp");
     uint32_t modTime = 0;
     if (!config->ltoObjPath.empty()) {
       filePath = config->ltoObjPath;
-      path::append(filePath, Twine(i) + "." +
-                                 getArchitectureName(config->arch()) +
-                                 ".lto.o");
-      saveBuffer(buf[i], filePath);
+      if (objPathIsDir)
+        path::append(filePath, Twine(i) + "." +
+                                   getArchitectureName(config->arch()) +
+                                   ".lto.o");
+      saveOrHardlinkBuffer(objBuf, filePath, cachePath);
       modTime = getModTime(filePath);
     }
     ret.push_back(make<ObjFile>(
-        MemoryBufferRef(buf[i], saver().save(filePath.str())), modTime, ""));
+        MemoryBufferRef(objBuf, saver().save(filePath.str())), modTime, ""));
   }
-  for (std::unique_ptr<MemoryBuffer> &file : files)
-    if (file)
-      ret.push_back(make<ObjFile>(*file, 0, ""));
+
   return ret;
 }

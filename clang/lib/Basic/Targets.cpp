@@ -24,6 +24,7 @@
 #include "Targets/Hexagon.h"
 #include "Targets/Lanai.h"
 #include "Targets/Le64.h"
+#include "Targets/LoongArch.h"
 #include "Targets/M68k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
@@ -80,9 +81,10 @@ void defineCPUMacros(MacroBuilder &Builder, StringRef CPUName, bool Tuning) {
 
 void addCygMingDefines(const LangOptions &Opts, MacroBuilder &Builder) {
   // Mingw and cygwin define __declspec(a) to __attribute__((a)).  Clang
-  // supports __declspec natively under -fms-extensions, but we define a no-op
-  // __declspec macro anyway for pre-processor compatibility.
-  if (Opts.MicrosoftExt)
+  // supports __declspec natively under -fdeclspec (also enabled with
+  // -fms-extensions), but we define a no-op __declspec macro anyway for
+  // pre-processor compatibility.
+  if (Opts.DeclSpecKeyword)
     Builder.defineMacro("__declspec", "__declspec");
   else
     Builder.defineMacro("__declspec(a)", "__attribute__((a))");
@@ -592,6 +594,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new NaClTargetInfo<X86_64TargetInfo>(Triple, Opts);
     case llvm::Triple::PS4:
       return new PS4OSTargetInfo<X86_64TargetInfo>(Triple, Opts);
+    case llvm::Triple::PS5:
+      return new PS5OSTargetInfo<X86_64TargetInfo>(Triple, Opts);
     default:
       return new X86_64TargetInfo(Triple, Opts);
     }
@@ -616,6 +620,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::spir64: {
     llvm::Triple HT(Opts.HostTriple);
+    bool IsFPGASubArch = Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
       switch (HT.getEnvironment()) {
@@ -626,8 +632,12 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         return new MicrosoftX86_64_SPIR64TargetInfo(Triple, Opts);
       }
     case llvm::Triple::Linux:
+      if (IsFPGASubArch)
+        return new LinuxTargetInfo<SPIR64FPGATargetInfo>(Triple, Opts);
       return new LinuxTargetInfo<SPIR64TargetInfo>(Triple, Opts);
     default:
+      if (IsFPGASubArch)
+        return new SPIR64FPGATargetInfo(Triple, Opts);
       return new SPIR64TargetInfo(Triple, Opts);
     }
   }
@@ -692,6 +702,20 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new LinuxTargetInfo<CSKYTargetInfo>(Triple, Opts);
     default:
       return new CSKYTargetInfo(Triple, Opts);
+    }
+  case llvm::Triple::loongarch32:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<LoongArch32TargetInfo>(Triple, Opts);
+    default:
+      return new LoongArch32TargetInfo(Triple, Opts);
+    }
+  case llvm::Triple::loongarch64:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<LoongArch64TargetInfo>(Triple, Opts);
+    default:
+      return new LoongArch64TargetInfo(Triple, Opts);
     }
   }
 }

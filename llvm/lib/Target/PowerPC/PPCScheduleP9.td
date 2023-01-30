@@ -38,11 +38,12 @@ def P9Model : SchedMachineModel {
 
   let CompleteModel = 1;
 
-  // Do not support SPE (Signal Processing Engine), prefixed instructions on
-  // Power 9, paired vector mem ops, MMA, PC relative mem ops, or instructions
-  // introduced in ISA 3.1.
-  let UnsupportedFeatures = [HasSPE, PrefixInstrs, PairedVectorMemops, MMA,
-                             PCRelativeMemops, IsISA3_1];
+  // Do not support SPE (Signal Processing Engine) or prefixed instructions on
+  // Power 9, or MMA, or paired vector mem ops,  or PC relative mem ops, or
+  // instructions introduced after ISA 3.0.
+  let UnsupportedFeatures = [HasSPE, PrefixInstrs, MMA,
+                             PairedVectorMemops,
+                             PCRelativeMemops, IsISA3_1, IsISAFuture];
 }
 
 let SchedModel = P9Model in {

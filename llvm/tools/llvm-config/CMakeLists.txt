@@ -1,4 +1,7 @@
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS
+  Support
+  TargetParser
+  )
 
 set(BUILDVARIABLES_SRCPATH ${CMAKE_CURRENT_SOURCE_DIR}/BuildVariables.inc.in)
 set(BUILDVARIABLES_OBJPATH ${CMAKE_CURRENT_BINARY_DIR}/BuildVariables.inc)
@@ -17,9 +20,14 @@ add_llvm_tool(llvm-config
 # Compute the substitution values for various items.
 get_property(SUPPORT_SYSTEM_LIBS TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS)
 get_property(WINDOWSMANIFEST_SYSTEM_LIBS TARGET LLVMWindowsManifest PROPERTY LLVM_SYSTEM_LIBS)
+
 foreach(l ${SUPPORT_SYSTEM_LIBS} ${WINDOWSMANIFEST_SYSTEM_LIBS})
   if(MSVC)
-    set(SYSTEM_LIBS ${SYSTEM_LIBS} "${l}.lib")
+    if(IS_ABSOLUTE ${l})
+      set(SYSTEM_LIBS ${SYSTEM_LIBS} "${l}")
+    else()
+      set(SYSTEM_LIBS ${SYSTEM_LIBS} "${l}.lib")
+    endif()
   else()
     if (l MATCHES "^-")
       # If it's an option, pass it without changes.
@@ -34,6 +42,7 @@ foreach(l ${SUPPORT_SYSTEM_LIBS} ${WINDOWSMANIFEST_SYSTEM_LIBS})
     endif()
   endif()
 endforeach()
+
 string(REPLACE ";" " " SYSTEM_LIBS "${SYSTEM_LIBS}")
 
 # Fetch target specific compile options, e.g. RTTI option

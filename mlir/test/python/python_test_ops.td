@@ -17,6 +17,9 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 def Python_Test_Dialect : Dialect {
   let name = "python_test";
   let cppNamespace = "python_test";
+
+  let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
 }
 
 class TestType<string name, string typeMnemonic>
@@ -68,7 +71,7 @@ def InferResultsOp : TestOp<"infer_results_op", [InferTypeOpInterface]> {
 
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(
-      ::mlir::MLIRContext *context, ::llvm::Optional<::mlir::Location> location,
+      ::mlir::MLIRContext *context, ::std::optional<::mlir::Location> location,
       ::mlir::ValueRange operands, ::mlir::DictionaryAttr attributes,
       ::mlir::RegionRange regions,
       ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {

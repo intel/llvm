@@ -111,7 +111,7 @@ void Exec(std::vector<llvm::StringRef> &argv, bool verbose = false) {
     ErrMsg = Program.getError().message();
   if (!Program ||
       llvm::sys::ExecuteAndWait(
-          Program.get(), argv, llvm::None, {}, 0, 0, &ErrMsg)) {
+          Program.get(), argv, std::nullopt, {}, 0, 0, &ErrMsg)) {
     llvm::errs() << "execvp(" << argv[0] << ") failed: " << ErrMsg << '\n';
     exit(EXIT_FAILURE);
   }
@@ -201,7 +201,7 @@ std::string CompileFortran(
   parsing.messages().Emit(llvm::errs(), parsing.allCooked());
   if (!parsing.consumedWholeFile()) {
     parsing.EmitMessage(llvm::errs(), parsing.finalRestingPlace(),
-        "parser FAIL (final position)");
+        "parser FAIL (final position)", "error: ", llvm::raw_ostream::RED);
     exitStatus = EXIT_FAILURE;
     return {};
   }

@@ -40,7 +40,7 @@ static cl::opt<unsigned> MaxInterleaveGroupFactor(
 /// Return true if all of the intrinsic's arguments and return type are scalars
 /// for the scalar form of the intrinsic, and vectors for the vector form of the
 /// intrinsic (except operands that are marked as always being scalar by
-/// hasVectorInstrinsicScalarOpd).
+/// isVectorIntrinsicWithScalarOpAtArg).
 bool llvm::isTriviallyVectorizable(Intrinsic::ID ID) {
   switch (ID) {
   case Intrinsic::abs:   // Begin integer bit-manipulation.
@@ -89,6 +89,8 @@ bool llvm::isTriviallyVectorizable(Intrinsic::ID ID) {
   case Intrinsic::fmuladd:
   case Intrinsic::powi:
   case Intrinsic::canonicalize:
+  case Intrinsic::fptosi_sat:
+  case Intrinsic::fptoui_sat:
     return true;
   default:
     return false;
@@ -96,8 +98,8 @@ bool llvm::isTriviallyVectorizable(Intrinsic::ID ID) {
 }
 
 /// Identifies if the vector form of the intrinsic has a scalar operand.
-bool llvm::hasVectorInstrinsicScalarOpd(Intrinsic::ID ID,
-                                        unsigned ScalarOpdIdx) {
+bool llvm::isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
+                                              unsigned ScalarOpdIdx) {
   switch (ID) {
   case Intrinsic::abs:
   case Intrinsic::ctlz:
@@ -114,11 +116,14 @@ bool llvm::hasVectorInstrinsicScalarOpd(Intrinsic::ID ID,
   }
 }
 
-bool llvm::hasVectorInstrinsicOverloadedScalarOpd(Intrinsic::ID ID,
-                                                  unsigned ScalarOpdIdx) {
+bool llvm::isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID,
+                                                  unsigned OpdIdx) {
   switch (ID) {
+  case Intrinsic::fptosi_sat:
+  case Intrinsic::fptoui_sat:
+    return OpdIdx == 0;
   case Intrinsic::powi:
-    return (ScalarOpdIdx == 1);
+    return OpdIdx == 1;
   default:
     return false;
   }
@@ -393,7 +398,7 @@ bool llvm::isSplatValue(const Value *V, int Index, unsigned Depth) {
   if (auto *Shuf = dyn_cast<ShuffleVectorInst>(V)) {
     // FIXME: We can safely allow undefs here. If Index was specified, we will
     //        check that the mask elt is defined at the required index.
-    if (!is_splat(Shuf->getShuffleMask()))
+    if (!all_equal(Shuf->getShuffleMask()))
       return false;
 
     // Match any index.
@@ -422,6 +427,43 @@ bool llvm::isSplatValue(const Value *V, int Index, unsigned Depth) {
   // TODO: Add support for unary ops (fneg), casts, intrinsics (overflow ops).
 
   return false;
+}
+
+bool llvm::getShuffleDemandedElts(int SrcWidth, ArrayRef<int> Mask,
+                                  const APInt &DemandedElts, APInt &DemandedLHS,
+                                  APInt &DemandedRHS, bool AllowUndefElts) {
+  DemandedLHS = DemandedRHS = APInt::getZero(SrcWidth);
+
+  // Early out if we don't demand any elements.
+  if (DemandedElts.isZero())
+    return true;
+
+  // Simple case of a shuffle with zeroinitializer.
+  if (all_of(Mask, [](int Elt) { return Elt == 0; })) {
+    DemandedLHS.setBit(0);
+    return true;
+  }
+
+  for (unsigned I = 0, E = Mask.size(); I != E; ++I) {
+    int M = Mask[I];
+    assert((-1 <= M) && (M < (SrcWidth * 2)) &&
+           "Invalid shuffle mask constant");
+
+    if (!DemandedElts[I] || (AllowUndefElts && (M < 0)))
+      continue;
+
+    // For undef elements, we don't know anything about the common state of
+    // the shuffle result.
+    if (M < 0)
+      return false;
+
+    if (M < SrcWidth)
+      DemandedLHS.setBit(M);
+    else
+      DemandedRHS.setBit(M - SrcWidth);
+  }
+
+  return true;
 }
 
 void llvm::narrowShuffleMaskElts(int Scale, ArrayRef<int> Mask,
@@ -473,7 +515,7 @@ bool llvm::widenShuffleMaskElts(int Scale, ArrayRef<int> Mask,
     if (SliceFront < 0) {
       // Negative values (undef or other "sentinel" values) must be equal across
       // the entire slice.
-      if (!is_splat(MaskSlice))
+      if (!all_equal(MaskSlice))
         return false;
       ScaledMask.push_back(SliceFront);
     } else {
@@ -496,10 +538,24 @@ bool llvm::widenShuffleMaskElts(int Scale, ArrayRef<int> Mask,
   return true;
 }
 
+void llvm::getShuffleMaskWithWidestElts(ArrayRef<int> Mask,
+                                        SmallVectorImpl<int> &ScaledMask) {
+  std::array<SmallVector<int, 16>, 2> TmpMasks;
+  SmallVectorImpl<int> *Output = &TmpMasks[0], *Tmp = &TmpMasks[1];
+  ArrayRef<int> InputMask = Mask;
+  for (unsigned Scale = 2; Scale <= InputMask.size(); ++Scale) {
+    while (widenShuffleMaskElts(Scale, InputMask, *Output)) {
+      InputMask = *Output;
+      std::swap(Output, Tmp);
+    }
+  }
+  ScaledMask.assign(InputMask.begin(), InputMask.end());
+}
+
 void llvm::processShuffleMasks(
     ArrayRef<int> Mask, unsigned NumOfSrcRegs, unsigned NumOfDestRegs,
     unsigned NumOfUsedRegs, function_ref<void()> NoInputAction,
-    function_ref<void(ArrayRef<int>, unsigned)> SingleInputAction,
+    function_ref<void(ArrayRef<int>, unsigned, unsigned)> SingleInputAction,
     function_ref<void(ArrayRef<int>, unsigned, unsigned)> ManyInputsAction) {
   SmallVector<SmallVector<SmallVector<int>>> Res(NumOfDestRegs);
   // Try to perform better estimation of the permutation.
@@ -543,7 +599,7 @@ void llvm::processShuffleMasks(
       auto *It =
           find_if(Dest, [](ArrayRef<int> Mask) { return !Mask.empty(); });
       unsigned SrcReg = std::distance(Dest.begin(), It);
-      SingleInputAction(*It, SrcReg);
+      SingleInputAction(*It, SrcReg, I);
       break;
     }
     default: {
@@ -653,9 +709,8 @@ llvm::computeMinimumValueSizes(ArrayRef<BasicBlock *> Blocks, DemandedBits &DB,
     Value *Val = Worklist.pop_back_val();
     Value *Leader = ECs.getOrInsertLeaderValue(Val);
 
-    if (Visited.count(Val))
+    if (!Visited.insert(Val).second)
       continue;
-    Visited.insert(Val);
 
     // Non-instructions terminate a chain successfully.
     if (!isa<Instruction>(Val))
@@ -758,7 +813,7 @@ static void addToAccessGroupList(ListT &List, MDNode *AccGroups) {
     return;
   }
 
-  for (auto &AccGroupListOp : AccGroups->operands()) {
+  for (const auto &AccGroupListOp : AccGroups->operands()) {
     auto *Item = cast<MDNode>(AccGroupListOp.get());
     assert(isValidAsAccessGroup(Item) && "List item must be an access group");
     List.insert(Item);
@@ -1106,6 +1161,12 @@ void InterleavedAccessInfo::collectConstStrideAccesses(
         continue;
       Type *ElementTy = getLoadStoreType(&I);
 
+      // Currently, codegen doesn't support cases where the type size doesn't
+      // match the alloc size. Skip them for now.
+      uint64_t Size = DL.getTypeAllocSize(ElementTy);
+      if (Size * 8 != DL.getTypeSizeInBits(ElementTy))
+        continue;
+
       // We don't check wrapping here because we don't know yet if Ptr will be
       // part of a full group or a group with gaps. Checking wrapping for all
       // pointers (even those that end up in groups with no gaps) will be overly
@@ -1113,11 +1174,11 @@ void InterleavedAccessInfo::collectConstStrideAccesses(
       // wrap around the address space we would do a memory access at nullptr
       // even without the transformation. The wrapping checks are therefore
       // deferred until after we've formed the interleaved groups.
-      int64_t Stride = getPtrStride(PSE, ElementTy, Ptr, TheLoop, Strides,
-                                    /*Assume=*/true, /*ShouldCheckWrap=*/false);
+      int64_t Stride =
+        getPtrStride(PSE, ElementTy, Ptr, TheLoop, Strides,
+                     /*Assume=*/true, /*ShouldCheckWrap=*/false).value_or(0);
 
       const SCEV *Scev = replaceSymbolicStrideSCEV(PSE, Strides, Ptr);
-      uint64_t Size = DL.getTypeAllocSize(ElementTy);
       AccessStrideInfo[&I] = StrideDescriptor(Stride, Scev, Size,
                                               getLoadStoreAlignment(&I));
     }
@@ -1334,7 +1395,7 @@ void InterleavedAccessInfo::analyzeInterleaving(
     Value *MemberPtr = getLoadStorePointerOperand(Member);
     Type *AccessTy = getLoadStoreType(Member);
     if (getPtrStride(PSE, AccessTy, MemberPtr, TheLoop, Strides,
-                     /*Assume=*/false, /*ShouldCheckWrap=*/true))
+                     /*Assume=*/false, /*ShouldCheckWrap=*/true).value_or(0))
       return false;
     LLVM_DEBUG(dbgs() << "LV: Invalidate candidate interleaved group due to "
                       << FirstOrLast
@@ -1493,12 +1554,13 @@ void VFABI::getVectorVariantNames(
   SmallVector<StringRef, 8> ListAttr;
   S.split(ListAttr, ",");
 
-  for (auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
+  for (const auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
 #ifndef NDEBUG
     LLVM_DEBUG(dbgs() << "VFABI: adding mapping '" << S << "'\n");
-    Optional<VFInfo> Info = VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
-    assert(Info.hasValue() && "Invalid name for a VFABI variant.");
-    assert(CI.getModule()->getFunction(Info.getValue().VectorName) &&
+    std::optional<VFInfo> Info =
+        VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
+    assert(Info && "Invalid name for a VFABI variant.");
+    assert(CI.getModule()->getFunction(Info->VectorName) &&
            "Vector function is missing.");
 #endif
     VariantMappings.push_back(std::string(S));

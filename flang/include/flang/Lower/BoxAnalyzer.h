@@ -79,7 +79,7 @@ struct ScalarDynamicChar : ScalarSym {
   llvm::Optional<Fortran::lower::SomeExpr> charLen() const {
     if (auto *l = std::get_if<Fortran::lower::SomeExpr>(&len))
       return {*l};
-    return llvm::None;
+    return std::nullopt;
   }
 
   static constexpr bool staticSize() { return false; }
@@ -236,6 +236,10 @@ inline bool isExplicitShape(const Fortran::semantics::Symbol &sym) {
   return det && det->IsArray() && det->shape().IsExplicitShape();
 }
 
+inline bool isAssumedSize(const Fortran::semantics::Symbol &sym) {
+  return Fortran::semantics::IsAssumedSizeArray(sym.GetUltimate());
+}
+
 //===----------------------------------------------------------------------===//
 // Perform analysis to determine a box's parameter values
 //===----------------------------------------------------------------------===//
@@ -319,7 +323,7 @@ public:
         [](const ScalarStaticChar &x) -> A { return {x.charLen()}; },
         [](const StaticArrayStaticChar &x) -> A { return {x.charLen()}; },
         [](const DynamicArrayStaticChar &x) -> A { return {x.charLen()}; },
-        [](const auto &) -> A { return llvm::None; });
+        [](const auto &) -> A { return std::nullopt; });
   }
 
   llvm::Optional<Fortran::lower::SomeExpr> getCharLenExpr() const {
@@ -327,7 +331,7 @@ public:
     return match([](const ScalarDynamicChar &x) { return x.charLen(); },
                  [](const StaticArrayDynamicChar &x) { return x.charLen(); },
                  [](const DynamicArrayDynamicChar &x) { return x.charLen(); },
-                 [](const auto &) -> A { return llvm::None; });
+                 [](const auto &) -> A { return std::nullopt; });
   }
 
   /// Is the origin of this array the default of vector of `1`?
@@ -378,7 +382,7 @@ public:
   /// Run the analysis on `sym`.
   void analyze(const Fortran::semantics::Symbol &sym) {
     if (symIsArray(sym)) {
-      bool isConstant = true;
+      bool isConstant = !isAssumedSize(sym);
       llvm::SmallVector<int64_t> lbounds;
       llvm::SmallVector<int64_t> shapes;
       llvm::SmallVector<const Fortran::semantics::ShapeSpec *> bounds;
@@ -396,6 +400,8 @@ public:
                 continue;
               }
             } else if (subs.ubound().isStar()) {
+              assert(Fortran::semantics::IsNamedConstant(sym) &&
+                     "expect implied shape constant");
               shapes.push_back(fir::SequenceType::getUnknownExtent());
               continue;
             }
@@ -474,7 +480,7 @@ private:
           return 0;
         return *asInt;
       }
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Get the `SomeExpr` that describes the CHARACTER's LEN.
@@ -484,7 +490,7 @@ private:
         sym.GetType()->characterTypeSpec().length();
     if (Fortran::semantics::MaybeIntExpr expr = lenParam.GetExplicit())
       return {Fortran::evaluate::AsGenericExpr(std::move(*expr))};
-    // For assumed length parameters, the length comes from the initialization
+    // For assumed LEN parameters, the length comes from the initialization
     // expression.
     if (sym.attrs().test(Fortran::semantics::Attr::PARAMETER))
       if (const auto *objectDetails =
@@ -497,7 +503,7 @@ private:
             if (Fortran::semantics::MaybeSubscriptIntExpr expr =
                     charExpr->LEN())
               return {Fortran::evaluate::AsGenericExpr(std::move(*expr))};
-    return llvm::None;
+    return std::nullopt;
   }
 
   VT box;

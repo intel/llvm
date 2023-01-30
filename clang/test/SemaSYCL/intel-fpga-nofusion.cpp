@@ -3,27 +3,27 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 void nofusion() {
   int a1[10], a2[10];
 
   // CHECK: AttributedStmt
-  // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
+  // CHECK-NEXT: SYCLIntelNofusionAttr {{.*}}
   [[intel::nofusion]] for (int p = 0; p < 10; ++p) {
     a1[p] = a2[p] = 0;
   }
 
   // CHECK: AttributedStmt
-  // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
+  // CHECK-NEXT: SYCLIntelNofusionAttr {{.*}}
   int i = 0;
   [[intel::nofusion]] while (i < 10) {
     a1[i] += 3;
   }
 
   // CHECK: AttributedStmt
-  // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
+  // CHECK-NEXT: SYCLIntelNofusionAttr {{.*}}
   for (int i = 0; i < 10; ++i) {
     [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
       a1[i] += a1[j];

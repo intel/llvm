@@ -30,7 +30,7 @@ namespace readability {
 ///     macros. Default is `false`.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability-function-cognitive-complexity.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability/function-cognitive-complexity.html
 class FunctionCognitiveComplexityCheck : public ClangTidyCheck {
 public:
   FunctionCognitiveComplexityCheck(StringRef Name, ClangTidyContext *Context);
@@ -38,7 +38,7 @@ public:
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 

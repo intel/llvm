@@ -1,14 +1,19 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// RUN: %{command}
 //
-// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=8" | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{command}
 
 #SV = #sparse_tensor.encoding<{ dimLevelType = [ "compressed" ] }>
 #DV = #sparse_tensor.encoding<{ dimLevelType = [ "dense"      ] }>
@@ -25,7 +30,7 @@
 // An example of vector reductions.
 module {
 
-  func @sum_reduction_i32(%arga: tensor<32xi32, #SV>,
+  func.func @sum_reduction_i32(%arga: tensor<32xi32, #SV>,
                           %argx: tensor<i32>) -> tensor<i32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xi32, #SV>)
@@ -37,7 +42,7 @@ module {
     return %0 : tensor<i32>
   }
 
-  func @sum_reduction_f32(%arga: tensor<32xf32, #SV>,
+  func.func @sum_reduction_f32(%arga: tensor<32xf32, #SV>,
                           %argx: tensor<f32>) -> tensor<f32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xf32, #SV>)
@@ -49,7 +54,7 @@ module {
     return %0 : tensor<f32>
   }
 
-  func @prod_reduction_i32(%arga: tensor<32xi32, #DV>,
+  func.func @prod_reduction_i32(%arga: tensor<32xi32, #DV>,
                            %argx: tensor<i32>) -> tensor<i32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xi32, #DV>)
@@ -61,7 +66,7 @@ module {
     return %0 : tensor<i32>
   }
 
-  func @prod_reduction_f32(%arga: tensor<32xf32, #DV>,
+  func.func @prod_reduction_f32(%arga: tensor<32xf32, #DV>,
                            %argx: tensor<f32>) -> tensor<f32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xf32, #DV>)
@@ -73,7 +78,7 @@ module {
     return %0 : tensor<f32>
   }
 
-  func @and_reduction_i32(%arga: tensor<32xi32, #DV>,
+  func.func @and_reduction_i32(%arga: tensor<32xi32, #DV>,
                           %argx: tensor<i32>) -> tensor<i32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xi32, #DV>)
@@ -85,7 +90,7 @@ module {
     return %0 : tensor<i32>
   }
 
-  func @or_reduction_i32(%arga: tensor<32xi32, #SV>,
+  func.func @or_reduction_i32(%arga: tensor<32xi32, #SV>,
                          %argx: tensor<i32>) -> tensor<i32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xi32, #SV>)
@@ -97,7 +102,7 @@ module {
     return %0 : tensor<i32>
   }
 
-  func @xor_reduction_i32(%arga: tensor<32xi32, #SV>,
+  func.func @xor_reduction_i32(%arga: tensor<32xi32, #SV>,
                           %argx: tensor<i32>) -> tensor<i32> {
     %0 = linalg.generic #trait_reduction
       ins(%arga: tensor<32xi32, #SV>)
@@ -109,19 +114,19 @@ module {
     return %0 : tensor<i32>
   }
 
-  func @dump_i32(%arg0 : memref<i32>) {
-    %v = memref.load %arg0[] : memref<i32>
+  func.func @dump_i32(%arg0 : tensor<i32>) {
+    %v = tensor.extract %arg0[] : tensor<i32>
     vector.print %v : i32
     return
   }
 
-  func @dump_f32(%arg0 : memref<f32>) {
-    %v = memref.load %arg0[] : memref<f32>
+  func.func @dump_f32(%arg0 : tensor<f32>) {
+    %v = tensor.extract %arg0[] : tensor<f32>
     vector.print %v : f32
     return
   }
 
-  func @entry() {
+  func.func @entry() {
     %ri = arith.constant dense< 7   > : tensor<i32>
     %rf = arith.constant dense< 2.0 > : tensor<f32>
 
@@ -185,33 +190,19 @@ module {
     // CHECK: 15
     // CHECK: 10
     //
-    %m0 = bufferization.to_memref %0 : memref<i32>
-    call @dump_i32(%m0) : (memref<i32>) -> ()
-    %m1 = bufferization.to_memref %1 : memref<f32>
-    call @dump_f32(%m1) : (memref<f32>) -> ()
-    %m2 = bufferization.to_memref %2 : memref<i32>
-    call @dump_i32(%m2) : (memref<i32>) -> ()
-    %m3 = bufferization.to_memref %3 : memref<f32>
-    call @dump_f32(%m3) : (memref<f32>) -> ()
-    %m4 = bufferization.to_memref %4 : memref<i32>
-    call @dump_i32(%m4) : (memref<i32>) -> ()
-    %m5 = bufferization.to_memref %5 : memref<i32>
-    call @dump_i32(%m5) : (memref<i32>) -> ()
-    %m6 = bufferization.to_memref %6 : memref<i32>
-    call @dump_i32(%m6) : (memref<i32>) -> ()
+    call @dump_i32(%0) : (tensor<i32>) -> ()
+    call @dump_f32(%1) : (tensor<f32>) -> ()
+    call @dump_i32(%2) : (tensor<i32>) -> ()
+    call @dump_f32(%3) : (tensor<f32>) -> ()
+    call @dump_i32(%4) : (tensor<i32>) -> ()
+    call @dump_i32(%5) : (tensor<i32>) -> ()
+    call @dump_i32(%6) : (tensor<i32>) -> ()
 
     // Release the resources.
-    sparse_tensor.release %sparse_input_i32 : tensor<32xi32, #SV>
-    sparse_tensor.release %sparse_input_f32 : tensor<32xf32, #SV>
-    sparse_tensor.release %dense_input_i32  : tensor<32xi32, #DV>
-    sparse_tensor.release %dense_input_f32  : tensor<32xf32, #DV>
-    memref.dealloc %m0 : memref<i32>
-    memref.dealloc %m1 : memref<f32>
-    memref.dealloc %m2 : memref<i32>
-    memref.dealloc %m3 : memref<f32>
-    memref.dealloc %m4 : memref<i32>
-    memref.dealloc %m5 : memref<i32>
-    memref.dealloc %m6 : memref<i32>
+    bufferization.dealloc_tensor %sparse_input_i32 : tensor<32xi32, #SV>
+    bufferization.dealloc_tensor %sparse_input_f32 : tensor<32xf32, #SV>
+    bufferization.dealloc_tensor %dense_input_i32  : tensor<32xi32, #DV>
+    bufferization.dealloc_tensor %dense_input_f32  : tensor<32xf32, #DV>
 
     return
   }

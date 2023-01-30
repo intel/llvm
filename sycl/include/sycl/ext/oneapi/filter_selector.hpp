@@ -8,22 +8,21 @@
 
 #pragma once
 
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <memory>
 #include <string>
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
 class device_selector;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace detail {
 class filter_selector_impl;
 } // namespace detail
@@ -38,20 +37,19 @@ public:
 private:
   std::shared_ptr<detail::filter_selector_impl> impl;
 };
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
-  public:
-    filter_selector(const std::string &filter);
-    int operator()(const device &dev) const override;
-    void reset() const;
-    device select_device() const override;
-  };
-} // namespace ONEAPI
+using namespace ext::oneapi;
+class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
+public:
+  filter_selector(const std::string &filter);
+  int operator()(const device &dev) const override;
+  void reset() const;
+  device select_device() const override;
+};
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

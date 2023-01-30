@@ -30,6 +30,14 @@ _Float16 foo(_Float16 x) {
 "
 )
 
+builtin_check_c_compiler_source(COMPILER_RT_HAS_BFLOAT16
+"
+__bf16 foo(__bf16 x) {
+ return x;
+}
+"
+)
+
 builtin_check_c_compiler_source(COMPILER_RT_HAS_ASM_LSE
 "
 asm(\".arch armv8-a+lse\");
@@ -37,10 +45,12 @@ asm(\"cas w0, w1, [x2]\");
 ")
 
 set(ARM64 aarch64)
-set(ARM32 arm armhf armv6m armv7m armv7em armv7 armv7s armv7k armv8m.main armv8.1m.main)
+set(ARM32 arm armhf armv4t armv6m armv7m armv7em armv7 armv7s armv7k armv8m.main armv8.1m.main)
+set(AVR avr)
 set(HEXAGON hexagon)
 set(X86 i386)
 set(X86_64 x86_64)
+set(LOONGARCH64 loongarch64)
 set(MIPS32 mips mipsel)
 set(MIPS64 mips64 mips64el)
 set(PPC32 powerpc powerpcspe)
@@ -60,10 +70,10 @@ if(APPLE)
 endif()
 
 set(ALL_BUILTIN_SUPPORTED_ARCH
-  ${X86} ${X86_64} ${ARM32} ${ARM64}
+  ${X86} ${X86_64} ${ARM32} ${ARM64} ${AVR}
   ${HEXAGON} ${MIPS32} ${MIPS64} ${PPC32} ${PPC64}
   ${RISCV32} ${RISCV64} ${SPARC} ${SPARCV9}
-  ${WASM32} ${WASM64} ${VE})
+  ${WASM32} ${WASM64} ${VE} ${LOONGARCH64})
 
 include(CompilerRTUtils)
 include(CompilerRTDarwinUtils)
@@ -96,7 +106,7 @@ if(APPLE)
   endfunction()
 
   set(DARWIN_EMBEDDED_PLATFORMS)
-  set(DARWIN_osx_BUILTIN_MIN_VER 10.5)
+  set(DARWIN_osx_BUILTIN_MIN_VER 10.7)
   set(DARWIN_osx_BUILTIN_MIN_VER_FLAG
       -mmacosx-version-min=${DARWIN_osx_BUILTIN_MIN_VER})
   set(DARWIN_osx_BUILTIN_ALL_POSSIBLE_ARCHS ${X86} ${X86_64})
@@ -116,6 +126,10 @@ if(APPLE)
       ${DARWIN_ios_MIN_VER_FLAG}=${DARWIN_ios_BUILTIN_MIN_VER})
     set(DARWIN_ios_BUILTIN_ALL_POSSIBLE_ARCHS ${ARM64} ${ARM32})
     set(DARWIN_iossim_BUILTIN_ALL_POSSIBLE_ARCHS ${X86} ${X86_64})
+    find_darwin_sdk_version(iossim_sdk_version "iphonesimulator")
+    if ("${iossim_sdk_version}" VERSION_GREATER 14.0 OR "${iossim_sdk_version}" VERSION_EQUAL 14.0)
+      list(APPEND DARWIN_iossim_BUILTIN_ALL_POSSIBLE_ARCHS arm64)
+    endif()
   endif()
   if(COMPILER_RT_ENABLE_WATCHOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS watchos)
@@ -125,6 +139,10 @@ if(APPLE)
       ${DARWIN_watchos_MIN_VER_FLAG}=${DARWIN_watchos_BUILTIN_MIN_VER})
     set(DARWIN_watchos_BUILTIN_ALL_POSSIBLE_ARCHS armv7 armv7k arm64_32)
     set(DARWIN_watchossim_BUILTIN_ALL_POSSIBLE_ARCHS ${X86})
+    find_darwin_sdk_version(watchossim_sdk_version "watchsimulator")
+    if ("${watchossim_sdk_version}" VERSION_GREATER 7.0 OR "${watchossim_sdk_version}" VERSION_EQUAL 7.0)
+      list(APPEND DARWIN_watchossim_BUILTIN_ALL_POSSIBLE_ARCHS arm64)
+    endif()
   endif()
   if(COMPILER_RT_ENABLE_TVOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS tvos)
@@ -134,6 +152,10 @@ if(APPLE)
       ${DARWIN_tvos_MIN_VER_FLAG}=${DARWIN_tvos_BUILTIN_MIN_VER})
     set(DARWIN_tvos_BUILTIN_ALL_POSSIBLE_ARCHS armv7 arm64)
     set(DARWIN_tvossim_BUILTIN_ALL_POSSIBLE_ARCHS ${X86} ${X86_64})
+    find_darwin_sdk_version(tvossim_sdk_version "appletvsimulator")
+    if ("${tvossim_sdk_version}" VERSION_GREATER 14.0 OR "${tvossim_sdk_version}" VERSION_EQUAL 14.0)
+      list(APPEND DARWIN_tvossim_BUILTIN_ALL_POSSIBLE_ARCHS arm64)
+    endif()
   endif()
 
   set(BUILTIN_SUPPORTED_OS osx)

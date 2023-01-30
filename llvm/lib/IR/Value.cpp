@@ -25,6 +25,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
@@ -43,6 +44,8 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
 //===----------------------------------------------------------------------===//
 static inline Type *checkType(Type *Ty) {
   assert(Ty && "Value defined with a null type: Error!");
+  assert(!isa<TypedPointerType>(Ty->getScalarType()) &&
+         "Cannot have values with typed pointer types");
   return Ty;
 }
 
@@ -349,7 +352,7 @@ void Value::setNameImpl(const Twine &NewName) {
 
     // Create the new name.
     MallocAllocator Allocator;
-    setValueName(ValueName::Create(NameRef, Allocator));
+    setValueName(ValueName::create(NameRef, Allocator));
     getValueName()->setValue(this);
     return;
   }
@@ -408,7 +411,7 @@ void Value::takeName(Value *V) {
     }
   }
 
-  // Get V's ST, this should always succed, because V has a name.
+  // Get V's ST, this should always succeed, because V has a name.
   ValueSymbolTable *VST;
   bool Failure = getSymTab(V, VST);
   assert(!Failure && "V has a name, so it should have a ST!"); (void)Failure;
@@ -633,7 +636,7 @@ static const Value *stripPointerCastsAndOffsets(
       case PSK_InBoundsConstantIndices:
         if (!GEP->hasAllConstantIndices())
           return V;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case PSK_InBounds:
         if (!GEP->isInBounds())
           return V;
@@ -1017,22 +1020,6 @@ bool Value::isSwiftError() const {
   if (!Alloca)
     return false;
   return Alloca->isSwiftError();
-}
-
-bool Value::isTransitiveUsedByMetadataOnly() const {
-  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
-  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
-  while (!WorkList.empty()) {
-    const User *U = WorkList.pop_back_val();
-    // If it is transitively used by a global value or a non-constant value,
-    // it's obviously not only used by metadata.
-    if (!isa<Constant>(U) || isa<GlobalValue>(U))
-      return false;
-    for (const User *UU : U->users())
-      if (Visited.insert(UU).second)
-        WorkList.push_back(UU);
-  }
-  return true;
 }
 
 //===----------------------------------------------------------------------===//

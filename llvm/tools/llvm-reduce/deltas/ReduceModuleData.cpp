@@ -19,16 +19,11 @@ static void clearModuleData(Oracle &O, Module &Program) {
     Program.setModuleIdentifier("");
   if (!Program.getSourceFileName().empty() && !O.shouldKeep())
     Program.setSourceFileName("");
-  if (!Program.getDataLayoutStr().empty() && !O.shouldKeep())
-    Program.setDataLayout("");
-  if (!Program.getTargetTriple().empty() && !O.shouldKeep())
-    Program.setTargetTriple("");
   // TODO: clear line by line rather than all at once
   if (!Program.getModuleInlineAsm().empty() && !O.shouldKeep())
     Program.setModuleInlineAsm("");
 }
 
 void llvm::reduceModuleDataDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing Module Data...\n";
-  runDeltaPass(Test, clearModuleData);
+  runDeltaPass(Test, clearModuleData, "Reducing Module Data");
 }

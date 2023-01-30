@@ -142,12 +142,13 @@ class MicrosoftMangleContextImpl : public MicrosoftMangleContext {
   llvm::DenseMap<DiscriminatorKeyTy, unsigned> Discriminator;
   llvm::DenseMap<const NamedDecl *, unsigned> Uniquifier;
   llvm::DenseMap<const CXXRecordDecl *, unsigned> LambdaIds;
-  llvm::DenseMap<const NamedDecl *, unsigned> SEHFilterIds;
-  llvm::DenseMap<const NamedDecl *, unsigned> SEHFinallyIds;
+  llvm::DenseMap<GlobalDecl, unsigned> SEHFilterIds;
+  llvm::DenseMap<GlobalDecl, unsigned> SEHFinallyIds;
   SmallString<16> AnonymousNamespaceHash;
 
 public:
-  MicrosoftMangleContextImpl(ASTContext &Context, DiagnosticsEngine &Diags);
+  MicrosoftMangleContextImpl(ASTContext &Context, DiagnosticsEngine &Diags,
+                             bool IsAux = false);
   bool shouldMangleCXXName(const NamedDecl *D) override;
   bool shouldMangleStringLiteral(const StringLiteral *SL) override;
   void mangleCXXName(GlobalDecl GD, raw_ostream &Out) override;
@@ -200,9 +201,9 @@ public:
   void mangleDynamicInitializer(const VarDecl *D, raw_ostream &Out) override;
   void mangleDynamicAtExitDestructor(const VarDecl *D,
                                      raw_ostream &Out) override;
-  void mangleSEHFilterExpression(const NamedDecl *EnclosingDecl,
+  void mangleSEHFilterExpression(GlobalDecl EnclosingDecl,
                                  raw_ostream &Out) override;
-  void mangleSEHFinallyBlock(const NamedDecl *EnclosingDecl,
+  void mangleSEHFinallyBlock(GlobalDecl EnclosingDecl,
                              raw_ostream &Out) override;
   void mangleStringLiteral(const StringLiteral *SL, raw_ostream &Out) override;
   bool getNextDiscriminator(const NamedDecl *ND, unsigned &disc) {
@@ -221,7 +222,7 @@ public:
 
     // Use the canonical number for externally visible decls.
     if (ND->isExternallyVisible()) {
-      disc = getASTContext().getManglingNumber(ND);
+      disc = getASTContext().getManglingNumber(ND, isAux());
       return true;
     }
 
@@ -339,22 +340,22 @@ public:
   MicrosoftCXXNameMangler(MicrosoftMangleContextImpl &C, raw_ostream &Out_)
       : Context(C), Out(Out_), Structor(nullptr), StructorType(-1),
         TemplateArgStringStorage(TemplateArgStringStorageAlloc),
-        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(0) ==
-                         64) {}
+        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(
+                             LangAS::Default) == 64) {}
 
   MicrosoftCXXNameMangler(MicrosoftMangleContextImpl &C, raw_ostream &Out_,
                           const CXXConstructorDecl *D, CXXCtorType Type)
       : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
         TemplateArgStringStorage(TemplateArgStringStorageAlloc),
-        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(0) ==
-                         64) {}
+        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(
+                             LangAS::Default) == 64) {}
 
   MicrosoftCXXNameMangler(MicrosoftMangleContextImpl &C, raw_ostream &Out_,
                           const CXXDestructorDecl *D, CXXDtorType Type)
       : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
         TemplateArgStringStorage(TemplateArgStringStorageAlloc),
-        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(0) ==
-                         64) {}
+        PointersAre64Bit(C.getASTContext().getTargetInfo().getPointerWidth(
+                             LangAS::Default) == 64) {}
 
   raw_ostream &getStream() const { return Out; }
 
@@ -375,7 +376,7 @@ public:
   void mangleBits(llvm::APInt Number);
   void mangleTagTypeKind(TagTypeKind TK);
   void mangleArtificialTagType(TagTypeKind TK, StringRef UnqualifiedName,
-                              ArrayRef<StringRef> NestedNames = None);
+                               ArrayRef<StringRef> NestedNames = std::nullopt);
   void mangleAddressSpaceType(QualType T, Qualifiers Quals, SourceRange Range);
   void mangleType(QualType T, SourceRange Range,
                   QualifierMangleMode QMM = QMM_Mangle);
@@ -459,8 +460,9 @@ private:
 }
 
 MicrosoftMangleContextImpl::MicrosoftMangleContextImpl(ASTContext &Context,
-                                                       DiagnosticsEngine &Diags)
-    : MicrosoftMangleContext(Context, Diags) {
+                                                       DiagnosticsEngine &Diags,
+                                                       bool IsAux)
+    : MicrosoftMangleContext(Context, Diags, IsAux) {
   // To mangle anonymous namespaces, hash the path to the main source file. The
   // path should be whatever (probably relative) path was passed on the command
   // line. The goal is for the compiler to produce the same output regardless of
@@ -774,7 +776,7 @@ void MicrosoftCXXNameMangler::mangleVirtualMemPtrThunk(
     const CXXMethodDecl *MD, const MethodVFTableLocation &ML) {
   // Get the vftable offset.
   CharUnits PointerWidth = getASTContext().toCharUnitsFromBits(
-      getASTContext().getTargetInfo().getPointerWidth(0));
+      getASTContext().getTargetInfo().getPointerWidth(LangAS::Default));
   uint64_t OffsetInVFTable = ML.Index * PointerWidth.getQuantity();
 
   Out << "?_9";
@@ -806,8 +808,8 @@ void MicrosoftCXXNameMangler::mangleNumber(llvm::APSInt Number) {
   // to convert every integer to signed 64 bit before mangling (including
   // unsigned 64 bit values). Do the same, but preserve bits beyond the bottom
   // 64.
-  llvm::APInt Value =
-      Number.isSigned() ? Number.sextOrSelf(64) : Number.zextOrSelf(64);
+  unsigned Width = std::max(Number.getBitWidth(), 64U);
+  llvm::APInt Value = Number.extend(Width);
 
   // <non-negative integer> ::= A@              # when Number == 0
   //                        ::= <decimal digit> # when 1 <= Number <= 10
@@ -836,6 +838,9 @@ void MicrosoftCXXNameMangler::mangleFloat(llvm::APFloat Number) {
   case APFloat::S_x87DoubleExtended: Out << 'X'; break;
   case APFloat::S_IEEEquad: Out << 'Y'; break;
   case APFloat::S_PPCDoubleDouble: Out << 'Z'; break;
+  case APFloat::S_Float8E5M2:
+  case APFloat::S_Float8E4M3FN:
+    llvm_unreachable("Tried to mangle unexpected APFloat semantics");
   }
 
   mangleBits(Number.bitcastToAPInt());
@@ -2481,7 +2486,16 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
     break;
 
   case BuiltinType::Half:
-    mangleArtificialTagType(TTK_Struct, "_Half", {"__clang"});
+    if (!getASTContext().getLangOpts().HLSL)
+      mangleArtificialTagType(TTK_Struct, "_Half", {"__clang"});
+    else if (getASTContext().getLangOpts().NativeHalfType)
+      Out << "$f16@";
+    else
+      Out << "$halff@";
+    break;
+
+  case BuiltinType::BFloat16:
+    mangleArtificialTagType(TTK_Struct, "__bf16", {"__clang"});
     break;
 
 #define SVE_TYPE(Name, Id, SingletonId) \
@@ -2516,7 +2530,6 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
   case BuiltinType::SatUShortFract:
   case BuiltinType::SatUFract:
   case BuiltinType::SatULongFract:
-  case BuiltinType::BFloat16:
   case BuiltinType::Ibm128:
   case BuiltinType::Float128: {
     DiagnosticsEngine &Diags = Context.getDiags();
@@ -3085,14 +3098,17 @@ bool MicrosoftCXXNameMangler::isArtificialTagType(QualType T) const {
 
 void MicrosoftCXXNameMangler::mangleType(const VectorType *T, Qualifiers Quals,
                                          SourceRange Range) {
-  const BuiltinType *ET = T->getElementType()->getAs<BuiltinType>();
-  assert(ET && "vectors with non-builtin elements are unsupported");
+  QualType EltTy = T->getElementType();
+  const BuiltinType *ET = EltTy->getAs<BuiltinType>();
+  const BitIntType *BitIntTy = EltTy->getAs<BitIntType>();
+  assert((ET || BitIntTy) &&
+         "vectors with non-builtin/_BitInt elements are unsupported");
   uint64_t Width = getASTContext().getTypeSize(T);
   // Pattern match exactly the typedefs in our intrinsic headers.  Anything that
   // doesn't match the Intel types uses a custom mangling below.
   size_t OutSizeBefore = Out.tell();
   if (!isa<ExtVectorType>(T)) {
-    if (getASTContext().getTargetInfo().getTriple().isX86()) {
+    if (getASTContext().getTargetInfo().getTriple().isX86() && ET) {
       if (Width == 64 && ET->getKind() == BuiltinType::LongLong) {
         mangleArtificialTagType(TTK_Union, "__m64");
       } else if (Width >= 128) {
@@ -3117,7 +3133,8 @@ void MicrosoftCXXNameMangler::mangleType(const VectorType *T, Qualifiers Quals,
     MicrosoftCXXNameMangler Extra(Context, Stream);
     Stream << "?$";
     Extra.mangleSourceName("__vector");
-    Extra.mangleType(QualType(ET, 0), Range, QMM_Escape);
+    Extra.mangleType(QualType(ET ? static_cast<const Type *>(ET) : BitIntTy, 0),
+                     Range, QMM_Escape);
     Extra.mangleIntegerLiteral(llvm::APSInt::getUnsigned(T->getNumElements()));
 
     mangleArtificialTagType(TTK_Union, TemplateMangling, {"__clang"});
@@ -3735,7 +3752,7 @@ void MicrosoftMangleContextImpl::mangleCXXRTTICompleteObjectLocator(
 }
 
 void MicrosoftMangleContextImpl::mangleSEHFilterExpression(
-    const NamedDecl *EnclosingDecl, raw_ostream &Out) {
+    GlobalDecl EnclosingDecl, raw_ostream &Out) {
   msvc_hashing_ostream MHO(Out);
   MicrosoftCXXNameMangler Mangler(*this, MHO);
   // The function body is in the same comdat as the function with the handler,
@@ -3747,7 +3764,7 @@ void MicrosoftMangleContextImpl::mangleSEHFilterExpression(
 }
 
 void MicrosoftMangleContextImpl::mangleSEHFinallyBlock(
-    const NamedDecl *EnclosingDecl, raw_ostream &Out) {
+    GlobalDecl EnclosingDecl, raw_ostream &Out) {
   msvc_hashing_ostream MHO(Out);
   MicrosoftCXXNameMangler Mangler(*this, MHO);
   // The function body is in the same comdat as the function with the handler,
@@ -3966,7 +3983,8 @@ void MicrosoftMangleContextImpl::mangleStringLiteral(const StringLiteral *SL,
   Mangler.getStream() << '@';
 }
 
-MicrosoftMangleContext *
-MicrosoftMangleContext::create(ASTContext &Context, DiagnosticsEngine &Diags) {
-  return new MicrosoftMangleContextImpl(Context, Diags);
+MicrosoftMangleContext *MicrosoftMangleContext::create(ASTContext &Context,
+                                                       DiagnosticsEngine &Diags,
+                                                       bool IsAux) {
+  return new MicrosoftMangleContextImpl(Context, Diags, IsAux);
 }

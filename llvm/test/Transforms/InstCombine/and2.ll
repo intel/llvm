@@ -46,11 +46,9 @@ define i1 @test7(i32 %i, i1 %b) {
 
 define i1 @test7_logical(i32 %i, i1 %b) {
 ; CHECK-LABEL: @test7_logical(
-; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[I:%.*]], 1
-; CHECK-NEXT:    [[CMP2:%.*]] = icmp sgt i32 [[I]], -1
-; CHECK-NEXT:    [[AND1:%.*]] = select i1 [[CMP1]], i1 [[B:%.*]], i1 false
-; CHECK-NEXT:    [[AND2:%.*]] = and i1 [[AND1]], [[CMP2]]
-; CHECK-NEXT:    ret i1 [[AND2]]
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i32 [[I:%.*]], 0
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i1 [[B:%.*]], i1 false
+; CHECK-NEXT:    ret i1 [[TMP2]]
 ;
   %cmp1 = icmp slt i32 %i, 1
   %cmp2 = icmp sgt i32 %i, -1
@@ -146,9 +144,9 @@ define i8 @and1_shl1_is_cmp_eq_0(i8 %x) {
 
 define i8 @and1_shl1_is_cmp_eq_0_multiuse(i8 %x) {
 ; CHECK-LABEL: @and1_shl1_is_cmp_eq_0_multiuse(
-; CHECK-NEXT:    [[SH:%.*]] = shl i8 1, [[X:%.*]]
+; CHECK-NEXT:    [[SH:%.*]] = shl nuw i8 1, [[X:%.*]]
 ; CHECK-NEXT:    [[AND:%.*]] = and i8 [[SH]], 1
-; CHECK-NEXT:    [[ADD:%.*]] = add i8 [[SH]], [[AND]]
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw i8 [[SH]], [[AND]]
 ; CHECK-NEXT:    ret i8 [[ADD]]
 ;
   %sh = shl i8 1, %x

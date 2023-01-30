@@ -8,9 +8,10 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <CL/sycl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -23,7 +24,7 @@ public:
   virtual void depends_on(sycl::event) {}
 
   virtual event finalize() {
-    cl::sycl::detail::EventImplPtr NewEvent =
+    sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
@@ -47,13 +48,8 @@ public:
 
 // Only check events dependency in queue_impl::finalizeHandler
 TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on "
-              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
-    GTEST_SKIP(); // test is not supported on selected platform.
-  }
+  sycl::unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(

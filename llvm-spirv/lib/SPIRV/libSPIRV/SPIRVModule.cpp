@@ -610,8 +610,8 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
     auto Ext = CapObj->getRequiredExtension();
-    if (Ext.hasValue())
-      addExtension(Ext.getValue());
+    if (Ext.has_value())
+      addExtension(Ext.value());
   }
 
   CapMap.insert(std::make_pair(Cap, CapObj));
@@ -735,8 +735,8 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
     auto Ext = Entry->getRequiredExtension();
-    if (Ext.hasValue())
-      addExtension(Ext.getValue());
+    if (Ext.has_value())
+      addExtension(Ext.value());
   }
 
   return Entry;
@@ -1810,7 +1810,7 @@ public:
     for (auto *V : VariableVec)
       EntryStateMap[V] = DFSState::Unvisited;
     // Run topoligical sort
-    for (auto ES : EntryStateMap) {
+    for (const auto &ES : EntryStateMap) {
       if (visit(ES.first))
         llvm_unreachable("Cyclic dependency for types detected");
     }

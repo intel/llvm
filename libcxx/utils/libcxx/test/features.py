@@ -20,10 +20,16 @@ _msvcVersion  = lambda cfg: (int(compilerMacros(cfg)['_MSC_VER']) // 100, int(co
 
 def _hasSuitableClangTidy(cfg):
   try:
-    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-tidy --version'])).group()) >= 13
+    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-tidy --version'])).group()) >= 13 and runScriptExitCode(
+      cfg, ['stat %{test-tools}/clang_tidy_checks/libcxx-tidy.plugin']) == 0
   except ConfigurationRuntimeError:
     return False
 
+def _hasSuitableClangQuery(cfg):
+  try:
+    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-query --version'])).group()) >= 13
+  except ConfigurationRuntimeError:
+    return False
 
 DEFAULT_FEATURES = [
   Feature(name='fcoroutines-ts',
@@ -38,6 +44,18 @@ DEFAULT_FEATURES = [
   Feature(name='diagnose-if-support',
           when=lambda cfg: hasCompileFlag(cfg, '-Wuser-defined-warnings'),
           actions=[AddCompileFlag('-Wuser-defined-warnings')]),
+
+  # Tests to validate whether the compiler has a way to set the maximum number
+  # of steps during constant evaluation. Since the flag differs per compiler
+  # store the "valid" flag as a feature. This allows passing the proper compile
+  # flag to the compiler:
+  # // ADDITIONAL_COMPILE_FLAGS(has-fconstexpr-steps): -fconstexpr-steps=12345678
+  # // ADDITIONAL_COMPILE_FLAGS(has-fconstexpr-ops-limit): -fconstexpr-ops-limit=12345678
+  Feature(name='has-fconstexpr-steps',
+          when=lambda cfg: hasCompileFlag(cfg, '-fconstexpr-steps=1')),
+
+  Feature(name='has-fconstexpr-ops-limit',
+          when=lambda cfg: hasCompileFlag(cfg, '-fconstexpr-ops-limit=1')),
 
   Feature(name='has-fblocks',                   when=lambda cfg: hasCompileFlag(cfg, '-fblocks')),
   Feature(name='-fsized-deallocation',          when=lambda cfg: hasCompileFlag(cfg, '-fsized-deallocation')),
@@ -82,7 +100,7 @@ DEFAULT_FEATURES = [
   # Check for a Windows UCRT bug (fixed in UCRT/Windows 10.0.20348.0):
   # https://developercommunity.visualstudio.com/t/utf-8-locales-break-ctype-functions-for-wchar-type/1653678
   Feature(name='win32-broken-utf8-wchar-ctype',
-          when=lambda cfg: '_WIN32' in compilerMacros(cfg) and not programSucceeds(cfg, """
+          when=lambda cfg: not '_LIBCPP_HAS_NO_LOCALIZATION' in compilerMacros(cfg) and '_WIN32' in compilerMacros(cfg) and not programSucceeds(cfg, """
             #include <locale.h>
             #include <wctype.h>
             int main(int, char**) {
@@ -116,6 +134,15 @@ DEFAULT_FEATURES = [
             }
           """)),
 
+  Feature(name='has-unix-headers',
+          when=lambda cfg: sourceBuilds(cfg, """
+            #include <unistd.h>
+            #include <sys/wait.h>
+            int main(int, char**) {
+              return 0;
+            }
+          """)),
+
   # Whether Bash can run on the executor.
   # This is not always the case, for example when running on embedded systems.
   #
@@ -128,6 +155,8 @@ DEFAULT_FEATURES = [
           when=lambda cfg: runScriptExitCode(cfg, ['%{exec} bash -c \'bash --version\'']) != 0),
   Feature(name='has-clang-tidy',
           when=_hasSuitableClangTidy),
+  Feature(name='has-clang-query',
+          when=_hasSuitableClangQuery),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                          when=_isAppleClang),
@@ -165,20 +194,23 @@ DEFAULT_FEATURES = [
 # is defined after including <__config_site>, add a Lit feature called
 # `libcpp-xxx-yyy-zzz`. When a macro is defined to a specific value
 # (e.g. `_LIBCPP_ABI_VERSION=2`), the feature is `libcpp-xxx-yyy-zzz=<value>`.
+#
+# Note that features that are more strongly tied to libc++ are named libcpp-foo,
+# while features that are more general in nature are not prefixed with 'libcpp-'.
 macros = {
-  '_LIBCPP_HAS_NO_MONOTONIC_CLOCK': 'libcpp-has-no-monotonic-clock',
-  '_LIBCPP_HAS_NO_THREADS': 'libcpp-has-no-threads',
+  '_LIBCPP_HAS_NO_MONOTONIC_CLOCK': 'no-monotonic-clock',
+  '_LIBCPP_HAS_NO_THREADS': 'no-threads',
   '_LIBCPP_HAS_THREAD_API_EXTERNAL': 'libcpp-has-thread-api-external',
   '_LIBCPP_HAS_THREAD_API_PTHREAD': 'libcpp-has-thread-api-pthread',
   '_LIBCPP_NO_VCRUNTIME': 'libcpp-no-vcruntime',
   '_LIBCPP_ABI_VERSION': 'libcpp-abi-version',
-  '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'libcpp-has-no-filesystem-library',
-  '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'libcpp-has-no-random-device',
-  '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
-  '_LIBCPP_HAS_NO_WIDE_CHARACTERS': 'libcpp-has-no-wide-characters',
-  '_LIBCPP_HAS_NO_INCOMPLETE_FORMAT': 'libcpp-has-no-incomplete-format',
-  '_LIBCPP_HAS_NO_INCOMPLETE_RANGES': 'libcpp-has-no-incomplete-ranges',
+  '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'no-filesystem',
+  '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'no-random-device',
+  '_LIBCPP_HAS_NO_LOCALIZATION': 'no-localization',
+  '_LIBCPP_HAS_NO_FSTREAM': 'no-fstream',
+  '_LIBCPP_HAS_NO_WIDE_CHARACTERS': 'no-wide-characters',
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
+  '_LIBCPP_ENABLE_DEBUG_MODE': 'libcpp-has-debug-mode',
 }
 for macro, feature in macros.items():
   DEFAULT_FEATURES.append(
@@ -206,11 +238,38 @@ for locale, alts in locales.items():
                                   when=lambda cfg, alts=alts: hasAnyLocale(cfg, alts)))
 
 
-# Add features representing the platform name: darwin, linux, windows, etc...
+# Add features representing the target platform name: darwin, linux, windows, etc...
 DEFAULT_FEATURES += [
   Feature(name='darwin', when=lambda cfg: '__APPLE__' in compilerMacros(cfg)),
   Feature(name='windows', when=lambda cfg: '_WIN32' in compilerMacros(cfg)),
-  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and not '_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS' in compilerMacros(cfg)),
+  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and programSucceeds(cfg, """
+            #include <iostream>
+            #include <windows.h>
+            #include <winnt.h>
+            int main(int, char**) {
+              // Get a pointer to a data member that gets linked from the C++
+              // library. This must be a data member (functions can get
+              // thunk inside the calling executable), and must not be
+              // something that is defined inline in headers.
+              void *ptr = &std::cout;
+              // Get a handle to the current main executable.
+              void *exe = GetModuleHandle(NULL);
+              // The handle points at the PE image header. Navigate through
+              // the header structure to find the size of the PE image (the
+              // executable).
+              PIMAGE_DOS_HEADER dosheader = (PIMAGE_DOS_HEADER)exe;
+              PIMAGE_NT_HEADERS ntheader = (PIMAGE_NT_HEADERS)((BYTE *)dosheader + dosheader->e_lfanew);
+              PIMAGE_OPTIONAL_HEADER peheader = &ntheader->OptionalHeader;
+              void *exeend = (BYTE*)exe + peheader->SizeOfImage;
+              // Check if the tested pointer - the data symbol from the
+              // C++ library - is located within the exe.
+              if (ptr >= exe && ptr <= exeend)
+                return 1;
+              // Return success if it was outside of the executable, i.e.
+              // loaded from a DLL.
+              return 0;
+            }
+          """), actions=[AddCompileFlag('-DTEST_WINDOWS_DLL')]),
   Feature(name='linux', when=lambda cfg: '__linux__' in compilerMacros(cfg)),
   Feature(name='netbsd', when=lambda cfg: '__NetBSD__' in compilerMacros(cfg)),
   Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg))
@@ -220,9 +279,11 @@ DEFAULT_FEATURES += [
 # The build host could differ from the target platform for cross-compilation.
 DEFAULT_FEATURES += [
   Feature(name='buildhost={}'.format(sys.platform.lower().strip())),
-  # sys.platform can be represented by "sub-system" on Windows host, such as 'win32', 'cygwin', 'mingw' & etc.
-  # Here is a consolidated feature for the build host plaform name on Windows.
-  Feature(name='buildhost=windows', when=lambda cfg: platform.system().lower().startswith('windows'))
+  # sys.platform can often be represented by a "sub-system", such as 'win32', 'cygwin', 'mingw', freebsd13 & etc.
+  # We define a consolidated feature on a few platforms.
+  Feature(name='buildhost=windows', when=lambda cfg: platform.system().lower().startswith('windows')),
+  Feature(name='buildhost=freebsd', when=lambda cfg: platform.system().lower().startswith('freebsd')),
+  Feature(name='buildhost=aix', when=lambda cfg: platform.system().lower().startswith('aix'))
 ]
 
 # Detect whether GDB is on the system, has Python scripting and supports

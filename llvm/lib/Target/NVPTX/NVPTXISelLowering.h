@@ -499,10 +499,11 @@ public:
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
 
-  std::string getPrototype(const DataLayout &DL, Type *, const ArgListTy &,
-                           const SmallVectorImpl<ISD::OutputArg> &,
-                           MaybeAlign retAlignment, const CallBase &CB,
-                           unsigned UniqueCallSite) const;
+  std::string
+  getPrototype(const DataLayout &DL, Type *, const ArgListTy &,
+               const SmallVectorImpl<ISD::OutputArg> &, MaybeAlign retAlignment,
+               std::optional<std::pair<unsigned, const APInt &>> VAInfo,
+               const CallBase &CB, unsigned UniqueCallSite) const;
 
   SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -559,7 +560,18 @@ public:
   // x == 0 is not undefined behavior) into a branch that checks whether x is 0
   // and avoids calling ctlz in that case.  We have a dedicated ctlz
   // instruction, so we say that ctlz is cheap to speculate.
-  bool isCheapToSpeculateCtlz() const override { return true; }
+  bool isCheapToSpeculateCtlz(Type *Ty) const override { return true; }
+
+  AtomicExpansionKind shouldCastAtomicLoadInIR(LoadInst *LI) const override {
+    return AtomicExpansionKind::None;
+  }
+
+  AtomicExpansionKind shouldCastAtomicStoreInIR(StoreInst *SI) const override {
+    return AtomicExpansionKind::None;
+  }
+
+  AtomicExpansionKind
+  shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
 
 private:
   const NVPTXSubtarget &STI; // cache the subtarget here
@@ -584,6 +596,9 @@ private:
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;

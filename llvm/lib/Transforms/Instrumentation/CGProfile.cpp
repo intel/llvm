@@ -18,6 +18,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -39,7 +40,8 @@ addModuleFlags(Module &M,
     Nodes.push_back(MDNode::get(Context, Vals));
   }
 
-  M.addModuleFlag(Module::Append, "CG Profile", MDNode::get(Context, Nodes));
+  M.addModuleFlag(Module::Append, "CG Profile",
+                  MDTuple::getDistinct(Context, Nodes));
   return true;
 }
 
@@ -72,7 +74,7 @@ static bool runCGProfilePass(
       continue;
     TargetTransformInfo &TTI = GetTTI(F);
     for (auto &BB : F) {
-      Optional<uint64_t> BBCount = BFI.getBlockProfileCount(&BB);
+      std::optional<uint64_t> BBCount = BFI.getBlockProfileCount(&BB);
       if (!BBCount)
         continue;
       for (auto &I : BB) {
@@ -98,42 +100,6 @@ static bool runCGProfilePass(
   }
 
   return addModuleFlags(M, Counts);
-}
-
-namespace {
-struct CGProfileLegacyPass final : public ModulePass {
-  static char ID;
-  CGProfileLegacyPass() : ModulePass(ID) {
-    initializeCGProfileLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<LazyBlockFrequencyInfoPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-  }
-
-  bool runOnModule(Module &M) override {
-    auto GetBFI = [this](Function &F) -> BlockFrequencyInfo & {
-      return this->getAnalysis<LazyBlockFrequencyInfoPass>(F).getBFI();
-    };
-    auto GetTTI = [this](Function &F) -> TargetTransformInfo & {
-      return this->getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-    };
-
-    return runCGProfilePass(M, GetBFI, GetTTI, true);
-  }
-};
-
-} // namespace
-
-char CGProfileLegacyPass::ID = 0;
-
-INITIALIZE_PASS(CGProfileLegacyPass, "cg-profile", "Call Graph Profile", false,
-                false)
-
-ModulePass *llvm::createCGProfileLegacyPass() {
-  return new CGProfileLegacyPass();
 }
 
 PreservedAnalyses CGProfilePass::run(Module &M, ModuleAnalysisManager &MAM) {

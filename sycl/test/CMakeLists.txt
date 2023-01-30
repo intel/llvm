@@ -31,7 +31,6 @@ list(APPEND SYCL_TEST_DEPS
   sycl-toolchain
   FileCheck
   not
-  get_device_count_by_type
   llvm-config
   llvm-cxxdump
   llvm-dis
@@ -42,6 +41,13 @@ list(APPEND SYCL_DEPLOY_TEST_DEPS
   ${SYCL_TEST_DEPS}
   deploy-sycl-toolchain
   )
+
+set(SYCL_TEST_EXCLUDE "")
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # Debug compiler is very slow on sycl tests, tests may timeout sporadically
+  set(SYCL_TEST_EXCLUDE EXCLUDE_FROM_CHECK_ALL)
+  message(STATUS "Note: SYCL tests are excluded in check-all for Debug compiler")
+endif()
 
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -57,6 +63,14 @@ add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression test
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
   DEPENDS ${SYCL_TEST_DEPS}
+  ${SYCL_TEST_EXCLUDE}
+  )
+
+add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_LIB_DUMPS_ONLY=True"
+  DEPENDS sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
 
@@ -64,17 +78,13 @@ add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-spirv)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
-if (TARGET check-all)
-  add_dependencies(check-all check-sycl)
-endif()
-
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
     PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
-    EXCLUDE_FROM_CHECK_ALL
+    ${SYCL_TEST_EXCLUDE}
   )
 
   add_custom_target(check-sycl-cuda)
@@ -90,7 +100,7 @@ if(SYCL_BUILD_PI_HIP)
       ARGS ${RT_TEST_ARGS}
       PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=hip"
       DEPENDS ${SYCL_TEST_DEPS}
-      EXCLUDE_FROM_CHECK_ALL
+      ${SYCL_TEST_EXCLUDE}
     )
 
     add_dependencies(check-sycl-hip check-sycl-hip-ptx)
@@ -100,7 +110,7 @@ if(SYCL_BUILD_PI_HIP)
       ARGS ${RT_TEST_ARGS}
       PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=hip"
       DEPENDS ${SYCL_TEST_DEPS}
-      EXCLUDE_FROM_CHECK_ALL
+      ${SYCL_TEST_EXCLUDE}
     )
 
     add_dependencies(check-sycl-hip check-sycl-hip-gcn)
@@ -110,3 +120,7 @@ if(SYCL_BUILD_PI_HIP)
 
   add_dependencies(check-sycl check-sycl-hip)
 endif()
+
+if(SYCL_ENABLE_KERNEL_FUSION)
+  add_dependencies(check-sycl check-sycl-fusion)
+endif(SYCL_ENABLE_KERNEL_FUSION)

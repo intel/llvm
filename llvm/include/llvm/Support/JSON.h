@@ -53,6 +53,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cmath>
 #include <map>
 
 namespace llvm {
@@ -84,7 +85,7 @@ std::string fixUTF8(llvm::StringRef S);
 class Array;
 class ObjectKey;
 class Value;
-template <typename T> Value toJSON(const llvm::Optional<T> &Opt);
+template <typename T> Value toJSON(const std::optional<T> &Opt);
 
 /// An Object is a JSON object, which maps strings to heterogenous JSON values.
 /// It simulates DenseMap<ObjectKey, Value>. ObjectKey is a maybe-owned string.
@@ -134,14 +135,14 @@ public:
   // Look up a property, returning nullptr if it doesn't exist.
   Value *get(StringRef K);
   const Value *get(StringRef K) const;
-  // Typed accessors return None/nullptr if
+  // Typed accessors return std::nullopt/nullptr if
   //   - the property doesn't exist
   //   - or it has the wrong type
-  llvm::Optional<std::nullptr_t> getNull(StringRef K) const;
-  llvm::Optional<bool> getBoolean(StringRef K) const;
-  llvm::Optional<double> getNumber(StringRef K) const;
-  llvm::Optional<int64_t> getInteger(StringRef K) const;
-  llvm::Optional<llvm::StringRef> getString(StringRef K) const;
+  std::optional<std::nullptr_t> getNull(StringRef K) const;
+  std::optional<bool> getBoolean(StringRef K) const;
+  std::optional<double> getNumber(StringRef K) const;
+  std::optional<int64_t> getInteger(StringRef K) const;
+  std::optional<llvm::StringRef> getString(StringRef K) const;
   const json::Object *getObject(StringRef K) const;
   json::Object *getObject(StringRef K);
   const json::Array *getArray(StringRef K) const;
@@ -169,44 +170,36 @@ public:
       emplace_back(V);
   }
 
-  Value &operator[](size_t I) { return V[I]; }
-  const Value &operator[](size_t I) const { return V[I]; }
-  Value &front() { return V.front(); }
-  const Value &front() const { return V.front(); }
-  Value &back() { return V.back(); }
-  const Value &back() const { return V.back(); }
-  Value *data() { return V.data(); }
-  const Value *data() const { return V.data(); }
+  Value &operator[](size_t I);
+  const Value &operator[](size_t I) const;
+  Value &front();
+  const Value &front() const;
+  Value &back();
+  const Value &back() const;
+  Value *data();
+  const Value *data() const;
 
-  iterator begin() { return V.begin(); }
-  const_iterator begin() const { return V.begin(); }
-  iterator end() { return V.end(); }
-  const_iterator end() const { return V.end(); }
+  iterator begin();
+  const_iterator begin() const;
+  iterator end();
+  const_iterator end() const;
 
-  bool empty() const { return V.empty(); }
-  size_t size() const { return V.size(); }
-  void reserve(size_t S) { V.reserve(S); }
+  bool empty() const;
+  size_t size() const;
+  void reserve(size_t S);
 
-  void clear() { V.clear(); }
-  void push_back(const Value &E) { V.push_back(E); }
-  void push_back(Value &&E) { V.push_back(std::move(E)); }
-  template <typename... Args> void emplace_back(Args &&... A) {
-    V.emplace_back(std::forward<Args>(A)...);
-  }
-  void pop_back() { V.pop_back(); }
+  void clear();
+  void push_back(const Value &E);
+  void push_back(Value &&E);
+  template <typename... Args> void emplace_back(Args &&...A);
+  void pop_back();
   // FIXME: insert() takes const_iterator since C++11, old libstdc++ disagrees.
-  iterator insert(iterator P, const Value &E) { return V.insert(P, E); }
-  iterator insert(iterator P, Value &&E) {
-    return V.insert(P, std::move(E));
-  }
-  template <typename It> iterator insert(iterator P, It A, It Z) {
-    return V.insert(P, A, Z);
-  }
-  template <typename... Args> iterator emplace(const_iterator P, Args &&... A) {
-    return V.emplace(P, std::forward<Args>(A)...);
-  }
+  iterator insert(iterator P, const Value &E);
+  iterator insert(iterator P, Value &&E);
+  template <typename It> iterator insert(iterator P, It A, It Z);
+  template <typename... Args> iterator emplace(const_iterator P, Args &&...A);
 
-  friend bool operator==(const Array &L, const Array &R) { return L.V == R.V; }
+  friend bool operator==(const Array &L, const Array &R);
 };
 inline bool operator!=(const Array &L, const Array &R) { return !(L == R); }
 
@@ -241,14 +234,14 @@ inline bool operator!=(const Array &L, const Array &R) { return !(L == R); }
 ///   object  (json::Object)
 ///
 /// The kind can be queried directly, or implicitly via the typed accessors:
-///   if (Optional<StringRef> S = E.getAsString()
+///   if (std::optional<StringRef> S = E.getAsString()
 ///     assert(E.kind() == Value::String);
 ///
 /// Array and Object also have typed indexing accessors for easy traversal:
 ///   Expected<Value> E = parse(R"( {"options": {"font": "sans-serif"}} )");
 ///   if (Object* O = E->getAsObject())
 ///     if (Object* Opts = O->getObject("options"))
-///       if (Optional<StringRef> Font = Opts->getString("font"))
+///       if (std::optional<StringRef> Font = Opts->getString("font"))
 ///         assert(Opts->at("font").kind() == Value::String);
 ///
 /// === Converting JSON values to C++ types ===
@@ -269,13 +262,13 @@ inline bool operator!=(const Array &L, const Array &R) { return !(L == R); }
 ///   - std::string
 ///   - vector<T>, where T is deserializable
 ///   - map<string, T>, where T is deserializable
-///   - Optional<T>, where T is deserializable
+///   - std::optional<T>, where T is deserializable
 /// ObjectMapper can help writing fromJSON() functions for object types.
 ///
 /// For conversion in the other direction, the serializer function is:
 ///    toJSON(const T&) -> json::Value
 /// If this exists, then it also allows constructing Value from T, and can
-/// be used to serialize vector<T>, map<string, T>, and Optional<T>.
+/// be used to serialize vector<T>, map<string, T>, and std::optional<T>.
 ///
 /// === Serialization ===
 ///
@@ -407,28 +400,29 @@ public:
     llvm_unreachable("Unknown kind");
   }
 
-  // Typed accessors return None/nullptr if the Value is not of this type.
-  llvm::Optional<std::nullptr_t> getAsNull() const {
+  // Typed accessors return std::nullopt/nullptr if the Value is not of this
+  // type.
+  std::optional<std::nullptr_t> getAsNull() const {
     if (LLVM_LIKELY(Type == T_Null))
       return nullptr;
-    return llvm::None;
+    return std::nullopt;
   }
-  llvm::Optional<bool> getAsBoolean() const {
+  std::optional<bool> getAsBoolean() const {
     if (LLVM_LIKELY(Type == T_Boolean))
       return as<bool>();
-    return llvm::None;
+    return std::nullopt;
   }
-  llvm::Optional<double> getAsNumber() const {
+  std::optional<double> getAsNumber() const {
     if (LLVM_LIKELY(Type == T_Double))
       return as<double>();
     if (LLVM_LIKELY(Type == T_Integer))
       return as<int64_t>();
     if (LLVM_LIKELY(Type == T_UINT64))
       return as<uint64_t>();
-    return llvm::None;
+    return std::nullopt;
   }
   // Succeeds if the Value is a Number, and exactly representable as int64_t.
-  llvm::Optional<int64_t> getAsInteger() const {
+  std::optional<int64_t> getAsInteger() const {
     if (LLVM_LIKELY(Type == T_Integer))
       return as<int64_t>();
     if (LLVM_LIKELY(Type == T_Double)) {
@@ -438,9 +432,9 @@ public:
                       D <= double(std::numeric_limits<int64_t>::max())))
         return D;
     }
-    return llvm::None;
+    return std::nullopt;
   }
-  llvm::Optional<uint64_t> getAsUINT64() const {
+  std::optional<uint64_t> getAsUINT64() const {
     if (Type == T_UINT64)
       return as<uint64_t>();
     else if (Type == T_Integer) {
@@ -448,14 +442,14 @@ public:
       if (N >= 0)
         return as<uint64_t>();
     }
-    return llvm::None;
+    return std::nullopt;
   }
-  llvm::Optional<llvm::StringRef> getAsString() const {
+  std::optional<llvm::StringRef> getAsString() const {
     if (Type == T_String)
       return llvm::StringRef(as<std::string>());
     if (LLVM_LIKELY(Type == T_StringRef))
       return as<llvm::StringRef>();
-    return llvm::None;
+    return std::nullopt;
   }
   const json::Object *getAsObject() const {
     return LLVM_LIKELY(Type == T_Object) ? &as<json::Object>() : nullptr;
@@ -514,6 +508,48 @@ private:
 
 bool operator==(const Value &, const Value &);
 inline bool operator!=(const Value &L, const Value &R) { return !(L == R); }
+
+// Array Methods
+inline Value &Array::operator[](size_t I) { return V[I]; }
+inline const Value &Array::operator[](size_t I) const { return V[I]; }
+inline Value &Array::front() { return V.front(); }
+inline const Value &Array::front() const { return V.front(); }
+inline Value &Array::back() { return V.back(); }
+inline const Value &Array::back() const { return V.back(); }
+inline Value *Array::data() { return V.data(); }
+inline const Value *Array::data() const { return V.data(); }
+
+inline typename Array::iterator Array::begin() { return V.begin(); }
+inline typename Array::const_iterator Array::begin() const { return V.begin(); }
+inline typename Array::iterator Array::end() { return V.end(); }
+inline typename Array::const_iterator Array::end() const { return V.end(); }
+
+inline bool Array::empty() const { return V.empty(); }
+inline size_t Array::size() const { return V.size(); }
+inline void Array::reserve(size_t S) { V.reserve(S); }
+
+inline void Array::clear() { V.clear(); }
+inline void Array::push_back(const Value &E) { V.push_back(E); }
+inline void Array::push_back(Value &&E) { V.push_back(std::move(E)); }
+template <typename... Args> inline void Array::emplace_back(Args &&...A) {
+  V.emplace_back(std::forward<Args>(A)...);
+}
+inline void Array::pop_back() { V.pop_back(); }
+inline typename Array::iterator Array::insert(iterator P, const Value &E) {
+  return V.insert(P, E);
+}
+inline typename Array::iterator Array::insert(iterator P, Value &&E) {
+  return V.insert(P, std::move(E));
+}
+template <typename It>
+inline typename Array::iterator Array::insert(iterator P, It A, It Z) {
+  return V.insert(P, A, Z);
+}
+template <typename... Args>
+inline typename Array::iterator Array::emplace(const_iterator P, Args &&...A) {
+  return V.emplace(P, std::forward<Args>(A)...);
+}
+inline bool operator==(const Array &L, const Array &R) { return L.V == R.V; }
 
 /// ObjectKey is a used to capture keys in Object. Like Value but:
 ///   - only strings are allowed
@@ -727,9 +763,9 @@ inline bool fromJSON(const Value &E, std::nullptr_t &Out, Path P) {
   return false;
 }
 template <typename T>
-bool fromJSON(const Value &E, llvm::Optional<T> &Out, Path P) {
+bool fromJSON(const Value &E, std::optional<T> &Out, Path P) {
   if (E.getAsNull()) {
-    Out = llvm::None;
+    Out = std::nullopt;
     return true;
   }
   T Result;
@@ -765,8 +801,8 @@ bool fromJSON(const Value &E, std::map<std::string, T> &Out, Path P) {
   return false;
 }
 
-// Allow serialization of Optional<T> for supported T.
-template <typename T> Value toJSON(const llvm::Optional<T> &Opt) {
+// Allow serialization of std::optional<T> for supported T.
+template <typename T> Value toJSON(const std::optional<T> &Opt) {
   return Opt ? Value(*Opt) : Value(nullptr);
 }
 
@@ -806,11 +842,11 @@ public:
   /// Maps a property to a field, if it exists.
   /// If the property exists and is invalid, reports an error.
   /// (Optional requires special handling, because missing keys are OK).
-  template <typename T> bool map(StringLiteral Prop, llvm::Optional<T> &Out) {
+  template <typename T> bool map(StringLiteral Prop, std::optional<T> &Out) {
     assert(*this && "Must check this is an object before calling map()");
     if (const Value *E = O->get(Prop))
       return fromJSON(*E, Out, P.field(Prop));
-    Out = llvm::None;
+    Out = std::nullopt;
     return true;
   }
 

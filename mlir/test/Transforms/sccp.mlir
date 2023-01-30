@@ -1,9 +1,9 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="func.func(sccp)" -split-input-file | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.module(func.func(sccp))" -split-input-file | FileCheck %s
 
 /// Check simple forward constant propagation without any control flow.
 
 // CHECK-LABEL: func @no_control_flow
-func @no_control_flow(%arg0: i32) -> i32 {
+func.func @no_control_flow(%arg0: i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -17,7 +17,7 @@ func @no_control_flow(%arg0: i32) -> i32 {
 /// is taken.
 
 // CHECK-LABEL: func @simple_control_flow
-func @simple_control_flow(%arg0 : i32) -> i32 {
+func.func @simple_control_flow(%arg0 : i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
 
   %cond = arith.constant true
@@ -38,7 +38,7 @@ func @simple_control_flow(%arg0 : i32) -> i32 {
 /// a specific successor is taken.
 
 // CHECK-LABEL: func @simple_control_flow_overdefined
-func @simple_control_flow_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
+func.func @simple_control_flow_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
   %1 = arith.constant 1 : i32
   cf.cond_br %arg1, ^bb1, ^bb2(%arg0 : i32)
 
@@ -56,7 +56,7 @@ func @simple_control_flow_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
 /// constants.
 
 // CHECK-LABEL: func @simple_control_flow_constant_overdefined
-func @simple_control_flow_constant_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
+func.func @simple_control_flow_constant_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
   %1 = arith.constant 1 : i32
   %2 = arith.constant 2 : i32
   cf.cond_br %arg1, ^bb1, ^bb2(%arg0 : i32)
@@ -74,7 +74,7 @@ func @simple_control_flow_constant_overdefined(%arg0 : i32, %arg1 : i1) -> i32 {
 /// Check that the arguments go to overdefined if the branch is unknown.
 
 // CHECK-LABEL: func @unknown_terminator
-func @unknown_terminator(%arg0 : i32, %arg1 : i1) -> i32 {
+func.func @unknown_terminator(%arg0 : i32, %arg1 : i1) -> i32 {
   %1 = arith.constant 1 : i32
   "foo.cond_br"() [^bb1, ^bb2] : () -> ()
 
@@ -90,10 +90,10 @@ func @unknown_terminator(%arg0 : i32, %arg1 : i1) -> i32 {
 
 /// Check that arguments are properly merged across loop-like control flow.
 
-func private @ext_cond_fn() -> i1
+func.func private @ext_cond_fn() -> i1
 
 // CHECK-LABEL: func @simple_loop
-func @simple_loop(%arg0 : i32, %cond1 : i1) -> i32 {
+func.func @simple_loop(%arg0 : i32, %cond1 : i1) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
 
   %cst_1 = arith.constant 1 : i32
@@ -121,7 +121,7 @@ func @simple_loop(%arg0 : i32, %cond1 : i1) -> i32 {
 /// of the analysis.
 
 // CHECK-LABEL: func @simple_loop_inner_control_flow
-func @simple_loop_inner_control_flow(%arg0 : i32) -> i32 {
+func.func @simple_loop_inner_control_flow(%arg0 : i32) -> i32 {
   // CHECK-DAG: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK-DAG: %[[TRUE:.*]] = arith.constant true
 
@@ -161,10 +161,10 @@ func @simple_loop_inner_control_flow(%arg0 : i32) -> i32 {
 /// Check that arguments go to overdefined when loop backedges produce a
 /// conflicting value.
 
-func private @ext_cond_and_value_fn() -> (i1, i32)
+func.func private @ext_cond_and_value_fn() -> (i1, i32)
 
 // CHECK-LABEL: func @simple_loop_overdefined
-func @simple_loop_overdefined(%arg0 : i32, %cond1 : i1) -> i32 {
+func.func @simple_loop_overdefined(%arg0 : i32, %cond1 : i1) -> i32 {
   %cst_1 = arith.constant 1 : i32
   cf.cond_br %cond1, ^bb1(%cst_1 : i32), ^bb2(%cst_1 : i32)
 
@@ -182,7 +182,7 @@ func @simple_loop_overdefined(%arg0 : i32, %cond1 : i1) -> i32 {
 // Check that we reprocess executable edges when information changes.
 
 // CHECK-LABEL: func @recheck_executable_edge
-func @recheck_executable_edge(%cond0: i1) -> (i1, i1) {
+func.func @recheck_executable_edge(%cond0: i1) -> (i1, i1) {
   %true = arith.constant true
   %false = arith.constant false
   cf.cond_br %cond0, ^bb_1a, ^bb2(%false : i1)
@@ -200,11 +200,11 @@ func @recheck_executable_edge(%cond0: i1) -> (i1, i1) {
 }
 
 // CHECK-LABEL: func @simple_produced_operand
-func @simple_produced_operand() -> (i32, i32) {
+func.func @simple_produced_operand() -> (i32, i32) {
   // CHECK: %[[ONE:.*]] = arith.constant 1
   %1 = arith.constant 1 : i32
   "test.internal_br"(%1) [^bb1, ^bb2] {
-    operand_segment_sizes = dense<[0, 1]> : vector<2 x i32>
+    operand_segment_sizes = array<i32: 0, 1>
   } : (i32) -> ()
 
 ^bb1:
@@ -215,4 +215,34 @@ func @simple_produced_operand() -> (i32, i32) {
   // CHECK: return %[[ARG]], %[[ONE]] : i32, i32
 
   return %arg1, %arg2 : i32, i32
+}
+
+// CHECK-LABEL: inplace_fold
+func.func @inplace_fold() -> (i32) {
+  %0 = "test.op_in_place_fold_success"() : () -> i1
+  %1 = arith.constant 5 : i32
+  cf.cond_br %0, ^a, ^b
+
+^a:
+  // CHECK-NOT: addi
+  %3 = arith.addi %1, %1 : i32
+  return %3 : i32
+
+^b:
+  return %1 : i32
+}
+
+// CHECK-LABEL: op_with_region
+func.func @op_with_region() -> (i32) {
+  %0 = "test.op_with_region"() ({}) : () -> i1
+  %1 = arith.constant 5 : i32
+  cf.cond_br %0, ^a, ^b
+
+^a:
+  // CHECK-NOT: addi
+  %3 = arith.addi %1, %1 : i32
+  return %3 : i32
+
+^b:
+  return %1 : i32
 }

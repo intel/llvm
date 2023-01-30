@@ -454,7 +454,7 @@ std::string getEnvWin(const wchar_t *Var) {
 // RAII helper to set and restore an environment variable.
 class WithEnv {
   const char *Var;
-  llvm::Optional<std::string> OriginalValue;
+  std::optional<std::string> OriginalValue;
 
 public:
   WithEnv(const char *Var, const char *Value) : Var(Var) {
@@ -815,6 +815,27 @@ TEST_F(FileSystemTest, RealPathNoReadPerm) {
                                 false));
 
   ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noreadperm"));
+}
+TEST_F(FileSystemTest, RemoveDirectoriesNoExePerm) {
+  SmallString<64> Expanded;
+
+  ASSERT_NO_ERROR(
+      fs::create_directories(Twine(TestDirectory) + "/noexeperm/foo"));
+  ASSERT_TRUE(fs::exists(Twine(TestDirectory) + "/noexeperm/foo"));
+
+  fs::setPermissions(Twine(TestDirectory) + "/noexeperm",
+                     fs::all_read | fs::all_write);
+
+  ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noexeperm",
+                                         /*IgnoreErrors=*/true));
+
+  // It's expected that the directory exists, but some environments appear to
+  // allow the removal despite missing the 'x' permission, so be flexible.
+  if (fs::exists(Twine(TestDirectory) + "/noexeperm")) {
+    fs::setPermissions(Twine(TestDirectory) + "/noexeperm", fs::all_perms);
+    ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noexeperm",
+                                           /*IgnoreErrors=*/false));
+  }
 }
 #endif
 
@@ -1544,16 +1565,14 @@ TEST(Support, RemoveDots) {
   EXPECT_EQ("C:\\a\\c", remove_dots("C:\\foo\\bar//..\\..\\a\\c", true,
                                     path::Style::windows));
 
-  // FIXME: These leading forward slashes are emergent behavior. VFS depends on
-  // this behavior now.
-  EXPECT_EQ("C:/bar",
+  EXPECT_EQ("C:\\bar",
             remove_dots("C:/foo/../bar", true, path::Style::windows));
-  EXPECT_EQ("C:/foo\\bar",
+  EXPECT_EQ("C:\\foo\\bar",
             remove_dots("C:/foo/bar", true, path::Style::windows));
-  EXPECT_EQ("C:/foo\\bar",
+  EXPECT_EQ("C:\\foo\\bar",
             remove_dots("C:/foo\\bar", true, path::Style::windows));
-  EXPECT_EQ("/", remove_dots("/", true, path::Style::windows));
-  EXPECT_EQ("C:/", remove_dots("C:/", true, path::Style::windows));
+  EXPECT_EQ("\\", remove_dots("/", true, path::Style::windows));
+  EXPECT_EQ("C:\\", remove_dots("C:/", true, path::Style::windows));
 
   // Some clients of remove_dots expect it to remove trailing slashes. Again,
   // this is emergent behavior that VFS relies on, and not inherently part of
@@ -1564,7 +1583,8 @@ TEST(Support, RemoveDots) {
             remove_dots("/foo/bar/", true, path::Style::posix));
 
   // A double separator is rewritten.
-  EXPECT_EQ("C:/foo\\bar", remove_dots("C:/foo//bar", true, path::Style::windows));
+  EXPECT_EQ("C:\\foo\\bar",
+            remove_dots("C:/foo//bar", true, path::Style::windows));
 
   SmallString<64> Path1(".\\.\\c");
   EXPECT_TRUE(path::remove_dots(Path1, true, path::Style::windows));
@@ -1747,7 +1767,7 @@ static void verifyFileContents(const Twine &Path, StringRef Contents) {
 
 TEST_F(FileSystemTest, CreateNew) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1771,7 +1791,7 @@ TEST_F(FileSystemTest, CreateNew) {
 
 TEST_F(FileSystemTest, CreateAlways) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1849,7 +1869,7 @@ TEST_F(FileSystemTest, AppendSetsCorrectFileOffset) {
   // the specified disposition.
   for (fs::CreationDisposition Disp : Disps) {
     int FD;
-    Optional<FileDescriptorCloser> Closer;
+    std::optional<FileDescriptorCloser> Closer;
 
     createFileWithData(NonExistantFile, false, fs::CD_CreateNew, "Fizz");
 
@@ -1955,7 +1975,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
   createFileWithData(NonExistantFile, false, fs::CD_CreateNew, Content);
   FileRemover Cleanup(NonExistantFile);
   const auto &Read = [&](SmallVectorImpl<char> &V,
-                         Optional<ssize_t> ChunkSize) {
+                         std::optional<ssize_t> ChunkSize) {
     Expected<fs::file_t> FD = fs::openNativeFileForRead(NonExistantFile);
     if (!FD)
       return FD.takeError();
@@ -1974,7 +1994,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
         static_cast<SmallVectorImpl<char> *>(&StaysSmall),
     };
     for (SmallVectorImpl<char> *V : Vectors) {
-      ASSERT_THAT_ERROR(Read(*V, None), Succeeded());
+      ASSERT_THAT_ERROR(Read(*V, std::nullopt), Succeeded());
       ASSERT_EQ(Content, StringRef(V->begin(), V->size()));
     }
     ASSERT_EQ(fs::DefaultReadChunkSize + Content.size(), StaysSmall.capacity());
@@ -1984,7 +2004,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
       constexpr StringLiteral Prefix = "prefix-";
       for (SmallVectorImpl<char> *V : Vectors) {
         V->assign(Prefix.begin(), Prefix.end());
-        ASSERT_THAT_ERROR(Read(*V, None), Succeeded());
+        ASSERT_THAT_ERROR(Read(*V, std::nullopt), Succeeded());
         ASSERT_EQ((Prefix + Content).str(), StringRef(V->begin(), V->size()));
       }
     }

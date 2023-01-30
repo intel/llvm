@@ -1,5 +1,4 @@
 // Tests the abilities involved with using an external host compiler
-// REQUIRES: clang-driver
 
 /// enabling with -fsycl-host-compiler
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
@@ -68,3 +67,12 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %t.o -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=WARNING_HOST_COMPILER %s
 // WARNING_HOST_COMPILER-NOT: warning: argument unused during compilation: '-fsycl-host-compiler=g++' [-Wunused-command-line-argument]
+
+// Zc:__cplusplus, Zc:__cplusplus- check
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
+// RUN: %clang_cl -### %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=g++ -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
+// CHECK-ZC-CPLUSPLUS: "/Zc:__cplusplus"
+// CHECK-ZC-CPLUSPLUS-MINUS: "/Zc:__cplusplus-"
+// CHECK-NO-ZC-CPLUSPLUS-NOT: "/Zc:__cplusplus"

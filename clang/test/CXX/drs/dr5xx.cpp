@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 // FIXME: This is included to avoid a diagnostic with no source location
 // pointing at the implicit operator new. We can't match such a diagnostic
@@ -162,7 +163,7 @@ namespace dr522 { // dr522: yes
   template<typename T> void b3(Base<T> *);
 
   void test(int n, const int cn, int **p, int *S::*pm) {
-    int *a[3], *S::*am[3]; 
+    int *a[3], *S::*am[3];
     const Derived cd = Derived();
     Derived d[3];
 
@@ -228,8 +229,12 @@ namespace dr526 { // dr526: yes
   template<int N> struct X {
     typedef int type;
     X<N>::type v1;
-    X<(N)>::type v2; // expected-error {{missing 'typename'}}
-    X<+N>::type v3; // expected-error {{missing 'typename'}}
+    X<(N)>::type v2;
+    X<+N>::type v3;
+#if __cplusplus <= 201703L
+    // expected-error@-3 {{implicit 'typename' is a C++20 extension}}
+    // expected-error@-3 {{implicit 'typename' is a C++20 extension}}
+#endif
   };
 }
 
@@ -345,12 +350,15 @@ namespace dr531 { // dr531: partial
     template<> template<typename U> template<typename V> void A<int>::B<U>::h() {}
     template<typename U> template<typename V> void A<int>::B<U>::i() {} // expected-error {{should be empty}}
 
+#if __cplusplus <= 201703L
+    // FIXME: All of those declarations shouldn't crash in C++20 mode.
     template<> template<> void A<int>::B<int>::f() {}
     template<> template<> template<typename V> void A<int>::B<int>::h() {}
     template<> template<> template<> void A<int>::B<int>::h<int>() {}
 
     template<> void A<int>::B<char>::f() {} // expected-error {{requires 'template<>'}}
     template<> template<typename V> void A<int>::B<char>::h() {} // expected-error {{should be empty}}
+#endif
   }
 }
 
@@ -413,20 +421,20 @@ namespace dr535 { // dr535: yes
 // dr538: na
 
 // dr539: yes
-const dr539( // expected-error {{requires a type specifier}}
+const dr539( // expected-error {{a type specifier is required}}
     const a) { // expected-error {{unknown type name 'a'}}
-  const b; // expected-error {{requires a type specifier}}
+  const b; // expected-error {{a type specifier is required}}
   new const; // expected-error {{expected a type}}
   try {} catch (const n) {} // expected-error {{unknown type name 'n'}}
   try {} catch (const) {} // expected-error {{expected a type}}
-  if (const n = 0) {} // expected-error {{requires a type specifier}}
-  switch (const n = 0) {} // expected-error {{requires a type specifier}}
-  while (const n = 0) {} // expected-error {{requires a type specifier}}
-  for (const n = 0; // expected-error {{requires a type specifier}}
-       const m = 0; ) {} // expected-error {{requires a type specifier}}
-  sizeof(const); // expected-error {{requires a type specifier}}
+  if (const n = 0) {} // expected-error {{a type specifier is required}}
+  switch (const n = 0) {} // expected-error {{a type specifier is required}}
+  while (const n = 0) {} // expected-error {{a type specifier is required}}
+  for (const n = 0; // expected-error {{a type specifier is required}}
+       const m = 0; ) {} // expected-error {{a type specifier is required}}
+  sizeof(const); // expected-error {{a type specifier is required}}
   struct S {
-    const n; // expected-error {{requires a type specifier}}
+    const n; // expected-error {{a type specifier is required}}
     operator const(); // expected-error {{expected a type}}
   };
 #if __cplusplus >= 201103L
@@ -435,7 +443,7 @@ const dr539( // expected-error {{requires a type specifier}}
   // badly confused when recovering here. We should fix this recovery.
   { for (const n // expected-error {{unknown type name 'n'}} expected-note {{}}
          : arr) ; {} } // expected-error +{{}}
-  (void) [](const) {}; // expected-error {{requires a type specifier}}
+  (void) [](const) {}; // expected-error {{a type specifier is required}}
   (void) [](const n) {}; // expected-error {{unknown type name 'n'}}
   enum E : const {}; // expected-error {{expected a type}}
   using T = const; // expected-error {{expected a type}}
@@ -478,8 +486,15 @@ namespace dr541 { // dr541: yes
 
 namespace dr542 { // dr542: yes
 #if __cplusplus >= 201103L
+  // In C++20 A and B are no longer aggregates and thus the constructor is
+  // called, which fails.
   struct A { A() = delete; int n; };
   A a[32] = {}; // ok, constructor not called
+#if __cplusplus > 201703L
+  // expected-error@-2 {{call to deleted constructor}}
+  // expected-note@-3 {{in implicit initialization}}
+  // expected-note@-5 {{marked deleted here}}
+#endif
 
   struct B {
     int n;
@@ -487,6 +502,10 @@ namespace dr542 { // dr542: yes
     B() = default;
   };
   B b[32] = {}; // ok, constructor not called
+#if __cplusplus > 201703L
+  // expected-error@-2 {{calling a private constructor}}
+  // expected-note@-5 {{declared private here}}
+#endif
 #endif
 }
 
@@ -583,6 +602,7 @@ namespace dr553 {
   };
 }
 
+// dr554: na
 // dr556: na
 
 namespace dr557 { // dr557: yes
@@ -879,7 +899,7 @@ namespace dr585 { // dr585: yes
   struct A {
     friend T;
 #if __cplusplus <= 201402L
-    // expected-error@-2 {{requires a type specifier}} expected-error@-2 {{can only be classes or functions}}
+    // expected-error@-2 {{a type specifier is required}} expected-error@-2 {{can only be classes or functions}}
 #else
     // expected-error@-4 {{use of class template 'T' requires template arguments; argument deduction not allowed in friend declaration}}
     // expected-note@-7 {{here}}
@@ -891,7 +911,7 @@ namespace dr585 { // dr585: yes
   template<template<typename> class T> struct B {
     friend T;
 #if __cplusplus <= 201402L
-    // expected-error@-2 {{requires a type specifier}} expected-error@-2 {{can only be classes or functions}}
+    // expected-error@-2 {{a type specifier is required}} expected-error@-2 {{can only be classes or functions}}
 #else
     // expected-error@-4 {{use of template template parameter 'T' requires template arguments; argument deduction not allowed in friend declaration}}
     // expected-note@-6 {{here}}
@@ -954,7 +974,7 @@ namespace dr591 { // dr591: no
 
   template<typename T> struct A<T>::B::C : A<T> {
     // FIXME: Should find member of non-dependent base class A<T>.
-    M m; // expected-error {{incomplete type 'dr591::A::B::M' (aka 'void'}}
+    M m; // expected-error {{incomplete type 'M' (aka 'void'}}
   };
 }
 

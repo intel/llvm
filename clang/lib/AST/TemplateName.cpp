@@ -35,31 +35,69 @@ using namespace clang;
 
 TemplateArgument
 SubstTemplateTemplateParmPackStorage::getArgumentPack() const {
-  return TemplateArgument(llvm::makeArrayRef(Arguments, size()));
+  return TemplateArgument(llvm::makeArrayRef(Arguments, Bits.Data));
+}
+
+TemplateTemplateParmDecl *
+SubstTemplateTemplateParmPackStorage::getParameterPack() const {
+  return cast<TemplateTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())
+          ->asArray()[Bits.Index]);
+}
+
+TemplateTemplateParmDecl *
+SubstTemplateTemplateParmStorage::getParameter() const {
+  return cast<TemplateTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())
+          ->asArray()[Bits.Index]);
 }
 
 void SubstTemplateTemplateParmStorage::Profile(llvm::FoldingSetNodeID &ID) {
-  Profile(ID, Parameter, Replacement);
+  Profile(ID, Replacement, getAssociatedDecl(), getIndex(), getPackIndex());
 }
 
 void SubstTemplateTemplateParmStorage::Profile(llvm::FoldingSetNodeID &ID,
-                                           TemplateTemplateParmDecl *parameter,
-                                               TemplateName replacement) {
-  ID.AddPointer(parameter);
-  ID.AddPointer(replacement.getAsVoidPointer());
+                                               TemplateName Replacement,
+                                               Decl *AssociatedDecl,
+                                               unsigned Index,
+                                               Optional<unsigned> PackIndex) {
+  Replacement.Profile(ID);
+  ID.AddPointer(AssociatedDecl);
+  ID.AddInteger(Index);
+  ID.AddInteger(PackIndex ? *PackIndex + 1 : 0);
+}
+
+SubstTemplateTemplateParmPackStorage::SubstTemplateTemplateParmPackStorage(
+    ArrayRef<TemplateArgument> ArgPack, Decl *AssociatedDecl, unsigned Index,
+    bool Final)
+    : UncommonTemplateNameStorage(SubstTemplateTemplateParmPack, Index,
+                                  ArgPack.size()),
+      Arguments(ArgPack.data()), AssociatedDeclAndFinal(AssociatedDecl, Final) {
+  assert(AssociatedDecl != nullptr);
 }
 
 void SubstTemplateTemplateParmPackStorage::Profile(llvm::FoldingSetNodeID &ID,
                                                    ASTContext &Context) {
-  Profile(ID, Context, Parameter, getArgumentPack());
+  Profile(ID, Context, getArgumentPack(), getAssociatedDecl(), getIndex(),
+          getFinal());
 }
 
-void SubstTemplateTemplateParmPackStorage::Profile(llvm::FoldingSetNodeID &ID,
-                                                   ASTContext &Context,
-                                           TemplateTemplateParmDecl *Parameter,
-                                             const TemplateArgument &ArgPack) {
-  ID.AddPointer(Parameter);
+Decl *SubstTemplateTemplateParmPackStorage::getAssociatedDecl() const {
+  return AssociatedDeclAndFinal.getPointer();
+}
+
+bool SubstTemplateTemplateParmPackStorage::getFinal() const {
+  return AssociatedDeclAndFinal.getInt();
+}
+
+void SubstTemplateTemplateParmPackStorage::Profile(
+    llvm::FoldingSetNodeID &ID, ASTContext &Context,
+    const TemplateArgument &ArgPack, Decl *AssociatedDecl, unsigned Index,
+    bool Final) {
   ArgPack.Profile(ID, Context);
+  ID.AddPointer(AssociatedDecl);
+  ID.AddInteger(Index);
+  ID.AddBoolean(Final);
 }
 
 TemplateName::TemplateName(void *Ptr) {
@@ -115,7 +153,7 @@ TemplateDecl *TemplateName::getAsTemplateDecl() const {
   }
 
   if (QualifiedTemplateName *QTN = getAsQualifiedTemplateName())
-    return QTN->getTemplateDecl();
+    return QTN->getUnderlyingTemplate().getAsTemplateDecl();
 
   if (SubstTemplateTemplateParmStorage *sub = getAsSubstTemplateTemplateParm())
     return sub->getReplacement().getAsTemplateDecl();
@@ -172,6 +210,8 @@ UsingShadowDecl *TemplateName::getAsUsingShadowDecl() const {
   if (Decl *D = Storage.dyn_cast<Decl *>())
     if (UsingShadowDecl *USD = dyn_cast<UsingShadowDecl>(D))
       return USD;
+  if (QualifiedTemplateName *QTN = getAsQualifiedTemplateName())
+    return QTN->getUnderlyingTemplate().getAsUsingShadowDecl();
   return nullptr;
 }
 
@@ -273,14 +313,15 @@ void TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
     if (Qual == Qualified::Fully &&
         getDependence() !=
             TemplateNameDependenceScope::DependentInstantiation) {
-      QTN->getTemplateDecl()->printQualifiedName(OS, Policy);
+      QTN->getUnderlyingTemplate().getAsTemplateDecl()->printQualifiedName(
+          OS, Policy);
       return;
     }
     if (Qual == Qualified::AsWritten)
       QTN->getQualifier()->print(OS, Policy);
     if (QTN->hasTemplateKeyword())
       OS << "template ";
-    OS << *QTN->getTemplateDecl();
+    OS << *QTN->getUnderlyingTemplate().getAsTemplateDecl();
   } else if (DependentTemplateName *DTN = getAsDependentTemplateName()) {
     if (Qual == Qualified::AsWritten && DTN->getQualifier())
       DTN->getQualifier()->print(OS, Policy);
@@ -301,7 +342,7 @@ void TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
   } else {
     assert(getKind() == TemplateName::OverloadedTemplate);
     OverloadedTemplateStorage *OTS = getAsOverloadedTemplate();
-    (*OTS->begin())->printName(OS);
+    (*OTS->begin())->printName(OS, Policy);
   }
 }
 

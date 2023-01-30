@@ -29,6 +29,7 @@
 #define CLANG_PSEUDO_TOKEN_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangStandard.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -66,6 +67,8 @@ struct Token {
   uint8_t Indent = 0;
   /// Flags have some meaning defined by the function that produced this stream.
   uint8_t Flags = 0;
+  /// Index into the original token stream (as raw-lexed from the source code).
+  Index OriginalIndex = Invalid;
   // Helpers to get/set Flags based on `enum class`.
   template <class T> bool flag(T Mask) const {
     return Flags & uint8_t{static_cast<std::underlying_type_t<T>>(Mask)};
@@ -87,11 +90,20 @@ struct Token {
     while (T->Kind == tok::comment);
     return *T;
   }
+  /// Returns the previous token in the stream. this may not be a sentinel.
+  const Token &prev() const {
+    assert(Kind != tok::eof);
+    return *(this - 1);
+  }
+  /// Returns the bracket paired with this one, if any.
+  const Token *pair() const { return Pair == 0 ? nullptr : this + Pair; }
 
   /// The type of token as determined by clang's lexer.
   clang::tok::TokenKind Kind = clang::tok::unknown;
+  /// If this token is a paired bracket, the offset of the pair in the stream.
+  int32_t Pair = 0;
 };
-static_assert(sizeof(Token) <= sizeof(char *) + 16, "Careful with layout!");
+static_assert(sizeof(Token) <= sizeof(char *) + 24, "Careful with layout!");
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Token &);
 
 /// A half-open range of tokens within a stream.
@@ -154,10 +166,27 @@ public:
     return tokens().slice(R.Begin, R.End - R.Begin);
   }
 
+  MutableArrayRef<Token> tokens() {
+    assert(isFinalized());
+    return Tokens;
+  }
+
   /// May return the end sentinel if the stream is empty.
   const Token &front() const {
     assert(isFinalized());
     return Storage[1];
+  }
+
+  /// Returns the shared payload.
+  std::shared_ptr<void> getPayload() const { return Payload; }
+  /// Adds the given payload to the stream.
+  void addPayload(std::shared_ptr<void> P) {
+    if (!Payload)
+      Payload = std::move(P);
+    else
+      Payload = std::make_shared<
+          std::pair<std::shared_ptr<void>, std::shared_ptr<void>>>(
+          std::move(P), std::move(Payload));
   }
 
   /// Print the tokens in this stream to the output stream.
@@ -193,13 +222,20 @@ enum class LexFlags : uint8_t {
   /// The text() of such tokens will contain the raw trigrah.
   NeedsCleaning = 1 << 1,
 };
+/// A generic lang options suitable for lexing/parsing a langage.
+clang::LangOptions genericLangOpts(
+    clang::Language = clang::Language::CXX,
+    clang::LangStandard::Kind = clang::LangStandard::lang_unspecified);
 
-/// Derives a token stream by decoding escapes, interpreting raw_identifiers and
-/// splitting the greatergreater token.
+/// Decoding raw tokens written in the source code, returning a derived stream.
 ///
-/// Tokens containing UCNs, escaped newlines, trigraphs etc are decoded and
-/// their backing data is owned by the returned stream.
-/// raw_identifier tokens are assigned specific types (identifier, keyword etc).
+/// - escaped newlines within tokens are removed
+/// - trigraphs are replaced with the characters they encode
+/// - UCNs within raw_identifiers are replaced by the characters they encode
+///   (UCNs within strings, comments etc are not translated)
+/// - raw_identifier tokens are assigned their correct keyword type
+/// - the >> token is split into separate > > tokens
+///   (we use a modified grammar where >> is a nonterminal, not a token)
 ///
 /// The StartsPPLine flag is preserved.
 ///

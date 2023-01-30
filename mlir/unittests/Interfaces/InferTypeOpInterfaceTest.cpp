@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -26,14 +26,14 @@ class ValueShapeRangeTest : public testing::Test {
 protected:
   void SetUp() override {
     const char *ir = R"MLIR(
-      func @map(%arg : tensor<1xi64>) {
+      func.func @map(%arg : tensor<1xi64>) {
         %0 = arith.constant dense<[10]> : tensor<1xi64>
         %1 = arith.addi %arg, %0 : tensor<1xi64>
         return
       }
     )MLIR";
 
-    registry.insert<func::FuncDialect, arith::ArithmeticDialect>();
+    registry.insert<func::FuncDialect, arith::ArithDialect>();
     ctx.appendDialectRegistry(registry);
     module = parseSourceString<ModuleOp>(ir, &ctx);
     mapFn = cast<func::FuncOp>(module->front());

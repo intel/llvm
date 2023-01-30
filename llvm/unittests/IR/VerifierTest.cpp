@@ -111,6 +111,7 @@ TEST(VerifierTest, InvalidRetAttribute) {
 
 TEST(VerifierTest, CrossModuleRef) {
   LLVMContext C;
+  C.setOpaquePointers(true);
   Module M1("M1", C);
   Module M2("M2", C);
   Module M3("M3", C);
@@ -138,15 +139,15 @@ TEST(VerifierTest, CrossModuleRef) {
   EXPECT_TRUE(verifyModule(M2, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str())
                   .equals("Global is referenced in a different module!\n"
-                          "i32 ()* @foo2\n"
+                          "ptr @foo2\n"
                           "; ModuleID = 'M2'\n"
                           "  %call = call i32 @foo2()\n"
-                          "i32 ()* @foo1\n"
+                          "ptr @foo1\n"
                           "; ModuleID = 'M1'\n"
                           "Global is used by function in a different module\n"
-                          "i32 ()* @foo2\n"
+                          "ptr @foo2\n"
                           "; ModuleID = 'M2'\n"
-                          "i32 ()* @foo3\n"
+                          "ptr @foo3\n"
                           "; ModuleID = 'M3'\n"));
 
   Error.clear();
@@ -155,7 +156,7 @@ TEST(VerifierTest, CrossModuleRef) {
       "Referencing function in another module!\n"
       "  %call = call i32 @foo2()\n"
       "; ModuleID = 'M1'\n"
-      "i32 ()* @foo2\n"
+      "ptr @foo2\n"
       "; ModuleID = 'M2'\n"));
 
   Error.clear();
@@ -240,7 +241,7 @@ TEST(VerifierTest, DetectInvalidDebugInfo) {
 
 TEST(VerifierTest, MDNodeWrongContext) {
   LLVMContext C1, C2;
-  auto *Node = MDNode::get(C1, None);
+  auto *Node = MDNode::get(C1, std::nullopt);
 
   Module M("M", C2);
   auto *NamedNode = M.getOrInsertNamedMetadata("test");
@@ -268,6 +269,36 @@ TEST(VerifierTest, AttributesWrongContext) {
   F2->copyAttributesFrom(F1);
 
   EXPECT_TRUE(verifyFunction(*F2));
+}
+
+TEST(VerifierTest, SwitchInst) {
+  LLVMContext C;
+  Module M("M", C);
+  IntegerType *Int32Ty = Type::getInt32Ty(C);
+  FunctionType *FTy = FunctionType::get(Type::getVoidTy(C), {Int32Ty, Int32Ty},
+                                        /*isVarArg=*/false);
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
+  BasicBlock *Entry = BasicBlock::Create(C, "entry", F);
+  BasicBlock *Default = BasicBlock::Create(C, "default", F);
+  BasicBlock *OnOne = BasicBlock::Create(C, "on_one", F);
+  BasicBlock *OnTwo = BasicBlock::Create(C, "on_two", F);
+
+  BasicBlock *Exit = BasicBlock::Create(C, "exit", F);
+
+  BranchInst::Create(Exit, Default);
+  BranchInst::Create(Exit, OnTwo);
+  BranchInst::Create(Exit, OnOne);
+  ReturnInst::Create(C, Exit);
+
+  Value *Cond = F->getArg(0);
+  SwitchInst *Switch = SwitchInst::Create(Cond, Default, 2, Entry);
+  Switch->addCase(ConstantInt::get(Int32Ty, 1), OnOne);
+  Switch->addCase(ConstantInt::get(Int32Ty, 2), OnTwo);
+
+  EXPECT_FALSE(verifyFunction(*F));
+  // set one case value to function argument.
+  Switch->setOperand(2, F->getArg(1));
+  EXPECT_TRUE(verifyFunction(*F));
 }
 
 } // end anonymous namespace

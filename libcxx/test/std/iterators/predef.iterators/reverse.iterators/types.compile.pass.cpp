@@ -82,7 +82,9 @@ struct std::incrementable_traits<FooIter> {
   using difference_type = char;
 };
 
+// Not using `FooIter::value_type`.
 static_assert(std::is_same_v<typename std::reverse_iterator<FooIter>::value_type, int>);
+// Not using `FooIter::difference_type`.
 static_assert(std::is_same_v<typename std::reverse_iterator<FooIter>::difference_type, char>);
 
 #endif
@@ -114,6 +116,7 @@ void test_all() {
   test<contiguous_iterator<char*>>();
   static_assert(std::is_same_v<typename std::reverse_iterator<bidirectional_iterator<char*>>::iterator_concept, std::bidirectional_iterator_tag>);
   static_assert(std::is_same_v<typename std::reverse_iterator<random_access_iterator<char*>>::iterator_concept, std::random_access_iterator_tag>);
+  static_assert(std::is_same_v<typename std::reverse_iterator<cpp20_random_access_iterator<char*>>::iterator_concept, std::random_access_iterator_tag>);
   static_assert(std::is_same_v<typename std::reverse_iterator<contiguous_iterator<char*>>::iterator_concept, std::random_access_iterator_tag>);
   static_assert(std::is_same_v<typename std::reverse_iterator<char*>::iterator_concept, std::random_access_iterator_tag>);
 #endif

@@ -45,7 +45,7 @@ CHECK: sycl-post-link options:
 CHECK: --device-globals     - Lower and generate information about device global variables
 CHECK: -f                   - Enable binary output on terminals
 CHECK: --ir-output-only     - Output single IR file
-CHECK: -o=<filename>        - Output filename
+CHECK: -o <filename>        - Output filename
 CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
 CHECK: --spec-const=<value> - lower and generate specialization constants information
 CHECK:   =rt                -   spec constants are set at runtime

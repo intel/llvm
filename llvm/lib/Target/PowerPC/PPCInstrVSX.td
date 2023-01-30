@@ -86,6 +86,9 @@ def SDT_PPCst_vec_be : SDTypeProfile<0, 2, [
   SDTCisVec<0>, SDTCisPtrTy<1>
 ]>;
 
+def SDT_PPCxxperm : SDTypeProfile<1, 3, [
+  SDTCisVT<0, v2f64>, SDTCisVT<1, v2f64>,
+  SDTCisVT<2, v2f64>, SDTCisVT<3, v4i32>]>;
 //--------------------------- Custom PPC nodes -------------------------------//
 def PPClxvd2x  : SDNode<"PPCISD::LXVD2X", SDT_PPClxvd2x,
                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
@@ -116,6 +119,7 @@ def PPCsextldsplat : SDNode<"PPCISD::SEXT_LD_SPLAT", SDT_PPCldsplat,
 def PPCSToV : SDNode<"PPCISD::SCALAR_TO_VECTOR_PERMUTED",
                      SDTypeProfile<1, 1, []>, []>;
 
+def PPCxxperm : SDNode<"PPCISD::XXPERM", SDT_PPCxxperm, []>;
 //-------------------------- Predicate definitions ---------------------------//
 def HasVSX : Predicate<"Subtarget->hasVSX()">;
 def IsLittleEndian : Predicate<"Subtarget->isLittleEndian()">;
@@ -703,6 +707,11 @@ let hasSideEffects = 0 in {
                       (outs vsfrc:$XT), (ins vsfrc:$XB),
                       "xsnabsdp $XT, $XB", IIC_VecFP,
                       [(set f64:$XT, (fneg (fabs f64:$XB)))]>;
+  let isCodeGenOnly = 1 in
+  def XSNABSDPs : XX2Form<60, 361,
+                      (outs vssrc:$XT), (ins vssrc:$XB),
+                      "xsnabsdp $XT, $XB", IIC_VecFP,
+                      [(set f32:$XT, (fneg (fabs f32:$XB)))]>;
   def XSNEGDP : XX2Form<60, 377,
                       (outs vsfrc:$XT), (ins vsfrc:$XB),
                       "xsnegdp $XT, $XB", IIC_VecFP,
@@ -1295,7 +1304,7 @@ let Predicates = [HasVSX, HasP8Vector] in {
       Requires<[In64BitMode]>;
   def MFVSRWZ : XX1_RS6_RD5_XO<31, 115, (outs gprc:$rA), (ins vsfrc:$XT),
                                "mfvsrwz $rA, $XT", IIC_VecGeneral,
-                               [(set i32:$rA, (PPCmfvsr f64:$XT))]>;
+                               [(set i32:$rA, (PPCmfvsr f64:$XT))]>, ZExt32To64;
   // FIXME: Setting the hasSideEffects flag here to match current behaviour.
   let isCodeGenOnly = 1, hasSideEffects = 1 in
   def MFVRWZ : XX1_RS6_RD5_XO<31, 115, (outs gprc:$rA), (ins vsrc:$XT),
@@ -1638,13 +1647,14 @@ let Predicates = [HasVSX, HasP9Vector] in {
   def XXBRQ : XX2_XT6_XO5_XB6<60, 31, 475, "xxbrq", vsrc, []>;
 
   // Vector Permute
-  // FIXME: Setting the hasSideEffects flag here to match current behaviour.
-  let hasSideEffects = 1 in {
-    def XXPERM  : XX3_XT5_XA5_XB5<60, 26, "xxperm" , vsrc, vsrc, vsrc,
-                                  IIC_VecPerm, []>;
-    def XXPERMR : XX3_XT5_XA5_XB5<60, 58, "xxpermr", vsrc, vsrc, vsrc,
-                                  IIC_VecPerm, []>;
-  }
+  def XXPERM  : XX3Form<60, 26, (outs vsrc:$XT),
+                                (ins vsrc:$XA, vsrc:$XTi, vsrc:$XB),
+                        "xxperm $XT, $XA, $XB", IIC_VecPerm, []>,
+                        RegConstraint<"$XTi = $XT">, NoEncode<"$XTi">;
+  def XXPERMR : XX3Form<60, 58, (outs vsrc:$XT),
+                                (ins vsrc:$XA, vsrc:$XTi, vsrc:$XB),
+                        "xxpermr $XT, $XA, $XB", IIC_VecPerm, []>,
+                        RegConstraint<"$XTi = $XT">, NoEncode<"$XTi">;
 
   // Vector Splat Immediate Byte
   // FIXME: Setting the hasSideEffects flag here to match current behaviour.
@@ -2871,6 +2881,8 @@ def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (XSMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (XSNMADDMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fre f64:$A), (XSREDP $A)>;
 def : Pat<(int_ppc_frsqrte vsfrc:$XB), (XSRSQRTEDP $XB)>;
+def : Pat<(int_ppc_fnabs f64:$A), (XSNABSDP $A)>;
+def : Pat<(int_ppc_fnabss f32:$A), (XSNABSDPs $A)>;
 
 // XXMRG[LH]W is a direct replacement for VMRG[LH]W respectively.
 // Prefer the VSX form for greater register range.
@@ -3014,9 +3026,6 @@ defm : ScalToVecWPermute<v2f64, (f64 f64:$A),
                                    (SUBREG_TO_REG (i64 1), $A, sub_64), 0),
                          (SUBREG_TO_REG (i64 1), $A, sub_64)>;
 
-def : Pat<(f64 (extractelt (v2f64 (bitconvert (v16i8
-                 (PPCvperm v16i8:$A, v16i8:$B, v16i8:$C)))), 0)),
-          (f64 (EXTRACT_SUBREG (VPERM $B, $A, $C), sub_64))>;
 def : Pat<(f64 (extractelt v2f64:$S, 0)),
           (f64 (EXTRACT_SUBREG (XXPERMDI $S, $S, 2), sub_64))>;
 def : Pat<(f64 (extractelt v2f64:$S, 1)),
@@ -3360,6 +3369,15 @@ def : Pat<(f32 (vector_extract v4f32:$S, i32:$Idx)),
 
 def : Pat<(f64 (vector_extract v2f64:$S, i32:$Idx)),
           (f64 VectorExtractions.BE_32B_VARIABLE_DOUBLE)>;
+
+defm : ScalToVecWPermute<
+  v4i32, (i32 (load ForceXForm:$src)),
+  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
+  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
+defm : ScalToVecWPermute<
+  v4f32, (f32 (load ForceXForm:$src)),
+  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
+  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
 } // HasVSX, HasP8Vector, IsBigEndian
 
 // Big endian Power8 64Bit VSX subtarget.
@@ -3374,14 +3392,6 @@ def : Pat<(v2i64 (scalar_to_vector (i64 (sextloadi32 ForceXForm:$src)))),
           (v2i64 (SUBREG_TO_REG (i64 1), (LIWAX ForceXForm:$src), sub_64))>;
 def : Pat<(v2i64 (scalar_to_vector (i64 (zextloadi32 ForceXForm:$src)))),
           (v2i64 (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64))>;
-defm : ScalToVecWPermute<
-  v4i32, (i32 (load ForceXForm:$src)),
-  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
-  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
-defm : ScalToVecWPermute<
-  v4f32, (f32 (load ForceXForm:$src)),
-  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
-  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
 
 def : Pat<DWToSPExtractConv.BVU,
           (v4f32 (VPKUDUM (XXSLDWI (XVCVUXDSP $S1), (XVCVUXDSP $S1), 3),
@@ -4138,6 +4148,8 @@ def : Pat<(v8i16 (PPCldsplat ForceXForm:$A)),
           (v8i16 (VSPLTHs 3, (LXSIHZX ForceXForm:$A)))>;
 def : Pat<(v16i8 (PPCldsplat ForceXForm:$A)),
           (v16i8 (VSPLTBs 7, (LXSIBZX ForceXForm:$A)))>;
+def : Pat<(v2f64 (PPCxxperm v2f64:$XT, v2f64:$XB, v4i32:$C)),
+          (XXPERM v2f64:$XT, v2f64:$XB, v4i32:$C)>;
 } // HasVSX, HasP9Vector
 
 // Any Power9 VSX subtarget with equivalent length but better Power10 VSX

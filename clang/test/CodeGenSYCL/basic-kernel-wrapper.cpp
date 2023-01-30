@@ -11,7 +11,7 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 }
 
 int main() {
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorA;
+  sycl::accessor<int, 1, sycl::access::mode::read_write> accessorA;
     kernel<class kernel_function>(
       [=]() {
         accessorA.use();
@@ -27,12 +27,12 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca ptr addrspace(1)
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[0-9]+]] = alloca %class.anon
+// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %class.anon
 // Check allocas for ranges
-// CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[OIDA:%agg.tmp.*]] = alloca %"struct.cl::sycl::id"
-// CHECK: [[ANON:%[0-9]+]] = addrspacecast ptr [[ANONALLOCA]] to ptr addrspace(4)
+// CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[OIDA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::id"
+// CHECK: [[ANON:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANONALLOCA]] to ptr addrspace(4)
 // CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast ptr [[ARANGEA]] to ptr addrspace(4)
 // CHECK: [[MRANGET:%agg.tmp.*]] = addrspacecast ptr [[MRANGEA]] to ptr addrspace(4)
 // CHECK: [[OIDT:%agg.tmp.*]] = addrspacecast ptr [[OIDA]] to ptr addrspace(4)

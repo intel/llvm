@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr basic_string_view substr(size_type pos = 0, size_type n = npos) const;
@@ -75,10 +77,12 @@ int main(int, char**) {
     test ( "a" );
     test ( "" );
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE" );
     test ( L"ABCDE" );
     test ( L"a" );
     test ( L"" );
+#endif
 
 #if TEST_STD_VER >= 11
     test ( u"ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE" );

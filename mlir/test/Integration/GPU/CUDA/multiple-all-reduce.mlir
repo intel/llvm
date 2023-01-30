@@ -1,14 +1,14 @@
 // RUN: mlir-opt %s \
-// RUN:   -gpu-kernel-outlining \
-// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin)' \
-// RUN:   -gpu-to-llvm \
+// RUN: | mlir-opt -gpu-kernel-outlining \
+// RUN: | mlir-opt -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' \
+// RUN: | mlir-opt -gpu-to-llvm \
 // RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
 // RUN:   --entry-point-result=void \
 // RUN: | FileCheck %s
 
-func @main() {
+func.func @main() {
   %data = memref.alloc() : memref<2x6xf32>
   %sum = memref.alloc() : memref<2xf32>
   %mul = memref.alloc() : memref<2xf32>
@@ -58,20 +58,20 @@ func @main() {
   gpu.launch blocks(%bx, %by, %bz) in (%grid_x = %c2, %grid_y = %c1, %grid_z = %c1)
              threads(%tx, %ty, %tz) in (%block_x = %c6, %block_y = %c1, %block_z = %c1) {
     %val = memref.load %data[%bx, %tx] : memref<2x6xf32>
-    %reduced0 = gpu.all_reduce add %val {} : (f32) -> (f32)
+    %reduced0 = gpu.all_reduce add %val uniform {} : (f32) -> (f32)
     memref.store %reduced0, %sum[%bx] : memref<2xf32>
-    %reduced1 = gpu.all_reduce mul %val {} : (f32) -> (f32)
+    %reduced1 = gpu.all_reduce mul %val uniform {} : (f32) -> (f32)
     memref.store %reduced1, %mul[%bx] : memref<2xf32>
     gpu.terminator
   }
 
-  call @print_memref_f32(%cast_sum) : (memref<*xf32>) -> ()
+  call @printMemrefF32(%cast_sum) : (memref<*xf32>) -> ()
   // CHECK: [31, 39]
 
-  call @print_memref_f32(%cast_mul) : (memref<*xf32>) -> ()
+  call @printMemrefF32(%cast_mul) : (memref<*xf32>) -> ()
   // CHECK: [0, 27720]
 
   return
 }
 
-func private @print_memref_f32(memref<*xf32>)
+func.func private @printMemrefF32(memref<*xf32>)

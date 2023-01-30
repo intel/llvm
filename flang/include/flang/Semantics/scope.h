@@ -60,7 +60,8 @@ class Scope {
 
 public:
   ENUM_CLASS(Kind, Global, IntrinsicModules, Module, MainProgram, Subprogram,
-      BlockData, DerivedType, Block, Forall, ImpliedDos)
+      BlockData, DerivedType, BlockConstruct, Forall, OtherConstruct,
+      ImpliedDos)
   using ImportKind = common::ImportKind;
 
   // Create the Global scope -- the root of the scope tree
@@ -116,6 +117,7 @@ public:
   const Scope *GetDerivedTypeParent() const;
   const Scope &GetDerivedTypeBase() const;
   inline std::optional<SourceName> GetName() const;
+  // Returns true if this scope contains, or is, another scope.
   bool Contains(const Scope &) const;
   /// Make a scope nested in this one
   Scope &MakeScope(Kind kind, Symbol *symbol = nullptr);

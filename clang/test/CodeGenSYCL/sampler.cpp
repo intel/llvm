@@ -1,11 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
 // CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(ptr addrspace(2) [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
 // CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca ptr addrspace(2), align 8
-// CHECK: [[ANON:%[0-9]+]] = alloca %class.anon, align 8
-// CHECK: [[ANONCAST:%[0-9]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
+// CHECK: [[ANON:%[a-zA-Z0-9_]+]] = alloca %class.anon, align 8
+// CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
 // CHECK: store ptr addrspace(2) [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: call void @llvm.lifetime.start.p0(i64 8, ptr [[ANON]]) #4
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load ptr addrspace(2), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP]], ptr addrspace(2) [[LOAD_SAMPLER_ARG]])
@@ -16,8 +15,8 @@
 // Check alloca
 // CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca ptr addrspace(2), align 8
 // CHECK: [[ARG_A]].addr = alloca i32, align 4
-// CHECK: [[LAMBDAA:%[0-9]+]] = alloca %class.anon.0, align 8
-// CHECK: [[LAMBDA:%[0-9]+]] = addrspacecast ptr [[LAMBDAA]] to ptr addrspace(4)
+// CHECK: [[LAMBDAA:%[a-zA-Z0-9_]+]] = alloca %class.anon.0, align 8
+// CHECK: [[LAMBDA:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[LAMBDAA]] to ptr addrspace(4)
 
 // Check argument store
 // CHECK: store ptr addrspace(2) [[SAMPLER_ARG_WRAPPED]], ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
@@ -38,7 +37,7 @@
 #include "Inputs/sycl.hpp"
 
 struct sampler_wrapper {
-  cl::sycl::sampler smpl;
+  sycl::sampler smpl;
   int a;
 };
 
@@ -48,7 +47,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFun
 }
 
 int main() {
-  cl::sycl::sampler smplr;
+  sycl::sampler smplr;
   kernel_single_task<class first_kernel>([=]() {
     smplr.use();
   });

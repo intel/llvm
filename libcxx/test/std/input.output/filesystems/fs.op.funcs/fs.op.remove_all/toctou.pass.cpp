@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03
-// UNSUPPORTED: libcpp-has-no-localization
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-localization
+// UNSUPPORTED: no-threads
 
 // <filesystem>
 
@@ -44,7 +44,7 @@
 #include "filesystem_include.h"
 #include "filesystem_test_helper.h"
 
-int main() {
+int main(int, char**) {
   scoped_test_env env;
   fs::path const tmpdir = env.create_dir("mydir");
   fs::path const victim_del_path = tmpdir / "victim_del";

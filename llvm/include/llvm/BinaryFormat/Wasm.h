@@ -18,6 +18,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 namespace llvm {
 namespace wasm {
@@ -152,7 +153,7 @@ struct WasmFunction {
   uint32_t CodeSectionOffset;
   uint32_t Size;
   uint32_t CodeOffset;  // start of Locals and Body
-  Optional<StringRef> ExportName; // from the "export" section
+  std::optional<StringRef> ExportName; // from the "export" section
   StringRef SymbolName; // from the "linking" section
   StringRef DebugName;  // from the "name" section
   uint32_t Comdat;      // from the "comdat info" section
@@ -205,11 +206,11 @@ struct WasmSymbolInfo {
   uint8_t Kind;
   uint32_t Flags;
   // For undefined symbols the module of the import
-  Optional<StringRef> ImportModule;
+  std::optional<StringRef> ImportModule;
   // For undefined symbols the name of the import
-  Optional<StringRef> ImportName;
+  std::optional<StringRef> ImportName;
   // For symbols to be exported from the final module
-  Optional<StringRef> ExportName;
+  std::optional<StringRef> ExportName;
   union {
     // For function, table, or global symbols, the index in function, table, or
     // global index space.
@@ -252,7 +253,8 @@ enum : unsigned {
   WASM_SEC_CODE = 10,      // Function bodies (code)
   WASM_SEC_DATA = 11,      // Data segments
   WASM_SEC_DATACOUNT = 12, // Data segment count
-  WASM_SEC_TAG = 13        // Tag declarations
+  WASM_SEC_TAG = 13,       // Tag declarations
+  WASM_SEC_LAST_KNOWN = WASM_SEC_TAG,
 };
 
 // Type immediate encodings used in various contexts.
@@ -283,6 +285,7 @@ enum : unsigned {
   WASM_OPCODE_CALL = 0x10,
   WASM_OPCODE_LOCAL_GET = 0x20,
   WASM_OPCODE_LOCAL_SET = 0x21,
+  WASM_OPCODE_LOCAL_TEE = 0x22,
   WASM_OPCODE_GLOBAL_GET = 0x23,
   WASM_OPCODE_GLOBAL_SET = 0x24,
   WASM_OPCODE_I32_STORE = 0x36,
@@ -469,8 +472,9 @@ inline bool operator==(const WasmTableType &LHS, const WasmTableType &RHS) {
   return LHS.ElemType == RHS.ElemType && LHS.Limits == RHS.Limits;
 }
 
-std::string toString(WasmSymbolType type);
-std::string relocTypetoString(uint32_t type);
+llvm::StringRef toString(WasmSymbolType type);
+llvm::StringRef relocTypetoString(uint32_t type);
+llvm::StringRef sectionTypeToString(uint32_t type);
 bool relocTypeHasAddend(uint32_t type);
 
 } // end namespace wasm

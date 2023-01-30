@@ -33,9 +33,9 @@
 #include "llvm/Target/TargetOptions.h"
 using namespace llvm;
 
-static cl::opt<bool> EnableTrapUnreachable("trap-unreachable",
-  cl::Hidden, cl::ZeroOrMore, cl::init(false),
-  cl::desc("Enable generating trap for unreachable"));
+static cl::opt<bool>
+    EnableTrapUnreachable("trap-unreachable", cl::Hidden,
+                          cl::desc("Enable generating trap for unreachable"));
 
 void LLVMTargetMachine::initAsmInfo() {
   MRI.reset(TheTarget.createMCRegInfo(getTargetTriple().str()));
@@ -165,13 +165,26 @@ Expected<std::unique_ptr<MCStreamer>> LLVMTargetMachine::createMCStreamer(
     if (Options.MCOptions.ShowMCEncoding)
       MCE.reset(getTarget().createMCCodeEmitter(MII, Context));
 
+    bool UseDwarfDirectory = false;
+    switch (Options.MCOptions.MCUseDwarfDirectory) {
+    case MCTargetOptions::DisableDwarfDirectory:
+      UseDwarfDirectory = false;
+      break;
+    case MCTargetOptions::EnableDwarfDirectory:
+      UseDwarfDirectory = true;
+      break;
+    case MCTargetOptions::DefaultDwarfDirectory:
+      UseDwarfDirectory = MAI.enableDwarfFileDirectoryDefault();
+      break;
+    }
+
     std::unique_ptr<MCAsmBackend> MAB(
         getTarget().createMCAsmBackend(STI, MRI, Options.MCOptions));
     auto FOut = std::make_unique<formatted_raw_ostream>(Out);
     MCStreamer *S = getTarget().createAsmStreamer(
         Context, std::move(FOut), Options.MCOptions.AsmVerbose,
-        Options.MCOptions.MCUseDwarfDirectory, InstPrinter, std::move(MCE),
-        std::move(MAB), Options.MCOptions.ShowMCInst);
+        UseDwarfDirectory, InstPrinter, std::move(MCE), std::move(MAB),
+        Options.MCOptions.ShowMCInst);
     AsmStreamer.reset(S);
     break;
   }
@@ -251,6 +264,9 @@ bool LLVMTargetMachine::addPassesToEmitMC(PassManagerBase &PM, MCContext *&Ctx,
          "Cannot emit MC with limited codegen pipeline");
 
   Ctx = &MMIWP->getMMI().getContext();
+  // libunwind is unable to load compact unwind dynamically, so we must generate
+  // DWARF unwind info for the JIT.
+  Options.MCOptions.EmitDwarfUnwind = EmitDwarfUnwindType::Always;
   if (Options.MCOptions.MCSaveTempLabels)
     Ctx->setAllowTemporaryLabels(false);
 

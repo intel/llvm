@@ -227,7 +227,7 @@ llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   const auto SymbolRange =
       toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
   if (!SymbolRange)
-    return llvm::None;
+    return std::nullopt;
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
   // FIXME: This is not classifying constructors, destructors and operators
@@ -325,7 +325,7 @@ class DocumentOutline {
     //  - a macro symbol child of this (either new or previously created)
     //  - this scope itself, if it *is* the macro symbol or is nested within it
     SymBuilder &inMacro(const syntax::Token &Tok, const SourceManager &SM,
-                        llvm::Optional<syntax::TokenBuffer::Expansion> Exp) {
+                        std::optional<syntax::TokenBuffer::Expansion> Exp) {
       if (llvm::is_contained(EnclosingMacroLoc, Tok.location()))
         return *this;
       // If there's an existing child for this macro, we expect it to be last.

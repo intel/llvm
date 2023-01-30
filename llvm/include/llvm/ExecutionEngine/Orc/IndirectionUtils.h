@@ -18,10 +18,11 @@
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
+#include "llvm/IR/ValueHandle.h"
+#include "llvm/IR/ValueMap.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/Process.h"
-#include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -47,6 +48,9 @@ class Twine;
 class Value;
 class MCDisassembler;
 class MCInstrAnalysis;
+class ValueMaterializer;
+
+using ValueToValueMapTy = ValueMap<const Value *, WeakTrackingVH>;
 
 namespace jitlink {
 class LinkGraph;
@@ -385,7 +389,7 @@ public:
     if (auto Err = reserveStubs(StubInits.size()))
       return Err;
 
-    for (auto &Entry : StubInits)
+    for (const auto &Entry : StubInits)
       createStubInternal(Entry.first(), Entry.second.first,
                          Entry.second.second);
 

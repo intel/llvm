@@ -2,13 +2,13 @@
 
 // This test checks that block_load/store API gets successfully compiled.
 
-#include <CL/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 SYCL_EXTERNAL void
 kernel1(accessor<int, 1, access::mode::read_write, access::target::device> &buf)

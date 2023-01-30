@@ -18,7 +18,8 @@
 #include "mlir/Support/LLVM.h"
 
 // Pull in TableGen'erated SPIR-V attribute definitions for target and ABI.
-#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h.inc"
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h.inc"
 
 namespace mlir {
 namespace spirv {
@@ -52,12 +53,12 @@ public:
 
   /// Gets a InterfaceVarABIAttr.
   static InterfaceVarABIAttr get(uint32_t descriptorSet, uint32_t binding,
-                                 Optional<StorageClass> storageClass,
+                                 std::optional<StorageClass> storageClass,
                                  MLIRContext *context);
   static InterfaceVarABIAttr get(IntegerAttr descriptorSet, IntegerAttr binding,
                                  IntegerAttr storageClass);
 
-  /// Returns the attribute kind's name (without the 'spv.' prefix).
+  /// Returns the attribute kind's name (without the 'spirv.' prefix).
   static StringRef getKindName();
 
   /// Returns descriptor set.
@@ -67,7 +68,7 @@ public:
   uint32_t getBinding();
 
   /// Returns `spirv::StorageClass`.
-  Optional<StorageClass> getStorageClass();
+  std::optional<StorageClass> getStorageClass();
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               IntegerAttr descriptorSet, IntegerAttr binding,
@@ -89,7 +90,7 @@ public:
   static VerCapExtAttr get(IntegerAttr version, ArrayAttr capabilities,
                            ArrayAttr extensions);
 
-  /// Returns the attribute kind's name (without the 'spv.' prefix).
+  /// Returns the attribute kind's name (without the 'spirv.' prefix).
   static StringRef getKindName();
 
   /// Returns the version.
@@ -137,11 +138,13 @@ public:
   using Base::Base;
 
   /// Gets a TargetEnvAttr instance.
-  static TargetEnvAttr get(VerCapExtAttr triple, Vendor vendorID,
-                           DeviceType deviceType, uint32_t deviceId,
-                           DictionaryAttr limits);
+  static TargetEnvAttr get(VerCapExtAttr triple, ResourceLimitsAttr limits,
+                           ClientAPI clientAPI = ClientAPI::Unknown,
+                           Vendor vendorID = Vendor::Unknown,
+                           DeviceType deviceType = DeviceType::Unknown,
+                           uint32_t deviceId = kUnknownDeviceID);
 
-  /// Returns the attribute kind's name (without the 'spv.' prefix).
+  /// Returns the attribute kind's name (without the 'spirv.' prefix).
   static StringRef getKindName();
 
   /// Returns the (version, capabilities, extensions) triple attribute.
@@ -160,6 +163,9 @@ public:
   /// Returns the target capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
+  /// Returns the client API.
+  ClientAPI getClientAPI() const;
+
   /// Returns the vendor ID.
   Vendor getVendorID() const;
 
@@ -171,11 +177,6 @@ public:
 
   /// Returns the target resource limits.
   ResourceLimitsAttr getResourceLimits() const;
-
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              VerCapExtAttr triple, Vendor vendorID,
-                              DeviceType deviceType, uint32_t deviceID,
-                              DictionaryAttr limits);
 };
 } // namespace spirv
 } // namespace mlir

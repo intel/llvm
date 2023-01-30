@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/opencl.h>
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 static int QueueRetainCalled = 0;
 pi_result redefinedQueueRetain(pi_queue Queue) {
@@ -23,31 +23,14 @@ pi_result redefinedQueueRetain(pi_queue Queue) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return false;
-  }
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
-      backend::opencl) {
-    std::cout << "Not run on non-OpenCL backend" << std::endl;
-    return false;
-  }
-  return true;
-}
-
 TEST(PiInteropTest, CheckRetain) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   context Ctx{Plt.get_devices()[0]};
-
-  unittest::PiMock Mock{Plt};
 
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
   queue Q{Ctx, default_selector()};
   EXPECT_TRUE(QueueRetainCalled == 0);
 

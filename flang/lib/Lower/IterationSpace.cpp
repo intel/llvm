@@ -822,7 +822,7 @@ void Fortran::lower::ExplicitIterSpace::exprBase(Fortran::lower::FrontEndExpr x,
     endAssign();
   if (lhs) {
     if (bases.empty()) {
-      lhsBases.push_back(llvm::None);
+      lhsBases.push_back(std::nullopt);
       return;
     }
     assert(bases.size() >= 1 && "must detect an array reference on lhs");
@@ -854,7 +854,7 @@ void Fortran::lower::ExplicitIterSpace::conditionalCleanup() {
     loadBindings.clear();
     ccLoopNest.clear();
     innerArgs.clear();
-    outerLoop = llvm::None;
+    outerLoop = std::nullopt;
     clearLoops();
     counter = 0;
   }
@@ -862,15 +862,15 @@ void Fortran::lower::ExplicitIterSpace::conditionalCleanup() {
 
 llvm::Optional<size_t>
 Fortran::lower::ExplicitIterSpace::findArgPosition(fir::ArrayLoadOp load) {
-  if (lhsBases[counter].hasValue()) {
-    auto ld = loadBindings.find(lhsBases[counter].getValue());
+  if (lhsBases[counter]) {
+    auto ld = loadBindings.find(*lhsBases[counter]);
     llvm::Optional<size_t> optPos;
     if (ld != loadBindings.end() && ld->second == load)
       optPos = static_cast<size_t>(0u);
-    assert(optPos.hasValue() && "load does not correspond to lhs");
+    assert(optPos.has_value() && "load does not correspond to lhs");
     return optPos;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::SmallVector<Fortran::lower::FrontEndSymbol>
@@ -919,8 +919,8 @@ Fortran::lower::operator<<(llvm::raw_ostream &s,
   s << "LHS bases:\n";
   for (const llvm::Optional<Fortran::lower::ExplicitIterSpace::ArrayBases> &u :
        e.lhsBases)
-    if (u.hasValue())
-      dump(u.getValue());
+    if (u)
+      dump(*u);
   s << "RHS bases:\n";
   for (const llvm::SmallVector<Fortran::lower::ExplicitIterSpace::ArrayBases>
            &bases : e.rhsBases) {

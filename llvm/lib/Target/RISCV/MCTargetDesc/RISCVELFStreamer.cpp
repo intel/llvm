@@ -73,12 +73,12 @@ void RISCVTargetELFStreamer::finishAttributeSection() {
     return;
 
   if (AttributeSection) {
-    Streamer.SwitchSection(AttributeSection);
+    Streamer.switchSection(AttributeSection);
   } else {
     MCAssembler &MCA = getStreamer().getAssembler();
     AttributeSection = MCA.getContext().getELFSection(
         ".riscv.attributes", ELF::SHT_RISCV_ATTRIBUTES, 0);
-    Streamer.SwitchSection(AttributeSection);
+    Streamer.switchSection(AttributeSection);
 
     Streamer.emitInt8(ELFAttrs::Format_Version);
   }
@@ -157,6 +157,8 @@ void RISCVTargetELFStreamer::finish() {
 
   if (Features[RISCV::FeatureStdExtC])
     EFlags |= ELF::EF_RISCV_RVC;
+  if (Features[RISCV::FeatureStdExtZtso])
+    EFlags |= ELF::EF_RISCV_TSO;
 
   switch (ABI) {
   case RISCVABI::ABI_ILP32:
@@ -178,6 +180,16 @@ void RISCVTargetELFStreamer::finish() {
   }
 
   MCA.setELFHeaderEFlags(EFlags);
+}
+
+void RISCVTargetELFStreamer::reset() {
+  AttributeSection = nullptr;
+  Contents.clear();
+}
+
+void RISCVTargetELFStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {
+  getStreamer().getAssembler().registerSymbol(Symbol);
+  cast<MCSymbolELF>(Symbol).setOther(ELF::STO_RISCV_VARIANT_CC);
 }
 
 namespace {
@@ -220,10 +232,26 @@ class RISCVELFStreamer : public MCELFStreamer {
                              MCConstantExpr::create(E.getConstant(), C), C);
     RHS = E.getSymB();
 
-    return (A.isInSection() ? A.getSection().hasInstructions()
-                            : !A.getName().empty()) ||
-           (B.isInSection() ? B.getSection().hasInstructions()
-                            : !B.getName().empty());
+    // If either symbol is in a text section, we need to delay the relocation
+    // evaluation as relaxation may alter the size of the symbol.
+    //
+    // Unfortunately, we cannot identify if the symbol was built with relaxation
+    // as we do not track the state per symbol or section.  However, BFD will
+    // always emit the relocation and so we follow suit which avoids the need to
+    // track that information.
+    if (A.isInSection() && A.getSection().getKind().isText())
+      return true;
+    if (B.isInSection() && B.getSection().getKind().isText())
+      return true;
+
+    // Support cross-section symbolic differences ...
+    return A.isInSection() && B.isInSection() &&
+           A.getSection().getName() != B.getSection().getName();
+  }
+
+  void reset() override {
+    static_cast<RISCVTargetStreamer *>(getTargetStreamer())->reset();
+    MCELFStreamer::reset();
   }
 
 public:

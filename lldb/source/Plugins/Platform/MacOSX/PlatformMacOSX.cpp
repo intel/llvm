@@ -17,6 +17,7 @@
 #include "PlatformRemoteAppleWatch.h"
 #endif
 #include "lldb/Breakpoint/BreakpointLocation.h"
+#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -96,7 +97,7 @@ PlatformSP PlatformMacOSX::CreateInstance(bool force, const ArchSpec *arch) {
 }
 
 /// Default Constructor
-PlatformMacOSX::PlatformMacOSX() : PlatformDarwin(true) {}
+PlatformMacOSX::PlatformMacOSX() : PlatformDarwinDevice(true) {}
 
 ConstString PlatformMacOSX::GetSDKDirectory(lldb_private::Target &target) {
   ModuleSP exe_module_sp(target.GetExecutableModule());
@@ -117,14 +118,20 @@ ConstString PlatformMacOSX::GetSDKDirectory(lldb_private::Target &target) {
     sdk_path.Printf("%s/Developer/Platforms/MacOSX.platform/Developer/"
                     "SDKs/MacOSX%u.%u.sdk",
                     fspec.GetPath().c_str(), version.getMajor(),
-                    version.getMinor().getValue());
+                    *version.getMinor());
     if (FileSystem::Instance().Exists(fspec))
       return ConstString(sdk_path.GetString());
   }
 
   // Use the default SDK as a fallback.
-  FileSpec fspec(
-      HostInfo::GetXcodeSDKPath(lldb_private::XcodeSDK::GetAnyMacOS()));
+  auto sdk_path_or_err = HostInfo::GetXcodeSDKPath(XcodeSDK::GetAnyMacOS());
+  if (!sdk_path_or_err) {
+    Debugger::ReportError("Error while searching for Xcode SDK: " +
+                          toString(sdk_path_or_err.takeError()));
+    return {};
+  }
+
+  FileSpec fspec(*sdk_path_or_err);
   if (fspec) {
     if (FileSystem::Instance().Exists(fspec))
       return ConstString(fspec.GetPath());
@@ -211,3 +218,9 @@ lldb_private::Status PlatformMacOSX::GetSharedModule(
   }
   return error;
 }
+
+llvm::StringRef PlatformMacOSX::GetDeviceSupportDirectoryName() {
+  return "macOS DeviceSupport";
+}
+
+llvm::StringRef PlatformMacOSX::GetPlatformName() { return "MacOSX.platform"; }

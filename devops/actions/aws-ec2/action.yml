@@ -1,0 +1,75 @@
+name: aws-ec2
+description: Start AWS EC2 instances with Github actions runner agent in it
+
+inputs:
+  runs-on-list:
+    description: "JSON string with array of objects with aws-type, runs-on, aws-ami, aws-spot, aws-disk, aws-timebomb, one-job properties"
+    required: true
+    # aws-type:     AWS EC2 instance type. This property must be present if you want to trigger AWS EC2 instance start/stop.
+    # runs-on:      Name of the unique label assigned to the runner used as 'runs-on' property for the following jobs. Mandatory presence required.
+    # aws-ami:      AWS AMI id. Makes sense only for start mode. Default "ami-0966bccbb521ccb24".
+
+    #   ami-0966bccbb521ccb24: Ubuntu 22.04 (ami-02f3416038bdb17fb with /dev/sda1 disk) with docker installed and gh_runner (1001) like this:
+    #     sudo -s
+    #     apt-get update
+    #     curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+    #     sh /tmp/get-docker.sh
+    #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
+    #     sync; shutdown -h now
+
+    #   ami-02ec0f344128253f9: Amazon Linux 2 AMI with NVIDIA TESLA GPU Driver (ami-06bf0a3f89fe08f0a with /dev/xvda disk) with docker installed and gh_runner (1001) like this:
+    #     sudo -s
+    #     yum update -y
+    #     amazon-linux-extras install docker
+    #     sudo systemctl --now enable docker
+    #     distribution=$(. /etc/os-release;echo $ID$VERSION_ID) && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.repo | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+    #     yum-config-manager --disable amzn2-graphics; yum clean expire-cache; yum install -y nvidia-docker2; systemctl restart docker
+    #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
+    #     sync; shutdown -h now
+
+    #   ami-0ccda708841dde988: Amazon Linux 2 AMI with AMD Radeon Pro Driver (ami-0bb1072e787242eb6 with /dev/xvda disk) with docker installed and gh_runner (1001) like this:
+    #     sudo -s
+    #     amazon-linux-extras install docker
+    #     sudo systemctl --now enable docker
+    #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
+    #     sync; shutdown -h now
+
+    # us-east-1 region:
+
+    #   ami-01cb0573cb039ab24 (for g5 instances): NVIDIA GPU-Optimized AMI 22.06.0-676eed8d-dcf5-4784-87d7-0de463205c17 (ami-003f25e6e2d2db8f1 with /dev/sda1 disk) with docker and and gh_runner (1001)
+    #     sudo -s
+    #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
+    #     sync; shutdown -h now
+
+    #  ami-058347ad2ce9aef73: ami-02ec0f344128253f9 copy in us-east-1 region
+
+    # aws-spot:     Enable usage of spot instances to save money (less reliable). Makes sense only for start mode. Default true.
+    # aws-disk:     AWS EC2 instance AMI specific disk device path and size in GB (8 by default). Makes sense only for start mode. Default "/dev/sda1:16".
+    # aws-timebomp: AWS EC2 instance maximum live time. Makes sense only for start mode. Default "1h".
+    # one-job:      Will terminate AWS EC2 instance after one job (not waiting for stop job) saving money. Makes sense only for start mode. Default true.
+
+  mode:
+    description: "Mode of operation: start or stop"
+    required: false
+    default: start
+
+  GH_PERSONAL_ACCESS_TOKEN:
+    description: "Github personal access token with repo permission"
+    required: true
+
+  AWS_ACCESS_KEY:
+    description: "AWS access id"
+    required: true
+
+  AWS_SECRET_KEY:
+    description: "AWS access secret key"
+    required: true
+
+  aws-region:
+    description: "AWS EC2 region"
+    required: false
+    default: "us-east-1" # North Virginia
+
+runs:
+  using: node16
+  main: ./aws-ec2.js

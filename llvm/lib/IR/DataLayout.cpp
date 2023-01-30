@@ -816,6 +816,10 @@ Align DataLayout::getAlignment(Type *Ty, bool abi_or_pref) const {
   }
   case Type::X86_AMXTyID:
     return Align(64);
+  case Type::TargetExtTyID: {
+    Type *LayoutTy = cast<TargetExtType>(Ty)->getLayoutType();
+    return getAlignment(LayoutTy, abi_or_pref);
+  }
   default:
     llvm_unreachable("Bad type for getAlignment!!!");
   }
@@ -925,8 +929,8 @@ static APInt getElementIndex(TypeSize ElemSize, APInt &Offset) {
   return Index;
 }
 
-Optional<APInt> DataLayout::getGEPIndexForOffset(Type *&ElemTy,
-                                                 APInt &Offset) const {
+std::optional<APInt> DataLayout::getGEPIndexForOffset(Type *&ElemTy,
+                                                      APInt &Offset) const {
   if (auto *ArrTy = dyn_cast<ArrayType>(ElemTy)) {
     ElemTy = ArrTy->getElementType();
     return getElementIndex(getTypeAllocSize(ElemTy), Offset);
@@ -937,7 +941,7 @@ Optional<APInt> DataLayout::getGEPIndexForOffset(Type *&ElemTy,
     unsigned ElemSizeInBits = getTypeSizeInBits(ElemTy).getFixedSize();
     // GEPs over non-multiple of 8 size vector elements are invalid.
     if (ElemSizeInBits % 8 != 0)
-      return None;
+      return std::nullopt;
 
     return getElementIndex(TypeSize::Fixed(ElemSizeInBits / 8), Offset);
   }
@@ -946,7 +950,7 @@ Optional<APInt> DataLayout::getGEPIndexForOffset(Type *&ElemTy,
     const StructLayout *SL = getStructLayout(STy);
     uint64_t IntOffset = Offset.getZExtValue();
     if (IntOffset >= SL->getSizeInBytes())
-      return None;
+      return std::nullopt;
 
     unsigned Index = SL->getElementContainingOffset(IntOffset);
     Offset -= SL->getElementOffset(Index);
@@ -955,7 +959,7 @@ Optional<APInt> DataLayout::getGEPIndexForOffset(Type *&ElemTy,
   }
 
   // Non-aggregate type.
-  return None;
+  return std::nullopt;
 }
 
 SmallVector<APInt> DataLayout::getGEPIndicesForOffset(Type *&ElemTy,
@@ -964,7 +968,7 @@ SmallVector<APInt> DataLayout::getGEPIndicesForOffset(Type *&ElemTy,
   SmallVector<APInt> Indices;
   Indices.push_back(getElementIndex(getTypeAllocSize(ElemTy), Offset));
   while (Offset != 0) {
-    Optional<APInt> Index = getGEPIndexForOffset(ElemTy, Offset);
+    std::optional<APInt> Index = getGEPIndexForOffset(ElemTy, Offset);
     if (!Index)
       break;
     Indices.push_back(*Index);

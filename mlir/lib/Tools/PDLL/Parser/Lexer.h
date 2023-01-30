@@ -34,22 +34,25 @@ class DiagnosticEngine;
 class Token {
 public:
   enum Kind {
-    // Markers.
+    /// Markers.
     eof,
     error,
+    /// Token signifying a code completion location.
     code_complete,
+    /// Token signifying a code completion location within a string.
+    code_complete_string,
 
-    // Keywords.
+    /// Keywords.
     KW_BEGIN,
-    // Dependent keywords, i.e. those that are treated as keywords depending on
-    // the current parser context.
+    /// Dependent keywords, i.e. those that are treated as keywords depending on
+    /// the current parser context.
     KW_DEPENDENT_BEGIN,
     kw_attr,
     kw_op,
     kw_type,
     KW_DEPENDENT_END,
 
-    // General keywords.
+    /// General keywords.
     kw_Attr,
     kw_erase,
     kw_let,
@@ -68,7 +71,7 @@ public:
     kw_with,
     KW_END,
 
-    // Punctuation.
+    /// Punctuation.
     arrow,
     colon,
     comma,
@@ -76,7 +79,7 @@ public:
     equal,
     equal_arrow,
     semicolon,
-    // Paired punctuation.
+    /// Paired punctuation.
     less,
     greater,
     l_brace,
@@ -87,7 +90,7 @@ public:
     r_square,
     underscore,
 
-    // Tokens.
+    /// Tokens.
     directive,
     identifier,
     integer,
@@ -130,7 +133,8 @@ public:
 
   /// Return if the token does not have the given kind.
   bool isNot(Kind k) const { return k != kind; }
-  template <typename... T> bool isNot(Kind k1, Kind k2, T... others) const {
+  template <typename... T>
+  bool isNot(Kind k1, Kind k2, T... others) const {
     return !isAny(k1, k2, others...);
   }
 
@@ -138,17 +142,13 @@ public:
   bool is(Kind k) const { return kind == k; }
 
   /// Return a location for the start of this token.
-  SMLoc getStartLoc() const {
-    return SMLoc::getFromPointer(spelling.data());
-  }
+  SMLoc getStartLoc() const { return SMLoc::getFromPointer(spelling.data()); }
   /// Return a location at the end of this token.
   SMLoc getEndLoc() const {
     return SMLoc::getFromPointer(spelling.data() + spelling.size());
   }
   /// Return a location for the range of this token.
-  SMRange getLoc() const {
-    return SMRange(getStartLoc(), getEndLoc());
-  }
+  SMRange getLoc() const { return SMRange(getStartLoc(), getEndLoc()); }
 
 private:
   /// Discriminator that indicates the kind of token this is.
@@ -178,7 +178,7 @@ public:
   /// Push an include of the given file. This will cause the lexer to start
   /// processing the provided file. Returns failure if the file could not be
   /// opened, success otherwise.
-  LogicalResult pushInclude(StringRef filename);
+  LogicalResult pushInclude(StringRef filename, SMRange includeLoc);
 
   /// Lex the next token and return it.
   Token lexToken();
@@ -190,8 +190,8 @@ public:
   /// Emit an error to the lexer with the given location and message.
   Token emitError(SMRange loc, const Twine &msg);
   Token emitError(const char *loc, const Twine &msg);
-  Token emitErrorAndNote(SMRange loc, const Twine &msg,
-                         SMRange noteLoc, const Twine &note);
+  Token emitErrorAndNote(SMRange loc, const Twine &msg, SMRange noteLoc,
+                         const Twine &note);
 
 private:
   Token formToken(Token::Kind kind, const char *tokStart) {

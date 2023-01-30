@@ -68,6 +68,7 @@ new_in_version = {
     "concepts": "20",
     "coroutine": "20",
     "cuchar": "11",
+    "expected": "23",
     "filesystem": "17",
     "initializer_list": "11",
     "optional": "17",
@@ -92,22 +93,21 @@ assert all(v == sorted(v) for k, v in mandatory_inclusions.items())
 # <thread> should be marked as UNSUPPORTED, because including <thread>
 # is a hard error in that case.
 lit_markup = {
-  "barrier": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "filesystem": ["UNSUPPORTED: libcpp-has-no-filesystem-library"],
+  "barrier": ["UNSUPPORTED: no-threads"],
+  "filesystem": ["UNSUPPORTED: no-filesystem"],
   "format": ["UNSUPPORTED: libcpp-has-no-incomplete-format"],
-  "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "ios": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "iostream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "latch": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
-  "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "semaphore": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "thread": ["UNSUPPORTED: libcpp-has-no-threads"]
+  "iomanip": ["UNSUPPORTED: no-localization"],
+  "ios": ["UNSUPPORTED: no-localization"],
+  "iostream": ["UNSUPPORTED: no-localization"],
+  "istream": ["UNSUPPORTED: no-localization"],
+  "latch": ["UNSUPPORTED: no-threads"],
+  "locale": ["UNSUPPORTED: no-localization"],
+  "mutex": ["UNSUPPORTED: no-threads"],
+  "ostream": ["UNSUPPORTED: no-localization"],
+  "regex": ["UNSUPPORTED: no-localization"],
+  "semaphore": ["UNSUPPORTED: no-threads"],
+  "shared_mutex": ["UNSUPPORTED: no-threads"],
+  "thread": ["UNSUPPORTED: no-threads"]
 }
 
 

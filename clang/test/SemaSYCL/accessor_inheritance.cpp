@@ -44,7 +44,7 @@ int main() {
 // CHECK: ParmVarDecl{{.*}} used _arg_C 'int'
 
 // Check lambda initialization
-// CHECK: VarDecl {{.*}} used '(lambda at {{.*}}accessor_inheritance.cpp
+// CHECK: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}accessor_inheritance.cpp
 // CHECK-NEXT: InitListExpr {{.*}}
 // CHECK-NEXT: InitListExpr {{.*}} 'AccessorDerived'
 // CHECK-NEXT: InitListExpr {{.*}} 'AccessorBase'
@@ -61,8 +61,8 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} .__init
 // CHECK-NEXT: MemberExpr {{.*}} .AccField
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'AccessorBase' lvalue <DerivedToBase (AccessorBase)>
-// CHECK-NEXT: MemberExpr {{.*}} 'AccessorDerived' lvalue .
+// CHECK-NEXT: ImplicitCastExpr {{.*}}'AccessorBase' lvalue <DerivedToBase (AccessorBase)>
+// CHECK-NEXT: MemberExpr {{.*}}'AccessorDerived' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}}'(lambda at {{.*}}accessor_inheritance.cpp
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg_AccField' '__global char *'

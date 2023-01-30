@@ -32,7 +32,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -64,9 +63,13 @@ bool compileCommandsAreEqual(const tooling::CompileCommand &LHS,
 
 class CppFilePreambleCallbacks : public PreambleCallbacks {
 public:
-  CppFilePreambleCallbacks(PathRef File, PreambleParsedCallback ParsedCallback,
-                           PreambleBuildStats *Stats)
-      : File(File), ParsedCallback(ParsedCallback), Stats(Stats) {}
+  CppFilePreambleCallbacks(
+      PathRef File, PreambleParsedCallback ParsedCallback,
+      PreambleBuildStats *Stats, bool ParseForwardingFunctions,
+      std::function<void(CompilerInstance &)> BeforeExecuteCallback)
+      : File(File), ParsedCallback(ParsedCallback), Stats(Stats),
+        ParseForwardingFunctions(ParseForwardingFunctions),
+        BeforeExecuteCallback(std::move(BeforeExecuteCallback)) {}
 
   IncludeStructure takeIncludes() { return std::move(Includes); }
 
@@ -115,6 +118,8 @@ public:
     LangOpts = &CI.getLangOpts();
     SourceMgr = &CI.getSourceManager();
     Includes.collect(CI);
+    if (BeforeExecuteCallback)
+      BeforeExecuteCallback(CI);
   }
 
   std::unique_ptr<PPCallbacks> createPPCallbacks() override {
@@ -131,15 +136,48 @@ public:
     return IWYUHandler.get();
   }
 
+  static bool isLikelyForwardingFunction(FunctionTemplateDecl *FT) {
+    const auto *FD = FT->getTemplatedDecl();
+    const auto NumParams = FD->getNumParams();
+    // Check whether its last parameter is a parameter pack...
+    if (NumParams > 0) {
+      const auto *LastParam = FD->getParamDecl(NumParams - 1);
+      if (const auto *PET = dyn_cast<PackExpansionType>(LastParam->getType())) {
+        // ... of the type T&&... or T...
+        const auto BaseType = PET->getPattern().getNonReferenceType();
+        if (const auto *TTPT =
+                dyn_cast<TemplateTypeParmType>(BaseType.getTypePtr())) {
+          // ... whose template parameter comes from the function directly
+          if (FT->getTemplateParameters()->getDepth() == TTPT->getDepth()) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   bool shouldSkipFunctionBody(Decl *D) override {
-    // Generally we skip function bodies in preambles for speed.
-    // We can make exceptions for functions that are cheap to parse and
-    // instantiate, widely used, and valuable (e.g. commonly produce errors).
-    if (const auto *FT = llvm::dyn_cast<clang::FunctionTemplateDecl>(D)) {
-      if (const auto *II = FT->getDeclName().getAsIdentifierInfo())
-        // std::make_unique is trivial, and we diagnose bad constructor calls.
-        if (II->isStr("make_unique") && FT->isInStdNamespace())
+    // Usually we don't need to look inside the bodies of header functions
+    // to understand the program. However when forwarding function like
+    // emplace() forward their arguments to some other function, the
+    // interesting overload resolution happens inside the forwarding
+    // function's body. To provide more meaningful diagnostics,
+    // code completion, and parameter hints we should parse (and later
+    // instantiate) the bodies.
+    if (auto *FT = llvm::dyn_cast<clang::FunctionTemplateDecl>(D)) {
+      if (ParseForwardingFunctions) {
+        // Don't skip parsing the body if it looks like a forwarding function
+        if (isLikelyForwardingFunction(FT))
           return false;
+      } else {
+        // By default, only take care of make_unique
+        // std::make_unique is trivial, and we diagnose bad constructor calls.
+        if (const auto *II = FT->getDeclName().getAsIdentifierInfo()) {
+          if (II->isStr("make_unique") && FT->isInStdNamespace())
+            return false;
+        }
+      }
     }
     return true;
   }
@@ -156,6 +194,8 @@ private:
   const clang::LangOptions *LangOpts = nullptr;
   const SourceManager *SourceMgr = nullptr;
   PreambleBuildStats *Stats;
+  bool ParseForwardingFunctions;
+  std::function<void(CompilerInstance &)> BeforeExecuteCallback;
 };
 
 // Represents directives other than includes, where basic textual information is
@@ -291,11 +331,12 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
       std::move(CI), nullptr, std::move(PreambleContents),
       // Provide an empty FS to prevent preprocessor from performing IO. This
       // also implies missing resolved paths for includes.
-      FS.view(llvm::None), IgnoreDiags);
+      FS.view(std::nullopt), IgnoreDiags);
   if (Clang->getFrontendOpts().Inputs.empty())
     return error("compiler instance had no inputs");
   // We are only interested in main file includes.
   Clang->getPreprocessorOpts().SingleFileParseMode = true;
+  Clang->getPreprocessorOpts().UsePredefines = false;
   PreprocessOnlyAction Action;
   if (!Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]))
     return error("failed BeginSourceFile");
@@ -477,7 +518,13 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   // to read back. We rely on dynamic index for the comments instead.
   CI.getPreprocessorOpts().WriteCommentListToPCH = false;
 
-  CppFilePreambleCallbacks CapturedInfo(FileName, PreambleCallback, Stats);
+  CppFilePreambleCallbacks CapturedInfo(
+      FileName, PreambleCallback, Stats,
+      Inputs.Opts.PreambleParseForwardingFunctions,
+      [&ASTListeners](CompilerInstance &CI) {
+        for (const auto &L : ASTListeners)
+          L->beforeExecute(CI);
+      });
   auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   llvm::SmallString<32> AbsFileName(FileName);
   VFS->makeAbsolute(AbsFileName);
@@ -504,7 +551,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   }
 
   if (BuiltPreamble) {
-    vlog("Built preamble of size {0} for file {1} version {2} in {3} seconds",
+    log("Built preamble of size {0} for file {1} version {2} in {3} seconds",
          BuiltPreamble->getSize(), FileName, Inputs.Version,
          PreambleTimer.getTime());
     std::vector<Diag> Diags = PreambleDiagnostics.take();
@@ -523,6 +570,12 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
 
   elog("Could not build a preamble for file {0} version {1}: {2}", FileName,
        Inputs.Version, BuiltPreamble.getError().message());
+  for (const Diag &D : PreambleDiagnostics.take()) {
+    if (D.Severity < DiagnosticsEngine::Error)
+      continue;
+    // Not an ideal way to show errors, but better than nothing!
+    elog("  error: {0}", D.Message);
+  }
   return nullptr;
 }
 
@@ -716,5 +769,6 @@ SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
   }
   return Loc;
 }
+
 } // namespace clangd
 } // namespace clang

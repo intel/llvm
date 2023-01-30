@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -O2 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]
@@ -20,6 +20,9 @@
 // CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LCA_2:[0-9]+]]
 // CHECK: br label %for.cond24, !llvm.loop ![[MD_LCA_3:[0-9]+]]
+// CHECK: br label %for.cond,   !llvm.loop ![[MD_MRD:[0-9]+]]
+// CHECK: br label %for.cond2,  !llvm.loop ![[MD_MRD_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_MRD_3:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -126,6 +129,7 @@ void speculated_iterations() {
       a[i] = 0;
 }
 
+// Add CodeGen tests for FPGA loop_count attributes.
 template <int A>
 void loop_count_control() {
   int a[10];
@@ -150,6 +154,23 @@ void loop_count_control() {
       a[i] = 0;
 }
 
+template <int A, int B>
+void max_reinvocation_delay() {
+  int a[10];
+  // CHECK: ![[MD_MRD]] = distinct !{![[MD_MRD]], ![[MP]], ![[MD_max_reinvocation_delay:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 3}
+  [[intel::max_reinvocation_delay(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_MRD_2]] = distinct !{![[MD_MRD_2]], ![[MP]], ![[MD_max_reinvocation_delay_2:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay_2]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 5}
+  [[intel::max_reinvocation_delay(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_MRD_3]] = distinct !{![[MD_MRD_3]], ![[MP]], ![[MD_max_reinvocation_delay_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay_3]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 1}
+  [[intel::max_reinvocation_delay(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -165,6 +186,7 @@ int main() {
     max_interleaving<3, 0>();
     speculated_iterations<4, 0>();
     loop_count_control<12>();
+    max_reinvocation_delay<3, 1>();
   });
   return 0;
 }

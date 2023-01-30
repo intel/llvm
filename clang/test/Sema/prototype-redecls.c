@@ -12,6 +12,10 @@ void blarg() {}       // expected-error {{conflicting types for 'blarg'}}
 void blerp(short);      // expected-note {{previous}}
 void blerp(x) int x; {} // expected-error {{conflicting types for 'blerp'}}
 
+void foo(int); // expected-note {{previous}}
+void foo();
+void foo() {} // expected-error {{conflicting types for 'foo'}}
+
 void glerp(int);
 void glerp(x) short x; {} // Okay, promoted type is fine
 
@@ -25,7 +29,7 @@ void garp(x) int x; {}
 
 // Ensure redeclarations that conflict with a builtin use a note which makes it
 // clear that the previous declaration was a builtin.
-float rintf() { // expected-error {{conflicting types for 'rintf'}} \
+float rintf() { // expected-warning {{incompatible redeclaration of library function 'rintf'}} \
                    expected-note {{'rintf' is a builtin with type 'float (float)'}}
   return 1.0f;
 }

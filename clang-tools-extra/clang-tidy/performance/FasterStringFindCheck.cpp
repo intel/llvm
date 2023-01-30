@@ -30,11 +30,11 @@ llvm::Optional<std::string> makeCharacterLiteral(const StringLiteral *Literal) {
   // Now replace the " with '.
   auto Pos = Result.find_first_of('"');
   if (Pos == Result.npos)
-    return llvm::None;
+    return std::nullopt;
   Result[Pos] = '\'';
   Pos = Result.find_last_of('"');
   if (Pos == Result.npos)
-    return llvm::None;
+    return std::nullopt;
   Result[Pos] = '\'';
   return Result;
 }
@@ -71,11 +71,9 @@ void FasterStringFindCheck::registerMatchers(MatchFinder *Finder) {
           callee(functionDecl(StringFindFunctions).bind("func")),
           anyOf(argumentCountIs(1), argumentCountIs(2)),
           hasArgument(0, SingleChar),
-          on(expr(
-              hasType(hasUnqualifiedDesugaredType(recordType(hasDeclaration(
-                  recordDecl(hasAnyName(SmallVector<StringRef, 4>(
-                      StringLikeClasses.begin(), StringLikeClasses.end()))))))),
-              unless(hasSubstitutedType())))),
+          on(expr(hasType(hasUnqualifiedDesugaredType(recordType(hasDeclaration(
+                      recordDecl(hasAnyName(StringLikeClasses)))))),
+                  unless(hasSubstitutedType())))),
       this);
 }
 

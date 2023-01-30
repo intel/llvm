@@ -82,14 +82,14 @@ public:
 private:
   Section &getGOTSection() const {
     if (!GOTSection)
-      GOTSection = &G.createSection("$__GOT", MemProt::Read);
+      GOTSection = &G.createSection("$__GOT", orc::MemProt::Read);
     return *GOTSection;
   }
 
   Section &getStubsSection() const {
     if (!StubsSection)
       StubsSection =
-          &G.createSection("$__STUBS", MemProt::Read | MemProt::Exec);
+          &G.createSection("$__STUBS", orc::MemProt::Read | orc::MemProt::Exec);
     return *StubsSection;
   }
 
@@ -247,6 +247,17 @@ private:
           (RawInstr & 0xFFFFF) | (static_cast<uint32_t>(Lo & 0xFFF) << 20);
       break;
     }
+    case R_RISCV_LO12_S: {
+      // FIXME: We assume that R_RISCV_HI20 is present in object code and pairs
+      // with current relocation R_RISCV_LO12_S. So here may need a check.
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      int64_t Lo = Value & 0xFFF;
+      uint32_t Imm31_25 = extractBits(Lo, 5, 7) << 25;
+      uint32_t Imm11_7 = extractBits(Lo, 0, 5) << 7;
+      uint32_t RawInstr = *(little32_t *)FixupPtr;
+      *(little32_t *)FixupPtr = (RawInstr & 0x1FFF07F) | Imm31_25 | Imm11_7;
+      break;
+    }
     case R_RISCV_CALL: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
@@ -291,6 +302,8 @@ private:
       // pairs with current relocation R_RISCV_PCREL_LO12_S. So here may need a
       // check.
       auto RelHI20 = getRISCVPCRelHi20(E);
+      if (!RelHI20)
+        return RelHI20.takeError();
       int64_t Value = RelHI20->getTarget().getAddress() +
                       RelHI20->getAddend() - E.getTarget().getAddress();
       int64_t Lo = Value & 0xFFF;
@@ -429,6 +442,8 @@ private:
       return EdgeKind_riscv::R_RISCV_HI20;
     case ELF::R_RISCV_LO12_I:
       return EdgeKind_riscv::R_RISCV_LO12_I;
+    case ELF::R_RISCV_LO12_S:
+      return EdgeKind_riscv::R_RISCV_LO12_S;
     case ELF::R_RISCV_CALL:
       return EdgeKind_riscv::R_RISCV_CALL;
     case ELF::R_RISCV_PCREL_HI20:
@@ -471,8 +486,9 @@ private:
       return EdgeKind_riscv::R_RISCV_32_PCREL;
     }
 
-    return make_error<JITLinkError>("Unsupported riscv relocation:" +
-                                    formatv("{0:d}", Type));
+    return make_error<JITLinkError>(
+        "Unsupported riscv relocation:" + formatv("{0:d}: ", Type) +
+        object::getELFRelocationTypeName(ELF::EM_RISCV, Type));
   }
 
   Error addRelocations() override {
@@ -481,8 +497,8 @@ private:
     using Base = ELFLinkGraphBuilder<ELFT>;
     using Self = ELFLinkGraphBuilder_riscv<ELFT>;
     for (const auto &RelSect : Base::Sections)
-      if (Error Err = Base::forEachRelocation(RelSect, this,
-                                              &Self::addSingleRelocation))
+      if (Error Err = Base::forEachRelaRelocation(RelSect, this,
+                                                  &Self::addSingleRelocation))
         return Err;
 
     return Error::success();
@@ -492,6 +508,30 @@ private:
                             const typename ELFT::Shdr &FixupSect,
                             Block &BlockToFix) {
     using Base = ELFLinkGraphBuilder<ELFT>;
+
+    uint32_t Type = Rel.getType(false);
+    // We do not implement linker relaxation, except what is required for
+    // alignment (see below).
+    if (Type == llvm::ELF::R_RISCV_RELAX)
+      return Error::success();
+
+    int64_t Addend = Rel.r_addend;
+    if (Type == llvm::ELF::R_RISCV_ALIGN) {
+      uint64_t Alignment = PowerOf2Ceil(Addend);
+      // FIXME: Implement support for ensuring alignment together with linker
+      // relaxation; 2 bytes are guaranteed by the length of compressed
+      // instructions, so this does not need any action from our side.
+      if (Alignment > 2)
+        return make_error<JITLinkError>(
+            formatv("Unsupported relocation R_RISCV_ALIGN with alignment {0} "
+                    "larger than 2 (addend: {1})",
+                    Alignment, Addend));
+      return Error::success();
+    }
+
+    Expected<riscv::EdgeKind_riscv> Kind = getRelocationKind(Type);
+    if (!Kind)
+      return Kind.takeError();
 
     uint32_t SymbolIndex = Rel.getSymbol(false);
     auto ObjSymbol = Base::Obj.getRelocationSymbol(Rel, Base::SymTabSec);
@@ -507,12 +547,6 @@ private:
                   Base::GraphSymbols.size()),
           inconvertibleErrorCode());
 
-    uint32_t Type = Rel.getType(false);
-    Expected<riscv::EdgeKind_riscv> Kind = getRelocationKind(Type);
-    if (!Kind)
-      return Kind.takeError();
-
-    int64_t Addend = Rel.r_addend;
     auto FixupAddress = orc::ExecutorAddr(FixupSect.sh_addr) + Rel.r_offset;
     Edge::OffsetT Offset = FixupAddress - BlockToFix.getAddress();
     Edge GE(*Kind, Offset, *GraphSymbol, Addend);

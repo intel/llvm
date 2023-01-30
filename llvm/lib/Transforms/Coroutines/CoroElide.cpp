@@ -14,10 +14,9 @@
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -103,11 +102,12 @@ static void removeTailCallAttribute(AllocaInst *Frame, AAResults &AA) {
 
 // Given a resume function @f.resume(%f.frame* %frame), returns the size
 // and expected alignment of %f.frame type.
-static Optional<std::pair<uint64_t, Align>> getFrameLayout(Function *Resume) {
+static std::optional<std::pair<uint64_t, Align>>
+getFrameLayout(Function *Resume) {
   // Pull information from the function attributes.
   auto Size = Resume->getParamDereferenceableBytes(0);
   if (!Size)
-    return None;
+    return std::nullopt;
   return std::make_pair(Size, Resume->getParamAlign(0).valueOrOne());
 }
 
@@ -246,7 +246,7 @@ bool Lowerer::shouldElide(Function *F, DominatorTree &DT) const {
 
   // Filter out the coro.destroy that lie along exceptional paths.
   SmallPtrSet<CoroBeginInst *, 8> ReferencedCoroBegins;
-  for (auto &It : DestroyAddr) {
+  for (const auto &It : DestroyAddr) {
     // If there is any coro.destroy dominates all of the terminators for the
     // coro.begin, we could know the corresponding coro.begin wouldn't escape.
     for (Instruction *DA : It.second) {
@@ -338,14 +338,13 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
   assert(Resumers && "PostSplit coro.id Info argument must refer to an array"
                      "of coroutine subfunctions");
   auto *ResumeAddrConstant =
-      ConstantExpr::getExtractValue(Resumers, CoroSubFnInst::ResumeIndex);
+      Resumers->getAggregateElement(CoroSubFnInst::ResumeIndex);
 
   replaceWithConstant(ResumeAddrConstant, ResumeAddr);
 
   bool ShouldElide = shouldElide(CoroId->getFunction(), DT);
 
-  auto *DestroyAddrConstant = ConstantExpr::getExtractValue(
-      Resumers,
+  auto *DestroyAddrConstant = Resumers->getAggregateElement(
       ShouldElide ? CoroSubFnInst::CleanupIndex : CoroSubFnInst::DestroyIndex);
 
   for (auto &It : DestroyAddr)

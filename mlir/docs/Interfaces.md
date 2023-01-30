@@ -8,6 +8,8 @@ to account for the semantics of every operation, or be overly conservative.
 Without care, this can result in code with special-cases for each supported
 operation type. To combat this, MLIR provides a concept of `interfaces`.
 
+[TOC]
+
 ## Motivation
 
 Interfaces provide a generic way of interacting with the IR. The goal is to be
@@ -340,7 +342,7 @@ void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
 
 Note: Before reading this section, the reader should have some familiarity with
 the concepts described in the
-[`Operation Definition Specification`](OpDefinitions.md) documentation.
+[`Operation Definition Specification`](DefiningDialects/Operations.md) documentation.
 
 As detailed above, [Interfaces](#attributeoperationtype-interfaces) allow for
 attributes, operations, and types to expose method calls without requiring that
@@ -396,7 +398,7 @@ comprised of the following components:
     -   Additional C++ code that is injected into the declarations of both the
         interface and the trait class. This allows for defining methods and more
         that are exposed on both the interface and the trait class, e.g. to inject
-        utilties on both the interface and the derived entity implementing the
+        utilities on both the interface and the derived entity implementing the
         interface (e.g. attribute, operation, etc.).
     -   In non-static methods, `$_attr`/`$_op`/`$_type`
         (depending on the type of interface) may be used to refer to an
@@ -459,7 +461,7 @@ operation if the operation specifies the interface with
 
 Examples:
 
-~~~tablegen
+```tablegen
 def MyInterface : OpInterface<"MyInterface"> {
   let description = [{
     This is the description of the interface. It provides concrete information
@@ -630,7 +632,7 @@ def OpWithInferTypeInterfaceOp : Op<...
 // the generation of a declaration for those methods.
 def OpWithOverrideInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
-~~~
+```
 
 Note: Existing operation interfaces defined in C++ can be accessed in the ODS
 framework via the `OpInterfaceTrait` class.

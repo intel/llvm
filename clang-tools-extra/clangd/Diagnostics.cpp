@@ -196,7 +196,7 @@ bool tryMoveToMainFile(Diag &D, FullSourceLoc DiagLoc) {
     return false;
 
   // Add a note that will point to real diagnostic.
-  auto FE = SM.getFileEntryRefForID(SM.getFileID(DiagLoc)).getValue();
+  auto FE = *SM.getFileEntryRefForID(SM.getFileID(DiagLoc));
   D.Notes.emplace(D.Notes.begin());
   Note &N = D.Notes.front();
   N.AbsFile = std::string(FE.getFileEntry().tryGetRealPathName());
@@ -331,7 +331,6 @@ void setTags(clangd::Diag &D) {
       diag::warn_deprecated,
       diag::warn_deprecated_altivec_src_compat,
       diag::warn_deprecated_comma_subscript,
-      diag::warn_deprecated_compound_assign_volatile,
       diag::warn_deprecated_copy,
       diag::warn_deprecated_copy_with_dtor,
       diag::warn_deprecated_copy_with_user_provided_copy,
@@ -477,6 +476,10 @@ void toLSPDiags(
   }
 
   Main.code = D.Name;
+  if (auto URI = getDiagnosticDocURI(D.Source, D.ID, D.Name)) {
+    Main.codeDescription.emplace();
+    Main.codeDescription->href = std::move(*URI);
+  }
   switch (D.Source) {
   case Diag::Clang:
     Main.source = "clang";
@@ -621,7 +624,7 @@ void StoreDiags::BeginSourceFile(const LangOptions &Opts,
 
 void StoreDiags::EndSourceFile() {
   flushLastDiag();
-  LangOpts = None;
+  LangOpts = std::nullopt;
   OrigSrcMgr = nullptr;
 }
 
@@ -901,6 +904,42 @@ llvm::StringRef normalizeSuppressedCode(llvm::StringRef Code) {
   Code.consume_front("err_");
   Code.consume_front("-W");
   return Code;
+}
+
+llvm::Optional<std::string> getDiagnosticDocURI(Diag::DiagSource Source,
+                                                unsigned ID,
+                                                llvm::StringRef Name) {
+  switch (Source) {
+  case Diag::Unknown:
+    break;
+  case Diag::Clang:
+    // There is a page listing many warning flags, but it provides too little
+    // information to be worth linking.
+    // https://clang.llvm.org/docs/DiagnosticsReference.html
+    break;
+  case Diag::ClangTidy: {
+    StringRef Module, Check;
+    // This won't correctly get the module for clang-analyzer checks, but as we
+    // don't link in the analyzer that shouldn't be an issue.
+    // This would also need updating if anyone decides to create a module with a
+    // '-' in the name.
+    std::tie(Module, Check) = Name.split('-');
+    if (Module.empty() || Check.empty())
+      return std::nullopt;
+    return ("https://clang.llvm.org/extra/clang-tidy/checks/" + Module + "/" +
+            Check + ".html")
+        .str();
+  }
+  case Diag::Clangd:
+    if (Name == "unused-includes")
+      return {"https://clangd.llvm.org/guides/include-cleaner"};
+    break;
+  case Diag::ClangdConfig:
+    // FIXME: we should link to https://clangd.llvm.org/config
+    // However we have no diagnostic codes, which the link should describe!
+    break;
+  }
+  return std::nullopt;
 }
 
 } // namespace clangd

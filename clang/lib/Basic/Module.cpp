@@ -633,7 +633,9 @@ LLVM_DUMP_METHOD void Module::dump() const {
 
 void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
                                   VisibleCallback Vis, ConflictCallback Cb) {
-  assert(Loc.isValid() && "setVisible expects a valid import location");
+  // We can't import a global module fragment so the location can be invalid.
+  assert((M->isGlobalModule() || Loc.isValid()) &&
+         "setVisible expects a valid import location");
   if (isVisible(M))
     return;
 
@@ -653,7 +655,7 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
       return;
 
     ImportLocs[ID] = Loc;
-    Vis(M);
+    Vis(V.M);
 
     // Make any exported modules visible.
     SmallVector<Module *, 16> Exports;

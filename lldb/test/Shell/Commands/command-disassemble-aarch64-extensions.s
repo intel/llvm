@@ -3,17 +3,13 @@
 # This checks that lldb's disassembler enables every extension that an AArch64
 # target could have.
 
-# RUN: llvm-mc -filetype=obj -triple aarch64-linux-gnueabihf %s -o %t \
-# RUN: --mattr=+tme,+mte,+crc,+lse,+rdm,+sm4,+sha3,+aes,+dotprod,+fullfp16 \
-# RUN: --mattr=+fp16fml,+sve,+sve2,+sve2-aes,+sve2-sm4,+sve2-sha3,+sve2-bitperm \
-# RUN: --mattr=+spe,+rcpc,+ssbs,+sb,+predres,+bf16,+mops,+hbc,+sme,+sme-i64 \
-# RUN: --mattr=+sme-f64,+flagm,+pauth,+brbe,+ls64,+f64mm,+f32mm,+i8mm,+rand
+# RUN: llvm-mc -filetype=obj -triple aarch64-linux-gnueabihf %s -o %t --mattr=+all
 # RUN: %lldb %t -o "disassemble -n fn" -o exit 2>&1 | FileCheck %s
 
 .globl  fn
 .type   fn, @function
 fn:
-  // These are in the same order as llvm/include/llvm/Support/AArch64TargetParser.def
+  // These are in the same order as llvm/include/llvm/TargetParser/AArch64TargetParser.def
   crc32b w0, w0, w0                   // CRC
   ldaddab w0, w0, [sp]                // LSE
   sqrdmlah v0.4h, v1.4h, v2.4h        // RDM
@@ -35,6 +31,8 @@ fn:
   sm4e z0.s, z0.s, z0.s               // SVE2SM4
   rax1 z0.d, z0.d, z0.d               // SVE2SHA3
   bdep z0.b, z1.b, z31.b              // SVE2BITPERM
+  addqv   v0.8h, p0, z0.h             // SVE2p1 / SME2p1
+  bfadd z23.h, p3/m, z23.h, z13.h     // B16B16
   ldaprb w0, [x0, #0]                 // RCPC
   mrs x0, rndr                        // RAND
   irg x0, x0                          // MTE
@@ -53,6 +51,7 @@ fn:
   addha za0.s, p0/m, p0/m, z0.s       // SME
   fmopa za0.d, p0/m, p0/m, z0.d, z0.d // SMEF64
   addha za0.d, p0/m, p0/m, z0.d       // SMEI64
+  add {z0.h, z1.h}, {z0.h, z1.h}, z0.h // SME2
 lbl:
   bc.eq lbl                           // HBC
   cpyfp [x0]!, [x1]!, x2!             // MOPS
@@ -81,6 +80,8 @@ lbl:
 # CHECK: sm4e   z0.s, z0.s, z0.s
 # CHECK: rax1   z0.d, z0.d, z0.d
 # CHECK: bdep   z0.b, z1.b, z31.b
+# CHECK: addqv  v0.8h, p0, z0.h
+# CHECK: bfadd  z23.h, p3/m, z23.h, z13.h
 # CHECK: ldaprb w0, [x0]
 # CHECK: mrs    x0, RNDR
 # CHECK: irg    x0, x0
@@ -99,6 +100,7 @@ lbl:
 # CHECK: addha  za0.s, p0/m, p0/m, z0.s
 # CHECK: fmopa  za0.d, p0/m, p0/m, z0.d, z0.d
 # CHECK: addha  za0.d, p0/m, p0/m, z0.d
-# CHECK: bc.eq  0x98
+# CHECK: add    { z0.h, z1.h }, { z0.h, z1.h }, z0.h
+# CHECK: bc.eq  0xa4
 # CHECK: cpyfp  [x0]!, [x1]!, x2!
 # CHECK: mrs    x0, PMCCNTR_EL0

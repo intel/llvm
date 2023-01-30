@@ -394,6 +394,13 @@ findSurvivorBackwards(const MachineRegisterInfo &MRI,
         Used.accumulate(*std::next(From));
     }
     if (FoundTo) {
+      // Don't search to FrameSetup instructions if we were searching from
+      // Non-FrameSetup instructions. Otherwise, the spill position may point
+      // before FrameSetup instructions.
+      if (!From->getFlag(MachineInstr::FrameSetup) &&
+          MI.getFlag(MachineInstr::FrameSetup))
+        break;
+
       if (Survivor == 0 || !Used.available(Survivor)) {
         MCPhysReg AvilableReg = 0;
         for (MCPhysReg Reg : AllocationOrder) {
@@ -499,14 +506,14 @@ RegScavenger::spill(Register Reg, const TargetRegisterClass &RC, int SPAdj,
                          ": Cannot scavenge register without an emergency "
                          "spill slot!");
     }
-    TII->storeRegToStackSlot(*MBB, Before, Reg, true, FI, &RC, TRI);
+    TII->storeRegToStackSlot(*MBB, Before, Reg, true, FI, &RC, TRI, Register());
     MachineBasicBlock::iterator II = std::prev(Before);
 
     unsigned FIOperandNum = getFrameIndexOperandNum(*II);
     TRI->eliminateFrameIndex(II, SPAdj, FIOperandNum, this);
 
     // Restore the scavenged register before its use (or first terminator).
-    TII->loadRegFromStackSlot(*MBB, UseMI, Reg, FI, &RC, TRI);
+    TII->loadRegFromStackSlot(*MBB, UseMI, Reg, FI, &RC, TRI, Register());
     II = std::prev(UseMI);
 
     FIOperandNum = getFrameIndexOperandNum(*II);

@@ -21,7 +21,7 @@ class TestOp<string mnemonic, list<Trait> traits = []> :
 // CHECK: _ODS_OPERAND_SEGMENTS = [-1,1,0,]
 def AttrSizedOperandsOp : TestOp<"attr_sized_operands",
                                  [AttrSizedOperandSegments]> {
-  // CHECK: def __init__(self, variadic1, non_variadic, variadic2, *, loc=None, ip=None):
+  // CHECK: def __init__(self, variadic1, non_variadic, *, variadic2=None, loc=None, ip=None):
   // CHECK:   operands = []
   // CHECK:   results = []
   // CHECK:   attributes = {}
@@ -110,16 +110,19 @@ def AttrSizedResultsOp : TestOp<"attr_sized_results",
 // CHECK-NOT: _ODS_OPERAND_SEGMENTS
 // CHECK-NOT: _ODS_RESULT_SEGMENTS
 def AttributedOp : TestOp<"attributed_op"> {
-  // CHECK: def __init__(self, i32attr, optionalF32Attr, unitAttr, in_, *, loc=None, ip=None):
+  // CHECK: def __init__(self, i32attr, in_, *, optionalF32Attr=None, unitAttr=None, loc=None, ip=None):
   // CHECK:   operands = []
   // CHECK:   results = []
   // CHECK:   attributes = {}
   // CHECK:   regions = None
-  // CHECK:   attributes["i32attr"] = i32attr
-  // CHECK:   if optionalF32Attr is not None: attributes["optionalF32Attr"] = optionalF32Attr
+  // CHECK:   attributes["i32attr"] = (i32attr if (
+  // CHECK-NEXT:   issubclass(type(i32attr), _ods_ir.Attribute) or
+  // CHECK-NEXT:   not _ods_ir.AttrBuilder.contains('I32Attr')
+  // CHECK-NEXT:   _ods_ir.AttrBuilder.get('I32Attr')(i32attr, context=_ods_context)
+  // CHECK:   if optionalF32Attr is not None: attributes["optionalF32Attr"] = (optionalF32Attr
   // CHECK:   if bool(unitAttr): attributes["unitAttr"] = _ods_ir.UnitAttr.get(
   // CHECK:     _ods_get_default_loc_context(loc))
-  // CHECK:   attributes["in"] = in_
+  // CHECK:   attributes["in"] = (in_
   // CHECK:   _ods_successors = None
   // CHECK:   super().__init__(self.build_generic(
   // CHECK:     attributes=attributes, results=results, operands=operands,
@@ -152,7 +155,7 @@ def AttributedOp : TestOp<"attributed_op"> {
 // CHECK-NOT: _ODS_OPERAND_SEGMENTS
 // CHECK-NOT: _ODS_RESULT_SEGMENTS
 def AttributedOpWithOperands : TestOp<"attributed_op_with_operands"> {
-  // CHECK: def __init__(self, _gen_arg_0, in_, _gen_arg_2, is_, *, loc=None, ip=None):
+  // CHECK: def __init__(self, _gen_arg_0, _gen_arg_2, *, in_=None, is_=None, loc=None, ip=None):
   // CHECK:   operands = []
   // CHECK:   results = []
   // CHECK:   attributes = {}
@@ -161,7 +164,7 @@ def AttributedOpWithOperands : TestOp<"attributed_op_with_operands"> {
   // CHECK:   operands.append(_get_op_result_or_value(_gen_arg_2))
   // CHECK:   if bool(in_): attributes["in"] = _ods_ir.UnitAttr.get(
   // CHECK:     _ods_get_default_loc_context(loc))
-  // CHECK:   if is_ is not None: attributes["is"] = is_
+  // CHECK:   if is_ is not None: attributes["is"] = (is_
   // CHECK:   _ods_successors = None
   // CHECK:   super().__init__(self.build_generic(
   // CHECK:     attributes=attributes, results=results, operands=operands,
@@ -179,9 +182,30 @@ def AttributedOpWithOperands : TestOp<"attributed_op_with_operands"> {
   let arguments = (ins I32, UnitAttr:$in, F32, OptionalAttr<F32Attr>:$is);
 }
 
+// CHECK: @_ods_cext.register_operation(_Dialect)
+// CHECK: class DefaultValuedAttrsOp(_ods_ir.OpView):
+// CHECK-LABEL: OPERATION_NAME = "test.default_valued_attrs"
+def DefaultValuedAttrsOp : TestOp<"default_valued_attrs"> {
+  // CHECK: def __init__(self, *, arr=None, unsupported=None, loc=None, ip=None):
+  // CHECK:   operands = []
+  // CHECK:   results = []
+  // CHECK:   attributes = {}
+  // CHECK:   regions = None
+  // CHECK:   if arr is not None: attributes["arr"] = (arr
+  // CHECK:   if unsupported is not None: attributes["unsupported"] = (unsupported
+  // CHECK:   _ods_successors = None
+  // CHECK:   super().__init__(self.build_generic(
+  // CHECK:     attributes=attributes, results=results, operands=operands,
+  // CHECK:     successors=_ods_successors, regions=regions, loc=loc, ip=ip))
+
+  let arguments = (ins DefaultValuedAttr<I64ArrayAttr, "{}">:$arr,
+                       DefaultValuedAttr<I64ArrayAttr, "dummy_func()">:$unsupported);
+  let results = (outs);
+}
+
 // CHECK-LABEL: OPERATION_NAME = "test.derive_result_types_op"
 def DeriveResultTypesOp : TestOp<"derive_result_types_op", [FirstAttrDerivedResultType]> {
-  // CHECK: def __init__(self, type, *, loc=None, ip=None):
+  // CHECK: def __init__(self, type_, *, loc=None, ip=None):
   // CHECK:   operands = []
   // CHECK:   results = []
   // CHECK:   _ods_result_type_source_attr = attributes["type"]
@@ -196,7 +220,7 @@ def DeriveResultTypesOp : TestOp<"derive_result_types_op", [FirstAttrDerivedResu
 
 // CHECK-LABEL: OPERATION_NAME = "test.derive_result_types_variadic_op"
 def DeriveResultTypesVariadicOp : TestOp<"derive_result_types_variadic_op", [FirstAttrDerivedResultType]> {
-  // CHECK: def __init__(self, res, _gen_res_1, type, *, loc=None, ip=None):
+  // CHECK: def __init__(self, res, _gen_res_1, type_, *, loc=None, ip=None):
   let arguments = (ins TypeAttr:$type);
   let results = (outs AnyType:$res, Variadic<AnyType>);
 }
@@ -286,7 +310,7 @@ def MissingNamesOp : TestOp<"missing_names"> {
 // CHECK-NOT: _ODS_RESULT_SEGMENTS
 def OneOptionalOperandOp : TestOp<"one_optional_operand"> {
   let arguments = (ins AnyType:$non_optional, Optional<AnyType>:$optional);
-  // CHECK: def __init__(self, non_optional, optional, *, loc=None, ip=None):
+  // CHECK: def __init__(self, non_optional, *, optional=None, loc=None, ip=None):
   // CHECK:   operands = []
   // CHECK:   results = []
   // CHECK:   attributes = {}
@@ -544,4 +568,3 @@ def WithSuccessorsOp : TestOp<"with_successors"> {
   let successors = (successor AnySuccessor:$successor,
                               VariadicSuccessor<AnySuccessor>:$successors);
 }
-

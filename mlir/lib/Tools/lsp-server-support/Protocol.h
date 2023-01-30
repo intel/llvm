@@ -35,6 +35,8 @@
 #include <vector>
 
 namespace mlir {
+struct LogicalResult;
+
 namespace lsp {
 
 enum class ErrorCode {
@@ -51,6 +53,7 @@ enum class ErrorCode {
   // Defined by the protocol.
   RequestCancelled = -32800,
   ContentModified = -32801,
+  RequestFailed = -32803,
 };
 
 /// Defines how the host (editor) should sync document changes to the language
@@ -101,14 +104,19 @@ public:
   /// Try to build a URIForFile from the given URI string.
   static llvm::Expected<URIForFile> fromURI(StringRef uri);
 
-  /// Try to build a URIForFile from the given absolute file path.
-  static llvm::Expected<URIForFile> fromFile(StringRef absoluteFilepath);
+  /// Try to build a URIForFile from the given absolute file path and optional
+  /// scheme.
+  static llvm::Expected<URIForFile> fromFile(StringRef absoluteFilepath,
+                                             StringRef scheme = "file");
 
   /// Returns the absolute path to the file.
   StringRef file() const { return filePath; }
 
   /// Returns the original uri of the file.
   StringRef uri() const { return uriStr; }
+
+  /// Return the scheme of the uri.
+  StringRef scheme() const;
 
   explicit operator bool() const { return !filePath.empty(); }
 
@@ -121,6 +129,11 @@ public:
   friend bool operator<(const URIForFile &lhs, const URIForFile &rhs) {
     return lhs.filePath < rhs.filePath;
   }
+
+  /// Register a supported URI scheme. The protocol supports `file` by default,
+  /// so this is only necessary for any additional schemes that a server wants
+  /// to support.
+  static void registerSupportedScheme(StringRef scheme);
 
 private:
   explicit URIForFile(std::string &&filePath, std::string &&uriStr)
@@ -144,6 +157,10 @@ struct ClientCapabilities {
   /// Client supports hierarchical document symbols.
   /// textDocument.documentSymbol.hierarchicalDocumentSymbolSupport
   bool hierarchicalDocumentSymbol = false;
+
+  /// Client supports CodeAction return value for textDocument/codeAction.
+  /// textDocument.codeAction.codeActionLiteralSupport.
+  bool codeActionStructure = false;
 };
 
 /// Add support for JSON serialization.
@@ -169,7 +186,7 @@ struct InitializeParams {
   ClientCapabilities capabilities;
 
   /// The initial trace setting. If omitted trace is disabled ('off').
-  Optional<TraceLevel> trace;
+  std::optional<TraceLevel> trace;
 };
 
 /// Add support for JSON serialization.
@@ -279,7 +296,7 @@ struct Position {
   /// source manager.
   SMLoc getAsSMLoc(llvm::SourceMgr &mgr) const {
     return mgr.FindLocForLineAndColumn(mgr.getMainFileID(), line + 1,
-                                       character);
+                                       character + 1);
   }
 };
 
@@ -322,6 +339,18 @@ struct Range {
   bool contains(Range range) const {
     return start <= range.start && range.end <= end;
   }
+
+  /// Convert this range into a source range in the main file of the given
+  /// source manager.
+  SMRange getAsSMRange(llvm::SourceMgr &mgr) const {
+    SMLoc startLoc = start.getAsSMLoc(mgr);
+    SMLoc endLoc = end.getAsSMLoc(mgr);
+    // Check that the start and end locations are valid.
+    if (!startLoc.isValid() || !endLoc.isValid() ||
+        startLoc.getPointer() > endLoc.getPointer())
+      return SMRange();
+    return SMRange(startLoc, endLoc);
+  }
 };
 
 /// Add support for JSON serialization.
@@ -360,6 +389,8 @@ struct Location {
 };
 
 /// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, Location &result,
+              llvm::json::Path path);
 llvm::json::Value toJSON(const Location &value);
 raw_ostream &operator<<(raw_ostream &os, const Location &value);
 
@@ -431,11 +462,17 @@ bool fromJSON(const llvm::json::Value &value,
 //===----------------------------------------------------------------------===//
 
 struct TextDocumentContentChangeEvent {
+  /// Try to apply this change to the given contents string.
+  LogicalResult applyTo(std::string &contents) const;
+  /// Try to apply a set of changes to the given contents string.
+  static LogicalResult applyTo(ArrayRef<TextDocumentContentChangeEvent> changes,
+                               std::string &contents);
+
   /// The range of the document that changed.
-  Optional<Range> range;
+  std::optional<Range> range;
 
   /// The length of the range that got replaced.
-  Optional<int> rangeLength;
+  std::optional<int> rangeLength;
 
   /// The new text of the range/document.
   std::string text;
@@ -592,6 +629,7 @@ bool fromJSON(const llvm::json::Value &value, DocumentSymbolParams &result,
 /// This should be used to point to code locations that cause or related to a
 /// diagnostics, e.g. when duplicating a symbol in a scope.
 struct DiagnosticRelatedInformation {
+  DiagnosticRelatedInformation() = default;
   DiagnosticRelatedInformation(Location location, std::string message)
       : location(std::move(location)), message(std::move(message)) {}
 
@@ -602,6 +640,8 @@ struct DiagnosticRelatedInformation {
 };
 
 /// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value,
+              DiagnosticRelatedInformation &result, llvm::json::Path path);
 llvm::json::Value toJSON(const DiagnosticRelatedInformation &info);
 
 //===----------------------------------------------------------------------===//
@@ -635,17 +675,19 @@ struct Diagnostic {
 
   /// An array of related diagnostic information, e.g. when symbol-names within
   /// a scope collide all definitions can be marked via this property.
-  Optional<std::vector<DiagnosticRelatedInformation>> relatedInformation;
+  std::optional<std::vector<DiagnosticRelatedInformation>> relatedInformation;
 
   /// The diagnostic's category. Can be omitted.
   /// An LSP extension that's used to send the name of the category over to the
   /// client. The category typically describes the compilation stage during
   /// which the issue was produced, e.g. "Semantic Issue" or "Parse Issue".
-  Optional<std::string> category;
+  std::optional<std::string> category;
 };
 
 /// Add support for JSON serialization.
 llvm::json::Value toJSON(const Diagnostic &diag);
+bool fromJSON(const llvm::json::Value &value, Diagnostic &result,
+              llvm::json::Path path);
 
 //===----------------------------------------------------------------------===//
 // PublishDiagnosticsParams
@@ -760,6 +802,12 @@ enum class InsertTextFormat {
 };
 
 struct CompletionItem {
+  CompletionItem() = default;
+  CompletionItem(const Twine &label, CompletionItemKind kind,
+                 StringRef sortText = "")
+      : label(label.str()), kind(kind), sortText(sortText.str()),
+        insertTextFormat(InsertTextFormat::PlainText) {}
+
   /// The label of this completion item. By default also the text that is
   /// inserted when selecting this completion.
   std::string label;
@@ -773,7 +821,7 @@ struct CompletionItem {
   std::string detail;
 
   /// A human-readable string that represents a doc-comment.
-  Optional<MarkupContent> documentation;
+  std::optional<MarkupContent> documentation;
 
   /// A string that should be used when comparing this item with other items.
   /// When `falsy` the label is used.
@@ -796,7 +844,7 @@ struct CompletionItem {
   ///
   /// Note: The range of the edit must be a single line range and it must
   /// contain the position at which completion has been requested.
-  Optional<TextEdit> textEdit;
+  std::optional<TextEdit> textEdit;
 
   /// An optional array of additional text edits that are applied when selecting
   /// this completion. Edits must not overlap with the main edit nor with
@@ -929,6 +977,233 @@ struct SignatureHelp {
 
 /// Add support for JSON serialization.
 llvm::json::Value toJSON(const SignatureHelp &value);
+
+//===----------------------------------------------------------------------===//
+// DocumentLinkParams
+//===----------------------------------------------------------------------===//
+
+/// Parameters for the document link request.
+struct DocumentLinkParams {
+  /// The document to provide document links for.
+  TextDocumentIdentifier textDocument;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, DocumentLinkParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// DocumentLink
+//===----------------------------------------------------------------------===//
+
+/// A range in a text document that links to an internal or external resource,
+/// like another text document or a web site.
+struct DocumentLink {
+  DocumentLink() = default;
+  DocumentLink(Range range, URIForFile target)
+      : range(range), target(std::move(target)) {}
+
+  /// The range this link applies to.
+  Range range;
+
+  /// The uri this link points to. If missing a resolve request is sent later.
+  URIForFile target;
+
+  // TODO: The following optional fields defined by the language server protocol
+  // are unsupported:
+  //
+  // data?: any - A data entry field that is preserved on a document link
+  //              between a DocumentLinkRequest and a
+  //              DocumentLinkResolveRequest.
+
+  friend bool operator==(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return lhs.range == rhs.range && lhs.target == rhs.target;
+  }
+
+  friend bool operator!=(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return !(lhs == rhs);
+  }
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const DocumentLink &value);
+
+//===----------------------------------------------------------------------===//
+// InlayHintsParams
+//===----------------------------------------------------------------------===//
+
+/// A parameter literal used in inlay hint requests.
+struct InlayHintsParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+
+  /// The visible document range for which inlay hints should be computed.
+  Range range;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, InlayHintsParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// InlayHintKind
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint kinds.
+enum class InlayHintKind {
+  /// An inlay hint that for a type annotation.
+  ///
+  /// An example of a type hint is a hint in this position:
+  ///    auto var ^ = expr;
+  /// which shows the deduced type of the variable.
+  Type = 1,
+
+  /// An inlay hint that is for a parameter.
+  ///
+  /// An example of a parameter hint is a hint in this position:
+  ///    func(^arg);
+  /// which shows the name of the corresponding parameter.
+  Parameter = 2,
+};
+
+//===----------------------------------------------------------------------===//
+// InlayHint
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint information.
+struct InlayHint {
+  InlayHint(InlayHintKind kind, Position pos) : position(pos), kind(kind) {}
+
+  /// The position of this hint.
+  Position position;
+
+  /// The label of this hint. A human readable string or an array of
+  /// InlayHintLabelPart label parts.
+  ///
+  /// *Note* that neither the string nor the label part can be empty.
+  std::string label;
+
+  /// The kind of this hint. Can be omitted in which case the client should fall
+  /// back to a reasonable default.
+  InlayHintKind kind;
+
+  /// Render padding before the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingLeft = false;
+
+  /// Render padding after the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingRight = false;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const InlayHint &);
+bool operator==(const InlayHint &lhs, const InlayHint &rhs);
+bool operator<(const InlayHint &lhs, const InlayHint &rhs);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, InlayHintKind value);
+
+//===----------------------------------------------------------------------===//
+// CodeActionContext
+//===----------------------------------------------------------------------===//
+
+struct CodeActionContext {
+  /// An array of diagnostics known on the client side overlapping the range
+  /// provided to the `textDocument/codeAction` request. They are provided so
+  /// that the server knows which errors are currently presented to the user for
+  /// the given range. There is no guarantee that these accurately reflect the
+  /// error state of the resource. The primary parameter to compute code actions
+  /// is the provided range.
+  std::vector<Diagnostic> diagnostics;
+
+  /// Requested kind of actions to return.
+  ///
+  /// Actions not of this kind are filtered out by the client before being
+  /// shown. So servers can omit computing them.
+  std::vector<std::string> only;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CodeActionContext &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// CodeActionParams
+//===----------------------------------------------------------------------===//
+
+struct CodeActionParams {
+  /// The document in which the command was invoked.
+  TextDocumentIdentifier textDocument;
+
+  /// The range for which the command was invoked.
+  Range range;
+
+  /// Context carrying additional information.
+  CodeActionContext context;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CodeActionParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// WorkspaceEdit
+//===----------------------------------------------------------------------===//
+
+struct WorkspaceEdit {
+  /// Holds changes to existing resources.
+  std::map<std::string, std::vector<TextEdit>> changes;
+
+  /// Note: "documentChanges" is not currently used because currently there is
+  /// no support for versioned edits.
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, WorkspaceEdit &result,
+              llvm::json::Path path);
+llvm::json::Value toJSON(const WorkspaceEdit &value);
+
+//===----------------------------------------------------------------------===//
+// CodeAction
+//===----------------------------------------------------------------------===//
+
+/// A code action represents a change that can be performed in code, e.g. to fix
+/// a problem or to refactor code.
+///
+/// A CodeAction must set either `edit` and/or a `command`. If both are
+/// supplied, the `edit` is applied first, then the `command` is executed.
+struct CodeAction {
+  /// A short, human-readable, title for this code action.
+  std::string title;
+
+  /// The kind of the code action.
+  /// Used to filter code actions.
+  Optional<std::string> kind;
+  const static llvm::StringLiteral kQuickFix;
+  const static llvm::StringLiteral kRefactor;
+  const static llvm::StringLiteral kInfo;
+
+  /// The diagnostics that this code action resolves.
+  Optional<std::vector<Diagnostic>> diagnostics;
+
+  /// Marks this as a preferred action. Preferred actions are used by the
+  /// `auto fix` command and can be targeted by keybindings.
+  /// A quick fix should be marked preferred if it properly addresses the
+  /// underlying error. A refactoring should be marked preferred if it is the
+  /// most reasonable choice of actions to take.
+  bool isPreferred = false;
+
+  /// The workspace edit this code action performs.
+  Optional<WorkspaceEdit> edit;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const CodeAction &);
 
 } // namespace lsp
 } // namespace mlir

@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s -allow-unregistered-dialect -test-loop-fusion -test-loop-fusion-transformation -split-input-file -canonicalize | FileCheck %s
 
 // CHECK-LABEL: func @slice_depth1_loop_nest() {
-func @slice_depth1_loop_nest() {
+func.func @slice_depth1_loop_nest() {
   %0 = memref.alloc() : memref<100xf32>
   %cst = arith.constant 7.000000e+00 : f32
   affine.for %i0 = 0 to 16 {
@@ -14,7 +14,7 @@ func @slice_depth1_loop_nest() {
   // CHECK:      affine.for %[[IV0:.*]] = 0 to 5 {
   // CHECK-NEXT:   affine.store %{{.*}}, %{{.*}}[%[[IV0]]] : memref<100xf32>
   // CHECK-NEXT:   affine.load %{{.*}}[%[[IV0]]] : memref<100xf32>
-  // CHECK-NEXT:   "prevent.dce"(%1) : (f32) -> ()
+  // CHECK-NEXT:   "prevent.dce"(%{{.*}}) : (f32) -> ()
   // CHECK-NEXT: }
   // CHECK-NEXT: return
   return
@@ -23,7 +23,7 @@ func @slice_depth1_loop_nest() {
 // -----
 
 // CHECK-LABEL: func @should_fuse_reduction_to_pointwise() {
-func @should_fuse_reduction_to_pointwise() {
+func.func @should_fuse_reduction_to_pointwise() {
   %a = memref.alloc() : memref<10x10xf32>
   %b = memref.alloc() : memref<10xf32>
   %c = memref.alloc() : memref<10xf32>
@@ -63,7 +63,7 @@ func @should_fuse_reduction_to_pointwise() {
 // -----
 
 // CHECK-LABEL: func @should_fuse_avoiding_dependence_cycle() {
-func @should_fuse_avoiding_dependence_cycle() {
+func.func @should_fuse_avoiding_dependence_cycle() {
   %a = memref.alloc() : memref<10xf32>
   %b = memref.alloc() : memref<10xf32>
   %c = memref.alloc() : memref<10xf32>

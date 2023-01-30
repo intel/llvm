@@ -1,4 +1,6 @@
 
+workitem/get_global_offset.ll
+group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
 atomic/loadstore_helpers.ll
@@ -64,3 +66,4 @@ workitem/get_sub_group_local_id.cl
 workitem/get_sub_group_size.cl
 misc/sub_group_shuffle.cl
 async/wait_group_events.cl
+assert/__assert_fail.ll

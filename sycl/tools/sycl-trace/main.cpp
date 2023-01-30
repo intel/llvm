@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-enum ModeKind { PI, ZE };
+enum ModeKind { PI, ZE, CU };
 enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
@@ -23,7 +23,8 @@ int main(int argc, char **argv, char *env[]) {
       cl::values(
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
-          clEnumValN(ZE, "level_zero", "Trace Level Zero calls")));
+          clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
+          clEnumValN(CU, "cuda", "Trace CUDA Driver API calls")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
@@ -47,8 +48,13 @@ int main(int argc, char **argv, char *env[]) {
       NewEnv.emplace_back(env[I++]);
   }
 
+#ifdef __linux__
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.so");
+#elif defined(__APPLE__)
+  NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.dylib");
+  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.dylib");
+#endif
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
 
   const auto EnablePITrace = [&]() {
@@ -58,6 +64,9 @@ int main(int argc, char **argv, char *env[]) {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
     NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
   };
+  const auto EnableCUTrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_CU_ENABLE=1");
+  };
 
   for (auto Mode : Modes) {
     switch (Mode) {
@@ -66,6 +75,9 @@ int main(int argc, char **argv, char *env[]) {
       break;
     case ZE:
       EnableZETrace();
+      break;
+    case CU:
+      EnableCUTrace();
       break;
     }
   }
@@ -81,6 +93,7 @@ int main(int argc, char **argv, char *env[]) {
   if (Modes.size() == 0) {
     EnablePITrace();
     EnableZETrace();
+    EnableCUTrace();
   }
 
   std::vector<std::string> Args;

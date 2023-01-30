@@ -14,11 +14,11 @@
 
 #include "Types.h"
 
-namespace _OMP {
+namespace ompx {
 
 namespace mapping {
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 inline constexpr uint32_t MaxThreadsPerTeam = 1024;
 
@@ -97,6 +97,6 @@ uint32_t getNumberOfProcessorElements();
 
 } // namespace mapping
 
-} // namespace _OMP
+} // namespace ompx
 
 #endif

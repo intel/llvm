@@ -12,6 +12,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/TableGen/Record.h"
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -48,7 +49,7 @@ public:
   using NameSet = std::unordered_set<std::string>;
 
   // This indexes all headers, not just a specified one.
-  explicit APIIndexer(llvm::RecordKeeper &Records) : StdHeader(llvm::None) {
+  explicit APIIndexer(llvm::RecordKeeper &Records) : StdHeader(std::nullopt) {
     index(Records);
   }
 
@@ -63,13 +64,16 @@ public:
   NameToRecordMapping EnumerationSpecMap;
   NameToRecordMapping FunctionSpecMap;
   NameToRecordMapping MacroDefsMap;
+  NameToRecordMapping ObjectSpecMap;
 
   std::unordered_map<std::string, std::string> FunctionToHeaderMap;
+  std::unordered_map<std::string, std::string> ObjectToHeaderMap;
 
   NameSet RequiredTypes;
   NameSet Structs;
   NameSet Enumerations;
   NameSet Functions;
+  NameSet Objects;
   NameSet PublicHeaders;
 
   std::string getTypeAsString(llvm::Record *TypeRecord);

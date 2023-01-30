@@ -21,18 +21,17 @@
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace detail {
-namespace half_impl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail::half_impl {
 class half;
-} // namespace half_impl
-} // namespace detail
+} // namespace detail::half_impl
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_EMU_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::emu::detail {
 
 using half = sycl::detail::half_impl::half;
 constexpr int sat_is_on = 1;
@@ -702,8 +701,9 @@ template <> struct dwordtype<unsigned int> {
   static const bool value = true;
 };
 
-} // namespace __ESIMD_EMU_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::emu::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__
 

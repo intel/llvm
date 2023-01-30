@@ -12,9 +12,15 @@
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "AMDGPU.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/GlobalVariable.h"
 
 namespace llvm {
+
+class AMDGPUSubtarget;
+class GCNSubtarget;
 
 class AMDGPUMachineFunction : public MachineFunctionInfo {
   /// A map to keep track of local memory objects and their offsets within the
@@ -41,9 +47,6 @@ protected:
   /// stages.
   Align DynLDSAlign;
 
-  // State of MODE register, assumed FP mode.
-  AMDGPU::SIModeRegisterDefaults Mode;
-
   // Kernels + shaders. i.e. functions called by the hardware and not called
   // by other functions.
   bool IsEntryFunction = false;
@@ -60,13 +63,13 @@ protected:
   bool WaveLimiter = false;
 
 public:
-  AMDGPUMachineFunction(const MachineFunction &MF);
+  AMDGPUMachineFunction(const Function &F, const AMDGPUSubtarget &ST);
 
   uint64_t getExplicitKernArgSize() const {
     return ExplicitKernArgSize;
   }
 
-  unsigned getMaxKernArgAlign() const { return MaxKernArgAlign.value(); }
+  Align getMaxKernArgAlign() const { return MaxKernArgAlign; }
 
   uint32_t getLDSSize() const {
     return LDSSize;
@@ -74,10 +77,6 @@ public:
 
   uint32_t getGDSSize() const {
     return GDSSize;
-  }
-
-  AMDGPU::SIModeRegisterDefaults getMode() const {
-    return Mode;
   }
 
   bool isEntryFunction() const {
@@ -98,8 +97,29 @@ public:
     return WaveLimiter;
   }
 
-  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV);
-  void allocateModuleLDSGlobal(const Module *M);
+  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV) {
+    return allocateLDSGlobal(DL, GV, DynLDSAlign);
+  }
+
+  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV,
+                             Align Trailing);
+
+  void allocateKnownAddressLDSGlobal(const Function &F);
+
+  // A kernel function may have an associated LDS allocation, and a kernel-scope
+  // LDS allocation must have an associated kernel function
+
+  // LDS allocation should have an associated kernel function
+  static const Function *
+  getKernelLDSFunctionFromGlobal(const GlobalVariable &GV);
+  static const GlobalVariable *
+  getKernelLDSGlobalFromFunction(const Function &F);
+
+  // Module or kernel scope LDS variable
+  static bool isKnownAddressLDSGlobal(const GlobalVariable &GV);
+  static unsigned calculateKnownAddressOfLDSGlobal(const GlobalVariable &GV);
+
+  static std::optional<uint32_t> getLDSKernelIdMetadata(const Function &F);
 
   Align getDynLDSAlign() const { return DynLDSAlign; }
 

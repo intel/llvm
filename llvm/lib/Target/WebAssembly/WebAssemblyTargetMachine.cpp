@@ -32,6 +32,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/LowerAtomicPass.h"
 #include "llvm/Transforms/Utils.h"
+#include <optional>
 using namespace llvm;
 
 #define DEBUG_TYPE "wasm"
@@ -63,7 +64,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyArgumentMovePass(PR);
   initializeWebAssemblySetP2AlignOperandsPass(PR);
   initializeWebAssemblyReplacePhysRegsPass(PR);
-  initializeWebAssemblyPrepareForLiveIntervalsPass(PR);
   initializeWebAssemblyOptimizeLiveIntervalsPass(PR);
   initializeWebAssemblyMemIntrinsicResultsPass(PR);
   initializeWebAssemblyRegStackifyPass(PR);
@@ -80,15 +80,18 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyDebugFixupPass(PR);
   initializeWebAssemblyPeepholePass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
+  initializeWebAssemblyLowerRefTypesIntPtrConvPass(PR);
+  initializeWebAssemblyFixBrTableDefaultsPass(PR);
+  initializeWebAssemblyDAGToDAGISelPass(PR);
 }
 
 //===----------------------------------------------------------------------===//
 // WebAssembly Lowering public interface.
 //===----------------------------------------------------------------------===//
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM,
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM,
                                            const Triple &TT) {
-  if (!RM.hasValue()) {
+  if (!RM) {
     // Default to static relocation model.  This should always be more optimial
     // than PIC since the static linker can determine all global addresses and
     // assume direct function calls.
@@ -109,8 +112,8 @@ static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM,
 ///
 WebAssemblyTargetMachine::WebAssemblyTargetMachine(
     const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
-    const TargetOptions &Options, Optional<Reloc::Model> RM,
-    Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
+    const TargetOptions &Options, std::optional<Reloc::Model> RM,
+    std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(
           T,
           TT.isArch64Bit()
@@ -204,11 +207,12 @@ public:
     bool StrippedAtomics = false;
     bool StrippedTLS = false;
 
-    if (!Features[WebAssembly::FeatureAtomics])
+    if (!Features[WebAssembly::FeatureAtomics]) {
       StrippedAtomics = stripAtomics(M);
-
-    if (!Features[WebAssembly::FeatureBulkMemory])
       StrippedTLS = stripThreadLocals(M);
+    } else if (!Features[WebAssembly::FeatureBulkMemory]) {
+      StrippedTLS |= stripThreadLocals(M);
+    }
 
     if (StrippedAtomics && !StrippedTLS)
       stripThreadLocals(M);
@@ -323,6 +327,7 @@ public:
   void addIRPasses() override;
   void addISelPrepare() override;
   bool addInstSelector() override;
+  void addOptimizedRegAlloc() override;
   void addPostRegAlloc() override;
   bool addGCPasses() override { return false; }
   void addPreEmitPass() override;
@@ -335,6 +340,13 @@ public:
   bool addRegAssignAndRewriteOptimized() override { return false; }
 };
 } // end anonymous namespace
+
+MachineFunctionInfo *WebAssemblyTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return WebAssemblyFunctionInfo::create<WebAssemblyFunctionInfo>(Allocator, F,
+                                                                  STI);
+}
 
 TargetTransformInfo
 WebAssemblyTargetMachine::getTargetTransformInfo(const Function &F) const {
@@ -412,7 +424,7 @@ void WebAssemblyPassConfig::addIRPasses() {
   // Add signatures to prototype-less function declarations
   addPass(createWebAssemblyAddMissingPrototypes());
 
-  // Lower .llvm.global_dtors into .llvm_global_ctors with __cxa_atexit calls.
+  // Lower .llvm.global_dtors into .llvm.global_ctors with __cxa_atexit calls.
   addPass(createLowerGlobalDtorsLegacyPass());
 
   // Fix function bitcasts, as WebAssembly requires caller and callee signatures
@@ -480,12 +492,26 @@ bool WebAssemblyPassConfig::addInstSelector() {
   return false;
 }
 
+void WebAssemblyPassConfig::addOptimizedRegAlloc() {
+  // Currently RegisterCoalesce degrades wasm debug info quality by a
+  // significant margin. As a quick fix, disable this for -O1, which is often
+  // used for debugging large applications. Disabling this increases code size
+  // of Emscripten core benchmarks by ~5%, which is acceptable for -O1, which is
+  // usually not used for production builds.
+  // TODO Investigate why RegisterCoalesce degrades debug info quality and fix
+  // it properly
+  if (getOptLevel() == CodeGenOpt::Less)
+    disablePass(&RegisterCoalescerID);
+  TargetPassConfig::addOptimizedRegAlloc();
+}
+
 void WebAssemblyPassConfig::addPostRegAlloc() {
   // TODO: The following CodeGen passes don't currently support code containing
   // virtual registers. Consider removing their restrictions and re-enabling
   // them.
 
   // These functions all require the NoVRegs property.
+  disablePass(&MachineLateInstrsCleanupID);
   disablePass(&MachineCopyPropagationID);
   disablePass(&PostRAMachineSinkingID);
   disablePass(&PostRASchedulerID);
@@ -523,9 +549,6 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Preparations and optimizations related to register stackification.
   if (getOptLevel() != CodeGenOpt::None) {
-    // LiveIntervals isn't commonly run this late. Re-establish preconditions.
-    addPass(createWebAssemblyPrepareForLiveIntervals());
-
     // Depend on LiveIntervals and perform some optimizations on it.
     addPass(createWebAssemblyOptimizeLiveIntervals());
 
@@ -588,7 +611,7 @@ WebAssemblyTargetMachine::createDefaultFuncInfoYAML() const {
 yaml::MachineFunctionInfo *WebAssemblyTargetMachine::convertFuncInfoToYAML(
     const MachineFunction &MF) const {
   const auto *MFI = MF.getInfo<WebAssemblyFunctionInfo>();
-  return new yaml::WebAssemblyFunctionInfo(*MFI);
+  return new yaml::WebAssemblyFunctionInfo(MF, *MFI);
 }
 
 bool WebAssemblyTargetMachine::parseMachineFunctionInfo(
@@ -596,6 +619,6 @@ bool WebAssemblyTargetMachine::parseMachineFunctionInfo(
     SMDiagnostic &Error, SMRange &SourceRange) const {
   const auto &YamlMFI = static_cast<const yaml::WebAssemblyFunctionInfo &>(MFI);
   MachineFunction &MF = PFS.MF;
-  MF.getInfo<WebAssemblyFunctionInfo>()->initializeBaseYamlFields(YamlMFI);
+  MF.getInfo<WebAssemblyFunctionInfo>()->initializeBaseYamlFields(MF, YamlMFI);
   return false;
 }

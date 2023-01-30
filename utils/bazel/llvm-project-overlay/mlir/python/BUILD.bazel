@@ -12,19 +12,13 @@ load("//mlir:tblgen.bzl", "gentbl_filegroup", "td_library")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 ##---------------------------------------------------------------------------##
 # Core IR modules.
 ##---------------------------------------------------------------------------##
-
-filegroup(
-    name = "ConversionsPyFiles",
-    srcs = glob([
-        "mlir/conversions/*.py",
-    ]),
-)
 
 filegroup(
     name = "DialectCorePyFiles",
@@ -63,6 +57,13 @@ filegroup(
 )
 
 filegroup(
+    name = "MlirLibsPyFiles",
+    srcs = [
+        "mlir/_mlir_libs/__init__.py",
+    ],
+)
+
+filegroup(
     name = "PassManagerPyFiles",
     srcs = [
         "mlir/passmanager.py",
@@ -80,20 +81,6 @@ filegroup(
     name = "RuntimePyFiles",
     srcs = glob([
         "mlir/runtime/*.py",
-    ]),
-)
-
-filegroup(
-    name = "TransformsPyFiles",
-    srcs = glob([
-        "mlir/transforms/*.py",
-    ]),
-)
-
-filegroup(
-    name = "AllPassesRegistrationPyFiles",
-    srcs = glob([
-        "mlir/all_passes_registration/*.py",
     ]),
 )
 
@@ -210,23 +197,23 @@ filegroup(
 )
 
 ##---------------------------------------------------------------------------##
-# Arithmetic dialect.
+# Arith dialect.
 ##---------------------------------------------------------------------------##
 
 td_library(
-    name = "ArithmeticOpsPyTdFiles",
+    name = "ArithOpsPyTdFiles",
     srcs = [
         "//mlir:include/mlir/Bindings/Python/Attributes.td",
     ],
     includes = ["../include"],
     deps = [
-        "//mlir:ArithmeticOpsTdFiles",
+        "//mlir:ArithOpsTdFiles",
         "//mlir:OpBaseTdFiles",
     ],
 )
 
 gentbl_filegroup(
-    name = "ArithmeticOpsPyGen",
+    name = "ArithOpsPyGen",
     tbl_outs = [
         (
             [
@@ -237,18 +224,104 @@ gentbl_filegroup(
         ),
     ],
     tblgen = "//mlir:mlir-tblgen",
-    td_file = "mlir/dialects/ArithmeticOps.td",
+    td_file = "mlir/dialects/ArithOps.td",
     deps = [
-        ":ArithmeticOpsPyTdFiles",
+        ":ArithOpsPyTdFiles",
     ],
 )
 
 filegroup(
-    name = "ArithmeticOpsPyFiles",
+    name = "ArithOpsPyFiles",
     srcs = [
         "mlir/dialects/_arith_ops_ext.py",
         "mlir/dialects/arith.py",
-        ":ArithmeticOpsPyGen",
+        ":ArithOpsPyGen",
+    ],
+)
+
+##---------------------------------------------------------------------------##
+# Bufferization dialect.
+##---------------------------------------------------------------------------##
+
+td_library(
+    name = "BufferizationOpsPyTdFiles",
+    srcs = [
+        "//mlir:include/mlir/Bindings/Python/Attributes.td",
+    ],
+    includes = ["../include"],
+    deps = [
+        "//mlir:BufferizableOpInterfaceTdFiles",
+        "//mlir:BufferizationOpsTdFiles",
+        "//mlir:OpBaseTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "BufferizationOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=bufferization",
+            ],
+            "mlir/dialects/_bufferization_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/BufferizationOps.td",
+    deps = [
+        ":BufferizationOpsPyTdFiles",
+    ],
+)
+
+filegroup(
+    name = "BufferizationOpsPyFiles",
+    srcs = [
+        "mlir/dialects/_bufferization_ops_ext.py",
+        "mlir/dialects/bufferization.py",
+        ":BufferizationOpsPyGen",
+    ],
+)
+
+##---------------------------------------------------------------------------##
+# Complex dialect.
+##---------------------------------------------------------------------------##
+
+td_library(
+    name = "ComplexOpsPyTdFiles",
+    srcs = [
+        "//mlir:include/mlir/Bindings/Python/Attributes.td",
+    ],
+    includes = ["../include"],
+    deps = [
+        "//mlir:ComplexOpsTdFiles",
+        "//mlir:OpBaseTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "ComplexOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=complex",
+            ],
+            "mlir/dialects/_complex_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/ComplexOps.td",
+    deps = [
+        ":ComplexOpsPyTdFiles",
+    ],
+)
+
+filegroup(
+    name = "ComplexOpsPyFiles",
+    srcs = [
+        "mlir/dialects/complex.py",
+        ":ComplexOpsPyGen",
     ],
 )
 
@@ -379,6 +452,49 @@ filegroup(
 )
 
 ##---------------------------------------------------------------------------##
+# MLProgram dialect.
+##---------------------------------------------------------------------------##
+
+td_library(
+    name = "MLProgramOpsPyTdFiles",
+    srcs = [
+        "//mlir:include/mlir/Bindings/Python/Attributes.td",
+    ],
+    includes = ["../include"],
+    deps = [
+        "//mlir:MLProgramOpsTdFiles",
+        "//mlir:OpBaseTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "MLProgramOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=ml_program",
+            ],
+            "mlir/dialects/_ml_program_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/MLProgramOps.td",
+    deps = [
+        ":MLProgramOpsPyTdFiles",
+    ],
+)
+
+filegroup(
+    name = "MLProgramOpsPyFiles",
+    srcs = [
+        "mlir/dialects/_ml_program_ops_ext.py",
+        "mlir/dialects/ml_program.py",
+        ":MLProgramOpsPyGen",
+    ],
+)
+
+##---------------------------------------------------------------------------##
 # PDL dialect.
 ##---------------------------------------------------------------------------##
 
@@ -427,7 +543,6 @@ filegroup(
         ":PDLPyGen",
     ],
 )
-
 
 ##---------------------------------------------------------------------------##
 # PythonTest dialect.
@@ -736,6 +851,96 @@ filegroup(
         "mlir/dialects/tosa.py",
         ":TosaOpsPyGen",
     ],
+)
+
+##---------------------------------------------------------------------------##
+# Transform dialect and extensions.
+##---------------------------------------------------------------------------##
+
+td_library(
+    name = "TransformOpsPyTdFiles",
+    srcs = [
+        "//mlir:include/mlir/Bindings/Python/Attributes.td",
+    ],
+    deps = [
+        "//mlir:OpBaseTdFiles",
+        "//mlir:TransformDialectTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "TransformOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=transform",
+            ],
+            "mlir/dialects/_transform_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/TransformOps.td",
+    deps = [
+        ":TransformOpsPyTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "StructuredTransformOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=transform",
+                "-dialect-extension=structured_transform",
+            ],
+            "mlir/dialects/_structured_transform_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/LinalgStructuredTransformOps.td",
+    deps = [
+        ":TransformOpsPyTdFiles",
+        "//mlir:LinalgTransformOpsTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "LoopTransformOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=transform",
+                "-dialect-extension=loop_transform",
+            ],
+            "mlir/dialects/_loop_transform_ops_gen.py",
+        ),
+    ],
+    tblgen = "//mlir:mlir-tblgen",
+    td_file = "mlir/dialects/SCFLoopTransformOps.td",
+    deps = [
+        ":TransformOpsPyTdFiles",
+        "//mlir:SCFTransformOpsTdFiles",
+    ],
+)
+
+filegroup(
+    name = "TransformOpsPyFiles",
+    srcs = [
+        "mlir/dialects/_loop_transform_ops_ext.py",
+        "mlir/dialects/_structured_transform_ops_ext.py",
+        "mlir/dialects/_transform_ops_ext.py",
+        ":LoopTransformOpsPyGen",
+        ":StructuredTransformOpsPyGen",
+        ":TransformOpsPyGen",
+    ],
+)
+
+filegroup(
+    name = "TransformOpsPackagePyFiles",
+    srcs = glob(["mlir/dialects/transform/*.py"]),
 )
 
 ##---------------------------------------------------------------------------##

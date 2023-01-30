@@ -15,7 +15,6 @@
 #define LLVM_IR_MODULE_H
 
 #include "llvm-c/Types.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -36,6 +35,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -58,9 +58,9 @@ class VersionTuple;
 /// other modules) this module depends on, a symbol table, and various data
 /// about the target's characteristics.
 ///
-/// A module maintains a GlobalValRefMap object that is used to hold all
+/// A module maintains a GlobalList object that is used to hold all
 /// constant references to global variables in the module.  When a global
-/// variable is destroyed, it should have no entries in the GlobalValueRefMap.
+/// variable is destroyed, it should have no entries in the GlobalList.
 /// The main container class for the LLVM Intermediate Representation.
 class LLVM_EXTERNAL_VISIBILITY Module {
   /// @name Types And Enumerations
@@ -363,6 +363,8 @@ public:
   /// In all cases, the returned value is a FunctionCallee wrapper around the
   /// 'FunctionType *T' passed in, as well as a 'Value*' either of the Function or
   /// the bitcast to the function.
+  ///
+  /// Note: For library calls getOrInsertLibFunc() should be used instead.
   FunctionCallee getOrInsertFunction(StringRef Name, FunctionType *T,
                                      AttributeList AttributeList);
 
@@ -861,7 +863,7 @@ public:
   /// @{
 
   /// Returns the code model (tiny, small, kernel, medium or large model)
-  Optional<CodeModel::Model> getCodeModel() const;
+  std::optional<CodeModel::Model> getCodeModel() const;
 
   /// Set the code model (tiny, small, kernel, medium or large)
   void setCodeModel(CodeModel::Model CL);
@@ -908,6 +910,10 @@ public:
   /// "sysreg".
   StringRef getStackProtectorGuardReg() const;
   void setStackProtectorGuardReg(StringRef Reg);
+
+  /// Get/set a symbol to use as the stack protector guard.
+  StringRef getStackProtectorGuardSymbol() const;
+  void setStackProtectorGuardSymbol(StringRef Symbol);
 
   /// Get/set what offset from the stack protector to use.
   int getStackProtectorGuardOffset() const;

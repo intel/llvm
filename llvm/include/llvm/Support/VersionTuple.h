@@ -16,8 +16,8 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Endian.h"
+#include <optional>
 #include <string>
 #include <tuple>
 
@@ -72,23 +72,23 @@ public:
   unsigned getMajor() const { return Major; }
 
   /// Retrieve the minor version number, if provided.
-  Optional<unsigned> getMinor() const {
+  std::optional<unsigned> getMinor() const {
     if (!HasMinor)
-      return None;
+      return std::nullopt;
     return Minor;
   }
 
   /// Retrieve the subminor version number, if provided.
-  Optional<unsigned> getSubminor() const {
+  std::optional<unsigned> getSubminor() const {
     if (!HasSubminor)
-      return None;
+      return std::nullopt;
     return Subminor;
   }
 
   /// Retrieve the build version number, if provided.
-  Optional<unsigned> getBuild() const {
+  std::optional<unsigned> getBuild() const {
     if (!HasBuild)
-      return None;
+      return std::nullopt;
     return Build;
   }
 

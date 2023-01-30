@@ -35,10 +35,12 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetOptions.h"
+#include <optional>
 
 using namespace llvm;
 
 #define DEBUG_TYPE "arm-isel"
+#define PASS_NAME "ARM Instruction Selection"
 
 static cl::opt<bool>
 DisableShifterOp("disable-shifter-op", cl::Hidden,
@@ -57,8 +59,12 @@ class ARMDAGToDAGISel : public SelectionDAGISel {
   const ARMSubtarget *Subtarget;
 
 public:
+  static char ID;
+
+  ARMDAGToDAGISel() = delete;
+
   explicit ARMDAGToDAGISel(ARMBaseTargetMachine &tm, CodeGenOpt::Level OptLevel)
-      : SelectionDAGISel(tm, OptLevel) {}
+      : SelectionDAGISel(ID, tm, OptLevel) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
     // Reset the subtarget each time through.
@@ -66,8 +72,6 @@ public:
     SelectionDAGISel::runOnMachineFunction(MF);
     return true;
   }
-
-  StringRef getPassName() const override { return "ARM Instruction Selection"; }
 
   void PreprocessISelDAG() override;
 
@@ -358,6 +362,10 @@ private:
   void replaceDAGValue(const SDValue &N, SDValue M);
 };
 }
+
+char ARMDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(ARMDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
 
 /// isInt32Immediate - This method tests to see if the node is a 32-bit constant
 /// operand. If so Imm will receive the 32-bit value.
@@ -1058,15 +1066,15 @@ bool ARMDAGToDAGISel::SelectAddrMode6(SDNode *Parent, SDValue N, SDValue &Addr,
        MemN->getConstantOperandVal(MemN->getNumOperands() - 1) == 1)) {
     // This case occurs only for VLD1-lane/dup and VST1-lane instructions.
     // The maximum alignment is equal to the memory size being referenced.
-    unsigned MMOAlign = MemN->getAlignment();
+    llvm::Align MMOAlign = MemN->getAlign();
     unsigned MemSize = MemN->getMemoryVT().getSizeInBits() / 8;
-    if (MMOAlign >= MemSize && MemSize > 1)
+    if (MMOAlign.value() >= MemSize && MemSize > 1)
       Alignment = MemSize;
   } else {
     // All other uses of addrmode6 are for intrinsics.  For now just record
     // the raw alignment value; it will be refined later based on the legal
     // alignment operands for the intrinsic.
-    Alignment = MemN->getAlignment();
+    Alignment = MemN->getAlign().value();
   }
 
   Align = CurDAG->getTargetConstant(Alignment, SDLoc(N), MVT::i32);
@@ -3131,7 +3139,7 @@ bool ARMDAGToDAGISel::tryInsertVectorElt(SDNode *N) {
 
     // Else v8i16 pattern of an extract and an insert, with a optional vmovx for
     // extracting odd lanes.
-    if (VT == MVT::v8i16) {
+    if (VT == MVT::v8i16 && Subtarget->hasFullFP16()) {
       SDValue Inp1 = CurDAG->getTargetExtractSubreg(
           ARM::ssub_0 + ExtractLane1 / 2, dl, MVT::f32, Val1.getOperand(0));
       SDValue Inp2 = CurDAG->getTargetExtractSubreg(
@@ -3151,7 +3159,7 @@ bool ARMDAGToDAGISel::tryInsertVectorElt(SDNode *N) {
 
   // The inserted values are not extracted - if they are f16 then insert them
   // directly using a VINS.
-  if (VT == MVT::v8f16) {
+  if (VT == MVT::v8f16 && Subtarget->hasFullFP16()) {
     SDNode *VINS = CurDAG->getMachineNode(ARM::VINSH, dl, MVT::f32, Val2, Val1);
     SDValue NewIns =
         CurDAG->getTargetInsertSubreg(ARM::ssub_0 + Lane2 / 2, dl, MVT::v4f32,
@@ -3512,7 +3520,7 @@ void ARMDAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   else if (MemTy == MVT::i16)
     Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_16 : ARM::CMP_SWAP_16;
   else if (MemTy == MVT::i32)
-    Opcode = ARM::CMP_SWAP_32;
+    Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_32 : ARM::CMP_SWAP_32;
   else
     llvm_unreachable("Unknown AtomicCmpSwap type");
 
@@ -3530,12 +3538,12 @@ void ARMDAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   CurDAG->RemoveDeadNode(N);
 }
 
-static Optional<std::pair<unsigned, unsigned>>
+static std::optional<std::pair<unsigned, unsigned>>
 getContiguousRangeOfSetBits(const APInt &A) {
   unsigned FirstOne = A.getBitWidth() - A.countLeadingZeros() - 1;
   unsigned LastOne = A.countTrailingZeros();
   if (A.countPopulation() != (FirstOne - LastOne + 1))
-    return Optional<std::pair<unsigned,unsigned>>();
+    return std::nullopt;
   return std::make_pair(FirstOne, LastOne);
 }
 
@@ -3608,7 +3616,22 @@ void ARMDAGToDAGISel::SelectCMPZ(SDNode *N, bool &SwitchEQNEToPLMI) {
                      Range->second + (31 - Range->first));
     ReplaceNode(And.getNode(), NewN);
   }
+}
 
+static unsigned getVectorShuffleOpcode(EVT VT, unsigned Opc64[3],
+                                       unsigned Opc128[3]) {
+  assert((VT.is64BitVector() || VT.is128BitVector()) &&
+         "Unexpected vector shuffle length");
+  switch (VT.getScalarSizeInBits()) {
+  default:
+    llvm_unreachable("Unexpected vector shuffle element size");
+  case 8:
+    return VT.is64BitVector() ? Opc64[0] : Opc128[0];
+  case 16:
+    return VT.is64BitVector() ? Opc64[1] : Opc128[1];
+  case 32:
+    return VT.is64BitVector() ? Opc64[2] : Opc128[2];
+  }
 }
 
 void ARMDAGToDAGISel::Select(SDNode *N) {
@@ -4248,72 +4271,38 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
     // Other cases are autogenerated.
     break;
   }
-
   case ARMISD::VZIP: {
-    unsigned Opc = 0;
     EVT VT = N->getValueType(0);
-    switch (VT.getSimpleVT().SimpleTy) {
-    default: return;
-    case MVT::v8i8:  Opc = ARM::VZIPd8; break;
-    case MVT::v4f16:
-    case MVT::v4i16: Opc = ARM::VZIPd16; break;
-    case MVT::v2f32:
     // vzip.32 Dd, Dm is a pseudo-instruction expanded to vtrn.32 Dd, Dm.
-    case MVT::v2i32: Opc = ARM::VTRNd32; break;
-    case MVT::v16i8: Opc = ARM::VZIPq8; break;
-    case MVT::v8f16:
-    case MVT::v8i16: Opc = ARM::VZIPq16; break;
-    case MVT::v4f32:
-    case MVT::v4i32: Opc = ARM::VZIPq32; break;
-    }
+    unsigned Opc64[] = {ARM::VZIPd8, ARM::VZIPd16, ARM::VTRNd32};
+    unsigned Opc128[] = {ARM::VZIPq8, ARM::VZIPq16, ARM::VZIPq32};
+    unsigned Opc = getVectorShuffleOpcode(VT, Opc64, Opc128);
     SDValue Pred = getAL(CurDAG, dl);
     SDValue PredReg = CurDAG->getRegister(0, MVT::i32);
-    SDValue Ops[] = { N->getOperand(0), N->getOperand(1), Pred, PredReg };
+    SDValue Ops[] = {N->getOperand(0), N->getOperand(1), Pred, PredReg};
     ReplaceNode(N, CurDAG->getMachineNode(Opc, dl, VT, VT, Ops));
     return;
   }
   case ARMISD::VUZP: {
-    unsigned Opc = 0;
     EVT VT = N->getValueType(0);
-    switch (VT.getSimpleVT().SimpleTy) {
-    default: return;
-    case MVT::v8i8:  Opc = ARM::VUZPd8; break;
-    case MVT::v4f16:
-    case MVT::v4i16: Opc = ARM::VUZPd16; break;
-    case MVT::v2f32:
     // vuzp.32 Dd, Dm is a pseudo-instruction expanded to vtrn.32 Dd, Dm.
-    case MVT::v2i32: Opc = ARM::VTRNd32; break;
-    case MVT::v16i8: Opc = ARM::VUZPq8; break;
-    case MVT::v8f16:
-    case MVT::v8i16: Opc = ARM::VUZPq16; break;
-    case MVT::v4f32:
-    case MVT::v4i32: Opc = ARM::VUZPq32; break;
-    }
+    unsigned Opc64[] = {ARM::VUZPd8, ARM::VUZPd16, ARM::VTRNd32};
+    unsigned Opc128[] = {ARM::VUZPq8, ARM::VUZPq16, ARM::VUZPq32};
+    unsigned Opc = getVectorShuffleOpcode(VT, Opc64, Opc128);
     SDValue Pred = getAL(CurDAG, dl);
     SDValue PredReg = CurDAG->getRegister(0, MVT::i32);
-    SDValue Ops[] = { N->getOperand(0), N->getOperand(1), Pred, PredReg };
+    SDValue Ops[] = {N->getOperand(0), N->getOperand(1), Pred, PredReg};
     ReplaceNode(N, CurDAG->getMachineNode(Opc, dl, VT, VT, Ops));
     return;
   }
   case ARMISD::VTRN: {
-    unsigned Opc = 0;
     EVT VT = N->getValueType(0);
-    switch (VT.getSimpleVT().SimpleTy) {
-    default: return;
-    case MVT::v8i8:  Opc = ARM::VTRNd8; break;
-    case MVT::v4f16:
-    case MVT::v4i16: Opc = ARM::VTRNd16; break;
-    case MVT::v2f32:
-    case MVT::v2i32: Opc = ARM::VTRNd32; break;
-    case MVT::v16i8: Opc = ARM::VTRNq8; break;
-    case MVT::v8f16:
-    case MVT::v8i16: Opc = ARM::VTRNq16; break;
-    case MVT::v4f32:
-    case MVT::v4i32: Opc = ARM::VTRNq32; break;
-    }
+    unsigned Opc64[] = {ARM::VTRNd8, ARM::VTRNd16, ARM::VTRNd32};
+    unsigned Opc128[] = {ARM::VTRNq8, ARM::VTRNq16, ARM::VTRNq32};
+    unsigned Opc = getVectorShuffleOpcode(VT, Opc64, Opc128);
     SDValue Pred = getAL(CurDAG, dl);
     SDValue PredReg = CurDAG->getRegister(0, MVT::i32);
-    SDValue Ops[] = { N->getOperand(0), N->getOperand(1), Pred, PredReg };
+    SDValue Ops[] = {N->getOperand(0), N->getOperand(1), Pred, PredReg};
     ReplaceNode(N, CurDAG->getMachineNode(Opc, dl, VT, VT, Ops));
     return;
   }

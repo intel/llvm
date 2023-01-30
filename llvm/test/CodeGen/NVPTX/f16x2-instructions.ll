@@ -2,15 +2,31 @@
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-F16 %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 support explicitly disabled.
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math \
 ; RUN:           -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math   \
+; RUN:           -verify-machineinstrs                                        \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 is not supported by hardware.
 ; RUN: llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
 ; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                               \
+; RUN:   llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
+; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs         \
+; RUN:   | %ptxas-verify -arch=sm_52                                              \
+; RUN: %}
 
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 
@@ -263,9 +279,9 @@ define <2 x half> @test_frem(<2 x half> %a, <2 x half> %b) #0 {
 ; CHECK:        mov.b32         {[[E0:%h[0-9]+]], [[E1:%h[0-9]+]]}, [[E]];
 ; CHECK-DAG:    st.v2.b16       [%[[B]]], {[[E0]], [[E1]]};
 ; CHECK:        ret;
-define void @test_ldst_v2f16(<2 x half>* %a, <2 x half>* %b) {
-  %t1 = load <2 x half>, <2 x half>* %a
-  store <2 x half> %t1, <2 x half>* %b, align 16
+define void @test_ldst_v2f16(ptr %a, ptr %b) {
+  %t1 = load <2 x half>, ptr %a
+  store <2 x half> %t1, ptr %b, align 16
   ret void
 }
 
@@ -280,9 +296,9 @@ define void @test_ldst_v2f16(<2 x half>* %a, <2 x half>* %b) {
 ; CHECK-DAG:    st.u32          [%[[B]]],
 ; CHECK-DAG:    st.b16          [%[[B]]+4],
 ; CHECK:        ret;
-define void @test_ldst_v3f16(<3 x half>* %a, <3 x half>* %b) {
-  %t1 = load <3 x half>, <3 x half>* %a
-  store <3 x half> %t1, <3 x half>* %b, align 16
+define void @test_ldst_v3f16(ptr %a, ptr %b) {
+  %t1 = load <3 x half>, ptr %a
+  store <3 x half> %t1, ptr %b, align 16
   ret void
 }
 
@@ -292,9 +308,9 @@ define void @test_ldst_v3f16(<3 x half>* %a, <3 x half>* %b) {
 ; CHECK-DAG:    ld.v4.b16       {[[E0:%h[0-9]+]], [[E1:%h[0-9]+]], [[E2:%h[0-9]+]], [[E3:%h[0-9]+]]}, [%[[A]]];
 ; CHECK-DAG:    st.v4.b16       [%[[B]]], {[[E0]], [[E1]], [[E2]], [[E3]]};
 ; CHECK:        ret;
-define void @test_ldst_v4f16(<4 x half>* %a, <4 x half>* %b) {
-  %t1 = load <4 x half>, <4 x half>* %a
-  store <4 x half> %t1, <4 x half>* %b, align 16
+define void @test_ldst_v4f16(ptr %a, ptr %b) {
+  %t1 = load <4 x half>, ptr %a
+  store <4 x half> %t1, ptr %b, align 16
   ret void
 }
 
@@ -304,9 +320,9 @@ define void @test_ldst_v4f16(<4 x half>* %a, <4 x half>* %b) {
 ; CHECK-DAG:    ld.v4.b32       {[[E0:%r[0-9]+]], [[E1:%r[0-9]+]], [[E2:%r[0-9]+]], [[E3:%r[0-9]+]]}, [%[[A]]];
 ; CHECK-DAG:    st.v4.b32       [%[[B]]], {[[E0]], [[E1]], [[E2]], [[E3]]};
 ; CHECK:        ret;
-define void @test_ldst_v8f16(<8 x half>* %a, <8 x half>* %b) {
-  %t1 = load <8 x half>, <8 x half>* %a
-  store <8 x half> %t1, <8 x half>* %b, align 16
+define void @test_ldst_v8f16(ptr %a, ptr %b) {
+  %t1 = load <8 x half>, ptr %a
+  store <8 x half> %t1, ptr %b, align 16
   ret void
 }
 
@@ -1002,6 +1018,25 @@ define <2 x half> @test_bitcast_2xi16_to_2xhalf(<2 x i16> %a) #0 {
   ret <2 x half> %r
 }
 
+; CHECK-LABEL: test_bitcast_float_to_2xhalf(
+; CHECK: ld.param.f32 	[[AF1:%f[0-9]+]], [test_bitcast_float_to_2xhalf_param_0];
+; CHECK: mov.b32 	[[R:%hh[0-9]+]], [[AF1]];
+; CHECK: st.param.b32 	[func_retval0+0], [[R]];
+; CHECK: ret;
+define <2 x half> @test_bitcast_float_to_2xhalf(float %a) #0 {
+  %r = bitcast float %a to <2 x half>
+  ret <2 x half> %r
+}
+
+; CHECK-LABEL: test_bitcast_2xhalf_to_float(
+; CHECK: ld.param.u32 	[[R:%r[0-9]+]], [test_bitcast_2xhalf_to_float_param_0];
+; CHECK: mov.b32 	[[AF1:%f[0-9]+]], [[R]];
+; CHECK: st.param.f32 	[func_retval0+0], [[AF1]];
+; CHECK: ret;
+define float @test_bitcast_2xhalf_to_float(<2 x half> %a) #0 {
+  %r = bitcast <2 x half> %a to float
+  ret float %r
+}
 
 declare <2 x half> @llvm.sqrt.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.powi.f16.i32(<2 x half> %a, <2 x i32> %b) #0
@@ -1024,6 +1059,7 @@ declare <2 x half> @llvm.trunc.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.rint.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.nearbyint.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.round.f16(<2 x half> %a) #0
+declare <2 x half> @llvm.roundeven.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.fmuladd.f16(<2 x half> %a, <2 x half> %b, <2 x half> %c) #0
 
 ; CHECK-LABEL: test_sqrt(
@@ -1388,6 +1424,19 @@ define <2 x half> @test_rint(<2 x half> %a) #0 {
 ; CHECK:      ret;
 define <2 x half> @test_nearbyint(<2 x half> %a) #0 {
   %r = call <2 x half> @llvm.nearbyint.f16(<2 x half> %a)
+  ret <2 x half> %r
+}
+
+; CHECK-LABEL: test_roundeven(
+; CHECK:      ld.param.b32    [[A:%hh[0-9]+]], [test_roundeven_param_0];
+; CHECK-DAG:  mov.b32         {[[A0:%h[0-9]+]], [[A1:%h[0-9]+]]}, [[A]];
+; CHECK-DAG:  cvt.rni.f16.f16 [[R1:%h[0-9]+]], [[A1]];
+; CHECK-DAG:  cvt.rni.f16.f16 [[R0:%h[0-9]+]], [[A0]];
+; CHECK:      mov.b32         [[R:%hh[0-9]+]], {[[R0]], [[R1]]}
+; CHECK:      st.param.b32    [func_retval0+0], [[R]];
+; CHECK:      ret;
+define <2 x half> @test_roundeven(<2 x half> %a) #0 {
+  %r = call <2 x half> @llvm.roundeven.f16(<2 x half> %a)
   ret <2 x half> %r
 }
 

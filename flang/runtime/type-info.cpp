@@ -87,22 +87,30 @@ std::size_t Component::SizeInBytes(const Descriptor &instance) const {
 
 void Component::EstablishDescriptor(Descriptor &descriptor,
     const Descriptor &container, Terminator &terminator) const {
+  ISO::CFI_attribute_t attribute{static_cast<ISO::CFI_attribute_t>(
+      genre_ == Genre::Allocatable   ? CFI_attribute_allocatable
+          : genre_ == Genre::Pointer ? CFI_attribute_pointer
+                                     : CFI_attribute_other)};
   TypeCategory cat{category()};
   if (cat == TypeCategory::Character) {
     std::size_t lengthInChars{0};
     if (auto length{characterLen_.GetValue(&container)}) {
-      lengthInChars = static_cast<std::size_t>(*length / kind_);
+      lengthInChars = static_cast<std::size_t>(*length);
     } else {
       RUNTIME_CHECK(
           terminator, characterLen_.genre() == Value::Genre::Deferred);
     }
-    descriptor.Establish(kind_, lengthInChars, nullptr, rank_);
+    descriptor.Establish(
+        kind_, lengthInChars, nullptr, rank_, nullptr, attribute);
   } else if (cat == TypeCategory::Derived) {
-    const DerivedType *type{derivedType()};
-    RUNTIME_CHECK(terminator, type != nullptr);
-    descriptor.Establish(*type, nullptr, rank_);
+    if (const DerivedType * type{derivedType()}) {
+      descriptor.Establish(*type, nullptr, rank_, nullptr, attribute);
+    } else { // unlimited polymorphic
+      descriptor.Establish(TypeCode{TypeCategory::Derived, 0}, 0, nullptr,
+          rank_, nullptr, attribute, true);
+    }
   } else {
-    descriptor.Establish(cat, kind_, nullptr, rank_);
+    descriptor.Establish(cat, kind_, nullptr, rank_, nullptr, attribute);
   }
   if (rank_ && genre_ != Genre::Allocatable) {
     const typeInfo::Value *boundValues{bounds()};

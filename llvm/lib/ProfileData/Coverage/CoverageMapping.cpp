@@ -14,8 +14,6 @@
 #include "llvm/ProfileData/Coverage/CoverageMapping.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -25,7 +23,6 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -34,6 +31,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -123,13 +121,15 @@ Counter CounterExpressionBuilder::simplify(Counter ExpressionTree) {
   return C;
 }
 
-Counter CounterExpressionBuilder::add(Counter LHS, Counter RHS) {
-  return simplify(get(CounterExpression(CounterExpression::Add, LHS, RHS)));
+Counter CounterExpressionBuilder::add(Counter LHS, Counter RHS, bool Simplify) {
+  auto Cnt = get(CounterExpression(CounterExpression::Add, LHS, RHS));
+  return Simplify ? simplify(Cnt) : Cnt;
 }
 
-Counter CounterExpressionBuilder::subtract(Counter LHS, Counter RHS) {
-  return simplify(
-      get(CounterExpression(CounterExpression::Subtract, LHS, RHS)));
+Counter CounterExpressionBuilder::subtract(Counter LHS, Counter RHS,
+                                           bool Simplify) {
+  auto Cnt = get(CounterExpression(CounterExpression::Subtract, LHS, RHS));
+  return Simplify ? simplify(Cnt) : Cnt;
 }
 
 void CounterMappingContext::dump(const Counter &C, raw_ostream &OS) const {
@@ -348,7 +348,7 @@ CoverageMapping::load(ArrayRef<StringRef> ObjectFilenames,
                       StringRef CompilationDir) {
   auto ProfileReaderOrErr = IndexedInstrProfReader::create(ProfileFilename);
   if (Error E = ProfileReaderOrErr.takeError())
-    return std::move(E);
+    return createFileError(ProfileFilename, std::move(E));
   auto ProfileReader = std::move(ProfileReaderOrErr.get());
   auto Coverage = std::unique_ptr<CoverageMapping>(new CoverageMapping());
   bool DataFound = false;
@@ -357,7 +357,7 @@ CoverageMapping::load(ArrayRef<StringRef> ObjectFilenames,
     auto CovMappingBufOrErr = MemoryBuffer::getFileOrSTDIN(
         File.value(), /*IsText=*/false, /*RequiresNullTerminator=*/false);
     if (std::error_code EC = CovMappingBufOrErr.getError())
-      return errorCodeToError(EC);
+      return createFileError(File.value(), errorCodeToError(EC));
     StringRef Arch = Arches.empty() ? StringRef() : Arches[File.index()];
     MemoryBufferRef CovMappingBufRef =
         CovMappingBufOrErr.get()->getMemBufferRef();
@@ -367,7 +367,7 @@ CoverageMapping::load(ArrayRef<StringRef> ObjectFilenames,
     if (Error E = CoverageReadersOrErr.takeError()) {
       E = handleMaybeNoDataFoundError(std::move(E));
       if (E)
-        return std::move(E);
+        return createFileError(File.value(), std::move(E));
       // E == success (originally a no_data_found error).
       continue;
     }
@@ -377,12 +377,14 @@ CoverageMapping::load(ArrayRef<StringRef> ObjectFilenames,
       Readers.push_back(std::move(Reader));
     DataFound |= !Readers.empty();
     if (Error E = loadFromReaders(Readers, *ProfileReader, *Coverage))
-      return std::move(E);
+      return createFileError(File.value(), std::move(E));
   }
   // If no readers were created, either no objects were provided or none of them
   // had coverage data. Return an error in the latter case.
   if (!DataFound && !ObjectFilenames.empty())
-    return make_error<CoverageMapError>(coveragemap_error::no_data_found);
+    return createFileError(
+        join(ObjectFilenames.begin(), ObjectFilenames.end(), ", "),
+        make_error<CoverageMapError>(coveragemap_error::no_data_found));
   return std::move(Coverage);
 }
 
@@ -455,7 +457,7 @@ class SegmentBuilder {
   /// \p Loc: The start location of the next region. If None, all active
   /// regions are completed.
   /// \p FirstCompletedRegion: Index of the first completed region.
-  void completeRegionsUntil(Optional<LineColPair> Loc,
+  void completeRegionsUntil(std::optional<LineColPair> Loc,
                             unsigned FirstCompletedRegion) {
     // Sort the completed regions by end location. This makes it simple to
     // emit closing segments in sorted order.
@@ -554,7 +556,7 @@ class SegmentBuilder {
 
     // Complete any remaining active regions.
     if (!ActiveRegions.empty())
-      completeRegionsUntil(None, 0);
+      completeRegionsUntil(std::nullopt, 0);
   }
 
   /// Sort a nested sequence of regions from a single file.
@@ -673,25 +675,27 @@ static SmallBitVector gatherFileIDs(StringRef SourceFile,
 }
 
 /// Return the ID of the file where the definition of the function is located.
-static Optional<unsigned> findMainViewFileID(const FunctionRecord &Function) {
+static std::optional<unsigned>
+findMainViewFileID(const FunctionRecord &Function) {
   SmallBitVector IsNotExpandedFile(Function.Filenames.size(), true);
   for (const auto &CR : Function.CountedRegions)
     if (CR.Kind == CounterMappingRegion::ExpansionRegion)
       IsNotExpandedFile[CR.ExpandedFileID] = false;
   int I = IsNotExpandedFile.find_first();
   if (I == -1)
-    return None;
+    return std::nullopt;
   return I;
 }
 
 /// Check if SourceFile is the file that contains the definition of
-/// the Function. Return the ID of the file in that case or None otherwise.
-static Optional<unsigned> findMainViewFileID(StringRef SourceFile,
-                                             const FunctionRecord &Function) {
-  Optional<unsigned> I = findMainViewFileID(Function);
+/// the Function. Return the ID of the file in that case or std::nullopt
+/// otherwise.
+static std::optional<unsigned>
+findMainViewFileID(StringRef SourceFile, const FunctionRecord &Function) {
+  std::optional<unsigned> I = findMainViewFileID(Function);
   if (I && SourceFile == Function.Filenames[*I])
     return I;
-  return None;
+  return std::nullopt;
 }
 
 static bool isExpansion(const CountedRegion &R, unsigned FileID) {
@@ -895,10 +899,9 @@ std::string CoverageMapError::message() const {
   return getCoverageMapErrString(Err);
 }
 
-static ManagedStatic<CoverageMappingErrorCategoryType> ErrorCategory;
-
 const std::error_category &llvm::coverage::coveragemap_category() {
-  return *ErrorCategory;
+  static CoverageMappingErrorCategoryType ErrorCategory;
+  return ErrorCategory;
 }
 
 char CoverageMapError::ID = 0;

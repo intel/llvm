@@ -15,7 +15,7 @@
 #define EXTERN_C
 #endif // __cplusplus
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__NVPTX__)
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__
@@ -25,6 +25,18 @@
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #define DEVICE_EXTERN_C_INLINE                                                 \
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
-#endif // __SPIR__
+#endif // __SPIR__ || __NVPTX__
 
+#if defined(__SPIR__) || defined(__LIBDEVICE_HOST_IMPL__)
+#define __LIBDEVICE_IMF_ENABLED__
+#endif // __SPIR__ || __LIBDEVICE_HOST_IMPL__
+
+#ifdef __LIBDEVICE_HOST_IMPL__
+// For host implementation, all functions will be located in a static library
+// and it will be linked with user's host code by default. If those functions
+// are decorated with "weak" attribute, compiler will use PLT entry to call
+// all __device_imf_* functions, this will lead to crash.
+#define DEVICE_EXTERN_C EXTERN_C
+#define DEVICE_EXTERN_C_INLINE DEVICE_EXTERN_C __attribute__((always_inline))
+#endif // __LIBDEVICE_HOST_IMPL__
 #endif // __LIBDEVICE_DEVICE_H__

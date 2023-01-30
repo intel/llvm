@@ -753,7 +753,7 @@ void NotNullTerminatedResultCheck::registerMatchers(MatchFinder *Finder) {
   auto MemcpyS = Match({"memcpy_s", 0, 2, 3, false});
 
   // void *memchr(const void *src, int c, size_t count)
-  auto Memchr = Match({"memchr", None, 0, 2, false});
+  auto Memchr = Match({"memchr", std::nullopt, 0, 2, false});
 
   // void *memmove(void *dest, const void *src, size_t count)
   auto Memmove = Match({"memmove", 0, 1, 2, false});
@@ -762,14 +762,14 @@ void NotNullTerminatedResultCheck::registerMatchers(MatchFinder *Finder) {
   auto MemmoveS = Match({"memmove_s", 0, 2, 3, false});
 
   // int strncmp(const char *str1, const char *str2, size_t count);
-  auto StrncmpRHS = Match({"strncmp", None, 1, 2, true});
-  auto StrncmpLHS = Match({"strncmp", None, 0, 2, true});
+  auto StrncmpRHS = Match({"strncmp", std::nullopt, 1, 2, true});
+  auto StrncmpLHS = Match({"strncmp", std::nullopt, 0, 2, true});
 
   // size_t strxfrm(char *dest, const char *src, size_t count);
   auto Strxfrm = Match({"strxfrm", 0, 1, 2, false});
 
   // errno_t strerror_s(char *buffer, size_t bufferSize, int errnum);
-  auto StrerrorS = Match({"strerror_s", 0, None, 1, false});
+  auto StrerrorS = Match({"strerror_s", 0, std::nullopt, 1, false});
 
   auto AnyOfMatchers = anyOf(Memcpy, MemcpyS, Memmove, MemmoveS, StrncmpRHS,
                              StrncmpLHS, Strxfrm, StrerrorS);
@@ -799,7 +799,7 @@ void NotNullTerminatedResultCheck::check(
     Optional<bool> AreSafeFunctionsWanted;
 
     Preprocessor::macro_iterator It = PP->macro_begin();
-    while (It != PP->macro_end() && !AreSafeFunctionsWanted.hasValue()) {
+    while (It != PP->macro_end() && !AreSafeFunctionsWanted) {
       if (It->first->getName() == "__STDC_WANT_LIB_EXT1__") {
         const auto *MI = PP->getMacroInfo(It->first);
         // PP->getMacroInfo() returns nullptr if macro has no definition.
@@ -817,8 +817,8 @@ void NotNullTerminatedResultCheck::check(
       ++It;
     }
 
-    if (AreSafeFunctionsWanted.hasValue())
-      UseSafeFunctions = AreSafeFunctionsWanted.getValue();
+    if (AreSafeFunctionsWanted)
+      UseSafeFunctions = *AreSafeFunctionsWanted;
   }
 
   StringRef Name = FunctionExpr->getDirectCallee()->getName();

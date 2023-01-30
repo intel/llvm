@@ -1,16 +1,15 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/builtins.hpp>
-#include <CL/sycl/detail/builtins.hpp>
-#include <CL/sycl/detail/generic_type_lists.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/builtins.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi {
 
 namespace detail {
 
@@ -43,7 +42,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fabs(T x) {
 #else
   (void)x;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -54,7 +53,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmin(T x, T y) {
   (void)x;
   (void)y;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -65,7 +64,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmax(T x, T y) {
   (void)x;
   (void)y;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -77,11 +76,10 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
   (void)y;
   (void)z;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

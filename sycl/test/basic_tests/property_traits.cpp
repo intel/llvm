@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
 #define CHECK_IS_PROPERTY(PROP)                                                \
   static_assert(is_property<PROP>::value,                                      \
@@ -43,7 +43,7 @@
 class NotAProperty {};
 class NotASYCLObject {};
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   //----------------------------------------------------------------------------
@@ -106,12 +106,6 @@ int main() {
       ext::intel::property::buffer_location,
       accessor<sycl::half, 2, access_mode::write, target::host_buffer,
                access::placeholder::false_t>);
-
-  // Image-accessor is_property_of
-  CHECK_IS_PROPERTY_OF(
-      property::no_init,
-      image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
-                     access::placeholder::true_t>);
 
   // Host-accessor is_property_of
   CHECK_IS_PROPERTY_OF(property::no_init,
@@ -177,10 +171,6 @@ int main() {
 
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, accessor<int, 1>);
-  CHECK_IS_NOT_PROPERTY_OF(
-      NotAProperty,
-      image_accessor<float, 2, access_mode::read, target::host_buffer,
-                     access::placeholder::true_t>);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, host_accessor<char, 2>);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, buffer<int, 2>);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, context);
@@ -249,12 +239,6 @@ int main() {
       accessor<sycl::half, 2, access_mode::write, target::host_buffer,
                access::placeholder::false_t>);
 
-  // Image-accessor is_property_of_v
-  CHECK_IS_PROPERTY_OF_V(
-      property::no_init,
-      image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
-                     access::placeholder::true_t>);
-
   // Host-accessor is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::no_init,
                          host_accessor<unsigned long, 2, access_mode::read>);
@@ -322,10 +306,6 @@ int main() {
 
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, accessor<int, 1>);
-  CHECK_IS_NOT_PROPERTY_OF_V(
-      NotAProperty,
-      image_accessor<float, 2, access_mode::read, target::host_buffer,
-                     access::placeholder::true_t>);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, host_accessor<char, 2>);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, buffer<int, 2>);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, context);

@@ -1,21 +1,11 @@
-// RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf,lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(convert-vector-to-scf,lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts)" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-// RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{lower-permutation-maps=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(convert-vector-to-scf{full-unroll=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts)" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
-
-// RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{full-unroll=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
-
-// RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{full-unroll=true lower-permutation-maps=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 memref.global "private" @gv : memref<3x4xf32> = dense<[[0. , 1. , 2. , 3. ],
@@ -23,7 +13,7 @@ memref.global "private" @gv : memref<3x4xf32> = dense<[[0. , 1. , 2. , 3. ],
                                                        [20., 21., 22., 23.]]>
 
 // Vector load.
-func @transfer_read_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
+func.func @transfer_read_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
       {permutation_map = affine_map<(d0, d1) -> (d0, d1)>} :
@@ -33,7 +23,7 @@ func @transfer_read_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
 }
 
 // Vector load with mask.
-func @transfer_read_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index) {
+func.func @transfer_read_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %mask = arith.constant dense<[[1, 0, 1, 0, 1, 1, 1, 0, 1],
                           [0, 0, 1, 1, 1, 1, 1, 0, 1],
@@ -47,14 +37,13 @@ func @transfer_read_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index) 
 }
 
 // Vector load with mask + transpose.
-func @transfer_read_2d_mask_transposed(
+func.func @transfer_read_2d_mask_transposed(
     %A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
-  %mask = arith.constant dense<[[1, 0, 1, 0], [0, 0, 1, 0],
-                          [1, 1, 1, 1], [0, 1, 1, 0],
-                          [1, 1, 1, 1], [1, 1, 1, 1],
-                          [1, 1, 1, 1], [0, 0, 0, 0],
-                          [1, 1, 1, 1]]> : vector<9x4xi1>
+  %mask = arith.constant dense<[[1, 0, 1, 0, 1, 1, 1, 0, 1],
+                          [0, 0, 1, 1, 1, 1, 1, 0, 1],
+                          [1, 1, 1, 1, 1, 1, 1, 0, 1],
+                          [0, 0, 1, 0, 1, 1, 1, 0, 1]]> : vector<4x9xi1>
   %f = vector.transfer_read %A[%base1, %base2], %fm42, %mask
       {permutation_map = affine_map<(d0, d1) -> (d1, d0)>} :
     memref<?x?xf32>, vector<9x4xf32>
@@ -63,7 +52,7 @@ func @transfer_read_2d_mask_transposed(
 }
 
 // Vector load with mask + broadcast.
-func @transfer_read_2d_mask_broadcast(
+func.func @transfer_read_2d_mask_broadcast(
     %A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %mask = arith.constant dense<[1, 0, 1, 0, 1, 1, 1, 0, 1]> : vector<9xi1>
@@ -75,7 +64,7 @@ func @transfer_read_2d_mask_broadcast(
 }
 
 // Transpose + vector load with mask + broadcast.
-func @transfer_read_2d_mask_transpose_broadcast_last_dim(
+func.func @transfer_read_2d_mask_transpose_broadcast_last_dim(
     %A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %mask = arith.constant dense<[1, 0, 1, 1]> : vector<4xi1>
@@ -87,7 +76,7 @@ func @transfer_read_2d_mask_transpose_broadcast_last_dim(
 }
 
 // Load + transpose.
-func @transfer_read_2d_transposed(
+func.func @transfer_read_2d_transposed(
     %A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
@@ -98,7 +87,7 @@ func @transfer_read_2d_transposed(
 }
 
 // Load 1D + broadcast to 2D.
-func @transfer_read_2d_broadcast(
+func.func @transfer_read_2d_broadcast(
     %A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
@@ -109,7 +98,7 @@ func @transfer_read_2d_broadcast(
 }
 
 // Vector store.
-func @transfer_write_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
+func.func @transfer_write_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fn1 = arith.constant -1.0 : f32
   %vf0 = vector.splat %fn1 : vector<1x4xf32>
   vector.transfer_write %vf0, %A[%base1, %base2]
@@ -119,7 +108,7 @@ func @transfer_write_2d(%A : memref<?x?xf32>, %base1: index, %base2: index) {
 }
 
 // Vector store with mask.
-func @transfer_write_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index) {
+func.func @transfer_write_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index) {
   %fn1 = arith.constant -2.0 : f32
   %mask = arith.constant dense<[[1, 0, 1, 0]]> : vector<1x4xi1>
   %vf0 = vector.splat %fn1 : vector<1x4xf32>
@@ -129,7 +118,7 @@ func @transfer_write_2d_mask(%A : memref<?x?xf32>, %base1: index, %base2: index)
   return
 }
 
-func @entry() {
+func.func @entry() {
   %c0 = arith.constant 0: index
   %c1 = arith.constant 1: index
   %c2 = arith.constant 2: index

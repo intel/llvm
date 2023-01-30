@@ -24,6 +24,7 @@ using namespace llvm;
 namespace {
 
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
+constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
@@ -32,9 +33,13 @@ constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
 
+constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
+constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
+
 enum class DecorValueTy {
   uint32,
   boolean,
+  none,
 };
 
 struct Decor {
@@ -93,6 +98,15 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
+/// Gets the string value in a global variable. If the parameter is not a global
+/// variable or it does not contain string data, then \c None is returned.
+///
+/// @param StringV  [in] the LLVM value of supposed \c GlobalVariable type with
+///                 a string value.
+///
+/// @returns a \c StringRef with the string contained in \c StringV and \c None
+///          if \c StringV is not a \c GlobalVariable or does not contain string
+///          data.
 Optional<StringRef> getGlobalVariableString(const Value *StringV) {
   if (const auto *StringGV = dyn_cast<GlobalVariable>(StringV))
     if (const auto *StringData =
@@ -100,6 +114,120 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
       if (StringData->isCString())
         return StringData->getAsCString();
   return {};
+}
+
+/// Tries to generate a SPIR-V decorate metadata node from an attribute. If
+/// the attribute is unknown \c nullptr will be returned.
+///
+/// @param Ctx   [in] the LLVM context.
+/// @param Attr  [in] the LLVM attribute to generate metadata for.
+///
+/// @returns a pointer to a new metadata node if \c Attr is an attribute with a
+///          known corresponding SPIR-V decorate and the arguments are valid.
+///          Otherwise \c nullptr is returned.
+MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
+  // Currently, only string attributes are supported
+  if (!Attr.isStringAttribute())
+    return nullptr;
+  auto DecorIt = SpirvDecorMap.find(Attr.getKindAsString());
+  if (DecorIt == SpirvDecorMap.end())
+    return nullptr;
+  Decor DecorFound = DecorIt->second;
+  uint32_t DecorCode = DecorFound.Code;
+  switch (DecorFound.Type) {
+  case DecorValueTy::uint32:
+    return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                   getAttributeAsInteger<uint32_t>(Attr));
+  case DecorValueTy::boolean:
+    return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+  default:
+    llvm_unreachable("Unhandled decorator type.");
+  }
+}
+
+/// Tries to generate a SPIR-V execution mode metadata node from an attribute.
+/// If the attribute is unknown \c None will be returned.
+///
+/// @param M     [in] the LLVM module.
+/// @param Attr  [in] the LLVM attribute to generate metadata for.
+///
+/// @returns a pair with the name of the resulting metadata and a pointer to
+///          the metadata node with its values if the attribute has a
+///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
+Optional<std::pair<std::string, MDNode *>>
+attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
+  LLVMContext &Ctx = M.getContext();
+  const DataLayout &DLayout = M.getDataLayout();
+
+  // Currently, only string attributes are supported
+  if (!Attr.isStringAttribute())
+    return std::nullopt;
+  StringRef AttrKindStr = Attr.getKindAsString();
+  // Early exit if it is not a sycl-* attribute.
+  if (!AttrKindStr.startswith("sycl-"))
+    return std::nullopt;
+
+  if (AttrKindStr == "sycl-work-group-size" ||
+      AttrKindStr == "sycl-work-group-size-hint") {
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> ValStrs;
+    Attr.getValueAsString().split(ValStrs, ',');
+
+    assert(ValStrs.size() <= 3 &&
+           "sycl-work-group-size and sycl-work-group-size-hint currently only "
+           "support up to three values");
+
+    // SYCL work-group sizes must be reversed for SPIR-V.
+    std::reverse(ValStrs.begin(), ValStrs.end());
+
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
+    // Get the integers from the strings.
+    SmallVector<Metadata *, 3> MDVals;
+    for (StringRef ValStr : ValStrs)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+
+    const char *MDName = (AttrKindStr == "sycl-work-group-size")
+                             ? "reqd_work_group_size"
+                             : "work_group_size_hint";
+    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+  }
+
+  if (AttrKindStr == "sycl-sub-group-size") {
+    uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
+    IntegerType *Ty = Type::getInt32Ty(Ctx);
+    Metadata *MDVal = ConstantAsMetadata::get(
+        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
+    SmallVector<Metadata *, 1> MD{MDVal};
+    return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  auto getIpInterface = [](const char *Name, LLVMContext &Ctx,
+                           const Attribute &Attr) {
+    // generate either:
+    //   !N = !{!"<name>"} or
+    //   !N = !{!"<name>", !"stall_free_return"}
+    SmallVector<Metadata *, 2> MD;
+    MD.push_back(MDString::get(Ctx, Name));
+    if (getAttributeAsInteger<uint32_t>(Attr))
+      MD.push_back(MDString::get(Ctx, "stall_free_return"));
+    return MDNode::get(Ctx, MD);
+  };
+
+  if (AttrKindStr == "sycl-streaming-interface")
+    return std::pair<std::string, MDNode *>(
+        "ip_interface", getIpInterface("streaming", Ctx, Attr));
+
+  if (AttrKindStr == "sycl-register-map-interface")
+    return std::pair<std::string, MDNode *>("ip_interface",
+                                            getIpInterface("csr", Ctx, Attr));
+
+  return std::nullopt;
 }
 
 } // anonymous namespace
@@ -117,18 +245,9 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // decorations in the SPV_INTEL_* extensions.
     SmallVector<Metadata *, 8> MDOps;
     for (auto &Attribute : GV.getAttributes()) {
-      // Currently, only string attributes are supported
-      if (!Attribute.isStringAttribute())
-        continue;
-      auto DecorIt = SpirvDecorMap.find(Attribute.getKindAsString());
-      if (DecorIt == SpirvDecorMap.end())
-        continue;
-      auto Decor = DecorIt->second;
-      auto DecorCode = Decor.Code;
-      auto DecorValue = Decor.Type == DecorValueTy::uint32
-                            ? getAttributeAsInteger<uint32_t>(Attribute)
-                            : hasProperty(Attribute);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, DecorCode, DecorValue));
+      MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute);
+      if (SPIRVMetadata)
+        MDOps.push_back(SPIRVMetadata);
     }
 
     // Some properties should be handled specially.
@@ -151,6 +270,61 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (!MDOps.empty()) {
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
       CompileTimePropertiesMet = true;
+    }
+  }
+
+  // Process all properties on kernels.
+  for (Function &F : M) {
+    // Only consider kernels.
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    SmallVector<Metadata *, 8> MDOps;
+    SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
+    for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
+      // Handle pipelined attribute as a special case.
+      if (Attribute.isStringAttribute() &&
+          Attribute.getKindAsString() == SYCL_PIPELINED_ATTR) {
+        auto PipelineOrInitiationInterval =
+            getAttributeAsInteger<int32_t>(Attribute);
+        MDNode *SPIRVMetadata;
+        if (PipelineOrInitiationInterval < 0) {
+          // Default pipelining desired
+          SPIRVMetadata =
+              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+        } else if (PipelineOrInitiationInterval == 0) {
+          // No pipelining desired
+          SPIRVMetadata =
+              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 0);
+        } else {
+          // Pipelining desired, with specified Initiation Interval
+          SPIRVMetadata =
+              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+          MDOps.push_back(SPIRVMetadata);
+          SPIRVMetadata =
+              buildSpirvDecorMetadata(Ctx, SPIRV_INITIATION_INTERVAL_DECOR,
+                                      PipelineOrInitiationInterval);
+        }
+        MDOps.push_back(SPIRVMetadata);
+      } else if (MDNode *SPIRVMetadata =
+                     attributeToDecorateMetadata(Ctx, Attribute))
+        MDOps.push_back(SPIRVMetadata);
+      else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
+        NamedMDOps.push_back(*NamedMetadata);
+    }
+
+    // Add the generated metadata to the kernel function.
+    if (!MDOps.empty()) {
+      F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+      CompileTimePropertiesMet = true;
+    }
+
+    // Add the new named metadata to the kernel function.
+    for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
+      // If multiple sources defined this metadata, prioritize the existing one.
+      if (F.hasMetadata(NamedMD.first))
+        continue;
+      F.addMetadata(NamedMD.first, *NamedMD.second);
     }
   }
 
@@ -258,9 +432,10 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   } else {
     Constant *NewAnnotStringData =
         ConstantDataArray::getString(M.getContext(), NewAnnotString);
-    NewAnnotStringGV = new GlobalVariable(M, NewAnnotStringData->getType(),
-                                          true, GlobalValue::PrivateLinkage,
-                                          NewAnnotStringData, ".str");
+    NewAnnotStringGV = new GlobalVariable(
+        M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
+        NewAnnotStringData, ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
+        IntrAnnotStringArg->getType()->getPointerAddressSpace());
     NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
     NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
@@ -273,9 +448,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   // The values are not in the annotation string, so we can remove the original
   // annotation value.
-  unsigned DefaultAS = M.getDataLayout().getDefaultGlobalsAddressSpace();
-  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
-  PointerType *Int8DefaultASPtrTy = Int8Ty->getPointerTo(DefaultAS);
-  IntrInst->setArgOperand(4, ConstantPointerNull::get(Int8DefaultASPtrTy));
+  PointerType *Arg4PtrTy =
+      dyn_cast<PointerType>(IntrInst->getArgOperand(4)->getType());
+  IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   return true;
 }

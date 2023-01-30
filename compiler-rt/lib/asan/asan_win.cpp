@@ -263,10 +263,6 @@ void AsanCheckDynamicRTPrereqs() {}
 
 void AsanCheckIncompatibleRT() {}
 
-void ReadContextStack(void *context, uptr *stack, uptr *ssize) {
-  UNIMPLEMENTED();
-}
-
 void AsanOnDeadlySignal(int, void *siginfo, void *context) { UNIMPLEMENTED(); }
 
 bool PlatformUnpoisonStacks() { return false; }

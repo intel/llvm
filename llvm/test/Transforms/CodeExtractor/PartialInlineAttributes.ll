@@ -1,5 +1,6 @@
-; RUN: opt < %s -S -partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
-
+; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
+; by default
+; RUN: opt -opaque-pointers < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 define i32 @callee_most(i32 %v) unnamed_addr  #0 #1 {
 entry:
@@ -66,8 +67,8 @@ entry:
   ret i32 %c3
 }
 
-; CHECK: define internal void @callee_writeonly.1.if.then(i32 %v, i32* %sub.out) [[FN_ATTRS0:#[0-9]+]]
-; CHECK: define internal void @callee_most.2.if.then(i32 %v, i32* %sub.out)  [[FN_ATTRS:#[0-9]+]]
+; CHECK: define internal void @callee_writeonly.1.if.then(i32 %v, ptr %sub.out) [[FN_ATTRS0:#[0-9]+]]
+; CHECK: define internal void @callee_most.2.if.then(i32 %v, ptr %sub.out)  [[FN_ATTRS:#[0-9]+]]
 
 ; attributes to preserve
 attributes #0 = {

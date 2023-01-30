@@ -10,7 +10,7 @@
 // what pthread_cancel does.
 
 // UNSUPPORTED: c++03
-// UNSUPPORTED: libcxxabi-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: no-exceptions
 
 #include <assert.h>
@@ -47,7 +47,7 @@ struct Stop<R (*)(Args...)> {
   // libunwind while _Unwind_Exception_Class in libgcc.
   typedef typename std::tuple_element<2, std::tuple<Args...>>::type type;
 
-  static _Unwind_Reason_Code stop(int, _Unwind_Action actions, type, struct _Unwind_Exception*, struct _Unwind_Context*,
+  static _Unwind_Reason_Code stop(int, _Unwind_Action actions, type, _Unwind_Exception*, struct _Unwind_Context*,
                                   void*) {
     if (actions & _UA_END_OF_STACK) {
       assert(destructorCalled == true);

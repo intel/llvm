@@ -4,11 +4,12 @@
 
 // Checks ESIMD intrinsic translation.
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/image_ocl_types.hpp>
+#include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
@@ -16,8 +17,8 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL ESIMD_NOINLINE void callee(int x) {
-  slm_init<1234>();
-  sycl::ext::intel::experimental::esimd::named_barrier_init<13>();
+  slm_allocator<1234> alloc;
+  named_barrier_init<13>();
 }
 
 // inherits SLMSize and NBarrierCount from callee
@@ -32,8 +33,7 @@ void caller_xyz(int x) {
     slm_init(1235); // also works in non-O0
     callee(x);
   });
-  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz(i32 noundef "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #3
+  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz(i32 noundef "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #2
 }
 
-// CHECK: attributes #2 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="1234"
-// CHECK: attributes #3 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="1235"
+// CHECK: attributes #2 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="2469"

@@ -71,7 +71,7 @@ public:
       FTy = llvm::FunctionType::get(RetTy, ArgTys, false);
     }
     else {
-      FTy = llvm::FunctionType::get(RetTy, None, false);
+      FTy = llvm::FunctionType::get(RetTy, std::nullopt, false);
     }
   }
 
@@ -985,7 +985,7 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
 
     auto LiteralLength = SL->getLength();
 
-    if ((CGM.getTarget().getPointerWidth(0) == 64) &&
+    if ((CGM.getTarget().getPointerWidth(LangAS::Default) == 64) &&
         (LiteralLength < 9) && !isNonASCII) {
       // Tiny strings are only used on 64-bit platforms.  They store 8 7-bit
       // ASCII characters in the high 56 bits, followed by a 4-bit length and a
@@ -2837,11 +2837,13 @@ CGObjCGNU::GenerateMessageSend(CodeGenFunction &CGF,
     // Enter the continuation block and emit a phi if required.
     CGF.EmitBlock(continueBB);
     if (msgRet.isScalar()) {
-      llvm::Value *v = msgRet.getScalarVal();
-      llvm::PHINode *phi = Builder.CreatePHI(v->getType(), 2);
-      phi->addIncoming(v, nonNilPathBB);
-      phi->addIncoming(CGM.EmitNullConstant(ResultType), nilPathBB);
-      msgRet = RValue::get(phi);
+      // If the return type is void, do nothing
+      if (llvm::Value *v = msgRet.getScalarVal()) {
+        llvm::PHINode *phi = Builder.CreatePHI(v->getType(), 2);
+        phi->addIncoming(v, nonNilPathBB);
+        phi->addIncoming(CGM.EmitNullConstant(ResultType), nilPathBB);
+        msgRet = RValue::get(phi);
+      }
     } else if (msgRet.isAggregate()) {
       // Aggregate zeroing is handled in nilCleanupBB when it's required.
     } else /* isComplex() */ {
@@ -3314,7 +3316,7 @@ llvm::Constant *CGObjCGNU::MakeBitField(ArrayRef<bool> bits) {
   auto fields = builder.beginStruct();
   fields.addInt(Int32Ty, values.size());
   auto array = fields.beginArray();
-  for (auto v : values) array.add(v);
+  for (auto *v : values) array.add(v);
   array.finishAndAddTo(fields);
 
   llvm::Constant *GS =
@@ -3862,8 +3864,7 @@ llvm::Function *CGObjCGNU::ModuleInitFunction() {
 
     // The path to the source file where this module was declared
     SourceManager &SM = CGM.getContext().getSourceManager();
-    Optional<FileEntryRef> mainFile =
-        SM.getFileEntryRefForID(SM.getMainFileID());
+    OptionalFileEntryRef mainFile = SM.getFileEntryRefForID(SM.getMainFileID());
     std::string path =
         (mainFile->getDir().getName() + "/" + mainFile->getName()).str();
     module.add(MakeConstantString(path, ".objc_source_file_name"));

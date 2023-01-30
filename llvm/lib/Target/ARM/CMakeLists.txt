@@ -32,6 +32,7 @@ add_llvm_target(ARMCodeGen
   ARMConstantPoolValue.cpp
   ARMExpandPseudoInsts.cpp
   ARMFastISel.cpp
+  ARMFixCortexA57AES1742098Pass.cpp
   ARMFrameLowering.cpp
   ARMHazardRecognizer.cpp
   ARMInstructionSelector.cpp
@@ -81,6 +82,7 @@ add_llvm_target(ARMCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   GlobalISel
   ARMUtils
   TransformUtils

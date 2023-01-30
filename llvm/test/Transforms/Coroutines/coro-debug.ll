@@ -56,7 +56,7 @@ sw.epilog:                                        ; preds = %sw.bb
   %4 = load i32, i32* %x.addr, align 4, !dbg !20
   %add = add nsw i32 %4, 1, !dbg !21
   store i32 %add, i32* %x.addr, align 4, !dbg !22
-  %asm_res = callbr i32 asm "", "=r,r,i"(i32 %x, i8* blockaddress(@f, %indirect.dest))
+  %asm_res = callbr i32 asm "", "=r,r,!i"(i32 %x)
           to label %coro_Cleanup [label %indirect.dest]
 
 indirect.dest:
@@ -123,7 +123,7 @@ entry:
 ; Function Attrs: argmemonly nounwind readonly
 declare i8* @llvm.coro.subfn.addr(i8* nocapture readonly, i8) #2
 
-attributes #0 = { noinline nounwind "coroutine.presplit"="1" "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind presplitcoroutine "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 attributes #2 = { argmemonly nounwind readonly }
 attributes #3 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -172,7 +172,7 @@ attributes #7 = { noduplicate }
 !32 = !DILocalVariable(name: "inline_asm", scope: !6, file: !7, line: 55, type: !11)
 
 ; CHECK: define i8* @f(i32 %x) #0 personality i32 0 !dbg ![[ORIG:[0-9]+]]
-; CHECK: define internal fastcc void @f.resume(%f.Frame* noalias nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[RESUME:[0-9]+]]
+; CHECK: define internal fastcc void @f.resume(%f.Frame* noundef nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[RESUME:[0-9]+]]
 ; CHECK: entry.resume:
 ; CHECK: %[[DBG_PTR:.*]] = alloca %f.Frame*
 ; CHECK: call void @llvm.dbg.declare(metadata %f.Frame** %[[DBG_PTR]], metadata ![[RESUME_COROHDL:[0-9]+]], metadata !DIExpression(DW_OP_deref, DW_OP_plus_uconst,
@@ -189,13 +189,13 @@ attributes #7 = { noduplicate }
 ; CHECK: %[[ALLOCATED_STORAGE:.+]] = invoke i8* @allocate()
 ; CHECK-NEXT: to label %[[NORMAL_DEST:.+]] unwind
 ; CHECK: [[NORMAL_DEST]]
-; CHEKC-NEXT: call void @llvm.dbg.declare(metadata i8* %[[ALLOCATED_STORAGE]]
+; CHECK-NEXT: call void @llvm.dbg.declare(metadata i8* %[[ALLOCATED_STORAGE]]
 ; CHECK: %[[CALLBR_RES:.+]] = callbr i32 asm
 ; CHECK-NEXT: to label %[[DEFAULT_DEST:.+]] [label
 ; CHECK: [[DEFAULT_DEST]]:
 ; CHECK-NEXT: call void @llvm.dbg.declare(metadata i32 %[[CALLBR_RES]]
-; CHECK: define internal fastcc void @f.destroy(%f.Frame* noalias nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[DESTROY:[0-9]+]]
-; CHECK: define internal fastcc void @f.cleanup(%f.Frame* noalias nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[CLEANUP:[0-9]+]]
+; CHECK: define internal fastcc void @f.destroy(%f.Frame* noundef nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[DESTROY:[0-9]+]]
+; CHECK: define internal fastcc void @f.cleanup(%f.Frame* noundef nonnull align 8 dereferenceable(40) %FramePtr) #0 personality i32 0 !dbg ![[CLEANUP:[0-9]+]]
 
 ; CHECK: ![[ORIG]] = distinct !DISubprogram(name: "f", linkageName: "flink"
 

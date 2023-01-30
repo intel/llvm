@@ -55,12 +55,12 @@ midpoint(_TPtr __a, _TPtr __b) noexcept
 
 
 template <typename _Tp>
-constexpr int __sign(_Tp __val) {
+_LIBCPP_HIDE_FROM_ABI constexpr int __sign(_Tp __val) {
     return (_Tp(0) < __val) - (__val < _Tp(0));
 }
 
 template <typename _Fp>
-constexpr _Fp __fp_abs(_Fp __f) { return __f >= 0 ? __f : -__f; }
+_LIBCPP_HIDE_FROM_ABI constexpr _Fp __fp_abs(_Fp __f) { return __f >= 0 ? __f : -__f; }
 
 template <class _Fp>
 _LIBCPP_INLINE_VISIBILITY constexpr
@@ -69,10 +69,10 @@ midpoint(_Fp __a, _Fp __b) noexcept
 {
     constexpr _Fp __lo = numeric_limits<_Fp>::min()*2;
     constexpr _Fp __hi = numeric_limits<_Fp>::max()/2;
-    return __fp_abs(__a) <= __hi && __fp_abs(__b) <= __hi ?  // typical case: overflow is impossible
+    return std::__fp_abs(__a) <= __hi && std::__fp_abs(__b) <= __hi ?  // typical case: overflow is impossible
       (__a + __b)/2 :                                        // always correctly rounded
-      __fp_abs(__a) < __lo ? __a + __b/2 :                   // not safe to halve a
-      __fp_abs(__b) < __lo ? __a/2 + __b :                   // not safe to halve b
+      std::__fp_abs(__a) < __lo ? __a + __b/2 :                   // not safe to halve a
+      std::__fp_abs(__b) < __lo ? __a/2 + __b :                   // not safe to halve b
       __a/2 + __b/2;                                         // otherwise correctly rounded
 }
 

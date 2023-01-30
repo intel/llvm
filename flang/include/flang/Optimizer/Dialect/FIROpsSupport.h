@@ -31,18 +31,18 @@ inline bool isaCall(mlir::Operation *op) {
          mlir::isa<mlir::func::CallIndirectOp>(op);
 }
 
-/// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
+/// Return true iff the Operation is a fir::CallOp, fir::DispatchOp,
 /// mlir::CallOp, or mlir::CallIndirectOp and not pure
-/// NB: this is not the same as `!pureCall(op)`
+/// NB: This is not the same as `!pureCall(op)`.
 inline bool impureCall(mlir::Operation *op) {
   // Should we also auto-detect that the called function is pure if its
   // arguments are not references?  For now, rely on a "pure" attribute.
   return op && isaCall(op) && !op->getAttr("pure");
 }
 
-/// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
+/// Return true iff the Operation is a fir::CallOp, fir::DispatchOp,
 /// mlir::CallOp, or mlir::CallIndirectOp and is also pure.
-/// NB: this is not the same as `!impureCall(op)`
+/// NB: This is not the same as `!impureCall(op)`.
 inline bool pureCall(mlir::Operation *op) {
   // Should we also auto-detect that the called function is pure if its
   // arguments are not references?  For now, rely on a "pure" attribute.
@@ -79,16 +79,30 @@ static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
 }
 
 /// Attribute to keep track of Fortran scoping information for a symbol.
-static constexpr llvm::StringRef getSymbolAttrName() { return "fir.sym_name"; }
+static constexpr llvm::StringRef getSymbolAttrName() {
+  return "fir.bindc_name";
+}
 
 /// Attribute to mark a function that takes a host associations argument.
 static constexpr llvm::StringRef getHostAssocAttrName() {
   return "fir.host_assoc";
 }
 
+/// Attribute to mark an internal procedure.
+static constexpr llvm::StringRef getInternalProcedureAttrName() {
+  return "fir.internal_proc";
+}
+
 /// Does the function, \p func, have a host-associations tuple argument?
 /// Some internal procedures may have access to host procedure variables.
 bool hasHostAssociationArgument(mlir::func::FuncOp func);
+
+/// Is the function, \p func an internal procedure ?
+/// Some internal procedures may have access to saved host procedure
+/// variables even when they do not have a tuple argument.
+inline bool isInternalPorcedure(mlir::func::FuncOp func) {
+  return func->hasAttr(fir::getInternalProcedureAttrName());
+}
 
 /// Tell if \p value is:
 ///   - a function argument that has attribute \p attributeName
@@ -104,6 +118,15 @@ bool valueHasFirAttribute(mlir::Value value, llvm::StringRef attributeName);
 /// attribute `attr` placed on them. This can be used to determine if the
 /// function has any host associations, for example.
 bool anyFuncArgsHaveAttr(mlir::func::FuncOp func, llvm::StringRef attr);
+
+/// Unwrap integer constant from an mlir::Value.
+inline std::optional<std::int64_t> getIntIfConstant(mlir::Value value) {
+  if (auto *definingOp = value.getDefiningOp())
+    if (auto cst = mlir::dyn_cast<mlir::arith::ConstantOp>(definingOp))
+      if (auto intAttr = cst.getValue().dyn_cast<mlir::IntegerAttr>())
+        return intAttr.getInt();
+  return {};
+}
 
 } // namespace fir
 

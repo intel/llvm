@@ -23,15 +23,10 @@
 [[sycl::work_group_size_hint(2)]] void f4();    // ok
 [[sycl::work_group_size_hint(2, 1)]] void f5(); // ok
 
-// FIXME: This turns out to be wrong as there aren't really default values
-// (that is an implementation detail we use but shouldn't expose to the user).
-// Instead, the dimensionality of the attribute needs to match that of the
-// kernel, so the one, two, and three arg forms of the attribute are actually
-// *different* attributes. This means that you should not be able to redeclare
-// the function with a different dimensionality.
-// As a result these two (re)declarations should result in errors.
-[[sycl::work_group_size_hint(2)]] void f5();
-[[sycl::work_group_size_hint(2, 1, 1)]] void f5();
+// Redefinitions with different dimensionality.
+[[sycl::work_group_size_hint(2, 1)]] void f6();    // expected-note {{previous attribute is here}}
+[[sycl::work_group_size_hint(2)]] void f6();       // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::work_group_size_hint(2, 1, 1)]] void f6(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
@@ -89,7 +84,7 @@ public:
 };
 
 // CHECK: CXXRecordDecl {{.*}} {{.*}}Functor16x2x1
-// CHECK: WorkGroupSizeHintAttr {{.*}}
+// CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -127,7 +122,7 @@ void invoke() {
   q.submit([&](sycl::handler &h) {
     h.single_task<class kernel_1>(f16x2x1);
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_1
-    // CHECK: WorkGroupSizeHintAttr {{.*}}
+    // CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -148,7 +143,7 @@ void invoke() {
     h.single_task<class kernel_2>(f4x4x4);
 #endif
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_2
-    // CHECK: WorkGroupSizeHintAttr {{.*}}
+    // CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -164,7 +159,20 @@ void invoke() {
     FunctorNoProp fNoProp;
     h.single_task<class kernel_3>(fNoProp);
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_3
-    // CHECK-NOT: WorkGroupSizeHintAttr
+    // CHECK-NOT: SYCLWorkGroupSizeHintAttr
+
+    h.single_task<class kernel_name4>([]() [[sycl::work_group_size_hint(4,4,4)]] {});
+    // CHECK: FunctionDecl {{.*}}kernel_name4
+    // CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
   });
 

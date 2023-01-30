@@ -14,20 +14,20 @@
 
 #include <stdint.h>
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <detail/accessor_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp>
 
 #include <esimdemu_support.h>
 
@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -55,7 +56,7 @@ pi_result getInfoImpl(size_t ParamValueSize, void *ParamValue,
                       Assign &&AssignFunc) {
   if (ParamValue != nullptr) {
     if (ParamValueSize < ValueSize) {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
     AssignFunc(ParamValue, Value, ValueSize);
   }
@@ -112,6 +113,12 @@ private:
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
+static void PiTrace(std::string TraceString) {
+  if (PrintPiTrace) {
+    std::cout << TraceString << std::endl;
+  }
+}
+
 // Global variables used in PI_esimd_emulator
 // Note we only create a simple pointer variables such that C++ RT won't
 // deallocate them automatically at the end of the main program.
@@ -141,7 +148,7 @@ static std::mutex *PiESimdSurfaceMapLock = new std::mutex;
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
-// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+// Global variables for PI_ERROR_PLUGIN_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
 thread_local pi_result ErrorMessageCode = PI_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
@@ -257,8 +264,8 @@ public:
     const auto InvokeKernelArg = KernelInvocationContext<DIMS>{
         MKernel, LocalSize, GlobalSize, GlobalOffset};
 
-    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>), GroupDim,
-                   SpaceDim}
+    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>),
+                   GroupDim.data(), SpaceDim.data()}
         .launchMT(sizeof(InvokeKernelArg), &InvokeKernelArg);
   }
 };
@@ -337,7 +344,7 @@ static bool isNull(int NDims, const size_t *R) {
 
 // NDims is the number of dimensions in the ND-range. Kernels are
 // normalized in the handler so that all kernels take an sycl::nd_item
-// as argument (see StoreLambda in CL/sycl/handler.hpp). For kernels
+// as argument (see StoreLambda in sycl/handler.hpp). For kernels
 // whose workgroup size (LocalWorkSize) is unspecified, InvokeImpl
 // sets LocalWorkSize to {1, 1, 1}, i.e. each workgroup contains just
 // one work item. CM emulator will run several workgroups in parallel
@@ -371,7 +378,7 @@ extern "C" {
               << " - File : " << __FILE__;                                     \
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
   }                                                                            \
-  return PI_INVALID_OPERATION;
+  return PI_ERROR_INVALID_OPERATION;
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   if (PrintPiTrace) {                                                          \
@@ -389,13 +396,13 @@ extern "C" {
                 << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
                 << std::endl;                                                  \
     }                                                                          \
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
   static bool PiPlatformCachePopulated = false;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+  static const char *PiTraceEnv = std::getenv("SYCL_PI_TRACE");
+  static const int PiTraceValue = PiTraceEnv ? std::stoi(PiTraceEnv) : 0;
 
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
@@ -408,18 +415,16 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumEntries == 0) {
     /// Runtime queries number of Platforms
     if (Platforms != nullptr) {
-      if (PrintPiTrace) {
-        std::cerr << "Invalid Arguments for piPlatformsGet of esimd_emultor "
-                     "(Platforms!=nullptr) while querying number of platforms"
-                  << std::endl;
-      }
-      return PI_INVALID_VALUE;
+      PiTrace("Invalid Arguments for piPlatformsGet of "
+              "esimd_emulator (Platforms!=nullptr) "
+              "while querying number of platforms");
+      return PI_ERROR_INVALID_VALUE;
     }
     return PI_SUCCESS;
   }
 
   if (Platforms == nullptr && NumPlatforms == nullptr) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
 
   std::lock_guard<std::mutex> Lock{*PiPlatformCacheLock};
@@ -440,7 +445,7 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
                             size_t ParamValueSize, void *ParamValue,
                             size_t *ParamValueSizeRet) {
   if (Platform == nullptr) {
-    return PI_INVALID_PLATFORM;
+    return PI_ERROR_INVALID_PLATFORM;
   }
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -480,7 +485,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 NumEntries, pi_device *Devices,
                        pi_uint32 *NumDevices) {
   if (Platform == nullptr) {
-    return PI_INVALID_PLATFORM;
+    return PI_ERROR_INVALID_PLATFORM;
   }
 
   pi_result Res = Platform->populateDeviceCacheIfNeeded();
@@ -498,12 +503,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (Devices != nullptr) {
-      if (PrintPiTrace) {
-        std::cerr << "Invalid Arguments for piDevicesGet of esimd_emultor "
-                     "(Devices!=nullptr) while querying number of platforms"
-                  << std::endl;
-      }
-      return PI_INVALID_VALUE;
+      PiTrace("Invalid Arguments for piDevicesGet of esimd_emultor "
+              "(Devices!=nullptr) while querying number of platforms");
+      return PI_ERROR_INVALID_VALUE;
     }
     return PI_SUCCESS;
   }
@@ -540,7 +542,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
 
   if (Result != cm_support::CM_SUCCESS) {
-    return PI_INVALID_DEVICE;
+    return PI_ERROR_INVALID_DEVICE;
   }
 
   // CM Device version info consists of two decimal numbers - major
@@ -551,11 +553,10 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
   // e.g. CM version 7.3 => Device version = 703
 
   if (((Version / 10) % 10) != 0) {
-    if (PrintPiTrace) {
-      std::cerr << "CM_EMU Device version info is incorrect : " << Version
-                << std::endl;
-    }
-    return PI_INVALID_DEVICE;
+    PiTrace("Invalid Arguments for piPlatformsGet of "
+            "esimd_emulator (Platforms!=nullptr) "
+            "while querying number of platforms");
+    return PI_ERROR_INVALID_DEVICE;
   }
 
   std::ostringstream StrFormat;
@@ -570,7 +571,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
 pi_result piDeviceRetain(pi_device Device) {
   if (Device == nullptr) {
-    return PI_INVALID_DEVICE;
+    return PI_ERROR_INVALID_DEVICE;
   }
 
   // CM supports only single device, which is root-device. 'Retain' is
@@ -580,7 +581,7 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   if (Device == nullptr) {
-    return PI_INVALID_DEVICE;
+    return PI_ERROR_INVALID_DEVICE;
   }
 
   // CM supports only single device, which is root-device. 'Release'
@@ -624,7 +625,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
@@ -662,7 +663,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{PI_QUEUE_ON_DEVICE});
+    return ReturnValue(pi_queue_properties{PI_QUEUE_FLAG_ON_DEVICE});
   case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
@@ -782,13 +783,17 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     // TODO : CHECK
     return ReturnValue(pi_uint32{0});
+  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
+    return ReturnValue(size_t{1});
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
+    return ReturnValue(pi_int32{1});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
     // Intel-specific extensions
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_DEVICE_ID)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
@@ -835,20 +840,20 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   ARG_UNUSED(UserData);
 
   if (NumDevices != 1) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
   if (Devices == nullptr) {
-    return PI_INVALID_DEVICE;
+    return PI_ERROR_INVALID_DEVICE;
   }
   if (RetContext == nullptr) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
 
   try {
     /// Single-root-device
     *RetContext = new _pi_context(Devices[0]);
   } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
@@ -877,7 +882,7 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
 
 pi_result piContextRetain(pi_context Context) {
   if (Context == nullptr) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   ++(Context->RefCount);
@@ -887,7 +892,7 @@ pi_result piContextRetain(pi_context Context) {
 
 pi_result piContextRelease(pi_context Context) {
   if (Context == nullptr || (Context->RefCount <= 0)) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   if (--(Context->RefCount) == 0) {
@@ -906,48 +911,55 @@ pi_result piContextRelease(pi_context Context) {
 bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   if (Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
     if (HostPtr == nullptr) {
-      if (PrintPiTrace) {
-        std::cerr << "HostPtr argument is required for "
-                     "PI_MEM_FLAGS_HOST_PTR_USE/COPY"
-                  << std::endl;
-      }
+      PiTrace("HostPtr argument is required for "
+              "PI_MEM_FLAGS_HOST_PTR_USE/COPY");
       return false;
     }
     // COPY and USE are mutually exclusive
     if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
         (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
-      if (PrintPiTrace) {
-        std::cerr
-            << "PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together"
-            << std::endl;
-      }
+      PiTrace("PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together");
       return false;
     }
   }
   return true;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
 
-  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+  if (Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
     *Queue = nullptr;
-    return PI_INVALID_QUEUE_PROPERTIES;
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
 
-  cm_support::CmQueue *CmQueue;
+  cm_support::CmQueue *CmQueue = nullptr;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
   if (Result != cm_support::CM_SUCCESS) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   try {
     *Queue = new _pi_queue(Context, CmQueue);
   } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
@@ -961,7 +973,7 @@ pi_result piQueueGetInfo(pi_queue, pi_queue_info, size_t, void *, size_t *) {
 
 pi_result piQueueRetain(pi_queue Queue) {
   if (Queue == nullptr) {
-    return PI_INVALID_QUEUE;
+    return PI_ERROR_INVALID_QUEUE;
   }
   ++(Queue->RefCount);
   return PI_SUCCESS;
@@ -969,7 +981,7 @@ pi_result piQueueRetain(pi_queue Queue) {
 
 pi_result piQueueRelease(pi_queue Queue) {
   if ((Queue == nullptr) || (Queue->CmQueuePtr == nullptr)) {
-    return PI_INVALID_QUEUE;
+    return PI_ERROR_INVALID_QUEUE;
   }
 
   if (--(Queue->RefCount) == 0) {
@@ -1000,7 +1012,7 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_queue *, bool) {
+                                           pi_device, bool, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1010,28 +1022,25 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   ARG_UNUSED(properties);
 
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemBufferCreate"
-                << std::endl;
-    }
-    return PI_INVALID_OPERATION;
+    PiTrace("Invalid memory attribute for piMemBufferCreate");
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   if (Context == nullptr) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
   if (RetMem == nullptr) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
 
   // Flag & HostPtr argument sanity check
   if (!Context->checkSurfaceArgument(Flags, HostPtr)) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmBuf;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_FAILURE;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
@@ -1053,7 +1062,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   if (Status != cm_support::CM_SUCCESS) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   MapBasePtr =
@@ -1063,15 +1072,17 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem =
         new _pi_buffer(Context, MapBasePtr, CmBuf, CmIndex->get_data(), Size);
   } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
 
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((*RetMem)->SurfaceIndex) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed buffer creation");
+  if (PiESimdSurfaceMap->find((*RetMem)->SurfaceIndex) !=
+      PiESimdSurfaceMap->end()) {
+    PiTrace("Failure from CM-managed buffer creation");
+    return PI_ERROR_INVALID_MEM_OBJECT;
+  }
 
   (*PiESimdSurfaceMap)[(*RetMem)->SurfaceIndex] = *RetMem;
 
@@ -1084,7 +1095,7 @@ pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
 
 pi_result piMemRetain(pi_mem Mem) {
   if (Mem == nullptr) {
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
   ++(Mem->RefCount);
   return PI_SUCCESS;
@@ -1092,15 +1103,17 @@ pi_result piMemRetain(pi_mem Mem) {
 
 pi_result piMemRelease(pi_mem Mem) {
   if ((Mem == nullptr) || (Mem->RefCount == 0)) {
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
 
   if (--(Mem->RefCount) == 0) {
     // Removing Surface-map entry
     std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-    assert(MapEntryIt != PiESimdSurfaceMap->end() &&
-           "Failure from Buffer/Image deletion");
+    if (MapEntryIt == PiESimdSurfaceMap->end()) {
+      PiTrace("Failure from Buffer/Image deletion");
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     PiESimdSurfaceMap->erase(MapEntryIt);
     delete Mem;
   }
@@ -1122,8 +1135,8 @@ _pi_mem::~_pi_mem() {
     Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
   }
 
-  assert(Status == cm_support::CM_SUCCESS &&
-         "Surface Deletion Failure from CM_EMU");
+  sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
+                              "Surface Deletion Failure from CM_EMU");
 
   for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
     mapit = Mappings.erase(mapit);
@@ -1160,14 +1173,12 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;
-    }
-    return PI_INVALID_OPERATION;
+    PiTrace("Invalid memory attribute for piMemImageCreate");
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   if (ImageFormat == nullptr || ImageDesc == nullptr)
-    return PI_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+    return PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
 
   switch (ImageDesc->image_type) {
   case PI_MEM_TYPE_IMAGE2D:
@@ -1180,7 +1191,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D_BUFFER)
 
   default:
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
 
   auto BytesPerPixel = 4;
@@ -1205,23 +1216,23 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT)
     CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_FLOAT)
   default:
-    return PI_IMAGE_FORMAT_NOT_SUPPORTED;
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
   // Flag & HostPtr argument sanity check
   if (!Context->checkSurfaceArgument(Flags, HostPtr)) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   cm_support::CM_SURFACE_FORMAT CmSurfFormat =
       ConvertPiImageFormatToCmFormat(ImageFormat);
   if (CmSurfFormat == cm_support::CM_SURFACE_FORMAT_UNKNOWN) {
-    return PI_IMAGE_FORMAT_NOT_SUPPORTED;
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmImg;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_SUCCESS;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
@@ -1248,7 +1259,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   if (Status != cm_support::CM_SUCCESS) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   MapBasePtr =
@@ -1259,15 +1270,17 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                               ImageDesc->image_width, ImageDesc->image_height,
                               BytesPerPixel);
   } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
 
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((*RetImage)->SurfaceIndex) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed image creation");
+  if (PiESimdSurfaceMap->find((*RetImage)->SurfaceIndex) !=
+      PiESimdSurfaceMap->end()) {
+    PiTrace("Failure from CM-managed image creation");
+    return PI_ERROR_INVALID_VALUE;
+  }
 
   (*PiESimdSurfaceMap)[(*RetImage)->SurfaceIndex] = *RetImage;
 
@@ -1328,7 +1341,7 @@ pi_result piProgramBuild(pi_program, pi_uint32, const pi_device *, const char *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramGetBuildInfo(pi_program, pi_device, cl_program_build_info,
+pi_result piProgramGetBuildInfo(pi_program, pi_device, pi_program_build_info,
                                 size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -1384,8 +1397,40 @@ pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
+                         size_t ParamValueSize, void *ParamValue,
+                         size_t *ParamValueSizeRet) {
+  if (ParamName != PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    DIE_NO_IMPLEMENTATION;
+  }
+
+  auto CheckAndFillStatus = [&](const cm_support::CM_STATUS &State) {
+    pi_int32 Result = PI_EVENT_RUNNING;
+    if (State == cm_support::CM_STATUS_FINISHED)
+      Result = PI_EVENT_COMPLETE;
+    if (ParamValue) {
+      if (ParamValueSize < sizeof(Result))
+        return PI_ERROR_INVALID_VALUE;
+      *static_cast<pi_int32 *>(ParamValue) = Result;
+    }
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(Result);
+    }
+    return PI_SUCCESS;
+  };
+  // Dummy event is already completed ones done by CM.
+  if (Event->IsDummyEvent)
+    return CheckAndFillStatus(cm_support::CM_STATUS_FINISHED);
+
+  if (Event->CmEventPtr == nullptr)
+    return PI_ERROR_INVALID_EVENT;
+
+  cm_support::CM_STATUS Status;
+  int32_t Result = Event->CmEventPtr->GetStatus(Status);
+  if (Result != cm_support::CM_SUCCESS)
+    return PI_ERROR_COMMAND_EXECUTION_FAILURE;
+
+  return CheckAndFillStatus(Status);
 }
 
 pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
@@ -1397,10 +1442,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   ARG_UNUSED(ParamValue);
   ARG_UNUSED(ParamValueSizeRet);
 
-  if (PrintPiTrace) {
-    std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMULATOR"
-              << std::endl;
-  }
+  PiTrace("Warning : Profiling Not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;
 }
 
@@ -1412,11 +1454,11 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       continue;
     }
     if (EventList[i]->CmEventPtr == nullptr) {
-      return PI_INVALID_EVENT;
+      return PI_ERROR_INVALID_EVENT;
     }
     int Result = EventList[i]->CmEventPtr->WaitForTaskFinished();
     if (Result != cm_support::CM_SUCCESS) {
-      return PI_OUT_OF_RESOURCES;
+      return PI_ERROR_OUT_OF_RESOURCES;
     }
   }
   return PI_SUCCESS;
@@ -1431,7 +1473,7 @@ pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventRetain(pi_event Event) {
   if (Event == nullptr) {
-    return PI_INVALID_EVENT;
+    return PI_ERROR_INVALID_EVENT;
   }
 
   ++(Event->RefCount);
@@ -1441,17 +1483,17 @@ pi_result piEventRetain(pi_event Event) {
 
 pi_result piEventRelease(pi_event Event) {
   if (Event == nullptr || (Event->RefCount <= 0)) {
-    return PI_INVALID_EVENT;
+    return PI_ERROR_INVALID_EVENT;
   }
 
   if (--(Event->RefCount) == 0) {
     if (!Event->IsDummyEvent) {
       if ((Event->CmEventPtr == nullptr) || (Event->OwnerQueue == nullptr)) {
-        return PI_INVALID_EVENT;
+        return PI_ERROR_INVALID_EVENT;
       }
       int Result = Event->OwnerQueue->DestroyEvent(Event->CmEventPtr);
       if (Result != cm_support::CM_SUCCESS) {
-        return PI_INVALID_EVENT;
+        return PI_ERROR_INVALID_EVENT;
       }
     }
     delete Event;
@@ -1503,15 +1545,18 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
-    assert(false &&
-           "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
+    PiTrace(
+        "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
+    return PI_ERROR_INVALID_OPERATION;
   }
 
-  assert(Offset == 0 &&
-         "ESIMD_EMULATOR does not support buffer reading with offsets");
+  if (Offset != 0) {
+    PiTrace("ESIMD_EMULATOR does not support buffer reading with offsets");
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   if (NumEventsInWaitList != 0) {
-    return PI_INVALID_EVENT_WAIT_LIST;
+    return PI_ERROR_INVALID_EVENT_WAIT_LIST;
   }
 
   _pi_buffer *buf = static_cast<_pi_buffer *>(Src);
@@ -1527,14 +1572,16 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
     // Surface. memcpy is used for BufferRead PI_API call.
     memcpy(Dst, buf->MapHostPtr, Size);
   } else {
-    assert(buf->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer);
+    if (buf->SurfacePtr.tag != cm_surface_ptr_t::TypeRegularBuffer) {
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     int Status = buf->SurfacePtr.RegularBufPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Dst),
         nullptr, // event
         static_cast<uint64_t>(Size));
 
     if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
+      return PI_ERROR_INVALID_MEM_OBJECT;
     }
   }
 
@@ -1619,11 +1666,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
     if (!Res.second) {
-      ret = PI_INVALID_VALUE;
-      if (PrintPiTrace) {
-        std::cerr << "piEnqueueMemBufferMap: duplicate mapping detected"
-                  << std::endl;
-      }
+      ret = PI_ERROR_INVALID_VALUE;
+      PiTrace("piEnqueueMemBufferMap: duplicate mapping detected");
     }
   }
 
@@ -1656,10 +1700,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     std::lock_guard<std::mutex> Lock(MemObj->MappingsMutex);
     auto It = MemObj->Mappings.find(MappedPtr);
     if (It == MemObj->Mappings.end()) {
-      ret = PI_INVALID_VALUE;
-      if (PrintPiTrace) {
-        std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
-      }
+      ret = PI_ERROR_INVALID_VALUE;
+      PiTrace("piEnqueueMemUnmap: unknown memory mapping");
     }
     MemObj->Mappings.erase(It);
   }
@@ -1688,16 +1730,22 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
 
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
-    assert(false && "ESIMD_EMULATOR does not support Blocking Read");
+    PiTrace("ESIMD_EMULATOR support for blocking piEnqueueMemImageRead is NYI");
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   // SlicePitch is for 3D image while ESIMD_EMULATOR does not
   // support. For 2D surfaces, SlicePitch must be 0.
-  assert((SlicePitch == 0) && "ESIMD_EMULATOR does not support 3D-image");
+  if (SlicePitch != 0) {
+    PiTrace("ESIMD_EMULATOR does not support 3D-image");
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   // CM_EMU does not support ReadSurface with offset
-  assert(Origin->x == 0 && Origin->y == 0 && Origin->z == 0 &&
-         "ESIMD_EMULATOR does not support 2D-image reading with offsets");
+  if (Origin->x != 0 || Origin->y != 0 || Origin->z != 0) {
+    PiTrace("ESIMD_EMULATOR does not support 2D-image reading with offsets");
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
 
@@ -1714,14 +1762,16 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     // Surface. memcpy is used for ImageRead PI_API call.
     memcpy(Ptr, PiImg->MapHostPtr, Size);
   } else {
-    assert(PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage);
+    if (PiImg->SurfacePtr.tag != cm_surface_ptr_t::TypeRegularImage) {
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     int Status = PiImg->SurfacePtr.RegularImgPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Ptr),
         nullptr, // event
         static_cast<uint64_t>(Size));
 
     if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
+      return PI_ERROR_INVALID_MEM_OBJECT;
     }
   }
 
@@ -1768,11 +1818,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   const size_t LocalWorkSz[] = {1, 1, 1};
 
   if (Kernel == nullptr) {
-    return PI_INVALID_KERNEL;
+    return PI_ERROR_INVALID_KERNEL;
   }
 
   if (WorkDim > 3 || WorkDim == 0) {
-    return PI_INVALID_WORK_GROUP_SIZE;
+    return PI_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
   if (isNull(WorkDim, LocalWorkSize)) {
@@ -1781,7 +1831,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   for (pi_uint32 I = 0; I < WorkDim; I++) {
     if ((GlobalWorkSize[I] % LocalWorkSize[I]) != 0) {
-      return PI_INVALID_WORK_GROUP_SIZE;
+      return PI_ERROR_INVALID_WORK_GROUP_SIZE;
     }
   }
 
@@ -1855,11 +1905,11 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   ARG_UNUSED(Alignment);
 
   if (Context == nullptr || (Device != Context->Device)) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   if (ResultPtr == nullptr) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   // 'Size' must be power of two in order to prevent memory corruption
@@ -1874,13 +1924,13 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
       Size, SystemMemPtr, CM_SVM_ACCESS_FLAG_DEFAULT, Buf);
 
   if (Result != cm_support::CM_SUCCESS) {
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
   *ResultPtr = SystemMemPtr;
   std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   auto Iter = Context->Addr2CmBufferSVM.find(SystemMemPtr);
   if (Context->Addr2CmBufferSVM.end() != Iter) {
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
   Context->Addr2CmBufferSVM[SystemMemPtr] = Buf;
   return PI_SUCCESS;
@@ -1888,20 +1938,20 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   if (Context == nullptr) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
   if (Ptr == nullptr) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   cm_support::CmBufferSVM *Buf = Context->Addr2CmBufferSVM[Ptr];
   if (Buf == nullptr) {
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
   auto Count = Context->Addr2CmBufferSVM.erase(Ptr);
   if (Count != 1) {
-    return PI_INVALID_MEM_OBJECT;
+    return PI_ERROR_INVALID_MEM_OBJECT;
   }
   int32_t Result = Context->Device->CmDevicePtr->DestroyBufferSVM(Buf);
   if (cm_support::CM_SUCCESS != Result) {
@@ -1929,6 +1979,23 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t, const void *,
+                                size_t, size_t, pi_uint32, const pi_event *,
+                                pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                  const void *, size_t, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
                                   size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1949,12 +2016,8 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
   /// TODO : Support multiple images and enable selection algorithm
   /// for the images
   if (RawImgSize != 1) {
-    if (PrintPiTrace) {
-      std::cerr
-          << "Only single device binary image is supported in ESIMD_EMULATOR"
-          << std::endl;
-    }
-    return PI_INVALID_VALUE;
+    PiTrace("Only single device binary image is supported in ESIMD_EMULATOR");
+    return PI_ERROR_INVALID_VALUE;
   }
   *ImgInd = 0;
   return PI_SUCCESS;
@@ -1963,6 +2026,20 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
                                   pi_usm_migration_flags, pi_uint32,
                                   const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueDeviceGlobalVariableWrite(pi_queue, pi_program,
+                                                const char *, pi_bool, size_t,
+                                                size_t, const void *, pi_uint32,
+                                                const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
+                                               const char *, pi_bool, size_t,
+                                               size_t, void *, pi_uint32,
+                                               const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1986,16 +2063,27 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
+                                  uint64_t *hostTime) {
+  PiTrace(
+      "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
+  return PI_SUCCESS;
+}
+const char SupportedVersion[] = _PI_ESIMD_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   if (PluginInit == nullptr) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
+
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
   if (strlen(_PI_H_VERSION_STRING) >= PluginVersionSize) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
-  strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
   // 'version' to be compared with 'ESIMD_EMULATOR_DEVICE_REQUIRED_VER' defined
@@ -2009,7 +2097,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
 }

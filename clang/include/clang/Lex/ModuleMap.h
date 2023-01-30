@@ -136,9 +136,11 @@ public:
     /// should be textually included.
     TextualHeader = 0x2,
 
+    /// This header is explicitly excluded from the module.
+    ExcludedHeader = 0x4,
+
     // Caution: Adding an enumerator needs other changes.
     // Adjust the number of bits for KnownHeader::Storage.
-    // Adjust the bitfield HeaderFileInfo::HeaderRole size.
     // Adjust the HeaderFileInfoTrait::ReadData streaming.
     // Adjust the HeaderFileInfoTrait::EmitData streaming.
     // Adjust ModuleMap::addHeader.
@@ -150,10 +152,13 @@ public:
   /// Convert a header role to a kind.
   static Module::HeaderKind headerRoleToKind(ModuleHeaderRole Role);
 
+  /// Check if the header with the given role is a modular one.
+  static bool isModular(ModuleHeaderRole Role);
+
   /// A header that is known to reside within a given module,
   /// whether it was included or excluded.
   class KnownHeader {
-    llvm::PointerIntPair<Module *, 2, ModuleHeaderRole> Storage;
+    llvm::PointerIntPair<Module *, 3, ModuleHeaderRole> Storage;
 
   public:
     KnownHeader() : Storage(nullptr, NormalHeader) {}
@@ -174,7 +179,7 @@ public:
 
     /// Whether this header is available in the module.
     bool isAvailable() const {
-      return getModule()->isAvailable();
+      return getRole() != ExcludedHeader && getModule()->isAvailable();
     }
 
     /// Whether this header is accessible from the specified module.
@@ -328,7 +333,7 @@ private:
   /// \param NeedsFramework If M is not a framework but a missing header would
   ///        be found in case M was, set it to true. False otherwise.
   /// \return The resolved file, if any.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   findHeader(Module *M, const Module::UnresolvedHeaderDirective &Header,
              SmallVectorImpl<char> &RelativePathName, bool &NeedsFramework);
 
@@ -434,7 +439,8 @@ public:
   /// given header file.  The KnownHeader is default constructed to indicate
   /// that no module owns this header file.
   KnownHeader findModuleForHeader(const FileEntry *File,
-                                  bool AllowTextual = false);
+                                  bool AllowTextual = false,
+                                  bool AllowExcluded = false);
 
   /// Retrieve all the modules that contain the given header file. Note that
   /// this does not implicitly load module maps, except for builtin headers,
@@ -558,11 +564,7 @@ public:
   /// Note that this also sets the current module to the newly-created module.
   ///
   /// \returns The newly-created module.
-  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name,
-                                       Module *GlobalModule);
-
-  /// Create a header module from the specified list of headers.
-  Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
@@ -604,7 +606,7 @@ public:
   ///
   /// \returns The file entry for the module map file containing the given
   /// module, or nullptr if the module definition was inferred.
-  const FileEntry *getContainingModuleMapFile(const Module *Module) const;
+  OptionalFileEntryRef getContainingModuleMapFile(const Module *Module) const;
 
   /// Get the module map file that (along with the module name) uniquely
   /// identifies this module.
@@ -615,9 +617,18 @@ public:
   /// of inferred modules, returns the module map that allowed the inference
   /// (e.g. contained 'module *'). Otherwise, returns
   /// getContainingModuleMapFile().
-  const FileEntry *getModuleMapFileForUniquing(const Module *M) const;
+  OptionalFileEntryRef getModuleMapFileForUniquing(const Module *M) const;
 
   void setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap);
+
+  /// Canonicalize \p Path in a manner suitable for a module map file. In
+  /// particular, this canonicalizes the parent directory separately from the
+  /// filename so that it does not affect header resolution relative to the
+  /// modulemap.
+  ///
+  /// \returns an error code if any filesystem operations failed. In this case
+  /// \p Path is not modified.
+  std::error_code canonicalizeModuleMapPath(SmallVectorImpl<char> &Path);
 
   /// Get any module map files other than getModuleMapFileForUniquing(M)
   /// that define submodules of a top-level module \p M. This is cheaper than
@@ -679,9 +690,6 @@ public:
   void addHeader(Module *Mod, Module::Header Header,
                  ModuleHeaderRole Role, bool Imported = false);
 
-  /// Marks this header as being excluded from the given module.
-  void excludeHeader(Module *Mod, Module::Header Header);
-
   /// Parse the given module map file, and record any modules we
   /// encounter.
   ///
@@ -727,7 +735,7 @@ public:
   llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
     auto I = CachedModuleLoads.find(&II);
     if (I == CachedModuleLoads.end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 };

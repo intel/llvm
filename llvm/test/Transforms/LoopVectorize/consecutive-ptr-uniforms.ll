@@ -1,6 +1,4 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s
-; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -enable-interleaved-mem-accesses -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s --check-prefix=INTER
 ; RUN: opt < %s -passes=loop-vectorize,instcombine -force-vector-width=4 -force-vector-interleave=1 -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s
 ; RUN: opt < %s -passes=loop-vectorize,instcombine -force-vector-width=4 -force-vector-interleave=1 -enable-interleaved-mem-accesses -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s --check-prefix=INTER
 
@@ -50,8 +48,8 @@ for.end:
 ; CHECK:       %index = phi i64 [ 0, %vector.ph ], [ %index.next, %vector.body ]
 ; CHECK:       %offset.idx = sub i64 %n, %index
 ; CHECK-NOT:   getelementptr
-; CHECK:       %[[G0:.+]] = getelementptr inbounds i32, i32* %a, i64 -3
-; CHECK:       getelementptr inbounds i32, i32* %[[G0]], i64 %offset.idx
+; CHECK:       %[[G0:.+]] = getelementptr i32, i32* %a, i64 -3
+; CHECK:       getelementptr i32, i32* %[[G0]], i64 %offset.idx
 ; CHECK-NOT:   getelementptr
 ; CHECK:       br i1 {{.*}}, label %middle.block, label %vector.body
 ;
@@ -65,7 +63,7 @@ for.body:
   %tmp1 = getelementptr inbounds i32, i32* %a, i64 %i
   %tmp2 = load i32, i32* %tmp1, align 8
   %tmp3 = add i32 %tmp0, %tmp2
-  %i.next = add nuw nsw i64 %i, -1
+  %i.next = add nsw i64 %i, -1
   %cond = icmp sgt i64 %i.next, 0
   br i1 %cond, label %for.body, label %for.end
 
@@ -181,7 +179,7 @@ for.body:
   %tmp4 = load i32, i32* %tmp2, align 8
   %tmp5 = add i32 %tmp3, %tmp4
   %tmp6 = add i32 %tmp0, %tmp5
-  %i.next = add nuw nsw i64 %i, -1
+  %i.next = add nsw i64 %i, -1
   %cond = icmp sgt i64 %i.next, 0
   br i1 %cond, label %for.body, label %for.end
 

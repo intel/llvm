@@ -394,9 +394,12 @@ void RNBRemote::CreatePacketTable() {
                      "'G', 'p', and 'P') support having the thread ID appended "
                      "to the end of the command"));
   t.push_back(Packet(set_logging_mode, &RNBRemote::HandlePacket_QSetLogging,
-                     NULL, "QSetLogging:", "Check if register packets ('g', "
-                                           "'G', 'p', and 'P' support having "
-                                           "the thread ID prefix"));
+                     NULL, "QSetLogging:", "Turn on log channels in debugserver"));
+  t.push_back(Packet(set_ignored_exceptions, &RNBRemote::HandlePacket_QSetIgnoredExceptions,
+                     NULL, "QSetIgnoredExceptions:", "Set the exception types "
+                                           "debugserver won't wait for, allowing "
+                                           "them to be turned into the equivalent "
+                                           "BSD signals by the normal means."));
   t.push_back(Packet(
       set_max_packet_size, &RNBRemote::HandlePacket_QSetMaxPacketSize, NULL,
       "QSetMaxPacketSize:",
@@ -496,6 +499,10 @@ void RNBRemote::CreatePacketTable() {
       "Test the maximum speed at which packet can be sent/received."));
   t.push_back(Packet(query_transfer, &RNBRemote::HandlePacket_qXfer, NULL,
                      "qXfer:", "Support the qXfer packet."));
+  t.push_back(Packet(json_query_dyld_process_state,
+                     &RNBRemote::HandlePacket_jGetDyldProcessState, NULL,
+                     "jGetDyldProcessState",
+                     "Query the process state from dyld."));
 }
 
 void RNBRemote::FlushSTDIO() {
@@ -2210,6 +2217,37 @@ rnb_err_t set_logging(const char *p) {
   return rnb_success;
 }
 
+rnb_err_t RNBRemote::HandlePacket_QSetIgnoredExceptions(const char *p) {
+  // We can't set the ignored exceptions if we have a running process:
+  if (m_ctx.HasValidProcessID())
+    return SendPacket("E35");
+
+  p += sizeof("QSetIgnoredExceptions:") - 1;
+  bool success = true;
+  while(1) {
+    const char *bar  = strchr(p, '|');
+    if (bar == nullptr) {
+      success = m_ctx.AddIgnoredException(p);
+      break;
+    } else {
+      std::string exc_str(p, bar - p);
+      if (exc_str.empty()) {
+        success = false;
+        break;
+      }
+
+      success = m_ctx.AddIgnoredException(exc_str.c_str());
+      if (!success)
+        break;
+      p = bar + 1;
+    }
+  }
+  if (success)
+    return SendPacket("OK");
+  else
+    return SendPacket("E36");
+}
+
 rnb_err_t RNBRemote::HandlePacket_QThreadSuffixSupported(const char *p) {
   m_thread_suffix_supported = true;
   return SendPacket("OK");
@@ -3753,17 +3791,6 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
     char err_str[1024] = {'\0'};
     std::string attach_name;
 
-    if (DNBDebugserverIsTranslated()) {
-      DNBLogError("debugserver is x86_64 binary running in translation, attach "
-                  "failed.");
-      std::string return_message = "E96;";
-      return_message +=
-          cstring_to_asciihex_string("debugserver is x86_64 binary running in "
-                                     "translation, attached failed.");
-      SendPacket(return_message);
-      return rnb_err;
-    }
-
     if (strstr(p, "vAttachWait;") == p) {
       p += strlen("vAttachWait;");
       if (!GetProcessNameFrom_vAttach(p, attach_name)) {
@@ -3802,8 +3829,8 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
              "'%s'",
              getpid(), attach_name.c_str());
       attach_pid = DNBProcessAttachByName(attach_name.c_str(), NULL,
-                                          Context().GetUnmaskSignals(), err_str,
-                                          sizeof(err_str));
+                                          Context().GetIgnoredExceptions(), 
+                                          err_str, sizeof(err_str));
 
     } else if (strstr(p, "vAttach;") == p) {
       p += strlen("vAttach;");
@@ -3817,10 +3844,22 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
         DNBLog("[LaunchAttach] START %d vAttach to pid %d", getpid(),
                pid_attaching_to);
         attach_pid = DNBProcessAttach(pid_attaching_to, &attach_timeout_abstime,
-                                      false, err_str, sizeof(err_str));
+                                      m_ctx.GetIgnoredExceptions(), 
+                                      err_str, sizeof(err_str));
       }
     } else {
       return HandlePacket_UNIMPLEMENTED(p);
+    }
+
+    if (attach_pid == INVALID_NUB_PROCESS_ARCH) {
+      DNBLogError("debugserver is x86_64 binary running in translation, attach "
+                  "failed.");
+      std::string return_message = "E96;";
+      return_message +=
+          cstring_to_asciihex_string("debugserver is x86_64 binary running in "
+                                     "translation, attach failed.");
+      SendPacket(return_message.c_str());
+      return rnb_err;
     }
 
     if (attach_pid != INVALID_NUB_PROCESS) {
@@ -4746,24 +4785,6 @@ static bool GetHostCPUType(uint32_t &cputype, uint32_t &cpusubtype,
   return g_host_cputype != 0;
 }
 
-static bool GetAddressingBits(uint32_t &addressing_bits) {
-  static uint32_t g_addressing_bits = 0;
-  static bool g_tried_addressing_bits_syscall = false;
-  if (g_tried_addressing_bits_syscall == false) {
-    size_t len = sizeof (uint32_t);
-    if (::sysctlbyname("machdep.virtual_address_size",
-          &g_addressing_bits, &len, NULL, 0) != 0) {
-      g_addressing_bits = 0;
-    }
-  }
-  g_tried_addressing_bits_syscall = true;
-  addressing_bits = g_addressing_bits;
-  if (addressing_bits > 0)
-    return true;
-  else
-    return false;
-}
-
 rnb_err_t RNBRemote::HandlePacket_qHostInfo(const char *p) {
   std::ostringstream strm;
 
@@ -4777,7 +4798,7 @@ rnb_err_t RNBRemote::HandlePacket_qHostInfo(const char *p) {
   }
 
   uint32_t addressing_bits = 0;
-  if (GetAddressingBits(addressing_bits)) {
+  if (DNBGetAddressingBits(addressing_bits)) {
     strm << "addressing_bits:" << std::dec << addressing_bits << ';';
   }
 
@@ -5237,6 +5258,22 @@ rnb_err_t RNBRemote::HandlePacket_qGDBServerVersion(const char *p) {
   strm << "version:" << DEBUGSERVER_VERSION_NUM << ";";
 
   return SendPacket(strm.str());
+}
+
+rnb_err_t RNBRemote::HandlePacket_jGetDyldProcessState(const char *p) {
+  const nub_process_t pid = m_ctx.ProcessID();
+  if (pid == INVALID_NUB_PROCESS)
+    return SendPacket("E87");
+
+  JSONGenerator::ObjectSP dyld_state_sp = DNBGetDyldProcessState(pid);
+  if (dyld_state_sp) {
+    std::ostringstream strm;
+    dyld_state_sp->DumpBinaryEscaped(strm);
+    dyld_state_sp->Clear();
+    if (strm.str().size() > 0)
+      return SendPacket(strm.str());
+  }
+  return SendPacket("E88");
 }
 
 // A helper function that retrieves a single integer value from
@@ -6241,12 +6278,12 @@ rnb_err_t RNBRemote::HandlePacket_qProcessInfo(const char *p) {
 
         bool is_executable = true;
         uint32_t major_version, minor_version, patch_version;
-        auto *platform =
+        std::optional<std::string> platform =
             DNBGetDeploymentInfo(pid, is_executable, lc, load_command_addr,
                                  major_version, minor_version, patch_version);
         if (platform) {
           os_handled = true;
-          rep << "ostype:" << platform << ";";
+          rep << "ostype:" << *platform << ";";
           break;
         }
         load_command_addr = load_command_addr + lc.cmdsize;

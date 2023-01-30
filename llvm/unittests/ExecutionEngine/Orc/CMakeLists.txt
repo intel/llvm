@@ -11,6 +11,7 @@ set(LLVM_LINK_COMPONENTS
   Passes
   RuntimeDyld
   Support
+  TargetParser
   native
   )
 
@@ -24,11 +25,14 @@ add_llvm_unittest(OrcJITTests
   JITTargetMachineBuilderTest.cpp
   LazyCallThroughAndReexportsTest.cpp
   LookupAndRecordAddrsTest.cpp
+  MapperJITLinkMemoryManagerTest.cpp
+  MemoryMapperTest.cpp
   ObjectLinkingLayerTest.cpp
   OrcCAPITest.cpp
   OrcTestCommon.cpp
   ResourceTrackerTest.cpp
   RTDyldObjectLinkingLayerTest.cpp
+  SharedMemoryMapperTest.cpp
   SimpleExecutorMemoryManagerTest.cpp
   SimplePackedSerializationTest.cpp
   SymbolStringPoolTest.cpp
@@ -40,3 +44,5 @@ add_llvm_unittest(OrcJITTests
 target_link_libraries(OrcJITTests PRIVATE
                         LLVMTestingSupport
                         ${ORC_JIT_TEST_LIBS})
+
+set_property(TARGET OrcJITTests PROPERTY FOLDER "Tests/UnitTests/ExecutionTests")

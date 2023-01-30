@@ -33,7 +33,6 @@
 #include "support/Logger.h"
 #include "support/Path.h"
 #include "support/Trace.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -111,14 +110,14 @@ struct FragmentCompiler {
     std::string RegexError;
     if (!Result.isValid(RegexError)) {
       diag(Error, "Invalid regex " + Anchored + ": " + RegexError, Text.Range);
-      return llvm::None;
+      return std::nullopt;
     }
-    return Result;
+    return std::move(Result);
   }
 
-  llvm::Optional<std::string> makeAbsolute(Located<std::string> Path,
-                                           llvm::StringLiteral Description,
-                                           llvm::sys::path::Style Style) {
+  std::optional<std::string> makeAbsolute(Located<std::string> Path,
+                                          llvm::StringLiteral Description,
+                                          llvm::sys::path::Style Style) {
     if (llvm::sys::path::is_absolute(*Path))
       return *Path;
     if (FragmentDirectory.empty()) {
@@ -129,7 +128,7 @@ struct FragmentCompiler {
                Description)
                .str(),
            Path.Range);
-      return llvm::None;
+      return std::nullopt;
     }
     llvm::SmallString<256> AbsPath = llvm::StringRef(*Path);
     llvm::sys::fs::make_absolute(FragmentDirectory, AbsPath);
@@ -171,7 +170,7 @@ struct FragmentCompiler {
   };
 
   // Attempt to parse a specified string into an enum.
-  // Yields llvm::None and produces a diagnostic on failure.
+  // Yields std::nullopt and produces a diagnostic on failure.
   //
   // Optional<T> Value = compileEnum<En>("Foo", Frag.Foo)
   //    .map("Foo", Enum::Foo)
@@ -197,6 +196,7 @@ struct FragmentCompiler {
     compile(std::move(F.Completion));
     compile(std::move(F.Hover));
     compile(std::move(F.InlayHints));
+    compile(std::move(F.Style));
   }
 
   void compile(Fragment::IfBlock &&F) {
@@ -332,6 +332,11 @@ struct FragmentCompiler {
     }
     if (F.External)
       compile(std::move(**F.External), F.External->Range);
+    if (F.StandardLibrary)
+      Out.Apply.push_back(
+          [Val(**F.StandardLibrary)](const Params &, Config &C) {
+            C.Index.StandardLibrary = Val;
+          });
   }
 
   void compile(Fragment::IndexBlock::ExternalBlock &&External,
@@ -352,8 +357,8 @@ struct FragmentCompiler {
     }
 #endif
     // Make sure exactly one of the Sources is set.
-    unsigned SourceCount = External.File.hasValue() +
-                           External.Server.hasValue() + *External.IsNone;
+    unsigned SourceCount = External.File.has_value() +
+                           External.Server.has_value() + *External.IsNone;
     if (SourceCount != 1) {
       diag(Error, "Exactly one of File, Server or None must be set.",
            BlockRange);

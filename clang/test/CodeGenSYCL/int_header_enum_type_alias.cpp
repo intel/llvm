@@ -9,10 +9,10 @@
 // print the actual name, not the alias name.
 
 // CHECK: Forward declarations of templated kernel function types:
-// CHECK-NEXT: inline namespace cl { namespace sycl { namespace access {
+// CHECK-NEXT: namespace sycl { inline namespace _V1 { namespace access {
 // CHECK-NEXT: enum class mode : int;
 // CHECK-NEXT: }}}
-// CHECK-NEXT: inline namespace cl { namespace sycl { namespace access {
+// CHECK-NEXT: namespace sycl { inline namespace _V1 { namespace access {
 // CHECK-NEXT: enum class target : int;
 // CHECK-NEXT: }}}
 // This is the important line, we make sure we look through the type alias.

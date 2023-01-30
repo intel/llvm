@@ -20,18 +20,29 @@
 
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
+
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #define DEBUG_TYPE "LowerInvokeSimd"
 
 using namespace llvm;
+using namespace llvm::sycl::utils;
 
 namespace {
+
+constexpr char REQD_SUB_GROUP_SIZE_MD[] = "intel_reqd_sub_group_size";
+
 class SYCLLowerInvokeSimdLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -63,175 +74,340 @@ ModulePass *llvm::createSYCLLowerInvokeSimdPass() {
 
 namespace {
 // TODO support lambda and functor overloads
-// This is the prefixes of the names generated from
-// sycl/ext/oneapi/experimental/invoke_simd.hpp::__builtin_invoke_simd
-// overloads instantiations:
-constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
-
-bool isCast(const Value *V) {
-  int Opc = Operator::getOpcode(V);
-  return (Opc == Instruction::BitCast) || (Opc == Instruction::AddrSpaceCast);
-}
 
 using ValueSetImpl = SmallPtrSetImpl<Value *>;
 using ValueSet = SmallPtrSet<Value *, 4>;
 using ConstValueSetImpl = SmallPtrSetImpl<const Value *>;
 using ConstValueSet = SmallPtrSet<const Value *, 4>;
 
-Value *stripCasts(Value *V) {
-  if (!V->getType()->isPtrOrPtrVectorTy())
-    return V;
-  // Even though we don't look through PHI nodes, we could be called on an
-  // instruction in an unreachable block, which may be on a cycle.
-  ConstValueSet Visited;
-  Visited.insert(V);
-
-  do {
-    if (isCast(V)) {
-      V = cast<Operator>(V)->getOperand(0);
-    }
-    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
-  } while (Visited.insert(V).second);
-  return V;
-}
-
-const Value *getSingleUserSkipCasts(const Value *V) {
-  while (isCast(V)) {
-    if (V->getNumUses() != 1) {
-      return nullptr;
-    }
-    V = *(V->user_begin());
-  }
-  return V;
-}
-
-void collectUsesSkipThroughCasts(Value *V, SmallPtrSetImpl<const Use *> &Uses) {
-  for (Use &U : V->uses()) {
-    Value *VV = U.getUser();
-
-    if (isCast(VV)) {
-      collectUsesSkipThroughCasts(VV, Uses);
-    } else {
-      Uses.insert(&U);
-    }
-  }
-}
-
-Value *getInvokeeIfInvokeSimdCall(const CallInst *CI) {
+// Expects a call instruction in the form
+// __builtin_invoke_simd(simd_func_call_helper, f,...);
+// and returns <simd_func_call_helper, f> pair or
+// <nullptr, nullptr> otherwise.
+std::pair<Value *, Value *>
+getHelperAndInvokeeIfInvokeSimdCall(const CallInst *CI) {
   Function *F = CI->getCalledFunction();
 
-  if (F && F->getName().startswith(INVOKE_SIMD_PREF)) {
-    return CI->getArgOperand(0);
+  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF)) {
+    return {CI->getArgOperand(0), CI->getArgOperand(1)};
+  }
+  return {nullptr, nullptr};
+}
+
+// Deduce a single function whose address this value can only contain and
+// return it, otherwise (if can't be deduced or multiple functions deduced)
+// return nullptr.
+Function *deduceFunction(Value *I, SmallPtrSetImpl<const Function *> &Visited) {
+  while (true) {
+    I = stripCasts(I);
+    Function *Res = dyn_cast<Function>(I);
+
+    if (Res) {
+      return Res;
+    }
+    if (Argument *Arg = dyn_cast<Argument>(I)) {
+      // invoke_simd target is a function pointer which came via a formal
+      // parameter - do inter-procedural analysis trying to determine
+      // actual target
+      Function *Parent = Arg->getParent();
+
+      if (!Visited.insert(Parent).second) {
+        // alredy visited - recursion detected
+        return nullptr;
+      }
+      // follow all calls to F and see what functions were passed as actual
+      // argument
+      for (const User *U : Parent->users()) {
+        const auto *CI = dyn_cast<CallInst>(U);
+
+        if (!CI || (CI->getCalledFunction() != Parent)) {
+          llvm_unreachable("unsupported data flow pattern for invoke_simd A");
+        }
+        Value *ActualArg = CI->getArgOperand(Arg->getArgNo());
+        Function *F = deduceFunction(ActualArg, Visited);
+
+        if (!F || (Res && (Res != F))) {
+          // deduction failed or a different (from previous iteration) function
+          // deduced
+          return nullptr;
+        }
+        Res = F;
+      }
+      return Res;
+    }
+    auto *LI = dyn_cast<LoadInst>(I);
+
+    if (!LI) {
+      // Function object can't be deduced
+      break;
+    }
+    ValueSet Vals;
+    Value *Addr = LI->getPointerOperand();
+
+    auto PtrEscapes = [](const CallInst *CI) {
+      // only __builtin_invoke_simd is allowed, otherwise the pointer escapes
+      return getHelperAndInvokeeIfInvokeSimdCall(CI).first == nullptr;
+    };
+    if (!sycl::utils::collectPossibleStoredVals(Addr, Vals, PtrEscapes) ||
+        Vals.size() != 1) {
+      // data flow through the address of the load instruction is too
+      // complicated
+      break;
+    }
+    I = *Vals.begin();
   }
   return nullptr;
 }
 
-void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
-  ValueSet Visited;
-  AllocaInst *LocalVar = dyn_cast_or_null<AllocaInst>(stripCasts(Addr));
+bool collectUsesLookTrhoughMemAndCasts(Value *V,
+                                       SmallPtrSetImpl<const Use *> &Uses) {
+  SmallPtrSet<const Use *, 4> TmpVUses;
+  collectUsesLookThroughCasts(V, TmpVUses);
 
-  if (!LocalVar) {
-    llvm_unreachable("unsupported data flow pattern for invoke_simd 10");
-  }
-  SmallPtrSet<const Use *, 4> Uses;
-  collectUsesSkipThroughCasts(LocalVar, Uses);
+  for (const Use *U : TmpVUses) {
+    User *UU = U->getUser();
+    assert(!isCast(UU));
 
-  for (const Use *U : Uses) {
-    Value *V = U->getUser();
+    auto *St = dyn_cast<StoreInst>(UU);
 
-    if (auto *StI = dyn_cast<StoreInst>(V)) {
-      constexpr int StoreInstValueOperandIndex = 0;
-
-      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
-        assert(U == &StI->getOperandUse(StoreInstValueOperandIndex));
-        // this is double indirection - not supported
-        llvm_unreachable("unsupported data flow pattern for invoke_simd 11");
-      }
-      V = stripCasts(StI->getValueOperand());
-
-      if (auto *LI = dyn_cast<LoadInst>(V)) {
-        // A value loaded from another address is stored at this address -
-        // recurse into the other address
-        getPossibleStoredVals(LI->getPointerOperand(), Vals);
-      } else {
-        Vals.insert(V);
-      }
+    if (!St) {
+      Uses.insert(U);
       continue;
     }
-    if (const auto *CI = dyn_cast<CallInst>(V)) {
+    // Current user is a store (of V) instruction, see if...
+    assert((V == St->getValueOperand()) &&
+           "bad V param in collectUsesLookTrhoughMemAndCasts");
+    Value *Addr = stripCasts(St->getPointerOperand());
+
+    if (!isa<AllocaInst>(Addr)) {
+      return false; // unsupported case of data flow through non-local memory
+    }
+    ValueSet StoredVals;
+
+    auto PtrEscapes = [](const CallInst *CI) {
       // only __builtin_invoke_simd is allowed, otherwise the pointer escapes
-      if (!getInvokeeIfInvokeSimdCall(CI)) {
-        llvm_unreachable("unsupported data flow pattern for invoke_simd 12");
+      return getHelperAndInvokeeIfInvokeSimdCall(CI).first == nullptr;
+    };
+    // ... 1) V is the only possible stored value
+    if (!collectPossibleStoredVals(Addr, StoredVals, PtrEscapes) ||
+        (StoredVals.size() != 1) || (*StoredVals.begin() != V)) {
+      return false;
+    }
+    // ... 2) What are uses of the values loaded from the address?
+    SmallPtrSet<const Use *, 4> AddrUses;
+    collectUsesLookThroughCasts(Addr, AddrUses);
+
+    for (const Use *AddrU : AddrUses) {
+      User *AddrUU = AddrU->getUser();
+      assert(!isCast(AddrUU));
+
+      if (isa<StoreInst>(AddrUU)) {
+        if (AddrUU == St) {
+          continue;
+        }
+        return false; // some unexpected store detected
       }
-      continue;
+      if (isa<LoadInst>(AddrUU)) {
+        collectUsesLookThroughCasts(AddrUU, Uses);
+        continue;
+      }
+      return false; // some unexpected use of the store address detected
     }
-    if (const auto *LI = dyn_cast<LoadInst>(V)) {
-      // LoadInst from this addr is OK, as it does not affect what can be stored
-      // through the addr
-      continue;
-    }
-    llvm_unreachable("unsupported data flow pattern for invoke_simd 13");
+  }
+  return true;
+}
+
+// Shifts parameter attribute sets left by 1 and removes the rightmost.
+// The index of the last paremter attribute in the result is NParams-2.
+AttributeList removeFirstParamAttrAndShrink(LLVMContext &C, AttributeList Src,
+                                            unsigned NParams) {
+  AttributeList Dst;
+  AttrBuilder FnAB(C, Src.getFnAttrs());
+  Dst = Dst.addFnAttributes(C, FnAB);
+
+  for (unsigned ParamNo = 0; ParamNo < NParams - 1; ++ParamNo) {
+    AttrBuilder AB(C, Src.getParamAttrs(ParamNo + 1));
+    Dst = Dst.addParamAttributes(C, ParamNo, AB);
+  }
+  return Dst;
+}
+
+// TODO W/a IGC crash on functions with names containing '.' (e.g.
+// CloneFunction creates such name) - replace '.' with '_'.
+void fixFunctionName(Function *F) {
+  constexpr unsigned N = 5;
+  std::string Name = F->getName().str();
+
+  for (unsigned i = 0; (i < N) && (Name.find('.') != std::string::npos); ++i) {
+    std::replace(Name.begin(), Name.end(), '.', '_');
+    F->setName(Name); // setName can actually add '.<suff>' if non-unique
+    Name = F->getName().str();
+  }
+  assert(Name.find('.') == std::string::npos);
+}
+
+void markFunctionAsESIMD(Function *F) {
+  LLVMContext &C = F->getContext();
+
+  if (!F->getMetadata(esimd::ESIMD_MARKER_MD)) {
+    F->setMetadata(esimd::ESIMD_MARKER_MD, llvm::MDNode::get(C, {}));
+  }
+  if (!F->getMetadata(REQD_SUB_GROUP_SIZE_MD)) {
+    auto One =
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(C), 1));
+    F->setMetadata(REQD_SUB_GROUP_SIZE_MD, MDNode::get(C, One));
   }
 }
 
-// Example1 (function is direct argument to
-// _Z33__regcall3____builtin_invoke_simd):
-// %call6.i = call spir_func float @_Z33__regcall3____builtin_invoke_simd...(
-//   <16 x float> (float addrspace(4)*, <16 x float>, i32)* %28, <== function
-//   pointer float addrspace(4)* %arg1, float %arg2, i32 %arg3)
+// Process 'invoke_simd(sub_group_obj, f, spmd_args...);' call.
 //
-// Example 2 (invoke_simd's target function pointer flows through IR):
-// %fptr_t = <16 x float> (float addrspace(4)*, <16 x float>, i32)*
-// ...
-// %fa_as0 = alloca %fptr_t
-// ...
-// %fa = addrspacecast %fptr_t* %fa_as0 to %fptr_t addrspace(4)*
-// ...
-// store %fptr_t @__SIMD_CALLEE, %fptr_t addrspace(4)* %fa
-// ...
-// %f = load %fptr_t, %fptr_t addrspace(4)* %fa
-// ...
-// %res = call spir_func float @_Z33__regcall3____builtin_invoke_simd...(
-//   %fptr_t %f, <== function pointer
-//  float addrspace(4)* %arg1,
-//  float %arg2,
-//  i32 %arg3)
-//
-bool processInvokeSimdCall(CallInst *CI) {
-  Value *V = getInvokeeIfInvokeSimdCall(CI);
+// If f is a function name or a function pointer, this call is lowered into
+//   >  __builtin_invoke_simd(simd_func_call_helper, f, unwrap(spmd_args)...);
+// where simd_func_call_helper is a helper function defined by the SYCL library
+// which performs parameter conversion and then calls f via a pointer to f:
+//   > Ret simd_func_call_helper(Callable f, T ... args) {
+//   >   args_conv... = C++-convert(args)...;
+//   >   return f(args_conv...);
+//   > }
+// This function tries to determine actual function (F) given the pointer f. If
+// successful, it transforms the __builtin_invoke_simd invocation and the helper
+// to git rid of the indirect call of f:
+// - clone simd_func_call_helper into simd_func_call_helper_unique_clone and
+//   transform it as follows:
+//   > Ret simd_func_call_helper_unique_clone(T ... args) {
+//   >   args_conv... = C++-convert(args)...;
+//   >   return F(args_conv...);
+//   > }
+// - remove f in __builtin_invoke_simd invocation and redirect it to the clone:
+//   > __builtin_invoke_simd(
+//   >   simd_func_call_helper_unique_clone,
+//   >   unwrap(spmd_args)...
+//   > );
+bool processInvokeSimdCall(CallInst *InvokeSimd,
+                           SmallPtrSetImpl<Function *> &ClonedHelpers) {
+  std::pair<Value *, Value *> HandI =
+      getHelperAndInvokeeIfInvokeSimdCall(InvokeSimd);
+  Value *H = HandI.first;
+  Value *I = HandI.second;
 
-  if (!V) {
-    llvm_unreachable(("bad use of " + Twine(INVOKE_SIMD_PREF)).str().c_str());
+  if (!H) {
+    llvm_unreachable(
+        ("bad use of " + Twine(esimd::INVOKE_SIMD_PREF)).str().c_str());
   }
-  auto *SimdF = dyn_cast<Function>(V);
-  bool Modified = false;
+  // "helper" defined in invoke_simd.hpp which converts arguments.
+  auto *Helper = cast<Function>(H);
+  // Mark helper as explicit SIMD function. Some BEs need this info.
+  {
+    markFunctionAsESIMD(Helper);
+    // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
+    // from the ESIMD module after global DCE in post-link if not fixed up.
+    Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
+  }
+  SmallPtrSet<const Function *, 8> Visited;
+  Function *SimdF = deduceFunction(I, Visited);
 
   if (!SimdF) {
-    auto *LI = dyn_cast<LoadInst>(stripCasts(V));
-
-    if (!LI) {
-      llvm_unreachable("unsupported data flow pattern for invoke_simd 0");
-    }
-    ValueSet Vals;
-    getPossibleStoredVals(LI->getPointerOperand(), Vals);
-
-    if (Vals.size() != 1 || !(SimdF = dyn_cast<Function>(*Vals.begin()))) {
-      llvm_unreachable("unsupported data flow pattern for invoke_simd 1");
-    }
-    // _Z33__regcall3____builtin_invoke_simd invokee is an SSA value, replace it
-    // with the link-time constant SimdF as computed by getPossibleStoredVals
-    auto *CI1 = cast<CallInst>(CI->clone());
-    constexpr int SimdInvokeInvokeeArgIndex = 0;
-    CI1->setOperand(SimdInvokeInvokeeArgIndex, SimdF);
-    CI1->insertAfter(CI);
-    CI->replaceAllUsesWith(CI1);
-    CI->eraseFromParent();
-    Modified = true;
+    // Call target is not known - don't do anything.
+    return false;
   }
-  if (!SimdF->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
-    SimdF->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
+  if (!SimdF->hasFnAttribute(INVOKE_SIMD_DIRECT_TARGET_ATTR)) {
+    SimdF->addFnAttr(INVOKE_SIMD_DIRECT_TARGET_ATTR);
   }
-  return Modified;
+  if (!Helper->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
+    Helper->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
+  }
+  // The invoke_simd target is known at compile-time - optimize.
+  // 1. find the call to f within the cloned helper - it is its first parameter
+  constexpr unsigned SimdCallTargetArgNo = 0;
+  SmallPtrSet<const Use *, 4> Uses;
+  Argument *SimdCallTargetArg = Helper->getArg(SimdCallTargetArgNo);
+
+  if (!collectUsesLookTrhoughMemAndCasts(SimdCallTargetArg, Uses)) {
+    llvm_unreachable("simd_func_call_helper broken");
+  }
+  CallInst *TheCall = nullptr;
+
+  for (const Use *U : Uses) {
+    auto *CI = dyn_cast<CallInst>(U->getUser());
+
+    if (!CI) {
+      continue;
+    }
+    assert(CI->getCalledOperand() == U->get());
+    assert(!TheCall && "unexpected multiple calls to SIMD target");
+    TheCall = CI;
+#ifndef NDEBUG
+    break;
+#endif
+  }
+  assert(TheCall && "simd_func_call_helper broken 1");
+
+  // 2. Clone and transform simd_func_call_helper signature and code.
+  Function *NewHelper = nullptr;
+  {
+    ValueToValueMapTy VMap;
+    // mark the 'f' paremeter for deletion:
+    VMap[SimdCallTargetArg] = PoisonValue::get(SimdCallTargetArg->getType());
+    NewHelper = CloneFunction(Helper, VMap);
+    // make the call to the user simd function direct:
+    CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
+    TheTformedCall->setCalledFunction(SimdF);
+    fixFunctionName(NewHelper);
+  }
+
+  // 3. Clone and transform __builtin_invoke_simd call:
+  //    - remove the 'f' formal parameter from the declaration
+  //    - remove the 'f' actual argument (SIMD target function pointer)
+  {
+    // 3.1. Create a new declaration for the intrinsic (with 1 parameter less):
+    constexpr unsigned HelperArgNo = 0;
+    Function *InvokeSimdF = InvokeSimd->getCalledFunction();
+    assert(InvokeSimdF && "Unexpected IR for invoke_simd");
+    // - type of the obsolete (unmodified) helper:
+    PointerType *HelperArgTy =
+        cast<PointerType>(InvokeSimdF->getArg(HelperArgNo)->getType());
+    unsigned AS = HelperArgTy->getAddressSpace();
+    FunctionType *InvokeSimdFTy = InvokeSimdF->getFunctionType();
+    // - create the list of new formal parameter types (the old one, with the
+    //   second element removed):
+    SmallVector<Type *, 8> NewArgTys;
+    NewArgTys.push_back(PointerType::get(NewHelper->getFunctionType(), AS));
+    std::copy(std::next(InvokeSimdFTy->param_begin(), 2),
+              InvokeSimdFTy->param_end(), std::back_inserter(NewArgTys));
+    FunctionType *NewInvokeSimdFTy =
+        FunctionType::get(InvokeSimdFTy->getReturnType(), NewArgTys, false);
+    // - create the new declaration:
+    Function *NewInvokeSimdF =
+        Function::Create(NewInvokeSimdFTy, InvokeSimdF->getLinkage(),
+                         InvokeSimdF->getName(), InvokeSimdF->getParent());
+    fixFunctionName(NewInvokeSimdF);
+    LLVMContext &C = NewInvokeSimdF->getContext();
+    // - truncate and shift-left parameter attributes in the new declaration:
+    AttributeList NewAttrsF = removeFirstParamAttrAndShrink(
+        C, InvokeSimdF->getAttributes(), InvokeSimdF->arg_size());
+    NewInvokeSimdF->setAttributes(NewAttrsF);
+
+    // 3.2. Create the new __builtin_invoke_simd call.
+    // - create a list of new arguments (the old one with the second element
+    //   removed):
+    SmallVector<Value *, 4> NewInvokeSimdArgs;
+    NewInvokeSimdArgs.push_back(NewHelper);
+    auto ThirdArg = std::next(InvokeSimd->arg_begin(), 2);
+    NewInvokeSimdArgs.append(ThirdArg, InvokeSimd->arg_end());
+    CallInst *NewInvokeSimd =
+        CallInst::Create(NewInvokeSimdF, NewInvokeSimdArgs, "", InvokeSimd);
+    // - transfer flags, attributes (with shrinking), calling convention:
+    NewInvokeSimd->copyIRFlags(InvokeSimd);
+    NewInvokeSimd->setCallingConv(InvokeSimd->getCallingConv());
+    AttributeList NewAttrs = removeFirstParamAttrAndShrink(
+        C, InvokeSimd->getAttributes(), InvokeSimd->arg_size());
+    NewInvokeSimd->setAttributes(NewAttrs);
+
+    InvokeSimd->replaceAllUsesWith(NewInvokeSimd);
+    InvokeSimd->eraseFromParent();
+  }
+  ClonedHelpers.insert(Helper);
+  return true;
 }
 } // namespace
 
@@ -239,16 +415,30 @@ namespace llvm {
 PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
                                                ModuleAnalysisManager &MAM) {
   bool Modified = false;
+  // A set of encountered instances of the 'simd_func_call_helper' function
+  // template defined in the invoke_simd.hpp, which are cloned. Those might no
+  // longer be used after the pass finishes.
+  SmallPtrSet<Function *, 4> ClonedHelpers;
+  SetVector<CallInst *> ISCalls;
 
   for (Function &F : M) {
-    if (!F.isDeclaration() || !F.getName().startswith(INVOKE_SIMD_PREF)) {
+    if (!F.isDeclaration() ||
+        !F.getName().startswith(esimd::INVOKE_SIMD_PREF)) {
       continue;
     }
     SmallVector<User *, 4> Users(F.users());
     for (User *Usr : Users) {
       // a call can be the only use of the invoke_simd built-in
       CallInst *CI = cast<CallInst>(Usr);
-      Modified |= processInvokeSimdCall(CI);
+      ISCalls.insert(CI);
+    }
+  }
+  for (CallInst *CI : ISCalls) {
+    Modified |= processInvokeSimdCall(CI, ClonedHelpers);
+  }
+  for (Function *F : ClonedHelpers) {
+    if (F->getNumUses() == 0) {
+      F->eraseFromParent();
     }
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();

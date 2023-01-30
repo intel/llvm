@@ -1,6 +1,6 @@
 // RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only -ffp-model=precise -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

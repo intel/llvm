@@ -11,11 +11,13 @@ add_llvm_component_library(LLVMInstrumentation
   Instrumentation.cpp
   InstrOrderFile.cpp
   InstrProfiling.cpp
+  KCFI.cpp
   PGOInstrumentation.cpp
   PGOMemOPSizeOpt.cpp
   PoisonChecking.cpp
   SanitizerCoverage.cpp
   SPIRITTAnnotations.cpp
+  SanitizerBinaryMetadata.cpp
   ValueProfileCollector.cpp
   ThreadSanitizer.cpp
   HWAddressSanitizer.cpp
@@ -29,8 +31,10 @@ add_llvm_component_library(LLVMInstrumentation
   LINK_COMPONENTS
   Analysis
   Core
+  Demangle
   MC
   Support
+  TargetParser
   TransformUtils
   ProfileData
   )

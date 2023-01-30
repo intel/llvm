@@ -8,13 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi::level_zero {
 
 // Since Level-Zero is not doing any reference counting itself, we have to
 // be explicit about the ownership of the native handles used in the
@@ -22,8 +20,6 @@ namespace level_zero {
 //
 enum class ownership { transfer, keep };
 
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::level_zero
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

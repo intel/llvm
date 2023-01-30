@@ -37,7 +37,7 @@ public:
   static constexpr const char *GetNodeName(const T &) { return N; }
 #define NODE_ENUM(T, E) \
   static std::string GetNodeName(const T::E &x) { \
-    return #E " = "s + T::EnumToString(x); \
+    return #E " = "s + std::string{T::EnumToString(x)}; \
   }
 #define NODE(T1, T2) NODE_NAME(T1::T2, #T2)
   NODE_NAME(bool, "bool")
@@ -92,6 +92,8 @@ public:
   NODE(parser, AccSizeExprList)
   NODE(parser, AccSelfClause)
   NODE(parser, AccStandaloneDirective)
+  NODE(parser, AccDeviceTypeExpr)
+  NODE(parser, AccDeviceTypeExprList)
   NODE(parser, AccTileExpr)
   NODE(parser, AccTileExprList)
   NODE(parser, AccLoopDirective)
@@ -514,6 +516,7 @@ public:
   NODE(parser, OmpProcBindClause)
   NODE_ENUM(OmpProcBindClause, Type)
   NODE(parser, OmpReductionClause)
+  NODE(parser, OmpInReductionClause)
   NODE(parser, OmpReductionCombiner)
   NODE(OmpReductionCombiner, FunctionCombiner)
   NODE(parser, OmpReductionInitializerClause)
@@ -522,6 +525,8 @@ public:
   NODE(OmpAllocateClause, Allocator)
   NODE(parser, OmpScheduleClause)
   NODE_ENUM(OmpScheduleClause, ScheduleType)
+  NODE(parser, OmpDeviceClause)
+  NODE_ENUM(OmpDeviceClause, DeviceModifier)
   NODE(parser, OmpScheduleModifier)
   NODE(OmpScheduleModifier, Modifier1)
   NODE(OmpScheduleModifier, Modifier2)
@@ -557,9 +562,12 @@ public:
   NODE(parser, OmpMemoryOrderClause)
   NODE(parser, OmpAtomicClause)
   NODE(parser, OmpAtomicClauseList)
+  NODE(parser, OmpAtomicDefaultMemOrderClause)
+  NODE_ENUM(OmpAtomicDefaultMemOrderClause, Type)
   NODE(parser, OpenMPFlushConstruct)
   NODE(parser, OpenMPLoopConstruct)
   NODE(parser, OpenMPExecutableAllocate)
+  NODE(parser, OpenMPRequiresConstruct)
   NODE(parser, OpenMPSimpleStandaloneConstruct)
   NODE(parser, OpenMPStandaloneConstruct)
   NODE(parser, OpenMPSectionConstruct)
@@ -661,6 +669,7 @@ public:
   NODE(parser, SubroutineSubprogram)
   NODE(parser, SubscriptTriplet)
   NODE(parser, Substring)
+  NODE(parser, SubstringInquiry)
   NODE(parser, SubstringRange)
   NODE(parser, Suffix)
   NODE(parser, SyncAllStmt)

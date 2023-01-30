@@ -1,9 +1,9 @@
 // RUN: mlir-opt %s -test-vector-scan-lowering -convert-scf-to-cf -convert-vector-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-func @entry() {
+func.func @entry() {
   %f1 = arith.constant 1.0: f32
   %f2 = arith.constant 2.0: f32
   %f3 = arith.constant 3.0: f32
@@ -50,5 +50,5 @@ func @entry() {
   vector.print %d#0 : vector<3x2xf32>
   vector.print %d#1 : vector<3xf32>
 
-  return 
+  return
 }

@@ -284,7 +284,7 @@ following is done:
 All fields are atomic because they can be accessed from multiple threads.
 
 A specialization of helper class
-[Locked](https://github.com/intel/llvm/blob/sycl/sycl/include/CL/sycl/detail/locked.hpp)
+[Locked](https://github.com/intel/llvm/blob/sycl/sycl/include/sycl/detail/locked.hpp)
 for reference of proper mapping is returned by Acquire function. The use of this
 class implements RAII to make code look cleaner a bit. Now, GetCache function
 will return the mapping to be employed that includes the 3 components: kernel

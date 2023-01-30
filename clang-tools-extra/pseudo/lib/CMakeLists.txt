@@ -1,17 +1,24 @@
+add_subdirectory(cli)
+add_subdirectory(cxx)
+add_subdirectory(grammar)
+
 set(LLVM_LINK_COMPONENTS Support)
 
 add_clang_library(clangPseudo
+  Bracket.cpp
   DirectiveTree.cpp
+  Disambiguate.cpp
   Forest.cpp
-  Grammar.cpp
-  GrammarBNF.cpp
+  GLR.cpp
   Lex.cpp
-  LRGraph.cpp
-  LRTable.cpp
-  LRTableBuild.cpp
   Token.cpp
 
   LINK_LIBS
   clangBasic
   clangLex
+  clangPseudoGrammar
+  )
+
+  target_include_directories(clangPseudo INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )

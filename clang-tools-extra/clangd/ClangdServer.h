@@ -104,12 +104,16 @@ public:
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
 
+    /// This throttler controls which preambles may be built at a given time.
+    clangd::PreambleThrottler *PreambleThrottler = nullptr;
+
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
+    llvm::ThreadPriority BackgroundIndexPriority = llvm::ThreadPriority::Low;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
@@ -138,7 +142,7 @@ public:
     /// defaults and -resource-dir compiler flag).
     /// If None, ClangdServer calls CompilerInvocation::GetResourcePath() to
     /// obtain the standard resource directory.
-    llvm::Optional<std::string> ResourceDir = llvm::None;
+    llvm::Optional<std::string> ResourceDir = std::nullopt;
 
     /// Time to wait after a new file version before computing diagnostics.
     DebouncePolicy UpdateDebounce = DebouncePolicy{
@@ -157,12 +161,15 @@ public:
     /// fetch system include path.
     std::vector<std::string> QueryDriverGlobs;
 
-    /// Enable preview of FoldingRanges feature.
-    bool FoldingRanges = false;
+    // Whether the client supports folding only complete lines.
+    bool LineFoldingOnly = false;
 
     FeatureModuleSet *FeatureModules = nullptr;
     /// If true, use the dirty buffer contents when building Preambles.
     bool UseDirtyHeaders = false;
+
+    // If true, parse emplace-like functions in the preamble.
+    bool PreambleParseForwardingFunctions = false;
 
     explicit operator TUScheduler::Options() const;
   };
@@ -241,17 +248,23 @@ public:
 
   /// Get code hover for a given position.
   void findHover(PathRef File, Position Pos,
-                 Callback<llvm::Optional<HoverInfo>> CB);
+                 Callback<std::optional<HoverInfo>> CB);
 
   /// Get information about type hierarchy for a given position.
   void typeHierarchy(PathRef File, Position Pos, int Resolve,
                      TypeHierarchyDirection Direction,
-                     Callback<llvm::Optional<TypeHierarchyItem>> CB);
+                     Callback<std::vector<TypeHierarchyItem>> CB);
+  /// Get direct parents of a type hierarchy item.
+  void superTypes(const TypeHierarchyItem &Item,
+                  Callback<std::optional<std::vector<TypeHierarchyItem>>> CB);
+  /// Get direct children of a type hierarchy item.
+  void subTypes(const TypeHierarchyItem &Item,
+                Callback<std::vector<TypeHierarchyItem>> CB);
 
   /// Resolve type hierarchy item in the given direction.
   void resolveTypeHierarchy(TypeHierarchyItem Item, int Resolve,
                             TypeHierarchyDirection Direction,
-                            Callback<llvm::Optional<TypeHierarchyItem>> CB);
+                            Callback<std::optional<TypeHierarchyItem>> CB);
 
   /// Get information about call hierarchy for a given position.
   void prepareCallHierarchy(PathRef File, Position Pos,
@@ -262,7 +275,7 @@ public:
                      Callback<std::vector<CallHierarchyIncomingCall>>);
 
   /// Resolve inlay hints for a given document.
-  void inlayHints(PathRef File, llvm::Optional<Range> RestrictRange,
+  void inlayHints(PathRef File, std::optional<Range> RestrictRange,
                   Callback<std::vector<InlayHint>>);
 
   /// Retrieve the top symbols from the workspace matching a query.
@@ -348,8 +361,8 @@ public:
                           Callback<std::vector<HighlightingToken>>);
 
   /// Describe the AST subtree for a piece of code.
-  void getAST(PathRef File, llvm::Optional<Range> R,
-              Callback<llvm::Optional<ASTNode>> CB);
+  void getAST(PathRef File, std::optional<Range> R,
+              Callback<std::optional<ASTNode>> CB);
 
   /// Runs an arbitrary action that has access to the AST of the specified file.
   /// The action will execute on one of ClangdServer's internal threads.
@@ -383,7 +396,7 @@ public:
   // Returns false if the timeout expires.
   // FIXME: various subcomponents each get the full timeout, so it's more of
   // an order of magnitude than a hard deadline.
-  LLVM_NODISCARD bool
+  [[nodiscard]] bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
   /// Builds a nested representation of memory used by components.
@@ -416,12 +429,18 @@ private:
 
   bool UseDirtyHeaders = false;
 
+  // Whether the client supports folding only complete lines.
+  bool LineFoldingOnly = false;
+
+  bool PreambleParseForwardingFunctions = false;
+
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>
       CachedCompletionFuzzyFindRequestByFile;
   mutable std::mutex CachedCompletionFuzzyFindRequestMutex;
 
   llvm::Optional<std::string> WorkspaceRoot;
+  llvm::Optional<AsyncTaskRunner> IndexTasks; // for stdlib indexing.
   llvm::Optional<TUScheduler> WorkScheduler;
   // Invalidation policy used for actions that we assume are "transient".
   TUScheduler::ASTActionInvalidation Transient;

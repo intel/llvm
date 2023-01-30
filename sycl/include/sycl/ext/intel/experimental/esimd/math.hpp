@@ -10,13 +10,16 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_ENS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::esimd {
 
 /// @addtogroup sycl_esimd_bitmanip
 /// @{
@@ -38,33 +41,44 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  using ComputationTy =
+      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
+  ComputationTy Src0 = src0;
+  ComputationTy Src1 = src1;
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_on_tag>) {
     if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<T1>::value)
-        return __esimd_uushl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_unsigned<
+                        typename ComputationTy::element_type>::value)
+        return __esimd_uushl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_usshl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_usshl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     } else {
-      if constexpr (std::is_signed<T1>::value)
-        return __esimd_sushl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
+        return __esimd_sushl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_ssshl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_ssshl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     }
   } else {
     if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<T1>::value)
-        return __esimd_uushl<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_unsigned<
+                        typename ComputationTy::element_type>::value)
+        return __esimd_uushl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_usshl<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_usshl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     } else {
-      if constexpr (std::is_signed<T1>::value)
-        return __esimd_sushl<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
+        return __esimd_sushl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_ssshl<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_ssshl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     }
   }
 }
@@ -88,184 +102,9 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 shl(T1 src0, T2 src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::shl<T0>(Src0, Src1, sat);
-  return Result[0];
-}
-
-/// Shift right operation (vector version)
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vector.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return vector of shifted right values.
-template <typename T0, typename T1, int SZ, typename U,
-          class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  // TODO H/W supports saturation with this op - map to more efficient version.
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Result =
-      Src0.data() >> Src1.data();
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return Result;
-  else
-    return __ESIMD_NS::saturate<T0>(Result);
-}
-
-/// Shift right operation (scalar version)
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return shifted right value.
-template <typename T0, typename T1, typename T2,
-          class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-shr(T1 src0, T2 src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::shr<T0>(Src0, Src1, sat);
-  return Result[0];
-}
-
-/// Rotate left operation with two vector inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @param src0 the input vector.
-/// @param src1 the vector with number of bit positions by which the elements of
-/// the input vector \p src0 shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
-}
-
-/// Rotate left operation with a vector and a scalar inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  return __esimd_rol<T0>(Src0.data(), Src1.data());
-}
-
-/// Rotate left operation with two scalar inputs
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return rotated left value.
-template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-rol(T1 src0, T2 src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0>(Src0, Src1);
-  return Result[0];
-}
-
-/// Rotate right operation with two vector inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @param src0 the input vector.
-/// @param src1 the vector with number of bit positions by which the elements of
-/// the input vector \p src0 shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
-}
-
-/// Rotate right operation with a vector and a scalar inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  return __esimd_ror<T0>(Src0.data(), Src1.data());
-}
-
-/// Rotate right operation with two scalar inputs
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return rotated right value.
-template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-ror(T1 src0, T2 src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0>(Src0, Src1);
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::shl<T0, T1, 1, T2, Sat>(Src0, src1, sat);
   return Result[0];
 }
 
@@ -289,8 +128,9 @@ lsr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
   using IntermedTy = __ESIMD_DNS::computation_type_t<T1, T1>;
   typedef typename std::make_unsigned<IntermedTy>::type ComputationTy;
   __ESIMD_NS::simd<ComputationTy, SZ> Src0 = src0;
+  __ESIMD_NS::simd<ComputationTy, SZ> Src1 = src1;
   // TODO H/W supports saturation with this op - map to more efficient version.
-  __ESIMD_NS::simd<ComputationTy, SZ> Result = Src0.data() >> src1.data();
+  __ESIMD_NS::simd<ComputationTy, SZ> Result = Src0.data() >> Src1.data();
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return Result;
@@ -318,10 +158,10 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 lsr(T1 src0, T2 src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::lsr<T0>(Src0, Src1, sat);
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::lsr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
+
   return Result[0];
 }
 
@@ -374,12 +214,193 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 asr(T1 src0, T2 src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::asr<T0>(Src0, Src1, sat);
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::asr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
   return Result[0];
 }
+
+/// Shift right operation (vector version)
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vector.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be shifted.
+/// @param sat enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return vector of shifted right values.
+template <typename T0, typename T1, int SZ, typename U,
+          class Sat = __ESIMD_NS::saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<U>::value,
+                             __ESIMD_NS::simd<T0, SZ>>
+shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
+  if constexpr (std::is_unsigned<T1>::value) {
+    return esimd::lsr<T0, T1, SZ, U, Sat>(src0, src1, sat);
+  } else {
+    return esimd::asr<T0, T1, SZ, U, Sat>(src0, src1, sat);
+  }
+}
+
+/// Shift right operation (scalar version)
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be shifted.
+/// @param sat enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return shifted right value.
+template <typename T0, typename T1, typename T2,
+          class Sat = __ESIMD_NS::saturation_off_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+                                 std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<T2>::value,
+                             std::remove_const_t<T0>>
+shr(T1 src0, T2 src1, Sat sat = {}) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::shr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
+  return Result[0];
+}
+
+/// Rotate left operation with two vector inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param src1 the vector with number of bit positions by which the elements of
+/// the input vector \p src0 shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+  return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
+}
+
+/// Rotate left operation with a vector and a scalar inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ, typename U>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
+  return esimd::rol<T0>(src0, Src1);
+}
+
+/// Rotate left operation with two scalar inputs
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return rotated left value.
+template <typename T0, typename T1, typename T2>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    std::remove_const_t<T0>>
+rol(T1 src0, T2 src1) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
+  return Result[0];
+}
+
+/// Rotate right operation with two vector inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param src1 the vector with number of bit positions by which the elements of
+/// the input vector \p src0 shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+  return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
+}
+
+/// Rotate right operation with a vector and a scalar inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ, typename U>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
+  return esimd::ror<T0>(src0, Src1);
+}
+
+/// Rotate right operation with two scalar inputs
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return rotated right value.
+template <typename T0, typename T1, typename T2>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    std::remove_const_t<T0>>
+ror(T1 src0, T2 src1) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
+  return Result[0];
+}
+
 /// @} sycl_esimd_bitmanip
 
 /// @addtogroup sycl_esimd_math
@@ -396,8 +417,8 @@ ESIMD_NODEBUG
                                   __ESIMD_NS::simd<T0, SZ>>
     imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
   using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  ComputationTy Src0 = src0;
+  ComputationTy Src1 = src1;
   rmd = Src0 * Src1;
   if constexpr (std::is_unsigned<T0>::value)
     return __esimd_umulh(Src0.data(), Src1.data());
@@ -967,8 +988,8 @@ template <typename RT, typename T0, int SZ,
 __ESIMD_API __ESIMD_NS::simd<RT, SZ> lzd(__ESIMD_NS::simd<T0, SZ> src0,
                                          Sat sat = {}) {
   // Saturation parameter ignored
-  __ESIMD_NS::simd<uint, SZ> Src0 = src0;
-  return __esimd_lzd<uint>(Src0.data());
+  __ESIMD_NS::simd<__ESIMD_NS::uint, SZ> Src0 = src0;
+  return __esimd_lzd<__ESIMD_NS::uint, SZ>(Src0.data());
 }
 
 template <typename RT, typename T0, class Sat = __ESIMD_NS::saturation_off_tag>
@@ -1131,18 +1152,23 @@ sincos(__ESIMD_NS::simd<float, SZ> &dstcos, U src0, Sat sat = {}) {
 
 /// @cond ESIMD_DETAIL
 namespace detail {
-constexpr double HDR_CONST_PI = 3.1415926535897932384626433832795;
+constexpr double __ESIMD_CONST_PI = 3.1415926535897932384626433832795;
 } // namespace detail
 /// @endcond ESIMD_DETAIL
 
 template <typename T, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_floating_point<T>::value, __ESIMD_NS::simd<T, SZ>>
-    atan(__ESIMD_NS::simd<T, SZ> src0) {
+ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<T, SZ>
+atan(__ESIMD_NS::simd<T, SZ> src0) {
+  static_assert(std::is_floating_point<T>::value,
+                "Floating point argument type is expected.");
   __ESIMD_NS::simd<T, SZ> Src0 = __ESIMD_NS::abs(src0);
 
-  __ESIMD_NS::simd_mask<SZ> Neg = src0 < T(0.0);
+  __ESIMD_NS::simd<T, SZ> OneP((T)1.0);
+  __ESIMD_NS::simd<T, SZ> OneN((T)-1.0);
+  __ESIMD_NS::simd<T, SZ> sign;
   __ESIMD_NS::simd_mask<SZ> Gt1 = Src0 > T(1.0);
+
+  sign.merge(OneN, OneP, src0 < 0);
 
   Src0.merge(__ESIMD_NS::inv(Src0), Gt1);
 
@@ -1158,13 +1184,14 @@ ESIMD_NODEBUG ESIMD_INLINE
        ((Src0 * T(0.395889) + T(1.12158)) * Src0P2) + (Src0 * T(0.636918)) +
        T(1.0));
 
-  Result.merge(Result - T(detail::HDR_CONST_PI / 2.0), Gt1);
-  Result.merge(Result, Neg);
-  return Result;
+  Result.merge(Result - T(detail::__ESIMD_CONST_PI) / T(2.0), Gt1);
+
+  return __ESIMD_NS::abs(Result) * sign;
 }
 
-template <typename T>
-__ESIMD_API std::enable_if_t<std::is_floating_point<T>::value, T> atan(T src0) {
+template <typename T> __ESIMD_API T atan(T src0) {
+  static_assert(std::is_floating_point<T>::value,
+                "Floating point argument type is expected.");
   __ESIMD_NS::simd<T, 1> Src0 = src0;
   __ESIMD_NS::simd<T, 1> Result = esimd::atan(Src0);
   return Result[0];
@@ -1197,7 +1224,7 @@ ESIMD_NODEBUG ESIMD_INLINE
       __ESIMD_NS::rsqrt(Src01m * T(2.0));
 
   Result.merge(T(0.0), TooBig);
-  Result.merge(T(detail::HDR_CONST_PI) - Result, Neg);
+  Result.merge(T(detail::__ESIMD_CONST_PI) - Result, Neg);
   return Result;
 }
 
@@ -1217,7 +1244,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   __ESIMD_NS::simd_mask<SZ> Neg = src0 < T(0.0);
 
   __ESIMD_NS::simd<T, SZ> Result =
-      T(detail::HDR_CONST_PI / 2.0) - esimd::acos(__ESIMD_NS::abs(src0));
+      T(detail::__ESIMD_CONST_PI / 2.0) - esimd::acos(__ESIMD_NS::abs(src0));
 
   Result.merge(-Result, Neg);
   return Result;
@@ -1288,41 +1315,28 @@ template <int N> __ESIMD_NS::simd<float, N> tanh(__ESIMD_NS::simd<float, N> x);
 /* ------------------------- Extended Math Routines
  * -------------------------------------------------*/
 
-/// @cond ESIMD_DETAIL
-
-namespace detail {
-static auto constexpr CONST_PI = 3.14159f;
-static auto constexpr CMPI = 3.14159265f;
-} // namespace detail
-
-/// @endcond ESIMD_DETAIL
-
 // For vector input
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N>
 atan2_fast(__ESIMD_NS::simd<float, N> y, __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> a0;
-  __ESIMD_NS::simd<float, N> a1;
-  __ESIMD_NS::simd<float, N> atan2;
-
-  __ESIMD_NS::simd_mask<N> mask = (y >= 0.0f);
-  a0.merge(detail::CONST_PI * 0.5f, detail::CONST_PI * 1.5f, mask);
-  a1.merge(0, detail::CONST_PI * 2.0f, mask);
-
-  a1.merge(detail::CONST_PI, x < 0.0f);
-
-  __ESIMD_NS::simd<float, N> xy = x * y;
-  __ESIMD_NS::simd<float, N> x2 = x * x;
-  __ESIMD_NS::simd<float, N> y2 = y * y;
-
   /* smallest such that 1.0+CONST_DBL_EPSILON != 1.0 */
-  constexpr auto CONST_DBL_EPSILON = 0.00001f;
+  constexpr float CONST_DBL_EPSILON = 0.00001f;
+  __ESIMD_NS::simd<float, N> OneP(1.0f);
+  __ESIMD_NS::simd<float, N> OneN(-1.0f);
+  __ESIMD_NS::simd<float, N> sign;
+  __ESIMD_NS::simd<float, N> atan2;
+  __ESIMD_NS::simd<float, N> r;
+  __ESIMD_NS::simd_mask<N> mask = x < 0;
+  __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y) + CONST_DBL_EPSILON;
 
-  a0 -= (xy / (y2 + x2 * 0.28f + CONST_DBL_EPSILON));
-  a1 += (xy / (x2 + y2 * 0.28f + CONST_DBL_EPSILON));
+  r.merge((x + abs_y) / (abs_y - x), (x - abs_y) / (x + abs_y), mask);
+  atan2.merge(float(detail::__ESIMD_CONST_PI) * 0.75f,
+              float(detail::__ESIMD_CONST_PI) * 0.25f, mask);
+  atan2 += (0.1963f * r * r - 0.9817f) * r;
 
-  atan2.merge(a1, a0, y2 <= x2);
-  return atan2;
+  sign.merge(OneN, OneP, y < 0);
+
+  return atan2 * sign;
 }
 
 //   For Scalar Input
@@ -1339,30 +1353,30 @@ template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                               __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> v_distance;
-  __ESIMD_NS::simd<float, N> v_y0;
   __ESIMD_NS::simd<float, N> atan2;
   __ESIMD_NS::simd_mask<N> mask;
 
-  mask = (x < 0);
-  v_y0.merge(detail::CONST_PI, 0, mask);
+  constexpr float CONST_DBL_EPSILON = 0.00001f;
+
+  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0.f);
+  atan2.merge(float(detail::__ESIMD_CONST_PI), 0.f, mask);
+  mask = (x < -CONST_DBL_EPSILON && y > -CONST_DBL_EPSILON && y < 0);
+  atan2.merge(float(-detail::__ESIMD_CONST_PI), mask);
+  mask = (x < CONST_DBL_EPSILON && __ESIMD_NS::abs(y) > CONST_DBL_EPSILON);
   v_distance = __ESIMD_NS::sqrt(x * x + y * y);
-  mask = (__ESIMD_NS::abs<float>(y) < 0.000001f);
-  atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
+  atan2.merge(2.0f * esimd::atan((v_distance - x) / y), mask);
+
+  mask = (x > 0.f);
+  atan2.merge(2.0f * esimd::atan(y / (v_distance + x)), mask);
+
   return atan2;
 }
 
 // For Scalar Input
 template <> ESIMD_INLINE float atan2(float y, float x) {
-  float v_distance;
-  float v_y0;
-  __ESIMD_NS::simd<float, 1> atan2;
-  __ESIMD_NS::simd_mask<1> mask;
-
-  mask = (x < 0);
-  v_y0 = mask[0] ? detail::CONST_PI : 0;
-  v_distance = __ESIMD_NS::sqrt<float>(x * x + y * y);
-  mask = (__ESIMD_NS::abs<float>(y) < 0.000001f);
-  atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
+  __ESIMD_NS::simd<float, 1> vy = y;
+  __ESIMD_NS::simd<float, 1> vx = x;
+  __ESIMD_NS::simd<float, 1> atan2 = esimd::atan2(vy, vx);
   return atan2[0];
 }
 
@@ -1371,22 +1385,26 @@ template <> ESIMD_INLINE float atan2(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<int, N> v_quot;
-  __ESIMD_NS::simd<float, N> fmod;
+  __ESIMD_NS::simd<float, N> abs_x = __ESIMD_NS::abs(x);
+  __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y);
 
-  v_quot = convert<int>(y / x);
-  fmod = y - x * convert<float>(v_quot);
-  return fmod;
+  auto fmod_sign_mask = (y.template bit_cast_view<int32_t>()) & 0x80000000;
+
+  __ESIMD_NS::simd<float, N> reminder =
+      abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
+
+  abs_x.merge(0.0f, reminder >= 0);
+  __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
+  __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
+
+  auto fmod_bits =
+      (fmod_abs.template bit_cast_view<int32_t>()) | fmod_sign_mask;
+  return fmod_bits.template bit_cast_view<float>();
 }
 
-//     For Scalar Input
+// For Scalar Input
 template <> ESIMD_INLINE float fmod(float y, float x) {
-  int v_quot;
-  __ESIMD_NS::simd<float, 1> fmod;
-
-  v_quot = (int)(y / x);
-  fmod = y - x * v_quot;
-  return fmod[0];
+  return fmod(__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
 }
 
 // sin_emu - EU emulation for sin(x)
@@ -1399,18 +1417,19 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 
   __ESIMD_NS::simd<float, N> sign;
   __ESIMD_NS::simd<float, N> fTrig;
-  __ESIMD_NS::simd<float, N> TwoPI(6.2831853f);
-  __ESIMD_NS::simd<float, N> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, N> OneP(1.f);
-  __ESIMD_NS::simd<float, N> OneN(-1.f);
+  __ESIMD_NS::simd<float, N> TwoPI(float(detail::__ESIMD_CONST_PI) * 2.0f);
+  __ESIMD_NS::simd<float, N> CmpI((float)detail::__ESIMD_CONST_PI);
+  __ESIMD_NS::simd<float, N> OneP(1.0f);
+  __ESIMD_NS::simd<float, N> OneN(-1.0f);
 
   x = esimd::fmod(x, TwoPI);
+  x.merge(TwoPI + x, x < 0);
 
-  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
-  x1.merge(x, (x <= detail::CMPI * 0.5f));
-  x1.merge(CmpI * 2 - x, (x > detail::CMPI * 1.5f));
+  x1.merge(CmpI - x, x - CmpI, (x <= float(detail::__ESIMD_CONST_PI)));
+  x1.merge(x, (x <= float(detail::__ESIMD_CONST_PI) * 0.5f));
+  x1.merge(TwoPI - x, (x > float(detail::__ESIMD_CONST_PI) * 1.5f));
 
-  sign.merge(OneN, OneP, (x > detail::CMPI));
+  sign.merge(OneN, OneP, (x > float(detail::__ESIMD_CONST_PI)));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -1425,106 +1444,20 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 }
 
 // scalar Input
-template <typename T> ESIMD_INLINE float sin_emu(T x0) {
-  __ESIMD_NS::simd<float, 1> x1;
-  __ESIMD_NS::simd<float, 1> x2;
-  __ESIMD_NS::simd<float, 1> t3;
-
-  __ESIMD_NS::simd<float, 1> sign;
-  __ESIMD_NS::simd<float, 1> fTrig;
-  float TwoPI = detail::CMPI * 2.0f;
-
-  __ESIMD_NS::simd<float, 1> x = esimd::fmod(x0, TwoPI);
-
-  __ESIMD_NS::simd<float, 1> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, 1> OneP(1.f);
-  __ESIMD_NS::simd<float, 1> OneN(-1.f);
-
-  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
-  x1.merge(x, (x <= detail::CMPI * 0.5f));
-  x1.merge(CmpI * 2.0f - x, (x > detail::CMPI * 1.5f));
-
-  sign.merge(OneN, OneP, (x > detail::CMPI));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig[0];
+template <> ESIMD_INLINE float sin_emu(float x0) {
+  return esimd::sin_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
 // cos_emu - EU emulation for sin(x)
 // For Vector input
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> cos_emu(__ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> x1;
-  __ESIMD_NS::simd<float, N> x2;
-  __ESIMD_NS::simd<float, N> t2;
-  __ESIMD_NS::simd<float, N> t3;
-
-  __ESIMD_NS::simd<float, N> sign;
-  __ESIMD_NS::simd<float, N> fTrig;
-  __ESIMD_NS::simd<float, N> TwoPI(6.2831853f);
-  __ESIMD_NS::simd<float, N> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, N> OneP(1.f);
-  __ESIMD_NS::simd<float, N> OneN(-1.f);
-
-  x = esimd::fmod(x, TwoPI);
-
-  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
-  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
-
-  sign.merge(1, -1, ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig;
+  return esimd::sin_emu(0.5f * float(detail::__ESIMD_CONST_PI) - x);
 }
 
 // scalar Input
-template <typename T> ESIMD_INLINE float cos_emu(T x0) {
-  __ESIMD_NS::simd<float, 1> x1;
-  __ESIMD_NS::simd<float, 1> x2;
-  __ESIMD_NS::simd<float, 1> t3;
-
-  __ESIMD_NS::simd<float, 1> sign;
-  __ESIMD_NS::simd<float, 1> fTrig;
-  float TwoPI = detail::CMPI * 2.0f;
-
-  __ESIMD_NS::simd<float, 1> x = esimd::fmod(x0, TwoPI);
-
-  __ESIMD_NS::simd<float, 1> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, 1> OneP(1.f);
-  __ESIMD_NS::simd<float, 1> OneN(-1.f);
-
-  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
-  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
-
-  sign.merge(OneP, OneN,
-             ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig[0];
+template <> ESIMD_INLINE float cos_emu(float x0) {
+  return esimd::cos_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
 /// @cond ESIMD_DETAIL
@@ -1550,7 +1483,6 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
   constexpr float xsmall = 4.22863966691620432990E-04f;
   constexpr float xmedium = 0.54930614433405484570f;
   constexpr float xlarge = 8.66433975699931636772f;
-  constexpr float log2E = 1.442695f; // same as esimd::log(e)
 
   using RT = __ESIMD_NS::simd<float, N>;
 
@@ -1567,7 +1499,7 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
 
   RT res;
   res.merge(sign, x, isLarge);
-  auto temp = __ESIMD_NS::exp(absX * 2.0f * log2E) + 1.f;
+  auto temp = __ESIMD_NS::exp(absX * 2.0f) + 1.f;
   temp = ((temp - 2.f) / temp) * sign;
   res.merge(temp, isGtMed);
   res.merge((absX + absX * g * (g * p1 + p0) / (g + q0)) * sign, isGtSmall);
@@ -1585,8 +1517,7 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
    */
 
   constexpr float xsmall = 0.000045f; // same as exp(-10.0f)
-  constexpr float xlarge = 88.f;
-  constexpr float log2E = 1.442695f; // same as esimd::log(e)
+  constexpr float xlarge = 40.f;
 
   using RT = __ESIMD_NS::simd<float, N>;
 
@@ -1602,7 +1533,7 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
   res.merge(sign, x, isLarge);
 
   RT exp;
-  exp = __ESIMD_NS::exp(absX * 2.f * log2E);
+  exp = __ESIMD_NS::exp(absX * 2.f);
 
   res.merge(((exp - 1.f) / (exp + 1.f)) * sign, (absX > xsmall) & isLessE);
 
@@ -1643,78 +1574,6 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 
 /// @} sycl_esimd_math
 
-/// @cond ESIMD_DETAIL
-// dpas helpers
-namespace detail {
-
-enum class dpas_ops_per_channel : unsigned {
-  OP1 = 1u,
-  OP2 = 2u,
-  OP4 = 4u,
-  OP8 = 8u,
-  INVALID = 0xffffffffu
-};
-constexpr dpas_ops_per_channel
-get_ops_per_channel(argument_type src1_precision,
-                    argument_type src2_precision) {
-  if ((src1_precision == argument_type::U8) ||
-      (src1_precision == argument_type::S8)) {
-    if ((src2_precision == argument_type::U8) ||
-        (src2_precision == argument_type::S8) ||
-        (src2_precision == argument_type::U4) ||
-        (src2_precision == argument_type::S4) ||
-        (src2_precision == argument_type::U2) ||
-        (src2_precision == argument_type::S2)) {
-      return dpas_ops_per_channel::OP4;
-    }
-  } else if ((src1_precision == argument_type::U4) ||
-             (src1_precision == argument_type::S4) ||
-             (src1_precision == argument_type::U2) ||
-             (src1_precision == argument_type::S2)) {
-    if ((src2_precision == argument_type::U8) ||
-        (src2_precision == argument_type::S8)) {
-      return dpas_ops_per_channel::OP4;
-    } else if ((src2_precision == argument_type::U4) ||
-               (src2_precision == argument_type::S4) ||
-               (src2_precision == argument_type::U2) ||
-               (src2_precision == argument_type::S2)) {
-      return dpas_ops_per_channel::OP8;
-    }
-  } else if ((src1_precision == argument_type::BF16) &&
-             (src2_precision == argument_type::BF16)) {
-    return dpas_ops_per_channel::OP2;
-  } else if ((src1_precision == argument_type::FP16) &&
-             (src2_precision == argument_type::FP16)) {
-    return dpas_ops_per_channel::OP2;
-  } else if ((src1_precision == argument_type::TF32) &&
-             (src2_precision == argument_type::TF32)) {
-    return dpas_ops_per_channel::OP1;
-  }
-  return dpas_ops_per_channel::INVALID;
-}
-
-constexpr unsigned get_precision_bits(argument_type src_precision) {
-  if ((src_precision == argument_type::U8) ||
-      (src_precision == argument_type::S8)) {
-    return 8;
-  } else if ((src_precision == argument_type::U4) ||
-             (src_precision == argument_type::S4)) {
-    return 4;
-  } else if ((src_precision == argument_type::U2) ||
-             (src_precision == argument_type::S2)) {
-    return 2;
-  } else if ((src_precision == argument_type::BF16) ||
-             (src_precision == argument_type::FP16)) {
-    return 16;
-  } else if (src_precision == argument_type::TF32) {
-    return 32;
-  }
-  return 0;
-}
-
-} // namespace detail
-/// @endcond ESIMD_DETAIL
-
 /// @defgroup sycl_esimd_systolic_array_api Systolic Array APIs.
 /// APIs below are used to implement dot product accumulate systolic functions
 /// @ingroup sycl_esimd
@@ -1735,126 +1594,14 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename T, int systolic_depth, int repeat_count, typename T0,
           typename T1, typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
-  // types: dst, src0, src1, src2
-  // ud, d | ud, d | ub, b | ub, b
-  // ud, d | ud, d | u4, s4, u2, s2 | ub, b
-  // ud, d | ud, d | ub, b | u4, s4, u2, s2
-  // ud, d | ud, d | u4, s4, u2, s2 | u4, s4, u2, s2
-  constexpr bool check_integer =
-      detail::is_one_of_v<T, unsigned int, int> &&
-      detail::is_one_of_v<T0, unsigned int, int> &&
-      detail::is_one_of_enum_v<argument_type, src1_precision, argument_type::S8,
-                               argument_type::U8, argument_type::U4,
-                               argument_type::S4, argument_type::U2,
-                               argument_type::S2> &&
-      detail::is_one_of_enum_v<argument_type, src2_precision, argument_type::S8,
-                               argument_type::U8, argument_type::U4,
-                               argument_type::S4, argument_type::U2,
-                               argument_type::S2>;
-  // f, bf | f, bf | bf | bf
-  constexpr bool check_bf16 =
-      detail::is_one_of_v<T, float, short> &&
-      detail::is_one_of_v<T0, float, short> &&
-      detail::is_one_of_enum_v<argument_type, src1_precision,
-                               argument_type::BF16> &&
-      detail::is_one_of_enum_v<argument_type, src2_precision,
-                               argument_type::BF16>;
-  // f,hf | f, hf | hf | hf
-  constexpr bool check_hf =
-      detail::is_one_of_v<T, float, half> &&
-      detail::is_one_of_v<T0, float, half> &&
-      detail::is_one_of_enum_v<argument_type, src1_precision,
-                               argument_type::FP16> &&
-      detail::is_one_of_enum_v<argument_type, src2_precision,
-                               argument_type::FP16>;
-
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  // f | f | tf32 | tf32
-  constexpr bool check_tf32 =
-      detail::is_one_of_v<T, float> && detail::is_one_of_v<T0, float> &&
-      detail::is_one_of_enum_v<argument_type, src1_precision,
-                               argument_type::TF32> &&
-      detail::is_one_of_enum_v<argument_type, src2_precision,
-                               argument_type::TF32>;
-#endif // defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  constexpr bool check_passed =
-      (check_integer || check_hf || check_bf16 || check_tf32);
-  static_assert(check_passed,
-                "unsupported dpas type! The supported types are:\n"
-                "    dst    |    src0    |      src1      |      src2      \n"
-                "   ud, d   |   ud, d    |     ub, b      |     ub, b      \n"
-                "   ud, d   |   ud, d    | u4, s4, u2, s2 | u4, s4, u2, s2 \n"
-                "   f, bf   |    f, bf   |       bf       |       bf       \n"
-                "   f, hf   |    f, hf   |       hf       |       hf       \n"
-                "    f      |     f      |      tf32      |      tf32      \n");
-#else  // else defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  constexpr bool check_passed = (check_integer || check_hf || check_bf16);
-  static_assert(check_passed,
-                "unsupported dpas type! The supported types are:\n"
-                "    dst    |    src0    |      src1      |      src2      \n"
-                "   ud, d   |   ud, d    |     ub, b      |     ub, b      \n"
-                "   ud, d   |   ud, d    | u4, s4, u2, s2 | u4, s4, u2, s2 \n"
-                "   f, bf   |    f, bf   |       bf       |       bf       \n"
-                "   f, hf   |    f, hf   |       hf       |       hf       \n");
-#endif // end else defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-
-  static_assert(__ESIMD_DNS::is_dword_type<T1>::value,
-                "Src1 must be DWORD type");
-  static_assert(__ESIMD_DNS::is_dword_type<T2>::value,
-                "Src2 must be DWORD type");
-
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  static_assert((N == 16 * repeat_count), "Execution size on PVC must be 16");
-#else
-  static_assert((N == 8 * repeat_count), "Execution size must be 8");
-#endif
-
-  static_assert((systolic_depth == 8) || (systolic_depth == 4),
-                "systolic_depth must be 8 or 4");
-
-  static_assert((repeat_count >= 1) && (repeat_count <= 8),
-                "repeat_count must be within 1 to 8");
-
-  constexpr auto en_ops_per_channel =
-      detail::get_ops_per_channel(src1_precision, src2_precision);
-  static_assert(en_ops_per_channel != detail::dpas_ops_per_channel::INVALID,
-                "invalid combination of Src1/Src2 precision");
-  constexpr auto ops_per_channel = static_cast<unsigned>(en_ops_per_channel);
-
-  constexpr auto src1_precision_bits =
-      detail::get_precision_bits(src1_precision);
-  static_assert(
-      N1 == ((src1_precision_bits * systolic_depth * ops_per_channel * N) /
-             (repeat_count * sizeof(T1) * 8)),
-      "invalid size for Src1");
-
-  constexpr auto src2_precision_bits =
-      detail::get_precision_bits(src2_precision);
-  static_assert(N2 == ((src2_precision_bits * systolic_depth * ops_per_channel *
-                        repeat_count) /
-                       (sizeof(T2) * 8)),
-                "invalid size for Src2");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  constexpr int dst_signed = std::is_signed<T>::value;
-  constexpr int src0_signed = std::is_signed<T0>::value;
-  __ESIMD_NS::simd<T, N> result = __esimd_dpas<T, T0, T1, T2, N, N1, N2>(
-      src0.data(), src1.data(), src2.data(), (int)src1_precision + 1,
-      (int)src2_precision + 1, systolic_depth, repeat_count, dst_signed,
-      src0_signed);
-
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas<src1_precision, src2_precision, systolic_depth, repeat_count,
-                   T, T0, T1, T2, N, N1, N2>(src0.data(), src1.data(),
-                                             src2.data());
-#endif // __SYCL_DEVICE_ONLY__
-
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::native::dpas()")
+__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
+    __ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
+    __ESIMD_NS::simd<T2, N2> src2,
+    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
+  auto result =
+      __ESIMD_NS::xmx::dpas<systolic_depth, repeat_count, T, T0, T1, T2,
+                            src1_precision, src2_precision>(src0, src1, src2);
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
   else
@@ -1875,9 +1622,11 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-dpas(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas()")
+__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
+    __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
+    __ESIMD_NS::simd<T2, N2> src2,
+    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   return dpas<src1_precision, src2_precision, T, systolic_depth, repeat_count>(
       src0, src1, src2, sat);
 }
@@ -1894,59 +1643,14 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<T1, N1> src1,
-                                        __ESIMD_NS::simd<T2, N2> src2,
-                                        Sat sat = {}) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas()")
+__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
+    __ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
 
-  static_assert(__ESIMD_DNS::is_fp_or_dword_type<T>::value,
-                "Dst must be FP or DWORD type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T1>::value,
-                "Src1 must be DWORD type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T2>::value,
-                "Src2 must be DWORD type");
-
-  static_assert((N == 8 * repeat_count) || (N == 16 * repeat_count),
-                "Execution size must be 8 or 16");
-
-  static_assert((systolic_depth == 8) || (systolic_depth == 4),
-                "systolic_depth must be 8 or 4");
-
-  static_assert((repeat_count >= 1) && (repeat_count <= 8),
-                "repeat_count must be within 1 to 8");
-
-  constexpr auto en_ops_per_channel =
-      detail::get_ops_per_channel(src1_precision, src2_precision);
-  static_assert(en_ops_per_channel != detail::dpas_ops_per_channel::INVALID,
-                "invalid combination of Src1/Src2 precision");
-  constexpr auto ops_per_channel = static_cast<unsigned>(en_ops_per_channel);
-
-  constexpr auto src1_precision_bits =
-      detail::get_precision_bits(src1_precision);
-  static_assert(
-      N1 == ((src1_precision_bits * systolic_depth * ops_per_channel * N) /
-             (repeat_count * sizeof(T1) * 8)),
-      "invalid size for Src1");
-
-  constexpr auto src2_precision_bits =
-      detail::get_precision_bits(src2_precision);
-  static_assert(N2 == ((src2_precision_bits * systolic_depth * ops_per_channel *
-                        repeat_count) /
-                       (sizeof(T2) * 8)),
-                "invalid size for Src2");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
   __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas2<T, T1, T2, N, N1, N2>(src1.data(), src2.data(), dpas_info);
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas2<src1_precision, src2_precision, systolic_depth,
-                    repeat_count, T, T1, T2, N, N1, N2>(src1.data(),
-                                                        src2.data());
-#endif // __SYCL_DEVICE_ONLY__
+      __ESIMD_NS::xmx::dpas<systolic_depth, repeat_count, T, T1, T2,
+                            src1_precision, src2_precision>(src1, src2);
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -1968,69 +1672,15 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-      __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
-  constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, cl::sycl::detail::half_impl::StorageT>()) &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpasw()")
+__ESIMD_API __ESIMD_NS::simd<T, N> dpasw(
+    __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
+    __ESIMD_NS::simd<T2, N2> src2,
+    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
 
-  constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
-                           src1_precision == src2_precision &&
-                           src1_precision == argument_type::BF16;
-
-  constexpr bool is_common_dpas = __ESIMD_DNS::is_fp_or_dword_type<T>::value;
-
-  static_assert((is_4xhf || is_4xbf || is_common_dpas),
-                "unsupported dpas type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T1>::value,
-                "Src1 must be DWORD type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T2>::value,
-                "Src2 must be DWORD type");
-
-  static_assert((N == 8 * repeat_count) || (N == 16 * repeat_count),
-                "Execution size must be 8 or 16");
-
-  static_assert((systolic_depth == 8) || (systolic_depth == 4),
-                "systolic_depth must be 8 or 4");
-
-  static_assert((repeat_count >= 1) && (repeat_count <= 8),
-                "repeat_count must be within 1 to 8");
-
-  constexpr auto en_ops_per_channel =
-      detail::get_ops_per_channel(src1_precision, src2_precision);
-  static_assert(en_ops_per_channel != detail::dpas_ops_per_channel::INVALID,
-                "invalid combination of Src1/Src2 precision");
-  constexpr auto ops_per_channel = static_cast<unsigned>(en_ops_per_channel);
-
-  constexpr auto src1_precision_bits =
-      detail::get_precision_bits(src1_precision);
-  static_assert(
-      N1 == ((src1_precision_bits * systolic_depth * ops_per_channel * N) /
-             (repeat_count * sizeof(T1) * 8)),
-      "invalid size for Src1");
-
-  constexpr auto src2_precision_bits =
-      detail::get_precision_bits(src2_precision);
-  static_assert(N2 == ((src2_precision_bits * systolic_depth * ops_per_channel *
-                        ((repeat_count + 1) / 2)) /
-                       (sizeof(T2) * 8)),
-                "invalid size for Src2");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
-  __ESIMD_NS::simd<T, N> result = __esimd_dpasw<T, T1, T2, N, N1, N2>(
-      src0.data(), src1.data(), src2.data(), dpas_info);
-#else
   __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw<src1_precision, src2_precision, systolic_depth,
-                    repeat_count, T, T1, T2, N, N1, N2>(
-          src0.data(), src1.data(), src2.data());
-#endif // __SYCL_DEVICE_ONLY__
-
+      __ESIMD_NS::xmx::dpasw<systolic_depth, repeat_count, T, T1, T2,
+                             src1_precision, src2_precision>(src0, src1, src2);
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
   else
@@ -2049,68 +1699,14 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
-                                          __ESIMD_NS::simd<T2, N2> src2,
-                                          Sat sat = {}) {
-  constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, cl::sycl::detail::half_impl::StorageT>()) &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpasw()")
+__ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
+    __ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
 
-  constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
-                           src1_precision == src2_precision &&
-                           src1_precision == argument_type::BF16;
-
-  constexpr bool is_common_dpas = __ESIMD_DNS::is_fp_or_dword_type<T>::value;
-
-  static_assert((is_4xhf || is_4xbf || is_common_dpas),
-                "unsupported dpas type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T1>::value,
-                "Src1 must be DWORD type");
-
-  static_assert(__ESIMD_DNS::is_dword_type<T2>::value,
-                "Src2 must be DWORD type");
-
-  static_assert((N == 8 * repeat_count) || (N == 16 * repeat_count),
-                "Execution size must be 8 or 16");
-
-  static_assert((systolic_depth == 8) || (systolic_depth == 4),
-                "systolic_depth must be 8 or 4");
-
-  static_assert((repeat_count >= 1) && (repeat_count <= 8),
-                "repeat_count must be within 1 to 8");
-
-  constexpr auto en_ops_per_channel =
-      detail::get_ops_per_channel(src1_precision, src2_precision);
-  static_assert(en_ops_per_channel != detail::dpas_ops_per_channel::INVALID,
-                "invalid combination of Src1/Src2 precision");
-  constexpr auto ops_per_channel = static_cast<unsigned>(en_ops_per_channel);
-
-  constexpr auto src1_precision_bits =
-      detail::get_precision_bits(src1_precision);
-  static_assert(
-      N1 == ((src1_precision_bits * systolic_depth * ops_per_channel * N) /
-             (repeat_count * sizeof(T1) * 8)),
-      "invalid size for Src1");
-
-  constexpr auto src2_precision_bits =
-      detail::get_precision_bits(src2_precision);
-  static_assert(N2 == ((src2_precision_bits * systolic_depth * ops_per_channel *
-                        ((repeat_count + 1) / 2)) /
-                       (sizeof(T2) * 8)),
-                "invalid size for Src2");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
   __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw2<T, T1, T2, N, N1, N2>(src1.data(), src2.data(), dpas_info);
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw2<src1_precision, src2_precision, systolic_depth,
-                     repeat_count, T, T1, T2, N, N1, N2>(src1.data(),
-                                                         src2.data());
-#endif // __SYCL_DEVICE_ONLY__
+      __ESIMD_NS::xmx::dpasw<systolic_depth, repeat_count, T, T1, T2,
+                             src1_precision, src2_precision>(src1, src2);
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -2119,5 +1715,6 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
 }
 /// @} sycl_esimd_systolic_array_api
 
-} // namespace __ESIMD_ENS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::experimental::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

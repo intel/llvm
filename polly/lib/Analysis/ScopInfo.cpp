@@ -67,6 +67,7 @@
 #include "isl/options.h"
 #include "isl/set.h"
 #include <cassert>
+#include <numeric>
 
 using namespace llvm;
 using namespace polly;
@@ -126,7 +127,7 @@ static int const MaxDisjunktsInDefinedBehaviourContext = 8;
 static cl::opt<bool> PollyRemarksMinimal(
     "polly-remarks-minimal",
     cl::desc("Do not emit remarks about assumptions that are known"),
-    cl::Hidden, cl::ZeroOrMore, cl::init(false), cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool>
     IslOnErrorAbort("polly-on-isl-error-abort",
@@ -155,8 +156,7 @@ bool polly::UseInstructionNames;
 static cl::opt<bool, true> XUseInstructionNames(
     "polly-use-llvm-names",
     cl::desc("Use LLVM-IR names when deriving statement names"),
-    cl::location(UseInstructionNames), cl::Hidden, cl::init(false),
-    cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::location(UseInstructionNames), cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> PollyPrintInstructions(
     "polly-print-instructions", cl::desc("Output instructions per ScopStmt"),
@@ -165,7 +165,7 @@ static cl::opt<bool> PollyPrintInstructions(
 static cl::list<std::string> IslArgs("polly-isl-arg",
                                      cl::value_desc("argument"),
                                      cl::desc("Option passed to ISL"),
-                                     cl::ZeroOrMore, cl::cat(PollyCategory));
+                                     cl::cat(PollyCategory));
 
 //===----------------------------------------------------------------------===//
 
@@ -293,7 +293,7 @@ void ScopArrayInfo::updateElementType(Type *NewElementType) {
   if (NewElementSize % OldElementSize == 0 && NewElementSize < OldElementSize) {
     ElementType = NewElementType;
   } else {
-    auto GCD = GreatestCommonDivisor64(NewElementSize, OldElementSize);
+    auto GCD = std::gcd((uint64_t)NewElementSize, (uint64_t)OldElementSize);
     ElementType = IntegerType::get(ElementType->getContext(), GCD);
   }
 }
@@ -1358,7 +1358,7 @@ void Scop::setContext(isl::set NewContext) {
 namespace {
 
 /// Remap parameter values but keep AddRecs valid wrt. invariant loads.
-struct SCEVSensitiveParameterRewriter
+class SCEVSensitiveParameterRewriter final
     : public SCEVRewriteVisitor<SCEVSensitiveParameterRewriter> {
   const ValueToValueMap &VMap;
 
@@ -1389,7 +1389,7 @@ public:
 };
 
 /// Check whether we should remap a SCEV expression.
-struct SCEVFindInsideScop : public SCEVTraversal<SCEVFindInsideScop> {
+class SCEVFindInsideScop : public SCEVTraversal<SCEVFindInsideScop> {
   const ValueToValueMap &VMap;
   bool FoundInside = false;
   const Scop *S;
@@ -1599,7 +1599,7 @@ Scop::Scop(Region &R, ScalarEvolution &ScalarEvolution, LoopInfo &LI,
            DominatorTree &DT, ScopDetection::DetectionContext &DC,
            OptimizationRemarkEmitter &ORE, int ID)
     : IslCtx(isl_ctx_alloc(), isl_ctx_free), SE(&ScalarEvolution), DT(&DT),
-      R(R), name(None), HasSingleExitEdge(R.getExitingBlock()), DC(DC),
+      R(R), name(std::nullopt), HasSingleExitEdge(R.getExitingBlock()), DC(DC),
       ORE(ORE), Affinator(this, LI), ID(ID) {
 
   // Options defaults that are different from ISL's.
@@ -2560,7 +2560,7 @@ void updateLoopCountStatistic(ScopDetection::LoopStats Stats,
   NumScops++;
   NumLoopsInScop += Stats.NumLoops;
   MaxNumLoopsInScop =
-      std::max(MaxNumLoopsInScop.getValue(), (unsigned)Stats.NumLoops);
+      std::max(MaxNumLoopsInScop.getValue(), (uint64_t)Stats.NumLoops);
 
   if (Stats.MaxDepth == 0)
     NumScopsDepthZero++;
@@ -2647,7 +2647,7 @@ INITIALIZE_PASS_END(ScopInfoRegionPass, "polly-scops",
 namespace {
 
 /// Print result from ScopInfoRegionPass.
-class ScopInfoPrinterLegacyRegionPass : public RegionPass {
+class ScopInfoPrinterLegacyRegionPass final : public RegionPass {
 public:
   static char ID;
 
@@ -2829,7 +2829,7 @@ INITIALIZE_PASS_END(
 
 namespace {
 /// Print result from ScopInfoWrapperPass.
-class ScopInfoPrinterLegacyFunctionPass : public FunctionPass {
+class ScopInfoPrinterLegacyFunctionPass final : public FunctionPass {
 public:
   static char ID;
 

@@ -42,7 +42,7 @@ static constexpr TypeInfo TypeInfos[] = {
 #include "clang/Driver/Types.def"
 #undef TYPE
 };
-static const unsigned numTypes = llvm::array_lengthof(TypeInfos);
+static const unsigned numTypes = std::size(TypeInfos);
 
 static const TypeInfo &getInfo(unsigned id) {
   assert(id > 0 && id - 1 < numTypes && "Invalid Type ID.");
@@ -65,9 +65,16 @@ static bool isPreprocessedModuleType(ID Id) {
   return Id == TY_CXXModule || Id == TY_PP_CXXModule;
 }
 
+static bool isPreprocessedHeaderUnitType(ID Id) {
+  return Id == TY_CXXSHeader || Id == TY_CXXUHeader || Id == TY_CXXHUHeader ||
+         Id == TY_PP_CXXHeaderUnit;
+}
+
 types::ID types::getPrecompiledType(ID Id) {
   if (isPreprocessedModuleType(Id))
     return TY_ModuleFile;
+  if (isPreprocessedHeaderUnitType(Id))
+    return TY_HeaderUnit;
   if (onlyPrecompileType(Id))
     return TY_PCH;
   return TY_INVALID;
@@ -139,12 +146,30 @@ bool types::isAcceptedByClang(ID Id) {
   case TY_CLHeader:
   case TY_ObjCHeader: case TY_PP_ObjCHeader:
   case TY_CXXHeader: case TY_PP_CXXHeader:
+  case TY_CXXSHeader:
+  case TY_CXXUHeader:
+  case TY_CXXHUHeader:
+  case TY_PP_CXXHeaderUnit:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
   case TY_CXXModule: case TY_PP_CXXModule:
   case TY_AST: case TY_ModuleFile: case TY_PCH:
   case TY_LLVM_IR: case TY_LLVM_BC:
   case TY_SPIRV:
   case TY_API_INFO:
+    return true;
+  }
+}
+
+bool types::isAcceptedByFlang(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+
+  case TY_Fortran:
+  case TY_PP_Fortran:
+    return true;
+  case TY_LLVM_IR:
+  case TY_LLVM_BC:
     return true;
   }
 }
@@ -211,6 +236,10 @@ bool types::isCXX(ID Id) {
   case TY_CXX: case TY_PP_CXX:
   case TY_ObjCXX: case TY_PP_ObjCXX: case TY_PP_ObjCXX_Alias:
   case TY_CXXHeader: case TY_PP_CXXHeader:
+  case TY_CXXSHeader:
+  case TY_CXXUHeader:
+  case TY_CXXHUHeader:
+  case TY_PP_CXXHeaderUnit:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
   case TY_CXXModule: case TY_PP_CXXModule:
   case TY_CUDA: case TY_PP_CUDA: case TY_CUDA_DEVICE:
@@ -258,16 +287,6 @@ bool types::isHIP(ID Id) {
   }
 }
 
-bool types::isFortran(ID Id) {
-  switch (Id) {
-  default:
-    return false;
-
-  case TY_Fortran: case TY_PP_Fortran:
-    return true;
-  }
-}
-
 bool types::isFPGA(ID Id) {
   switch (Id) {
   default:
@@ -290,6 +309,8 @@ bool types::isArchive(ID Id) {
     return true;
   }
 }
+
+bool types::isHLSL(ID Id) { return Id == TY_HLSL; }
 
 bool types::isSrcFile(ID Id) {
   return Id != TY_Object && getPreprocessedType(Id) != TY_INVALID;
@@ -347,6 +368,7 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("hpp", TY_CXXHeader)
       .Case("hxx", TY_CXXHeader)
       .Case("iim", TY_PP_CXXModule)
+      .Case("iih", TY_PP_CXXHeaderUnit)
       .Case("lib", TY_Object)
       .Case("mii", TY_PP_ObjCXX)
       .Case("obj", TY_Object)
@@ -356,9 +378,9 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("c++m", TY_CXXModule)
       .Case("cppm", TY_CXXModule)
       .Case("cxxm", TY_CXXModule)
+      .Case("hlsl", TY_HLSL)
       .Case("aocr", TY_FPGA_AOCR)
       .Case("aocx", TY_FPGA_AOCX)
-      .Case("hlsl", TY_HLSL)
       .Default(TY_INVALID);
 }
 

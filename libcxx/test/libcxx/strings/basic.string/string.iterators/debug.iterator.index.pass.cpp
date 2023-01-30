@@ -10,8 +10,8 @@
 
 // Index iterator out of bounds.
 
-// UNSUPPORTED: libcxx-no-debug-mode, c++03, windows
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DEBUG=1
+// REQUIRES: has-unix-headers
+// UNSUPPORTED: !libcpp-has-debug-mode, c++03
 
 #include <string>
 #include <cassert>
@@ -20,6 +20,7 @@
 #include "min_allocator.h"
 
 int main(int, char**) {
+  using T = decltype(uint8_t() - uint8_t());
   {
     typedef std::string C;
     C c(1, '\0');

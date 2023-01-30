@@ -48,6 +48,7 @@ public:
     SV_Wasm,
     SV_XCOFF,
     SV_SPIRV,
+    SV_DXContainer,
   };
 
   /// Express the state of bundle locked groups while emitting code.
@@ -136,8 +137,14 @@ public:
   MCSymbol *getEndSymbol(MCContext &Ctx);
   bool hasEnded() const;
 
-  unsigned getAlignment() const { return Alignment.value(); }
+  Align getAlign() const { return Alignment; }
   void setAlignment(Align Value) { Alignment = Value; }
+
+  /// Makes sure that Alignment is at least MinAlignment.
+  void ensureMinAlignment(Align MinAlignment) {
+    if (Alignment < MinAlignment)
+      Alignment = MinAlignment;
+  }
 
   unsigned getOrdinal() const { return Ordinal; }
   void setOrdinal(unsigned Value) { Ordinal = Value; }

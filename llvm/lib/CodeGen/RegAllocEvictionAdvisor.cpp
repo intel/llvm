@@ -26,7 +26,7 @@
 using namespace llvm;
 
 static cl::opt<RegAllocEvictionAdvisorAnalysis::AdvisorMode> Mode(
-    "regalloc-enable-advisor", cl::Hidden, cl::ZeroOrMore,
+    "regalloc-enable-advisor", cl::Hidden,
     cl::init(RegAllocEvictionAdvisorAnalysis::AdvisorMode::Default),
     cl::desc("Enable regalloc advisor mode"),
     cl::values(
@@ -95,7 +95,7 @@ template <> Pass *llvm::callDefaultCtor<RegAllocEvictionAdvisorAnalysis>() {
     Ret = new DefaultEvictionAdvisorAnalysis(/*NotAsRequested*/ false);
     break;
   case RegAllocEvictionAdvisorAnalysis::AdvisorMode::Development:
-#if defined(LLVM_HAVE_TF_API)
+#if defined(LLVM_HAVE_TFLITE)
     Ret = createDevelopmentModeAdvisor();
 #endif
     break;

@@ -70,6 +70,18 @@ struct AMDGPUOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
     const SIRegisterInfo *TRI
       = static_cast<const SIRegisterInfo *>(MRI.getTargetRegisterInfo());
     if (TRI->isSGPRReg(MRI, PhysReg)) {
+      LLT Ty = MRI.getType(ExtReg);
+      LLT S32 = LLT::scalar(32);
+      if (Ty != S32) {
+        // FIXME: We should probably support readfirstlane intrinsics with all
+        // legal 32-bit types.
+        assert(Ty.getSizeInBits() == 32);
+        if (Ty.isPointer())
+          ExtReg = MIRBuilder.buildPtrToInt(S32, ExtReg).getReg(0);
+        else
+          ExtReg = MIRBuilder.buildBitcast(S32, ExtReg).getReg(0);
+      }
+
       auto ToSGPR = MIRBuilder.buildIntrinsic(Intrinsic::amdgcn_readfirstlane,
                                               {MRI.getType(ExtReg)}, false)
         .addReg(ExtReg);
@@ -498,7 +510,7 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
   const SITargetLowering &TLI = *getTLI<SITargetLowering>();
   const DataLayout &DL = F.getParent()->getDataLayout();
 
-  Info->allocateModuleLDSGlobal(F.getParent());
+  Info->allocateKnownAddressLDSGlobal(F);
 
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs, F.getContext());
@@ -518,9 +530,8 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
     if (AllocSize == 0)
       continue;
 
-    MaybeAlign ABIAlign = IsByRef ? Arg.getParamAlign() : None;
-    if (!ABIAlign)
-      ABIAlign = DL.getABITypeAlign(ArgTy);
+    MaybeAlign ParamAlign = IsByRef ? Arg.getParamAlign() : std::nullopt;
+    Align ABIAlign = DL.getValueOrABITypeAlignment(ParamAlign, ArgTy);
 
     uint64_t ArgOffset = alignTo(ExplicitArgOffset, ABIAlign) + BaseOffset;
     ExplicitArgOffset = alignTo(ExplicitArgOffset, ABIAlign) + AllocSize;
@@ -583,7 +594,7 @@ bool AMDGPUCallLowering::lowerFormalArguments(
   const SIRegisterInfo *TRI = Subtarget.getRegisterInfo();
   const DataLayout &DL = F.getParent()->getDataLayout();
 
-  Info->allocateModuleLDSGlobal(F.getParent());
+  Info->allocateKnownAddressLDSGlobal(F);
 
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CC, F.isVarArg(), MF, ArgLocs, F.getContext());
@@ -765,7 +776,8 @@ bool AMDGPUCallLowering::passSpecialInputs(MachineIRBuilder &MIRBuilder,
     AMDGPUFunctionArgInfo::DISPATCH_ID,
     AMDGPUFunctionArgInfo::WORKGROUP_ID_X,
     AMDGPUFunctionArgInfo::WORKGROUP_ID_Y,
-    AMDGPUFunctionArgInfo::WORKGROUP_ID_Z
+    AMDGPUFunctionArgInfo::WORKGROUP_ID_Z,
+    AMDGPUFunctionArgInfo::LDS_KERNEL_ID,
   };
 
   static constexpr StringLiteral ImplicitAttrNames[] = {
@@ -775,7 +787,8 @@ bool AMDGPUCallLowering::passSpecialInputs(MachineIRBuilder &MIRBuilder,
     "amdgpu-no-dispatch-id",
     "amdgpu-no-workgroup-id-x",
     "amdgpu-no-workgroup-id-y",
-    "amdgpu-no-workgroup-id-z"
+    "amdgpu-no-workgroup-id-z",
+    "amdgpu-no-lds-kernel-id",
   };
 
   MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -811,6 +824,14 @@ bool AMDGPUCallLowering::passSpecialInputs(MachineIRBuilder &MIRBuilder,
       LI->loadInputValue(InputReg, MIRBuilder, IncomingArg, ArgRC, ArgTy);
     } else if (InputID == AMDGPUFunctionArgInfo::IMPLICIT_ARG_PTR) {
       LI->getImplicitArgPtr(InputReg, MRI, MIRBuilder);
+    } else if (InputID == AMDGPUFunctionArgInfo::LDS_KERNEL_ID) {
+      std::optional<uint32_t> Id =
+          AMDGPUMachineFunction::getLDSKernelIdMetadata(MF.getFunction());
+      if (Id) {
+        MIRBuilder.buildConstant(InputReg, *Id);
+      } else {
+        MIRBuilder.buildUndef(InputReg);
+      }
     } else {
       // We may have proven the input wasn't needed, although the ABI is
       // requiring it. We just need to allocate the register appropriately.

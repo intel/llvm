@@ -127,11 +127,6 @@ bool shouldSkipTypedef(const TypedefNameDecl *TD) {
 //      template<class X> using pvec = vector<x*>; pvec<int> x;
 //    There's no Decl `pvec<int>`, we must choose `pvec<X>` or `vector<int*>`
 //    and both are lossy. We must know upfront what the caller ultimately wants.
-//
-// FIXME: improve common dependent scope using name lookup in primary templates.
-// We currently handle several dependent constructs, but some others remain to
-// be handled:
-//  - UnresolvedUsingTypenameDecl
 struct TargetFinder {
   using RelSet = DeclRelationSet;
   using Rel = DeclRelation;
@@ -194,8 +189,8 @@ public:
         add(S->getUnderlyingDecl(), Flags);
       Flags |= Rel::Alias; // continue with the alias.
     } else if (const UsingEnumDecl *UED = dyn_cast<UsingEnumDecl>(D)) {
-      add(UED->getEnumDecl(), Flags);
-      Flags |= Rel::Alias; // continue with the alias.
+      // UsingEnumDecl is not an alias at all, just a reference.
+      D = UED->getEnumDecl();
     } else if (const auto *NAD = dyn_cast<NamespaceAliasDecl>(D)) {
       add(NAD->getUnderlyingDecl(), Flags | Rel::Underlying);
       Flags |= Rel::Alias; // continue with the alias
@@ -207,10 +202,17 @@ public:
         }
       }
       Flags |= Rel::Alias; // continue with the alias
+    } else if (isa<UnresolvedUsingTypenameDecl>(D)) {
+      // FIXME: improve common dependent scope using name lookup in primary
+      // templates.
+      Flags |= Rel::Alias;
     } else if (const UsingShadowDecl *USD = dyn_cast<UsingShadowDecl>(D)) {
-      // Include the Introducing decl, but don't traverse it. This may end up
-      // including *all* shadows, which we don't want.
-      report(USD->getIntroducer(), Flags | Rel::Alias);
+      // Include the introducing UsingDecl, but don't traverse it. This may end
+      // up including *all* shadows, which we don't want.
+      // Don't apply this logic to UsingEnumDecl, which can't easily be
+      // conflated with the aliases it introduces.
+      if (llvm::isa<UsingDecl>(USD->getIntroducer()))
+        report(USD->getIntroducer(), Flags | Rel::Alias);
       // Shadow decls are synthetic and not themselves interesting.
       // Record the underlying decl instead, if allowed.
       D = USD->getTargetDecl();
@@ -382,6 +384,9 @@ public:
         // TypeLoc never has a deduced type. https://llvm.org/PR42914
         Outer.add(DT->getDeducedType(), Flags);
       }
+      void VisitUnresolvedUsingType(const UnresolvedUsingType *UUT) {
+        Outer.add(UUT->getDecl(), Flags);
+      }
       void VisitDeducedTemplateSpecializationType(
           const DeducedTemplateSpecializationType *DTST) {
         if (const auto *USD = DTST->getTemplateName().getAsUsingShadowDecl())
@@ -451,6 +456,10 @@ public:
           if (auto *TD = TST->getTemplateName().getAsTemplateDecl())
             Outer.add(TD->getTemplatedDecl(), Flags | Rel::TemplatePattern);
         }
+      }
+      void
+      VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *STTPT) {
+        Outer.add(STTPT->getReplacementType(), Flags);
       }
       void VisitTemplateTypeParmType(const TemplateTypeParmType *TTPT) {
         Outer.add(TTPT->getDecl(), Flags);
@@ -618,6 +627,12 @@ llvm::SmallVector<ReferenceLoc> refInDecl(const Decl *D,
           D->getQualifierLoc(), D->getLocation(), /*IsDecl=*/false,
           explicitReferenceTargets(DynTypedNode::create(*D),
                                    DeclRelation::Underlying, Resolver)});
+    }
+
+    void VisitUsingEnumDecl(const UsingEnumDecl *D) {
+      // "using enum ns::E" is a non-declaration reference.
+      // The reference is covered by the embedded typeloc.
+      // Don't use the default VisitNamedDecl, which would report a declaration.
     }
 
     void VisitNamespaceAliasDecl(const NamespaceAliasDecl *D) {
@@ -948,7 +963,10 @@ public:
     // ElaboratedTypeLoc will reports information for its inner type loc.
     // Otherwise we loose information about inner types loc's qualifier.
     TypeLoc Inner = L.getNamedTypeLoc().getUnqualifiedLoc();
-    TypeLocsToSkip.insert(Inner.getBeginLoc());
+    if (L.getBeginLoc() == Inner.getBeginLoc())
+      return RecursiveASTVisitor::TraverseTypeLoc(Inner);
+    else
+      TypeLocsToSkip.insert(Inner.getBeginLoc());
     return RecursiveASTVisitor::TraverseElaboratedTypeLoc(L);
   }
 

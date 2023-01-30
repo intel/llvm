@@ -15,6 +15,7 @@ kIsWindows = sys.platform in ['win32', 'cygwin']
 
 class GoogleTest(TestFormat):
     def __init__(self, test_sub_dirs, test_suffix, run_under = []):
+        self.seen_executables = set()
         self.test_sub_dirs = str(test_sub_dirs).split(';')
 
         # On Windows, assume tests will also end in '.exe'.
@@ -54,6 +55,12 @@ class GoogleTest(TestFormat):
                                              suffixes=self.test_suffixes):
                 # Discover the tests in this executable.
                 execpath = os.path.join(source_path, subdir, fn)
+                if execpath in self.seen_executables:
+                    litConfig.warning(
+                        "Skip adding %r since it has been added to the test pool" % execpath)
+                    continue
+                else:
+                    self.seen_executables.add(execpath)
                 num_tests = self.get_num_tests(execpath, litConfig,
                                                localConfig)
                 if num_tests is not None:
@@ -110,11 +117,10 @@ class GoogleTest(TestFormat):
         from lit.cl_arguments import TestOrder
         use_shuffle = TestOrder(litConfig.order) == TestOrder.RANDOM
         shard_env = {
-            'GTEST_COLOR': 'no',
+            'GTEST_OUTPUT': 'json:' + test.gtest_json_file,
             'GTEST_SHUFFLE': '1' if use_shuffle else '0',
-            'GTEST_TOTAL_SHARDS': total_shards,
-            'GTEST_SHARD_INDEX': shard_idx,
-            'GTEST_OUTPUT': 'json:' + test.gtest_json_file
+            'GTEST_TOTAL_SHARDS': os.environ.get("GTEST_TOTAL_SHARDS", total_shards),
+            'GTEST_SHARD_INDEX': os.environ.get("GTEST_SHARD_INDEX", shard_idx)
         }
         test.config.environment.update(shard_env)
 
@@ -127,26 +133,44 @@ class GoogleTest(TestFormat):
             return lit.Test.PASS, ''
 
         def get_shard_header(shard_env):
-            shard_envs = '\n'.join([k + '=' + v for k, v in shard_env.items()])
-            return f"Script(shard):\n--\n%s\n%s\n--\n" % (shard_envs, ' '.join(cmd))
+            shard_envs = ' '.join([k + '=' + v for k, v in shard_env.items()])
+            return f"Script(shard):\n--\n%s %s\n--\n" % (shard_envs, ' '.join(cmd))
 
         shard_header = get_shard_header(shard_env)
 
         try:
-            _, _, exitCode = lit.util.executeCommand(
+            out, _, exitCode = lit.util.executeCommand(
                 cmd, env=test.config.environment,
-                timeout=litConfig.maxIndividualTestTime)
-        except lit.util.ExecuteCommandTimeoutException:
-            return (lit.Test.TIMEOUT, f'{shard_header}Reached timeout of '
-                    f'{litConfig.maxIndividualTestTime} seconds')
+                timeout=litConfig.maxIndividualTestTime, redirect_stderr=True)
+        except lit.util.ExecuteCommandTimeoutException as e:
+            stream_msg = f"\n{e.out}\n--\nexit: {e.exitCode}\n--\n"
+            return (lit.Test.TIMEOUT, f'{shard_header}{stream_msg}Reached '
+                    f'timeout of {litConfig.maxIndividualTestTime} seconds')
 
         if not os.path.exists(test.gtest_json_file):
             errmsg = f"shard JSON output does not exist: %s" % (
                 test.gtest_json_file)
-            return lit.Test.FAIL, shard_header + errmsg
+            stream_msg = f"\n{out}\n--\nexit: {exitCode}\n--\n"
+            return lit.Test.FAIL, shard_header + stream_msg + errmsg
 
         if exitCode == 0:
             return lit.Test.PASS, ''
+
+        def get_test_stdout(test_name):
+            res = []
+            header = f'[ RUN      ] ' + test_name
+            footer = f'[  FAILED  ] ' + test_name
+            in_range = False
+            for l in out.splitlines():
+                if l.startswith(header):
+                    in_range = True
+                elif l.startswith(footer):
+                    return f'' if len(res) == 0 else '\n'.join(res)
+                elif in_range:
+                    res.append(l)
+            assert False, f'gtest did not report the result for ' + test_name
+
+        found_failed_test = False
 
         with open(test.gtest_json_file, encoding='utf-8') as f:
             jf = json.load(f)
@@ -164,13 +188,23 @@ class GoogleTest(TestFormat):
                     header = f"Script:\n--\n%s --gtest_filter=%s\n--\n" % (
                         ' '.join(cmd), testname)
                     if 'failures' in testinfo:
+                        found_failed_test = True
                         output += header
+                        test_out = get_test_stdout(testname)
+                        if test_out:
+                            output += test_out + '\n\n'
                         for fail in testinfo['failures']:
                             output += fail['failure'] + '\n'
                         output += '\n'
                     elif result != 'COMPLETED':
                         output += header
                         output += 'unresolved test result\n'
+
+        # In some situations, like running tests with sanitizers, all test passes but
+        # the shard could still fail due to memory issues.
+        if not found_failed_test:
+            output += f"\n{out}\n--\nexit: {exitCode}\n--\n"
+
         return lit.Test.FAIL, output
 
     def prepareCmd(self, cmd):
@@ -206,11 +240,17 @@ class GoogleTest(TestFormat):
                 discovered_tests.append(test)
                 continue
 
-            start_time = test.result.start
+            start_time = test.result.start or 0.0
+
+            has_failure_in_shard = False
 
             # Load json file to retrieve results.
             with open(test.gtest_json_file, encoding='utf-8') as f:
-                testsuites = json.load(f)['testsuites']
+                try:
+                    testsuites = json.load(f)['testsuites']
+                except json.JSONDecodeError as e:
+                    raise RuntimeError("Failed to parse json file: " +
+                                       test.gtest_json_file + "\n" + e.doc)
                 for testcase in testsuites:
                     for testinfo in testcase['testsuite']:
                         # Ignore disabled tests.
@@ -230,6 +270,7 @@ class GoogleTest(TestFormat):
                         if testinfo['result'] == 'SKIPPED':
                             returnCode = lit.Test.SKIPPED
                         elif 'failures' in testinfo:
+                            has_failure_in_shard = True
                             returnCode = lit.Test.FAIL
                             output = header
                             for fail in testinfo['failures']:
@@ -242,7 +283,7 @@ class GoogleTest(TestFormat):
 
                         elapsed_time = float(testinfo['time'][:-1])
                         res = lit.Test.Result(returnCode, output, elapsed_time)
-                        res.pid = test.result.pid
+                        res.pid = test.result.pid or 0
                         res.start = start_time
                         start_time = start_time + elapsed_time
                         subtest.setResult(res)
@@ -250,5 +291,9 @@ class GoogleTest(TestFormat):
                         selected_tests.append(subtest)
                         discovered_tests.append(subtest)
             os.remove(test.gtest_json_file)
+
+            if not has_failure_in_shard and test.isFailure():
+                selected_tests.append(test)
+                discovered_tests.append(test)
 
         return selected_tests, discovered_tests

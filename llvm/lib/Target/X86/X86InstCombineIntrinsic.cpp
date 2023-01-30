@@ -18,6 +18,7 @@
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -135,7 +136,7 @@ static Value *simplifyX86immShift(const IntrinsicInst &II,
   case Intrinsic::x86_avx512_psrai_q_512:
   case Intrinsic::x86_avx512_psrai_w_512:
     IsImm = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Intrinsic::x86_sse2_psra_d:
   case Intrinsic::x86_sse2_psra_w:
   case Intrinsic::x86_avx2_psra_d:
@@ -158,7 +159,7 @@ static Value *simplifyX86immShift(const IntrinsicInst &II,
   case Intrinsic::x86_avx512_psrli_q_512:
   case Intrinsic::x86_avx512_psrli_w_512:
     IsImm = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Intrinsic::x86_sse2_psrl_d:
   case Intrinsic::x86_sse2_psrl_q:
   case Intrinsic::x86_sse2_psrl_w:
@@ -181,7 +182,7 @@ static Value *simplifyX86immShift(const IntrinsicInst &II,
   case Intrinsic::x86_avx512_pslli_q_512:
   case Intrinsic::x86_avx512_pslli_w_512:
     IsImm = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Intrinsic::x86_sse2_psll_d:
   case Intrinsic::x86_sse2_psll_q:
   case Intrinsic::x86_sse2_psll_w:
@@ -520,11 +521,10 @@ static Value *simplifyX86movmsk(const IntrinsicInst &II,
   // %int = bitcast <16 x i1> %cmp to i16
   // %res = zext i16 %int to i32
   unsigned NumElts = ArgTy->getNumElements();
-  Type *IntegerVecTy = VectorType::getInteger(ArgTy);
   Type *IntegerTy = Builder.getIntNTy(NumElts);
 
-  Value *Res = Builder.CreateBitCast(Arg, IntegerVecTy);
-  Res = Builder.CreateICmpSLT(Res, Constant::getNullValue(IntegerVecTy));
+  Value *Res = Builder.CreateBitCast(Arg, VectorType::getInteger(ArgTy));
+  Res = Builder.CreateIsNeg(Res);
   Res = Builder.CreateBitCast(Res, IntegerTy);
   Res = Builder.CreateZExtOrTrunc(Res, ResTy);
   return Res;
@@ -549,7 +549,7 @@ static Value *simplifyX86addcarry(const IntrinsicInst &II,
     Value *UAddResult = Builder.CreateExtractValue(UAdd, 0);
     Value *UAddOV = Builder.CreateZExt(Builder.CreateExtractValue(UAdd, 1),
                                        Builder.getInt8Ty());
-    Value *Res = UndefValue::get(RetTy);
+    Value *Res = PoisonValue::get(RetTy);
     Res = Builder.CreateInsertValue(Res, UAddOV, 0);
     return Builder.CreateInsertValue(Res, UAddResult, 1);
   }
@@ -925,7 +925,7 @@ static Value *simplifyX86vpermv(const IntrinsicInst &II,
   return Builder.CreateShuffleVector(V1, makeArrayRef(Indexes, Size));
 }
 
-Optional<Instruction *>
+std::optional<Instruction *>
 X86TTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
   auto SimplifyDemandedVectorEltsLow = [&IC](Value *Op, unsigned Width,
                                              unsigned DemandedWidth) {
@@ -1731,10 +1731,10 @@ X86TTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<Value *> X86TTIImpl::simplifyDemandedUseBitsIntrinsic(
+std::optional<Value *> X86TTIImpl::simplifyDemandedUseBitsIntrinsic(
     InstCombiner &IC, IntrinsicInst &II, APInt DemandedMask, KnownBits &Known,
     bool &KnownBitsComputed) const {
   switch (II.getIntrinsicID()) {
@@ -1771,10 +1771,10 @@ Optional<Value *> X86TTIImpl::simplifyDemandedUseBitsIntrinsic(
     break;
   }
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<Value *> X86TTIImpl::simplifyDemandedVectorEltsIntrinsic(
+std::optional<Value *> X86TTIImpl::simplifyDemandedVectorEltsIntrinsic(
     InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
     APInt &UndefElts2, APInt &UndefElts3,
     std::function<void(Instruction *, unsigned, APInt, APInt &)>
@@ -1931,6 +1931,23 @@ Optional<Value *> X86TTIImpl::simplifyDemandedVectorEltsIntrinsic(
     break;
   }
 
+  // General per-element vector operations.
+  case Intrinsic::x86_avx2_psllv_d:
+  case Intrinsic::x86_avx2_psllv_d_256:
+  case Intrinsic::x86_avx2_psllv_q:
+  case Intrinsic::x86_avx2_psllv_q_256:
+  case Intrinsic::x86_avx2_psrlv_d:
+  case Intrinsic::x86_avx2_psrlv_d_256:
+  case Intrinsic::x86_avx2_psrlv_q:
+  case Intrinsic::x86_avx2_psrlv_q_256:
+  case Intrinsic::x86_avx2_psrav_d:
+  case Intrinsic::x86_avx2_psrav_d_256: {
+    simplifyAndSetOp(&II, 0, DemandedElts, UndefElts);
+    simplifyAndSetOp(&II, 1, DemandedElts, UndefElts2);
+    UndefElts &= UndefElts2;
+    break;
+  }
+
   case Intrinsic::x86_sse2_packssdw_128:
   case Intrinsic::x86_sse2_packsswb_128:
   case Intrinsic::x86_sse2_packuswb_128:
@@ -2009,5 +2026,5 @@ Optional<Value *> X86TTIImpl::simplifyDemandedVectorEltsIntrinsic(
     UndefElts.setHighBits(VWidth / 2);
     break;
   }
-  return None;
+  return std::nullopt;
 }

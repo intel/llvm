@@ -19,14 +19,14 @@ namespace bugprone {
 /// in the outer `if` statement and were not changed.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone-redundant-branch-condition.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/redundant-branch-condition.html
 class RedundantBranchConditionCheck : public ClangTidyCheck {
 public:
   RedundantBranchConditionCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 };

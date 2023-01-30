@@ -35,11 +35,11 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: %1 = load <4 x float>, <4 x float>* %lhs
-; CHECK-LLVM: %2 = load [4 x <4 x float>], [4 x <4 x float>]* %rhs
+; CHECK-LLVM: %1 = load <4 x float>, ptr %lhs
+; CHECK-LLVM: %2 = load [4 x <4 x float>], ptr %rhs
 ; CHECK-LLVM: %3 = extractelement <4 x float> %1, i32 0
 ; CHECK-LLVM: %.splatinsert = insertelement <4 x float> poison, float %3, i32 0
 ; CHECK-LLVM: %.splat = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
@@ -108,5 +108,5 @@
 ; CHECK-LLVM: %60 = insertelement <4 x float> %57, float %59, i32 3
 ; CHECK-LLVM: %61 = fmul <4 x float> %.splat6, %60
 ; CHECK-LLVM: %62 = fadd <4 x float> %47, %61
-; CHECK-LLVM: store <4 x float> %62, <4 x float>* %res
+; CHECK-LLVM: store <4 x float> %62, ptr %res
 ; CHECK-LLVM: ret void

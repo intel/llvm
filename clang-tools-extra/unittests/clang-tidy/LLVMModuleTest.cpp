@@ -21,7 +21,7 @@ static std::string runCheck(StringRef Code, const Twine &Filename,
   std::string Result = test::runCheckOnCode<T>(
       Code, &Errors, Filename, std::string("-xc++-header"), ClangTidyOptions{},
       std::move(PathsToContent));
-  if (Errors.size() != (size_t)ExpectedWarning.hasValue())
+  if (Errors.size() != (size_t)ExpectedWarning.has_value())
     return "invalid error count";
   if (ExpectedWarning && *ExpectedWarning != Errors.back().Message.Message)
     return "expected: '" + ExpectedWarning->str() + "', saw: '" +
@@ -78,7 +78,7 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
             runHeaderGuardCheck("#ifndef LLVM_ADT_FOO_H_\n"
                                 "#define LLVM_ADT_FOO_H_\n"
                                 "#endif\n",
-                                "include/llvm/ADT/foo.h", None));
+                                "include/llvm/ADT/foo.h", std::nullopt));
 
   EXPECT_EQ("#ifndef LLVM_CLANG_C_BAR_H\n"
             "#define LLVM_CLANG_C_BAR_H\n"
@@ -184,7 +184,8 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
             runHeaderGuardCheckWithEndif("#ifndef LLVM_ADT_FOO_H\n"
                                          "#define LLVM_ADT_FOO_H\n"
                                          "#endif /* LLVM_ADT_FOO_H */\n",
-                                         "include/llvm/ADT/foo.h", None));
+                                         "include/llvm/ADT/foo.h",
+                                         std::nullopt));
 
   EXPECT_EQ("#ifndef LLVM_ADT_FOO_H_\n"
             "#define LLVM_ADT_FOO_H_\n"
@@ -192,7 +193,8 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
             runHeaderGuardCheckWithEndif("#ifndef LLVM_ADT_FOO_H_\n"
                                          "#define LLVM_ADT_FOO_H_\n"
                                          "#endif // LLVM_ADT_FOO_H_\n",
-                                         "include/llvm/ADT/foo.h", None));
+                                         "include/llvm/ADT/foo.h",
+                                         std::nullopt));
 
   EXPECT_EQ("#ifndef LLVM_ADT_FOO_H\n"
             "#define LLVM_ADT_FOO_H\n"
@@ -203,6 +205,14 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
                 "#endif // LLVM\n",
                 "include/llvm/ADT/foo.h",
                 StringRef("header guard does not follow preferred style")));
+
+  // An extra space inside the comment is OK.
+  llvm::StringRef WithExtraSpace = "#ifndef LLVM_ADT_FOO_H\n"
+                                   "#define LLVM_ADT_FOO_H\n"
+                                   "#endif //  LLVM_ADT_FOO_H\n";
+  EXPECT_EQ(WithExtraSpace,
+            runHeaderGuardCheckWithEndif(
+                WithExtraSpace, "include/llvm/ADT/foo.h", std::nullopt));
 
   EXPECT_EQ("#ifndef LLVM_ADT_FOO_H\n"
             "#define LLVM_ADT_FOO_H\n"
@@ -224,7 +234,8 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
                                          "#define LLVM_ADT_FOO_H\n"
                                          "#endif  /* LLVM_ADT_FOO_H\\ \n"
                                          " FOO */",
-                                         "include/llvm/ADT/foo.h", None));
+                                         "include/llvm/ADT/foo.h",
+                                         std::nullopt));
 
   EXPECT_EQ("#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_FOO_H\n"
             "#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_FOO_H\n"

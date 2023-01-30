@@ -13,6 +13,7 @@
 #include "RISCVTargetStreamer.h"
 #include "RISCVBaseInfo.h"
 #include "RISCVMCTargetDesc.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/RISCVISAInfo.h"
@@ -22,6 +23,7 @@ using namespace llvm;
 RISCVTargetStreamer::RISCVTargetStreamer(MCStreamer &S) : MCTargetStreamer(S) {}
 
 void RISCVTargetStreamer::finish() { finishAttributeSection(); }
+void RISCVTargetStreamer::reset() {}
 
 void RISCVTargetStreamer::emitDirectiveOptionPush() {}
 void RISCVTargetStreamer::emitDirectiveOptionPop() {}
@@ -31,6 +33,7 @@ void RISCVTargetStreamer::emitDirectiveOptionRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionRelax() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRelax() {}
+void RISCVTargetStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {}
 void RISCVTargetStreamer::emitAttribute(unsigned Attribute, unsigned Value) {}
 void RISCVTargetStreamer::finishAttributeSection() {}
 void RISCVTargetStreamer::emitTextAttribute(unsigned Attribute,
@@ -94,6 +97,10 @@ void RISCVTargetAsmStreamer::emitDirectiveOptionRelax() {
 
 void RISCVTargetAsmStreamer::emitDirectiveOptionNoRelax() {
   OS << "\t.option\tnorelax\n";
+}
+
+void RISCVTargetAsmStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {
+  OS << "\t.variant_cc\t" << Symbol.getName() << "\n";
 }
 
 void RISCVTargetAsmStreamer::emitAttribute(unsigned Attribute, unsigned Value) {

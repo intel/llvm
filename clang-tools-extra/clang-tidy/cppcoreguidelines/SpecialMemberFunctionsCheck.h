@@ -21,7 +21,7 @@ namespace cppcoreguidelines {
 /// are defined.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-special-member-functions.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/special-member-functions.html
 class SpecialMemberFunctionsCheck : public ClangTidyCheck {
 public:
   SpecialMemberFunctionsCheck(StringRef Name, ClangTidyContext *Context);
@@ -32,7 +32,7 @@ public:
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void onEndOfTranslationUnit() override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
   enum class SpecialMemberFunctionKind : uint8_t {

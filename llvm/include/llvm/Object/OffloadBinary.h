@@ -14,16 +14,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_BINARYFORMAT_OFFLOADING_H
-#define LLVM_BINARYFORMAT_OFFLOADING_H
+#ifndef LLVM_OBJECT_OFFLOADBINARY_H
+#define LLVM_OBJECT_OFFLOADBINARY_H
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Object/Binary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <memory>
 
 namespace llvm {
+
+namespace object {
 
 /// The producer of the associated offloading image.
 enum OffloadKind : uint16_t {
@@ -31,6 +34,7 @@ enum OffloadKind : uint16_t {
   OFK_OpenMP,
   OFK_Cuda,
   OFK_HIP,
+  OFK_LAST,
 };
 
 /// The type of contents the offloading image contains.
@@ -41,6 +45,7 @@ enum ImageKind : uint16_t {
   IMG_Cubin,
   IMG_Fatbinary,
   IMG_PTX,
+  IMG_LAST,
 };
 
 /// A simple binary serialization of an offloading file. We use this format to
@@ -52,15 +57,21 @@ enum ImageKind : uint16_t {
 /// detect ABI stability and the size is used to find other offloading entries
 /// that may exist in the same section. All offsets are given as absolute byte
 /// offsets from the beginning of the file.
-class OffloadBinary {
+class OffloadBinary : public Binary {
 public:
+  using string_iterator = StringMap<StringRef>::const_iterator;
+  using string_iterator_range = iterator_range<string_iterator>;
+
+  /// The current version of the binary used for backwards compatibility.
+  static const uint32_t Version = 1;
+
   /// The offloading metadata that will be serialized to a memory buffer.
   struct OffloadingImage {
     ImageKind TheImageKind;
     OffloadKind TheOffloadKind;
     uint32_t Flags;
     StringMap<StringRef> StringData;
-    MemoryBufferRef Image;
+    std::unique_ptr<MemoryBuffer> Image;
   };
 
   /// Attempt to parse the offloading binary stored in \p Data.
@@ -69,7 +80,7 @@ public:
   /// Serialize the contents of \p File to a binary buffer to be read later.
   static std::unique_ptr<MemoryBuffer> write(const OffloadingImage &);
 
-  static uint64_t getAlignment() { return alignof(Header); }
+  static uint64_t getAlignment() { return 8; }
 
   ImageKind getImageKind() const { return TheEntry->TheImageKind; }
   OffloadKind getOffloadKind() const { return TheEntry->TheOffloadKind; }
@@ -83,12 +94,18 @@ public:
     return StringRef(&Buffer[TheEntry->ImageOffset], TheEntry->ImageSize);
   }
 
+  // Iterator over all the key and value pairs in the binary.
+  string_iterator_range strings() const {
+    return string_iterator_range(StringData.begin(), StringData.end());
+  }
+
   StringRef getString(StringRef Key) const { return StringData.lookup(Key); }
 
-private:
+  static bool classof(const Binary *V) { return V->isOffloadFile(); }
+
   struct Header {
     uint8_t Magic[4] = {0x10, 0xFF, 0x10, 0xAD}; // 0x10FF10AD magic bytes.
-    uint32_t Version = 1;                        // Version identifier.
+    uint32_t Version = OffloadBinary::Version;   // Version identifier.
     uint64_t Size;        // Size in bytes of this entire binary.
     uint64_t EntryOffset; // Offset of the metadata entry in bytes.
     uint64_t EntrySize;   // Size of the metadata entry in bytes.
@@ -109,10 +126,11 @@ private:
     uint64_t ValueOffset;
   };
 
-  OffloadBinary(const char *Buffer, const Header *TheHeader,
+private:
+  OffloadBinary(MemoryBufferRef Source, const Header *TheHeader,
                 const Entry *TheEntry)
-      : Buffer(Buffer), TheHeader(TheHeader), TheEntry(TheEntry) {
-
+      : Binary(Binary::ID_Offload, Source), Buffer(Source.getBufferStart()),
+        TheHeader(TheHeader), TheEntry(TheEntry) {
     const StringEntry *StringMapBegin =
         reinterpret_cast<const StringEntry *>(&Buffer[TheEntry->StringOffset]);
     for (uint64_t I = 0, E = TheEntry->NumStrings; I != E; ++I) {
@@ -125,13 +143,35 @@ private:
 
   /// Map from keys to offsets in the binary.
   StringMap<StringRef> StringData;
-  /// Pointer to the beginning of the memory buffer for convenience.
+  /// Raw pointer to the MemoryBufferRef for convenience.
   const char *Buffer;
   /// Location of the header within the binary.
   const Header *TheHeader;
   /// Location of the metadata entries within the binary.
   const Entry *TheEntry;
 };
+
+/// A class to contain the binary information for a single OffloadBinary that
+/// owns its memory.
+class OffloadFile : public OwningBinary<OffloadBinary> {
+public:
+  using TargetID = std::pair<StringRef, StringRef>;
+
+  OffloadFile(std::unique_ptr<OffloadBinary> Binary,
+              std::unique_ptr<MemoryBuffer> Buffer)
+      : OwningBinary<OffloadBinary>(std::move(Binary), std::move(Buffer)) {}
+
+  /// We use the Triple and Architecture pair to group linker inputs together.
+  /// This conversion function lets us use these inputs in a hash-map.
+  operator TargetID() const {
+    return std::make_pair(getBinary()->getTriple(), getBinary()->getArch());
+  }
+};
+
+/// Extracts embedded device offloading code from a memory \p Buffer to a list
+/// of \p Binaries.
+Error extractOffloadBinaries(MemoryBufferRef Buffer,
+                             SmallVectorImpl<OffloadFile> &Binaries);
 
 /// Convert a string \p Name to an image kind.
 ImageKind getImageKind(StringRef Name);
@@ -144,6 +184,8 @@ OffloadKind getOffloadKind(StringRef Name);
 
 /// Convert an offload kind to its string representation.
 StringRef getOffloadKindName(OffloadKind Name);
+
+} // namespace object
 
 } // namespace llvm
 #endif

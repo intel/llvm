@@ -47,7 +47,8 @@ enum class LLDBLog : Log::MaskType {
   Types = Log::ChannelFlag<28>,
   Unwind = Log::ChannelFlag<29>,
   Watchpoints = Log::ChannelFlag<30>,
-  LLVM_MARK_AS_BITMASK_ENUM(Watchpoints),
+  OnDemand = Log::ChannelFlag<31>,
+  LLVM_MARK_AS_BITMASK_ENUM(OnDemand),
 };
 
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();

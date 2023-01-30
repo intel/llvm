@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -41,7 +42,7 @@ public:
     /// Look for compilation databases, rather than using compile commands
     /// set via LSP (extensions) only.
     bool UseDirBasedCDB = true;
-    /// The offset-encoding to use, or None to negotiate it over LSP.
+    /// The offset-encoding to use, or std::nullopt to negotiate it over LSP.
     llvm::Optional<OffsetEncoding> Encoding;
     /// If set, periodically called to release memory.
     /// Consider malloc_trim(3)
@@ -93,7 +94,7 @@ private:
   void onDocumentDidChange(const DidChangeTextDocumentParams &);
   void onDocumentDidClose(const DidCloseTextDocumentParams &);
   void onDocumentDidSave(const DidSaveTextDocumentParams &);
-  void onAST(const ASTParams &, Callback<llvm::Optional<ASTNode>>);
+  void onAST(const ASTParams &, Callback<std::optional<ASTNode>>);
   void onDocumentOnTypeFormatting(const DocumentOnTypeFormattingParams &,
                                   Callback<std::vector<TextEdit>>);
   void onDocumentRangeFormatting(const DocumentRangeFormattingParams &,
@@ -121,21 +122,27 @@ private:
                             Callback<std::vector<Location>>);
   void onReference(const ReferenceParams &, Callback<std::vector<Location>>);
   void onSwitchSourceHeader(const TextDocumentIdentifier &,
-                            Callback<llvm::Optional<URIForFile>>);
+                            Callback<std::optional<URIForFile>>);
   void onDocumentHighlight(const TextDocumentPositionParams &,
                            Callback<std::vector<DocumentHighlight>>);
   void onFileEvent(const DidChangeWatchedFilesParams &);
   void onWorkspaceSymbol(const WorkspaceSymbolParams &,
                          Callback<std::vector<SymbolInformation>>);
   void onPrepareRename(const TextDocumentPositionParams &,
-                       Callback<llvm::Optional<Range>>);
+                       Callback<std::optional<Range>>);
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
-               Callback<llvm::Optional<Hover>>);
-  void onTypeHierarchy(const TypeHierarchyParams &,
-                       Callback<llvm::Optional<TypeHierarchyItem>>);
+               Callback<std::optional<Hover>>);
+  void onPrepareTypeHierarchy(const TypeHierarchyPrepareParams &,
+                              Callback<std::vector<TypeHierarchyItem>>);
+  void onSuperTypes(const ResolveTypeHierarchyItemParams &,
+                    Callback<std::optional<std::vector<TypeHierarchyItem>>>);
+  void onSubTypes(const ResolveTypeHierarchyItemParams &,
+                  Callback<std::vector<TypeHierarchyItem>>);
+  void onTypeHierarchy(const TypeHierarchyPrepareParams &,
+                       Callback<llvm::json::Value>);
   void onResolveTypeHierarchy(const ResolveTypeHierarchyItemParams &,
-                              Callback<llvm::Optional<TypeHierarchyItem>>);
+                              Callback<llvm::json::Value>);
   void onPrepareCallHierarchy(const CallHierarchyPrepareParams &,
                               Callback<std::vector<CallHierarchyItem>>);
   void onCallHierarchyIncomingCalls(
@@ -144,7 +151,9 @@ private:
   void onCallHierarchyOutgoingCalls(
       const CallHierarchyOutgoingCallsParams &,
       Callback<std::vector<CallHierarchyOutgoingCall>>);
-  void onInlayHints(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
+  void onClangdInlayHints(const InlayHintsParams &,
+                          Callback<llvm::json::Value>);
+  void onInlayHint(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
   void onChangeConfiguration(const DidChangeConfigurationParams &);
   void onSymbolInfo(const TextDocumentPositionParams &,
                     Callback<std::vector<SymbolDetails>>);

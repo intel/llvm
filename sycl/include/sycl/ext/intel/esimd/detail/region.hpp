@@ -12,16 +12,14 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
+#include <sycl/detail/defines.hpp>
 #include <type_traits>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @cond ESIMD_DETAIL
 // TODO move to detail?
@@ -135,10 +133,8 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 
 /// @endcond ESIMD_DETAIL
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL

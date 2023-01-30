@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<class D>
 //   requires is_class_v<D> && same_as<D, remove_cv_t<D>>
@@ -234,12 +233,18 @@ constexpr bool testSize() {
   static_assert(!SizeInvocable<NotSizedSentinel>);
   static_assert( SizeInvocable<ForwardRange>);
 
+  using SignedSize = std::common_type_t<std::ptrdiff_t, std::make_signed_t<std::size_t>>;
   ForwardRange forwardRange;
   assert(forwardRange.size() == 8);
   assert(static_cast<ForwardRange const&>(forwardRange).size() == 8);
 
   assert(std::ranges::size(forwardRange) == 8);
+  static_assert(std::same_as<decltype(std::ranges::size(std::declval<ForwardRange>())), std::size_t>);
+  static_assert(std::same_as<decltype(std::ranges::ssize(std::declval<ForwardRange>())), SignedSize>);
+
   assert(std::ranges::size(static_cast<ForwardRange const&>(forwardRange)) == 8);
+  static_assert(std::same_as<decltype(std::ranges::size(std::declval<ForwardRange const>())), std::size_t>);
+  static_assert(std::same_as<decltype(std::ranges::ssize(std::declval<ForwardRange const>())), SignedSize>);
 
   SizeIsTen sizeTen;
   assert(sizeTen.size() == 10);

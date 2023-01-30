@@ -10,6 +10,7 @@
 #include "AST.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -30,6 +31,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <set>
 #include <string>
 
 namespace clang {
@@ -393,7 +395,7 @@ private:
           // Implausible if upperbound(Tok) < First.
           if (auto Offset = LastAffectedToken(Tok.location()))
             return *Offset < First;
-          // A prefix of the expanded tokens may be from an an implicit
+          // A prefix of the expanded tokens may be from an implicit
           // inclusion (e.g. preamble patch, or command-line -include).
           return true;
         });
@@ -515,7 +517,7 @@ private:
     // But SourceLocations for a file are numerically contiguous, so we
     // can use cheap integer operations instead.
     if (Loc < SelFileBounds.getBegin() || Loc >= SelFileBounds.getEnd())
-      return llvm::None;
+      return std::nullopt;
     // FIXME: subtracting getRawEncoding() is dubious, move this logic into SM.
     return Loc.getRawEncoding() - SelFileBounds.getBegin().getRawEncoding();
   }
@@ -708,6 +710,23 @@ public:
   bool TraversePseudoObjectExpr(PseudoObjectExpr *E) {
     return traverseNode(E, [&] { return TraverseStmt(E->getSyntacticForm()); });
   }
+  bool TraverseTypeConstraint(const TypeConstraint *C) {
+    if (auto *E = C->getImmediatelyDeclaredConstraint()) {
+      // Technically this expression is 'implicit' and not traversed by the RAV.
+      // However, the range is correct, so we visit expression to avoid adding
+      // an extra kind to 'DynTypeNode' that hold 'TypeConstraint'.
+      return TraverseStmt(E);
+    }
+    return Base::TraverseTypeConstraint(C);
+  }
+
+  // Override child traversal for certain node types.
+  using RecursiveASTVisitor::getStmtChildren;
+  // PredefinedExpr like __func__ has a StringLiteral child for its value.
+  // It's not written, so don't traverse it.
+  Stmt::child_range getStmtChildren(PredefinedExpr *) {
+    return {StmtIterator{}, StmtIterator{}};
+  }
 
 private:
   using Base = RecursiveASTVisitor<SelectionVisitor>;
@@ -841,7 +860,7 @@ private:
   // is not available to the node's children.
   // Usually empty, but sometimes children cover tokens but shouldn't own them.
   SourceRange earlySourceRange(const DynTypedNode &N) {
-    if (const Decl *D = N.get<Decl>()) {
+    if (const Decl *VD = N.get<VarDecl>()) {
       // We want the name in the var-decl to be claimed by the decl itself and
       // not by any children. Ususally, we don't need this, because source
       // ranges of children are not overlapped with their parent's.
@@ -850,8 +869,20 @@ private:
       //    auto fun = [bar = foo]() { ... }
       //                ~~~~~~~~~   VarDecl
       //                ~~~         |- AutoTypeLoc
-      if (const auto *DD = llvm::dyn_cast<VarDecl>(D))
-        return DD->getLocation();
+      return VD->getLocation();
+    }
+
+    // When referring to a destructor ~Foo(), attribute Foo to the destructor
+    // rather than the TypeLoc nested inside it.
+    // We still traverse the TypeLoc, because it may contain other targeted
+    // things like the T in ~Foo<T>().
+    if (const auto *CDD = N.get<CXXDestructorDecl>())
+      return CDD->getNameInfo().getNamedTypeInfo()->getTypeLoc().getBeginLoc();
+    if (const auto *ME = N.get<MemberExpr>()) {
+      auto NameInfo = ME->getMemberNameInfo();
+      if (NameInfo.getName().getNameKind() ==
+          DeclarationName::CXXDestructorName)
+        return NameInfo.getNamedTypeInfo()->getTypeLoc().getBeginLoc();
     }
 
     return SourceRange();

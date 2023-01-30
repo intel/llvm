@@ -123,7 +123,7 @@ public:
 
   /// GetModule may return module for compile unit's object file.
   /// GetExeModule returns module for executable object file that contains
-  /// compile unit where type was actualy defined.
+  /// compile unit where type was actually defined.
   /// GetModule and GetExeModule may return the same value.
   lldb::ModuleSP GetExeModule();
 
@@ -135,11 +135,16 @@ public:
 
   ConstString GetName();
 
+  ConstString GetBaseName();
+
   llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope);
 
   uint32_t GetNumChildren(bool omit_empty_base_classes);
 
   bool IsAggregateType();
+
+  // Returns if the type is a templated decl. Does not look through typedefs.
+  bool IsTemplateType();
 
   bool IsValidType() { return m_encoding_uid_type != eEncodingInvalid; }
 
@@ -165,14 +170,6 @@ public:
 
   bool WriteToMemory(ExecutionContext *exe_ctx, lldb::addr_t address,
                      AddressType address_type, DataExtractor &data);
-
-  bool GetIsDeclaration() const;
-
-  void SetIsDeclaration(bool b);
-
-  bool GetIsExternal() const;
-
-  void SetIsExternal(bool b);
 
   lldb::Format GetFormat();
 
@@ -295,7 +292,7 @@ public:
 
   CompilerType GetCompilerType(bool prefer_dynamic);
 
-  TypeSystem *GetTypeSystem(bool prefer_dynamic);
+  CompilerType::TypeSystemSPWrapper GetTypeSystem(bool prefer_dynamic);
 
   bool GetDescription(lldb_private::Stream &strm,
                       lldb::DescriptionLevel description_level);
@@ -314,7 +311,7 @@ private:
 
 class TypeListImpl {
 public:
-  TypeListImpl() {}
+  TypeListImpl() = default;
 
   void Append(const lldb::TypeImplSP &type) { m_content.push_back(type); }
 
@@ -345,7 +342,7 @@ private:
 
 class TypeMemberImpl {
 public:
-  TypeMemberImpl() {}
+  TypeMemberImpl() = default;
 
   TypeMemberImpl(const lldb::TypeImplSP &type_impl_sp, uint64_t bit_offset,
                  ConstString name, uint32_t bitfield_bit_size = 0,
@@ -437,7 +434,7 @@ private:
 
 class TypeMemberFunctionImpl {
 public:
-  TypeMemberFunctionImpl() {}
+  TypeMemberFunctionImpl() = default;
 
   TypeMemberFunctionImpl(const CompilerType &type, const CompilerDecl &decl,
                          const std::string &name,
@@ -502,7 +499,7 @@ protected:
 
 class TypeEnumMemberListImpl {
 public:
-  TypeEnumMemberListImpl() {}
+  TypeEnumMemberListImpl() = default;
 
   void Append(const lldb::TypeEnumMemberImplSP &type) {
     m_content.push_back(type);

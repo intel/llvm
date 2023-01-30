@@ -93,8 +93,12 @@ dummy_output = """\
 }"""
 
 json_filename = os.environ['GTEST_OUTPUT'].split(':', 1)[1]
-with open(json_filename, 'w') as f:
+with open(json_filename, 'w', encoding='utf-8') as f:
     if os.environ['GTEST_SHARD_INDEX'] == '0':
+        print('[ RUN      ] FirstTest.subTestB', flush=True)
+        print('I am subTest B output', file=sys.stderr, flush=True)
+        print('[  FAILED  ] FirstTest.subTestB (8 ms)', flush=True)
+
         f.write(output)
         exit_code = 1
     else:

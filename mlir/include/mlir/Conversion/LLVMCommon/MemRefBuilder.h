@@ -43,6 +43,10 @@ public:
   static MemRefDescriptor fromStaticShape(OpBuilder &builder, Location loc,
                                           LLVMTypeConverter &typeConverter,
                                           MemRefType type, Value memory);
+  static MemRefDescriptor fromStaticShape(OpBuilder &builder, Location loc,
+                                          LLVMTypeConverter &typeConverter,
+                                          MemRefType type, Value memory,
+                                          Value alignedMemory);
 
   /// Builds IR extracting the allocated pointer from the descriptor.
   Value allocatedPtr(OpBuilder &builder, Location loc);
@@ -78,6 +82,9 @@ public:
   void setStride(OpBuilder &builder, Location loc, unsigned pos, Value stride);
   void setConstantStride(OpBuilder &builder, Location loc, unsigned pos,
                          uint64_t stride);
+
+  /// Returns the type of array element in this descriptor.
+  Type getIndexType() { return indexType; };
 
   /// Returns the (LLVM) pointer type this descriptor contains.
   LLVM::LLVMPointerType getElementPtrType();

@@ -258,7 +258,7 @@ void ClangTidyContext::setProfileStoragePrefix(StringRef Prefix) {
 llvm::Optional<ClangTidyProfiling::StorageParams>
 ClangTidyContext::getProfileStorageParams() const {
   if (ProfilePrefix.empty())
-    return llvm::None;
+    return std::nullopt;
 
   return ClangTidyProfiling::StorageParams(ProfilePrefix, CurrentFile);
 }
@@ -403,6 +403,8 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
 
     bool IsWarningAsError = DiagLevel == DiagnosticsEngine::Warning &&
                             Context.treatAsError(CheckName);
+    if (IsWarningAsError)
+      Level = ClangTidyError::Error;
     Errors.emplace_back(CheckName, Level, Context.getCurrentBuildDirectory(),
                         IsWarningAsError);
   }

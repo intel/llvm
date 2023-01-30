@@ -60,7 +60,7 @@ using namespace llvm;
 
 namespace llvm {
 cl::opt<bool>
-    DebugInfoCorrelate("debug-info-correlate", cl::ZeroOrMore,
+    DebugInfoCorrelate("debug-info-correlate",
                        cl::desc("Use debug info to correlate profiles."),
                        cl::init(false));
 } // namespace llvm
@@ -93,18 +93,18 @@ cl::opt<double> NumCountersPerValueSite(
     cl::init(1.0));
 
 cl::opt<bool> AtomicCounterUpdateAll(
-    "instrprof-atomic-counter-update-all", cl::ZeroOrMore,
+    "instrprof-atomic-counter-update-all",
     cl::desc("Make all profile counter updates atomic (for testing only)"),
     cl::init(false));
 
 cl::opt<bool> AtomicCounterUpdatePromoted(
-    "atomic-counter-update-promoted", cl::ZeroOrMore,
+    "atomic-counter-update-promoted",
     cl::desc("Do counter update using atomic fetch add "
              " for promoted counters only"),
     cl::init(false));
 
 cl::opt<bool> AtomicFirstCounter(
-    "atomic-first-counter", cl::ZeroOrMore,
+    "atomic-first-counter",
     cl::desc("Use atomic fetch add for first counter in a function (usually "
              "the entry counter)"),
     cl::init(false));
@@ -114,67 +114,38 @@ cl::opt<bool> AtomicFirstCounter(
 // pipeline is setup, i.e., the default value of true of this option
 // does not mean the promotion will be done by default. Explicitly
 // setting this option can override the default behavior.
-cl::opt<bool> DoCounterPromotion("do-counter-promotion", cl::ZeroOrMore,
+cl::opt<bool> DoCounterPromotion("do-counter-promotion",
                                  cl::desc("Do counter register promotion"),
                                  cl::init(false));
 cl::opt<unsigned> MaxNumOfPromotionsPerLoop(
-    cl::ZeroOrMore, "max-counter-promotions-per-loop", cl::init(20),
+    "max-counter-promotions-per-loop", cl::init(20),
     cl::desc("Max number counter promotions per loop to avoid"
              " increasing register pressure too much"));
 
 // A debug option
 cl::opt<int>
-    MaxNumOfPromotions(cl::ZeroOrMore, "max-counter-promotions", cl::init(-1),
+    MaxNumOfPromotions("max-counter-promotions", cl::init(-1),
                        cl::desc("Max number of allowed counter promotions"));
 
 cl::opt<unsigned> SpeculativeCounterPromotionMaxExiting(
-    cl::ZeroOrMore, "speculative-counter-promotion-max-exiting", cl::init(3),
+    "speculative-counter-promotion-max-exiting", cl::init(3),
     cl::desc("The max number of exiting blocks of a loop to allow "
              " speculative counter promotion"));
 
 cl::opt<bool> SpeculativeCounterPromotionToLoop(
-    cl::ZeroOrMore, "speculative-counter-promotion-to-loop", cl::init(false),
+    "speculative-counter-promotion-to-loop",
     cl::desc("When the option is false, if the target block is in a loop, "
              "the promotion will be disallowed unless the promoted counter "
              " update can be further/iteratively promoted into an acyclic "
              " region."));
 
 cl::opt<bool> IterativeCounterPromotion(
-    cl::ZeroOrMore, "iterative-counter-promotion", cl::init(true),
+    "iterative-counter-promotion", cl::init(true),
     cl::desc("Allow counter promotion across the whole loop nest."));
 
 cl::opt<bool> SkipRetExitBlock(
-    cl::ZeroOrMore, "skip-ret-exit-block", cl::init(true),
+    "skip-ret-exit-block", cl::init(true),
     cl::desc("Suppress counter promotion if exit blocks contain ret."));
-
-class InstrProfilingLegacyPass : public ModulePass {
-  InstrProfiling InstrProf;
-
-public:
-  static char ID;
-
-  InstrProfilingLegacyPass() : ModulePass(ID) {}
-  InstrProfilingLegacyPass(const InstrProfOptions &Options, bool IsCS = false)
-      : ModulePass(ID), InstrProf(Options, IsCS) {
-    initializeInstrProfilingLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  StringRef getPassName() const override {
-    return "Frontend instrumentation-based coverage lowering";
-  }
-
-  bool runOnModule(Module &M) override {
-    auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
-      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    };
-    return InstrProf.run(M, GetTLI);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-  }
-};
 
 ///
 /// A helper class to promote one counter RMW operation in the loop
@@ -209,6 +180,18 @@ public:
       Value *Addr = cast<StoreInst>(Store)->getPointerOperand();
       Type *Ty = LiveInValue->getType();
       IRBuilder<> Builder(InsertPos);
+      if (auto *AddrInst = dyn_cast_or_null<IntToPtrInst>(Addr)) {
+        // If isRuntimeCounterRelocationEnabled() is true then the address of
+        // the store instruction is computed with two instructions in
+        // InstrProfiling::getCounterAddress(). We need to copy those
+        // instructions to this block to compute Addr correctly.
+        // %BiasAdd = add i64 ptrtoint <__profc_>, <__llvm_profile_counter_bias>
+        // %Addr = inttoptr i64 %BiasAdd to i64*
+        auto *OrigBiasInst = dyn_cast<BinaryOperator>(AddrInst->getOperand(0));
+        assert(OrigBiasInst->getOpcode() == Instruction::BinaryOps::Add);
+        Value *BiasInst = Builder.Insert(OrigBiasInst->clone());
+        Addr = Builder.CreateIntToPtr(BiasInst, Ty->getPointerTo());
+      }
       if (AtomicCounterUpdatePromoted)
         // automic update currently can only be promoted across the current
         // loop, not the whole loop nest.
@@ -276,7 +259,7 @@ public:
     // of the loop, the result profile is incomplete.
     // FIXME: add other heuristics to detect long running loops.
     if (SkipRetExitBlock) {
-      for (auto BB : ExitBlocks)
+      for (auto *BB : ExitBlocks)
         if (isa<ReturnInst>(BB->getTerminator()))
           return false;
     }
@@ -301,8 +284,7 @@ public:
         auto PreheaderCount = BFI->getBlockProfileCount(L.getLoopPreheader());
         // If the average loop trip count is not greater than 1.5, we skip
         // promotion.
-        if (PreheaderCount &&
-            (PreheaderCount.getValue() * 3) >= (InstrCount.getValue() * 2))
+        if (PreheaderCount && (*PreheaderCount * 3) >= (*InstrCount * 2))
           continue;
       }
 
@@ -428,21 +410,6 @@ PreservedAnalyses InstrProfiling::run(Module &M, ModuleAnalysisManager &AM) {
   return PreservedAnalyses::none();
 }
 
-char InstrProfilingLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(InstrProfilingLegacyPass, "instrprof",
-                      "Frontend instrumentation-based coverage lowering.",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(InstrProfilingLegacyPass, "instrprof",
-                    "Frontend instrumentation-based coverage lowering.", false,
-                    false)
-
-ModulePass *
-llvm::createInstrProfilingLegacyPass(const InstrProfOptions &Options,
-                                     bool IsCS) {
-  return new InstrProfilingLegacyPass(Options, IsCS);
-}
-
 bool InstrProfiling::lowerIntrinsics(Function *F) {
   bool MadeChange = false;
   PromotionCandidates.clear();
@@ -558,15 +525,15 @@ bool InstrProfiling::run(
   TT = Triple(M.getTargetTriple());
 
   bool MadeChange = false;
-
-  // Emit the runtime hook even if no counters are present.
-  if (needsRuntimeHookUnconditionally(TT))
+  bool NeedsRuntimeHook = needsRuntimeHookUnconditionally(TT);
+  if (NeedsRuntimeHook)
     MadeChange = emitRuntimeHook();
 
-  // Improve compile time by avoiding linear scans when there is no work.
+  bool ContainsProfiling = containsProfilingIntrinsics(M);
   GlobalVariable *CoverageNamesVar =
       M.getNamedGlobal(getCoverageUnusedNamesVarName());
-  if (!containsProfilingIntrinsics(M) && !CoverageNamesVar)
+  // Improve compile time by avoiding linear scans when there is no work.
+  if (!ContainsProfiling && !CoverageNamesVar)
     return MadeChange;
 
   // We did not know how many value sites there would be inside
@@ -600,7 +567,14 @@ bool InstrProfiling::run(
 
   emitVNodes();
   emitNameData();
-  emitRuntimeHook();
+
+  // Emit runtime hook for the cases where the target does not unconditionally
+  // require pulling in profile runtime, and coverage is enabled on code that is
+  // not eliminated by the front-end, e.g. unused functions with internal
+  // linkage.
+  if (!NeedsRuntimeHook && ContainsProfiling)
+    emitRuntimeHook();
+
   emitRegistration();
   emitUses();
   emitInitialization();
@@ -703,10 +677,9 @@ Value *InstrProfiling::getCounterAddress(InstrProfInstBase *I) {
 
   Type *Int64Ty = Type::getInt64Ty(M->getContext());
   Function *Fn = I->getParent()->getParent();
-  Instruction &EntryI = Fn->getEntryBlock().front();
-  LoadInst *LI = dyn_cast<LoadInst>(&EntryI);
-  if (!LI) {
-    IRBuilder<> EntryBuilder(&EntryI);
+  LoadInst *&BiasLI = FunctionToProfileBiasMap[Fn];
+  if (!BiasLI) {
+    IRBuilder<> EntryBuilder(&Fn->getEntryBlock().front());
     auto *Bias = M->getGlobalVariable(getInstrProfCounterBiasVarName());
     if (!Bias) {
       // Compiler must define this variable when runtime counter relocation
@@ -723,9 +696,9 @@ Value *InstrProfiling::getCounterAddress(InstrProfInstBase *I) {
       if (TT.supportsCOMDAT())
         Bias->setComdat(M->getOrInsertComdat(Bias->getName()));
     }
-    LI = EntryBuilder.CreateLoad(Int64Ty, Bias);
+    BiasLI = EntryBuilder.CreateLoad(Int64Ty, Bias);
   }
-  auto *Add = Builder.CreateAdd(Builder.CreatePtrToInt(Addr, Int64Ty), LI);
+  auto *Add = Builder.CreateAdd(Builder.CreatePtrToInt(Addr, Int64Ty), BiasLI);
   return Builder.CreateIntToPtr(Add, Addr->getType());
 }
 
@@ -855,8 +828,8 @@ static bool needsRuntimeRegistrationOfSectionRange(const Triple &TT) {
   if (TT.isOSDarwin())
     return false;
   // Use linker script magic to get data/cnts/name start/end.
-  if (TT.isOSLinux() || TT.isOSFreeBSD() || TT.isOSNetBSD() ||
-      TT.isOSSolaris() || TT.isOSFuchsia() || TT.isPS4() || TT.isOSWindows())
+  if (TT.isOSAIX() || TT.isOSLinux() || TT.isOSFreeBSD() || TT.isOSNetBSD() ||
+      TT.isOSSolaris() || TT.isOSFuchsia() || TT.isPS() || TT.isOSWindows())
     return false;
 
   return true;
@@ -948,6 +921,11 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfInstBase *Inc) {
       if (!NeedComdat)
         C->setSelectionKind(Comdat::NoDeduplicate);
       GV->setComdat(C);
+      // COFF doesn't allow the comdat group leader to have private linkage, so
+      // upgrade private linkage to internal linkage to produce a symbol table
+      // entry.
+      if (TT.isOSBinFormatCOFF() && GV->hasPrivateLinkage())
+        GV->setLinkage(GlobalValue::InternalLinkage);
     }
   };
 
@@ -958,8 +936,8 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfInstBase *Inc) {
   CounterPtr->setVisibility(Visibility);
   CounterPtr->setSection(
       getInstrProfSectionName(IPSK_cnts, TT.getObjectFormat()));
-  MaybeSetComdat(CounterPtr);
   CounterPtr->setLinkage(Linkage);
+  MaybeSetComdat(CounterPtr);
   PD.RegionCounters = CounterPtr;
   if (DebugInfoCorrelate) {
     if (auto *SP = Fn->getSubprogram()) {
@@ -1079,7 +1057,6 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfInstBase *Inc) {
   Data->setSection(getInstrProfSectionName(IPSK_data, TT.getObjectFormat()));
   Data->setAlignment(Align(INSTR_PROF_DATA_ALIGNMENT));
   MaybeSetComdat(Data);
-  Data->setLinkage(Linkage);
 
   PD.DataVar = Data;
 
@@ -1222,7 +1199,7 @@ void InstrProfiling::emitRegistration() {
 bool InstrProfiling::emitRuntimeHook() {
   // We expect the linker to be invoked with -u<hook_var> flag for Linux
   // in which case there is no need to emit the external variable.
-  if (TT.isOSLinux())
+  if (TT.isOSLinux() || TT.isOSAIX())
     return false;
 
   // If the module's provided its own runtime, we don't need to do anything.
@@ -1234,8 +1211,9 @@ bool InstrProfiling::emitRuntimeHook() {
   auto *Var =
       new GlobalVariable(*M, Int32Ty, false, GlobalValue::ExternalLinkage,
                          nullptr, getInstrProfRuntimeHookVarName());
+  Var->setVisibility(GlobalValue::HiddenVisibility);
 
-  if (TT.isOSBinFormatELF()) {
+  if (TT.isOSBinFormatELF() && !TT.isPS()) {
     // Mark the user variable as used so that it isn't stripped out.
     CompilerUsedVars.push_back(Var);
   } else {

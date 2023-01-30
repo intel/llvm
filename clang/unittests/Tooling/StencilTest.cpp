@@ -43,6 +43,7 @@ static std::string wrapSnippet(StringRef ExtraPreface,
       T& operator*() const;
     };
     }
+    template<class T> T desugar() { return T(); };
   )cc";
   return (Preface + ExtraPreface + "auto stencil_test_snippet = []{" +
           StatementCode + "};")
@@ -75,14 +76,14 @@ static llvm::Optional<TestMatch> matchStmt(StringRef StatementCode,
       wrapSnippet(ExtraPreface, StatementCode), {"-Wno-unused-value"});
   if (AstUnit == nullptr) {
     ADD_FAILURE() << "AST construction failed";
-    return llvm::None;
+    return std::nullopt;
   }
   ASTContext &Context = AstUnit->getASTContext();
   auto Matches = ast_matchers::match(wrapMatcher(Matcher), Context);
   // We expect a single, exact match for the statement.
   if (Matches.size() != 1) {
     ADD_FAILURE() << "Wrong number of matches: " << Matches.size();
-    return llvm::None;
+    return std::nullopt;
   }
   return TestMatch{std::move(AstUnit), MatchResult(Matches[0], &Context)};
 }
@@ -545,7 +546,7 @@ TEST_F(StencilTest, DescribeQualifiedType) {
 
 TEST_F(StencilTest, DescribeUnqualifiedType) {
   std::string Snippet = "using N::C; C c; c;";
-  std::string Expected = "N::C";
+  std::string Expected = "C";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));
   ASSERT_TRUE(StmtMatch);
@@ -554,7 +555,7 @@ TEST_F(StencilTest, DescribeUnqualifiedType) {
 }
 
 TEST_F(StencilTest, DescribeAnonNamespaceType) {
-  std::string Snippet = "AnonC c; c;";
+  std::string Snippet = "auto c = desugar<AnonC>(); c;";
   std::string Expected = "(anonymous namespace)::AnonC";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));

@@ -25,7 +25,7 @@ size_t HTRBlockMetadata::GetNumInstructions() const {
 llvm::Optional<llvm::StringRef>
 HTRBlockMetadata::GetMostFrequentlyCalledFunction() const {
   size_t max_ncalls = 0;
-  llvm::Optional<llvm::StringRef> max_name = llvm::None;
+  llvm::Optional<llvm::StringRef> max_name;
   for (const auto &it : m_func_calls) {
     ConstString name = it.first;
     size_t ncalls = it.second;
@@ -130,8 +130,11 @@ TraceHTR::TraceHTR(Thread &thread, TraceCursor &cursor)
 
   // Move cursor to the first instruction in the trace
   cursor.SetForwards(true);
-  cursor.Seek(0, TraceCursor::SeekType::Beginning);
+  cursor.Seek(0, lldb::eTraceCursorSeekTypeBeginning);
 
+  // TODO: fix after persona0220's patch on a new way to access instruction
+  // kinds
+  /*
   Target &target = thread.GetProcess()->GetTarget();
   auto function_name_from_load_address =
       [&](lldb::addr_t load_address) -> llvm::Optional<ConstString> {
@@ -141,30 +144,31 @@ TraceHTR::TraceHTR(Thread &thread, TraceCursor &cursor)
         pc_addr.CalculateSymbolContext(&sc))
       return sc.GetFunctionName()
                  ? llvm::Optional<ConstString>(sc.GetFunctionName())
-                 : llvm::None;
+                 : std::nullopt;
     else
-      return llvm::None;
+      return std::nullopt;
   };
 
-  bool more_data_in_trace = true;
-  while (more_data_in_trace) {
-    if (cursor.IsError()) {
+  while (cursor.HasValue()) { if (cursor.IsError()) {
       // Append a load address of 0 for all instructions that an error occured
       // while decoding.
       // TODO: Make distinction between errors by storing the error messages.
       // Currently, all errors are treated the same.
       m_instruction_layer_up->AppendInstruction(0);
-      more_data_in_trace = cursor.Next();
+      cursor.Next();
+    } else if (cursor.IsEvent()) {
+      cursor.Next();
     } else {
       lldb::addr_t current_instruction_load_address = cursor.GetLoadAddress();
-      lldb::TraceInstructionControlFlowType current_instruction_type =
-          cursor.GetInstructionControlFlowType();
+      lldb::InstructionControlFlowKind current_instruction_type =
+          cursor.GetInstructionControlFlowKind();
 
       m_instruction_layer_up->AppendInstruction(
           current_instruction_load_address);
-      more_data_in_trace = cursor.Next();
+      cursor.Next();
+      bool more_data_in_trace = cursor.HasValue();
       if (current_instruction_type &
-          lldb::eTraceInstructionControlFlowTypeCall) {
+          lldb::eInstructionControlFlowKindCall) {
         if (more_data_in_trace && !cursor.IsError()) {
           m_instruction_layer_up->AddCallInstructionMetadata(
               current_instruction_load_address,
@@ -173,11 +177,12 @@ TraceHTR::TraceHTR(Thread &thread, TraceCursor &cursor)
           // Next instruction is not known - pass None to indicate the name
           // of the function being called is not known
           m_instruction_layer_up->AddCallInstructionMetadata(
-              current_instruction_load_address, llvm::None);
+              current_instruction_load_address, std::nullopt);
         }
       }
     }
   }
+  */
 }
 
 void HTRBlockMetadata::MergeMetadata(
@@ -311,7 +316,7 @@ HTRBlockLayerUP lldb_private::BasicSuperBlockMerge(IHTRLayer &layer) {
     // Each super block always has the same first unit (we call this the
     // super block head) This gurantee allows us to use the super block head as
     // the unique key mapping to the super block it begins
-    llvm::Optional<size_t> superblock_head = llvm::None;
+    llvm::Optional<size_t> superblock_head;
     auto construct_next_layer = [&](size_t merge_start, size_t n) -> void {
       if (!superblock_head)
         return;
@@ -344,7 +349,7 @@ HTRBlockLayerUP lldb_private::BasicSuperBlockMerge(IHTRLayer &layer) {
         // Tail logic
         construct_next_layer(i - superblock_size + 1, superblock_size);
         // Reset the block_head since the prev super block has come to and end
-        superblock_head = llvm::None;
+        superblock_head = std::nullopt;
         superblock_size = 0;
       } else if (isHead) {
         if (superblock_size) { // this handles (tail, head) adjacency -
@@ -364,7 +369,7 @@ HTRBlockLayerUP lldb_private::BasicSuperBlockMerge(IHTRLayer &layer) {
         // End previous super block
         construct_next_layer(i - superblock_size + 1, superblock_size);
         // Reset the block_head since the prev super block has come to and end
-        superblock_head = llvm::None;
+        superblock_head = std::nullopt;
         superblock_size = 0;
       } else {
         if (!superblock_head)

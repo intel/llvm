@@ -12,10 +12,11 @@
 
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
@@ -108,9 +109,9 @@ private:
 /// Return true if all uses of `padOp` are an input tensor of some
 /// LinalgOp.
 static bool isOnlyUsedAsInputOfLinalgOp(tensor::PadOp padOp) {
-  for (OpOperand &use : padOp.result().getUses()) {
+  for (OpOperand &use : padOp.getResult().getUses()) {
     auto linalgUser = dyn_cast<linalg::LinalgOp>(use.getOwner());
-    if (!linalgUser || !linalgUser.isInputTensor(&use)) {
+    if (!linalgUser || !linalgUser.isDpsInput(&use)) {
       LLVM_DEBUG(DBGS() << "Found a use of " << *(padOp)
                         << "\nthat is not an input tensor of a LinalgOp, "
                         << "cannot hoist\n"
@@ -150,7 +151,7 @@ computeTransposedType(RankedTensorType rankedTensorType,
                       ArrayRef<int64_t> transposeVector) {
   if (transposeVector.empty())
     return rankedTensorType;
-  if (!isPermutation(transposeVector) ||
+  if (!isPermutationVector(transposeVector) ||
       transposeVector.size() != static_cast<size_t>(rankedTensorType.getRank()))
     return failure();
 
@@ -197,12 +198,12 @@ HoistingAnalysis::HoistingAnalysis(tensor::PadOp padOp, int numLoops) {
   //       %slice = tensor.extract_slice %source [%i, %j]
   //       %padded_slice = tensor.pad %slice
   // ```
-  auto sliceOp = padOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+  auto sliceOp = padOp.getSource().getDefiningOp<tensor::ExtractSliceOp>();
   if (!sliceOp) {
     LLVM_DEBUG(DBGS() << "Cannot find the extract slice op -> skip\n");
     return;
   }
-  if (!outermostEnclosingForOp.isDefinedOutsideOfLoop(sliceOp.source())) {
+  if (!outermostEnclosingForOp.isDefinedOutsideOfLoop(sliceOp.getSource())) {
     LLVM_DEBUG(DBGS() << "Source not defined outside of loops -> skip\n");
     return;
   }
@@ -424,15 +425,15 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
 
   // Create the packed tensor<?x?x..?xtransposedShape> into which we amortize
   // padding.
-  SmallVector<int64_t> packedShape(nPackedLoops, ShapedType::kDynamicSize);
+  SmallVector<int64_t> packedShape(nPackedLoops, ShapedType::kDynamic);
   // TODO: go grab dims when necessary, for now tensor::PadOp returns a static
   // tensor.
   llvm::append_range(packedShape, transposedTensorType->getShape());
   auto packedTensorType = RankedTensorType::get(
       packedShape, transposedTensorType->getElementType());
-  Value packedTensor = b.create<linalg::InitTensorOp>(
-      loc, dynamicTensorSizes, packedTensorType.getShape(),
-      packedTensorType.getElementType());
+  Value packedTensor = b.create<tensor::EmptyOp>(
+      loc, packedTensorType.getShape(), packedTensorType.getElementType(),
+      dynamicTensorSizes);
 
   // Clone the operations involved in the backward slice, iteratively stepping
   // into the loops that we encounter.
@@ -452,7 +453,7 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
     // Specifically sit out in the extract_slice(packedTensor) case: this is the
     // piece we seek to replace.
     if (auto sliceOp = dyn_cast<tensor::ExtractSliceOp>(op))
-      if (bvm.lookupOrDefault(sliceOp.source()) == packedTensor)
+      if (bvm.lookupOrDefault(sliceOp.getSource()) == packedTensor)
         continue;
     // Clone all operations except it is a loop.
     auto forOp = dyn_cast<scf::ForOp>(op);
@@ -498,7 +499,7 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
                                     b.getIndexAttr(1));
 
   // Stack step 2. create GenericOp if `transposeVector` is non-empty.
-  Value paddedTensor = bvm.lookup(opToHoist.result());
+  Value paddedTensor = bvm.lookup(opToHoist.getResult());
   if (!transposeVector.empty()) {
     Value outputTensor = b.create<tensor::ExtractSliceOp>(
         loc, *transposedTensorType, packedTensor, offsets, sizes, strides);
@@ -542,16 +543,15 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
 
   // Transpose the packed tensor back to the original storage order.
   if (!transposeVector.empty()) {
-    Value initTensor =
-        b.create<InitTensorOp>(loc, ValueRange{}, paddedTensorType.getShape(),
-                               paddedTensorType.getElementType());
+    Value emptyTensor = b.create<tensor::EmptyOp>(
+        loc, paddedTensorType.getShape(), paddedTensorType.getElementType());
     transposeOps.push_back(
-        makeTransposeOp(b, loc, newResult, initTensor, transposeVector));
+        makeTransposeOp(b, loc, newResult, emptyTensor, transposeVector));
     newResult = transposeOps.back()->getResult(0);
   }
 
   // Make the newly cloned `opToHoist` available to the caller.
   hoistedOp =
-      cast<tensor::PadOp>(bvm.lookup(opToHoist.result()).getDefiningOp());
+      cast<tensor::PadOp>(bvm.lookup(opToHoist.getResult()).getDefiningOp());
   return newResult;
 }

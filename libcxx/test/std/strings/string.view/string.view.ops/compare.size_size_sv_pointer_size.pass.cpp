@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr int compare(size_type pos1, size_type n1,
@@ -1313,6 +1315,7 @@ int main(int, char**) {
     test("abcdefghijklmnopqrst", 10, 0, "abcdefghij", 10, -10);
     }
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
     test(L"", 0, 0, L"abcde", 0, 0);
     test(L"", 0, 0, L"abcde", 1, -1);
@@ -1320,6 +1323,7 @@ int main(int, char**) {
     test(L"abcdefghijklmnopqrst", 21, 0, L"abcde", 1, 0);
     test(L"abcdefghijklmnopqrst", 10, 0, L"abcdefghij", 10, -10);
     }
+#endif
 
 #if TEST_STD_VER >= 11
     {

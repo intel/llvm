@@ -2,7 +2,7 @@
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-amdhsa -stop-after=irtranslator -o - %s | FileCheck %s
 
 ; Test 64-bit pointer with 64-bit index
-define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i64(<2 x i32 addrspace(1)*> %ptr, <2 x i64> %idx) {
+define <2 x ptr addrspace(1)> @vector_gep_v2p1_index_v2i64(<2 x ptr addrspace(1)> %ptr, <2 x i64> %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p1_index_v2i64
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5, $vgpr6, $vgpr7
@@ -32,12 +32,12 @@ define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i64(<2 x i32 addrspace(1
   ; CHECK-NEXT:   $vgpr2 = COPY [[UV2]](s32)
   ; CHECK-NEXT:   $vgpr3 = COPY [[UV3]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
-  %gep = getelementptr i32, <2 x i32 addrspace(1)*> %ptr, <2 x i64> %idx
-  ret <2 x i32 addrspace(1)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(1)> %ptr, <2 x i64> %idx
+  ret <2 x ptr addrspace(1)> %gep
 }
 
 ; Test 32-bit pointer with 32-bit index
-define <2 x i32 addrspace(3)*> @vector_gep_v2p3_index_v2i32(<2 x i32 addrspace(3)*> %ptr, <2 x i32> %idx) {
+define <2 x ptr addrspace(3)> @vector_gep_v2p3_index_v2i32(<2 x ptr addrspace(3)> %ptr, <2 x i32> %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p3_index_v2i32
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3
@@ -57,12 +57,12 @@ define <2 x i32 addrspace(3)*> @vector_gep_v2p3_index_v2i32(<2 x i32 addrspace(3
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV]](s32)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV1]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1
-  %gep = getelementptr i32, <2 x i32 addrspace(3)*> %ptr, <2 x i32> %idx
-  ret <2 x i32 addrspace(3)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(3)> %ptr, <2 x i32> %idx
+  ret <2 x ptr addrspace(3)> %gep
 }
 
 ; Test 64-bit pointer with 32-bit index
-define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i32(<2 x i32 addrspace(1)*> %ptr, <2 x i32> %idx) {
+define <2 x ptr addrspace(1)> @vector_gep_v2p1_index_v2i32(<2 x ptr addrspace(1)> %ptr, <2 x i32> %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p1_index_v2i32
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5
@@ -89,12 +89,12 @@ define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i32(<2 x i32 addrspace(1
   ; CHECK-NEXT:   $vgpr2 = COPY [[UV2]](s32)
   ; CHECK-NEXT:   $vgpr3 = COPY [[UV3]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
-  %gep = getelementptr i32, <2 x i32 addrspace(1)*> %ptr, <2 x i32> %idx
-  ret <2 x i32 addrspace(1)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(1)> %ptr, <2 x i32> %idx
+  ret <2 x ptr addrspace(1)> %gep
 }
 
 ; Test 64-bit pointer with 64-bit scalar index
-define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_i64(<2 x i32 addrspace(1)*> %ptr, i64 %idx) {
+define <2 x ptr addrspace(1)> @vector_gep_v2p1_index_i64(<2 x ptr addrspace(1)> %ptr, i64 %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p1_index_i64
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5
@@ -122,12 +122,12 @@ define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_i64(<2 x i32 addrspace(1)*
   ; CHECK-NEXT:   $vgpr2 = COPY [[UV2]](s32)
   ; CHECK-NEXT:   $vgpr3 = COPY [[UV3]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
-  %gep = getelementptr i32, <2 x i32 addrspace(1)*> %ptr, i64 %idx
-  ret <2 x i32 addrspace(1)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(1)> %ptr, i64 %idx
+  ret <2 x ptr addrspace(1)> %gep
 }
 
 ; Test 64-bit pointer with 32-bit scalar index
-define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_i32(<2 x i32 addrspace(1)*> %ptr, i32 %idx) {
+define <2 x ptr addrspace(1)> @vector_gep_v2p1_index_i32(<2 x ptr addrspace(1)> %ptr, i32 %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p1_index_i32
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4
@@ -153,12 +153,12 @@ define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_i32(<2 x i32 addrspace(1)*
   ; CHECK-NEXT:   $vgpr2 = COPY [[UV2]](s32)
   ; CHECK-NEXT:   $vgpr3 = COPY [[UV3]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
-  %gep = getelementptr i32, <2 x i32 addrspace(1)*> %ptr, i32 %idx
-  ret <2 x i32 addrspace(1)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(1)> %ptr, i32 %idx
+  ret <2 x ptr addrspace(1)> %gep
 }
 
 ; Test 64-bit pointer with 64-bit constant, non-splat
-define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i64_constant(<2 x i32 addrspace(1)*> %ptr, <2 x i64> %idx) {
+define <2 x ptr addrspace(1)> @vector_gep_v2p1_index_v2i64_constant(<2 x ptr addrspace(1)> %ptr, <2 x i64> %idx) {
   ; CHECK-LABEL: name: vector_gep_v2p1_index_v2i64_constant
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5, $vgpr6, $vgpr7
@@ -184,15 +184,14 @@ define <2 x i32 addrspace(1)*> @vector_gep_v2p1_index_v2i64_constant(<2 x i32 ad
   ; CHECK-NEXT:   [[BUILD_VECTOR3:%[0-9]+]]:_(<2 x s64>) = G_BUILD_VECTOR [[C2]](s64), [[C2]](s64)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
   ; CHECK-NEXT:   [[BUILD_VECTOR4:%[0-9]+]]:_(<2 x s64>) = G_BUILD_VECTOR [[C2]](s64), [[C3]](s64)
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:_(<2 x s64>) = COPY [[BUILD_VECTOR4]](<2 x s64>)
-  ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(<2 x p1>) = G_PTR_ADD [[BUILD_VECTOR]], [[COPY8]](<2 x s64>)
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(<2 x p1>) = COPY [[PTR_ADD]](<2 x p1>)
-  ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[COPY9]](<2 x p1>)
+  ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(<2 x p1>) = G_PTR_ADD [[BUILD_VECTOR]], [[BUILD_VECTOR4]](<2 x s64>)
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:_(<2 x p1>) = COPY [[PTR_ADD]](<2 x p1>)
+  ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[COPY8]](<2 x p1>)
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV]](s32)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV1]](s32)
   ; CHECK-NEXT:   $vgpr2 = COPY [[UV2]](s32)
   ; CHECK-NEXT:   $vgpr3 = COPY [[UV3]](s32)
   ; CHECK-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
-  %gep = getelementptr i32, <2 x i32 addrspace(1)*> %ptr, <2 x i64> <i64 1, i64 2>
-  ret <2 x i32 addrspace(1)*> %gep
+  %gep = getelementptr i32, <2 x ptr addrspace(1)> %ptr, <2 x i64> <i64 1, i64 2>
+  ret <2 x ptr addrspace(1)> %gep
 }

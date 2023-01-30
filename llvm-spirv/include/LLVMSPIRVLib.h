@@ -55,10 +55,9 @@ void initializeOCLToSPIRVLegacyPass(PassRegistry &);
 void initializeOCLTypeToSPIRVLegacyPass(PassRegistry &);
 void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSPIRBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSaddIntrinsicsLegacyPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
@@ -133,7 +132,11 @@ bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 /// \brief Partially load SPIR-V from the stream and decode only instructions
 /// needed to get information about specialization constants.
 /// \returns true if succeeds.
-using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
+struct SpecConstInfoTy {
+  uint32_t ID;
+  uint32_t Size;
+  std::string Type;
+};
 bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 
@@ -157,6 +160,9 @@ bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
                             const SPIRV::TranslatorOpts &Opts);
 
 /// \brief Mangle OpenCL builtin function function name.
+/// If any type in ArgTypes is a pointer type, it should be represented as a
+/// TypedPointerType instead, to faithfully represent the pointer element types
+/// for name mangling.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
                          ArrayRef<Type *> ArgTypes, std::string &MangledName);
 
@@ -176,9 +182,6 @@ ModulePass *createSPIRVLowerBoolLegacy();
 /// Create a pass for lowering constant expressions to instructions.
 ModulePass *createSPIRVLowerConstExprLegacy();
 
-/// Create a pass for lowering SPIR 2.0 blocks to functions calls.
-ModulePass *createSPIRVLowerSPIRBlocksLegacy();
-
 /// Create a pass for removing function pointers related to OCL 2.0 blocks
 ModulePass *createSPIRVLowerOCLBlocksLegacy();
 
@@ -187,7 +190,7 @@ ModulePass *createSPIRVLowerOCLBlocksLegacy();
 ModulePass *createSPIRVLowerMemmoveLegacy();
 
 /// Create a pass for lowering llvm.sadd.with.overflow
-ModulePass *createSPIRVLowerSaddWithOverflowLegacy();
+ModulePass *createSPIRVLowerSaddIntrinsicsLegacy();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVMLegacy();

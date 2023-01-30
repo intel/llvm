@@ -25,7 +25,8 @@ class raw_ostream;
 
 class LLVM_LIBRARY_VISIBILITY SystemZAsmPrinter : public AsmPrinter {
 private:
-  StackMaps SM;
+  MCSymbol *CurrentFnPPA1Sym;     // PPA1 Symbol.
+  MCSymbol *CurrentFnEPMarkerSym; // Entry Point Marker.
 
   SystemZTargetStreamer *getTargetStreamer() {
     MCTargetStreamer *TS = OutStreamer->getTargetStreamer();
@@ -45,9 +46,12 @@ private:
     BASR33 = 7,   // b'x111' == BASR  r3,r3
   };
 
+  void emitPPA1(MCSymbol *FnEndSym);
+
 public:
   SystemZAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
-      : AsmPrinter(TM, std::move(Streamer)), SM(*this) {}
+      : AsmPrinter(TM, std::move(Streamer)), CurrentFnPPA1Sym(nullptr),
+        CurrentFnEPMarkerSym(nullptr) {}
 
   // Override AsmPrinter.
   StringRef getPassName() const override { return "SystemZ Assembly Printer"; }
@@ -64,12 +68,14 @@ public:
     return AsmPrinter::doInitialization(M);
   }
   void emitFunctionEntryLabel() override;
+  void emitFunctionBodyEnd() override;
 
 private:
   void emitCallInformation(CallType CT);
   void LowerFENTRY_CALL(const MachineInstr &MI, SystemZMCInstLower &MCIL);
   void LowerSTACKMAP(const MachineInstr &MI);
   void LowerPATCHPOINT(const MachineInstr &MI, SystemZMCInstLower &Lower);
+  void emitAttributes(Module &M);
 };
 } // end namespace llvm
 

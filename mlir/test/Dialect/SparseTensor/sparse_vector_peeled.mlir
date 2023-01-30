@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16" -scf-for-loop-peeling -canonicalize | \
+// RUN: mlir-opt %s --sparsification -cse -sparse-vectorization="vl=16" -scf-for-loop-peeling -canonicalize -cse | \
 // RUN:   FileCheck %s
 
 #SparseVector = #sparse_tensor.encoding<{
@@ -51,7 +51,7 @@
 // CHECK:       }
 // CHECK:       return
 //
-func @mul_s(%arga: tensor<1024xf32, #SparseVector>, %argb: tensor<1024xf32>, %argx: tensor<1024xf32>) -> tensor<1024xf32> {
+func.func @mul_s(%arga: tensor<1024xf32, #SparseVector>, %argb: tensor<1024xf32>, %argx: tensor<1024xf32>) -> tensor<1024xf32> {
   %0 = linalg.generic #trait_mul_s
     ins(%arga, %argb: tensor<1024xf32, #SparseVector>, tensor<1024xf32>)
     outs(%argx: tensor<1024xf32>) {

@@ -109,21 +109,21 @@ CG4 doesn't execute until all previous command groups submitted to the same queu
 [source,c++,NoName,linenums]
 ----
 ...
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG1
 });
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG2
 });
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG3
 });
 
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   cgh.ext_oneapi_barrier();
 });
 
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG4
 });
 ...
@@ -134,19 +134,19 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 [source,c++,NoName,linenums]
 ----
 ...
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG1
 });
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG2
 });
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG3
 });
 
 Queue.ext_oneapi_submit_barrier();
 
-Queue.submit([&](cl::sycl::handler& cgh) {
+Queue.submit([&](sycl::handler& cgh) {
   // CG4
 });
 ...
@@ -162,19 +162,19 @@ CG3 requires CG1 (in Queue1) and CG2 (in Queue2) to have completed before it (CG
 [source,c++,NoName,linenums]
 ----
 ...
-auto event_barrier1 = Queue1.submit([&](cl::sycl::handler& cgh) {
+auto event_barrier1 = Queue1.submit([&](sycl::handler& cgh) {
   // CG1
 });
 
-auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
+auto event_barrier2 = Queue2.submit([&](sycl::handler& cgh) {
   // CG2
 });
 
-Queue3.submit([&](cl::sycl::handler& cgh) {
+Queue3.submit([&](sycl::handler& cgh) {
   cgh.ext_oneapi_barrier( std::vector<event>{event_barrier1, event_barrier2} );
 });
 
-Queue3.submit([&](cl::sycl::handler& cgh) {
+Queue3.submit([&](sycl::handler& cgh) {
   // CG3
 });
 ...
@@ -185,17 +185,17 @@ Queue3.submit([&](cl::sycl::handler& cgh) {
 [source,c++,NoName,linenums]
 ----
 ...
-auto event_barrier1 = Queue1.submit([&](cl::sycl::handler& cgh) {
+auto event_barrier1 = Queue1.submit([&](sycl::handler& cgh) {
   // CG1
 });
 
-auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
+auto event_barrier2 = Queue2.submit([&](sycl::handler& cgh) {
   // CG2
 });
 
 Queue3.ext_oneapi_submit_barrier( std::vector<event>{event_barrier1, event_barrier2} );
 
-Queue3.submit([&](cl::sycl::handler& cgh) {
+Queue3.submit([&](sycl::handler& cgh) {
   // CG3
 });
 ...

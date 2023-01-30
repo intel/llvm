@@ -73,8 +73,10 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
+#include "llvm/Support/NativeFormatting.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
@@ -139,6 +141,9 @@ VisitGlobalVariableForEmission(const GlobalVariable *GV,
 }
 
 void NVPTXAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  NVPTX_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                        getSubtargetInfo().getFeatureBits());
+
   MCInst Inst;
   lowerToMCInst(MI, Inst);
   EmitToStreamer(*OutStreamer, Inst);
@@ -351,8 +356,7 @@ void NVPTXAsmPrinter::printReturnValStr(const Function *F, raw_ostream &O) {
       // PTX ABI requires all scalar return values to be at least 32
       // bits in size.  fp16 normally uses .b16 as its storage type in
       // PTX, so its size must be adjusted here, too.
-      if (size < 32)
-        size = 32;
+      size = promoteScalarArgumentSize(size);
 
       O << ".param .b" << size << " func_retval0";
     } else if (isa<PointerType>(Ty)) {
@@ -381,8 +385,8 @@ void NVPTXAsmPrinter::printReturnValStr(const Function *F, raw_ostream &O) {
 
       for (unsigned j = 0, je = elems; j != je; ++j) {
         unsigned sz = elemtype.getSizeInBits();
-        if (elemtype.isInteger() && (sz < 32))
-          sz = 32;
+        if (elemtype.isInteger())
+          sz = promoteScalarArgumentSize(sz);
         O << ".reg .b" << sz << " func_retval" << idx;
         if (j < je - 1)
           O << ", ";
@@ -402,8 +406,7 @@ void NVPTXAsmPrinter::printReturnValStr(const MachineFunction &MF,
 }
 
 // Return true if MBB is the header of a loop marked with
-// llvm.loop.unroll.disable.
-// TODO: consider "#pragma unroll 1" which is equivalent to "#pragma nounroll".
+// llvm.loop.unroll.disable or llvm.loop.unroll.count=1.
 bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
     const MachineBasicBlock &MBB) const {
   MachineLoopInfo &LI = getAnalysis<MachineLoopInfo>();
@@ -424,6 +427,12 @@ bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
               PBB->getTerminator()->getMetadata(LLVMContext::MD_loop)) {
         if (GetUnrollMetadata(LoopID, "llvm.loop.unroll.disable"))
           return true;
+        if (MDNode *UnrollCountMD =
+                GetUnrollMetadata(LoopID, "llvm.loop.unroll.count")) {
+          if (mdconst::extract<ConstantInt>(UnrollCountMD->getOperand(1))
+                  ->getZExtValue() == 1)
+            return true;
+        }
       }
     }
   }
@@ -512,7 +521,7 @@ void NVPTXAsmPrinter::emitImplicitDef(const MachineInstr *MI) const {
     OutStreamer->AddComment(Twine("implicit-def: ") +
                             STI.getRegisterInfo()->getName(RegNo));
   }
-  OutStreamer->AddBlankLine();
+  OutStreamer->addBlankLine();
 }
 
 void NVPTXAsmPrinter::emitKernelFunctionDirectives(const Function &F,
@@ -891,29 +900,19 @@ bool NVPTXAsmPrinter::doFinalization(Module &M) {
 
   clearAnnotationCache(&M);
 
-  if (auto *TS = static_cast<NVPTXTargetStreamer *>(
-          OutStreamer->getTargetStreamer())) {
-    // Close the last emitted section
-    if (HasDebugInfo) {
-      TS->closeLastSection();
-      // Emit empty .debug_loc section for better support of the empty files.
-      OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
-    }
-
-    // Output last DWARF .file directives, if any.
-    TS->outputDwarfFileDirectives();
+  auto *TS =
+      static_cast<NVPTXTargetStreamer *>(OutStreamer->getTargetStreamer());
+  // Close the last emitted section
+  if (HasDebugInfo) {
+    TS->closeLastSection();
+    // Emit empty .debug_loc section for better support of the empty files.
+    OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
   }
 
-  return ret;
+  // Output last DWARF .file directives, if any.
+  TS->outputDwarfFileDirectives();
 
-  //bool Result = AsmPrinter::doFinalization(M);
-  // Instead of calling the parents doFinalization, we may
-  // clone parents doFinalization and customize here.
-  // Currently, we if NVISA out the EmitGlobals() in
-  // parent's doFinalization, which is too intrusive.
-  //
-  // Same for the doInitialization.
-  //return Result;
+  return ret;
 }
 
 // This function emits appropriate linkage directives for
@@ -1165,31 +1164,37 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
           GVar->hasInitializer()) {
         const Constant *Initializer = GVar->getInitializer();
         if (!isa<UndefValue>(Initializer) && !Initializer->isNullValue()) {
-          AggBuffer aggBuffer(ElementSize, O, *this);
+          AggBuffer aggBuffer(ElementSize, *this);
           bufferAggregateConstant(Initializer, &aggBuffer);
-          if (aggBuffer.numSymbols) {
-            if (static_cast<const NVPTXTargetMachine &>(TM).is64Bit()) {
-              O << " .u64 ";
+          if (aggBuffer.numSymbols()) {
+            unsigned int ptrSize = MAI->getCodePointerSize();
+            if (ElementSize % ptrSize ||
+                !aggBuffer.allSymbolsAligned(ptrSize)) {
+              // Print in bytes and use the mask() operator for pointers.
+              if (!STI.hasMaskOperator())
+                report_fatal_error(
+                    "initialized packed aggregate with pointers '" +
+                    GVar->getName() +
+                    "' requires at least PTX ISA version 7.1");
+              O << " .u8 ";
               getSymbol(GVar)->print(O, MAI);
-              O << "[";
-              O << ElementSize / 8;
+              O << "[" << ElementSize << "] = {";
+              aggBuffer.printBytes(O);
+              O << "}";
             } else {
-              O << " .u32 ";
+              O << " .u" << ptrSize * 8 << " ";
               getSymbol(GVar)->print(O, MAI);
-              O << "[";
-              O << ElementSize / 4;
+              O << "[" << ElementSize / ptrSize << "] = {";
+              aggBuffer.printWords(O);
+              O << "}";
             }
-            O << "]";
           } else {
             O << " .b8 ";
             getSymbol(GVar)->print(O, MAI);
-            O << "[";
-            O << ElementSize;
-            O << "]";
+            O << "[" << ElementSize << "] = {";
+            aggBuffer.printBytes(O);
+            O << "}";
           }
-          O << " = {";
-          aggBuffer.print();
-          O << "}";
         } else {
           O << " .b8 ";
           getSymbol(GVar)->print(O, MAI);
@@ -1214,6 +1219,80 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
     }
   }
   O << ";\n";
+}
+
+void NVPTXAsmPrinter::AggBuffer::printSymbol(unsigned nSym, raw_ostream &os) {
+  const Value *v = Symbols[nSym];
+  const Value *v0 = SymbolsBeforeStripping[nSym];
+  if (const GlobalValue *GVar = dyn_cast<GlobalValue>(v)) {
+    MCSymbol *Name = AP.getSymbol(GVar);
+    PointerType *PTy = dyn_cast<PointerType>(v0->getType());
+    // Is v0 a generic pointer?
+    bool isGenericPointer = PTy && PTy->getAddressSpace() == 0;
+    if (EmitGeneric && isGenericPointer && !isa<Function>(v)) {
+      os << "generic(";
+      Name->print(os, AP.MAI);
+      os << ")";
+    } else {
+      Name->print(os, AP.MAI);
+    }
+  } else if (const ConstantExpr *CExpr = dyn_cast<ConstantExpr>(v0)) {
+    const MCExpr *Expr = AP.lowerConstantForGV(cast<Constant>(CExpr), false);
+    AP.printMCExpr(*Expr, os);
+  } else
+    llvm_unreachable("symbol type unknown");
+}
+
+void NVPTXAsmPrinter::AggBuffer::printBytes(raw_ostream &os) {
+  unsigned int ptrSize = AP.MAI->getCodePointerSize();
+  symbolPosInBuffer.push_back(size);
+  unsigned int nSym = 0;
+  unsigned int nextSymbolPos = symbolPosInBuffer[nSym];
+  for (unsigned int pos = 0; pos < size;) {
+    if (pos)
+      os << ", ";
+    if (pos != nextSymbolPos) {
+      os << (unsigned int)buffer[pos];
+      ++pos;
+      continue;
+    }
+    // Generate a per-byte mask() operator for the symbol, which looks like:
+    //   .global .u8 addr[] = {0xFF(foo), 0xFF00(foo), 0xFF0000(foo), ...};
+    // See https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#initializers
+    std::string symText;
+    llvm::raw_string_ostream oss(symText);
+    printSymbol(nSym, oss);
+    for (unsigned i = 0; i < ptrSize; ++i) {
+      if (i)
+        os << ", ";
+      llvm::write_hex(os, 0xFFULL << i * 8, HexPrintStyle::PrefixUpper);
+      os << "(" << symText << ")";
+    }
+    pos += ptrSize;
+    nextSymbolPos = symbolPosInBuffer[++nSym];
+    assert(nextSymbolPos >= pos);
+  }
+}
+
+void NVPTXAsmPrinter::AggBuffer::printWords(raw_ostream &os) {
+  unsigned int ptrSize = AP.MAI->getCodePointerSize();
+  symbolPosInBuffer.push_back(size);
+  unsigned int nSym = 0;
+  unsigned int nextSymbolPos = symbolPosInBuffer[nSym];
+  assert(nextSymbolPos % ptrSize == 0);
+  for (unsigned int pos = 0; pos < size; pos += ptrSize) {
+    if (pos)
+      os << ", ";
+    if (pos == nextSymbolPos) {
+      printSymbol(nSym, os);
+      nextSymbolPos = symbolPosInBuffer[++nSym];
+      assert(nextSymbolPos % ptrSize == 0);
+      assert(nextSymbolPos >= pos + ptrSize);
+    } else if (ptrSize == 4)
+      os << support::endian::read32le(&buffer[pos]);
+    else
+      os << support::endian::read64le(&buffer[pos]);
+  }
 }
 
 void NVPTXAsmPrinter::emitDemotedVars(const Function *f, raw_ostream &O) {
@@ -1277,8 +1356,11 @@ NVPTXAsmPrinter::getPTXFundamentalTypeStr(Type *Ty, bool useB4PTR) const {
     return "f32";
   case Type::DoubleTyID:
     return "f64";
-  case Type::PointerTyID:
-    if (static_cast<const NVPTXTargetMachine &>(TM).is64Bit())
+  case Type::PointerTyID: {
+    unsigned PtrSize = TM.getPointerSizeInBits(Ty->getPointerAddressSpace());
+    assert((PtrSize == 64 || PtrSize == 32) && "Unexpected pointer size");
+
+    if (PtrSize == 64)
       if (useB4PTR)
         return "b64";
       else
@@ -1287,6 +1369,7 @@ NVPTXAsmPrinter::getPTXFundamentalTypeStr(Type *Ty, bool useB4PTR) const {
       return "b32";
     else
       return "u32";
+  }
   default:
     break;
   }
@@ -1373,9 +1456,8 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
   bool isKernelFunc = isKernelFunction(*F);
   bool isABI = (STI.getSmVersion() >= 20);
   bool hasImageHandles = STI.hasImageHandles();
-  MVT thePointerTy = TLI->getPointerTy(DL);
 
-  if (F->arg_empty()) {
+  if (F->arg_empty() && !F->isVarArg()) {
     O << "()\n";
     return;
   }
@@ -1427,7 +1509,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
                                     paramIndex](Type *Ty) -> Align {
       Align TypeAlign = TLI->getFunctionParamOptimizedAlign(F, Ty, DL);
       MaybeAlign ParamAlign = PAL.getParamAlignment(paramIndex);
-      return max(TypeAlign, ParamAlign);
+      return std::max(TypeAlign, ParamAlign.valueOrOne());
     };
 
     if (!PAL.hasParamAttr(paramIndex, Attribute::ByVal)) {
@@ -1446,10 +1528,17 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       }
       // Just a scalar
       auto *PTy = dyn_cast<PointerType>(Ty);
+      unsigned PTySizeInBits = 0;
+      if (PTy) {
+        PTySizeInBits =
+            TLI->getPointerTy(DL, PTy->getAddressSpace()).getSizeInBits();
+        assert(PTySizeInBits && "Invalid pointer size");
+      }
+
       if (isKernelFunc) {
         if (PTy) {
           // Special handling for pointer arguments to kernel
-          O << "\t.param .u" << thePointerTy.getSizeInBits() << " ";
+          O << "\t.param .u" << PTySizeInBits << " ";
 
           if (static_cast<NVPTXTargetMachine &>(TM).getDrvInterface() !=
               NVPTX::CUDA) {
@@ -1491,11 +1580,11 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       unsigned sz = 0;
       if (isa<IntegerType>(Ty)) {
         sz = cast<IntegerType>(Ty)->getBitWidth();
-        if (sz < 32)
-          sz = 32;
-      } else if (isa<PointerType>(Ty))
-        sz = thePointerTy.getSizeInBits();
-      else if (Ty->isHalfTy())
+        sz = promoteScalarArgumentSize(sz);
+      } else if (PTy) {
+        assert(PTySizeInBits && "Invalid pointer size");
+        sz = PTySizeInBits;
+      } else if (Ty->isHalfTy())
         // PTX ABI requires all scalar parameters to be at least 32
         // bits in size.  fp16 normally uses .b16 as its storage type
         // in PTX, so its size must be adjusted here, too.
@@ -1556,8 +1645,8 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
 
         for (unsigned j = 0, je = elems; j != je; ++j) {
           unsigned sz = elemtype.getSizeInBits();
-          if (elemtype.isInteger() && (sz < 32))
-            sz = 32;
+          if (elemtype.isInteger())
+            sz = promoteScalarArgumentSize(sz);
           O << "\t.reg .b" << sz << " ";
           printParamName(I, paramIndex, O);
           if (j < je - 1)
@@ -1570,6 +1659,15 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       --paramIndex;
       continue;
     }
+  }
+
+  if (F->isVarArg()) {
+    if (!first)
+      O << ",\n";
+    O << "\t.param .align " << STI.getMaxRequiredAlignment();
+    O << " .b8 ";
+    getSymbol(F)->print(O, MAI);
+    O << "_vararg[]";
   }
 
   O << "\n)\n";
@@ -1697,25 +1795,9 @@ void NVPTXAsmPrinter::printScalarConstant(const Constant *CPV, raw_ostream &O) {
     return;
   }
   if (const ConstantExpr *Cexpr = dyn_cast<ConstantExpr>(CPV)) {
-    const Value *v = Cexpr->stripPointerCasts();
-    PointerType *PTy = dyn_cast<PointerType>(Cexpr->getType());
-    bool IsNonGenericPointer = false;
-    if (PTy && PTy->getAddressSpace() != 0) {
-      IsNonGenericPointer = true;
-    }
-    if (const GlobalValue *GVar = dyn_cast<GlobalValue>(v)) {
-      if (EmitGeneric && !isa<Function>(v) && !IsNonGenericPointer) {
-        O << "generic(";
-        getSymbol(GVar)->print(O, MAI);
-        O << ")";
-      } else {
-        getSymbol(GVar)->print(O, MAI);
-      }
-      return;
-    } else {
-      lowerConstant(CPV)->print(O, MAI);
-      return;
-    }
+    const MCExpr *E = lowerConstantForGV(cast<Constant>(Cexpr), false);
+    printMCExpr(*E, O);
+    return;
   }
   llvm_unreachable("Not scalar type found in printScalarConstant()");
 }
@@ -1764,6 +1846,7 @@ void NVPTXAsmPrinter::bufferLEByte(const Constant *CPV, int Bytes,
     break;
 
   case Type::HalfTyID:
+  case Type::BFloatTyID:
   case Type::FloatTyID:
   case Type::DoubleTyID:
     AddIntToBuffer(cast<ConstantFP>(CPV)->getValueAPF().bitcastToAPInt());
@@ -1934,7 +2017,7 @@ NVPTXAsmPrinter::lowerConstantForGV(const Constant *CV, bool ProcessingGeneric) 
     // expression properly.  This is important for differences between
     // blockaddress labels.  Since the two labels are in the same function, it
     // is reasonable to treat their delta as a 32-bit value.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Instruction::BitCast:
     return lowerConstantForGV(CE->getOperand(0), ProcessingGeneric);
 

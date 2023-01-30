@@ -286,18 +286,24 @@ private:
 
   struct DescriptorMapUpdateResult {
     bool m_update_ran;
+    bool m_retry_update;
     uint32_t m_num_found;
 
-    DescriptorMapUpdateResult(bool ran, uint32_t found) {
+    DescriptorMapUpdateResult(bool ran, bool retry, uint32_t found) {
       m_update_ran = ran;
+
+      m_retry_update = retry;
+
       m_num_found = found;
     }
 
-    static DescriptorMapUpdateResult Fail() { return {false, 0}; }
+    static DescriptorMapUpdateResult Fail() { return {false, false, 0}; }
 
     static DescriptorMapUpdateResult Success(uint32_t found) {
-      return {true, found};
+      return {true, false, found};
     }
+
+    static DescriptorMapUpdateResult Retry() { return {false, true, 0}; }
   };
 
   /// Abstraction to read the Objective-C class info.
@@ -313,13 +319,15 @@ private:
   };
 
   /// We can read the class info from the Objective-C runtime using
-  /// gdb_objc_realized_classes or objc_copyRealizedClassList. The latter is
-  /// preferred because it includes lazily named classes, but it's not always
-  /// available or safe to call.
+  /// gdb_objc_realized_classes, objc_copyRealizedClassList or
+  /// objc_getRealizedClassList_trylock. The RealizedClassList variants are
+  /// preferred because they include lazily named classes, but they are not
+  /// always available or safe to call.
   ///
-  /// We potentially need both for the same process, because we may need to use
-  /// gdb_objc_realized_classes until dyld is initialized and then switch over
-  /// to objc_copyRealizedClassList for lazily named classes.
+  /// We potentially need more than one helper for the same process, because we
+  /// may need to use gdb_objc_realized_classes until dyld is initialized and
+  /// then switch over to objc_copyRealizedClassList or
+  /// objc_getRealizedClassList_trylock for lazily named classes.
   class DynamicClassInfoExtractor : public ClassInfoExtractor {
   public:
     DynamicClassInfoExtractor(AppleObjCRuntimeV2 &runtime)
@@ -329,35 +337,34 @@ private:
     UpdateISAToDescriptorMap(RemoteNXMapTable &hash_table);
 
   private:
-    enum Helper { gdb_objc_realized_classes, objc_copyRealizedClassList };
+    enum Helper {
+      gdb_objc_realized_classes,
+      objc_copyRealizedClassList,
+      objc_getRealizedClassList_trylock
+    };
 
-    /// Compute which helper to use. Prefer objc_copyRealizedClassList if it's
-    /// available and it's safe to call (i.e. dyld is fully initialized). Use
-    /// gdb_objc_realized_classes otherwise.
-    Helper ComputeHelper() const;
+    /// Compute which helper to use. If dyld is not yet fully initialized we
+    /// must use gdb_objc_realized_classes. Otherwise, we prefer
+    /// objc_getRealizedClassList_trylock and objc_copyRealizedClassList
+    /// respectively, depending on availability.
+    Helper ComputeHelper(ExecutionContext &exe_ctx) const;
 
     UtilityFunction *GetClassInfoUtilityFunction(ExecutionContext &exe_ctx,
                                                  Helper helper);
     lldb::addr_t &GetClassInfoArgs(Helper helper);
 
     std::unique_ptr<UtilityFunction>
-    GetClassInfoUtilityFunctionImpl(ExecutionContext &exe_ctx, std::string code,
-                                    std::string name);
+    GetClassInfoUtilityFunctionImpl(ExecutionContext &exe_ctx, Helper helper,
+                                    std::string code, std::string name);
 
-    /// Helper to read class info using the gdb_objc_realized_classes.
-    struct gdb_objc_realized_classes_helper {
+    struct UtilityFunctionHelper {
       std::unique_ptr<UtilityFunction> utility_function;
       lldb::addr_t args = LLDB_INVALID_ADDRESS;
     };
 
-    /// Helper to read class info using objc_copyRealizedClassList.
-    struct objc_copyRealizedClassList_helper {
-      std::unique_ptr<UtilityFunction> utility_function;
-      lldb::addr_t args = LLDB_INVALID_ADDRESS;
-    };
-
-    gdb_objc_realized_classes_helper m_gdb_objc_realized_classes_helper;
-    objc_copyRealizedClassList_helper m_objc_copyRealizedClassList_helper;
+    UtilityFunctionHelper m_gdb_objc_realized_classes_helper;
+    UtilityFunctionHelper m_objc_copyRealizedClassList_helper;
+    UtilityFunctionHelper m_objc_getRealizedClassList_trylock_helper;
   };
 
   /// Abstraction to read the Objective-C class info from the shared cache.
@@ -394,6 +401,7 @@ private:
                                uint32_t num_class_infos);
 
   enum class SharedCacheWarningReason {
+    eExpressionUnableToRun,
     eExpressionExecutionFailure,
     eNotEnoughClassesRead
   };
@@ -429,6 +437,7 @@ private:
   HashTableSignature m_hash_signature;
   bool m_has_object_getClass;
   bool m_has_objc_copyRealizedClassList;
+  bool m_has_objc_getRealizedClassList_trylock;
   bool m_loaded_objc_opt;
   std::unique_ptr<NonPointerISACache> m_non_pointer_isa_cache_up;
   std::unique_ptr<TaggedPointerVendor> m_tagged_pointer_vendor_up;

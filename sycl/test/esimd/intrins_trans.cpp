@@ -5,9 +5,9 @@
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/image_ocl_types.hpp>
+#include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 
@@ -84,13 +84,15 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<float, 16> c(0.0f);
 
-  using PH = cl::sycl::access::placeholder;
+  using PH = sycl::access::placeholder;
 
-  cl::sycl::accessor<cl::sycl::cl_int4, 2, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::read, sycl::access::target::image,
+                 PH::false_t>
       pA;
-  cl::sycl::accessor<cl::sycl::cl_int4, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::write, sycl::access::target::image,
+                 PH::false_t>
       pB;
 
   auto d = __esimd_wrregion<float, 16 /*ret size*/, 8 /*write size*/,

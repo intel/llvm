@@ -59,6 +59,11 @@
 # undef _M
 #endif
 
+// Test that libc++ doesn't use names that collide with FreeBSD system macros.
+#ifndef __FreeBSD__
+#  define __null_sentinel NASTY_MACRO
+#endif
+
 // tchar.h defines these macros on Windows
 #ifndef _WIN32
 # define _UI   NASTY_MACRO
@@ -78,8 +83,10 @@
 // Obviously we can only define these on non-Windows platforms.
 #ifndef _WIN32
 # define __allocator NASTY_MACRO
+# define __bound NASTY_MACRO
 # define __deallocate NASTY_MACRO
 # define __deref NASTY_MACRO
+# define __format_string NASTY_MACRO
 # define __full NASTY_MACRO
 # define __in NASTY_MACRO
 # define __inout NASTY_MACRO
@@ -107,7 +114,10 @@
 #define C NASTY_MACRO
 #define Cp NASTY_MACRO
 #define Cs NASTY_MACRO
-#define D NASTY_MACRO
+// Windows setjmp.h contains a struct member named 'D' on ARM/AArch64.
+#ifndef _WIN32
+# define D NASTY_MACRO
+#endif
 #define Dp NASTY_MACRO
 #define Ds NASTY_MACRO
 #define E NASTY_MACRO
@@ -130,6 +140,10 @@
 #define X NASTY_MACRO
 #define Xp NASTY_MACRO
 #define Xs NASTY_MACRO
+
+// The classic Windows min/max macros
+#define min NASTY_MACRO
+#define max NASTY_MACRO
 
 /*
 BEGIN-SCRIPT
@@ -203,6 +217,7 @@ END-SCRIPT
 #include <errno.h>
 #include <exception>
 #include <execution>
+#include <expected>
 #include <fenv.h>
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #   include <filesystem>
@@ -210,7 +225,7 @@ END-SCRIPT
 #include <float.h>
 #include <format>
 #include <forward_list>
-#if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_FSTREAM)
 #   include <fstream>
 #endif
 #include <functional>
@@ -248,6 +263,7 @@ END-SCRIPT
 #include <map>
 #include <math.h>
 #include <memory>
+#include <memory_resource>
 #if !defined(_LIBCPP_HAS_NO_THREADS)
 #   include <mutex>
 #endif
@@ -279,6 +295,9 @@ END-SCRIPT
 #   include <sstream>
 #endif
 #include <stack>
+#if __cplusplus > 202002L && !defined(_LIBCPP_HAS_NO_THREADS)
+#   include <stdatomic.h>
+#endif
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdexcept>
@@ -317,8 +336,10 @@ END-SCRIPT
 #if !defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)
 #   include <wctype.h>
 #endif
-#include <experimental/algorithm>
-#if !defined(_LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES)
+#if __cplusplus >= 201103L
+#   include <experimental/algorithm>
+#endif
+#if __cplusplus >= 201103L && !defined(_LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES)
 #   include <experimental/coroutine>
 #endif
 #if __cplusplus >= 201103L
@@ -327,8 +348,12 @@ END-SCRIPT
 #if __cplusplus >= 201103L
 #   include <experimental/forward_list>
 #endif
-#include <experimental/functional>
-#include <experimental/iterator>
+#if __cplusplus >= 201103L
+#   include <experimental/functional>
+#endif
+#if __cplusplus >= 201103L
+#   include <experimental/iterator>
+#endif
 #if __cplusplus >= 201103L
 #   include <experimental/list>
 #endif
@@ -338,25 +363,33 @@ END-SCRIPT
 #if __cplusplus >= 201103L
 #   include <experimental/memory_resource>
 #endif
-#include <experimental/propagate_const>
+#if __cplusplus >= 201103L
+#   include <experimental/propagate_const>
+#endif
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && __cplusplus >= 201103L
 #   include <experimental/regex>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/set>
 #endif
-#include <experimental/simd>
+#if __cplusplus >= 201103L
+#   include <experimental/simd>
+#endif
 #if __cplusplus >= 201103L
 #   include <experimental/string>
 #endif
-#include <experimental/type_traits>
+#if __cplusplus >= 201103L
+#   include <experimental/type_traits>
+#endif
 #if __cplusplus >= 201103L
 #   include <experimental/unordered_map>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/unordered_set>
 #endif
-#include <experimental/utility>
+#if __cplusplus >= 201103L
+#   include <experimental/utility>
+#endif
 #if __cplusplus >= 201103L
 #   include <experimental/vector>
 #endif

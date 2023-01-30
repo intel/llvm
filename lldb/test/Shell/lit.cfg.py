@@ -12,7 +12,6 @@ import lit.formats
 from lit.llvm import llvm_config
 from lit.llvm.subst import FindTool
 from lit.llvm.subst import ToolSubst
-from distutils.spawn import find_executable
 
 site.addsitedir(os.path.dirname(__file__))
 from helper import toolchain
@@ -62,6 +61,12 @@ toolchain.use_support_substitutions(config)
 
 if re.match(r'^arm(hf.*-linux)|(.*-linux-gnuabihf)', config.target_triple):
     config.available_features.add("armhf-linux")
+
+if re.match(r'.*-(windows-msvc)$', config.target_triple):
+    config.available_features.add("windows-msvc")
+
+if re.match(r'.*-(windows-gnu|mingw32)$', config.target_triple):
+    config.available_features.add("windows-gnu")
 
 def calculate_arch_features(arch_string):
     # This will add a feature such as x86, arm, mips, etc for each built
@@ -121,11 +126,14 @@ if config.lldb_enable_lua:
 if config.lldb_enable_lzma:
     config.available_features.add('lzma')
 
-if find_executable('xz') != None:
+if shutil.which('xz') != None:
     config.available_features.add('xz')
 
 if config.lldb_system_debugserver:
     config.available_features.add('system-debugserver')
+
+if config.have_lldb_server:
+    config.available_features.add('lldb-server')
 
 # NetBSD permits setting dbregs either if one is root
 # or if user_set_dbregs is enabled

@@ -23,7 +23,7 @@
 
 using namespace llvm;
 
-LLVM_NODISCARD static ::testing::AssertionResult
+[[nodiscard]] static ::testing::AssertionResult
 ErrorEquals(instrprof_error Expected, Error E) {
   instrprof_error Found;
   std::string FoundMsg;
@@ -352,8 +352,15 @@ TEST_F(InstrProfTest, test_memprof_getrecord_error) {
   auto Profile = Writer.writeBuffer();
   readProfile(std::move(Profile));
 
+  // Missing frames give a hash_mismatch error.
   auto RecordOr = Reader->getMemProfRecord(0x9999);
-  EXPECT_THAT_ERROR(RecordOr.takeError(), Failed());
+  ASSERT_TRUE(
+      ErrorEquals(instrprof_error::hash_mismatch, RecordOr.takeError()));
+
+  // Missing functions give a unknown_function error.
+  RecordOr = Reader->getMemProfRecord(0x1111);
+  ASSERT_TRUE(
+      ErrorEquals(instrprof_error::unknown_function, RecordOr.takeError()));
 }
 
 TEST_F(InstrProfTest, test_memprof_merge) {
@@ -759,7 +766,8 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1) {
 TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   static const char bar[] = "bar";
 
-  const uint64_t Max = std::numeric_limits<uint64_t>::max();
+  const uint64_t MaxValCount = std::numeric_limits<uint64_t>::max();
+  const uint64_t MaxEdgeCount = getInstrMaxCountValue();
 
   instrprof_error Result;
   auto Err = [&](Error E) { Result = InstrProfError::take(std::move(E)); };
@@ -769,7 +777,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
 
   // Verify counter overflow.
   Result = instrprof_error::success;
-  Writer.addRecord({"foo", 0x1234, {Max}}, Err);
+  Writer.addRecord({"foo", 0x1234, {MaxEdgeCount}}, Err);
   ASSERT_EQ(Result, instrprof_error::counter_overflow);
 
   Result = instrprof_error::success;
@@ -787,7 +795,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   // Verify value data counter overflow.
   NamedInstrProfRecord Record5("baz", 0x5678, {5, 6});
   Record5.reserveSites(IPVK_IndirectCallTarget, 1);
-  InstrProfValueData VD5[] = {{uint64_t(bar), Max}};
+  InstrProfValueData VD5[] = {{uint64_t(bar), MaxValCount}};
   Record5.addValueData(IPVK_IndirectCallTarget, 0, VD5, 1, nullptr);
   Result = instrprof_error::success;
   Writer.addRecord(std::move(Record5), Err);
@@ -800,7 +808,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   Expected<InstrProfRecord> ReadRecord1 =
       Reader->getInstrProfRecord("foo", 0x1234);
   EXPECT_THAT_ERROR(ReadRecord1.takeError(), Succeeded());
-  ASSERT_EQ(Max, ReadRecord1->Counts[0]);
+  ASSERT_EQ(MaxEdgeCount, ReadRecord1->Counts[0]);
 
   Expected<InstrProfRecord> ReadRecord2 =
       Reader->getInstrProfRecord("baz", 0x5678);
@@ -809,7 +817,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   std::unique_ptr<InstrProfValueData[]> VD =
       ReadRecord2->getValueForSite(IPVK_IndirectCallTarget, 0);
   ASSERT_EQ(StringRef("bar"), StringRef((const char *)VD[0].Value, 3));
-  ASSERT_EQ(Max, VD[0].Count);
+  ASSERT_EQ(MaxValCount, VD[0].Count);
 }
 
 // This test tests that when there are too many values
@@ -1104,7 +1112,7 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_module_test) {
   StringRef Funcs[] = {"Gfoo", "Gblah", "Gbar", "Ifoo", "Iblah", "Ibar",
                        "Pfoo", "Pblah", "Pbar", "Wfoo", "Wblah", "Wbar"};
 
-  for (unsigned I = 0; I < sizeof(Funcs) / sizeof(*Funcs); I++) {
+  for (unsigned I = 0; I < std::size(Funcs); I++) {
     Function *F = M->getFunction(Funcs[I]);
     ASSERT_TRUE(F != nullptr);
     std::string PGOName = getPGOFuncName(*F);
@@ -1140,14 +1148,16 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_compression_test) {
     // Compressing:
     std::string FuncNameStrings1;
     EXPECT_THAT_ERROR(collectPGOFuncNameStrings(
-                          FuncNames1, (DoCompression && zlib::isAvailable()),
+                          FuncNames1,
+                          (DoCompression && compression::zlib::isAvailable()),
                           FuncNameStrings1),
                       Succeeded());
 
     // Compressing:
     std::string FuncNameStrings2;
     EXPECT_THAT_ERROR(collectPGOFuncNameStrings(
-                          FuncNames2, (DoCompression && zlib::isAvailable()),
+                          FuncNames2,
+                          (DoCompression && compression::zlib::isAvailable()),
                           FuncNameStrings2),
                       Succeeded());
 

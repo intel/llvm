@@ -1,11 +1,11 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
-// This test checks if the metadata "kernel-arg-runtime-aligned"
-// is generated if the kernel captures an accessor.
+// This test checks if the metadata "kernel-arg-runtime-aligned" and "kernel_arg_exclusive_ptr"
+// are generated if the kernel captures an accessor.
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 queue q;
 
@@ -21,6 +21,8 @@ int main() {
            access::target::local,
            access::placeholder::true_t>
       acc3;
+
+  local_accessor<float, 2> acc4;
 
   // kernel_A parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>,
   // int*, sycl::range<1>, sycl::range<1>,sycl::id<1>.
@@ -67,8 +69,16 @@ int main() {
   // Using local accessor as a kernel parameter.
   // kernel_arg_runtime_aligned is generated for pointers from local accessors.
   q.submit([&](handler &h) {
-    h.single_task<class localAccessor>([=]() {
+    h.single_task<class localAccessorDep>([=]() {
       acc3.use();
+    });
+  });
+
+  // Using local_accessor as a kernel parameter.
+  // kernel_arg_runtime_aligned is generated for pointers from local accessors.
+  q.submit([&](handler &h) {
+    h.single_task<class localAccessor>([=]() {
+      acc4.use();
     });
   });
 
@@ -100,7 +110,8 @@ int main() {
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+6]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+7]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+8]])
-// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED1:]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD1:]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD1]]
 
 // Check kernel_readOnlyAcc parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_readOnlyAcc
@@ -108,29 +119,42 @@ int main() {
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
-// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2:]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD2:]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD2]]
 
 // Check kernel_B parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_B
 // CHECK-NOT: kernel_arg_runtime_aligned
+// CHECK-NOT: kernel_arg_exclusive_ptr
 
 // Check kernel_C parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
 // CHECK-SAME: i32 noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
+// CHECK-NOT: kernel_arg_exclusive_ptr
 
 // Check usm_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}usm_ptr
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
+// CHECK-NOT: kernel_arg_exclusive_ptr
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
+// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessorDep
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
-// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD2]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD2]]
+
+// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
+// CHECK-SAME: ptr addrspace(3) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD2]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD2]]
 
 // Check kernel_acc_raw_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_acc_raw_ptr
@@ -139,7 +163,8 @@ int main() {
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
-// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED3:]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD3:]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD3]]
 
 // Check esimd_kernel_with_acc parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}esimd_kernel_with_acc
@@ -148,6 +173,6 @@ int main() {
 // Check kernel-arg-runtime-aligned metadata.
 // The value of any metadata element is 1 for any kernel arguments
 // that corresponds to the base pointer of an accessor and 0 otherwise.
-// CHECK: ![[#RTALIGNED1]] = !{i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false}
-// CHECK: ![[#RTALIGNED2]] = !{i1 true, i1 false, i1 false, i1 false}
-// CHECK: ![[#RTALIGNED3]] = !{i1 true, i1 false, i1 false, i1 false, i1 false}
+// CHECK: ![[#ACCESSORMD1]] = !{i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false}
+// CHECK: ![[#ACCESSORMD2]] = !{i1 true, i1 false, i1 false, i1 false}
+// CHECK: ![[#ACCESSORMD3]] = !{i1 true, i1 false, i1 false, i1 false, i1 false}

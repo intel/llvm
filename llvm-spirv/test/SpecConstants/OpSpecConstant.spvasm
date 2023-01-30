@@ -3,48 +3,51 @@
 
 ; RUN: llvm-spirv -spec-const-info %t.spv | FileCheck %s --check-prefix=CHECK-INFO
 ; CHECK-INFO: Number of scalar specialization constants in the module = 11
-; CHECK-INFO: Spec const id = 101, size in bytes = 1
-; CHECK-INFO: Spec const id = 102, size in bytes = 2
-; CHECK-INFO: Spec const id = 103, size in bytes = 4
-; CHECK-INFO: Spec const id = 104, size in bytes = 8
-; CHECK-INFO: Spec const id = 105, size in bytes = 1
-; CHECK-INFO: Spec const id = 106, size in bytes = 1
-; CHECK-INFO: Spec const id = 107, size in bytes = 1
-; CHECK-INFO: Spec const id = 108, size in bytes = 2
-; CHECK-INFO: Spec const id = 109, size in bytes = 4
-; CHECK-INFO: Spec const id = 110, size in bytes = 8
-; CHECK-INFO: Spec const id = 111, size in bytes = 8
+; CHECK-INFO: Spec const id = 101, size in bytes = 1, type = i8
+; CHECK-INFO: Spec const id = 102, size in bytes = 2, type = i16
+; CHECK-INFO: Spec const id = 103, size in bytes = 4, type = i32
+; CHECK-INFO: Spec const id = 104, size in bytes = 8, type = i64
+; CHECK-INFO: Spec const id = 105, size in bytes = 1, type = i8
+; CHECK-INFO: Spec const id = 106, size in bytes = 1, type = i1
+; CHECK-INFO: Spec const id = 107, size in bytes = 1, type = i1
+; CHECK-INFO: Spec const id = 108, size in bytes = 2, type = f16
+; CHECK-INFO: Spec const id = 109, size in bytes = 4, type = f32
+; CHECK-INFO: Spec const id = 110, size in bytes = 8, type = f64
+; CHECK-INFO: Spec const id = 111, size in bytes = 8, type = f64
 
 ; Negative tests for the command line option.
-; RUN: not llvm-spirv -r %t.spv -spec-const "1234" 2>&1 | FileCheck %s --check-prefix=CHECK-FORMAT
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "1234" 2>&1 | FileCheck %s --check-prefix=CHECK-FORMAT
 ; CHECK-FORMAT: Invalid format of -spec-const option: "1234". Expected format: -spec-const "<id1:type1:value1 id2:type2:value2 ...>"
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "q:i32:4" 2>&1 | FileCheck %s --check-prefix=CHECK-ID
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "q:i32:4" 2>&1 | FileCheck %s --check-prefix=CHECK-ID
 ; CHECK-ID: Invalid id for '-spec-const' option! In "q:i32:4": "q" must be a 32-bit unsigned integer
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "10:i32:1024" 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-ID
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "10:i32:1024" 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-ID
 ; CHECK-INVALID-ID: CL_INVALID_SPEC_ID. "10:i32:1024": There is no specialization constant with id = 10 in the SPIR-V module.
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:32:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:32:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE
 ; CHECK-TYPE: Invalid type for '-spec-const' option! In "101:32:99": "32" - is not allowed type. Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:i9:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE-INT
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:i9:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE-INT
 ; CHECK-TYPE-INT: Invalid type for '-spec-const' option! In "101:i9:99": "i9" - is not allowed type. Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:f8:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE-FP
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:f8:99" 2>&1 | FileCheck %s --check-prefix=CHECK-TYPE-FP
 ; CHECK-TYPE-FP: Invalid type for '-spec-const' option! In "101:f8:99": "f8" - is not allowed type. Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:i8:257" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE-INT
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:i8:257" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE-INT
 ; CHECK-VALUE-INT: Invalid value for '-spec-const' option! In "101:i8:257": can't convert "257" to 8-bit integer number
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:f32:4.40282347E+38" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE-FP
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:f32:4.40282347E+38" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE-FP
 ; CHECK-VALUE-FP: Invalid value for '-spec-const' option! In "101:f32:4.40282347E+38": can't convert "4.40282347E+38" to 32-bit floating point number
 
-; RUN: not llvm-spirv -r %t.spv -spec-const "101:i32:1024" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE
+; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "101:i32:1024" 2>&1 | FileCheck %s --check-prefix=CHECK-VALUE
 ; CHECK-VALUE: CL_INVALID_VALUE. In "101:i32:1024": Size of type i32 (4 bytes) does not match the size of the specialization constant in the module (1 bytes)
 
-; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-DEFAULT
-; RUN: llvm-spirv -r -spec-const "101:i8:42 102:i16:22 103:i32:33 104:i64:44 105:i8:0 106:i1:0 107:i1:1 108:f16:5.5 109:f32:6.6 110:f64:7.7 111:f64:8.8 101:i8:11" -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-SPEC
+; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-DEFAULT
+; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "101:i8:42 102:i16:22 103:i32:33 104:i64:44 105:i8:0 106:i1:0 107:i1:1 108:f16:5.5 109:f32:6.6 110:f64:7.7 111:f64:8.8 101:i8:11" -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-SPEC
+
+; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-DEFAULT
+; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "108:f16:0x1234 109:f32:0x12345678 110:f64:0x12345678ABCDEF00" -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-HEX
 
 ; CHECK-DEFAULT: @bt = addrspace(2) constant i1 true, align 1
 ; CHECK-DEFAULT: @bf = addrspace(2) constant i1 false, align 1
@@ -67,6 +70,11 @@
 ; CHECK-SPEC: @f = addrspace(2) constant float 0x401A666660000000, align 4
 ; CHECK-SPEC: @d = addrspace(2) constant double 7.700000e+00, align 8
 ; CHECK-SPEC: @ss = addrspace(1) global %struct.S { i8 0, double 8.800000e+00 }, align 8
+
+; CHECK-HEX: @h = addrspace(2) constant half 0xH1234, align 2
+; Float literals are represented as doubles, so 0x12345678 becomes the value below.
+; CHECK-HEX: @f = addrspace(2) constant float 0x3A468ACF00000000, align 4
+; CHECK-HEX: @d = addrspace(2) constant double 0x12345678ABCDEF00, align 8
 
 ; SPIR-V
 ; Version: 1.0

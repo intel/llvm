@@ -49,6 +49,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -111,6 +112,22 @@ public:
   /// If a loop is top-level, it has no parent, otherwise its
   /// parent is the innermost loop in which it is enclosed.
   LoopT *getParentLoop() const { return ParentLoop; }
+
+  /// Get the outermost loop in which this loop is contained.
+  /// This may be the loop itself, if it already is the outermost loop.
+  const LoopT *getOutermostLoop() const {
+    const LoopT *L = static_cast<const LoopT *>(this);
+    while (L->ParentLoop)
+      L = L->ParentLoop;
+    return L;
+  }
+
+  LoopT *getOutermostLoop() {
+    LoopT *L = static_cast<LoopT *>(this);
+    while (L->ParentLoop)
+      L = L->ParentLoop;
+    return L;
+  }
 
   /// This is a raw interface for bypassing addChildLoop.
   void setParentLoop(LoopT *L) {
@@ -567,7 +584,8 @@ public:
   ///
   bool makeLoopInvariant(Value *V, bool &Changed,
                          Instruction *InsertPt = nullptr,
-                         MemorySSAUpdater *MSSAU = nullptr) const;
+                         MemorySSAUpdater *MSSAU = nullptr,
+                         ScalarEvolution *SE = nullptr) const;
 
   /// If the given instruction is inside of the loop and it can be hoisted, do
   /// so to make it trivially loop-invariant.
@@ -581,7 +599,8 @@ public:
   ///
   bool makeLoopInvariant(Instruction *I, bool &Changed,
                          Instruction *InsertPt = nullptr,
-                         MemorySSAUpdater *MSSAU = nullptr) const;
+                         MemorySSAUpdater *MSSAU = nullptr,
+                         ScalarEvolution *SE = nullptr) const;
 
   /// Check to see if the loop has a canonical induction variable: an integer
   /// recurrence that starts at 0 and increments by one each time through the
@@ -646,8 +665,8 @@ public:
     /// - the final value of the induction variable can be found
     ///
     /// Else None.
-    static Optional<Loop::LoopBounds> getBounds(const Loop &L, PHINode &IndVar,
-                                                ScalarEvolution &SE);
+    static std::optional<Loop::LoopBounds>
+    getBounds(const Loop &L, PHINode &IndVar, ScalarEvolution &SE);
 
     /// Get the initial value of the loop induction variable.
     Value &getInitialIVValue() const { return InitialIVValue; }
@@ -731,8 +750,8 @@ public:
   };
 
   /// Return the struct LoopBounds collected if all struct members are found,
-  /// else None.
-  Optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
+  /// else std::nullopt.
+  std::optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
 
   /// Return the loop induction variable if found, else return nullptr.
   /// An instruction is considered as the loop induction variable if
@@ -798,12 +817,15 @@ public:
   /// by one each time through the loop.
   bool isCanonical(ScalarEvolution &SE) const;
 
-  /// Return true if the Loop is in LCSSA form.
-  bool isLCSSAForm(const DominatorTree &DT) const;
+  /// Return true if the Loop is in LCSSA form. If \p IgnoreTokens is set to
+  /// true, token values defined inside loop are allowed to violate LCSSA form.
+  bool isLCSSAForm(const DominatorTree &DT, bool IgnoreTokens = true) const;
 
-  /// Return true if this Loop and all inner subloops are in LCSSA form.
-  bool isRecursivelyLCSSAForm(const DominatorTree &DT,
-                              const LoopInfo &LI) const;
+  /// Return true if this Loop and all inner subloops are in LCSSA form. If \p
+  /// IgnoreTokens is set to true, token values defined inside loop are allowed
+  /// to violate LCSSA form.
+  bool isRecursivelyLCSSAForm(const DominatorTree &DT, const LoopInfo &LI,
+                              bool IgnoreTokens = true) const;
 
   /// Return true if the Loop is in the form that the LoopSimplify form
   /// transforms loops to, which is sometimes called normal form.
@@ -1305,15 +1327,15 @@ MDNode *findOptionMDForLoopID(MDNode *LoopID, StringRef Name);
 /// found, return nullptr.
 MDNode *findOptionMDForLoop(const Loop *TheLoop, StringRef Name);
 
-Optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
-                                            StringRef Name);
-  
+std::optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
+                                                 StringRef Name);
+
 /// Returns true if Name is applied to TheLoop and enabled.
 bool getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name);
 
 /// Find named metadata for a loop with an integer value.
-llvm::Optional<int>
-getOptionalIntLoopAttribute(const Loop *TheLoop, StringRef Name);
+std::optional<int> getOptionalIntLoopAttribute(const Loop *TheLoop,
+                                               StringRef Name);
 
 /// Find named metadata for a loop with an integer value. Return \p Default if
 /// not set.
@@ -1324,8 +1346,8 @@ int getIntLoopAttribute(const Loop *TheLoop, StringRef Name, int Default = 0);
 /// If it has a value (e.g. {"llvm.distribute", 1} return the value as an
 /// operand or null otherwise.  If the string metadata is not found return
 /// Optional's not-a-value.
-Optional<const MDOperand *> findStringMetadataForLoop(const Loop *TheLoop,
-                                                      StringRef Name);
+std::optional<const MDOperand *> findStringMetadataForLoop(const Loop *TheLoop,
+                                                           StringRef Name);
 
 /// Look for the loop attribute that requires progress within the loop.
 /// Note: Most consumers probably want "isMustProgress" which checks

@@ -58,7 +58,7 @@ unsigned getOffsetAfterTokenSequence(
 // (second) raw_identifier name is checked.
 bool checkAndConsumeDirectiveWithName(
     Lexer &Lex, StringRef Name, Token &Tok,
-    llvm::Optional<StringRef> RawIDName = llvm::None) {
+    llvm::Optional<StringRef> RawIDName = std::nullopt) {
   bool Matched = Tok.is(tok::hash) && !Lex.LexFromRawLexer(Tok) &&
                  Tok.is(tok::raw_identifier) &&
                  Tok.getRawIdentifier() == Name && !Lex.LexFromRawLexer(Tok) &&
@@ -169,6 +169,13 @@ unsigned getMaxHeaderInsertionOffset(StringRef FileName, StringRef Code,
       });
 }
 
+inline StringRef trimInclude(StringRef IncludeName) {
+  return IncludeName.trim("\"<>");
+}
+
+const char IncludeRegexPattern[] =
+    R"(^[\t\ ]*#[\t\ ]*(import|include)[^"<]*(["<][^">]*[">]))";
+
 // The filename of Path excluding extension.
 // Used to match implementation with headers, this differs from sys::path::stem:
 //  - in names with multiple dots (foo.cu.cc) it terminates at the *first*
@@ -259,6 +266,8 @@ bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   return false;
 }
 
+const llvm::Regex HeaderIncludes::IncludeRegex(IncludeRegexPattern);
+
 HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
                                const IncludeStyle &Style)
     : FileName(FileName), Code(Code), FirstIncludeOffset(-1),
@@ -267,7 +276,7 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
       MaxInsertOffset(MinInsertOffset +
                       getMaxHeaderInsertionOffset(
                           FileName, Code.drop_front(MinInsertOffset), Style)),
-      Categories(Style, FileName), IncludeRegex(getCppIncludeRegex()) {
+      Categories(Style, FileName) {
   // Add 0 for main header and INT_MAX for headers that are not in any
   // category.
   Priorities = {0, INT_MAX};
@@ -282,13 +291,14 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
   for (auto Line : Lines) {
     NextLineOffset = std::min(Code.size(), Offset + Line.size() + 1);
     if (IncludeRegex.match(Line, &Matches)) {
-      StringRef IncludeName = tooling::getIncludeNameFromMatches(Matches);
       // If this is the last line without trailing newline, we need to make
       // sure we don't delete across the file boundary.
       addExistingInclude(
-          Include(IncludeName,
+          Include(Matches[2],
                   tooling::Range(
-                      Offset, std::min(Line.size() + 1, Code.size() - Offset))),
+                      Offset, std::min(Line.size() + 1, Code.size() - Offset)),
+                  Matches[1] == "import" ? tooling::IncludeDirective::Import
+                                         : tooling::IncludeDirective::Include),
           NextLineOffset);
     }
     Offset = NextLineOffset;
@@ -334,17 +344,20 @@ void HeaderIncludes::addExistingInclude(Include IncludeToAdd,
 }
 
 llvm::Optional<tooling::Replacement>
-HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
+HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled,
+                       IncludeDirective Directive) const {
   assert(IncludeName == trimInclude(IncludeName));
   // If a <header> ("header") already exists in code, "header" (<header>) with
-  // different quotation will still be inserted.
+  // different quotation and/or directive will still be inserted.
   // FIXME: figure out if this is the best behavior.
   auto It = ExistingIncludes.find(IncludeName);
-  if (It != ExistingIncludes.end())
+  if (It != ExistingIncludes.end()) {
     for (const auto &Inc : It->second)
-      if ((IsAngled && StringRef(Inc.Name).startswith("<")) ||
-          (!IsAngled && StringRef(Inc.Name).startswith("\"")))
-        return llvm::None;
+      if (Inc.Directive == Directive &&
+          ((IsAngled && StringRef(Inc.Name).startswith("<")) ||
+           (!IsAngled && StringRef(Inc.Name).startswith("\""))))
+        return std::nullopt;
+  }
   std::string Quoted =
       std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;
@@ -363,8 +376,10 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     }
   }
   assert(InsertOffset <= Code.size());
+  llvm::StringRef DirectiveSpelling =
+      Directive == IncludeDirective::Include ? "include" : "import";
   std::string NewInclude =
-      std::string(llvm::formatv("#include {0}\n", QuotedName));
+      llvm::formatv("#{0} {1}\n", DirectiveSpelling, QuotedName);
   // When inserting headers at end of the code, also append '\n' to the code
   // if it does not end with '\n'.
   // FIXME: when inserting multiple #includes at the end of code, only one
@@ -394,26 +409,6 @@ tooling::Replacements HeaderIncludes::remove(llvm::StringRef IncludeName,
     }
   }
   return Result;
-}
-
-llvm::Regex getCppIncludeRegex() {
-  static const char CppIncludeRegexPattern[] =
-      R"(^[\t\ ]*[@#][\t\ ]*(import|include)([^"]*("[^"]+")|[^<]*(<[^>]+>)|[\t\ ]*([^;]+;)))";
-  return llvm::Regex(CppIncludeRegexPattern);
-}
-
-llvm::StringRef getIncludeNameFromMatches(
-    const llvm::SmallVectorImpl<llvm::StringRef> &Matches) {
-  for (auto Match : llvm::reverse(Matches)) {
-    if (!Match.empty())
-      return Match;
-  }
-  llvm_unreachable("No non-empty match group found in list of matches");
-  return llvm::StringRef();
-}
-
-llvm::StringRef trimInclude(llvm::StringRef IncludeName) {
-  return IncludeName.trim("\"<>;");
 }
 
 } // namespace tooling

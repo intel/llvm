@@ -1,5 +1,3 @@
-// REQUIRES: clang-driver
-
 // RUN: %clang -### -fsycl \
 // RUN:   -fsycl-fp32-prec-sqrt %s 2>&1 | FileCheck %s
 

@@ -141,11 +141,20 @@ OPTIONS
    any
          Process all the supported object files.
 
+  On AIX OS, the default is to process 32-bit object files only and to ignore
+  64-bit objects. The can be changed by setting the OBJECT_MODE environment
+  variable. For example, OBJECT_MODE=64 causes :program:`llvm-nm` to process
+  64-bit objects and ignore 32-bit objects. The -X flag overrides the OBJECT_MODE
+  variable.
+
+  On other operating systems, the default is to process all object files: the
+  OBJECT_MODE environment variable is not supported.
+
 .. option:: --debug-syms, -a
 
  Show all symbols, even those usually suppressed.
 
-.. option:: --defined-only
+.. option:: --defined-only, -U
 
  Print only symbols defined in this file.
 
@@ -197,7 +206,7 @@ OPTIONS
 
  Show symbols in the order encountered.
 
-.. option:: --no-weak
+.. option:: --no-weak, -W
 
  Don't print weak symbols.
 

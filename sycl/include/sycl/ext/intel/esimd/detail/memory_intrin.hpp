@@ -13,19 +13,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/accessor.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
@@ -36,8 +36,9 @@ const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
 
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
@@ -77,8 +78,9 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
   return (1 << ElemsPerAddrEncoded);
 }
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 // flat_read does flat-address gather
 template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
@@ -483,7 +485,25 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  __ESIMD_DNS::vector_type_t<Ty, N> Oldval = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Oldval vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+    if constexpr (Op == __ESIMD_NS::atomic_op::load) {
+      Oldval[AddrIdx] = __ESIMD_DNS::atomic_load<Ty>((Ty *)addrs[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::inc) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::dec) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
+    }
+  }
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -496,23 +516,49 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
+  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
 
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
 
-      switch (Op) {
-      case __ESIMD_NS::atomic_op::add:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
-        break;
-      default:
-        __ESIMD_UNSUPPORTED_ON_HOST;
-      }
+    if constexpr (Op == __ESIMD_NS::atomic_op::store) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_store<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::add) ||
+                         (Op == __ESIMD_NS::atomic_op::fadd)) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::sub) ||
+                         (Op == __ESIMD_NS::atomic_op::fsub)) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::minsint) ||
+                         (Op == __ESIMD_NS::atomic_op::min) ||
+                         (Op == __ESIMD_NS::atomic_op::fmin)) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::maxsint) ||
+                         (Op == __ESIMD_NS::atomic_op::max) ||
+                         (Op == __ESIMD_NS::atomic_op::fmax)) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_and) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_and<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_or) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_or<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_xor) {
+      Oldval[AddrIdx] =
+          __ESIMD_DNS::atomic_xor<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
     }
   }
 
-  return retv;
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -526,7 +572,20 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+    static_assert((Op == __ESIMD_NS::atomic_op::cmpxchg) ||
+                  (Op == __ESIMD_NS::atomic_op::fcmpxchg));
+    Oldval[AddrIdx] = __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx],
+                                                  src0[AddrIdx], src1[AddrIdx]);
+  }
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -555,7 +614,9 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
     ;
 #else
 {
-  sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
+  // CM_EMU's 'cm_fence' is NOP. Disabled.
+  // sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
+  __ESIMD_DNS::atomic_fence();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -738,14 +799,15 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// gather4 scaled from a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __ESIMD_NS::rgba_channel_mask Mask, int16_t Scale = 0>
+// gather4 scaled masked from a surface/SLM
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy, int16_t Scale = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __esimd_gather4_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           SurfIndAliasTy surf_ind, int global_offset,
-                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __esimd_gather4_masked_scaled2(
+        SurfIndAliasTy surf_ind, int global_offset,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
 #else
@@ -846,7 +908,7 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
         switch (Op) {
         case __ESIMD_NS::atomic_op::inc:
-          retv[i] = atomic_add_fetch<Ty>(p, 1);
+          retv[i] = __ESIMD_DNS::atomic_add<Ty>(p, 1);
           break;
         default:
           __ESIMD_UNSUPPORTED_ON_HOST;
@@ -1098,6 +1160,10 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// getter methods returning surface index are not available when stateless
+// memory accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getNativeImageObj(acc)
@@ -1129,5 +1195,7 @@ __ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

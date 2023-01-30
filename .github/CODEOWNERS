@@ -1,4 +1,4 @@
-* @pvchupin
+* @bader
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
@@ -17,6 +17,9 @@ opencl/ @intel/llvm-reviewers-runtime
 
 # OpenCL "offline" compiler
 opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
+
+# libclc library
+libclc/ @intel/llvm-reviewers-cuda
 
 # Device library
 libdevice/ @intel/llvm-reviewers-runtime
@@ -57,7 +60,16 @@ sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
 sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
+# invoke_simd
+sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+sycl/include/std/experimental/simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
+llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
+
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+
+# Kernel fusion JIT compiler
+sycl-fusion/ @victor-eds @Naghasan @sommerlukas

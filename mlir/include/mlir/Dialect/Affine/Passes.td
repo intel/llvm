@@ -43,27 +43,29 @@ def AffineDataCopyGeneration : Pass<"affine-data-copy-generate", "func::FuncOp">
   ];
 }
 
-def AffineLoopFusion : Pass<"affine-loop-fusion", "func::FuncOp"> {
+def AffineLoopFusion : Pass<"affine-loop-fusion"> {
   let summary = "Fuse affine loop nests";
   let description = [{
-    This pass performs fusion of loop nests using a slicing-based approach. It
-    combines two fusion strategies: producer-consumer fusion and sibling fusion.
-    Producer-consumer fusion is aimed at fusing pairs of loops where the first
-    one writes to a memref that the second reads. Sibling fusion targets pairs
-    of loops that share no dependences between them but that load from the same
-    memref. The fused loop nests, when possible, are rewritten to access
-    significantly smaller local buffers instead of the original memref's, and
-    the latter are often either completely optimized away or contracted. This
-    transformation leads to enhanced locality and lower memory footprint through
-    the elimination or contraction of temporaries/intermediate memref's. These
-    benefits are sometimes achieved at the expense of redundant computation
-    through a cost model that evaluates available choices such as the depth at
-    which a source slice should be materialized in the designation slice.
+    This pass performs fusion of loop nests using a slicing-based approach. The
+    transformation works on an MLIR `Block` granularity and applies to all
+    blocks of the pass is run on. It combines two fusion strategies:
+    producer-consumer fusion and sibling fusion. Producer-consumer fusion is
+    aimed at fusing pairs of loops where the first one writes to a memref that
+    the second reads. Sibling fusion targets pairs of loops that share no
+    dependences between them but that load from the same memref. The fused loop
+    nests, when possible, are rewritten to access significantly smaller local
+    buffers instead of the original memref's, and the latter are often either
+    completely optimized away or contracted. This transformation leads to
+    enhanced locality and lower memory footprint through the elimination or
+    contraction of temporaries/intermediate memref's. These benefits are
+    sometimes achieved at the expense of redundant computation through a cost
+    model that evaluates available choices such as the depth at which a source
+    slice should be materialized in the designation slice.
 
     Example 1: Producer-consumer fusion.
     Input:
     ```mlir
-    func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
+    func.func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
       %0 = memref.alloc() : memref<10xf32>
       %1 = memref.alloc() : memref<10xf32>
       %cst = arith.constant 0.000000e+00 : f32
@@ -86,7 +88,7 @@ def AffineLoopFusion : Pass<"affine-loop-fusion", "func::FuncOp"> {
     ```
     Output:
     ```mlir
-    func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
+    func.func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
       %0 = memref.alloc() : memref<1xf32>
       %1 = memref.alloc() : memref<1xf32>
       %cst = arith.constant 0.000000e+00 : f32
@@ -107,7 +109,7 @@ def AffineLoopFusion : Pass<"affine-loop-fusion", "func::FuncOp"> {
     Example 2: Sibling fusion.
     Input:
     ```mlir
-    func @sibling_fusion(%arg0: memref<10x10xf32>, %arg1: memref<10x10xf32>,
+    func.func @sibling_fusion(%arg0: memref<10x10xf32>, %arg1: memref<10x10xf32>,
                          %arg2: memref<10x10xf32>, %arg3: memref<10x10xf32>,
                          %arg4: memref<10x10xf32>) {
       affine.for %arg5 = 0 to 3 {
@@ -131,7 +133,7 @@ def AffineLoopFusion : Pass<"affine-loop-fusion", "func::FuncOp"> {
     ```
     Output:
     ```mlir
-    func @sibling_fusion(%arg0: memref<10x10xf32>, %arg1: memref<10x10xf32>,
+    func.func @sibling_fusion(%arg0: memref<10x10xf32>, %arg1: memref<10x10xf32>,
                          %arg2: memref<10x10xf32>, %arg3: memref<10x10xf32>,
                          %arg4: memref<10x10xf32>) {
       affine.for %arg5 = 0 to 3 {
@@ -186,15 +188,14 @@ def AffineLoopTiling : Pass<"affine-loop-tile", "func::FuncOp"> {
   let constructor = "mlir::createLoopTilingPass()";
   let options = [
     Option<"cacheSizeInKiB", "cache-size", "uint64_t", /*default=*/"512",
-           "Set size of cache to tile for in KiB">,
-    Option<"separate", "separate", "bool", /*default=*/"",
-           "Separate full and partial tiles">,
+           "Set size of cache to tile for in KiB (default: 512)">,
+    Option<"separate", "separate", "bool", /*default=*/"false",
+           "Separate full and partial tiles (default: false)">,
     Option<"tileSize", "tile-size", "unsigned", /*default=*/"",
            "Use this tile size for all loops">,
     ListOption<"tileSizes", "tile-sizes", "unsigned",
                "List of tile sizes for each perfect nest "
-               "(overridden by -tile-size)",
-               "llvm::cl::ZeroOrMore">,
+               "(overridden by -tile-size)">,
   ];
 }
 
@@ -213,6 +214,8 @@ def AffineLoopUnroll : Pass<"affine-loop-unroll", "func::FuncOp"> {
     Option<"unrollFullThreshold", "unroll-full-threshold", "unsigned",
            /*default=*/"1",
            "Unroll all loops with trip count less than or equal to this">,
+    Option<"cleanUpUnroll", "cleanup-unroll", "bool", /*default=*/"false",
+           "Fully unroll the cleanup loop when possible.">,
   ];
 }
 
@@ -238,7 +241,7 @@ def AffinePipelineDataTransfer
     Input
 
     ```mlir
-    func @pipelinedatatransfer() {
+    func.func @pipelinedatatransfer() {
       %0 = memref.alloc() : memref<256xf32>
       %1 = memref.alloc() : memref<32xf32, 1>
       %2 = memref.alloc() : memref<1xf32>
@@ -259,7 +262,7 @@ def AffinePipelineDataTransfer
 
     ```mlir
     module {
-      func @pipelinedatatransfer() {
+      func.func @pipelinedatatransfer() {
         %c8 = arith.constant 8 : index
         %c0 = arith.constant 0 : index
         %0 = memref.alloc() : memref<256xf32>
@@ -296,7 +299,7 @@ def AffinePipelineDataTransfer
 }
 
 def AffineScalarReplacement : Pass<"affine-scalrep", "func::FuncOp"> {
-  let summary = "Replace affine memref acceses by scalars by forwarding stores "
+  let summary = "Replace affine memref accesses by scalars by forwarding stores "
                 "to loads and eliminating redundant loads";
   let description = [{
     This pass performs store to load forwarding and redundant load elimination
@@ -306,7 +309,7 @@ def AffineScalarReplacement : Pass<"affine-scalrep", "func::FuncOp"> {
     Input
 
     ```mlir
-    func @store_load_affine_apply() -> memref<10x10xf32> {
+    func.func @store_load_affine_apply() -> memref<10x10xf32> {
       %cf7 = arith.constant 7.0 : f32
       %m = memref.alloc() : memref<10x10xf32>
       affine.for %i0 = 0 to 10 {
@@ -324,7 +327,7 @@ def AffineScalarReplacement : Pass<"affine-scalrep", "func::FuncOp"> {
 
     ```mlir
     module {
-      func @store_load_affine_apply() -> memref<10x10xf32> {
+      func.func @store_load_affine_apply() -> memref<10x10xf32> {
         %cst = arith.constant 7.000000e+00 : f32
         %0 = memref.alloc() : memref<10x10xf32>
         affine.for %arg0 = 0 to 10 {
@@ -343,12 +346,10 @@ def AffineScalarReplacement : Pass<"affine-scalrep", "func::FuncOp"> {
 
 def AffineVectorize : Pass<"affine-super-vectorize", "func::FuncOp"> {
   let summary = "Vectorize to a target independent n-D vector abstraction";
-  let constructor = "mlir::createSuperVectorizePass()";
   let dependentDialects = ["vector::VectorDialect"];
   let options = [
     ListOption<"vectorSizes", "virtual-vector-size", "int64_t",
-               "Specify an n-D virtual vector size for vectorization",
-               "llvm::cl::ZeroOrMore">,
+               "Specify an n-D virtual vector size for vectorization">,
     // Optionally, the fixed mapping from loop to fastest varying MemRef
     // dimension for all the MemRefs within a loop pattern:
     //   the index represents the loop depth, the value represents the k^th
@@ -358,8 +359,7 @@ def AffineVectorize : Pass<"affine-super-vectorize", "func::FuncOp"> {
     ListOption<"fastestVaryingPattern", "test-fastest-varying", "int64_t",
                "Specify a 1-D, 2-D or 3-D pattern of fastest varying memory "
                "dimensions to match. See defaultPatterns in Vectorize.cpp for "
-               "a description and examples. This is used for testing purposes",
-               "llvm::cl::ZeroOrMore">,
+               "a description and examples. This is used for testing purposes">,
     Option<"vectorizeReductions", "vectorize-reductions", "bool",
            /*default=*/"false",
            "Vectorize known reductions expressed via iter_args. "
@@ -383,19 +383,28 @@ def AffineParallelize : Pass<"affine-parallelize", "func::FuncOp"> {
 def AffineLoopNormalize : Pass<"affine-loop-normalize", "func::FuncOp"> {
   let summary = "Apply normalization transformations to affine loop-like ops";
   let constructor = "mlir::createAffineLoopNormalizePass()";
+  let options = [
+    Option<"promoteSingleIter", "promote-single-iter", "bool",
+           /*default=*/"true", "Promote single iteration loops">,
+  ];
 }
 
 def LoopCoalescing : Pass<"affine-loop-coalescing", "func::FuncOp"> {
   let summary = "Coalesce nested loops with independent bounds into a single "
                 "loop";
   let constructor = "mlir::createLoopCoalescingPass()";
-  let dependentDialects = ["arith::ArithmeticDialect"];
+  let dependentDialects = ["arith::ArithDialect"];
 }
 
 def SimplifyAffineStructures : Pass<"affine-simplify-structures", "func::FuncOp"> {
   let summary = "Simplify affine expressions in maps/sets and normalize "
                 "memrefs";
   let constructor = "mlir::createSimplifyAffineStructuresPass()";
+}
+
+def AffineExpandIndexOps : Pass<"affine-expand-index-ops"> {
+  let summary = "Lower affine operations operating on indices into more fundamental operations";
+  let constructor = "mlir::createAffineExpandIndexOpsPass()";
 }
 
 #endif // MLIR_DIALECT_AFFINE_PASSES

@@ -19,11 +19,11 @@ module __Fortran_builtins
   private :: selected_int_kind
   integer, parameter, private :: int64 = selected_int_kind(18)
 
-  type :: __builtin_c_ptr
+  type, bind(c) :: __builtin_c_ptr
     integer(kind=int64) :: __address
   end type
 
-  type :: __builtin_c_funptr
+  type, bind(c) :: __builtin_c_funptr
     integer(kind=int64) :: __address
   end type
 
@@ -39,10 +39,13 @@ module __Fortran_builtins
     integer(kind=int64) :: __id
   end type
 
+  integer, parameter :: __builtin_atomic_int_kind = selected_int_kind(18)
+  integer, parameter :: __builtin_atomic_logical_kind = __builtin_atomic_int_kind
+
   procedure(type(__builtin_c_ptr)) :: __builtin_c_loc
 
-  intrinsic :: __builtin_ieee_is_nan, __builtin_ieee_is_normal, &
-    __builtin_ieee_is_negative
+  intrinsic :: __builtin_ieee_is_nan, __builtin_ieee_is_negative, &
+    __builtin_ieee_is_normal
   intrinsic :: __builtin_ieee_next_after, __builtin_ieee_next_down, &
     __builtin_ieee_next_up
   intrinsic :: scale ! for ieee_scalb

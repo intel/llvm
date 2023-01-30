@@ -19,7 +19,7 @@ namespace readability {
 /// constructor would be called if they were not present.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability-redundant-member-init.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability/redundant-member-init.html
 class RedundantMemberInitCheck : public ClangTidyCheck {
 public:
   RedundantMemberInitCheck(StringRef Name, ClangTidyContext *Context)
@@ -32,7 +32,7 @@ public:
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 

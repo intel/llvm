@@ -15,6 +15,7 @@
 #define LLVM_CLANG_EXTRACTAPI_FRONTEND_ACTIONS_H
 
 #include "clang/ExtractAPI/API.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
 #include "clang/Frontend/FrontendAction.h"
 
 namespace clang {
@@ -39,8 +40,14 @@ private:
   /// files.
   std::unique_ptr<llvm::MemoryBuffer> Buffer;
 
+  /// The list of symbols to ignore during serialization
+  extractapi::APIIgnoresList IgnoresList;
+
   /// The input file originally provided on the command line.
-  std::vector<std::string> KnownInputFiles;
+  ///
+  /// This captures the spelling used to include the file and whether the
+  /// include is quoted or not.
+  SmallVector<std::pair<SmallString<32>, bool>> KnownInputFiles;
 
   /// Prepare to execute the action on the given CompilerInstance.
   ///

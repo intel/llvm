@@ -4,8 +4,8 @@
 // RUN:   %fcheck-nvptx64-nvidia-cuda -allow-empty -check-prefix=INFO
 // REQUIRES: nvptx64-nvidia-cuda
 
-#include <stdio.h>
 #include <omp.h>
+#include <stdio.h>
 
 #define N 64
 
@@ -54,15 +54,16 @@ int main() {
 // INFO: Libomptarget device 0 info: Removing map entry with HstPtrBegin={{.*}}, TgtPtrBegin={{.*}}, Size=256, Name=A[0:64]
 // INFO: Libomptarget device 0 info: OpenMP Host-Device pointer mappings after block at info.c:[[#%u,]]:[[#%u,]]:
 // INFO: Libomptarget device 0 info: Host Ptr  Target Ptr Size (B) DynRefCount HoldRefCount Declaration
-// INFO: Libomptarget device 0 info: [[#%#x,]] [[#%#x,]]  4        INF         0            unknown at unknown:0:0
-#pragma omp target data map(alloc:A[0:N]) map(ompx_hold,tofrom:B[0:N]) map(to:C[0:N])
+// INFO: Libomptarget device 0 info: [[#%#x,]] [[#%#x,]]  4        INF         0            global at unknown:0:0
+#pragma omp target data map(alloc : A[0 : N])                                  \
+    map(ompx_hold, tofrom : B[0 : N]) map(to : C[0 : N])
 #pragma omp target firstprivate(val)
   { val = 1; }
 
   __tgt_set_info_flag(0x0);
 // INFO-NOT: Libomptarget device 0 info: {{.*}}
 #pragma omp target
-  { }
+  {}
 
   return 0;
 }

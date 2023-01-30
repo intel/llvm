@@ -6,9 +6,9 @@
 // RUN: fir-opt --array-value-copy %s | FileCheck %s
 
 
-!t_with_alloc_comp = type !fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>
-func private @custom_assign(!fir.ref<!t_with_alloc_comp>, !fir.ref<!t_with_alloc_comp>)
-func @test_overlap_with_alloc_components(%arg0: !fir.ref<!fir.array<10x!t_with_alloc_comp>>) {
+!t_with_alloc_comp = !fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>
+func.func private @custom_assign(!fir.ref<!t_with_alloc_comp>, !fir.ref<!t_with_alloc_comp>)
+func.func @test_overlap_with_alloc_components(%arg0: !fir.ref<!fir.array<10x!t_with_alloc_comp>>) {
   %0 = fir.alloca !fir.box<!t_with_alloc_comp>
   %c10 = arith.constant 10 : index
   %c9 = arith.constant 9 : index
@@ -38,8 +38,8 @@ func @test_overlap_with_alloc_components(%arg0: !fir.ref<!fir.array<10x!t_with_a
 // CHECK:   %[[VAL_9:.*]] = fir.shape %[[VAL_4]] : (index) -> !fir.shape<1>
 // CHECK:   %[[VAL_10:.*]] = fir.slice %[[VAL_4]], %[[VAL_6]], %[[VAL_7]] : (index, index, index) -> !fir.slice<1>
 // CHECK:   %[[VAL_11:.*]] = fir.allocmem !fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>
-// CHECK:   %[[VAL_12:.*]] = fir.embox %[[VAL_11]](%[[VAL_9]]) : (!fir.heap<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>, !fir.shape<1>) -> !fir.box<!fir.ref<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>
-// CHECK:   %[[VAL_16:.*]] = fir.convert %[[VAL_12]] : (!fir.box<!fir.ref<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>) -> !fir.box<none>
+// CHECK:   %[[VAL_12:.*]] = fir.embox %[[VAL_11]](%[[VAL_9]]) : (!fir.heap<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>, !fir.shape<1>) -> !fir.box<!fir.heap<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>
+// CHECK:   %[[VAL_16:.*]] = fir.convert %[[VAL_12]] : (!fir.box<!fir.heap<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>) -> !fir.box<none>
 // CHECK:   fir.call @_FortranAInitialize(%[[VAL_16]], %{{.*}}, %{{.*}}) : (!fir.box<none>, !fir.ref<i8>, i32) -> none
 // CHECK:   fir.do_loop {{.*}} {
 // CHECK:     fir.call @_FortranAAssign
@@ -50,6 +50,6 @@ func @test_overlap_with_alloc_components(%arg0: !fir.ref<!fir.array<10x!t_with_a
 // CHECK:   fir.do_loop %{{.*}} {
 // CHECK:     fir.call @_FortranAAssign
 // CHECK:   }
-// CHECK:   %[[VAL_72:.*]] = fir.convert %[[VAL_12]] : (!fir.box<!fir.ref<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>) -> !fir.box<none>
+// CHECK:   %[[VAL_72:.*]] = fir.convert %[[VAL_12]] : (!fir.box<!fir.heap<!fir.array<10x!fir.type<t{i:!fir.box<!fir.heap<!fir.array<?xi32>>>}>>>>) -> !fir.box<none>
 // CHECK:   %[[VAL_73:.*]] = fir.call @_FortranADestroy(%[[VAL_72]]) : (!fir.box<none>) -> none
 // CHECK:   fir.freemem %[[VAL_11]]

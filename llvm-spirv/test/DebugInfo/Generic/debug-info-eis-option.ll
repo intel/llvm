@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=legacy
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -stop-before=finalize-isel -pre-RA-sched=linearize < %t.ll -experimental-debug-variable-locations=false | FileCheck %s
 
@@ -33,7 +33,7 @@ for.cond.cleanup:                                 ; preds = %for.cond.cleanup.lo
 
 for.body:                                         ; preds = %for.body, %for.body.preheader
 ; CHECK: ![[X:[0-9]+]] = !DILocalVariable(name: "x",
-; CHECK-LABEL: bb.3.for.body:
+; CHECK-LABEL: bb.2.for.body:
 ; CHECK: DBG_VALUE {{.*}} ![[X]], !DIExpression()
 ; CHECK: DBG_VALUE {{.*}} ![[X]], !DIExpression()
   %indvars.iv = phi i64 [ %indvars.iv.next, %for.body ], [ 0, %for.body.preheader ]

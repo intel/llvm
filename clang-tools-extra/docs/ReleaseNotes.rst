@@ -53,7 +53,6 @@ Inlay hints
 
 Diagnostics
 ^^^^^^^^^^^
-- Improved Fix-its of some clang-tidy checks when applied with clangd.
 
 Semantic Highlighting
 ^^^^^^^^^^^^^^^^^^^^^
@@ -82,7 +81,7 @@ Miscellaneous
 Improvements to clang-doc
 -------------------------
 
-The improvements are...
+- The default executor was changed to standalone to match other tools.
 
 Improvements to clang-query
 ---------------------------
@@ -97,87 +96,113 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-- Added trace code to help narrow down any checks and the relevant source code
-  that result in crashes.
-
-- Clang-tidy now consideres newlines as separators of single elements in the `Checks` section in
-  `.clang-tidy` configuration files. Where previously a comma had to be used to distinguish elements in
-  this list from each other, newline characters now also work as separators in the parsed YAML. That
-  means it is advised to use YAML's block style initiated by the pipe character `|` for the `Checks`
-  section in order to benefit from the easier syntax that works without commas.
+- Change to Python 3 in the shebang of `add_new_check.py` and `rename_check.py`,
+  as the existing code is not compatible with Python 2.
 
 New checks
 ^^^^^^^^^^
 
-- New :doc:`bugprone-shared-ptr-array-mismatch <clang-tidy/checks/bugprone-shared-ptr-array-mismatch>` check.
+- New :doc:`bugprone-suspicious-realloc-usage
+  <clang-tidy/checks/bugprone/suspicious-realloc-usage>` check.
 
-  Finds initializations of C++ shared pointers to non-array type that are initialized with an array.
+  Finds usages of ``realloc`` where the return value is assigned to the
+  same expression as passed to the first argument.
 
-- New :doc:`modernize-macro-to-enum
-  <clang-tidy/checks/modernize-macro-to-enum>` check.
+- New :doc:`cppcoreguidelines-avoid-const-or-ref-data-members
+  <clang-tidy/checks/cppcoreguidelines/avoid-const-or-ref-data-members>` check.
 
-  Replaces groups of adjacent macros with an unscoped anonymous enum.
+  Warns when a struct or class uses const or reference (lvalue or rvalue) data members.
 
-- New :doc:`portability-std-allocator-const <clang-tidy/checks/portability-std-allocator-const>` check.
+- New :doc:`cppcoreguidelines-avoid-do-while
+  <clang-tidy/checks/cppcoreguidelines/avoid-do-while>` check.
 
-  Report use of ``std::vector<const T>`` (and similar containers of const
-  elements). These are not allowed in standard C++ due to undefined
-  ``std::allocator<const T>``. They do not compile with libstdc++ or MSVC.
-  Future libc++ will remove the extension (`D120996
-  <https://reviews.llvm.org/D120996>`).
+  Warns when using ``do-while`` loops.
+
+- New :doc:`misc-use-anonymous-namespace
+  <clang-tidy/checks/misc/use-anonymous-namespace>` check.
+
+  Warns when using ``static`` function or variables at global scope, and suggests
+  moving them into an anonymous namespace.
+
+- New :doc:`bugprone-standalone-empty <clang-tidy/checks/bugprone/standalone-empty>` check.
+
+  Warns when `empty()` is used on a range and the result is ignored. Suggests `clear()`
+  if it is an existing member function.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
 
-- New alias :doc:`cppcoreguidelines-macro-to-enum
-  <clang-tidy/checks/cppcoreguidelines-macro-to-enum>` to :doc:`modernize-macro-to-enum
-  <clang-tidy/checks/modernize-macro-to-enum>` was added.
+- New alias :doc:`cert-msc54-cpp
+  <clang-tidy/checks/cert/msc54-cpp>` to
+  :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone/signal-handler>` was added.
+
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Fixed a crash in :doc:`bugprone-sizeof-expression
-  <clang-tidy/checks/bugprone-sizeof-expression>` when `sizeof(...)` is
-  compared against a `__int128_t`.
+- Fixed a false positive in :doc:`bugprone-assignment-in-if-condition
+  <clang-tidy/checks/bugprone/assignment-in-if-condition>` check when there
+  was an assignement in a lambda found in the condition of an ``if``.
 
-- Improved :doc:`cppcoreguidelines-prefer-member-initializer
-  <clang-tidy/checks/cppcoreguidelines-prefer-member-initializer>` check.
+- Improved :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone/signal-handler>` check. Partial
+  support for C++14 signal handler rules was added. Bug report generation was
+  improved.
 
-  Fixed an issue when there was already an initializer in the constructor and
-  the check would try to create another initializer for the same member.
+- Fixed a false positive in :doc:`cppcoreguidelines-pro-type-member-init
+  <clang-tidy/checks/cppcoreguidelines/pro-type-member-init>` when warnings
+  would be emitted for uninitialized members of an anonymous union despite
+  there being an initializer for one of the other members.
 
-- Fixed a crash in :doc:`llvmlibc-callee-namespace
-  <clang-tidy/checks/llvmlibc-callee-namespace>` when executing for C++ code
-  that contain calls to advanced constructs, e.g. overloaded operators.
+- Fixed false positives in :doc:`google-objc-avoid-throwing-exception
+  <clang-tidy/checks/google/objc-avoid-throwing-exception>` check for exceptions
+  thrown by code emitted from macros in system headers.
 
-- Fixed a false positive in :doc:`misc-redundant-expression
-  <clang-tidy/checks/misc-redundant-expression>` involving overloaded
-  comparison operators.
+- Improved :doc:`modernize-use-emplace <clang-tidy/checks/modernize/use-emplace>`
+  check.
 
-- Fixed a false positive in :doc:`misc-redundant-expression
-  <clang-tidy/checks/misc-redundant-expression>` involving assignments in
-  conditions. This fixes `Issue 35853 <https://github.com/llvm/llvm-project/issues/35853>`_.
+  The check now supports detecting inefficient invocations of ``push`` and
+  ``push_front`` on STL-style containers and replacing them with ``emplace``
+  or ``emplace_front``.
 
-- Fixed a crash in :doc:`readability-const-return-type
-  <clang-tidy/checks/readability-const-return-type>` when a pure virtual function
-  overrided has a const return type. Removed the fix for a virtual function.
+  The check now supports detecting alias cases of ``push_back`` ``push`` and
+  ``push_front`` on STL-style containers and replacing them with ``emplace_back``,
+  ``emplace`` or ``emplace_front``.
 
-- Fixed a false positive in :doc:`readability-non-const-parameter
-  <clang-tidy/checks/readability-non-const-parameter>` when the parameter is
-  referenced by an lvalue.
+- Improved :doc:`modernize-use-equals-default <clang-tidy/checks/modernize/use-equals-default>`
+  check.
 
-- Improved :doc:`performance-inefficient-vector-operation
-  <clang-tidy/checks/performance-inefficient-vector-operation>` to work when
-  the vector is a member of a structure.
+  The check now skips unions/union-like classes since in this case a default constructor
+  with empty body is not equivalent to the explicitly defaulted one, variadic constructors
+  since they cannot be explicitly defaulted. The check also skips copy assignment operators
+  with nonstandard return types, template constructors, private/protected default constructors
+  for C++17 or earlier. The automatic fixit has been adjusted to avoid adding superfluous
+  semicolon. The check is restricted to C++11 or later.
 
-- Fixed nonsensical suggestion of :doc:`altera-struct-pack-align
-  <clang-tidy/checks/altera-struct-pack-align>` check for empty structs.
+- Change the default behavior of :doc:`readability-avoid-const-params-in-decls
+  <clang-tidy/checks/readability/avoid-const-params-in-decls>` to not
+  warn about `const` value parameters of declarations inside macros.
 
-- Fixed incorrect suggestions for :doc:`readability-container-size-empty
-  <clang-tidy/checks/readability-container-size-empty>` when smart pointers are involved.
+- Fixed crashes in :doc:`readability-braces-around-statements
+  <clang-tidy/checks/readability/braces-around-statements>` and
+  :doc:`readability-simplify-boolean-expr <clang-tidy/checks/readability/simplify-boolean-expr>`
+  when using a C++23 ``if consteval`` statement.
 
-- Fixed some false positives in :doc:`bugprone-infinite-loop
-  <clang-tidy/checks/bugprone-infinite-loop>` involving dependent expressions.
+- Change the behavior of :doc:`readability-const-return-type
+  <clang-tidy/checks/readability/const-return-type>` to not
+  warn about `const` return types in overridden functions since the derived
+  class cannot always choose to change the function signature.
+
+- Change the default behavior of :doc:`readability-const-return-type
+  <clang-tidy/checks/readability/const-return-type>` to not
+  warn about `const` value parameters of declarations inside macros.
+
+- Improved :doc:`misc-redundant-expression <clang-tidy/checks/misc/redundant-expression>`
+  check.
+
+  The check now skips concept definitions since redundant expressions still make sense
+  inside them.
 
 Removed checks
 ^^^^^^^^^^^^^^
@@ -199,8 +224,6 @@ The improvements are...
 
 Improvements to pp-trace
 ------------------------
-
-The improvements are...
 
 Clang-tidy Visual Studio plugin
 -------------------------------

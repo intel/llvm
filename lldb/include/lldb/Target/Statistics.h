@@ -12,6 +12,7 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-forward.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/JSON.h"
 #include <atomic>
 #include <chrono>
@@ -107,6 +108,7 @@ struct ModuleStats {
   // identifiers of these modules in the global module list. This allows us to
   // track down all of the stats that contribute to this module.
   std::vector<intptr_t> symfile_modules;
+  llvm::StringMap<llvm::json::Value> type_system_stats;
   double symtab_parse_time = 0.0;
   double symtab_index_time = 0.0;
   double debug_parse_time = 0.0;
@@ -116,6 +118,10 @@ struct ModuleStats {
   bool symtab_saved_to_cache = false;
   bool debug_info_index_loaded_from_cache = false;
   bool debug_info_index_saved_to_cache = false;
+  bool debug_info_enabled = true;
+  bool symtab_stripped = false;
+  bool debug_info_had_variable_errors = false;
+  bool debug_info_had_incomplete_types = false;
 };
 
 struct ConstStringStats {
@@ -131,6 +137,7 @@ public:
   void SetLaunchOrAttachTime();
   void SetFirstPrivateStopTime();
   void SetFirstPublicStopTime();
+  void IncreaseSourceMapDeduceCount();
 
   StatsDuration &GetCreateTime() { return m_create_time; }
   StatsSuccessFail &GetExpressionStats() { return m_expr_eval; }
@@ -144,6 +151,7 @@ protected:
   StatsSuccessFail m_expr_eval{"expressionEvaluation"};
   StatsSuccessFail m_frame_var{"frameVariable"};
   std::vector<intptr_t> m_module_identifiers;
+  uint32_t m_source_map_deduce_count = 0;
   void CollectStats(Target &target);
 };
 

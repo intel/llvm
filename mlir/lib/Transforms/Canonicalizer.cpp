@@ -11,30 +11,31 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Transforms/Passes.h"
+
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/Passes.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CANONICALIZER
+#include "mlir/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
 namespace {
 /// Canonicalize operations in nested regions.
-struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
+struct Canonicalizer : public impl::CanonicalizerBase<Canonicalizer> {
+  Canonicalizer() = default;
   Canonicalizer(const GreedyRewriteConfig &config,
                 ArrayRef<std::string> disabledPatterns,
-                ArrayRef<std::string> enabledPatterns)
-      : config(config) {
+                ArrayRef<std::string> enabledPatterns) {
+    this->topDownProcessingEnabled = config.useTopDownTraversal;
+    this->enableRegionSimplification = config.enableRegionSimplification;
+    this->maxIterations = config.maxIterations;
+    this->maxNumRewrites = config.maxNumRewrites;
     this->disabledPatterns = disabledPatterns;
     this->enabledPatterns = enabledPatterns;
-  }
-
-  Canonicalizer() {
-    // Default constructed Canonicalizer takes its settings from command line
-    // options.
-    config.useTopDownTraversal = topDownProcessingEnabled;
-    config.enableRegionSimplification = enableRegionSimplification;
-    config.maxIterations = maxIterations;
   }
 
   /// Initialize the canonicalizer by building the set of patterns used during
@@ -51,11 +52,14 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
     return success();
   }
   void runOnOperation() override {
-    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns,
-                                       config);
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = topDownProcessingEnabled;
+    config.enableRegionSimplification = enableRegionSimplification;
+    config.maxIterations = maxIterations;
+    config.maxNumRewrites = maxNumRewrites;
+    (void)applyPatternsAndFoldGreedily(getOperation(), patterns, config);
   }
 
-  GreedyRewriteConfig config;
   FrozenRewritePatternSet patterns;
 };
 } // namespace

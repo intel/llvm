@@ -9,17 +9,38 @@ on:
     - sycl
     paths:
     - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
+  workflow_dispatch:
 
 jobs:
+  # This job generates matrix of tests for LLVM Test Suite
+  test_matrix:
+    name: Generate Test Matrix
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
+      cts_config: "cuda"
   linux_default:
     name: Linux Default
+    if: github.repository == 'intel/llvm'
+    needs: test_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
-      build_artifact_suffix: default
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: gcc_no_assertions
@@ -31,13 +52,13 @@ jobs:
     runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: src
     - name: Install Ubuntu deps
       run: sudo apt install -y ninja-build ccache
     - name: Setup Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache
       with:
         path: ${{ github.workspace }}/cache
@@ -47,11 +68,11 @@ jobs:
     - name: Configure
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-15 main"
         sudo apt-get update
-        sudo apt-get install -y clang-13
-        export CC="clang-13"
-        export CXX="clang++-13"
+        sudo apt-get install -y clang-15
+        export CC="clang-15"
+        export CXX="clang++-15"
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
@@ -91,7 +112,7 @@ jobs:
     - name: Pack
       run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
     - name: Upload artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ matrix.config }}
         path: llvm_sycl.tar.gz
@@ -100,3 +121,8 @@ jobs:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+
+  macos_default:
+    name: macOS
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_macos_build_and_test.yml

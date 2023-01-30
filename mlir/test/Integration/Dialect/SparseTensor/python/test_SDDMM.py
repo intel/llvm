@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -54,7 +54,7 @@ def build_SDDMM(attr: st.EncodingAttr):
 def boilerplate(attr: st.EncodingAttr):
   """Returns boilerplate code for main driver."""
   return f"""
-func @main(%a: tensor<8x8xf64>,
+func.func @main(%a: tensor<8x8xf64>,
            %b: tensor<8x8xf64>,
            %c: tensor<8x8xf64>) -> tensor<8x8xf64> attributes {{ llvm.emit_c_interface }} {{
   %t = arith.constant sparse<[[0,0], [0,2], [4,1]], [1.0, 2.0, 3.0]> : tensor<8x8xf64>
@@ -144,19 +144,15 @@ def main():
       for ordering in orderings:
         for pwidth in [32]:
           for iwidth in [32]:
-            for par in [0]:
-              for vec in [0, 1]:
-                for e in [True]:
-                  vl = 1 if vec == 0 else 16
-                  attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
-                  opt = (f'parallelization-strategy={par} '
-                         f'vectorization-strategy={vec} '
-                         f'vl={vl} enable-simd-index32={e}')
-                  compiler = sparse_compiler.SparseCompiler(
-                      options=opt, opt_level=0, shared_libs=[support_lib])
-                  build_compile_and_run_SDDMMM(attr, compiler)
-                  count = count + 1
-  # CHECK: Passed 16 tests
+            for e in [True]:
+              attr = st.EncodingAttr.get(level, ordering, None, pwidth,
+                                         iwidth)
+              opt = (f'parallelization-strategy=none')
+              compiler = sparse_compiler.SparseCompiler(
+                  options=opt, opt_level=0, shared_libs=[support_lib])
+              build_compile_and_run_SDDMMM(attr, compiler)
+              count = count + 1
+  # CHECK: Passed 8 tests
   print('Passed ', count, 'tests')
 
 

@@ -7,23 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineModuleInfo.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/Passes.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/ValueHandle.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
@@ -66,7 +60,7 @@ MachineModuleInfo::MachineModuleInfo(MachineModuleInfo &&MMI)
     : TM(std::move(MMI.TM)),
       Context(MMI.TM.getTargetTriple(), MMI.TM.getMCAsmInfo(),
               MMI.TM.getMCRegisterInfo(), MMI.TM.getMCSubtargetInfo(), nullptr,
-              nullptr, false),
+              &MMI.TM.Options.MCOptions, false),
       MachineFunctions(std::move(MMI.MachineFunctions)) {
   Context.setObjectFileInfo(MMI.TM.getObjFileLowering());
   ObjFileMMI = MMI.ObjFileMMI;
@@ -78,7 +72,7 @@ MachineModuleInfo::MachineModuleInfo(MachineModuleInfo &&MMI)
 MachineModuleInfo::MachineModuleInfo(const LLVMTargetMachine *TM)
     : TM(*TM), Context(TM->getTargetTriple(), TM->getMCAsmInfo(),
                        TM->getMCRegisterInfo(), TM->getMCSubtargetInfo(),
-                       nullptr, nullptr, false) {
+                       nullptr, &TM->Options.MCOptions, false) {
   Context.setObjectFileInfo(TM->getObjFileLowering());
   initialize();
 }
@@ -87,7 +81,7 @@ MachineModuleInfo::MachineModuleInfo(const LLVMTargetMachine *TM,
                                      MCContext *ExtContext)
     : TM(*TM), Context(TM->getTargetTriple(), TM->getMCAsmInfo(),
                        TM->getMCRegisterInfo(), TM->getMCSubtargetInfo(),
-                       nullptr, nullptr, false),
+                       nullptr, &TM->Options.MCOptions, false),
       ExternalContext(ExtContext) {
   Context.setObjectFileInfo(TM->getObjFileLowering());
   initialize();
@@ -124,6 +118,7 @@ MachineFunction &MachineModuleInfo::getOrCreateMachineFunction(Function &F) {
     // No pre-existing machine function, create a new one.
     const TargetSubtargetInfo &STI = *TM.getSubtargetImpl(F);
     MF = new MachineFunction(F, TM, STI, NextFnNum++, *this);
+    MF->initTargetMachineFunctionInfo(STI);
     // Update the set entry.
     I.first->second.reset(MF);
   } else {
@@ -139,6 +134,13 @@ void MachineModuleInfo::deleteMachineFunctionFor(Function &F) {
   MachineFunctions.erase(&F);
   LastRequest = nullptr;
   LastResult = nullptr;
+}
+
+void MachineModuleInfo::insertFunction(const Function &F,
+                                       std::unique_ptr<MachineFunction> &&MF) {
+  auto I = MachineFunctions.insert(std::make_pair(&F, std::move(MF)));
+  assert(I.second && "machine function already mapped");
+  (void)I;
 }
 
 namespace {

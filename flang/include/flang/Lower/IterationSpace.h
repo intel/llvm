@@ -443,10 +443,12 @@ public:
     return loadBindings.lookup(base);
   }
 
-  /// `load` must be a LHS array_load. Returns `llvm::None` on error.
+  /// `load` must be a LHS array_load. Returns `std::nullopt` on error.
   llvm::Optional<size_t> findArgPosition(fir::ArrayLoadOp load);
 
-  bool isLHS(fir::ArrayLoadOp load) { return findArgPosition(load).hasValue(); }
+  bool isLHS(fir::ArrayLoadOp load) {
+    return findArgPosition(load).has_value();
+  }
 
   /// `load` must be a LHS array_load. Determine the threaded inner argument
   /// corresponding to this load.
@@ -465,15 +467,15 @@ public:
 
   llvm::Optional<fir::ArrayLoadOp> getLhsLoad(size_t i) {
     assert(i < lhsBases.size());
-    if (lhsBases[counter].hasValue())
-      return findBinding(lhsBases[counter].getValue());
-    return llvm::None;
+    if (lhsBases[counter])
+      return findBinding(*lhsBases[counter]);
+    return std::nullopt;
   }
 
   /// Return the outermost loop in this FORALL nest.
   fir::DoLoopOp getOuterLoop() {
-    assert(outerLoop.hasValue());
-    return outerLoop.getValue();
+    assert(outerLoop.has_value());
+    return *outerLoop;
   }
 
   /// Return the statement context for the entire, outermost FORALL construct.
@@ -500,11 +502,11 @@ public:
   }
 
   void attachLoopCleanup(std::function<void(fir::FirOpBuilder &builder)> fn) {
-    if (!loopCleanup.hasValue()) {
+    if (!loopCleanup) {
       loopCleanup = fn;
       return;
     }
-    std::function<void(fir::FirOpBuilder &)> oldFn = loopCleanup.getValue();
+    std::function<void(fir::FirOpBuilder &)> oldFn = *loopCleanup;
     loopCleanup = [=](fir::FirOpBuilder &builder) {
       oldFn(builder);
       fn(builder);
@@ -563,7 +565,7 @@ template <typename A>
 bool symbolSetsIntersect(llvm::ArrayRef<FrontEndSymbol> ctrlSet,
                          const A &exprSyms) {
   for (const auto &sym : exprSyms)
-    if (std::find(ctrlSet.begin(), ctrlSet.end(), &sym.get()) != ctrlSet.end())
+    if (llvm::is_contained(ctrlSet, &sym.get()))
       return true;
   return false;
 }

@@ -10,7 +10,8 @@
 // adds that blob as a string attribute of the module.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/GPU/Passes.h"
+
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 
@@ -154,7 +155,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
   if (!llvm::sys::fs::is_directory(path)) {
     getOperation().emitRemark() << "Bitcode path: " << path
                                 << " does not exist or is not a directory\n";
-    return llvm::None;
+    return std::nullopt;
   }
 
   for (const StringRef file : libraries) {
@@ -167,7 +168,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
     if (!library) {
       getOperation().emitError() << "Failed to load library " << file
                                  << " from " << path << error.getMessage();
-      return llvm::None;
+      return std::nullopt;
     }
     // Some ROCM builds don't strip this like they should
     if (auto *openclVersion = library->getNamedMetadata("opencl.ocl.version"))
@@ -178,7 +179,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
     ret.push_back(std::move(library));
   }
 
-  return ret;
+  return std::move(ret);
 }
 
 std::unique_ptr<llvm::Module>
@@ -261,6 +262,10 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
                          .getZExtValue();
     uint32_t isaNumber = minor + 1000 * major;
     addControlConstant("__oclc_ISA_version", isaNumber, 32);
+
+    // This constant must always match the default code object ABI version
+    // of the AMDGPU backend.
+    addControlConstant("__oclc_ABI_version", 400, 32);
   }
 
   // Determine libraries we need to link - order matters due to dependencies
@@ -274,7 +279,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 
   Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>> mbModules;
   std::string theRocmPath = getRocmPath();
-  llvm::SmallString<32> bitcodePath(std::move(theRocmPath));
+  llvm::SmallString<32> bitcodePath(theRocmPath);
   llvm::sys::path::append(bitcodePath, "amdgcn", "bitcode");
   mbModules = loadLibraries(bitcodePath, libraries, llvmContext);
 
@@ -287,7 +292,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   }
 
   llvm::Linker linker(*ret);
-  for (std::unique_ptr<llvm::Module> &libModule : mbModules.getValue()) {
+  for (std::unique_ptr<llvm::Module> &libModule : *mbModules) {
     // This bitcode linking code is substantially similar to what is used in
     // hip-clang It imports the library functions into the module, allowing LLVM
     // optimization passes (which must run after linking) to optimize across the
@@ -355,8 +360,7 @@ SerializeToHsacoPass::assembleIsa(const std::string &isa) {
   }
 
   llvm::SourceMgr srcMgr;
-  srcMgr.AddNewSourceBuffer(llvm::MemoryBuffer::getMemBuffer(isa),
-                            SMLoc());
+  srcMgr.AddNewSourceBuffer(llvm::MemoryBuffer::getMemBuffer(isa), SMLoc());
 
   const llvm::MCTargetOptions mcOptions;
   std::unique_ptr<llvm::MCRegisterInfo> mri(
@@ -433,7 +437,7 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   llvm::FileRemover cleanupHsaco(tempHsacoFilename);
 
   std::string theRocmPath = getRocmPath();
-  llvm::SmallString<32> lldPath(std::move(theRocmPath));
+  llvm::SmallString<32> lldPath(theRocmPath);
   llvm::sys::path::append(lldPath, "llvm", "bin", "ld.lld");
   int lldResult = llvm::sys::ExecuteAndWait(
       lldPath,
@@ -464,18 +468,17 @@ SerializeToHsacoPass::serializeISA(const std::string &isa) {
 
 // Register pass to serialize GPU kernel functions to a HSACO binary annotation.
 void mlir::registerGpuSerializeToHsacoPass() {
-  PassRegistration<SerializeToHsacoPass> registerSerializeToHSACO(
-      [] {
-        // Initialize LLVM AMDGPU backend.
-        LLVMInitializeAMDGPUAsmParser();
-        LLVMInitializeAMDGPUAsmPrinter();
-        LLVMInitializeAMDGPUTarget();
-        LLVMInitializeAMDGPUTargetInfo();
-        LLVMInitializeAMDGPUTargetMC();
+  PassRegistration<SerializeToHsacoPass> registerSerializeToHSACO([] {
+    // Initialize LLVM AMDGPU backend.
+    LLVMInitializeAMDGPUAsmParser();
+    LLVMInitializeAMDGPUAsmPrinter();
+    LLVMInitializeAMDGPUTarget();
+    LLVMInitializeAMDGPUTargetInfo();
+    LLVMInitializeAMDGPUTargetMC();
 
-        return std::make_unique<SerializeToHsacoPass>("amdgcn-amd-amdhsa", "",
-                                                      "", 2);
-      });
+    return std::make_unique<SerializeToHsacoPass>("amdgcn-amd-amdhsa", "", "",
+                                                  2);
+  });
 }
 
 /// Create an instance of the GPU kernel function to HSAco binary serialization

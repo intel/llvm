@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
+#include <sycl/detail/pi.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
                            pi_mem_flags Flags, size_t Size, void *HostPtr,
@@ -28,5 +28,5 @@ void memUnmapHelper(const plugin &Plugin, pi_queue command_queue, pi_mem memobj,
                     void *mapped_ptr, pi_uint32 num_events_in_wait_list,
                     const pi_event *event_wait_list, pi_event *event);
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

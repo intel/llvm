@@ -19,17 +19,22 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 namespace mlir {
 namespace linalg {
+class IteratorTypeAttr;
 class LinalgOp;
 
-/// OpOperand vector that implicitly converts to a Value vector.
-struct OpOperandVector : public SmallVector<OpOperand *> {
-  operator SmallVector<Value>();
-};
+namespace detail {
+/// Implementation of the method that that check if given operands
+/// can be dropped, i.e. the remaining operands can compute the loop
+/// bounds of the op.
+bool canOpOperandsBeDroppedImpl(linalg::LinalgOp linalgOp,
+                                ArrayRef<OpOperand *> droppedOperands);
+} // namespace detail
 
 /// Checks whether `linalgOp` conforms to ContractionOpInterface.
 // TODO: embed within `isa<ContractionOpInterface>` if possible / natural.

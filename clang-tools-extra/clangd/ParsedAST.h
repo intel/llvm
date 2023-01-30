@@ -26,6 +26,7 @@
 #include "Headers.h"
 #include "Preamble.h"
 #include "index/CanonicalIncludes.h"
+#include "support/Path.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Syntax/Tokens.h"
@@ -108,8 +109,11 @@ public:
   /// Returns the version of the ParseInputs this AST was built from.
   llvm::StringRef version() const { return Version; }
 
+  /// Returns the path passed by the caller when building this AST.
+  PathRef tuPath() const { return TUPath; }
+
   /// Returns the version of the ParseInputs used to build Preamble part of this
-  /// AST. Might be None if no Preamble is used.
+  /// AST. Might be std::nullopt if no Preamble is used.
   llvm::Optional<llvm::StringRef> preambleVersion() const;
 
   const HeuristicResolver *getHeuristicResolver() const {
@@ -117,7 +121,7 @@ public:
   }
 
 private:
-  ParsedAST(llvm::StringRef Version,
+  ParsedAST(PathRef TUPath, llvm::StringRef Version,
             std::shared_ptr<const PreambleData> Preamble,
             std::unique_ptr<CompilerInstance> Clang,
             std::unique_ptr<FrontendAction> Action, syntax::TokenBuffer Tokens,
@@ -126,6 +130,7 @@ private:
             llvm::Optional<std::vector<Diag>> Diags, IncludeStructure Includes,
             CanonicalIncludes CanonIncludes);
 
+  Path TUPath;
   std::string Version;
   // In-memory preambles must outlive the AST, it is important that this member
   // goes before Clang and Action.
@@ -147,7 +152,8 @@ private:
   MainFileMacros Macros;
   // Pragma marks in the main file.
   std::vector<PragmaMark> Marks;
-  // Data, stored after parsing. None if AST was built with a stale preamble.
+  // Data, stored after parsing. std::nullopt if AST was built with a stale
+  // preamble.
   llvm::Optional<std::vector<Diag>> Diags;
   // Top-level decls inside the current file. Not that this does not include
   // top-level decls from the preamble.

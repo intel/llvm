@@ -26,6 +26,18 @@
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
 
 #if CAN_SANITIZE_LEAKS
+
+#  if SANITIZER_APPLE
+// https://github.com/apple-oss-distributions/objc4/blob/8701d5672d3fd3cd817aeb84db1077aafe1a1604/runtime/objc-runtime-new.h#L127
+#    if SANITIZER_IOS && !SANITIZER_IOSSIM
+#      define OBJC_DATA_MASK 0x0000007ffffffff8UL
+#    else
+#      define OBJC_DATA_MASK 0x00007ffffffffff8UL
+#    endif
+// https://github.com/apple-oss-distributions/objc4/blob/8701d5672d3fd3cd817aeb84db1077aafe1a1604/runtime/objc-runtime-new.h#L139
+#    define OBJC_FAST_IS_RW 0x8000000000000000UL
+#  endif
+
 namespace __lsan {
 
 // This mutex is used to prevent races between DoLeakCheck and IgnoreObject, and
@@ -105,7 +117,7 @@ static const char kStdSuppressions[] =
     // definition.
     "leak:*pthread_exit*\n"
 #  endif  // SANITIZER_SUPPRESS_LEAK_ON_PTHREAD_EXIT
-#  if SANITIZER_MAC
+#  if SANITIZER_APPLE
     // For Darwin and os_log/os_trace: https://reviews.llvm.org/D35173
     "leak:*_os_trace*\n"
 #  endif
@@ -159,6 +171,17 @@ static uptr GetCallerPC(const StackTrace &stack) {
     return stack.trace[1];
   return 0;
 }
+
+#  if SANITIZER_APPLE
+// Objective-C class data pointers are stored with flags in the low bits, so
+// they need to be transformed back into something that looks like a pointer.
+static inline void *MaybeTransformPointer(void *p) {
+  uptr ptr = reinterpret_cast<uptr>(p);
+  if ((ptr & OBJC_FAST_IS_RW) == OBJC_FAST_IS_RW)
+    ptr &= OBJC_DATA_MASK;
+  return reinterpret_cast<void *>(ptr);
+}
+#  endif
 
 // On Linux, treats all chunks allocated from ld-linux.so as reachable, which
 // covers dynamically allocated TLS blocks, internal dynamic loader's loaded
@@ -240,7 +263,7 @@ class Decorator : public __sanitizer::SanitizerCommonDecorator {
   const char *Leak() { return Blue(); }
 };
 
-static inline bool CanBeAHeapPointer(uptr p) {
+static inline bool MaybeUserPointer(uptr p) {
   // Since our heap is located in mmap-ed memory, we can assume a sensible lower
   // bound on heap addresses.
   const uptr kMinAddress = 4 * 4096;
@@ -252,8 +275,8 @@ static inline bool CanBeAHeapPointer(uptr p) {
 #  elif defined(__mips64)
   return ((p >> 40) == 0);
 #  elif defined(__aarch64__)
-  unsigned runtimeVMA = (MostSignificantSetBitIndex(GET_CURRENT_FRAME()) + 1);
-  return ((p >> runtimeVMA) == 0);
+  // Accept up to 48 bit VMA.
+  return ((p >> 48) == 0);
 #  else
   return true;
 #  endif
@@ -276,7 +299,10 @@ void ScanRangeForPointers(uptr begin, uptr end, Frontier *frontier,
     pp = pp + alignment - pp % alignment;
   for (; pp + sizeof(void *) <= end; pp += alignment) {
     void *p = *reinterpret_cast<void **>(pp);
-    if (!CanBeAHeapPointer(reinterpret_cast<uptr>(p)))
+#  if SANITIZER_APPLE
+    p = MaybeTransformPointer(p);
+#  endif
+    if (!MaybeUserPointer(reinterpret_cast<uptr>(p)))
       continue;
     uptr chunk = PointsIntoChunk(p);
     if (!chunk)
@@ -332,7 +358,8 @@ void ForEachExtraStackRangeCb(uptr begin, uptr end, void *arg) {
 #  if SANITIZER_FUCHSIA
 
 // Fuchsia handles all threads together with its own callback.
-static void ProcessThreads(SuspendedThreadsList const &, Frontier *) {}
+static void ProcessThreads(SuspendedThreadsList const &, Frontier *, tid_t,
+                           uptr) {}
 
 #  else
 
@@ -344,8 +371,7 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_iterate_dynamic_tls(
 
 static void ProcessThreadRegistry(Frontier *frontier) {
   InternalMmapVector<uptr> ptrs;
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      GetAdditionalThreadContextPtrs, &ptrs);
+  RunCallbackForEachThreadLocked(GetAdditionalThreadContextPtrs, &ptrs);
 
   for (uptr i = 0; i < ptrs.size(); ++i) {
     void *ptr = reinterpret_cast<void *>(ptrs[i]);
@@ -365,7 +391,8 @@ static void ProcessThreadRegistry(Frontier *frontier) {
 
 // Scans thread data (stacks and TLS) for heap pointers.
 static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
-                           Frontier *frontier) {
+                           Frontier *frontier, tid_t caller_tid,
+                           uptr caller_sp) {
   InternalMmapVector<uptr> registers;
   for (uptr i = 0; i < suspended_threads.ThreadCount(); i++) {
     tid_t os_id = static_cast<tid_t>(suspended_threads.GetThreadID(i));
@@ -391,6 +418,9 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
       if (have_registers == REGISTERS_UNAVAILABLE_FATAL)
         continue;
       sp = stack_begin;
+    }
+    if (suspended_threads.GetThreadID(i) == caller_tid) {
+      sp = caller_sp;
     }
 
     if (flags()->use_registers && have_registers) {
@@ -572,7 +602,8 @@ static void CollectIgnoredCb(uptr chunk, void *arg) {
 
 // Sets the appropriate tag on each chunk.
 static void ClassifyAllChunks(SuspendedThreadsList const &suspended_threads,
-                              Frontier *frontier) {
+                              Frontier *frontier, tid_t caller_tid,
+                              uptr caller_sp) {
   const InternalMmapVector<u32> &suppressed_stacks =
       GetSuppressionContext()->GetSortedSuppressedStacks();
   if (!suppressed_stacks.empty()) {
@@ -581,7 +612,7 @@ static void ClassifyAllChunks(SuspendedThreadsList const &suspended_threads,
   }
   ForEachChunk(CollectIgnoredCb, frontier);
   ProcessGlobalRegions(frontier);
-  ProcessThreads(suspended_threads, frontier);
+  ProcessThreads(suspended_threads, frontier, caller_tid, caller_sp);
   ProcessRootRegions(frontier);
   FloodFillTag(frontier, kReachable);
 
@@ -665,8 +696,7 @@ static void ReportUnsuspendedThreads(
 
   Sort(threads.data(), threads.size());
 
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      &ReportIfNotSuspended, &threads);
+  RunCallbackForEachThreadLocked(&ReportIfNotSuspended, &threads);
 }
 
 #  endif  // !SANITIZER_FUCHSIA
@@ -677,7 +707,8 @@ static void CheckForLeaksCallback(const SuspendedThreadsList &suspended_threads,
   CHECK(param);
   CHECK(!param->success);
   ReportUnsuspendedThreads(suspended_threads);
-  ClassifyAllChunks(suspended_threads, &param->frontier);
+  ClassifyAllChunks(suspended_threads, &param->frontier, param->caller_tid,
+                    param->caller_sp);
   ForEachChunk(CollectLeaksCb, &param->leaks);
   // Clean up for subsequent leak checks. This assumes we did not overwrite any
   // kIgnored tags.
@@ -708,14 +739,23 @@ static bool PrintResults(LeakReport &report) {
 }
 
 static bool CheckForLeaks() {
-  if (&__lsan_is_turned_off && __lsan_is_turned_off())
+  if (&__lsan_is_turned_off && __lsan_is_turned_off()) {
+    VReport(1, "LeakSanitizer is disabled");
     return false;
+  }
+  VReport(1, "LeakSanitizer: checking for leaks");
   // Inside LockStuffAndStopTheWorld we can't run symbolizer, so we can't match
   // suppressions. However if a stack id was previously suppressed, it should be
   // suppressed in future checks as well.
   for (int i = 0;; ++i) {
     EnsureMainThreadIDIsCorrect();
     CheckForLeaksParam param;
+    // Capture calling thread's stack pointer early, to avoid false negatives.
+    // Old frame with dead pointers might be overlapped by new frame inside
+    // CheckForLeaks which does not use bytes with pointers before the
+    // threads are suspended and stack pointers captured.
+    param.caller_tid = GetTid();
+    param.caller_sp = reinterpret_cast<uptr>(__builtin_frame_address(0));
     LockStuffAndStopTheWorld(CheckForLeaksCallback, &param);
     if (!param.success) {
       Report("LeakSanitizer has encountered a fatal error.\n");
@@ -949,7 +989,7 @@ void __lsan_ignore_object(const void *p) {
   Lock l(&global_mutex);
   IgnoreObjectResult res = IgnoreObjectLocked(p);
   if (res == kIgnoreObjectInvalid)
-    VReport(1, "__lsan_ignore_object(): no heap object found at %p", p);
+    VReport(1, "__lsan_ignore_object(): no heap object found at %p\n", p);
   if (res == kIgnoreObjectAlreadyIgnored)
     VReport(1,
             "__lsan_ignore_object(): "
@@ -1032,13 +1072,11 @@ SANITIZER_INTERFACE_WEAK_DEF(const char *, __lsan_default_options, void) {
 }
 
 #if !SANITIZER_SUPPORTS_WEAK_HOOKS
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE int
-__lsan_is_turned_off() {
+SANITIZER_INTERFACE_WEAK_DEF(int, __lsan_is_turned_off, void) {
   return 0;
 }
 
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE const char *
-__lsan_default_suppressions() {
+SANITIZER_INTERFACE_WEAK_DEF(const char *, __lsan_default_suppressions, void) {
   return "";
 }
 #endif

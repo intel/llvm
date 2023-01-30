@@ -148,7 +148,7 @@ private:
   mutable std::unique_ptr<tools::darwin::VerifyDebug> VerifyDebug;
 
   /// The version of the linker known to be available in the tool chain.
-  mutable Optional<VersionTuple> LinkerVersion;
+  mutable std::optional<VersionTuple> LinkerVersion;
 
 public:
   MachO(const Driver &D, const llvm::Triple &Triple,
@@ -254,7 +254,8 @@ public:
 
   bool UseObjCMixedDispatch() const override { return true; }
 
-  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const override;
+  UnwindTableLevel
+  getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
 
   RuntimeLibType GetDefaultRuntimeLibType() const override {
     return ToolChain::RLT_CompilerRT;
@@ -299,7 +300,8 @@ public:
     IPhoneOS,
     TvOS,
     WatchOS,
-    LastDarwinPlatform = WatchOS
+    DriverKit,
+    LastDarwinPlatform = DriverKit
   };
   enum DarwinEnvironmentKind {
     NativeEnvironment,
@@ -316,10 +318,10 @@ public:
   mutable VersionTuple OSTargetVersion;
 
   /// The information about the darwin SDK that was used.
-  mutable Optional<DarwinSDKInfo> SDKInfo;
+  mutable std::optional<DarwinSDKInfo> SDKInfo;
 
   /// The target variant triple that was specified (if any).
-  mutable Optional<llvm::Triple> TargetVariantTriple;
+  mutable std::optional<llvm::Triple> TargetVariantTriple;
 
   CudaInstallationDetector CudaInstallation;
   RocmInstallationDetector RocmInstallation;
@@ -349,7 +351,7 @@ public:
 
   bool isKernelStatic() const override {
     return (!(isTargetIPhoneOS() && !isIPhoneOSVersionLT(6, 0)) &&
-            !isTargetWatchOS());
+            !isTargetWatchOS() && !isTargetDriverKit());
   }
 
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
@@ -435,6 +437,11 @@ public:
     return TargetPlatform == WatchOS;
   }
 
+  bool isTargetDriverKit() const {
+    assert(TargetInitialized && "Target not initialized!");
+    return TargetPlatform == DriverKit;
+  }
+
   bool isTargetMacCatalyst() const {
     return TargetPlatform == IPhoneOS && TargetEnvironment == MacCatalyst;
   }
@@ -499,6 +506,10 @@ protected:
                              llvm::opt::ArgStringList &CC1Args,
                              Action::OffloadKind DeviceOffloadKind) const override;
 
+  void addClangCC1ASTargetOptions(
+      const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CC1ASArgs) const override;
+
   StringRef getPlatformFamily() const;
   StringRef getOSLibraryNameSuffix(bool IgnoreSim = false) const override;
 
@@ -538,7 +549,7 @@ public:
   GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
     // Stack protectors default to on for user code on 10.5,
     // and for everything in 10.6 and beyond
-    if (isTargetIOSBased() || isTargetWatchOSBased())
+    if (isTargetIOSBased() || isTargetWatchOSBased() || isTargetDriverKit())
       return LangOptions::SSPOn;
     else if (isTargetMacOSBased() && !isMacosxVersionLT(10, 6))
       return LangOptions::SSPOn;
@@ -616,7 +627,8 @@ private:
                                    llvm::StringRef ArchDir,
                                    llvm::StringRef BitDir) const;
 
-  llvm::StringRef GetHeaderSysroot(const llvm::opt::ArgList &DriverArgs) const;
+  llvm::SmallString<128>
+  GetEffectiveSysroot(const llvm::opt::ArgList &DriverArgs) const;
 };
 
 } // end namespace toolchains

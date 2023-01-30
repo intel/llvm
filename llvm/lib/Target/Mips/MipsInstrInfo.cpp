@@ -61,6 +61,20 @@ insertNoop(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const
   BuildMI(MBB, MI, DL, get(Mips::NOP));
 }
 
+MachineInstrBuilder MipsInstrInfo::insertNop(MachineBasicBlock &MBB,
+                                             MachineBasicBlock::iterator MI,
+                                             DebugLoc DL) const {
+  assert(!Subtarget.inMips16Mode() &&
+         "insertNop does not support MIPS16e mode at this time");
+  const unsigned MMOpc =
+      Subtarget.hasMips32r6() ? Mips::SLL_MMR6 : Mips::SLL_MM;
+  const unsigned Opc =
+      Subtarget.inMicroMipsMode() ? MMOpc : (unsigned)Mips::SLL;
+  return BuildMI(MBB, MI, DL, get(Opc), Mips::ZERO)
+      .addReg(Mips::ZERO)
+      .addImm(0);
+}
+
 MachineMemOperand *
 MipsInstrInfo::GetMemOperand(MachineBasicBlock &MBB, int FI,
                              MachineMemOperand::Flags Flags) const {
@@ -919,7 +933,7 @@ MipsInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   return makeArrayRef(Flags);
 }
 
-Optional<ParamLoadedValue>
+std::optional<ParamLoadedValue>
 MipsInstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
   DIExpression *Expr =
       DIExpression::get(MI.getMF()->getFunction().getContext(), {});
@@ -942,19 +956,19 @@ MipsInstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     // TODO: Handle cases where the Reg is sub- or super-register of the
     // DestReg.
     if (TRI->isSuperRegister(Reg, DestReg) || TRI->isSubRegister(Reg, DestReg))
-      return None;
+      return std::nullopt;
   }
 
   return TargetInstrInfo::describeLoadedValue(MI, Reg);
 }
 
-Optional<RegImmPair> MipsInstrInfo::isAddImmediate(const MachineInstr &MI,
-                                                   Register Reg) const {
+std::optional<RegImmPair> MipsInstrInfo::isAddImmediate(const MachineInstr &MI,
+                                                        Register Reg) const {
   // TODO: Handle cases where Reg is a super- or sub-register of the
   // destination register.
   const MachineOperand &Op0 = MI.getOperand(0);
   if (!Op0.isReg() || Reg != Op0.getReg())
-    return None;
+    return std::nullopt;
 
   switch (MI.getOpcode()) {
   case Mips::ADDiu:
@@ -969,5 +983,5 @@ Optional<RegImmPair> MipsInstrInfo::isAddImmediate(const MachineInstr &MI,
     // TODO: Handle case where Sop1 is a frame-index.
   }
   }
-  return None;
+  return std::nullopt;
 }

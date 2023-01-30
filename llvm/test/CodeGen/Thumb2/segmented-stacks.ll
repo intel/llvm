@@ -4,7 +4,7 @@
 
 
 ; Just to prevent the alloca from being optimized away
-declare void @dummy_use(i32*, i32)
+declare void @dummy_use(ptr, i32)
 
 define void @test_basic() #0 {
 ; THUMB-LABEL: test_basic:
@@ -63,13 +63,13 @@ define void @test_basic() #0 {
 ; ARM-NEXT:    add sp, sp, #40
 ; ARM-NEXT:    pop {r11, pc}
   %mem = alloca i32, i32 10
-  call void @dummy_use (i32* %mem, i32 10)
+  call void @dummy_use (ptr %mem, i32 10)
   ret void
 }
 
 define void @test_large() #0 {
         %mem = alloca i32, i32 10000
-        call void @dummy_use (i32* %mem, i32 0)
+        call void @dummy_use (ptr %mem, i32 0)
         ret void
 
 ; THUMB-LABEL:   test_large:
@@ -123,7 +123,7 @@ define void @test_large() #0 {
 
 define fastcc void @test_fastcc_large() #0 {
         %mem = alloca i32, i32 10000
-        call void @dummy_use (i32* %mem, i32 0)
+        call void @dummy_use (ptr %mem, i32 0)
         ret void
 
 ; THUMB-LABEL:   test_fastcc_large:
@@ -169,6 +169,26 @@ define fastcc void @test_fastcc_large() #0 {
 
 ; ARM:         .LCPI2_0:
 ; ARM-NEXT:    .long   40192
+}
+
+
+declare void @panic() unnamed_addr
+
+; We used to crash while compiling the following function.
+; THUMB-LABEL: build_should_not_segfault:
+; ARM-LABEL: build_should_not_segfault:
+define void @build_should_not_segfault(i8 %x) unnamed_addr #0 {
+start:
+  %_0 = icmp ult i8 %x, 16
+  %or.cond = select i1 undef, i1 true, i1 %_0
+  br i1 %or.cond, label %bb1, label %bb2
+
+bb1:
+  ret void
+
+bb2:
+  call void @panic()
+  unreachable
 }
 
 attributes #0 = { "split-stack" }

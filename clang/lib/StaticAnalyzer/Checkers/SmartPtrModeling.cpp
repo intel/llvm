@@ -48,9 +48,8 @@ class SmartPtrModeling
 
 public:
   // Whether the checker should model for null dereferences of smart pointers.
-  DefaultBool ModelSmartPtrDereference;
+  bool ModelSmartPtrDereference = false;
   bool evalCall(const CallEvent &Call, CheckerContext &C) const;
-  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkDeadSymbols(SymbolReaper &SymReaper, CheckerContext &C) const;
   ProgramStateRef
   checkRegionChanges(ProgramStateRef State,
@@ -86,10 +85,10 @@ private:
   using SmartPtrMethodHandlerFn =
       void (SmartPtrModeling::*)(const CallEvent &Call, CheckerContext &) const;
   CallDescriptionMap<SmartPtrMethodHandlerFn> SmartPtrMethodHandlers{
-      {{"reset"}, &SmartPtrModeling::handleReset},
-      {{"release"}, &SmartPtrModeling::handleRelease},
-      {{"swap", 1}, &SmartPtrModeling::handleSwapMethod},
-      {{"get"}, &SmartPtrModeling::handleGet}};
+      {{{"reset"}}, &SmartPtrModeling::handleReset},
+      {{{"release"}}, &SmartPtrModeling::handleRelease},
+      {{{"swap"}, 1}, &SmartPtrModeling::handleSwapMethod},
+      {{{"get"}}, &SmartPtrModeling::handleGet}};
   const CallDescription StdSwapCall{{"std", "swap"}, 2};
   const CallDescription StdMakeUniqueCall{{"std", "make_unique"}};
   const CallDescription StdMakeUniqueForOverwriteCall{

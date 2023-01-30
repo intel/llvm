@@ -410,7 +410,7 @@ public:
   llvm::Expected<OpenOptions> GetOptions() const override;
 
   static char ID;
-  virtual bool isA(const void *classID) const override {
+  bool isA(const void *classID) const override {
     return classID == &ID || File::isA(classID);
   }
   static bool classof(const File *file) { return file->isA(&ID); }
@@ -437,10 +437,10 @@ private:
 class SerialPort : public NativeFile {
 public:
   struct Options {
-    llvm::Optional<unsigned int> BaudRate = llvm::None;
-    llvm::Optional<Terminal::Parity> Parity = llvm::None;
-    llvm::Optional<Terminal::ParityCheck> ParityCheck = llvm::None;
-    llvm::Optional<unsigned int> StopBits = llvm::None;
+    llvm::Optional<unsigned int> BaudRate = std::nullopt;
+    llvm::Optional<Terminal::Parity> Parity = std::nullopt;
+    llvm::Optional<Terminal::ParityCheck> ParityCheck = std::nullopt;
+    llvm::Optional<unsigned int> StopBits = std::nullopt;
   };
 
   // Obtain Options corresponding to the passed URL query string
@@ -458,7 +458,7 @@ public:
   Status Close() override;
 
   static char ID;
-  virtual bool isA(const void *classID) const override {
+  bool isA(const void *classID) const override {
     return classID == &ID || File::isA(classID);
   }
   static bool classof(const File *file) { return file->isA(&ID); }

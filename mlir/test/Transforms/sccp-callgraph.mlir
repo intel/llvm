@@ -1,11 +1,12 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -sccp -split-input-file | FileCheck %s
-// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.module(sccp)" -split-input-file | FileCheck %s --check-prefix=NESTED
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.module(builtin.module(sccp))" -split-input-file | FileCheck %s --check-prefix=NESTED
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.module(func.func(sccp))" -split-input-file | FileCheck %s --check-prefix=FUNC
 
 /// Check that a constant is properly propagated through the arguments and
 /// results of a private function.
 
 // CHECK-LABEL: func private @private(
-func private @private(%arg0 : i32) -> i32 {
+func.func private @private(%arg0 : i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -13,7 +14,7 @@ func private @private(%arg0 : i32) -> i32 {
 }
 
 // CHECK-LABEL: func @simple_private(
-func @simple_private() -> i32 {
+func.func @simple_private() -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -28,7 +29,7 @@ func @simple_private() -> i32 {
 /// results of a visible nested function.
 
 // CHECK: func nested @nested(
-func nested @nested(%arg0 : i32) -> i32 {
+func.func nested @nested(%arg0 : i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -36,7 +37,7 @@ func nested @nested(%arg0 : i32) -> i32 {
 }
 
 // CHECK-LABEL: func @simple_nested(
-func @simple_nested() -> i32 {
+func.func @simple_nested() -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -53,7 +54,7 @@ module {
   module @nested_module attributes { sym_visibility = "public" } {
 
     // NESTED: func nested @nested(
-    func nested @nested(%arg0 : i32) -> (i32, i32) {
+    func.func nested @nested(%arg0 : i32) -> (i32, i32) {
       // NESTED: %[[CST:.*]] = arith.constant 1 : i32
       // NESTED: return %[[CST]], %arg0 : i32, i32
 
@@ -62,7 +63,7 @@ module {
     }
 
     // NESTED: func @nested_not_all_uses_visible(
-    func @nested_not_all_uses_visible() -> (i32, i32) {
+    func.func @nested_not_all_uses_visible() -> (i32, i32) {
       // NESTED: %[[CST:.*]] = arith.constant 1 : i32
       // NESTED: %[[CALL:.*]]:2 = call @nested
       // NESTED: return %[[CST]], %[[CALL]]#1 : i32, i32
@@ -79,13 +80,13 @@ module {
 /// Check that public functions do not track arguments.
 
 // CHECK-LABEL: func @public(
-func @public(%arg0 : i32) -> (i32, i32) {
+func.func @public(%arg0 : i32) -> (i32, i32) {
   %1 = arith.constant 1 : i32
   return %1, %arg0 : i32, i32
 }
 
 // CHECK-LABEL: func @simple_public(
-func @simple_public() -> (i32, i32) {
+func.func @simple_public() -> (i32, i32) {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: %[[CALL:.*]]:2 = call @public
   // CHECK: return %[[CST]], %[[CALL]]#1 : i32, i32
@@ -99,13 +100,13 @@ func @simple_public() -> (i32, i32) {
 
 /// Check that functions with non-call users don't have arguments tracked.
 
-func private @callable(%arg0 : i32) -> (i32, i32) {
+func.func private @callable(%arg0 : i32) -> (i32, i32) {
   %1 = arith.constant 1 : i32
   return %1, %arg0 : i32, i32
 }
 
 // CHECK-LABEL: func @non_call_users(
-func @non_call_users() -> (i32, i32) {
+func.func @non_call_users() -> (i32, i32) {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: %[[CALL:.*]]:2 = call @callable
   // CHECK: return %[[CST]], %[[CALL]]#1 : i32, i32
@@ -121,12 +122,12 @@ func @non_call_users() -> (i32, i32) {
 
 /// Check that return values are overdefined in the presence of an unknown terminator.
 
-func private @callable(%arg0 : i32) -> i32 {
+func.func private @callable(%arg0 : i32) -> i32 {
   "unknown.return"(%arg0) : (i32) -> ()
 }
 
 // CHECK-LABEL: func @unknown_terminator(
-func @unknown_terminator() -> i32 {
+func.func @unknown_terminator() -> i32 {
   // CHECK: %[[CALL:.*]] = call @callable
   // CHECK: return %[[CALL]] : i32
 
@@ -139,12 +140,12 @@ func @unknown_terminator() -> i32 {
 
 /// Check that return values are overdefined when the constant conflicts.
 
-func private @callable(%arg0 : i32) -> i32 {
+func.func private @callable(%arg0 : i32) -> i32 {
   return %arg0 : i32
 }
 
 // CHECK-LABEL: func @conflicting_constant(
-func @conflicting_constant() -> (i32, i32) {
+func.func @conflicting_constant() -> (i32, i32) {
   // CHECK: %[[CALL1:.*]] = call @callable
   // CHECK: %[[CALL2:.*]] = call @callable
   // CHECK: return %[[CALL1]], %[[CALL2]] : i32, i32
@@ -161,12 +162,12 @@ func @conflicting_constant() -> (i32, i32) {
 /// Check that return values are overdefined when the constant conflicts with a
 /// non-constant.
 
-func private @callable(%arg0 : i32) -> i32 {
+func.func private @callable(%arg0 : i32) -> i32 {
   "unknown.return"(%arg0) : (i32) -> ()
 }
 
 // CHECK-LABEL: func @conflicting_constant(
-func @conflicting_constant(%arg0 : i32) -> (i32, i32) {
+func.func @conflicting_constant(%arg0 : i32) -> (i32, i32) {
   // CHECK: %[[CALL1:.*]] = call @callable
   // CHECK: %[[CALL2:.*]] = call @callable
   // CHECK: return %[[CALL1]], %[[CALL2]] : i32, i32
@@ -182,7 +183,7 @@ func @conflicting_constant(%arg0 : i32) -> (i32, i32) {
 /// Check a more complex interaction with calls and control flow.
 
 // CHECK-LABEL: func private @complex_inner_if(
-func private @complex_inner_if(%arg0 : i32) -> i32 {
+func.func private @complex_inner_if(%arg0 : i32) -> i32 {
   // CHECK-DAG: %[[TRUE:.*]] = arith.constant true
   // CHECK-DAG: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: cf.cond_br %[[TRUE]], ^bb1
@@ -204,10 +205,10 @@ func private @complex_inner_if(%arg0 : i32) -> i32 {
   return %arg_inc : i32
 }
 
-func private @complex_cond() -> i1
+func.func private @complex_cond() -> i1
 
 // CHECK-LABEL: func private @complex_callee(
-func private @complex_callee(%arg0 : i32) -> i32 {
+func.func private @complex_callee(%arg0 : i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
 
   %loop_cond = call @complex_cond() : () -> i1
@@ -230,7 +231,7 @@ func private @complex_callee(%arg0 : i32) -> i32 {
 }
 
 // CHECK-LABEL: func @complex_caller(
-func @complex_caller(%arg0 : i32) -> i32 {
+func.func @complex_caller(%arg0 : i32) -> i32 {
   // CHECK: %[[CST:.*]] = arith.constant 1 : i32
   // CHECK: return %[[CST]] : i32
 
@@ -244,7 +245,7 @@ func @complex_caller(%arg0 : i32) -> i32 {
 /// Check that non-symbol defining callables currently go to overdefined.
 
 // CHECK-LABEL: func @non_symbol_defining_callable
-func @non_symbol_defining_callable() -> i32 {
+func.func @non_symbol_defining_callable() -> i32 {
   // CHECK: %[[RES:.*]] = call_indirect
   // CHECK: return %[[RES]] : i32
 
@@ -261,7 +262,7 @@ func @non_symbol_defining_callable() -> i32 {
 /// Check that private callables don't get processed if they have no uses.
 
 // CHECK-LABEL: func private @unreferenced_private_function
-func private @unreferenced_private_function() -> i32 {
+func.func private @unreferenced_private_function() -> i32 {
   // CHECK: %[[RES:.*]] = arith.select
   // CHECK: return %[[RES]] : i32
   %true = arith.constant true
@@ -269,4 +270,39 @@ func private @unreferenced_private_function() -> i32 {
   %cst1 = arith.constant 1 : i32
   %result = arith.select %true, %cst0, %cst1 : i32
   return %result : i32
+}
+
+// -----
+
+/// Check that callables outside the analysis scope are marked as external.
+
+func.func private @foo() -> index {
+  %0 = arith.constant 10 : index
+  return %0 : index
+}
+
+// CHECK-LABEL: func @bar
+// FUNC-LABEL: func @bar
+func.func @bar(%arg0: index) -> index {
+  // CHECK: %[[C10:.*]] = arith.constant 10
+  %c0 = arith.constant 0 : index
+  %1 = arith.constant 420 : index
+  %7 = arith.cmpi eq, %arg0, %c0 : index
+  cf.cond_br %7, ^bb1(%1 : index), ^bb2
+
+// CHECK: ^bb1(%[[ARG:.*]]: index):
+// FUNC: ^bb1(%[[ARG:.*]]: index):
+^bb1(%8: index):  // 2 preds: ^bb0, ^bb4
+  // CHECK-NEXT: return %[[ARG]]
+  // FUNC-NEXT: return %[[ARG]]
+  return %8 : index
+
+// CHECK: ^bb2
+// FUNC: ^bb2
+^bb2:
+  // FUNC-NEXT: %[[FOO:.*]] = call @foo
+  %13 = call @foo() : () -> index
+  // CHECK: cf.br ^bb1(%[[C10]]
+  // FUNC: cf.br ^bb1(%[[FOO]]
+  cf.br ^bb1(%13 : index)
 }

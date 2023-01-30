@@ -8,7 +8,7 @@
 
 // <string>
 
-// void resize(size_type n, charT c);
+// void resize(size_type n, charT c); // constexpr since C++20
 
 #include <string>
 #include <stdexcept>
@@ -43,46 +43,30 @@ test(S s, typename S::size_type n, typename S::value_type c, S expected)
 #endif
 }
 
-bool test() {
-  {
-    typedef std::string S;
-    test(S(), 0, 'a', S());
-    test(S(), 1, 'a', S("a"));
-    test(S(), 10, 'a', S(10, 'a'));
-    test(S(), 100, 'a', S(100, 'a'));
-    test(S("12345"), 0, 'a', S());
-    test(S("12345"), 2, 'a', S("12"));
-    test(S("12345"), 5, 'a', S("12345"));
-    test(S("12345"), 15, 'a', S("12345aaaaaaaaaa"));
-    test(S("12345678901234567890123456789012345678901234567890"), 0, 'a', S());
-    test(S("12345678901234567890123456789012345678901234567890"), 10, 'a',
-         S("1234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 50, 'a',
-         S("12345678901234567890123456789012345678901234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 60, 'a',
-         S("12345678901234567890123456789012345678901234567890aaaaaaaaaa"));
-    test(S(), S::npos, 'a', S("not going to happen"));
-  }
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S(), 0, 'a', S());
+  test(S(), 1, 'a', S("a"));
+  test(S(), 10, 'a', S(10, 'a'));
+  test(S(), 100, 'a', S(100, 'a'));
+  test(S("12345"), 0, 'a', S());
+  test(S("12345"), 2, 'a', S("12"));
+  test(S("12345"), 5, 'a', S("12345"));
+  test(S("12345"), 15, 'a', S("12345aaaaaaaaaa"));
+  test(S("12345678901234567890123456789012345678901234567890"), 0, 'a', S());
+  test(S("12345678901234567890123456789012345678901234567890"), 10, 'a',
+        S("1234567890"));
+  test(S("12345678901234567890123456789012345678901234567890"), 50, 'a',
+        S("12345678901234567890123456789012345678901234567890"));
+  test(S("12345678901234567890123456789012345678901234567890"), 60, 'a',
+        S("12345678901234567890123456789012345678901234567890aaaaaaaaaa"));
+  test(S(), S::npos, 'a', S("not going to happen"));
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
 #if TEST_STD_VER >= 11
-  {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 0, 'a', S());
-    test(S(), 1, 'a', S("a"));
-    test(S(), 10, 'a', S(10, 'a'));
-    test(S(), 100, 'a', S(100, 'a'));
-    test(S("12345"), 0, 'a', S());
-    test(S("12345"), 2, 'a', S("12"));
-    test(S("12345"), 5, 'a', S("12345"));
-    test(S("12345"), 15, 'a', S("12345aaaaaaaaaa"));
-    test(S("12345678901234567890123456789012345678901234567890"), 0, 'a', S());
-    test(S("12345678901234567890123456789012345678901234567890"), 10, 'a',
-         S("1234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 50, 'a',
-         S("12345678901234567890123456789012345678901234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 60, 'a',
-         S("12345678901234567890123456789012345678901234567890aaaaaaaaaa"));
-    test(S(), S::npos, 'a', S("not going to happen"));
-  }
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
 #endif
 
   return true;
@@ -92,7 +76,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

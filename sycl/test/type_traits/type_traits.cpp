@@ -7,14 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
 using namespace std;
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 template <typename T, bool Expected = true> void test_is_integral() {
   static_assert(d::is_integral<T>::value == Expected, "");
@@ -187,7 +187,6 @@ int main() {
   test_nan_types<s::ushort2, s::ushort2>();
   test_nan_types<s::uint2, s::uint2>();
   test_nan_types<s::ulong2, s::ulong2>();
-  test_nan_types<s::ulonglong2, s::ulonglong2>();
 
   test_make_signed_t<int, int>();
   test_make_signed_t<const int, const int>();

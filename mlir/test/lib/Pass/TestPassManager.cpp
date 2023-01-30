@@ -62,7 +62,7 @@ struct TestOptionsPass
                                      llvm::cl::desc("Example string option")};
   };
   TestOptionsPass() = default;
-  TestOptionsPass(const TestOptionsPass &) {}
+  TestOptionsPass(const TestOptionsPass &) : PassWrapper() {}
   TestOptionsPass(const Options &options) {
     listOption = options.listOption;
     stringOption = options.stringOption;
@@ -115,7 +115,7 @@ struct TestInvalidIRPass
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestInvalidIRPass)
 
   TestInvalidIRPass() = default;
-  TestInvalidIRPass(const TestInvalidIRPass &other) {}
+  TestInvalidIRPass(const TestInvalidIRPass &other) : PassWrapper(other) {}
 
   StringRef getArgument() const final { return "test-pass-create-invalid-ir"; }
   StringRef getDescription() const final {
@@ -129,7 +129,7 @@ struct TestInvalidIRPass
       signalPassFailure();
     if (!emitInvalidIR)
       return;
-    OpBuilder b(getOperation().getBody());
+    OpBuilder b(getOperation().getFunctionBody());
     OperationState state(b.getUnknownLoc(), "test.any_attr_of_i32_str");
     b.create(state);
   }
@@ -156,7 +156,7 @@ struct TestInvalidParentPass
   }
   void runOnOperation() final {
     FunctionOpInterface op = getOperation();
-    OpBuilder b(getOperation().getBody());
+    OpBuilder b(op.getFunctionBody());
     b.create<test::TestCallOp>(op.getLoc(), TypeRange(), "some_unknown_func",
                                ValueRange());
   }
@@ -168,14 +168,21 @@ struct TestStatisticPass
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestStatisticPass)
 
   TestStatisticPass() = default;
-  TestStatisticPass(const TestStatisticPass &) {}
+  TestStatisticPass(const TestStatisticPass &) : PassWrapper() {}
   StringRef getArgument() const final { return "test-stats-pass"; }
   StringRef getDescription() const final { return "Test pass statistics"; }
 
+  // Use a couple of statistics to verify their ordering
+  // in the print out. The statistics are registered in the order
+  // of construction, so put "num-ops2" before "num-ops" and
+  // make sure that the order is reversed.
+  Statistic opCountDuplicate{this, "num-ops2",
+                             "Number of operations counted one more time"};
   Statistic opCount{this, "num-ops", "Number of operations counted"};
 
   void runOnOperation() final {
     getOperation()->walk([&](Operation *) { ++opCount; });
+    getOperation()->walk([&](Operation *) { ++opCountDuplicate; });
   }
 };
 } // namespace
@@ -221,13 +228,6 @@ void registerPassManagerTestPass() {
   PassPipelineRegistration<>("test-textual-pm-nested-pipeline",
                              "Test a nested pipeline in the pass manager",
                              testNestedPipelineTextual);
-  PassPipelineRegistration<>(
-      "test-dump-pipeline",
-      "Dumps the pipeline build so far for debugging purposes",
-      [](OpPassManager &pm) {
-        pm.printAsTextualPipeline(llvm::errs());
-        llvm::errs() << "\n";
-      });
 
   PassPipelineRegistration<TestOptionsPass::Options>
       registerOptionsPassPipeline(

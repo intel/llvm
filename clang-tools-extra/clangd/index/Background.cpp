@@ -92,6 +92,7 @@ BackgroundIndex::BackgroundIndex(
     const ThreadsafeFS &TFS, const GlobalCompilationDatabase &CDB,
     BackgroundIndexStorage::Factory IndexStorageFactory, Options Opts)
     : SwapIndex(std::make_unique<MemIndex>()), TFS(TFS), CDB(CDB),
+      IndexingPriority(Opts.IndexingPriority),
       ContextProvider(std::move(Opts.ContextProvider)),
       IndexedSymbols(IndexContents::All),
       Rebuilder(this, &IndexedSymbols, Opts.ThreadPoolSize),
@@ -165,6 +166,7 @@ BackgroundQueue::Task BackgroundIndex::indexFileTask(std::string Path) {
       elog("Indexing {0} failed: {1}", Path, std::move(Error));
   });
   T.QueuePri = IndexFile;
+  T.ThreadPri = IndexingPriority;
   T.Tag = std::move(Tag);
   T.Key = Key;
   return T;
@@ -394,7 +396,7 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
   Rebuilder.loadedShard(LoadedShards);
   Rebuilder.doneLoading();
 
-  auto FS = TFS.view(/*CWD=*/llvm::None);
+  auto FS = TFS.view(/*CWD=*/std::nullopt);
   llvm::DenseSet<PathRef> TUsToIndex;
   // We'll accept data from stale shards, but ensure the files get reindexed
   // soon.

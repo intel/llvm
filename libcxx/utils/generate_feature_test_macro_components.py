@@ -176,7 +176,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_boyer_moore_searcher",
     "values": { "c++17": 201603 },
     "headers": ["functional"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_byte",
     "values": { "c++17": 201603 },
@@ -187,7 +186,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["bit"],
   }, {
     "name": "__cpp_lib_char8_t",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 201907 },
     "headers": ["atomic", "filesystem", "istream", "limits", "locale", "ostream", "string", "string_view"],
     "test_suite_guard": "defined(__cpp_char8_t)",
     "libcxx_guard": "!defined(_LIBCPP_HAS_NO_CHAR8_T)",
@@ -214,7 +213,15 @@ feature_test_macros = [ add_version_header(x) for x in [
   }, {
     "name": "__cpp_lib_constexpr_algorithms",
     "values": { "c++20": 201806 },
-    "headers": ["algorithm"],
+    "headers": ["algorithm", "utility"],
+  }, {
+    "name": "__cpp_lib_constexpr_bitset",
+    "values": { "c++2b": 202207 },
+    "headers": ["bitset"],
+  }, {
+    "name": "__cpp_lib_constexpr_charconv",
+    "values": { "c++2b": 202207 },
+    "headers": ["charconv"],
   }, {
     "name": "__cpp_lib_constexpr_cmath",
     "values": { "c++2b": 202202 },
@@ -239,7 +246,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["iterator"],
   }, {
     "name": "__cpp_lib_constexpr_memory",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 201811, "c++2b": 202202 },
     "headers": ["memory"],
   }, {
     "name": "__cpp_lib_constexpr_numeric",
@@ -247,7 +254,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["numeric"],
   }, {
     "name": "__cpp_lib_constexpr_string",
-    "values": { "c++20": 201811 },  # because P1032R1 is implemented; but should become 201907 after P0980R1
+    "values": { "c++20": 201907 },
     "headers": ["string"],
   }, {
     "name": "__cpp_lib_constexpr_string_view",
@@ -270,7 +277,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_constexpr_vector",
     "values": { "c++20": 201907 },
     "headers": ["vector"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_coroutine",
     "values": { "c++20": 201902 },
@@ -303,6 +309,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["execution"],
     "unimplemented": True,
   }, {
+    "name": "__cpp_lib_expected",
+    "values": { "c++2b": 202202 },
+    "headers": ["expected"],
+  }, {
     "name": "__cpp_lib_filesystem",
     "values": { "c++17": 201703 },
     "headers": ["filesystem"],
@@ -310,11 +320,21 @@ feature_test_macros = [ add_version_header(x) for x in [
     "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)"
   }, {
     "name": "__cpp_lib_format",
-    "values": { "c++20": 202106 },
+    "values": {
+        # "c++20": 201907 Not implemented P1361R2 Integration of chrono with text formatting
+        # "c++20": 202106 Fully implemented
+        # "c++20": 202110 Not implemented P2372R3 Fixing locale handling in chrono formatters
+        "c++20": 202106,
+        # "c++23": 202207, Not implemented P2419R2 Clarify handling of encodings in localized formatting of chrono types
+        },
     "headers": ["format"],
-    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
-    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
+    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
+    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
     "unimplemented": True,
+  }, {
+    "name": "__cpp_lib_forward_like",
+    "values": { "c++2b": 202207 },
+    "headers": ["utility"],
   }, {
     "name": "__cpp_lib_gcd_lcm",
     "values": { "c++17": 201606 },
@@ -330,8 +350,9 @@ feature_test_macros = [ add_version_header(x) for x in [
   }, {
     "name": "__cpp_lib_hardware_interference_size",
     "values": { "c++17": 201703 },
+    "test_suite_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
+    "libcxx_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
     "headers": ["new"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_has_unique_object_representations",
     "values": { "c++17": 201606 },
@@ -469,11 +490,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_memory_resource",
     "values": { "c++17": 201603 },
     "headers": ["memory_resource"],
-    "unimplemented": True,
-  }, {
-    "name": "__cpp_lib_monadic_optional",
-    "values": { "c++2b": 202110 },
-    "headers": ["optional"],
   }, {
     "name": "__cpp_lib_move_only_function",
     "values": { "c++2b": 202110 },
@@ -497,7 +513,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["iterator"],
   }, {
     "name": "__cpp_lib_optional",
-    "values": { "c++17": 201606 },
+    "values": { "c++17": 201606, "c++2b": 202110 },
     "headers": ["optional"],
   }, {
     "name": "__cpp_lib_out_ptr",
@@ -513,7 +529,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_polymorphic_allocator",
     "values": { "c++20": 201902 },
     "headers": ["memory_resource"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_quoted_string_io",
     "values": { "c++14": 201304 },
@@ -522,7 +537,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_ranges",
     "values": { "c++20": 201811 },
     "headers": ["algorithm", "functional", "iterator", "memory", "ranges"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_ranges_chunk",
     "values": { "c++2b": 202202 },
@@ -658,7 +672,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_stdatomic_h",
     "values": { "c++2b": 202011 },
     "headers": ["stdatomic.h"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_string_contains",
     "values": { "c++2b": 202011 },
@@ -765,22 +778,22 @@ assert all(all(key in ["name", "values", "headers", "libcxx_guard", "test_suite_
 # <thread> should be marked as UNSUPPORTED, because including <thread>
 # is a hard error in that case.
 lit_markup = {
-  "barrier": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "filesystem": ["UNSUPPORTED: libcpp-has-no-filesystem-library"],
+  "barrier": ["UNSUPPORTED: no-threads"],
+  "filesystem": ["UNSUPPORTED: no-filesystem"],
   "format": ["UNSUPPORTED: libcpp-has-no-incomplete-format"],
-  "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "ios": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "iostream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "latch": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
-  "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "semaphore": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "thread": ["UNSUPPORTED: libcpp-has-no-threads"]
+  "iomanip": ["UNSUPPORTED: no-localization"],
+  "ios": ["UNSUPPORTED: no-localization"],
+  "iostream": ["UNSUPPORTED: no-localization"],
+  "istream": ["UNSUPPORTED: no-localization"],
+  "latch": ["UNSUPPORTED: no-threads"],
+  "locale": ["UNSUPPORTED: no-localization"],
+  "mutex": ["UNSUPPORTED: no-threads"],
+  "ostream": ["UNSUPPORTED: no-localization"],
+  "regex": ["UNSUPPORTED: no-localization"],
+  "semaphore": ["UNSUPPORTED: no-threads"],
+  "shared_mutex": ["UNSUPPORTED: no-threads"],
+  "stdatomic.h": ["UNSUPPORTED: no-threads"],
+  "thread": ["UNSUPPORTED: no-threads"],
 }
 
 def get_std_dialects():
@@ -980,7 +993,7 @@ test_types = {
 #   endif
 # else
 #   ifdef {name}
-#     error "{name} should not be defined when {test_suite_guard} is not defined!"
+#     error "{name} should not be defined when the requirement '{test_suite_guard}' is not met!"
 #   endif
 # endif
 """,

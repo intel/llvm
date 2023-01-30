@@ -408,9 +408,18 @@ static bool EvaluateValue(PPValue &Result, Token &PeekTok, DefinedTracker &DT,
     // Set the value.
     Val = Literal.getValue();
     // Set the signedness. UTF-16 and UTF-32 are always unsigned
+    // UTF-8 is unsigned if -fchar8_t is specified.
     if (Literal.isWide())
       Val.setIsUnsigned(!TargetInfo::isTypeSigned(TI.getWCharType()));
-    else if (!Literal.isUTF16() && !Literal.isUTF32())
+    else if (Literal.isUTF16() || Literal.isUTF32())
+      Val.setIsUnsigned(true);
+    else if (Literal.isUTF8()) {
+      if (PP.getLangOpts().CPlusPlus)
+        Val.setIsUnsigned(
+            PP.getLangOpts().Char8 ? true : !PP.getLangOpts().CharIsSigned);
+      else
+        Val.setIsUnsigned(true);
+    } else
       Val.setIsUnsigned(!PP.getLangOpts().CharIsSigned);
 
     if (Result.Val.getBitWidth() > Val.getBitWidth()) {
@@ -860,7 +869,7 @@ static bool EvaluateDirectiveSubExpr(PPValue &LHS, unsigned MinPrec,
 /// to "!defined(X)" return X in IfNDefMacro.
 Preprocessor::DirectiveEvalResult
 Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
-  SaveAndRestore<bool> PPDir(ParsingIfOrElifDirective, true);
+  SaveAndRestore PPDir(ParsingIfOrElifDirective, true);
   // Save the current state of 'DisableMacroExpansion' and reset it to false. If
   // 'DisableMacroExpansion' is true, then we must be in a macro argument list
   // in which case a directive is undefined behavior.  We want macros to be able

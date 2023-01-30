@@ -13,6 +13,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 
@@ -62,7 +63,7 @@ void ProcessTrace::DidAttach(ArchSpec &process_arch) {
   SetPrivateState(eStateStopped);
 
   EventSP event_sp;
-  WaitForProcessToStop(llvm::None, &event_sp, true, listener_sp);
+  WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp);
 
   RestoreProcessEvents();
 
@@ -80,6 +81,9 @@ Status ProcessTrace::DoDestroy() { return Status(); }
 
 size_t ProcessTrace::ReadMemory(addr_t addr, void *buf, size_t size,
                                 Status &error) {
+  if (const ABISP &abi = GetABI())
+    addr = abi->FixAnyAddress(addr);
+
   // Don't allow the caching that lldb_private::Process::ReadMemory does since
   // we have it all cached in the trace files.
   return DoReadMemory(addr, buf, size, error);

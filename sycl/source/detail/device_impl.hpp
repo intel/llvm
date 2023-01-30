@@ -8,18 +8,20 @@
 
 #pragma once
 
-#include <CL/sycl/aspects.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/aspects.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
 #include <mutex>
+#include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class platform;
@@ -63,7 +65,7 @@ public:
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -76,7 +78,7 @@ public:
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -171,6 +173,16 @@ public:
   std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::ext_intel_partition_by_cslice a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \return a vector class of sub devices partitioned from this SYCL
+  /// device at a granularity of "cslice" (compute slice).
+  std::vector<device> create_sub_devices() const;
+
   /// Check if desired partition property supported by device
   ///
   /// \param Prop is one of info::partition_property::(partition_equally,
@@ -186,15 +198,11 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <info::device param>
-  typename info::param_traits<info::device, param>::return_type
-  get_info() const {
+  template <typename Param> typename Param::return_type get_info() const {
     if (is_host()) {
-      return get_device_info_host<param>();
+      return get_device_info_host<Param>();
     }
-    return get_device_info<
-        typename info::param_traits<info::device, param>::return_type,
-        param>::get(this->getHandleRef(), this->getPlugin());
+    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
   }
 
   /// Check if affinity partitioning by specified domain is supported by
@@ -230,6 +238,10 @@ public:
 
   std::string getDeviceName() const;
 
+  /// Gets the current device timestamp
+  /// @throw sycl::feature_not_supported if feature is not supported on device
+  uint64_t getCurrentDeviceTime();
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
@@ -241,8 +253,9 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

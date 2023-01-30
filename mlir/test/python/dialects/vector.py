@@ -35,7 +35,9 @@ def testTransferReadOp():
   module = Module.create()
   with InsertionPoint(module.body):
     vector_type = VectorType.get([2, 3], F32Type.get())
-    memref_type = MemRefType.get([-1, -1], F32Type.get())
+    memref_type = MemRefType.get(
+        [ShapedType.get_dynamic_size(),
+         ShapedType.get_dynamic_size()], F32Type.get())
     index_type = IndexType.get()
     mask_type = VectorType.get(vector_type.shape, IntegerType.get_signless(1))
     identity_map = AffineMap.get_identity(vector_type.rank)
@@ -46,9 +48,9 @@ def testTransferReadOp():
     with InsertionPoint(f.add_entry_block()):
       A, zero, padding, mask = f.arguments
       vector.TransferReadOp(vector_type, A, [zero, zero], identity_map_attr,
-                            padding, mask, None)
+                            padding, mask=mask)
       vector.TransferReadOp(vector_type, A, [zero, zero], identity_map_attr,
-                            padding, None, None)
+                            padding)
       func.ReturnOp([])
 
   # CHECK: @transfer_read(%[[MEM:.*]]: memref<?x?xf32>, %[[IDX:.*]]: index,

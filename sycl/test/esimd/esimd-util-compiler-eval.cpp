@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c %s
 // This test checks compile-time evaluation of functions from esimd_util.hpp
 
-#include "CL/sycl.hpp"
+#include "sycl.hpp"
 #include "sycl/ext/intel/esimd.hpp"
 
 using namespace sycl::ext::intel::esimd;

@@ -120,6 +120,9 @@ public:
   bool isArgumentRegister(const MachineFunction &MF,
                           MCRegister Reg) const override;
 
+  /// Return true if it is tile register class.
+  bool isTileRegisterClass(const TargetRegisterClass *RC) const;
+
   /// Returns true if PhysReg is a fixed register.
   bool isFixedRegister(const MachineFunction &MF,
                        MCRegister PhysReg) const override;
@@ -130,7 +133,7 @@ public:
 
   bool canRealignStack(const MachineFunction &MF) const override;
 
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 

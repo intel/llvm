@@ -5,7 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 // CHECK: pdl.pattern @AttrExpr
-// CHECK: %[[ATTR:.*]] = attribute 10
+// CHECK: %[[ATTR:.*]] = attribute = 10
 // CHECK: operation({{.*}}) {"attr" = %[[ATTR]]}
 Pattern AttrExpr => erase op<> { attr = attr<"10"> };
 
@@ -55,6 +55,19 @@ Pattern OpAllResultMemberAccess {
 
 // -----
 
+// Handle result indexing on unregistered op.
+// CHECK: pdl.pattern @UnregisteredOpResultIndexing
+// CHECK: %[[BAR_OP:.*]] = operation "my_dialect.unregistered_bar"
+// CHECK: %[[BAR_RES:.*]] = result 0 of %[[BAR_OP]]
+// CHECK: operation "my_dialect.unregistered_foo"(%[[BAR_RES]] : !pdl.value)
+Pattern UnregisteredOpResultIndexing {
+  let bar : Op<my_dialect.unregistered_bar>;
+  let op = op<my_dialect.unregistered_foo>(bar.0);
+  erase op;
+}
+
+// -----
+
 // Handle implicit "named" operation results access.
 
 #include "include/ops.td"
@@ -97,6 +110,26 @@ Pattern TupleMemberAccessName {
   let secondOp = op<test.second>(firstOp);
   let tuple = (first = firstOp, second = secondOp);
   replace tuple.first with tuple.second;
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// RangeExpr
+//===----------------------------------------------------------------------===//
+
+// CHECK: pdl.pattern @RangeExpr
+// CHECK: %[[ARG:.*]] = operand
+// CHECK: %[[ARGS:.*]] = operands
+// CHECK: %[[TYPE:.*]] = type
+// CHECK: %[[TYPES:.*]] = types
+// CHECK:   range : !pdl.range<value>
+// CHECK:   range %[[ARG]], %[[ARGS]] : !pdl.value, !pdl.range<value>
+// CHECK:   range : !pdl.range<type>
+// CHECK:   range %[[TYPE]], %[[TYPES]] : !pdl.type, !pdl.range<type>
+Pattern RangeExpr {
+  replace op<>(arg: Value, args: ValueRange) -> (type: Type, types: TypeRange)
+    with op<test.op>((), (arg, args)) -> ((), (type, types));
 }
 
 // -----

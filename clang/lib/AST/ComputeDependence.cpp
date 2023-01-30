@@ -573,7 +573,7 @@ ExprDependence clang::computeDependence(RecoveryExpr *E) {
   //   - type-dependent if we don't know the type (fallback to an opaque
   //     dependent type), or the type is known and dependent, or it has
   //     type-dependent subexpressions.
-  auto D = toExprDependenceForImpliedType(E->getType()->getDependence()) |
+  auto D = toExprDependenceAsWritten(E->getType()->getDependence()) |
            ExprDependence::ErrorDependent;
   // FIXME: remove the type-dependent bit from subexpressions, if the
   // RecoveryExpr has a non-dependent type.
@@ -700,7 +700,7 @@ ExprDependence clang::computeDependence(CXXNewExpr *E) {
       E->getAllocatedTypeSourceInfo()->getType()->getDependence());
   D |= toExprDependenceForImpliedType(E->getAllocatedType()->getDependence());
   auto Size = E->getArraySize();
-  if (Size.hasValue() && *Size)
+  if (Size && *Size)
     D |= turnTypeToValueDependence((*Size)->getDependence());
   if (auto *I = E->getInitializer())
     D |= turnTypeToValueDependence(I->getDependence());
@@ -835,6 +835,13 @@ ExprDependence clang::computeDependence(CXXFoldExpr *E) {
   return D;
 }
 
+ExprDependence clang::computeDependence(CXXParenListInitExpr *E) {
+  auto D = ExprDependence::None;
+  for (const auto *A : E->getInitExprs())
+    D |= A->getDependence();
+  return D;
+}
+
 ExprDependence clang::computeDependence(TypeTraitExpr *E) {
   auto D = ExprDependence::None;
   for (const auto *A : E->getArgs())
@@ -857,7 +864,10 @@ ExprDependence clang::computeDependence(ConceptSpecializationExpr *E,
 
   ExprDependence D =
       ValueDependent ? ExprDependence::Value : ExprDependence::None;
-  return D | toExprDependence(TA);
+  auto Res = D | toExprDependence(TA);
+  if(!ValueDependent && E->getSatisfaction().ContainsErrors)
+    Res |= ExprDependence::Error;
+  return Res;
 }
 
 ExprDependence clang::computeDependence(ObjCArrayLiteral *E) {

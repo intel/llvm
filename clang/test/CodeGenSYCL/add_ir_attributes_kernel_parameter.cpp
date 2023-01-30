@@ -11,7 +11,7 @@
 
 // One __init parameter with add_ir_attributes_kernel_parameter attribute.
 
-template <typename... Properties> class __attribute__((sycl_special_class)) g {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) g {
 public:
   int *x;
 
@@ -27,7 +27,7 @@ public:
 #endif
 };
 
-class __attribute__((sycl_special_class)) h {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) h {
 public:
   int *x;
 
@@ -37,14 +37,14 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x) {
     x = _x;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) gh {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) gh {
 public:
   int *x;
 
@@ -54,14 +54,14 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x) {
     x = _x;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) hg {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) hg {
 public:
   int *x;
 
@@ -71,8 +71,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]] int *_x) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]] int *_x) {
     x = _x;
   }
 #endif
@@ -80,7 +80,7 @@ public:
 
 // Two __init parameters, one with add_ir_attributes_kernel_parameter attribute.
 
-template <typename... Properties> class __attribute__((sycl_special_class)) k {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) k {
 public:
   int *x;
   float *y;
@@ -99,7 +99,7 @@ public:
 #endif
 };
 
-class __attribute__((sycl_special_class)) l {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) l {
 public:
   int *x;
   float *y;
@@ -111,15 +111,15 @@ public:
   void __init(
       int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] float *_y) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] float *_y) {
     x = _x;
     y = _y;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) kl {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) kl {
 public:
   int *x;
   float *y;
@@ -131,15 +131,15 @@ public:
   void __init(
       int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] float *_y) {
+          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] float *_y) {
     x = _x;
     y = _y;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) lk {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) lk {
 public:
   int *x;
   float *y;
@@ -151,8 +151,8 @@ public:
   void __init(
       int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]] float *_y) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]] float *_y) {
     x = _x;
     y = _y;
   }
@@ -161,7 +161,7 @@ public:
 
 // Two __init parameters, both with add_ir_attributes_kernel_parameter attribute.
 
-template <typename... Properties> class __attribute__((sycl_special_class)) m {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) m {
 public:
   int *x;
   float *y;
@@ -181,7 +181,7 @@ public:
 #endif
 };
 
-class __attribute__((sycl_special_class)) n {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) n {
 public:
   int *x;
   float *y;
@@ -192,18 +192,18 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x,
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] float *_y) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] float *_y) {
     x = _x;
     y = _y;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) mn {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) mn {
 public:
   int *x;
   float *y;
@@ -214,18 +214,18 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x,
+          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] float *_y) {
+          Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+          Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] float *_y) {
     x = _x;
     y = _y;
   }
 #endif
 };
 
-template <typename... Properties> class __attribute__((sycl_special_class)) nm {
+template <typename... Properties> class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) nm {
 public:
   int *x;
   float *y;
@@ -236,11 +236,11 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]] int *_x,
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]] int *_x,
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]] float *_y) {
+          "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]] float *_y) {
     x = _x;
     y = _y;
   }
@@ -249,7 +249,7 @@ public:
 
 // Empty attribute names.
 
-class __attribute__((sycl_special_class)) np {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) np {
 public:
   int *x;
 
@@ -259,14 +259,14 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "", "", "", "", "", "", "",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+          "", "", "", "", "", "", "", "",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x) {
     x = _x;
   }
 #endif
 };
 
-class __attribute__((sycl_special_class)) mp {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) mp {
 public:
   int *x;
 
@@ -276,8 +276,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          "", "Prop12", "", "", "", "Prop16", "Prop17",
-          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+          "", "Prop12", "", "", "", "Prop16", "Prop17", "Prop18",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]] int *_x) {
     x = _x;
   }
 #endif
@@ -285,7 +285,7 @@ public:
 
 int main() {
   sycl::queue q;
-  g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> a1;
+  g<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> a1;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel1>(
         [=]() {
@@ -299,21 +299,21 @@ int main() {
           (void)b1;
         });
   });
-  gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> c1;
+  gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> c1;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel3>(
         [=]() {
           (void)c1;
         });
   });
-  hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> d1;
+  hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> d1;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel4>(
         [=]() {
           (void)d1;
         });
   });
-  k<prop1, prop2, prop3, prop4, prop5, prop6, prop7> a2;
+  k<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> a2;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel5>(
         [=]() {
@@ -327,21 +327,21 @@ int main() {
           (void)b2;
         });
   });
-  kl<prop1, prop2, prop3, prop4, prop5, prop6, prop7> c2;
+  kl<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> c2;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel7>(
         [=]() {
           (void)c2;
         });
   });
-  lk<prop1, prop2, prop3, prop4, prop5, prop6, prop7> d2;
+  lk<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> d2;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel8>(
         [=]() {
           (void)d2;
         });
   });
-  m<prop1, prop2, prop3, prop4, prop5, prop6, prop7> a3;
+  m<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> a3;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel9>(
         [=]() {
@@ -355,14 +355,14 @@ int main() {
           (void)b3;
         });
   });
-  mn<prop1, prop2, prop3, prop4, prop5, prop6, prop7> c3;
+  mn<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> c3;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel11>(
         [=]() {
           (void)c3;
         });
   });
-  nm<prop1, prop2, prop3, prop4, prop5, prop6, prop7> d3;
+  nm<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> d3;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel12>(
         [=]() {
@@ -386,26 +386,26 @@ int main() {
 }
 
 // One __init parameter with add_ir_attributes_kernel_parameter attribute.
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel1({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel2({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel3({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel4({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel1({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel2({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel3({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel4({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
 
 // Two __init parameters, one with add_ir_attributes_kernel_parameter attribute.
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel5({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel6({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel7({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel8({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel5({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel6({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel7({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel8({{.*}}ptr addrspace({{.*}}) {{[^"]*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
 
 // Two __init parameters, both with add_ir_attributes_kernel_parameter attribute.
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel9({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel10({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel11({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel12({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel9({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel10({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel11({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel12({{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}}, {{.*}}ptr addrspace({{.*}}) {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} %{{.*}})
 
 // Empty attribute names.
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel13({{.*}}ptr addrspace({{.*}}) {{.*}} %{{.*}})
-// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel14({{.*}}) {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel14({{.*}}) {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} %{{.*}})
 // CHECK-NOT: ""="Another property string"
 // CHECK-NOT: ""="1"
 // CHECK-NOT: ""="2"

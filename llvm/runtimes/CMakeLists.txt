@@ -3,16 +3,6 @@
 # similar although simpler functionality. We should figure out how to merge
 # the two files.
 
-# TODO: Selecting runtimes should be always performed inside the runtimes
-# build, see runtimes/CMakeLists.txt, except that we currently check whether
-# compiler-rt is being built to determine whether to first build builtins
-# or not so we need that information in this file as well.
-set(LLVM_ALL_RUNTIMES "compiler-rt;libc;libcxx;libcxxabi;libunwind;openmp")
-set(LLVM_ENABLE_RUNTIMES "" CACHE STRING
-  "Semicolon-separated list of runtimes to build (${LLVM_ALL_RUNTIMES}), or \"all\".")
-if(LLVM_ENABLE_RUNTIMES STREQUAL "all" )
-  set(LLVM_ENABLE_RUNTIMES ${LLVM_ALL_RUNTIMES})
-endif()
 set(COMMON_CMAKE_ARGS "-DHAVE_LLVM_LIT=ON")
 foreach(proj ${LLVM_ENABLE_RUNTIMES})
   set(proj_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../${proj}")
@@ -90,8 +80,7 @@ function(builtin_default_target compiler_rt_path)
                                       -DCMAKE_ASM_COMPILER_WORKS=ON
                                       ${COMMON_CMAKE_ARGS}
                                       ${BUILTINS_CMAKE_ARGS}
-                           PASSTHROUGH_PREFIXES CMAKE_OSX
-                                                COMPILER_RT
+                           PASSTHROUGH_PREFIXES COMPILER_RT
                                                 DARWIN
                                                 SANITIZER
                            USE_TOOLCHAIN
@@ -189,6 +178,10 @@ foreach(entry ${runtimes})
   if(canon_name STREQUAL "COMPILER_RT")
     list(APPEND prefixes SANITIZER DARWIN)
   endif()
+  if(canon_name STREQUAL "LLVMLIBC")
+    list(APPEND prefixes "LLVM_LIBC")
+    list(APPEND prefixes "LIBC_")
+  endif()
 
   string(FIND ${projName} "lib" LIB_IDX)
   if(LIB_IDX EQUAL 0)
@@ -215,16 +208,12 @@ function(runtime_default_target)
   endforeach()
   foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
     if(NOT ${component} IN_LIST SUB_COMPONENTS)
-      list(APPEND extra_targets ${component} install-${component} install-${component}-stripped)
+      list(APPEND extra_targets install-${component} install-${component}-stripped)
     endif()
   endforeach()
 
   if(LLVM_INCLUDE_TESTS)
-    include(${LLVM_BINARY_DIR}/runtimes/Tests.cmake OPTIONAL)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/Tests.cmake)
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_TESTSUITES ${SUB_LIT_TESTSUITES})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_PARAMS ${SUB_LIT_PARAMS})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_EXTRA_ARGS ${SUB_LIT_EXTRA_ARGS})
+    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_LIT_TESTSUITES "@${LLVM_BINARY_DIR}/runtimes/runtimes-bins/lit.tests")
     list(APPEND test_targets runtimes-test-depends check-runtimes)
   endif()
 
@@ -249,8 +238,7 @@ function(runtime_default_target)
                                       -DCMAKE_ASM_COMPILER_WORKS=ON
                                       ${COMMON_CMAKE_ARGS}
                                       ${RUNTIMES_CMAKE_ARGS}
-                           PASSTHROUGH_PREFIXES CMAKE_OSX
-                                                LLVM_ENABLE_RUNTIMES
+                           PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                 LLVM_USE_LINKER
                                                 ${ARG_PREFIXES}
                            EXTRA_TARGETS ${extra_targets}
@@ -260,7 +248,6 @@ function(runtime_default_target)
                                          ${SUB_INSTALL_TARGETS}
                            USE_TOOLCHAIN
                            TARGET_TRIPLE ${LLVM_TARGET_TRIPLE}
-                           BYPRODUCTS ${LLVM_BINARY_DIR}/runtimes/Tests.cmake
                            ${EXTRA_ARGS})
 endfunction()
 
@@ -289,29 +276,41 @@ function(runtime_register_target name target)
     endif()
   endforeach()
 
-  foreach(target_name IN LISTS SUB_COMPONENTS SUB_INSTALL_TARGETS)
+  foreach(target_name IN LISTS SUB_COMPONENTS)
     set(${target_name}-${name} ${target_name})
     list(APPEND ${name}_extra_targets ${target_name}-${name})
   endforeach()
 
+  foreach(target_name IN LISTS SUB_INSTALL_TARGETS)
+    set(${target_name}-${name} ${target_name})
+    set(${target_name}-${name}-stripped ${target_name}-stripped)
+    list(APPEND ${name}_extra_targets ${target_name}-${name} ${target_name}-${name}-stripped)
+  endforeach()
+
   foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
-    set(${component}-${name} ${component})
-    set(install-${component}-${name} install-${component})
-    set(install-${component}-${name}-stripped install-${component}-stripped)
-    list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name} install-${component}-${name}-stripped)
+    if(NOT component IN_LIST SUB_COMPONENTS)
+      set(${component}-${name} ${component})
+      set(install-${component}-${name} install-${component})
+      set(install-${component}-${name}-stripped install-${component}-stripped)
+      list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name} install-${component}-${name}-stripped)
+    endif()
   endforeach()
 
   if(LLVM_INCLUDE_TESTS)
-    include(${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake OPTIONAL)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake)
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_TESTSUITES ${SUB_LIT_TESTSUITES})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_PARAMS ${SUB_LIT_PARAMS})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_EXTRA_ARGS ${SUB_LIT_EXTRA_ARGS})
+    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_LIT_TESTSUITES "@${LLVM_BINARY_DIR}/runtimes/runtimes-${name}-bins/lit.tests")
     set(runtimes-test-depends-${name} runtimes-test-depends)
     set(check-runtimes-${name} check-runtimes)
     list(APPEND ${name}_test_targets runtimes-test-depends-${name} check-runtimes-${name})
     list(APPEND test_targets ${${name}_test_targets})
-    foreach(target_name IN LISTS SUB_CHECK_TARGETS)
+
+    set(component_check_targets)
+    foreach(component IN LISTS LLVM_RUNTIME_DISTRIBUTION_COMPONENTS)
+      if(NOT "check-${component}" IN_LIST SUB_CHECK_TARGETS)
+        list(APPEND component_check_targets "check-${component}")
+      endif()
+    endforeach()
+
+    foreach(target_name IN LISTS SUB_CHECK_TARGETS component_check_targets)
       set(${target_name}-${name} ${target_name})
       list(APPEND ${name}_test_targets ${target_name}-${name})
       list(APPEND test_targets ${target_name}-${name})
@@ -345,6 +344,10 @@ function(runtime_register_target name target)
     list(APPEND ${name}_extra_args -DLLVM_ENABLE_RUNTIMES=${LLVM_ENABLE_RUNTIMES_PASSTHROUGH})
   endif()
 
+  if(NOT RUNTIMES_${name}_LLVM_USE_LINKER AND NOT RUNTIMES_${target}_LLVM_USE_LINKER)
+    list(APPEND ${name}_extra_args -DLLVM_USE_LINKER=${LLVM_USE_LINKER})
+  endif()
+
   llvm_ExternalProject_Add(runtimes-${name}
                            ${CMAKE_CURRENT_SOURCE_DIR}/../../runtimes
                            DEPENDS ${${name}_deps}
@@ -361,19 +364,17 @@ function(runtime_register_target name target)
                                       -DLLVM_RUNTIMES_TARGET=${name}
                                       ${COMMON_CMAKE_ARGS}
                                       ${${name}_extra_args}
-                           PASSTHROUGH_PREFIXES LLVM_USE_LINKER
                            EXTRA_TARGETS ${${name}_extra_targets}
                                          ${${name}_test_targets}
                            USE_TOOLCHAIN
                            TARGET_TRIPLE ${target}
-                           BYPRODUCTS ${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake
                            ${EXTRA_ARGS})
 endfunction()
 
 if(runtimes)
   # Create a runtimes target that uses this file as its top-level CMake file.
   # The runtimes target is a configuration of all the runtime libraries
-  # together in a single CMake invocaiton.
+  # together in a single CMake invocation.
   set(extra_deps "")
   if("openmp" IN_LIST LLVM_ENABLE_RUNTIMES)
     if(TARGET opt)
@@ -479,13 +480,15 @@ if(runtimes)
   endif()
 
   if(LLVM_INCLUDE_TESTS)
-    set_property(GLOBAL APPEND PROPERTY LLVM_ADDITIONAL_TEST_DEPENDS runtimes-test-depends)
+    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_ADDITIONAL_TEST_DEPENDS runtimes-test-depends)
 
     set(RUNTIMES_TEST_DEPENDS
         FileCheck
         count
+        llvm-cov
         llvm-nm
         llvm-objdump
+        llvm-profdata
         llvm-xray
         not
         obj2yaml
@@ -497,5 +500,7 @@ if(runtimes)
     foreach(target ${test_targets} ${SUB_CHECK_TARGETS})
       add_dependencies(${target} ${RUNTIMES_TEST_DEPENDS})
     endforeach()
+
+    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_ADDITIONAL_TEST_TARGETS runtimes ${RUNTIMES_TEST_DEPENDS})
   endif()
 endif()

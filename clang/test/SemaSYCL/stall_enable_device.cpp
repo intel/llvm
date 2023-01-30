@@ -5,7 +5,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // Test attribute is presented on function definition.

@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -20,7 +20,7 @@ from tools import sparse_compiler
 def boilerplate(attr: st.EncodingAttr):
   """Returns boilerplate main method."""
   return f"""
-func @main(%p : !llvm.ptr<i8>) -> () attributes {{ llvm.emit_c_interface }} {{
+func.func @main(%p : !llvm.ptr<i8>) -> () attributes {{ llvm.emit_c_interface }} {{
   %d = arith.constant sparse<[[0, 0], [1, 1], [0, 9], [9, 0], [4, 4]],
                              [1.0, 2.0, 3.0, 4.0, 5.0]> : tensor<10x10xf64>
   %a = sparse_tensor.convert %d : tensor<10x10xf64> to tensor<10x10xf64, {attr}>
@@ -89,7 +89,7 @@ def main():
     for level in levels:
       for ordering in orderings:
         for bwidth in bitwidths:
-          attr = st.EncodingAttr.get(level, ordering, bwidth, bwidth)
+          attr = st.EncodingAttr.get(level, ordering, None, bwidth, bwidth)
           build_compile_and_run_output(attr, compiler)
           count = count + 1
 

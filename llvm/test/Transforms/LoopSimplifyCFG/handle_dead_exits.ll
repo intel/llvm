@@ -1,4 +1,4 @@
-; RUN: opt -S -enable-loop-simplifycfg-term-folding=true -loop-simplifycfg %s | FileCheck %s
+; RUN: opt -S -enable-loop-simplifycfg-term-folding=true -passes=loop-simplifycfg %s | FileCheck %s
 ; RUN: opt -S -enable-loop-simplifycfg-term-folding=true -passes='require<domtree>,loop(loop-simplifycfg)' %s | FileCheck %s
 
 declare i32* @fake_personality_function()
@@ -53,7 +53,7 @@ never:
 
 never-unwind:
 ; CHECK: never-unwind:
-; CHECK-NEXT: ret i32 undef
+; CHECK-NEXT: ret i32 poison
   %p = phi i32 [1, %never]
   %res = landingpad token cleanup
   ret i32 %p

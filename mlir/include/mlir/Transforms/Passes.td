@@ -30,10 +30,12 @@ def Canonicalizer : Pass<"canonicalize"> {
            "Seed the worklist in general top-down order">,
     Option<"enableRegionSimplification", "region-simplify", "bool",
            /*default=*/"true",
-           "Seed the worklist in general top-down order">,
+           "Perform control flow optimizations to the region tree">,
     Option<"maxIterations", "max-iterations", "int64_t",
            /*default=*/"10",
-           "Seed the worklist in general top-down order">
+           "Max. iterations between applying patterns / simplifying regions">,
+    Option<"maxNumRewrites", "max-num-rewrites", "int64_t", /*default=*/"-1",
+           "Max. number of pattern rewrites within an iteration">
   ] # RewritePassUtils.options;
 }
 
@@ -75,6 +77,16 @@ def CSE : Pass<"cse"> {
     Statistic<"numCSE", "num-cse'd", "Number of operations CSE'd">,
     Statistic<"numDCE", "num-dce'd", "Number of operations DCE'd">
   ];
+}
+
+def GenerateRuntimeVerification : Pass<"generate-runtime-verification"> {
+  let summary = "Generate additional runtime op verification checks";
+  let description = [{
+    This pass generates op-specific runtime checks using the
+    `RuntimeVerifiableOpInterface`. It can be run for debugging purposes after
+    passes that are suspected to introduce faulty IR.
+  }];
+  let constructor = "mlir::createGenerateRuntimeVerificationPass()";
 }
 
 def Inliner : Pass<"inline"> {
@@ -145,6 +157,10 @@ def LoopInvariantCodeMotion : Pass<"loop-invariant-code-motion"> {
 def PrintOpStats : Pass<"print-op-stats"> {
   let summary = "Print statistics of operations";
   let constructor = "mlir::createPrintOpStatsPass()";
+  let options = [
+    Option<"printAsJSON", "json", "bool", /*default=*/"false",
+           "print the stats as JSON">
+  ];
 }
 
 def SCCP : Pass<"sccp"> {
@@ -184,11 +200,11 @@ def SymbolDCE : Pass<"symbol-dce"> {
     For example, consider the following input:
 
     ```mlir
-    func private @dead_private_function()
-    func private @live_private_function()
+    func.func private @dead_private_function()
+    func.func private @live_private_function()
 
     // Note: The `public` isn't necessary here, as this is the default.
-    func public @public_function() {
+    func.func public @public_function() {
       "foo.return"() {uses = [@live_private_function]} : () -> ()
     }
     ```
@@ -200,9 +216,9 @@ def SymbolDCE : Pass<"symbol-dce"> {
     are no links to known-live operations. After running, we get the expected:
 
     ```mlir
-    func private @live_private_function()
+    func.func private @live_private_function()
 
-    func public @public_function() {
+    func.func public @public_function() {
       "foo.return"() {uses = [@live_private_function]} : () -> ()
     }
     ```
@@ -258,6 +274,23 @@ def ViewOpGraph : Pass<"view-op-graph"> {
             /*default=*/"true", "Print result types of operations">
   ];
   let constructor = "mlir::createPrintOpGraphPass()";
+}
+
+def TopologicalSort : Pass<"topological-sort"> {
+  let summary = "Sort regions without SSA dominance in topological order";
+  let description = [{
+    Recursively sorts all nested regions without SSA dominance in topological
+    order. The main purpose is readability, as well as potentially processing of
+    certain transformations and analyses. The function sorts the operations in
+    all nested regions such that, as much as possible, all users appear after
+    their producers.
+
+    This sort is stable. If the block is already topologically sorted, the IR
+    is not changed. Operations that form a cycle are moved to the end of the
+    regions in a stable order.
+  }];
+
+  let constructor = "mlir::createTopologicalSortPass()";
 }
 
 #endif // MLIR_TRANSFORMS_PASSES

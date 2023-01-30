@@ -254,6 +254,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPTaskyieldDirectiveClass:
     EmitOMPTaskyieldDirective(cast<OMPTaskyieldDirective>(*S));
     break;
+  case Stmt::OMPErrorDirectiveClass:
+    EmitOMPErrorDirective(cast<OMPErrorDirective>(*S));
+    break;
   case Stmt::OMPBarrierDirectiveClass:
     EmitOMPBarrierDirective(cast<OMPBarrierDirective>(*S));
     break;
@@ -314,17 +317,30 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPMasterTaskLoopDirectiveClass:
     EmitOMPMasterTaskLoopDirective(cast<OMPMasterTaskLoopDirective>(*S));
     break;
+  case Stmt::OMPMaskedTaskLoopDirectiveClass:
+    llvm_unreachable("masked taskloop directive not supported yet.");
+    break;
   case Stmt::OMPMasterTaskLoopSimdDirectiveClass:
     EmitOMPMasterTaskLoopSimdDirective(
         cast<OMPMasterTaskLoopSimdDirective>(*S));
+    break;
+  case Stmt::OMPMaskedTaskLoopSimdDirectiveClass:
+    llvm_unreachable("masked taskloop simd directive not supported yet.");
     break;
   case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
     EmitOMPParallelMasterTaskLoopDirective(
         cast<OMPParallelMasterTaskLoopDirective>(*S));
     break;
+  case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
+    llvm_unreachable("parallel masked taskloop directive not supported yet.");
+    break;
   case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
     EmitOMPParallelMasterTaskLoopSimdDirective(
         cast<OMPParallelMasterTaskLoopSimdDirective>(*S));
+    break;
+  case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
+    llvm_unreachable(
+        "parallel masked taskloop simd directive not supported yet.");
     break;
   case Stmt::OMPDistributeDirectiveClass:
     EmitOMPDistributeDirective(cast<OMPDistributeDirective>(*S));
@@ -407,6 +423,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
     llvm_unreachable("target parallel loop directive not supported yet.");
+    break;
+  case Stmt::OMPParallelMaskedDirectiveClass:
+    llvm_unreachable("parallel masked directive not supported yet.");
     break;
   }
 }
@@ -555,9 +574,9 @@ void CodeGenFunction::EmitBlock(llvm::BasicBlock *BB, bool IsFinished) {
   // Place the block after the current block, if possible, or else at
   // the end of the function.
   if (CurBB && CurBB->getParent())
-    CurFn->getBasicBlockList().insertAfter(CurBB->getIterator(), BB);
+    CurFn->insert(std::next(CurBB->getIterator()), BB);
   else
-    CurFn->getBasicBlockList().push_back(BB);
+    CurFn->insert(CurFn->end(), BB);
   Builder.SetInsertPoint(BB);
 }
 
@@ -582,15 +601,14 @@ void CodeGenFunction::EmitBlockAfterUses(llvm::BasicBlock *block) {
   bool inserted = false;
   for (llvm::User *u : block->users()) {
     if (llvm::Instruction *insn = dyn_cast<llvm::Instruction>(u)) {
-      CurFn->getBasicBlockList().insertAfter(insn->getParent()->getIterator(),
-                                             block);
+      CurFn->insert(std::next(insn->getParent()->getIterator()), block);
       inserted = true;
       break;
     }
   }
 
   if (!inserted)
-    CurFn->getBasicBlockList().push_back(block);
+    CurFn->insert(CurFn->end(), block);
 
   Builder.SetInsertPoint(block);
 }
@@ -702,11 +720,10 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
       break;
     }
   }
-  SaveAndRestore<bool> save_nomerge(InNoMergeAttributedStmt, nomerge);
-  SaveAndRestore<bool> save_noinline(InNoInlineAttributedStmt, noinline);
-  SaveAndRestore<bool> save_alwaysinline(InAlwaysInlineAttributedStmt,
-                                         alwaysinline);
-  SaveAndRestore<const CallExpr *> save_musttail(MustTailCall, musttail);
+  SaveAndRestore save_nomerge(InNoMergeAttributedStmt, nomerge);
+  SaveAndRestore save_noinline(InNoInlineAttributedStmt, noinline);
+  SaveAndRestore save_alwaysinline(InAlwaysInlineAttributedStmt, alwaysinline);
+  SaveAndRestore save_musttail(MustTailCall, musttail);
   EmitStmt(S.getSubStmt(), S.getAttrs());
 }
 
@@ -799,11 +816,20 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
   // Prefer the PGO based weights over the likelihood attribute.
   // When the build isn't optimized the metadata isn't used, so don't generate
   // it.
+  // Also, differentiate between disabled PGO and a never executed branch with
+  // PGO. Assuming PGO is in use:
+  // - we want to ignore the [[likely]] attribute if the branch is never
+  // executed,
+  // - assuming the profile is poor, preserving the attribute may still be
+  // beneficial.
+  // As an approximation, preserve the attribute only if both the branch and the
+  // parent context were not executed.
   Stmt::Likelihood LH = Stmt::LH_None;
-  uint64_t Count = getProfileCount(S.getThen());
-  if (!Count && CGM.getCodeGenOpts().OptimizationLevel)
+  uint64_t ThenCount = getProfileCount(S.getThen());
+  if (!ThenCount && !getCurrentProfileCount() &&
+      CGM.getCodeGenOpts().OptimizationLevel)
     LH = Stmt::getLikelihood(S.getThen(), S.getElse());
-  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, Count, LH);
+  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, ThenCount, LH);
 
   // Emit the 'then' code.
   EmitBlock(ThenBlock);
@@ -1442,7 +1468,7 @@ void CodeGenFunction::EmitCaseStmtRange(const CaseStmt &S,
   llvm::BasicBlock *FalseDest = CaseRangeBlock;
   CaseRangeBlock = createBasicBlock("sw.caserange");
 
-  CurFn->getBasicBlockList().push_back(CaseRangeBlock);
+  CurFn->insert(CurFn->end(), CaseRangeBlock);
   Builder.SetInsertPoint(CaseRangeBlock);
 
   // Emit range check.
@@ -1493,6 +1519,21 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
 
   llvm::ConstantInt *CaseVal =
     Builder.getInt(S.getLHS()->EvaluateKnownConstInt(getContext()));
+
+  // Emit debuginfo for the case value if it is an enum value.
+  const ConstantExpr *CE;
+  if (auto ICE = dyn_cast<ImplicitCastExpr>(S.getLHS()))
+    CE = dyn_cast<ConstantExpr>(ICE->getSubExpr());
+  else
+    CE = dyn_cast<ConstantExpr>(S.getLHS());
+  if (CE) {
+    if (auto DE = dyn_cast<DeclRefExpr>(CE->getSubExpr()))
+      if (CGDebugInfo *Dbg = getDebugInfo())
+        if (CGM.getCodeGenOpts().hasReducedDebugInfo())
+          Dbg->EmitGlobalVariable(DE->getDecl(),
+              APValue(llvm::APSInt(CaseVal->getValue())));
+  }
+
   if (SwitchLikelihood)
     SwitchLikelihood->push_back(Stmt::getLikelihood(Attrs));
 
@@ -1831,7 +1872,7 @@ static Optional<SmallVector<uint64_t, 16>>
 getLikelihoodWeights(ArrayRef<Stmt::Likelihood> Likelihoods) {
   // Are there enough branches to weight them?
   if (Likelihoods.size() <= 1)
-    return None;
+    return std::nullopt;
 
   uint64_t NumUnlikely = 0;
   uint64_t NumNone = 0;
@@ -1852,7 +1893,7 @@ getLikelihoodWeights(ArrayRef<Stmt::Likelihood> Likelihoods) {
 
   // Is there a likelihood attribute used?
   if (NumUnlikely == 0 && NumLikely == 0)
-    return None;
+    return std::nullopt;
 
   // When multiple cases share the same code they can be combined during
   // optimization. In that case the weights of the branch will be the sum of
@@ -2240,9 +2281,9 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
   // Attach readnone and readonly attributes.
   if (!HasSideEffect) {
     if (ReadNone)
-      Result.addFnAttr(llvm::Attribute::ReadNone);
+      Result.setDoesNotAccessMemory();
     else if (ReadOnly)
-      Result.addFnAttr(llvm::Attribute::ReadOnly);
+      Result.setOnlyReadsMemory();
   }
 
   // Add elementtype attribute for indirect constraints.
@@ -2286,6 +2327,9 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
 }
 
 void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
+  // Pop all cleanup blocks at the end of the asm statement.
+  CodeGenFunction::RunCleanupsScope Cleanups(*this);
+
   // Assemble the final asm string.
   std::string AsmString = S.generateAsmString(getContext());
 
@@ -2324,6 +2368,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   std::vector<llvm::Type *> ArgElemTypes;
   std::vector<llvm::Value*> Args;
   llvm::BitVector ResultTypeRequiresCast;
+  llvm::BitVector ResultRegIsFlagReg;
 
   // Keep track of inout constraints.
   std::string InOutConstraints;
@@ -2380,6 +2425,9 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       Constraints += "=" + OutputConstraint;
       ResultRegQualTys.push_back(QTy);
       ResultRegDests.push_back(Dest);
+
+      bool IsFlagReg = llvm::StringRef(OutputConstraint).startswith("{@cc");
+      ResultRegIsFlagReg.push_back(IsFlagReg);
 
       llvm::Type *Ty = ConvertTypeForMem(QTy);
       const bool RequiresCast = Info.allowsRegister() &&
@@ -2584,14 +2632,9 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       for (const auto *E : GS->labels()) {
         JumpDest Dest = getJumpDestForLabel(E->getLabel());
         Transfer.push_back(Dest.getBlock());
-        llvm::BlockAddress *BA =
-            llvm::BlockAddress::get(CurFn, Dest.getBlock());
-        Args.push_back(BA);
-        ArgTypes.push_back(BA->getType());
-        ArgElemTypes.push_back(nullptr);
         if (!Constraints.empty())
           Constraints += ',';
-        Constraints += 'i';
+        Constraints += "!i";
       }
       Fallthrough = createBasicBlock("asm.fallthrough");
     }
@@ -2703,9 +2746,20 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   // ResultRegDests can be also populated by addReturnRegisterOutputs() above,
   // in which case its size may grow.
   assert(ResultTypeRequiresCast.size() <= ResultRegDests.size());
+  assert(ResultRegIsFlagReg.size() <= ResultRegDests.size());
   for (unsigned i = 0, e = RegResults.size(); i != e; ++i) {
     llvm::Value *Tmp = RegResults[i];
     llvm::Type *TruncTy = ResultTruncRegTypes[i];
+
+    if ((i < ResultRegIsFlagReg.size()) && ResultRegIsFlagReg[i]) {
+      // Target must guarantee the Value `Tmp` here is lowered to a boolean
+      // value.
+      llvm::Constant *Two = llvm::ConstantInt::get(Tmp->getType(), 2);
+      llvm::Value *IsBooleanValue =
+          Builder.CreateCmp(llvm::CmpInst::ICMP_ULT, Tmp, Two);
+      llvm::Function *FnAssume = CGM.getIntrinsic(llvm::Intrinsic::assume);
+      Builder.CreateCall(FnAssume, IsBooleanValue);
+    }
 
     // If the result type of the LLVM IR asm doesn't match the result type of
     // the expression, do the conversion.

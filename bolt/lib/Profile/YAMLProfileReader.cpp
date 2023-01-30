@@ -22,13 +22,9 @@ extern cl::opt<unsigned> Verbosity;
 extern cl::OptionCategory BoltOptCategory;
 
 static llvm::cl::opt<bool>
-IgnoreHash("profile-ignore-hash",
-  cl::desc("ignore hash while reading function profile"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
-
+    IgnoreHash("profile-ignore-hash",
+               cl::desc("ignore hash while reading function profile"),
+               cl::Hidden, cl::cat(BoltOptCategory));
 }
 
 namespace llvm {
@@ -53,13 +49,13 @@ void YAMLProfileReader::buildNameMaps(
     if (Pos != StringRef::npos)
       Name = Name.substr(0, Pos);
     ProfileNameToProfile[Name] = &YamlBF;
-    if (const Optional<StringRef> CommonName = getLTOCommonName(Name))
+    if (const std::optional<StringRef> CommonName = getLTOCommonName(Name))
       LTOCommonNameMap[*CommonName].push_back(&YamlBF);
   }
   for (auto &BFI : Functions) {
     const BinaryFunction &Function = BFI.second;
     for (StringRef Name : Function.getNames())
-      if (const Optional<StringRef> CommonName = getLTOCommonName(Name))
+      if (const std::optional<StringRef> CommonName = getLTOCommonName(Name))
         LTOCommonNameFunctionMap[*CommonName].insert(&Function);
   }
 }
@@ -291,7 +287,7 @@ bool YAMLProfileReader::mayHaveProfileData(const BinaryFunction &BF) {
   for (StringRef Name : BF.getNames()) {
     if (ProfileNameToProfile.find(Name) != ProfileNameToProfile.end())
       return true;
-    if (const Optional<StringRef> CommonName = getLTOCommonName(Name)) {
+    if (const std::optional<StringRef> CommonName = getLTOCommonName(Name)) {
       if (LTOCommonNameMap.find(*CommonName) != LTOCommonNameMap.end())
         return true;
     }
@@ -345,7 +341,8 @@ Error YAMLProfileReader::readProfile(BinaryContext &BC) {
       continue;
 
     for (StringRef FunctionName : Function.getNames()) {
-      const Optional<StringRef> CommonName = getLTOCommonName(FunctionName);
+      const std::optional<StringRef> CommonName =
+          getLTOCommonName(FunctionName);
       if (CommonName) {
         auto I = LTOCommonNameMap.find(*CommonName);
         if (I == LTOCommonNameMap.end())

@@ -101,12 +101,15 @@ bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
 }
 
 // Create prefix string literals used in Options.td
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
 // Create table mapping all options defined in Options.td
-static const opt::OptTable::Info optInfo[] = {
+static constexpr opt::OptTable::Info optInfo[] = {
 #define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
   {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
    X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
@@ -164,7 +167,7 @@ static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
   path::append(s, path1, path2);
   if (fs::exists(s))
     return std::string(s);
-  return None;
+  return std::nullopt;
 }
 
 opt::InputArgList WasmOptTable::parse(ArrayRef<const char *> argv) {
@@ -184,6 +187,9 @@ opt::InputArgList WasmOptTable::parse(ArrayRef<const char *> argv) {
   args = this->ParseArgs(vec, missingIndex, missingCount);
 
   handleColorDiagnostics(args);
+  if (missingCount)
+    error(Twine(args.getArgString(missingIndex)) + ": missing argument");
+
   for (auto *arg : args.filtered(OPT_UNKNOWN))
     error("unknown argument: " + arg->getAsString(args));
   return args;
@@ -231,7 +237,7 @@ std::vector<MemoryBufferRef> static getArchiveMembers(MemoryBufferRef mb) {
 
 void LinkerDriver::addFile(StringRef path) {
   Optional<MemoryBufferRef> buffer = readFile(path);
-  if (!buffer.hasValue())
+  if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
 
@@ -276,26 +282,57 @@ void LinkerDriver::addFile(StringRef path) {
   }
 }
 
+static Optional<std::string> findFromSearchPaths(StringRef path) {
+  for (StringRef dir : config->searchPaths)
+    if (Optional<std::string> s = findFile(dir, path))
+      return s;
+  return std::nullopt;
+}
+
+// This is for -l<basename>. We'll look for lib<basename>.a from
+// search paths.
+static Optional<std::string> searchLibraryBaseName(StringRef name) {
+  for (StringRef dir : config->searchPaths) {
+    // Currently we don't enable dyanmic linking at all unless -shared or -pie
+    // are used, so don't even look for .so files in that case..
+    if (config->isPic && !config->isStatic)
+      if (Optional<std::string> s = findFile(dir, "lib" + name + ".so"))
+        return s;
+    if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
+      return s;
+  }
+  return std::nullopt;
+}
+
+// This is for -l<namespec>.
+static Optional<std::string> searchLibrary(StringRef name) {
+  if (name.startswith(":"))
+    return findFromSearchPaths(name.substr(1));
+  return searchLibraryBaseName(name);
+}
+
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
-  for (StringRef dir : config->searchPaths) {
-    if (Optional<std::string> s = findFile(dir, "lib" + name + ".a")) {
-      addFile(*s);
-      return;
-    }
-  }
-
-  error("unable to find library -l" + name);
+  if (Optional<std::string> path = searchLibrary(name))
+    addFile(saver().save(*path));
+  else
+    error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
 
 void LinkerDriver::createFiles(opt::InputArgList &args) {
   for (auto *arg : args) {
     switch (arg->getOption().getID()) {
-    case OPT_l:
+    case OPT_library:
       addLibrary(arg->getValue());
       break;
     case OPT_INPUT:
       addFile(arg->getValue());
+      break;
+    case OPT_Bstatic:
+      config->isStatic = true;
+      break;
+    case OPT_Bdynamic:
+      config->isStatic = false;
       break;
     case OPT_whole_archive:
       inWholeArchive = true;
@@ -359,7 +396,27 @@ static void readConfigs(opt::InputArgList &args) {
   config->exportAll = args.hasArg(OPT_export_all);
   config->exportTable = args.hasArg(OPT_export_table);
   config->growableTable = args.hasArg(OPT_growable_table);
-  config->importMemory = args.hasArg(OPT_import_memory);
+
+  if (args.hasArg(OPT_import_memory_with_name)) {
+    config->memoryImport =
+        args.getLastArgValue(OPT_import_memory_with_name).split(",");
+  } else if (args.hasArg(OPT_import_memory)) {
+    config->memoryImport =
+        std::pair<llvm::StringRef, llvm::StringRef>(defaultModule, memoryName);
+  } else {
+    config->memoryImport =
+        llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>();
+  }
+
+  if (args.hasArg(OPT_export_memory_with_name)) {
+    config->memoryExport =
+        args.getLastArgValue(OPT_export_memory_with_name);
+  } else if (args.hasArg(OPT_export_memory)) {
+    config->memoryExport = memoryName;
+  } else {
+    config->memoryExport = llvm::Optional<llvm::StringRef>();
+  }
+
   config->sharedMemory = args.hasArg(OPT_shared_memory);
   config->importTable = args.hasArg(OPT_import_table);
   config->importUndefined = args.hasArg(OPT_import_undefined);
@@ -379,7 +436,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->printGcSections =
       args.hasFlag(OPT_print_gc_sections, OPT_no_print_gc_sections, false);
   config->saveTemps = args.hasArg(OPT_save_temps);
-  config->searchPaths = args::getStrings(args, OPT_L);
+  config->searchPaths = args::getStrings(args, OPT_library_path);
   config->shared = args.hasArg(OPT_shared);
   config->stripAll = args.hasArg(OPT_strip_all);
   config->stripDebug = args.hasArg(OPT_strip_debug);
@@ -394,7 +451,7 @@ static void readConfigs(opt::InputArgList &args) {
   LLVM_DEBUG(errorHandler().verbose = true);
 
   config->initialMemory = args::getInteger(args, OPT_initial_memory, 0);
-  config->globalBase = args::getInteger(args, OPT_global_base, 1024);
+  config->globalBase = args::getInteger(args, OPT_global_base, 0);
   config->maxMemory = args::getInteger(args, OPT_max_memory, 0);
   config->zStackSize =
       args::getZOptionValue(args, OPT_z, "stack-size", WasmPageSize);
@@ -435,6 +492,13 @@ static void readConfigs(opt::InputArgList &args) {
       config->features->push_back(std::string(s));
   }
 
+  if (auto *arg = args.getLastArg(OPT_extra_features)) {
+    config->extraFeatures =
+        llvm::Optional<std::vector<std::string>>(std::vector<std::string>());
+    for (StringRef s : arg->getValues())
+      config->extraFeatures->push_back(std::string(s));
+  }
+
   // Legacy --allow-undefined flag which is equivalent to
   // --unresolve-symbols=ignore + --import-undefined
   if (args.hasArg(OPT_allow_undefined)) {
@@ -469,8 +533,20 @@ static void setConfigs() {
   }
 
   if (config->shared) {
-    config->importMemory = true;
+    if (config->memoryExport.has_value()) {
+      error("--export-memory is incompatible with --shared");
+    }
+    if (!config->memoryImport.has_value()) {
+      config->memoryImport =
+          std::pair<llvm::StringRef, llvm::StringRef>(defaultModule, memoryName);
+    }
     config->importUndefined = true;
+  }
+
+  // If neither export-memory nor import-memory is specified, default to
+  // exporting memory under its default name.
+  if (!config->memoryExport.has_value() && !config->memoryImport.has_value()) {
+    config->memoryExport = memoryName;
   }
 }
 
@@ -510,6 +586,8 @@ static void checkOptions(opt::InputArgList &args) {
       error("-r and -pie may not be used together");
     if (config->sharedMemory)
       error("-r and --shared-memory may not be used together");
+    if (config->globalBase)
+      error("-r and --global-base may not by used together");
   }
 
   // To begin to prepare for Module Linking-style shared libraries, start
@@ -537,6 +615,16 @@ static void checkOptions(opt::InputArgList &args) {
   if (config->bsymbolic && !config->shared) {
     warn("-Bsymbolic is only meaningful when combined with -shared");
   }
+
+  if (config->globalBase && config->isPic) {
+    error("--global-base may not be used with -shared/-pie");
+  }
+}
+
+static const char *getReproduceOption(opt::InputArgList &args) {
+  if (auto *arg = args.getLastArg(OPT_reproduce))
+    return arg->getValue();
+  return getenv("LLD_REPRODUCE");
 }
 
 // Force Sym to be entered in the output. Used for -u or equivalent.
@@ -567,10 +655,25 @@ static void handleLibcall(StringRef name) {
   }
 }
 
+// Equivalent of demote demoteSharedAndLazySymbols() in the ELF linker
+static void demoteLazySymbols() {
+  for (Symbol *sym : symtab->symbols()) {
+    if (auto* s = dyn_cast<LazySymbol>(sym)) {
+      if (s->signature) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "demoting lazy func: " << s->getName() << "\n");
+        replaceSymbol<UndefinedFunction>(s, s->getName(), std::nullopt,
+                                         std::nullopt, WASM_SYMBOL_BINDING_WEAK,
+                                         s->getFile(), s->signature);
+      }
+    }
+  }
+}
+
 static UndefinedGlobal *
 createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   auto *sym = cast<UndefinedGlobal>(symtab->addUndefinedGlobal(
-      name, None, None, WASM_SYMBOL_UNDEFINED, nullptr, type));
+      name, std::nullopt, std::nullopt, WASM_SYMBOL_UNDEFINED, nullptr, type));
   config->allowUndefinedSymbols.insert(sym->getName());
   sym->isUsedInRegularObj = true;
   return sym;
@@ -578,7 +681,7 @@ createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
 
 static InputGlobal *createGlobal(StringRef name, bool isMutable) {
   llvm::wasm::WasmGlobal wasmGlobal;
-  bool is64 = config->is64.getValueOr(false);
+  bool is64 = config->is64.value_or(false);
   wasmGlobal.Type = {uint8_t(is64 ? WASM_TYPE_I64 : WASM_TYPE_I32), isMutable};
   wasmGlobal.InitExpr = intConst(0, is64);
   wasmGlobal.SymbolName = name;
@@ -613,11 +716,11 @@ static void createSyntheticSymbols() {
       "__wasm_call_ctors", WASM_SYMBOL_VISIBILITY_HIDDEN,
       make<SyntheticFunction>(nullSignature, "__wasm_call_ctors"));
 
-    bool is64 = config->is64.getValueOr(false);
+  bool is64 = config->is64.value_or(false);
 
   if (config->isPic) {
     WasmSym::stackPointer =
-        createUndefinedGlobal("__stack_pointer", config->is64.getValueOr(false)
+        createUndefinedGlobal("__stack_pointer", config->is64.value_or(false)
                                                      ? &mutableGlobalTypeI64
                                                      : &mutableGlobalTypeI32);
     // For PIC code, we import two global variables (__memory_base and
@@ -653,6 +756,17 @@ static void createSyntheticSymbols() {
             is64 ? i64ArgSignature : i32ArgSignature,
             "__wasm_init_tls"));
   }
+
+  if (config->isPic ||
+      config->unresolvedSymbols == UnresolvedPolicy::ImportDynamic) {
+    // For PIC code, or when dynamically importing addresses, we create
+    // synthetic functions that apply relocations.  These get called from
+    // __wasm_call_ctors before the user-level constructors.
+    WasmSym::applyDataRelocs = symtab->addSyntheticFunction(
+        "__wasm_apply_data_relocs",
+        WASM_SYMBOL_VISIBILITY_DEFAULT | WASM_SYMBOL_EXPORTED,
+        make<SyntheticFunction>(nullSignature, "__wasm_apply_data_relocs"));
+  }
 }
 
 static void createOptionalSymbols() {
@@ -665,11 +779,14 @@ static void createOptionalSymbols() {
     WasmSym::dataEnd = symtab->addOptionalDataSymbol("__data_end");
 
   if (!config->isPic) {
+    WasmSym::stackLow = symtab->addOptionalDataSymbol("__stack_low");
+    WasmSym::stackHigh = symtab->addOptionalDataSymbol("__stack_high");
     WasmSym::globalBase = symtab->addOptionalDataSymbol("__global_base");
     WasmSym::heapBase = symtab->addOptionalDataSymbol("__heap_base");
+    WasmSym::heapEnd = symtab->addOptionalDataSymbol("__heap_end");
     WasmSym::definedMemoryBase = symtab->addOptionalDataSymbol("__memory_base");
     WasmSym::definedTableBase = symtab->addOptionalDataSymbol("__table_base");
-    if (config->is64.getValueOr(false))
+    if (config->is64.value_or(false))
       WasmSym::definedTableBase32 =
           symtab->addOptionalDataSymbol("__table_base32");
   }
@@ -730,8 +847,9 @@ struct WrappedSymbol {
 };
 
 static Symbol *addUndefined(StringRef name) {
-  return symtab->addUndefinedFunction(name, None, None, WASM_SYMBOL_UNDEFINED,
-                                      nullptr, nullptr, false);
+  return symtab->addUndefinedFunction(name, std::nullopt, std::nullopt,
+                                      WASM_SYMBOL_UNDEFINED, nullptr, nullptr,
+                                      false);
 }
 
 // Handles -wrap option.
@@ -847,8 +965,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   // Handle --reproduce
-  if (auto *arg = args.getLastArg(OPT_reproduce)) {
-    StringRef path = arg->getValue();
+  if (const char *path = getReproduceOption(args)) {
     Expected<std::unique_ptr<TarWriter>> errOrWriter =
         TarWriter::create(path, path::stem(path));
     if (errOrWriter) {
@@ -869,12 +986,12 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   cl::ParseCommandLineOptions(v.size(), v.data());
 
   readConfigs(args);
+  setConfigs();
 
   createFiles(args);
   if (errorCount())
     return;
 
-  setConfigs();
   checkOptions(args);
   if (errorCount())
     return;
@@ -1015,6 +1132,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   // Split WASM_SEG_FLAG_STRINGS sections into pieces in preparation for garbage
   // collection.
   splitSections();
+
+  // Any remaining lazy symbols should be demoted to Undefined
+  demoteLazySymbols();
 
   // Do size optimizations: garbage collection
   markLive();

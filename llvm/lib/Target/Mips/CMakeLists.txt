@@ -61,6 +61,7 @@ add_llvm_target(MipsCodeGen
   MipsSubtarget.cpp
   MipsTargetMachine.cpp
   MipsTargetObjectFile.cpp
+  MipsTargetTransformInfo.cpp
   MicroMipsSizeReduction.cpp
   MipsMulMulBugPass.cpp
 
@@ -75,6 +76,7 @@ add_llvm_target(MipsCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   GlobalISel
 
   ADD_TO_COMPONENT

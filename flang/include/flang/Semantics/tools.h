@@ -38,6 +38,8 @@ const Scope &GetTopLevelUnitContaining(const Scope &);
 const Scope &GetTopLevelUnitContaining(const Symbol &);
 const Scope &GetProgramUnitContaining(const Scope &);
 const Scope &GetProgramUnitContaining(const Symbol &);
+const Scope &GetProgramUnitOrBlockConstructContaining(const Scope &);
+const Scope &GetProgramUnitOrBlockConstructContaining(const Symbol &);
 
 const Scope *FindModuleContaining(const Scope &);
 const Scope *FindModuleFileContaining(const Scope &);
@@ -51,6 +53,7 @@ const Symbol *FindInterface(const Symbol &);
 const Symbol *FindSubprogram(const Symbol &);
 const Symbol *FindFunctionResult(const Symbol &);
 const Symbol *FindOverriddenBinding(const Symbol &);
+const Symbol *FindGlobal(const Symbol &);
 
 const DeclTypeSpec *FindParentTypeSpec(const DerivedTypeSpec &);
 const DeclTypeSpec *FindParentTypeSpec(const DeclTypeSpec &);
@@ -82,10 +85,16 @@ bool IsIntrinsicConcat(
 bool IsGenericDefinedOp(const Symbol &);
 bool IsDefinedOperator(SourceName);
 std::string MakeOpName(SourceName);
+
+// Returns true if maybeAncestor exists and is a proper ancestor of a
+// descendent scope (or symbol owner).  Will be false, unlike Scope::Contains(),
+// if maybeAncestor *is* the descendent.
 bool DoesScopeContain(const Scope *maybeAncestor, const Scope &maybeDescendent);
 bool DoesScopeContain(const Scope *, const Symbol &);
+
 bool IsUseAssociated(const Symbol &, const Scope &);
 bool IsHostAssociated(const Symbol &, const Scope &);
+bool IsHostAssociatedIntoSubprogram(const Symbol &, const Scope &);
 inline bool IsStmtFunction(const Symbol &symbol) {
   const auto *subprogram{symbol.detailsIf<SubprogramDetails>()};
   return subprogram && subprogram->stmtFunction();
@@ -96,7 +105,6 @@ bool IsStmtFunctionResult(const Symbol &);
 bool IsPointerDummy(const Symbol &);
 bool IsBindCProcedure(const Symbol &);
 bool IsBindCProcedure(const Scope &);
-bool IsProcName(const Symbol &); // proc-name
 // Returns a pointer to the function's symbol when true, else null
 const Symbol *IsFunctionResultWithSameNameAsFunction(const Symbol &);
 bool IsOrContainsEventOrLockComponent(const Symbol &);
@@ -175,15 +183,13 @@ inline bool IsAssumedSizeArray(const Symbol &symbol) {
 bool IsAssumedLengthCharacter(const Symbol &);
 bool IsExternal(const Symbol &);
 bool IsModuleProcedure(const Symbol &);
-// Is the symbol modifiable in this scope
-std::optional<parser::Message> WhyNotModifiable(const Symbol &, const Scope &);
-std::optional<parser::Message> WhyNotModifiable(SourceName, const SomeExpr &,
-    const Scope &, bool vectorSubscriptIsOk = false);
-const Symbol *IsExternalInPureContext(const Symbol &, const Scope &);
 bool HasCoarray(const parser::Expr &);
+bool IsAssumedType(const Symbol &);
+bool IsPolymorphic(const Symbol &);
 bool IsPolymorphicAllocatable(const Symbol &);
-// Return an error if component symbol is not accessible from scope (7.5.4.8(2))
-std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
+
+// Return an error if a symbol is not accessible from a scope
+std::optional<parser::MessageFormattedText> CheckAccessibleSymbol(
     const semantics::Scope &, const Symbol &);
 
 // Analysis of image control statements
@@ -217,7 +223,8 @@ const Symbol *FindSeparateModuleSubprogramInterface(const Symbol *);
 // Determines whether an object might be visible outside a
 // pure function (C1594); returns a non-null Symbol pointer for
 // diagnostic purposes if so.
-const Symbol *FindExternallyVisibleObject(const Symbol &, const Scope &);
+const Symbol *FindExternallyVisibleObject(
+    const Symbol &, const Scope &, bool isPointerDefinition);
 
 template <typename A>
 const Symbol *FindExternallyVisibleObject(const A &, const Scope &) {
@@ -228,7 +235,7 @@ template <typename T>
 const Symbol *FindExternallyVisibleObject(
     const evaluate::Designator<T> &designator, const Scope &scope) {
   if (const Symbol * symbol{designator.GetBaseObject().symbol()}) {
-    return FindExternallyVisibleObject(*symbol, scope);
+    return FindExternallyVisibleObject(*symbol, scope, false);
   } else if (std::holds_alternative<evaluate::CoarrayRef>(designator.u)) {
     // Coindexed values are visible even if their image-local objects are not.
     return designator.GetBaseObject().symbol();
@@ -376,6 +383,10 @@ std::list<std::list<SymbolRef>> GetStorageAssociations(const Scope &);
 //     its non-POINTER components and the potential subobject components of
 //     its non-POINTER derived type components.  (The lifetime of each
 //     potential subobject component is that of the entire instance.)
+//   - PotentialAndPointer subobject components of a derived type are the
+//   closure of
+//     its components (including POINTERs) and the PotentialAndPointer subobject
+//     components of its non-POINTER derived type components.
 // Parent and procedure components are considered against these definitions.
 // For this kind of iterator, the component tree is recursively visited in the
 // following order:
@@ -406,7 +417,8 @@ std::list<std::list<SymbolRef>> GetStorageAssociations(const Scope &);
 //       ....
 //    }
 
-ENUM_CLASS(ComponentKind, Ordered, Direct, Ultimate, Potential, Scope)
+ENUM_CLASS(ComponentKind, Ordered, Direct, Ultimate, Potential, Scope,
+    PotentialAndPointer)
 
 template <ComponentKind componentKind> class ComponentIterator {
 public:
@@ -528,11 +540,14 @@ extern template class ComponentIterator<ComponentKind::Direct>;
 extern template class ComponentIterator<ComponentKind::Ultimate>;
 extern template class ComponentIterator<ComponentKind::Potential>;
 extern template class ComponentIterator<ComponentKind::Scope>;
+extern template class ComponentIterator<ComponentKind::PotentialAndPointer>;
 using OrderedComponentIterator = ComponentIterator<ComponentKind::Ordered>;
 using DirectComponentIterator = ComponentIterator<ComponentKind::Direct>;
 using UltimateComponentIterator = ComponentIterator<ComponentKind::Ultimate>;
 using PotentialComponentIterator = ComponentIterator<ComponentKind::Potential>;
 using ScopeComponentIterator = ComponentIterator<ComponentKind::Scope>;
+using PotentialAndPointerComponentIterator =
+    ComponentIterator<ComponentKind::PotentialAndPointer>;
 
 // Common component searches, the iterator returned is referring to the first
 // component, according to the order defined for the related ComponentIterator,
@@ -609,11 +624,11 @@ std::optional<ArraySpec> ToArraySpec(
 // procedure.
 bool HasDefinedIo(
     GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
-// Seeks out an allocatable or pointer ultimate component that is not
-// nested in a nonallocatable/nonpointer component with a specific
-// defined I/O procedure.
-const Symbol *FindUnsafeIoDirectComponent(
-    GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
+
+// Some intrinsic operators have more than one name (e.g. `operator(.eq.)` and
+// `operator(==)`). GetAllNames() returns them all, including symbolName.
+std::forward_list<std::string> GetAllNames(
+    const SemanticsContext &, const SourceName &);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

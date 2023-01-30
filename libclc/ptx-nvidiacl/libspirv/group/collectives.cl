@@ -213,17 +213,17 @@ __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, char, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uchar, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, short, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ushort, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, int, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uint, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, long, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ulong, 1)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, half, 1)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, float, 1)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, double, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uchar, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ushort, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
@@ -249,12 +249,33 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, uint, ~0)
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, uint, 0)
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, uint, 0)
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, int, ~0)
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, int, 0)
-__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, int, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, uchar, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, uchar, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, uchar, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, char, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, char, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, char, 0)
+
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, ushort, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, ushort, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, ushort, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, short, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, short, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, short, 0)
+
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, uint, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, int, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, int, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, int, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
@@ -340,18 +361,17 @@ __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
-// There is no Mul group op in SPIR-V, use non-uniform variant instead.
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, char, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uchar, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, short, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ushort, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, int, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uint, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, long, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ulong, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, half, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, float, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, double, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uchar, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ushort, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
@@ -377,26 +397,45 @@ __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, uint, ~0)
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, uint, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, uint, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, int, ~0)
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, int, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, int, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uchar, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ushort, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, short, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, short, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, short, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uint, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, int, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, int, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, int, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 
 // half requires additional mangled entry points
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFAdd(scope, op, x);
-}
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFMin(scope, op, x);
-}
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFMax(scope, op, x);
-}
+#define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
+  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(uint scope, uint op, half x) {    \
+    return SPIRV_DISPATCH(scope, op, x);                                       \
+  }
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddjjDF16_, __spirv_GroupFAdd)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMinjjDF16_, __spirv_GroupFMin)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxjjDF16_, __spirv_GroupFMax)
+__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
+                             __spirv_GroupFMulKHR)
+#undef __CLC_GROUP_COLLECTIVE__DF16
 
 #undef __CLC_GROUP_COLLECTIVE_4
 #undef __CLC_GROUP_COLLECTIVE_5

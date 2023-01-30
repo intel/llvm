@@ -7,7 +7,11 @@ def Test_Dialect : Dialect {
 def OpAllEmpty : Op<Test_Dialect, "all_empty">;
 
 def OpAllSingle : Op<Test_Dialect, "all_single"> {
-  let arguments = (ins I64:$operand, I64Attr:$attr);
+  let arguments = (ins
+    I64:$operand,
+    I64Attr:$attr,
+    ConfinedAttr<I64Attr, [IntNonNegative]>:$nonNegativeAttr
+  );
   let results = (outs I64:$result);
 }
 
@@ -23,4 +27,9 @@ def OpAllVariadic : Op<Test_Dialect, "all_variadic"> {
 
 def OpMultipleSingleResult : Op<Test_Dialect, "multiple_single_result"> {
   let results = (outs I64:$result, I64:$result2);
+}
+
+def OpMultiVariadic : Op<Test_Dialect, "multi_variadic"> {
+  let arguments = (ins Variadic<I64>:$operands1, Variadic<I64>:$operand2);
+  let results = (outs Variadic<I64>:$results1, Variadic<I64>:$results2);
 }

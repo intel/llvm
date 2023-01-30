@@ -4,7 +4,7 @@
 // Test for SYCL-2020 Level Zero interop API
 
 // clang-format off
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
@@ -75,30 +75,6 @@ int main() {
   ZeKernelBundle = get_native<backend::ext_oneapi_level_zero>(KernelBundle);
   ZeKernel = get_native<backend::ext_oneapi_level_zero>(Kernel);
 
-  // Check deprecated
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeDriver = Platform.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeDevice = Device.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeContext = Context.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeQueue = Queue.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeEvent = Event.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+3 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+2 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  /*ZeKernelBundle*/ (
-      void)KernelBundle.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeKernel = Kernel.get_native<backend::ext_oneapi_level_zero>();
-
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of input_type must
   // be defined as the type of SYCL application interoperability native backend
@@ -131,8 +107,10 @@ int main() {
   context InteropContext =
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
 
-  queue InteropQueue = make_queue<backend::ext_oneapi_level_zero>(
-      {ZeQueue, ext::oneapi::level_zero::ownership::keep}, Context);
+  backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInput{
+      ZeQueue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
+  queue InteropQueue =
+      make_queue<backend::ext_oneapi_level_zero>(InteropQueueInput, Context);
   event InteropEvent = make_event<backend::ext_oneapi_level_zero>(
       {ZeEvent, ext::oneapi::level_zero::ownership::keep}, Context);
   kernel_bundle<bundle_state::executable> InteropKernelBundle =

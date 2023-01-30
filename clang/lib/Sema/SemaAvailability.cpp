@@ -192,6 +192,9 @@ shouldDiagnoseAvailabilityByDefault(const ASTContext &Context,
   case llvm::Triple::MacOSX:
     ForceAvailabilityFromVersion = VersionTuple(/*Major=*/10, /*Minor=*/13);
     break;
+  case llvm::Triple::ShaderModel:
+    // Always enable availability diagnostics for shader models.
+    return true;
   default:
     // New targets should always warn about availability.
     return Triple.getVendor() == llvm::Triple::Apple;
@@ -241,8 +244,8 @@ struct AttributeInsertion {
 /// attribute argument.
 /// \param SlotNames The vector that will be populated with slot names. In case
 /// of unsuccessful parsing can contain invalid data.
-/// \returns A number of method parameters if parsing was successful, None
-/// otherwise.
+/// \returns A number of method parameters if parsing was successful,
+/// std::nullopt otherwise.
 static Optional<unsigned>
 tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
                        const LangOptions &LangOpts) {
@@ -250,7 +253,7 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
   if (!Name.empty() && (Name.front() == '-' || Name.front() == '+'))
     Name = Name.drop_front(1);
   if (Name.empty())
-    return None;
+    return std::nullopt;
   Name.split(SlotNames, ':');
   unsigned NumParams;
   if (Name.back() == ':') {
@@ -260,7 +263,7 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
   } else {
     if (SlotNames.size() != 1)
       // Not a valid method name, just a colon-separated string.
-      return None;
+      return std::nullopt;
     NumParams = 0;
   }
   // Verify all slot names are valid.
@@ -269,7 +272,7 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
     if (S.empty())
       continue;
     if (!isValidAsciiIdentifier(S, AllowDollar))
-      return None;
+      return std::nullopt;
   }
   return NumParams;
 }
@@ -283,14 +286,14 @@ createAttributeInsertion(const NamedDecl *D, const SourceManager &SM,
     return AttributeInsertion::createInsertionAfter(D);
   if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
     if (MD->hasBody())
-      return None;
+      return std::nullopt;
     return AttributeInsertion::createInsertionAfter(D);
   }
   if (const auto *TD = dyn_cast<TagDecl>(D)) {
     SourceLocation Loc =
         Lexer::getLocForEndOfToken(TD->getInnerLocStart(), 0, SM, LangOpts);
     if (Loc.isInvalid())
-      return None;
+      return std::nullopt;
     // Insert after the 'struct'/whatever keyword.
     return AttributeInsertion::createInsertionAfter(Loc);
   }
@@ -501,7 +504,7 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
         SmallVector<StringRef, 12> SelectorSlotNames;
         Optional<unsigned> NumParams = tryParseObjCMethodName(
             Replacement, SelectorSlotNames, S.getLangOpts());
-        if (NumParams && NumParams.getValue() == Sel.getNumArgs()) {
+        if (NumParams && *NumParams == Sel.getNumArgs()) {
           assert(SelectorSlotNames.size() == Locs.size());
           for (unsigned I = 0; I < Locs.size(); ++I) {
             if (!Sel.getNameForSlot(I).empty()) {

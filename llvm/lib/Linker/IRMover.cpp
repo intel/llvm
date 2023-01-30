@@ -19,6 +19,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GVMaterializer.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PseudoProbe.h"
@@ -27,6 +29,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
+#include <optional>
 #include <utility>
 using namespace llvm;
 
@@ -425,7 +428,7 @@ class IRLinker {
 
   /// The Error encountered during materialization. We use an Optional here to
   /// avoid needing to manage an unconsumed success value.
-  Optional<Error> FoundError;
+  std::optional<Error> FoundError;
   void setError(Error E) {
     if (E)
       FoundError = std::move(E);
@@ -524,6 +527,9 @@ class IRLinker {
   /// module.
   void prepareCompileUnitsForImport();
   void linkNamedMDNodes();
+
+  ///  Update attributes while linking.
+  void updateAttributes(GlobalValue &GV);
 
 public:
   IRLinker(Module &DstM, MDMapT &SharedMDs,
@@ -635,6 +641,7 @@ Value *IRLinker::materialize(Value *V, bool ForIndirectSymbol) {
   if (ForIndirectSymbol || shouldLink(New, *SGV))
     setError(linkGlobalValueBody(*New, *SGV));
 
+  updateAttributes(*New);
   return New;
 }
 
@@ -896,6 +903,10 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
     if (DstGV->getSection() != SrcGV->getSection())
       return stringErr(
           "Appending variables with different section name need to be linked!");
+
+    if (DstGV->getAddressSpace() != SrcGV->getAddressSpace())
+      return stringErr("Appending variables with different address spaces need "
+                       "to be linked!");
   }
 
   // Do not need to do anything if source is a declaration.
@@ -1046,7 +1057,7 @@ Expected<Constant *> IRLinker::linkGlobalValueProto(GlobalValue *SGV,
   if (Function *F = dyn_cast<Function>(NewGV))
     if (auto Remangled = Intrinsic::remangleIntrinsicFunction(F)) {
       NewGV->eraseFromParent();
-      NewGV = Remangled.getValue();
+      NewGV = *Remangled;
       NeedsRenaming = false;
     }
 
@@ -1119,7 +1130,7 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
 
   // Steal arguments and splice the body of Src into Dst.
   Dst.stealArgumentListFrom(Src);
-  Dst.getBasicBlockList().splice(Dst.end(), Src.getBasicBlockList());
+  Dst.splice(Dst.end(), &Src);
 
   // Everything has been moved over.  Remap it.
   Mapper.scheduleRemapFunction(Dst);
@@ -1243,6 +1254,11 @@ void IRLinker::linkNamedMDNodes() {
                     DstM.getModuleIdentifier() + "' is not\n");
       continue;
     }
+    // The stats are computed per module and will all be merged in the binary.
+    // Importing the metadata will cause duplication of the stats.
+    if (IsPerformingImport && NMD.getName() == "llvm.stats")
+      continue;
+
     NamedMDNode *DestNMD = DstM.getOrInsertNamedMetadata(NMD.getName());
     // Add Src elements into Dest node.
     for (const MDNode *Op : NMD.operands())
@@ -1273,14 +1289,19 @@ Error IRLinker::linkModuleFlagsMetadata() {
   // First build a map of the existing module flags and requirements.
   DenseMap<MDString *, std::pair<MDNode *, unsigned>> Flags;
   SmallSetVector<MDNode *, 16> Requirements;
+  SmallVector<unsigned, 0> Mins;
+  DenseSet<MDString *> SeenMin;
   for (unsigned I = 0, E = DstModFlags->getNumOperands(); I != E; ++I) {
     MDNode *Op = DstModFlags->getOperand(I);
-    ConstantInt *Behavior = mdconst::extract<ConstantInt>(Op->getOperand(0));
+    uint64_t Behavior =
+        mdconst::extract<ConstantInt>(Op->getOperand(0))->getZExtValue();
     MDString *ID = cast<MDString>(Op->getOperand(1));
 
-    if (Behavior->getZExtValue() == Module::Require) {
+    if (Behavior == Module::Require) {
       Requirements.insert(cast<MDNode>(Op->getOperand(2)));
     } else {
+      if (Behavior == Module::Min)
+        Mins.push_back(I);
       Flags[ID] = std::make_pair(Op, I);
     }
   }
@@ -1296,6 +1317,7 @@ Error IRLinker::linkModuleFlagsMetadata() {
     unsigned DstIndex;
     std::tie(DstOp, DstIndex) = Flags.lookup(ID);
     unsigned SrcBehaviorValue = SrcBehavior->getZExtValue();
+    SeenMin.insert(ID);
 
     // If this is a requirement, add it and continue.
     if (SrcBehaviorValue == Module::Require) {
@@ -1309,6 +1331,10 @@ Error IRLinker::linkModuleFlagsMetadata() {
 
     // If there is no existing flag with this ID, just add it.
     if (!DstOp) {
+      if (SrcBehaviorValue == Module::Min) {
+        Mins.push_back(DstModFlags->getNumOperands());
+        SeenMin.erase(ID);
+      }
       Flags[ID] = std::make_pair(SrcOp, DstModFlags->getNumOperands());
       DstModFlags->addOperand(SrcOp);
       continue;
@@ -1357,11 +1383,20 @@ Error IRLinker::linkModuleFlagsMetadata() {
                          DstM.getModuleIdentifier() + "'");
     }
 
-    auto replaceDstValue = [&](MDNode *New) {
+    auto ensureDistinctOp = [&](MDNode *DstValue) {
+      assert(isa<MDTuple>(DstValue) &&
+             "Expected MDTuple when appending module flags");
+      if (DstValue->isDistinct())
+        return dyn_cast<MDTuple>(DstValue);
+      ArrayRef<MDOperand> DstOperands = DstValue->operands();
+      MDTuple *New = MDTuple::getDistinct(
+          DstM.getContext(),
+          SmallVector<Metadata *, 4>(DstOperands.begin(), DstOperands.end()));
       Metadata *FlagOps[] = {DstOp->getOperand(0), ID, New};
-      MDNode *Flag = MDNode::get(DstM.getContext(), FlagOps);
+      MDNode *Flag = MDTuple::getDistinct(DstM.getContext(), FlagOps);
       DstModFlags->setOperand(DstIndex, Flag);
       Flags[ID].first = Flag;
+      return New;
     };
 
     // Emit a warning if the values differ and either source or destination
@@ -1438,29 +1473,38 @@ Error IRLinker::linkModuleFlagsMetadata() {
       break;
     }
     case Module::Append: {
-      MDNode *DstValue = cast<MDNode>(DstOp->getOperand(2));
+      MDTuple *DstValue = ensureDistinctOp(cast<MDNode>(DstOp->getOperand(2)));
       MDNode *SrcValue = cast<MDNode>(SrcOp->getOperand(2));
-      SmallVector<Metadata *, 8> MDs;
-      MDs.reserve(DstValue->getNumOperands() + SrcValue->getNumOperands());
-      MDs.append(DstValue->op_begin(), DstValue->op_end());
-      MDs.append(SrcValue->op_begin(), SrcValue->op_end());
-
-      replaceDstValue(MDNode::get(DstM.getContext(), MDs));
+      for (const auto &O : SrcValue->operands())
+        DstValue->push_back(O);
       break;
     }
     case Module::AppendUnique: {
       SmallSetVector<Metadata *, 16> Elts;
-      MDNode *DstValue = cast<MDNode>(DstOp->getOperand(2));
+      MDTuple *DstValue = ensureDistinctOp(cast<MDNode>(DstOp->getOperand(2)));
       MDNode *SrcValue = cast<MDNode>(SrcOp->getOperand(2));
       Elts.insert(DstValue->op_begin(), DstValue->op_end());
       Elts.insert(SrcValue->op_begin(), SrcValue->op_end());
-
-      replaceDstValue(MDNode::get(DstM.getContext(),
-                                  makeArrayRef(Elts.begin(), Elts.end())));
+      for (auto I = DstValue->getNumOperands(); I < Elts.size(); I++)
+        DstValue->push_back(Elts[I]);
       break;
     }
     }
 
+  }
+
+  // For the Min behavior, set the value to 0 if either module does not have the
+  // flag.
+  for (auto Idx : Mins) {
+    MDNode *Op = DstModFlags->getOperand(Idx);
+    MDString *ID = cast<MDString>(Op->getOperand(1));
+    if (!SeenMin.count(ID)) {
+      ConstantInt *V = mdconst::extract<ConstantInt>(Op->getOperand(2));
+      Metadata *FlagOps[] = {
+          Op->getOperand(0), ID,
+          ConstantAsMetadata::get(ConstantInt::get(V->getType(), 0))};
+      DstModFlags->setOperand(Idx, MDNode::get(DstM.getContext(), FlagOps));
+    }
   }
 
   // Check all of the requirements.
@@ -1487,6 +1531,33 @@ static std::string adjustInlineAsm(const std::string &InlineAsm,
   if (Triple.getArch() == Triple::arm || Triple.getArch() == Triple::armeb)
     return ".text\n.balign 4\n.arm\n" + InlineAsm;
   return InlineAsm;
+}
+
+void IRLinker::updateAttributes(GlobalValue &GV) {
+  /// Remove nocallback attribute while linking, because nocallback attribute
+  /// indicates that the function is only allowed to jump back into caller's
+  /// module only by a return or an exception. When modules are linked, this
+  /// property cannot be guaranteed anymore. For example, the nocallback
+  /// function may contain a call to another module. But if we merge its caller
+  /// and callee module here, and not the module containing the nocallback
+  /// function definition itself, the nocallback property will be violated
+  /// (since the nocallback function will call back into the newly merged module
+  /// containing both its caller and callee). This could happen if the module
+  /// containing the nocallback function definition is native code, so it does
+  /// not participate in the LTO link. Note if the nocallback function does
+  /// participate in the LTO link, and thus ends up in the merged module
+  /// containing its caller and callee, removing the attribute doesn't hurt as
+  /// it has no effect on definitions in the same module.
+  if (auto *F = dyn_cast<Function>(&GV)) {
+    if (!F->isIntrinsic())
+      F->removeFnAttr(llvm::Attribute::NoCallback);
+
+    // Remove nocallback attribute when it is on a call-site.
+    for (BasicBlock &BB : *F)
+      for (Instruction &I : BB)
+        if (CallInst *CI = dyn_cast<CallInst>(&I))
+          CI->removeFnAttr(Attribute::NoCallback);
+  }
 }
 
 Error IRLinker::run() {
@@ -1706,7 +1777,7 @@ IRMover::IRMover(Module &M) : Composite(M) {
   // Self-map metadatas in the destination module. This is needed when
   // DebugTypeODRUniquing is enabled on the LLVMContext, since metadata in the
   // destination module may be reached from the source module.
-  for (auto *MD : StructTypes.getVisitedMetadata()) {
+  for (const auto *MD : StructTypes.getVisitedMetadata()) {
     SharedMDs[MD].reset(const_cast<MDNode *>(MD));
   }
 }

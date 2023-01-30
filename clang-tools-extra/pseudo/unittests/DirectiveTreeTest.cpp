@@ -27,15 +27,32 @@ using testing::Pair;
 using testing::StrEq;
 using Chunk = DirectiveTree::Chunk;
 
-MATCHER_P2(tokensAre, TS, Tokens, "tokens are " + std::string(Tokens)) {
+// Matches text of a list of tokens against a string (joined with spaces).
+// e.g. EXPECT_THAT(Stream.tokens(), tokens("int main ( ) { }"));
+MATCHER_P(tokens, Tokens, "") {
   std::vector<llvm::StringRef> Texts;
-  for (const Token &Tok : TS.tokens(arg.Tokens))
+  for (const Token &Tok : arg)
     Texts.push_back(Tok.text());
   return Matcher<std::string>(StrEq(Tokens))
       .MatchAndExplain(llvm::join(Texts, " "), result_listener);
 }
 
-MATCHER_P(chunkKind, K, "") { return arg.kind() == K; }
+// Matches tokens covered a directive chunk (with a Tokens property) against a
+// string, similar to tokens() above.
+// e.g. EXPECT_THAT(SomeDirective, tokensAre(Stream, "# include < vector >"));
+MATCHER_P2(tokensAre, TS, Tokens, "tokens are " + std::string(Tokens)) {
+  return testing::Matches(tokens(Tokens))(TS.tokens(arg.Tokens));
+}
+
+MATCHER(directiveChunk, "") {
+  return std::holds_alternative<DirectiveTree::Directive>(arg);
+}
+MATCHER(codeChunk, "") {
+  return std::holds_alternative<DirectiveTree::Code>(arg);
+}
+MATCHER(conditionalChunk, "") {
+  return std::holds_alternative<DirectiveTree::Conditional>(arg);
+}
 
 TEST(DirectiveTree, Parse) {
   LangOptions Opts;
@@ -57,19 +74,16 @@ TEST(DirectiveTree, Parse) {
 
   TokenStream S = cook(lex(Code, Opts), Opts);
   DirectiveTree PP = DirectiveTree::parse(S);
+  ASSERT_THAT(PP.Chunks, ElementsAre(directiveChunk(), codeChunk(),
+                                     conditionalChunk(), codeChunk()));
 
-  ASSERT_THAT(PP.Chunks, ElementsAre(chunkKind(Chunk::K_Directive),
-                                     chunkKind(Chunk::K_Code),
-                                     chunkKind(Chunk::K_Conditional),
-                                     chunkKind(Chunk::K_Code)));
-
-  EXPECT_THAT((const DirectiveTree::Directive &)PP.Chunks[0],
+  EXPECT_THAT(std::get<DirectiveTree::Directive>(PP.Chunks[0]),
               tokensAre(S, "# include < foo . h >"));
-  EXPECT_THAT((const DirectiveTree::Code &)PP.Chunks[1],
+  EXPECT_THAT(std::get<DirectiveTree::Code>(PP.Chunks[1]),
               tokensAre(S, "int main ( ) {"));
-  EXPECT_THAT((const DirectiveTree::Code &)PP.Chunks[3], tokensAre(S, "}"));
+  EXPECT_THAT(std::get<DirectiveTree::Code>(PP.Chunks[3]), tokensAre(S, "}"));
 
-  const DirectiveTree::Conditional &Ifdef(PP.Chunks[2]);
+  const auto &Ifdef = std::get<DirectiveTree::Conditional>(PP.Chunks[2]);
   EXPECT_THAT(Ifdef.Branches,
               ElementsAre(Pair(tokensAre(S, "# ifdef HAS_FOO"), _),
                           Pair(tokensAre(S, "# elif NEEDS_FOO"), _)));
@@ -78,17 +92,15 @@ TEST(DirectiveTree, Parse) {
   const DirectiveTree &HasFoo(Ifdef.Branches[0].second);
   const DirectiveTree &NeedsFoo(Ifdef.Branches[1].second);
 
-  EXPECT_THAT(HasFoo.Chunks, ElementsAre(chunkKind(Chunk::K_Conditional)));
-  const DirectiveTree::Conditional &If(HasFoo.Chunks[0]);
+  EXPECT_THAT(HasFoo.Chunks, ElementsAre(conditionalChunk()));
+  const auto &If = std::get<DirectiveTree::Conditional>(HasFoo.Chunks[0]);
   EXPECT_THAT(If.Branches, ElementsAre(Pair(tokensAre(S, "# if HAS_BAR"), _),
                                        Pair(tokensAre(S, "# else"), _)));
-  EXPECT_THAT(If.Branches[0].second.Chunks,
-              ElementsAre(chunkKind(Chunk::K_Code)));
-  EXPECT_THAT(If.Branches[1].second.Chunks,
-              ElementsAre(chunkKind(Chunk::K_Code)));
+  EXPECT_THAT(If.Branches[0].second.Chunks, ElementsAre(codeChunk()));
+  EXPECT_THAT(If.Branches[1].second.Chunks, ElementsAre(codeChunk()));
 
-  EXPECT_THAT(NeedsFoo.Chunks, ElementsAre(chunkKind(Chunk::K_Directive)));
-  const DirectiveTree::Directive &Error(NeedsFoo.Chunks[0]);
+  EXPECT_THAT(NeedsFoo.Chunks, ElementsAre(directiveChunk()));
+  const auto &Error = std::get<DirectiveTree::Directive>(NeedsFoo.Chunks[0]);
   EXPECT_THAT(Error, tokensAre(S, "# error missing_foo"));
   EXPECT_EQ(Error.Kind, tok::pp_error);
 }
@@ -105,14 +117,15 @@ BAR /*D*/
   TokenStream S = cook(lex(Code, Opts), Opts);
   DirectiveTree PP = DirectiveTree::parse(S);
 
-  ASSERT_THAT(PP.Chunks, ElementsAre(chunkKind(Chunk::K_Code),
-                                     chunkKind(Chunk::K_Directive),
-                                     chunkKind(Chunk::K_Code)));
-  EXPECT_THAT((const DirectiveTree::Code &)PP.Chunks[0], tokensAre(S, "/*A*/"));
-  const DirectiveTree::Directive &Define(PP.Chunks[1]);
+  ASSERT_THAT(PP.Chunks,
+              ElementsAre(codeChunk(), directiveChunk(), codeChunk()));
+  EXPECT_THAT(std::get<DirectiveTree::Code>(PP.Chunks[0]),
+              tokensAre(S, "/*A*/"));
+  const auto &Define = std::get<DirectiveTree::Directive>(PP.Chunks[1]);
   EXPECT_EQ(Define.Kind, tok::pp_define);
   EXPECT_THAT(Define, tokensAre(S, "# /*B*/ /*C*/ define BAR /*D*/"));
-  EXPECT_THAT((const DirectiveTree::Code &)PP.Chunks[2], tokensAre(S, "/*E*/"));
+  EXPECT_THAT(std::get<DirectiveTree::Code>(PP.Chunks[2]),
+              tokensAre(S, "/*E*/"));
 }
 
 TEST(DirectiveTree, ParseBroken) {
@@ -126,20 +139,18 @@ TEST(DirectiveTree, ParseBroken) {
   TokenStream S = cook(lex(Code, Opts), Opts);
   DirectiveTree PP = DirectiveTree::parse(S);
 
-  ASSERT_THAT(PP.Chunks, ElementsAre(chunkKind(Chunk::K_Code),
-                                     chunkKind(Chunk::K_Directive),
-                                     chunkKind(Chunk::K_Conditional)));
-  EXPECT_THAT((const DirectiveTree::Code &)PP.Chunks[0], tokensAre(S, "a"));
-  const DirectiveTree::Directive &Endif(PP.Chunks[1]);
+  ASSERT_THAT(PP.Chunks,
+              ElementsAre(codeChunk(), directiveChunk(), conditionalChunk()));
+  EXPECT_THAT(std::get<DirectiveTree::Code>(PP.Chunks[0]), tokensAre(S, "a"));
+  const auto &Endif = std::get<DirectiveTree::Directive>(PP.Chunks[1]);
   EXPECT_EQ(Endif.Kind, tok::pp_endif);
   EXPECT_THAT(Endif, tokensAre(S, "# endif // mismatched"));
 
-  const DirectiveTree::Conditional &X(PP.Chunks[2]);
+  const auto &X = std::get<DirectiveTree::Conditional>(PP.Chunks[2]);
   EXPECT_EQ(1u, X.Branches.size());
   // The (only) branch of the broken conditional section runs until eof.
   EXPECT_EQ(tok::pp_if, X.Branches.front().first.Kind);
-  EXPECT_THAT(X.Branches.front().second.Chunks,
-              ElementsAre(chunkKind(Chunk::K_Code)));
+  EXPECT_THAT(X.Branches.front().second.Chunks, ElementsAre(codeChunk()));
   // The missing terminating directive is marked as pp_not_keyword.
   EXPECT_EQ(tok::pp_not_keyword, X.End.Kind);
   EXPECT_EQ(0u, X.End.Tokens.size());
@@ -283,9 +294,10 @@ TEST(DirectiveTree, ChooseBranches) {
     std::function<void(const DirectiveTree &)> Verify =
         [&](const DirectiveTree &M) {
           for (const auto &C : M.Chunks) {
-            if (C.kind() != DirectiveTree::Chunk::K_Conditional)
+            if (!std::holds_alternative<DirectiveTree::Conditional>(C))
               continue;
-            const DirectiveTree::Conditional &Cond(C);
+            const DirectiveTree::Conditional &Cond =
+                std::get<DirectiveTree::Conditional>(C);
             for (unsigned I = 0; I < Cond.Branches.size(); ++I) {
               auto Directive = S.tokens(Cond.Branches[I].first.Tokens);
               EXPECT_EQ(I == Cond.Taken, Directive.back().text() == "// TAKEN")
@@ -299,6 +311,45 @@ TEST(DirectiveTree, ChooseBranches) {
     chooseConditionalBranches(Tree, S);
     Verify(Tree);
   }
+}
+
+TEST(DirectiveTree, StripDirectives) {
+  LangOptions Opts;
+  std::string Code = R"cpp(
+    #include <stddef.h>
+    a a a
+    #warning AAA
+    b b b
+    #if 1
+      c c c
+      #warning BBB
+      #if 0
+        d d d
+        #warning CC
+      #else
+        e e e
+      #endif
+      f f f
+      #if 0
+        g g g
+      #endif
+      h h h
+    #else
+      i i i
+    #endif
+    j j j
+  )cpp";
+  TokenStream S = lex(Code, Opts);
+
+  DirectiveTree Tree = DirectiveTree::parse(S);
+  chooseConditionalBranches(Tree, S);
+  EXPECT_THAT(Tree.stripDirectives(S).tokens(),
+              tokens("a a a b b b c c c e e e f f f h h h j j j"));
+
+  const DirectiveTree &Part =
+      std::get<DirectiveTree::Conditional>(Tree.Chunks[4]).Branches[0].second;
+  EXPECT_THAT(Part.stripDirectives(S).tokens(),
+              tokens("c c c e e e f f f h h h"));
 }
 
 } // namespace

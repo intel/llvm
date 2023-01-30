@@ -22,7 +22,7 @@ static llvm::Optional<uint64_t> tryEvaluateSizeExpr(const Expr *SizeExpr,
   if (SizeExpr->EvaluateAsRValue(Result, Ctx))
     return Ctx.toBits(
         CharUnits::fromQuantity(Result.Val.getInt().getExtValue()));
-  return None;
+  return std::nullopt;
 }
 
 void SuspiciousMemoryComparisonCheck::registerMatchers(MatchFinder *Finder) {
@@ -67,7 +67,7 @@ void SuspiciousMemoryComparisonCheck::check(
 
     if (!PointeeType->isIncompleteType()) {
       uint64_t PointeeSize = Ctx.getTypeSize(PointeeType);
-      if (ComparedBits.hasValue() && *ComparedBits >= PointeeSize &&
+      if (ComparedBits && *ComparedBits >= PointeeSize &&
           !Ctx.hasUniqueObjectRepresentations(PointeeQualifiedType)) {
         diag(CE->getBeginLoc(),
              "comparing object representation of type %0 which does not have a "

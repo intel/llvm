@@ -87,9 +87,6 @@ enum ActionKind {
   /// Generate pre-compiled module from a C++ module interface file.
   GenerateModuleInterface,
 
-  /// Generate pre-compiled module from a set of header files.
-  GenerateHeaderModule,
-
   /// Generate a C++20 header unit module from a header file.
   GenerateHeaderUnit,
 
@@ -244,9 +241,9 @@ public:
   InputKind getKind() const { return Kind; }
   bool isSystem() const { return IsSystem; }
 
-  bool isEmpty() const { return File.empty() && Buffer == None; }
+  bool isEmpty() const { return File.empty() && Buffer == std::nullopt; }
   bool isFile() const { return !isBuffer(); }
-  bool isBuffer() const { return Buffer != None; }
+  bool isBuffer() const { return Buffer != std::nullopt; }
   bool isPreprocessed() const { return Kind.isPreprocessed(); }
   bool isHeader() const { return Kind.isHeader(); }
   InputKind::HeaderUnitKind getHeaderUnitKind() const {
@@ -346,6 +343,9 @@ public:
 
   /// Output (and read) PCM files regardless of compiler errors.
   unsigned AllowPCMWithCompilerErrors : 1;
+
+  /// Whether to share the FileManager when building modules.
+  unsigned ModulesShareFileManager : 1;
 
   CodeCompleteOptions CodeCompleteOpts;
 
@@ -451,6 +451,10 @@ public:
   /// The name of the product the input files belong too.
   std::string ProductName;
 
+  // Currently this is only used as part of the `-extract-api` action.
+  /// The file providing a list of APIs to ignore when extracting documentation
+  std::string ExtractAPIIgnoresFile;
+
   /// Args to pass to the plugins
   std::map<std::string, std::vector<std::string>> PluginArgs;
 
@@ -499,6 +503,9 @@ public:
   /// Minimum time granularity (in microseconds) traced by time profiler.
   unsigned TimeTraceGranularity;
 
+  /// Path which stores the output files for -ftime-trace
+  std::string TimeTracePath;
+
 public:
   FrontendOptions()
       : DisableFree(false), RelocatablePCH(false), ShowHelp(false),
@@ -510,7 +517,8 @@ public:
         ASTDumpLookups(false), BuildingImplicitModule(false),
         BuildingImplicitModuleUsesLock(true), ModulesEmbedAllFiles(false),
         IncludeTimestamps(true), UseTemporary(true),
-        AllowPCMWithCompilerErrors(false), TimeTraceGranularity(500) {}
+        AllowPCMWithCompilerErrors(false), ModulesShareFileManager(true),
+        TimeTraceGranularity(500) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.

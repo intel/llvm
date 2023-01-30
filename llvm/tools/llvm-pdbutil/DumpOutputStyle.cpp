@@ -602,7 +602,8 @@ Error DumpOutputStyle::dumpTypeStats() {
   StatCollection TypeStats;
   LazyRandomTypeCollection &Types =
       opts::dump::DumpTypeStats ? File.types() : File.ids();
-  for (Optional<TypeIndex> TI = Types.getFirst(); TI; TI = Types.getNext(*TI)) {
+  for (std::optional<TypeIndex> TI = Types.getFirst(); TI;
+       TI = Types.getNext(*TI)) {
     CVType Type = Types.getType(*TI);
     TypeStats.update(uint32_t(Type.kind()), Type.length());
   }
@@ -692,7 +693,7 @@ Error DumpOutputStyle::dumpUdtStats() {
       Kind = kNoneUdtKind;
     else if (UDT.Type.isSimple())
       Kind = kSimpleUdtKind;
-    else if (Optional<CVType> T = TpiTypes.tryGetType(UDT.Type)) {
+    else if (std::optional<CVType> T = TpiTypes.tryGetType(UDT.Type)) {
       Kind = T->kind();
       RecordSize = T->length();
     } else
@@ -1250,7 +1251,7 @@ static void dumpPartialTypeStream(LinePrinter &Printer,
       if (TI.isSimple()) {
         Printer.formatLine("{0} | {1}", fmt_align(I, AlignStyle::Right, Width),
                            Types.getTypeName(TI));
-      } else if (Optional<CVType> Type = Types.tryGetType(TI)) {
+      } else if (std::optional<CVType> Type = Types.tryGetType(TI)) {
         if (auto EC = codeview::visitTypeRecord(*Type, TI, V))
           Printer.formatLine("An error occurred dumping type record {0}: {1}",
                              TI, toString(std::move(EC)));
@@ -1485,8 +1486,19 @@ Error DumpOutputStyle::dumpModuleSymsForPdb() {
         Pipeline.addCallbackToPipeline(Dumper);
         CVSymbolVisitor Visitor(Pipeline);
         auto SS = ModS.getSymbolsSubstream();
-        if (auto EC =
-                Visitor.visitSymbolStream(ModS.getSymbolArray(), SS.Offset)) {
+        if (opts::Filters.SymbolOffset) {
+          CVSymbolVisitor::FilterOptions Filter;
+          Filter.SymbolOffset = opts::Filters.SymbolOffset;
+          Filter.ParentRecursiveDepth = opts::Filters.ParentRecurseDepth;
+          Filter.ChildRecursiveDepth = opts::Filters.ChildrenRecurseDepth;
+          if (auto EC = Visitor.visitSymbolStreamFiltered(ModS.getSymbolArray(),
+                                                          Filter)) {
+            P.formatLine("Error while processing symbol records.  {0}",
+                         toString(std::move(EC)));
+            return EC;
+          }
+        } else if (auto EC = Visitor.visitSymbolStream(ModS.getSymbolArray(),
+                                                       SS.Offset)) {
           P.formatLine("Error while processing symbol records.  {0}",
                        toString(std::move(EC)));
           return EC;
@@ -1506,7 +1518,8 @@ Error DumpOutputStyle::dumpTypeRefStats() {
   size_t TotalBytes = 0;
   size_t RefBytes = 0;
   auto &Types = File.types();
-  for (Optional<TypeIndex> TI = Types.getFirst(); TI; TI = Types.getNext(*TI)) {
+  for (std::optional<TypeIndex> TI = Types.getFirst(); TI;
+       TI = Types.getNext(*TI)) {
     CVType Type = File.types().getType(*TI);
     TotalBytes += Type.length();
     if (RefTracker->isTypeReferenced(*TI)) {

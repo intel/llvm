@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // size_type copy(charT* s, size_type n, size_type pos = 0) const;
@@ -15,7 +17,6 @@
 // Requires: [s, s+rlen) is a valid range.
 // Effects: Equivalent to std::copy_n(begin() + pos, rlen, s).
 // Returns: rlen.
-
 
 #include <string_view>
 #include <algorithm>
@@ -92,10 +93,12 @@ int main(int, char**) {
     test ( "a" );
     test ( "" );
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE" );
     test ( L"ABCDE" );
     test ( L"a" );
     test ( L"" );
+#endif
 
 #if TEST_STD_VER >= 11
     test ( u"ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE" );
@@ -110,7 +113,9 @@ int main(int, char**) {
 #endif
 
     test_constexpr_copy("ABCDE", "GHIJK", "BCDJK");
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test_constexpr_copy(L"ABCDE", L"GHIJK", L"BCDJK");
+#endif
 #if TEST_STD_VER >= 11
     test_constexpr_copy(u"ABCDE", u"GHIJK", u"BCDJK");
     test_constexpr_copy(U"ABCDE", U"GHIJK", U"BCDJK");
@@ -120,7 +125,9 @@ int main(int, char**) {
 #endif
 #if TEST_STD_VER >= 20
     static_assert(test_constexpr_copy("ABCDE", "GHIJK", "BCDJK"));
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     static_assert(test_constexpr_copy(L"ABCDE", L"GHIJK", L"BCDJK"));
+#endif
     static_assert(test_constexpr_copy(u"ABCDE", u"GHIJK", u"BCDJK"));
     static_assert(test_constexpr_copy(U"ABCDE", U"GHIJK", U"BCDJK"));
     static_assert(test_constexpr_copy(u8"ABCDE", u8"GHIJK", u8"BCDJK"));

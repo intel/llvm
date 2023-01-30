@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -28,8 +28,8 @@
 #include <mutex>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> struct LessByHash {
@@ -82,9 +82,17 @@ public:
 
   bool has_kernel(const kernel_id &KernelIDCand,
                   const device &DeviceCand) const noexcept {
+    // If the device is in the device list and the kernel ID is in the kernel
+    // bundle, return true.
     for (const device &Device : MDevices)
       if (Device == DeviceCand)
         return has_kernel(KernelIDCand);
+
+    // Otherwise, if the device candidate is a sub-device it is also valid if
+    // its parent is valid.
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
+      return has_kernel(KernelIDCand,
+                        DeviceCand.get_info<info::device::parent_device>());
 
     return false;
   }
@@ -245,12 +253,12 @@ public:
 private:
   void updateSpecConstSymMap() {
     if (MBinImage) {
-      const pi::DeviceBinaryImage::PropertyRange &SCRange =
+      const RTDeviceBinaryImage::PropertyRange &SCRange =
           MBinImage->getSpecConstants();
-      using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+      using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
       // get default values for specialization constants
-      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+      const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
           MBinImage->getSpecConstantsDefaultValues();
 
       // This variable is used to calculate spec constant value offset in a
@@ -259,41 +267,34 @@ private:
       for (SCItTy SCIt : SCRange) {
         const char *SCName = (*SCIt)->Name;
 
-        pi::ByteArray Descriptors =
-            pi::DeviceBinaryProperty(*SCIt).asByteArray();
-        assert(Descriptors.size() > 8 && "Unexpected property size");
+        ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
+        // First 8 bytes are consumed by the size of the property.
+        Descriptors.dropBytes(8);
 
         // Expected layout is vector of 3-component tuples (flattened into a
         // vector of scalars), where each tuple consists of: ID of a scalar spec
         // constant, (which might be a member of the composite); offset, which
         // is used to calculate location of scalar member within the composite
-        // or zero for scalar spec constants; size of a spec constant
-        constexpr size_t NumElements = 3;
-        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) %
-                       NumElements ==
-                   0 &&
-               "unexpected layout of composite spec const descriptors");
-        auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-        auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                            Descriptors.size());
+        // or zero for scalar spec constants; size of a spec constant.
         unsigned LocalOffset = 0;
-        while (It != End) {
-          // Make sure that alignment is correct in blob.
-          const unsigned OffsetFromLast = /*Offset*/ It[1] - LocalOffset;
+        while (!Descriptors.empty()) {
+          auto [Id, CompositeOffset, Size] =
+              Descriptors.consume<uint32_t, uint32_t, uint32_t>();
+
+          // Make sure that alignment is correct in the blob.
+          const unsigned OffsetFromLast = CompositeOffset - LocalOffset;
           BlobOffset += OffsetFromLast;
           // Composites may have a special padding element at the end which
           // should not have a descriptor. These padding elements all have max
           // ID value.
-          if (It[0] != std::numeric_limits<std::uint32_t>::max()) {
+          if (Id != std::numeric_limits<std::uint32_t>::max()) {
             // The map is not locked here because updateSpecConstSymMap() is
             // only supposed to be called from c'tor.
             MSpecConstSymMap[std::string{SCName}].push_back(
-                SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                               /*Size*/ It[2], BlobOffset});
+                SpecConstDescT{Id, CompositeOffset, Size, BlobOffset});
           }
-          LocalOffset += OffsetFromLast + /*Size*/ It[2];
-          BlobOffset += /*Size*/ It[2];
-          It += NumElements;
+          LocalOffset += OffsetFromLast + Size;
+          BlobOffset += Size;
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
@@ -301,8 +302,8 @@ private:
       bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
 
       if (HasDefaultValues) {
-        pi::ByteArray DefValDescriptors =
-            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        ByteArray DefValDescriptors =
+            DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
         assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
                "Specialization constant default value blob do not have the "
                "expected size.");
@@ -339,5 +340,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

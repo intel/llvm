@@ -86,12 +86,12 @@ std::string buildSpecialMemberDeclarations(const CXXRecordDecl &Class) {
 //  - as a baseline for explicit modification
 class DeclareCopyMove : public Tweak {
 public:
-  const char *id() const override final;
+  const char *id() const final;
   llvm::StringLiteral kind() const override {
     return CodeAction::REFACTOR_KIND;
   }
   std::string title() const override {
-    return llvm::formatv("declare implicit {0} members",
+    return llvm::formatv("Declare implicit {0} members",
                          NeedCopy ? NeedMove ? "copy/move" : "copy" : "move");
   }
 

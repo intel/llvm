@@ -1,14 +1,19 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// RUN: %{command}
 //
-// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=2" | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{command}
 
 #DCSR = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
 
@@ -18,7 +23,7 @@
 // operation.
 module {
 
-  func @quantized_matmul(%input1: tensor<5x3xi8>,
+  func.func @quantized_matmul(%input1: tensor<5x3xi8>,
                          %input2: tensor<3x6xi8, #DCSR>,
                          %output: tensor<5x6xi32>) -> tensor<5x6xi32> {
     %c0 = arith.constant 0 : i32
@@ -29,7 +34,7 @@ module {
     return %0: tensor<5x6xi32>
   }
 
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %i0 = arith.constant 0 : i32
 
@@ -54,7 +59,7 @@ module {
     %0 = call @quantized_matmul(%input1, %sparse_input2, %output)
        : (tensor<5x3xi8>,
           tensor<3x6xi8, #DCSR>,
-	  tensor<5x6xi32>) -> tensor<5x6xi32>
+          tensor<5x6xi32>) -> tensor<5x6xi32>
 
     //
     // Verify the output.
@@ -65,14 +70,12 @@ module {
     // CHECK-SAME: ( -254, 0, 256, -300, -30, -6 ),
     // CHECK-SAME: ( 1397, 0, -1408, 100, 10, 33 ) )
     //
-    %m = bufferization.to_memref %0 : memref<5x6xi32>
-    %v = vector.transfer_read %m[%c0, %c0], %i0
-      : memref<5x6xi32>, vector<5x6xi32>
+    %v = vector.transfer_read %0[%c0, %c0], %i0
+      : tensor<5x6xi32>, vector<5x6xi32>
     vector.print %v : vector<5x6xi32>
 
     // Release the resources.
-    sparse_tensor.release %sparse_input2 : tensor<3x6xi8, #DCSR>
-    memref.dealloc %m : memref<5x6xi32>
+    bufferization.dealloc_tensor %sparse_input2 : tensor<3x6xi8, #DCSR>
 
     return
   }

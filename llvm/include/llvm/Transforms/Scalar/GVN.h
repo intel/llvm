@@ -26,6 +26,7 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Compiler.h"
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,7 @@ class CallInst;
 class ExtractValueInst;
 class Function;
 class FunctionPass;
+class GetElementPtrInst;
 class ImplicitControlFlowTracking;
 class LoadInst;
 class LoopInfo;
@@ -70,11 +72,11 @@ class GVNLegacyPass;
 /// Intended use is to create a default object, modify parameters with
 /// additional setters and then pass it to GVN.
 struct GVNOptions {
-  Optional<bool> AllowPRE = None;
-  Optional<bool> AllowLoadPRE = None;
-  Optional<bool> AllowLoadInLoopPRE = None;
-  Optional<bool> AllowLoadPRESplitBackedge = None;
-  Optional<bool> AllowMemDep = None;
+  std::optional<bool> AllowPRE;
+  std::optional<bool> AllowLoadPRE;
+  std::optional<bool> AllowLoadInLoopPRE;
+  std::optional<bool> AllowLoadPRESplitBackedge;
+  std::optional<bool> AllowMemDep;
 
   GVNOptions() = default;
 
@@ -177,6 +179,7 @@ public:
     Expression createCmpExpr(unsigned Opcode, CmpInst::Predicate Predicate,
                              Value *LHS, Value *RHS);
     Expression createExtractvalueExpr(ExtractValueInst *EI);
+    Expression createGEPExpr(GetElementPtrInst *GEP);
     uint32_t lookupOrAddCall(CallInst *C);
     uint32_t phiTranslateImpl(const BasicBlock *BB, const BasicBlock *PhiBlock,
                               uint32_t Num, GVNPass &Gvn);

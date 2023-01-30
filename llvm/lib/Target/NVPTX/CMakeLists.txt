@@ -36,7 +36,6 @@ set(NVPTXCodeGen_sources
   NVVMIntrRange.cpp
   NVVMReflect.cpp
   NVPTXProxyRegErasure.cpp
-  SYCL/GlobalOffset.cpp
   )
 
 add_llvm_target(NVPTXCodeGen
@@ -55,6 +54,7 @@ add_llvm_target(NVPTXCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   Vectorize
   Passes

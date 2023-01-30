@@ -57,18 +57,18 @@ GetWasmString(llvm::DataExtractor &data, llvm::DataExtractor::Cursor &c) {
   uint64_t len = data.getULEB128(c);
   if (!c) {
     consumeError(c.takeError());
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (len >= (uint64_t(1) << 32)) {
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::SmallVector<uint8_t, 32> str_storage;
   data.getU8(c, str_storage, len);
   if (!c) {
     consumeError(c.takeError());
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::StringRef str = toStringRef(makeArrayRef(str_storage));
@@ -192,7 +192,7 @@ bool ObjectFileWasm::DecodeNextSection(lldb::offset_t *offset_ptr) {
     m_sect_infos.push_back(section_info{*offset_ptr + c.tell(), section_length,
                                         section_id, *sect_name});
     *offset_ptr += (c.tell() + section_length);
-  } else if (section_id <= llvm::wasm::WASM_SEC_TAG) {
+  } else if (section_id <= llvm::wasm::WASM_SEC_LAST_KNOWN) {
     m_sect_infos.push_back(section_info{*offset_ptr + c.tell(),
                                         static_cast<uint32_t>(payload_len),
                                         section_id, ConstString()});
@@ -427,7 +427,7 @@ llvm::Optional<FileSpec> ObjectFileWasm::GetExternalDebugInfoFileSpec() {
         return FileSpec(symbols_url->GetStringRef());
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 void ObjectFileWasm::Dump(Stream *s) {

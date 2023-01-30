@@ -23,6 +23,8 @@
 
 namespace fir {
 class ExtendedValue;
+class FirOpBuilder;
+class GlobalOp;
 } // namespace fir
 
 namespace Fortran ::lower {
@@ -54,12 +56,23 @@ void instantiateVariable(AbstractConverter &, const pft::Variable &var,
 /// called.
 void defineModuleVariable(AbstractConverter &, const pft::Variable &var);
 
+/// Create fir::GlobalOp for all common blocks, including their initial values
+/// if they have one. This should be called before lowering any scopes so that
+/// common block globals are available when a common appear in a scope.
+void defineCommonBlocks(
+    AbstractConverter &,
+    const std::vector<std::pair<semantics::SymbolRef, std::size_t>>
+        &commonBlocks);
+
 /// Lower a symbol attributes given an optional storage \p and add it to the
 /// provided symbol map. If \preAlloc is not provided, a temporary storage will
 /// be allocated. This is a low level function that should only be used if
 /// instantiateVariable cannot be called.
 void mapSymbolAttributes(AbstractConverter &, const pft::Variable &, SymMap &,
                          StatementContext &, mlir::Value preAlloc = {});
+void mapSymbolAttributes(AbstractConverter &, const semantics::SymbolRef &,
+                         SymMap &, StatementContext &,
+                         mlir::Value preAlloc = {});
 
 /// Instantiate the variables that appear in the specification expressions
 /// of the result of a function call. The instantiated variables are added
@@ -78,7 +91,13 @@ void mapCallInterfaceSymbols(AbstractConverter &,
 /// This handles the local instantiation of the target variable.
 mlir::Value genInitialDataTarget(Fortran::lower::AbstractConverter &,
                                  mlir::Location, mlir::Type boxType,
-                                 const SomeExpr &initialTarget);
+                                 const SomeExpr &initialTarget,
+                                 bool couldBeInEquivalence = false);
+
+/// Call \p genInit to generate code inside \p global initializer region.
+void createGlobalInitialization(
+    fir::FirOpBuilder &builder, fir::GlobalOp global,
+    std::function<void(fir::FirOpBuilder &)> genInit);
 
 /// Generate address \p addr inside an initializer.
 fir::ExtendedValue

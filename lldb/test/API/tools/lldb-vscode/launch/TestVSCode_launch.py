@@ -3,7 +3,6 @@ Test lldb-vscode setBreakpoints request
 """
 
 
-import unittest2
 import vscode
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -14,8 +13,6 @@ import os
 
 
 class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     @skipIfWindows
     @skipIfDarwin # Flaky
@@ -77,8 +74,8 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
                 body = stopped_event['body']
                 if 'reason' in body:
                     reason = body['reason']
-                    self.assertTrue(
-                        reason != 'breakpoint',
+                    self.assertNotEqual(
+                        reason, 'breakpoint',
                         'verify stop isn\'t "main" breakpoint')
 
     @skipIfWindows

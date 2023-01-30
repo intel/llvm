@@ -11,14 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/Builtins.h"
+#include "BuiltinTargetFeatures.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/StringRef.h"
 using namespace clang;
 
-static const Builtin::Info BuiltinInfo[] = {
-  { "not a builtin function", nullptr, nullptr, nullptr, ALL_LANGUAGES,nullptr},
+static constexpr Builtin::Info BuiltinInfo[] = {
+    {"not a builtin function", nullptr, nullptr, nullptr, ALL_LANGUAGES,
+     nullptr},
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   { #ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr },
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANGS)                                    \
@@ -208,6 +210,18 @@ bool Builtin::Context::performsCallback(unsigned ID,
 
 bool Builtin::Context::canBeRedeclared(unsigned ID) const {
   return ID == Builtin::NotBuiltin || ID == Builtin::BI__va_start ||
+         ID == Builtin::BI__builtin_assume_aligned ||
          (!hasReferenceArgsOrResult(ID) && !hasCustomTypechecking(ID)) ||
          isInStdNamespace(ID);
+}
+
+bool Builtin::evaluateRequiredTargetFeatures(
+    StringRef RequiredFeatures, const llvm::StringMap<bool> &TargetFetureMap) {
+  // Return true if the builtin doesn't have any required features.
+  if (RequiredFeatures.empty())
+    return true;
+  assert(!RequiredFeatures.contains(' ') && "Space in feature list");
+
+  TargetFeatures TF(TargetFetureMap);
+  return TF.hasRequiredFeatures(RequiredFeatures);
 }

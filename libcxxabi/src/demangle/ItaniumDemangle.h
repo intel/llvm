@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <utility>
 
 DEMANGLE_NAMESPACE_BEGIN
@@ -369,6 +370,10 @@ public:
   VendorExtQualType(const Node *Ty_, StringView Ext_, const Node *TA_)
       : Node(KVendorExtQualType), Ty(Ty_), Ext(Ext_), TA(TA_) {}
 
+  const Node *getTy() const { return Ty; }
+  StringView getExt() const { return Ext; }
+  const Node *getTA() const { return TA; }
+
   template <typename Fn> void match(Fn F) const { F(Ty, Ext, TA); }
 
   void printLeft(OutputBuffer &OB) const override {
@@ -416,6 +421,9 @@ public:
       : Node(KQualType, Child_->RHSComponentCache,
              Child_->ArrayCache, Child_->FunctionCache),
         Quals(Quals_), Child(Child_) {}
+
+  Qualifiers getQuals() const { return Quals; }
+  const Node *getChild() const { return Child; }
 
   template<typename Fn> void match(Fn F) const { F(Child, Quals); }
 
@@ -584,6 +592,8 @@ public:
   PointerType(const Node *Pointee_)
       : Node(KPointerType, Pointee_->RHSComponentCache),
         Pointee(Pointee_) {}
+
+  const Node *getPointee() const { return Pointee; }
 
   template<typename Fn> void match(Fn F) const { F(Pointee); }
 
@@ -1070,6 +1080,9 @@ public:
   VectorType(const Node *BaseType_, const Node *Dimension_)
       : Node(KVectorType), BaseType(BaseType_), Dimension(Dimension_) {}
 
+  const Node *getBaseType() const { return BaseType; }
+  const Node *getDimension() const { return Dimension; }
+
   template<typename Fn> void match(Fn F) const { F(BaseType, Dimension); }
 
   void printLeft(OutputBuffer &OB) const override {
@@ -1381,8 +1394,6 @@ public:
     ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
     OB += "<";
     Params.printWithComma(OB);
-    if (OB.back() == '>')
-      OB += " ";
     OB += ">";
   }
 };
@@ -1508,14 +1519,24 @@ enum class SpecialSubKind {
   iostream,
 };
 
-class ExpandedSpecialSubstitution final : public Node {
+class SpecialSubstitution;
+class ExpandedSpecialSubstitution : public Node {
+protected:
   SpecialSubKind SSK;
 
+  ExpandedSpecialSubstitution(SpecialSubKind SSK_, Kind K_)
+      : Node(K_), SSK(SSK_) {}
 public:
   ExpandedSpecialSubstitution(SpecialSubKind SSK_)
-      : Node(KExpandedSpecialSubstitution), SSK(SSK_) {}
+      : ExpandedSpecialSubstitution(SSK_, KExpandedSpecialSubstitution) {}
+  inline ExpandedSpecialSubstitution(SpecialSubstitution const *);
 
   template<typename Fn> void match(Fn F) const { F(SSK); }
+
+protected:
+  bool isInstantiation() const {
+    return unsigned(SSK) >= unsigned(SpecialSubKind::string);
+  }
 
   StringView getBaseName() const override {
     switch (SSK) {
@@ -1535,81 +1556,43 @@ public:
     DEMANGLE_UNREACHABLE;
   }
 
+private:
   void printLeft(OutputBuffer &OB) const override {
-    switch (SSK) {
-    case SpecialSubKind::allocator:
-      OB += "std::allocator";
-      break;
-    case SpecialSubKind::basic_string:
-      OB += "std::basic_string";
-      break;
-    case SpecialSubKind::string:
-      OB += "std::basic_string<char, std::char_traits<char>, "
-            "std::allocator<char> >";
-      break;
-    case SpecialSubKind::istream:
-      OB += "std::basic_istream<char, std::char_traits<char> >";
-      break;
-    case SpecialSubKind::ostream:
-      OB += "std::basic_ostream<char, std::char_traits<char> >";
-      break;
-    case SpecialSubKind::iostream:
-      OB += "std::basic_iostream<char, std::char_traits<char> >";
-      break;
+    OB << "std::" << getBaseName();
+    if (isInstantiation()) {
+      OB << "<char, std::char_traits<char>";
+      if (SSK == SpecialSubKind::string)
+        OB << ", std::allocator<char>";
+      OB << ">";
     }
   }
 };
 
-class SpecialSubstitution final : public Node {
+class SpecialSubstitution final : public ExpandedSpecialSubstitution {
 public:
-  SpecialSubKind SSK;
-
   SpecialSubstitution(SpecialSubKind SSK_)
-      : Node(KSpecialSubstitution), SSK(SSK_) {}
+      : ExpandedSpecialSubstitution(SSK_, KSpecialSubstitution) {}
 
   template<typename Fn> void match(Fn F) const { F(SSK); }
 
   StringView getBaseName() const override {
-    switch (SSK) {
-    case SpecialSubKind::allocator:
-      return StringView("allocator");
-    case SpecialSubKind::basic_string:
-      return StringView("basic_string");
-    case SpecialSubKind::string:
-      return StringView("string");
-    case SpecialSubKind::istream:
-      return StringView("istream");
-    case SpecialSubKind::ostream:
-      return StringView("ostream");
-    case SpecialSubKind::iostream:
-      return StringView("iostream");
+    auto SV = ExpandedSpecialSubstitution::getBaseName ();
+    if (isInstantiation()) {
+      // The instantiations are typedefs that drop the "basic_" prefix.
+      assert(SV.startsWith("basic_"));
+      SV = SV.dropFront(sizeof("basic_") - 1);
     }
-    DEMANGLE_UNREACHABLE;
+    return SV;
   }
 
   void printLeft(OutputBuffer &OB) const override {
-    switch (SSK) {
-    case SpecialSubKind::allocator:
-      OB += "std::allocator";
-      break;
-    case SpecialSubKind::basic_string:
-      OB += "std::basic_string";
-      break;
-    case SpecialSubKind::string:
-      OB += "std::string";
-      break;
-    case SpecialSubKind::istream:
-      OB += "std::istream";
-      break;
-    case SpecialSubKind::ostream:
-      OB += "std::ostream";
-      break;
-    case SpecialSubKind::iostream:
-      OB += "std::iostream";
-      break;
-    }
+    OB << "std::" << getBaseName();
   }
 };
+
+inline ExpandedSpecialSubstitution::ExpandedSpecialSubstitution(
+    SpecialSubstitution const *SS)
+    : ExpandedSpecialSubstitution(SS->SSK) {}
 
 class CtorDtorName final : public Node {
   const Node *Basename;
@@ -1903,8 +1886,6 @@ public:
       ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
       OB += "<";
       To->printLeft(OB);
-      if (OB.back() == '>')
-        OB += " ";
       OB += ">";
     }
     OB.printOpen();
@@ -2658,6 +2639,8 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     bool getFlag() const { return Flag; }
     Node::Prec getPrecedence() const { return Prec; }
   };
+  static const OperatorInfo Ops[];
+  static const size_t NumOps;
   const OperatorInfo *parseOperatorEncoding();
 
   /// Parse the <unresolved-name> production.
@@ -2955,122 +2938,115 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSourceName(NameState *) {
   return make<NameType>(Name);
 }
 
+// Operator encodings
+template <typename Derived, typename Alloc>
+const typename AbstractManglingParser<
+    Derived, Alloc>::OperatorInfo AbstractManglingParser<Derived,
+                                                         Alloc>::Ops[] = {
+    // Keep ordered by encoding
+    {"aN", OperatorInfo::Binary, false, Node::Prec::Assign, "operator&="},
+    {"aS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator="},
+    {"aa", OperatorInfo::Binary, false, Node::Prec::AndIf, "operator&&"},
+    {"ad", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator&"},
+    {"an", OperatorInfo::Binary, false, Node::Prec::And, "operator&"},
+    {"at", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Unary, "alignof "},
+    {"aw", OperatorInfo::NameOnly, false, Node::Prec::Primary,
+     "operator co_await"},
+    {"az", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Unary, "alignof "},
+    {"cc", OperatorInfo::NamedCast, false, Node::Prec::Postfix, "const_cast"},
+    {"cl", OperatorInfo::Call, false, Node::Prec::Postfix, "operator()"},
+    {"cm", OperatorInfo::Binary, false, Node::Prec::Comma, "operator,"},
+    {"co", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator~"},
+    {"cv", OperatorInfo::CCast, false, Node::Prec::Cast, "operator"}, // C Cast
+    {"dV", OperatorInfo::Binary, false, Node::Prec::Assign, "operator/="},
+    {"da", OperatorInfo::Del, /*Ary*/ true, Node::Prec::Unary,
+     "operator delete[]"},
+    {"dc", OperatorInfo::NamedCast, false, Node::Prec::Postfix, "dynamic_cast"},
+    {"de", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator*"},
+    {"dl", OperatorInfo::Del, /*Ary*/ false, Node::Prec::Unary,
+     "operator delete"},
+    {"ds", OperatorInfo::Member, /*Named*/ false, Node::Prec::PtrMem,
+     "operator.*"},
+    {"dt", OperatorInfo::Member, /*Named*/ false, Node::Prec::Postfix,
+     "operator."},
+    {"dv", OperatorInfo::Binary, false, Node::Prec::Assign, "operator/"},
+    {"eO", OperatorInfo::Binary, false, Node::Prec::Assign, "operator^="},
+    {"eo", OperatorInfo::Binary, false, Node::Prec::Xor, "operator^"},
+    {"eq", OperatorInfo::Binary, false, Node::Prec::Equality, "operator=="},
+    {"ge", OperatorInfo::Binary, false, Node::Prec::Relational, "operator>="},
+    {"gt", OperatorInfo::Binary, false, Node::Prec::Relational, "operator>"},
+    {"ix", OperatorInfo::Array, false, Node::Prec::Postfix, "operator[]"},
+    {"lS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator<<="},
+    {"le", OperatorInfo::Binary, false, Node::Prec::Relational, "operator<="},
+    {"ls", OperatorInfo::Binary, false, Node::Prec::Shift, "operator<<"},
+    {"lt", OperatorInfo::Binary, false, Node::Prec::Relational, "operator<"},
+    {"mI", OperatorInfo::Binary, false, Node::Prec::Assign, "operator-="},
+    {"mL", OperatorInfo::Binary, false, Node::Prec::Assign, "operator*="},
+    {"mi", OperatorInfo::Binary, false, Node::Prec::Additive, "operator-"},
+    {"ml", OperatorInfo::Binary, false, Node::Prec::Multiplicative,
+     "operator*"},
+    {"mm", OperatorInfo::Postfix, false, Node::Prec::Postfix, "operator--"},
+    {"na", OperatorInfo::New, /*Ary*/ true, Node::Prec::Unary,
+     "operator new[]"},
+    {"ne", OperatorInfo::Binary, false, Node::Prec::Equality, "operator!="},
+    {"ng", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator-"},
+    {"nt", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator!"},
+    {"nw", OperatorInfo::New, /*Ary*/ false, Node::Prec::Unary, "operator new"},
+    {"oR", OperatorInfo::Binary, false, Node::Prec::Assign, "operator|="},
+    {"oo", OperatorInfo::Binary, false, Node::Prec::OrIf, "operator||"},
+    {"or", OperatorInfo::Binary, false, Node::Prec::Ior, "operator|"},
+    {"pL", OperatorInfo::Binary, false, Node::Prec::Assign, "operator+="},
+    {"pl", OperatorInfo::Binary, false, Node::Prec::Additive, "operator+"},
+    {"pm", OperatorInfo::Member, /*Named*/ false, Node::Prec::PtrMem,
+     "operator->*"},
+    {"pp", OperatorInfo::Postfix, false, Node::Prec::Postfix, "operator++"},
+    {"ps", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator+"},
+    {"pt", OperatorInfo::Member, /*Named*/ true, Node::Prec::Postfix,
+     "operator->"},
+    {"qu", OperatorInfo::Conditional, false, Node::Prec::Conditional,
+     "operator?"},
+    {"rM", OperatorInfo::Binary, false, Node::Prec::Assign, "operator%="},
+    {"rS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator>>="},
+    {"rc", OperatorInfo::NamedCast, false, Node::Prec::Postfix,
+     "reinterpret_cast"},
+    {"rm", OperatorInfo::Binary, false, Node::Prec::Multiplicative,
+     "operator%"},
+    {"rs", OperatorInfo::Binary, false, Node::Prec::Shift, "operator>>"},
+    {"sc", OperatorInfo::NamedCast, false, Node::Prec::Postfix, "static_cast"},
+    {"ss", OperatorInfo::Binary, false, Node::Prec::Spaceship, "operator<=>"},
+    {"st", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Unary, "sizeof "},
+    {"sz", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Unary, "sizeof "},
+    {"te", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Postfix,
+     "typeid "},
+    {"ti", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Postfix, "typeid "},
+};
+template <typename Derived, typename Alloc>
+const size_t AbstractManglingParser<Derived, Alloc>::NumOps = sizeof(Ops) /
+                                                              sizeof(Ops[0]);
+
 // If the next 2 chars are an operator encoding, consume them and return their
 // OperatorInfo.  Otherwise return nullptr.
 template <typename Derived, typename Alloc>
 const typename AbstractManglingParser<Derived, Alloc>::OperatorInfo *
 AbstractManglingParser<Derived, Alloc>::parseOperatorEncoding() {
-  static const OperatorInfo Ops[] = {
-      // Keep ordered by encoding
-      {"aN", OperatorInfo::Binary, false, Node::Prec::Assign, "operator&="},
-      {"aS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator="},
-      {"aa", OperatorInfo::Binary, false, Node::Prec::AndIf, "operator&&"},
-      {"ad", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator&"},
-      {"an", OperatorInfo::Binary, false, Node::Prec::And, "operator&"},
-      {"at", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Unary,
-       "alignof "},
-      {"aw", OperatorInfo::NameOnly, false, Node::Prec::Primary,
-       "operator co_await"},
-      {"az", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Unary,
-       "alignof "},
-      {"cc", OperatorInfo::NamedCast, false, Node::Prec::Postfix, "const_cast"},
-      {"cl", OperatorInfo::Call, false, Node::Prec::Postfix, "operator()"},
-      {"cm", OperatorInfo::Binary, false, Node::Prec::Comma, "operator,"},
-      {"co", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator~"},
-      {"cv", OperatorInfo::CCast, false, Node::Prec::Cast,
-       "operator"}, // C Cast
-      {"dV", OperatorInfo::Binary, false, Node::Prec::Assign, "operator/="},
-      {"da", OperatorInfo::Del, /*Ary*/ true, Node::Prec::Unary,
-       "operator delete[]"},
-      {"dc", OperatorInfo::NamedCast, false, Node::Prec::Postfix,
-       "dynamic_cast"},
-      {"de", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator*"},
-      {"dl", OperatorInfo::Del, /*Ary*/ false, Node::Prec::Unary,
-       "operator delete"},
-      {"ds", OperatorInfo::Member, /*Named*/ false, Node::Prec::PtrMem,
-       "operator.*"},
-      {"dt", OperatorInfo::Member, /*Named*/ false, Node::Prec::Postfix,
-       "operator."},
-      {"dv", OperatorInfo::Binary, false, Node::Prec::Assign, "operator/"},
-      {"eO", OperatorInfo::Binary, false, Node::Prec::Assign, "operator^="},
-      {"eo", OperatorInfo::Binary, false, Node::Prec::Xor, "operator^"},
-      {"eq", OperatorInfo::Binary, false, Node::Prec::Equality, "operator=="},
-      {"ge", OperatorInfo::Binary, false, Node::Prec::Relational, "operator>="},
-      {"gt", OperatorInfo::Binary, false, Node::Prec::Relational, "operator>"},
-      {"ix", OperatorInfo::Array, false, Node::Prec::Postfix, "operator[]"},
-      {"lS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator<<="},
-      {"le", OperatorInfo::Binary, false, Node::Prec::Relational, "operator<="},
-      {"ls", OperatorInfo::Binary, false, Node::Prec::Shift, "operator<<"},
-      {"lt", OperatorInfo::Binary, false, Node::Prec::Relational, "operator<"},
-      {"mI", OperatorInfo::Binary, false, Node::Prec::Assign, "operator-="},
-      {"mL", OperatorInfo::Binary, false, Node::Prec::Assign, "operator*="},
-      {"mi", OperatorInfo::Binary, false, Node::Prec::Additive, "operator-"},
-      {"ml", OperatorInfo::Binary, false, Node::Prec::Multiplicative,
-       "operator*"},
-      {"mm", OperatorInfo::Postfix, false, Node::Prec::Postfix, "operator--"},
-      {"na", OperatorInfo::New, /*Ary*/ true, Node::Prec::Unary,
-       "operator new[]"},
-      {"ne", OperatorInfo::Binary, false, Node::Prec::Equality, "operator!="},
-      {"ng", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator-"},
-      {"nt", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator!"},
-      {"nw", OperatorInfo::New, /*Ary*/ false, Node::Prec::Unary,
-       "operator new"},
-      {"oR", OperatorInfo::Binary, false, Node::Prec::Assign, "operator|="},
-      {"oo", OperatorInfo::Binary, false, Node::Prec::OrIf, "operator||"},
-      {"or", OperatorInfo::Binary, false, Node::Prec::Ior, "operator|"},
-      {"pL", OperatorInfo::Binary, false, Node::Prec::Assign, "operator+="},
-      {"pl", OperatorInfo::Binary, false, Node::Prec::Additive, "operator+"},
-      {"pm", OperatorInfo::Member, /*Named*/ false, Node::Prec::PtrMem,
-       "operator->*"},
-      {"pp", OperatorInfo::Postfix, false, Node::Prec::Postfix, "operator++"},
-      {"ps", OperatorInfo::Prefix, false, Node::Prec::Unary, "operator+"},
-      {"pt", OperatorInfo::Member, /*Named*/ true, Node::Prec::Postfix,
-       "operator->"},
-      {"qu", OperatorInfo::Conditional, false, Node::Prec::Conditional,
-       "operator?"},
-      {"rM", OperatorInfo::Binary, false, Node::Prec::Assign, "operator%="},
-      {"rS", OperatorInfo::Binary, false, Node::Prec::Assign, "operator>>="},
-      {"rc", OperatorInfo::NamedCast, false, Node::Prec::Postfix,
-       "reinterpret_cast"},
-      {"rm", OperatorInfo::Binary, false, Node::Prec::Multiplicative,
-       "operator%"},
-      {"rs", OperatorInfo::Binary, false, Node::Prec::Shift, "operator>>"},
-      {"sc", OperatorInfo::NamedCast, false, Node::Prec::Postfix,
-       "static_cast"},
-      {"ss", OperatorInfo::Binary, false, Node::Prec::Spaceship, "operator<=>"},
-      {"st", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Unary, "sizeof "},
-      {"sz", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Unary,
-       "sizeof "},
-      {"te", OperatorInfo::OfIdOp, /*Type*/ false, Node::Prec::Postfix,
-       "typeid "},
-      {"ti", OperatorInfo::OfIdOp, /*Type*/ true, Node::Prec::Postfix,
-       "typeid "},
-  };
-  const auto NumOps = sizeof(Ops) / sizeof(Ops[0]);
-
-#ifndef NDEBUG
-  {
-    // Verify table order.
-    static bool Done;
-    if (!Done) {
-      Done = true;
-      for (const auto *Op = &Ops[0]; Op != &Ops[NumOps - 1]; Op++)
-        assert(Op[0] < Op[1] && "Operator table is not ordered");
-    }
-  }
-#endif
-
   if (numLeft() < 2)
     return nullptr;
 
-  auto Op = std::lower_bound(
-      &Ops[0], &Ops[NumOps], First,
-      [](const OperatorInfo &Op_, const char *Enc_) { return Op_ < Enc_; });
-  if (Op == &Ops[NumOps] || *Op != First)
+  // We can't use lower_bound as that can link to symbols in the C++ library,
+  // and this must remain independant of that.
+  size_t lower = 0u, upper = NumOps - 1; // Inclusive bounds.
+  while (upper != lower) {
+    size_t middle = (upper + lower) / 2;
+    if (Ops[middle] < First)
+      lower = middle + 1;
+    else
+      upper = middle;
+  }
+  if (Ops[lower] != First)
     return nullptr;
 
   First += 2;
-  return Op;
+  return &Ops[lower];
 }
 
 //   <operator-name> ::= See parseOperatorEncoding()
@@ -3144,19 +3120,11 @@ Node *
 AbstractManglingParser<Derived, Alloc>::parseCtorDtorName(Node *&SoFar,
                                                           NameState *State) {
   if (SoFar->getKind() == Node::KSpecialSubstitution) {
-    auto SSK = static_cast<SpecialSubstitution *>(SoFar)->SSK;
-    switch (SSK) {
-    case SpecialSubKind::string:
-    case SpecialSubKind::istream:
-    case SpecialSubKind::ostream:
-    case SpecialSubKind::iostream:
-      SoFar = make<ExpandedSpecialSubstitution>(SSK);
-      if (!SoFar)
-        return nullptr;
-      break;
-    default:
-      break;
-    }
+    // Expand the special substitution.
+    SoFar = make<ExpandedSpecialSubstitution>(
+        static_cast<SpecialSubstitution *>(SoFar));
+    if (!SoFar)
+      return nullptr;
   }
 
   if (consumeIf('C')) {
@@ -4352,7 +4320,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary() {
     return nullptr;
   }
   case 'D':
-    if (consumeIf("DnE"))
+    if (consumeIf("Dn") && (consumeIf('0'), consumeIf('E')))
       return make<NameType>("nullptr");
     return nullptr;
   case 'T':
@@ -4459,7 +4427,11 @@ Node *AbstractManglingParser<Derived, Alloc>::parseFoldExpr() {
   ++First;
 
   const auto *Op = parseOperatorEncoding();
-  if (!Op || Op->getKind() != OperatorInfo::Binary)
+  if (!Op)
+    return nullptr;
+  if (!(Op->getKind() == OperatorInfo::Binary
+        || (Op->getKind() == OperatorInfo::Member
+            && Op->getName().back() == '*')))
     return nullptr;
 
   Node *Pack = getDerived().parseExpr();
@@ -5147,7 +5119,7 @@ template <>
 struct FloatData<long double>
 {
 #if defined(__mips__) && defined(__mips_n64) || defined(__aarch64__) || \
-    defined(__wasm__)
+    defined(__wasm__) || defined(__riscv) || defined(__loongarch__)
     static const size_t mangled_size = 32;
 #elif defined(__arm__) || defined(__mips__) || defined(__hexagon__)
     static const size_t mangled_size = 16;

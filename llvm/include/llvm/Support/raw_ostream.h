@@ -13,18 +13,17 @@
 #ifndef LLVM_SUPPORT_RAW_OSTREAM_H
 #define LLVM_SUPPORT_RAW_OSTREAM_H
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/DataTypes.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
-#if __cplusplus > 201402L
 #include <string_view>
-#endif
 #include <system_error>
 #include <type_traits>
 
@@ -36,7 +35,7 @@ class format_object_base;
 class FormattedString;
 class FormattedNumber;
 class FormattedBytes;
-template <class T> class LLVM_NODISCARD Expected;
+template <class T> class [[nodiscard]] Expected;
 
 namespace sys {
 namespace fs {
@@ -237,11 +236,9 @@ public:
     return write(Str.data(), Str.length());
   }
 
-#if __cplusplus > 201402L
   raw_ostream &operator<<(const std::string_view &Str) {
     return write(Str.data(), Str.length());
   }
-#endif
 
   raw_ostream &operator<<(const SmallVectorImpl<char> &Str) {
     return write(Str.data(), Str.size());
@@ -446,7 +443,7 @@ class raw_fd_ostream : public raw_pwrite_stream {
   bool ShouldClose;
   bool SupportsSeeking = false;
   bool IsRegularFile = false;
-  mutable Optional<bool> HasColors;
+  mutable std::optional<bool> HasColors;
 
 #ifdef _WIN32
   /// True if this fd refers to a Windows console device. Mintty and other
@@ -565,7 +562,7 @@ public:
   ///     });
   ///   }
   ///   @endcode
-  LLVM_NODISCARD Expected<sys::fs::FileLocker> lock();
+  [[nodiscard]] Expected<sys::fs::FileLocker> lock();
 
   /// Tries to lock the underlying file within the specified period.
   ///
@@ -574,8 +571,8 @@ public:
   ///          error code.
   ///
   /// It is used as @ref lock.
-  LLVM_NODISCARD
-  Expected<sys::fs::FileLocker> tryLockFor(Duration const& Timeout);
+  [[nodiscard]] Expected<sys::fs::FileLocker>
+  tryLockFor(Duration const &Timeout);
 };
 
 /// This returns a reference to a raw_fd_ostream for standard output. Use it
@@ -710,7 +707,7 @@ class buffer_ostream : public raw_svector_ostream {
   raw_ostream &OS;
   SmallVector<char, 0> Buffer;
 
-  virtual void anchor() override;
+  void anchor() override;
 
 public:
   buffer_ostream(raw_ostream &OS) : raw_svector_ostream(Buffer), OS(OS) {}
@@ -721,7 +718,7 @@ class buffer_unique_ostream : public raw_svector_ostream {
   std::unique_ptr<raw_ostream> OS;
   SmallVector<char, 0> Buffer;
 
-  virtual void anchor() override;
+  void anchor() override;
 
 public:
   buffer_unique_ostream(std::unique_ptr<raw_ostream> OS)
@@ -743,6 +740,18 @@ class Error;
 /// temporary file after the \p Write function is finished.
 Error writeToOutput(StringRef OutputFileName,
                     std::function<Error(raw_ostream &)> Write);
+
+raw_ostream &operator<<(raw_ostream &OS, std::nullopt_t);
+
+template <typename T, typename = decltype(std::declval<raw_ostream &>()
+                                          << std::declval<const T &>())>
+raw_ostream &operator<<(raw_ostream &OS, const std::optional<T> &O) {
+  if (O)
+    OS << *O;
+  else
+    OS << std::nullopt;
+  return OS;
+}
 
 } // end namespace llvm
 

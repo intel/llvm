@@ -3,8 +3,8 @@
 // This test performs basic type check for sycl::id that is used in result type.
 // Check that sycl::id is converted from sycl::item.
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;
@@ -22,7 +22,7 @@ int main() {
     auto buf_acc = data_buf.get_access<sycl::access::mode::read_write>(h);
     h.parallel_for(
         sycl::range<1>{sz},
-        // CHECK: cl{{.*}}sycl{{.*}}detail{{.*}}RoundedRangeKernel{{.*}}item{{.*}}main{{.*}}handler
+        // CHECK: sycl{{.*}}detail{{.*}}RoundedRangeKernel{{.*}}item{{.*}}main{{.*}}handler
         [=](sycl::id<1> item) { buf_acc[item] += 1; });
   });
   q.wait();

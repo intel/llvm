@@ -24,8 +24,12 @@
 #include <__iterator/iterator_traits.h>
 #include <__iterator/move_sentinel.h>
 #include <__iterator/readable_traits.h>
+#include <__type_traits/conditional.h>
+#include <__type_traits/is_assignable.h>
+#include <__type_traits/is_constructible.h>
+#include <__type_traits/is_same.h>
+#include <__utility/declval.h>
 #include <__utility/move.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -79,23 +83,24 @@ public:
     typedef typename iterator_traits<iterator_type>::difference_type difference_type;
     typedef iterator_type pointer;
 
-#ifndef _LIBCPP_CXX03_LANG
     typedef typename iterator_traits<iterator_type>::reference __reference;
     typedef typename conditional<
             is_reference<__reference>::value,
-            typename remove_reference<__reference>::type&&,
+            __libcpp_remove_reference_t<__reference>&&,
             __reference
         >::type reference;
-#else
-    typedef typename iterator_traits<iterator_type>::reference reference;
-#endif
-
 #endif // _LIBCPP_STD_VER > 17
 
-#if _LIBCPP_STD_VER > 17
-    _LIBCPP_HIDE_FROM_ABI constexpr
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     explicit move_iterator(_Iter __i) : __current_(std::move(__i)) {}
 
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
+    move_iterator& operator++() { ++__current_; return *this; }
+
+    _LIBCPP_DEPRECATED_IN_CXX20 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
+    pointer operator->() const { return __current_; }
+
+#if _LIBCPP_STD_VER > 17
     _LIBCPP_HIDE_FROM_ABI constexpr
     move_iterator() requires is_constructible_v<_Iter> : __current_() {}
 
@@ -123,9 +128,6 @@ public:
     reference operator[](difference_type __n) const { return ranges::iter_move(__current_ + __n); }
 
     _LIBCPP_HIDE_FROM_ABI constexpr
-    move_iterator& operator++() { ++__current_; return *this; }
-
-    _LIBCPP_HIDE_FROM_ABI constexpr
     auto operator++(int)
         requires forward_iterator<_Iter>
     {
@@ -135,16 +137,13 @@ public:
     _LIBCPP_HIDE_FROM_ABI constexpr
     void operator++(int) { ++__current_; }
 #else
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
-    explicit move_iterator(_Iter __i) : __current_(std::move(__i)) {}
-
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator() : __current_() {}
 
     template <class _Up, class = __enable_if_t<
         !is_same<_Up, _Iter>::value && is_convertible<const _Up&, _Iter>::value
     > >
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator(const move_iterator<_Up>& __u) : __current_(__u.base()) {}
 
     template <class _Up, class = __enable_if_t<
@@ -152,39 +151,35 @@ public:
         is_convertible<const _Up&, _Iter>::value &&
         is_assignable<_Iter&, const _Up&>::value
     > >
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator& operator=(const move_iterator<_Up>& __u) {
         __current_ = __u.base();
         return *this;
     }
 
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     _Iter base() const { return __current_; }
 
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     reference operator*() const { return static_cast<reference>(*__current_); }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
-    pointer operator->() const { return __current_; }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     reference operator[](difference_type __n) const { return static_cast<reference>(__current_[__n]); }
 
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
-    move_iterator& operator++() { ++__current_; return *this; }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator operator++(int) { move_iterator __tmp(*this); ++__current_; return __tmp; }
 #endif // _LIBCPP_STD_VER > 17
 
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator& operator--() { --__current_; return *this; }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator operator--(int) { move_iterator __tmp(*this); --__current_; return __tmp; }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator operator+(difference_type __n) const { return move_iterator(__current_ + __n); }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator& operator+=(difference_type __n) { __current_ += __n; return *this; }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator operator-(difference_type __n) const { return move_iterator(__current_ - __n); }
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
     move_iterator& operator-=(difference_type __n) { __current_ -= __n; return *this; }
 
 #if _LIBCPP_STD_VER > 17
@@ -231,9 +226,10 @@ private:
 
     _Iter __current_;
 };
+_LIBCPP_CTAD_SUPPORTED_FOR_TYPE(move_iterator);
 
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator==(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() == __y.base();
@@ -241,7 +237,7 @@ bool operator==(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& _
 
 #if _LIBCPP_STD_VER <= 17
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator!=(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() != __y.base();
@@ -249,28 +245,28 @@ bool operator!=(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& _
 #endif // _LIBCPP_STD_VER <= 17
 
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator<(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() < __y.base();
 }
 
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator>(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() > __y.base();
 }
 
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator<=(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() <= __y.base();
 }
 
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 bool operator>=(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
 {
     return __x.base() >= __y.base();
@@ -288,7 +284,7 @@ auto operator<=>(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& 
 
 #ifndef _LIBCPP_CXX03_LANG
 template <class _Iter1, class _Iter2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 auto operator-(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
     -> decltype(__x.base() - __y.base())
 {
@@ -314,7 +310,7 @@ move_iterator<_Iter> operator+(iter_difference_t<_Iter> __n, const move_iterator
 }
 #else
 template <class _Iter>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 move_iterator<_Iter>
 operator+(typename move_iterator<_Iter>::difference_type __n, const move_iterator<_Iter>& __x)
 {
@@ -323,7 +319,7 @@ operator+(typename move_iterator<_Iter>::difference_type __n, const move_iterato
 #endif // _LIBCPP_STD_VER > 17
 
 template <class _Iter>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 move_iterator<_Iter>
 make_move_iterator(_Iter __i)
 {

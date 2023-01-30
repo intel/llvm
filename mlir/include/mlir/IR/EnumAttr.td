@@ -51,23 +51,22 @@ class BitEnumAttrCaseBase<I intType, string sym, int val, string str = sym> :
     EnumAttrCaseInfo<sym, val, str>,
     SignlessIntegerAttrBase<intType, "case " #str>;
 
-// A bit enum case stored with a 32-bit IntegerAttr. `val` here is *not* the
-// ordinal number of a bit that is set. It is a 32-bit integer value with bits
-// set to match the case. 
+class I8BitEnumAttrCase<string sym, int val, string str = sym>
+    : BitEnumAttrCaseBase<I8, sym, val, str>;
+class I16BitEnumAttrCase<string sym, int val, string str = sym>
+    : BitEnumAttrCaseBase<I16, sym, val, str>;
 class I32BitEnumAttrCase<string sym, int val, string str = sym>
     : BitEnumAttrCaseBase<I32, sym, val, str>;
-
-// A bit enum case stored with a 64-bit IntegerAttr. `val` here is *not* the
-// ordinal number of a bit that is set. It is a 64-bit integer value with bits
-// bits set to match the case.
 class I64BitEnumAttrCase<string sym, int val, string str = sym>
     : BitEnumAttrCaseBase<I64, sym, val, str>;
 
-// The special bit enum case for I32 with no bits set (i.e. value = 0).
+// The special bit enum case with no bits set (i.e. value = 0).
+class I8BitEnumAttrCaseNone<string sym, string str = sym>
+    : I8BitEnumAttrCase<sym, 0, str>;
+class I16BitEnumAttrCaseNone<string sym, string str = sym>
+    : I16BitEnumAttrCase<sym, 0, str>;
 class I32BitEnumAttrCaseNone<string sym, string str = sym>
     : I32BitEnumAttrCase<sym, 0, str>;
-
-// The special bit enum case for I64 with no bits set (i.e. value = 0).
 class I64BitEnumAttrCaseNone<string sym, string str = sym>
     : I64BitEnumAttrCase<sym, 0, str>;
 
@@ -80,16 +79,14 @@ class BitEnumAttrCaseBit<I intType, string sym, int pos, string str = sym>
       "bit position larger than underlying storage";
 }
 
-// A bit enum case for a single bit in a 32-bit enum, specified by the
-// bit position.
+class I8BitEnumAttrCaseBit<string sym, int pos, string str = sym>
+    : BitEnumAttrCaseBit<I8, sym, pos, str>;
+class I16BitEnumAttrCaseBit<string sym, int pos, string str = sym>
+    : BitEnumAttrCaseBit<I16, sym, pos, str>;
 class I32BitEnumAttrCaseBit<string sym, int pos, string str = sym>
     : BitEnumAttrCaseBit<I32, sym, pos, str>;
-
-// A bit enum case for a single bit in a 64-bit enum, specified by the
-// bit position.
 class I64BitEnumAttrCaseBit<string sym, int pos, string str = sym>
     : BitEnumAttrCaseBit<I64, sym, pos, str>;
-
 
 // A bit enum case for a group/list of previously declared cases, providing
 // a convenient alias for that group.
@@ -99,14 +96,15 @@ class BitEnumAttrCaseGroup<I intType, string sym,
           !foldl(0, cases, value, bitcase, !or(value, bitcase.value)),
           str>;
 
-// A 32-bit enum case for a group/list of previously declared cases, providing
-// a convenient alias for that group.
+class I8BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBase> cases,
+                              string str = sym>
+    : BitEnumAttrCaseGroup<I8, sym, cases, str>;
+class I16BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBase> cases,
+                              string str = sym>
+    : BitEnumAttrCaseGroup<I16, sym, cases, str>;
 class I32BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBase> cases,
                               string str = sym>
     : BitEnumAttrCaseGroup<I32, sym, cases, str>;
-
-// A 64-bit enum case for a group/list of previously declared cases, providing
-// a convenient alias for that group.
 class I64BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBase> cases,
                               string str = sym>
     : BitEnumAttrCaseGroup<I64, sym, cases, str>;
@@ -132,7 +130,7 @@ class EnumAttrInfo<
   // type to the corresponding symbol. It will have the following signature:
   //
   // ```c++
-  // llvm::Optional<<qualified-enum-class-name>> <fn-name>(<underlying-type>);
+  // std::optional<<qualified-enum-class-name>> <fn-name>(<underlying-type>);
   // ```
   string underlyingToSymbolFnName = "symbolize" # name;
 
@@ -140,7 +138,7 @@ class EnumAttrInfo<
   // corresponding symbol. It will have the following signature:
   //
   // ```c++
-  // llvm::Optional<<qualified-enum-class-name>> <fn-name>(llvm::StringRef);
+  // std::optional<<qualified-enum-class-name>> <fn-name>(llvm::StringRef);
   // ```
   string stringToSymbolFnName = "symbolize" # name;
 
@@ -182,6 +180,14 @@ class EnumAttrInfo<
     cppNamespace # "::" # specializedAttrClassName # "::get($_builder.getContext(), $0)",
     baseAttrClass.constBuilderCall);
   let valueType = baseAttrClass.valueType;
+
+  // C++ type wrapped by attribute
+  string cppType = cppNamespace # "::" # className;
+
+  // Parser and printer code used by the EnumParameter class, to be provided by
+  // derived classes
+  string parameterParser = ?;
+  string parameterPrinter = ?;
 }
 
 // An enum attribute backed by IntegerAttr.
@@ -202,7 +208,26 @@ class IntEnumAttr<I intType, string name, string summary,
     IntEnumAttrBase<intType, cases,
       !if(!empty(summary), "allowed " # intType.summary # " cases: " #
           !interleave(!foreach(case, cases, case.value), ", "),
-          summary)>>;
+          summary)>> {
+  // Parse a keyword and pass it to `stringToSymbol`. Emit an error if a the
+  // symbol is not valid.
+  let parameterParser = [{[&]() -> ::mlir::FailureOr<}] # cppType # [{> {
+    auto loc = $_parser.getCurrentLocation();
+    ::llvm::StringRef enumKeyword;
+    if (::mlir::failed($_parser.parseKeyword(&enumKeyword)))
+      return ::mlir::failure();
+    auto maybeEnum = }] # cppNamespace # "::" #
+                          stringToSymbolFnName # [{(enumKeyword);
+    if (maybeEnum)
+      return *maybeEnum;
+    return {(::mlir::LogicalResult)($_parser.emitError(loc) << "expected " }] #
+    [{<< "}] # cppType # [{" << " to be one of: " << }] #
+    !interleave(!foreach(enum, enumerants, "\"" # enum.str # "\""),
+                [{ << ", " << }]) # [{)};
+  }()}];
+  // Print the enum by calling `symbolToString`.
+  let parameterPrinter = "$_printer << " # symbolToStringFnName # "($_self)";
+}
 
 class I32EnumAttr<string name, string summary, list<I32EnumAttrCase> cases> :
     IntEnumAttr<I32, name, summary, cases> {
@@ -241,8 +266,65 @@ class BitEnumAttr<I intType, string name, string summary,
   // bits together.
   let symbolToStringFnRetType = "std::string";
 
-  // The delimiter used to separate bit enum cases in strings.
+  // The delimiter used to separate bit enum cases in strings. Only "|" and
+  // "," (along with optional spaces) are supported due to the use of the
+  // parseSeparatorFn in parameterParser below.
+  // Spaces in the separator string are used for printing, but will be optional
+  // for parsing.
   string separator = "|";
+  assert !or(!ge(!find(separator, "|"), 0), !ge(!find(separator, ","), 0)),
+      "separator must contain '|' or ',' for parameter parsing";
+
+  // Parsing function that corresponds to the enum separator. Only
+  // "," and "|" are supported by this definition.
+  string parseSeparatorFn = !if(!ge(!find(separator, "|"), 0),
+                                "parseOptionalVerticalBar",
+                                "parseOptionalComma");
+
+  // Parse a keyword and pass it to `stringToSymbol`. Emit an error if a the
+  // symbol is not valid.
+  let parameterParser = [{[&]() -> ::mlir::FailureOr<}] # cppType # [{> {
+    }] # cppType # [{ flags = {};
+    auto loc = $_parser.getCurrentLocation();
+    ::llvm::StringRef enumKeyword;
+    do {
+      if (::mlir::failed($_parser.parseKeyword(&enumKeyword)))
+        return ::mlir::failure();
+      auto maybeEnum = }] # cppNamespace # "::" #
+                            stringToSymbolFnName # [{(enumKeyword);
+      if (!maybeEnum) {
+          return {(::mlir::LogicalResult)($_parser.emitError(loc) << }] #
+              [{"expected " << "}] # cppType # [{" << " to be one of: " << }] #
+              !interleave(!foreach(enum, enumerants, "\"" # enum.str # "\""),
+                          [{ << ", " << }]) # [{)};
+      }
+      flags = flags | *maybeEnum;
+    } while(::mlir::succeeded($_parser.}] # parseSeparatorFn # [{()));
+    return flags;
+  }()}];
+  // Print the enum by calling `symbolToString`.
+  let parameterPrinter = "$_printer << " # symbolToStringFnName # "($_self)";
+
+  // Print the "primary group" only for bits that are members of case groups
+  // that have all bits present. When the value is 0, printing will display both
+  // both individual bit case names AND the names for all groups that the bit is
+  // contained in. When the value is 1, for each bit that is set AND is a member
+  // of a group with all bits set, only the "primary group" (i.e. the first
+  // group with all bits set in reverse declaration order) will be printed (for
+  // conciseness).
+  bit printBitEnumPrimaryGroups = 0;
+}
+
+class I8BitEnumAttr<string name, string summary,
+                     list<BitEnumAttrCaseBase> cases>
+    : BitEnumAttr<I8, name, summary, cases> {
+  let underlyingType = "uint8_t";
+}
+
+class I16BitEnumAttr<string name, string summary,
+                     list<BitEnumAttrCaseBase> cases>
+    : BitEnumAttr<I16, name, summary, cases> {
+  let underlyingType = "uint16_t";
 }
 
 class I32BitEnumAttr<string name, string summary,
@@ -263,23 +345,8 @@ class I64BitEnumAttr<string name, string summary,
 class EnumParameter<EnumAttrInfo enumInfo>
     : AttrParameter<enumInfo.cppNamespace # "::" # enumInfo.className,
                     "an enum of type " # enumInfo.className> {
-  // Parse a keyword and pass it to `stringToSymbol`. Emit an error if a the
-  // symbol is not valid.
-  let parser = [{[&]() -> ::mlir::FailureOr<}] # cppType # [{> {
-    auto loc = $_parser.getCurrentLocation();
-    ::llvm::StringRef enumKeyword;
-    if (::mlir::failed($_parser.parseKeyword(&enumKeyword)))
-      return ::mlir::failure();
-    auto maybeEnum = }] # enumInfo.cppNamespace # "::" #
-                          enumInfo.stringToSymbolFnName # [{(enumKeyword);
-    if (maybeEnum)
-      return *maybeEnum;
-    return {(::mlir::LogicalResult)$_parser.emitError(loc, "expected }] #
-    cppType # [{ to be one of: }] #
-    !interleave(!foreach(enum, enumInfo.enumerants, enum.str), ", ") # [{")};
-  }()}];
-  // Print the enum by calling `symbolToString`.
-  let printer = "$_printer << " # enumInfo.symbolToStringFnName # "($_self)";
+  let parser = enumInfo.parameterParser;
+  let printer = enumInfo.parameterPrinter;
 }
 
 // An attribute backed by a C++ enum. The attribute contains a single

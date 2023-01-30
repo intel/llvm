@@ -591,11 +591,11 @@ public:
   /// the result element type and Offset to be the residual offset.
   SmallVector<APInt> getGEPIndicesForOffset(Type *&ElemTy, APInt &Offset) const;
 
-  /// Get single GEP index to access Offset inside ElemTy. Returns None if
-  /// index cannot be computed, e.g. because the type is not an aggregate.
+  /// Get single GEP index to access Offset inside ElemTy. Returns std::nullopt
+  /// if index cannot be computed, e.g. because the type is not an aggregate.
   /// ElemTy is updated to be the result element type and Offset to be the
   /// residual offset.
-  Optional<APInt> getGEPIndexForOffset(Type *&ElemTy, APInt &Offset) const;
+  std::optional<APInt> getGEPIndexForOffset(Type *&ElemTy, APInt &Offset) const;
 
   /// Returns a StructLayout object, indicating the alignment of the
   /// struct, its size, and the offsets of its fields.
@@ -712,6 +712,10 @@ inline TypeSize DataLayout::getTypeSizeInBits(Type *Ty) const {
     uint64_t MinBits = EltCnt.getKnownMinValue() *
                        getTypeSizeInBits(VTy->getElementType()).getFixedSize();
     return TypeSize(MinBits, EltCnt.isScalable());
+  }
+  case Type::TargetExtTyID: {
+    Type *LayoutTy = cast<TargetExtType>(Ty)->getLayoutType();
+    return getTypeSizeInBits(LayoutTy);
   }
   default:
     llvm_unreachable("DataLayout::getTypeSizeInBits(): Unsupported type");

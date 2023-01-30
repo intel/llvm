@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/os_util.hpp>
 
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <limits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -156,31 +156,35 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-const std::array<std::pair<std::string, info::device_type>, 5> &
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
+// ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 5>
+  static const std::array<std::pair<std::string, info::device_type>, 6>
       SyclDeviceTypeMap = {{{"host", info::device_type::host},
                             {"cpu", info::device_type::cpu},
                             {"gpu", info::device_type::gpu},
                             {"acc", info::device_type::accelerator},
+                            {"fpga", info::device_type::accelerator},
                             {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
+// ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"esimd_emulator", backend::ext_intel_esimd_emulator},
+       {"ext_oneapi_unified_runtime", backend::ext_oneapi_unified_runtime},
        {"*", backend::all}}};
   return SyclBeMap;
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

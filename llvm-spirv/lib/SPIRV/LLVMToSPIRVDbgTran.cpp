@@ -531,9 +531,9 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgPointerType(const DIDerivedType *PT) {
   SPIRVEntry *Base = transDbgEntry(PT->getBaseType());
   Ops[BaseTypeIdx] = Base->getId();
   Ops[StorageClassIdx] = ~0U; // all ones denote no address space
-  Optional<unsigned> AS = PT->getDWARFAddressSpace();
-  if (AS.hasValue()) {
-    SPIRAddressSpace SPIRAS = static_cast<SPIRAddressSpace>(AS.getValue());
+  std::optional<unsigned> AS = PT->getDWARFAddressSpace();
+  if (AS.has_value()) {
+    SPIRAddressSpace SPIRAS = static_cast<SPIRAddressSpace>(AS.value());
     Ops[StorageClassIdx] = SPIRSPIRVAddrSpaceMap::map(SPIRAS);
   }
   Ops[FlagsIdx] = transDebugFlags(PT);
@@ -986,7 +986,7 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
   Ops[FileIdx] = BM->getString(FileName)->getId();
   DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
   if (F && F->getRawChecksum()) {
-    auto CheckSum = F->getChecksum().getValue();
+    auto CheckSum = F->getChecksum().value();
     Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
                                  ":" + CheckSum.Value.str())
                        ->getId();

@@ -6,9 +6,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -24,8 +25,12 @@ class EAMTestKernel2;
 const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
+class EAMTestKernel3;
+const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
+constexpr unsigned EAMTestKernelNumArgs3 = 4;
+
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs1; }
@@ -37,6 +42,7 @@ template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<EAMTestKernel2> {
@@ -49,15 +55,29 @@ template <> struct KernelInfo<EAMTestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
+};
+
+template <> struct KernelInfo<EAMTestKernel3> {
+  static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs3; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return EAMTestKernelName3; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename T>
 static sycl::unittest::PiImage
-generateEAMTestKernel1Image(std::string _cmplOptions, std::string _lnkOptions) {
+generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM1{0b00000101};
@@ -72,36 +92,8 @@ generateEAMTestKernel1Image(std::string _cmplOptions, std::string _lnkOptions) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName1});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                           // Compile options
-              _lnkOptions,                            // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-  return Img;
-}
-
-template <typename T>
-static sycl::unittest::PiImage
-generateEAMTestKernel2Image(std::string _cmplOptions, std::string _lnkOptions) {
-  using namespace sycl::unittest;
-
-  std::vector<unsigned char> KernelEAM2{0b00000101};
-  PiProperty EAMKernelPOI =
-      makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
-                             EAMTestKernelNumArgs2, KernelEAM2);
-  PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
-
-  PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName2});
+  PiArray<PiOffloadEntry> Entries =
+      makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -119,9 +111,12 @@ inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
                                       void (*)(pi_program, void *), void *,
                                       pi_program *) {
   assert(_linkOpts != nullptr);
-  if (!current_link_options.empty())
-    current_link_options += " ";
-  current_link_options += std::string(_linkOpts);
+  auto add_link_opts = std::string(_linkOpts);
+  if (!add_link_opts.empty()) {
+    if (!current_link_options.empty())
+      current_link_options += " ";
+    current_link_options += std::string(_linkOpts);
+  }
   return PI_SUCCESS;
 }
 
@@ -131,9 +126,12 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
                                          const pi_program *, const char **,
                                          void (*)(pi_program, void *), void *) {
   assert(_compileOpts != nullptr);
-  if (!current_compile_options.empty())
-    current_compile_options += " ";
-  current_compile_options += std::string(_compileOpts);
+  auto add_compile_opts = std::string(_compileOpts);
+  if (!add_compile_opts.empty()) {
+    if (!current_compile_options.empty())
+      current_compile_options += " ";
+    current_compile_options += std::string(_compileOpts);
+  }
   return PI_SUCCESS;
 }
 
@@ -146,33 +144,19 @@ inline pi_result redefinedProgramBuild(
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_options = "";
   static sycl::unittest::PiImage DevImage =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_options,
-                                                  expected_options);
+      generateEAMTestKernelImage<EAMTestKernel1>(expected_options,
+                                                 expected_options);
   static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
@@ -187,26 +171,12 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -215,11 +185,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
               expected_link_options_1 =
                   "-cl-denorms-are-zero -cl-no-signed-zeros";
   static sycl::unittest::PiImage DevImage_1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options_1,
-                                                  expected_link_options_1);
+      generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1,
+                                                 expected_link_options_1);
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
+  auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
   sycl::kernel_bundle KernelBundle =
@@ -236,39 +206,26 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
+      redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_compile_options = "-cl-opt-disable",
               expected_link_options = "-cl-denorms-are-zero";
   static sycl::unittest::PiImage DevImage =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
-                                                  expected_link_options);
+      generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options,
+                                                 expected_link_options);
   static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
-  auto KernelID = sycl::get_kernel_id<EAMTestKernel1>();
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  auto KernelID = sycl::get_kernel_id<EAMTestKernel3>();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});

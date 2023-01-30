@@ -218,9 +218,14 @@ def TestTypeStructCaptureAll : Test_Type<"TestStructTypeCaptureAll"> {
 }
 
 def TestTypeOptionalParam : Test_Type<"TestTypeOptionalParam"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a, "int":$b);
+  let parameters = (ins
+    OptionalParameter<"mlir::Optional<int>">:$a,
+    "int":$b,
+    DefaultValuedParameter<"std::optional<::mlir::Attribute>",
+                           "std::nullopt">:$c
+  );
   let mnemonic = "optional_param";
-  let assemblyFormat = "`<` $a `,` $b `>`";
+  let assemblyFormat = "`<` $a `,` $b ( `,` $c^)? `>`";
 }
 
 def TestTypeOptionalParams : Test_Type<"TestTypeOptionalParams"> {
@@ -286,19 +291,17 @@ def TestTypeSpaces : Test_Type<"TestTypeSpaceS"> {
 }
 
 class DefaultValuedAPFloat<string value>
-    : DefaultValuedParameter<"llvm::Optional<llvm::APFloat>",
-                             "llvm::Optional<llvm::APFloat>(" # value # ")"> {
-  let comparator = "$_lhs->bitwiseIsEqual(*$_rhs)";
-  let parser = [{ [&]() -> mlir::FailureOr<llvm::Optional<llvm::APFloat>> {
+    : DefaultValuedParameter<"llvm::APFloat", "llvm::APFloat(" # value # ")"> {
+  let comparator = "$_lhs.bitwiseIsEqual($_rhs)";
+  let parser = [{ [&]() -> mlir::FailureOr<llvm::APFloat> {
     mlir::FloatAttr attr;
     auto result = $_parser.parseOptionalAttribute(attr);
-    if (result.hasValue() && mlir::succeeded(*result))
-      return {attr.getValue()};
-    if (!result.hasValue())
-      return llvm::Optional<llvm::APFloat>();
+    if (result.has_value() && mlir::succeeded(*result))
+      return attr.getValue();
+    if (!result.has_value())
+      return llvm::APFloat(}] # value # [{);
     return mlir::failure();
   }() }];
-  let printer = "$_printer << *$_self";
 }
 
 def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
@@ -312,7 +315,7 @@ def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
 def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
   let parameters = (ins
     DefaultValuedParameter<"mlir::IntegerType",
-                           "mlir::IntegerType::get($_ctx, 32)">:$type
+                           "mlir::IntegerType::get($_ctxt, 32)">:$type
   );
   let mnemonic = "default_valued_type";
   let assemblyFormat = "`<` (`(` $type^ `)`)? `>`";
@@ -321,8 +324,15 @@ def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
 def TestTypeCustom : Test_Type<"TestTypeCustom"> {
   let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
   let mnemonic = "custom_type";
-  let assemblyFormat = [{ `<` custom<CustomTypeA>($a)
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a) ``
                               custom<CustomTypeB>(ref($a), $b) `>` }];
+}
+
+def TestTypeCustomSpacing : Test_Type<"TestTypeCustomSpacing"> {
+  let parameters = (ins "int":$a, "int":$b);
+  let mnemonic = "custom_type_spacing";
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a)
+                              custom<CustomTypeA>($b) `>` }];
 }
 
 def TestTypeCustomString : Test_Type<"TestTypeCustomString"> {
@@ -330,6 +340,19 @@ def TestTypeCustomString : Test_Type<"TestTypeCustomString"> {
   let mnemonic = "custom_type_string";
   let assemblyFormat = [{ `<` custom<FooString>($foo)
                               custom<BarString>(ref($foo)) `>` }];
+}
+
+def TestTypeElseAnchor : Test_Type<"TestTypeElseAnchor"> {
+  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a);
+  let mnemonic = "else_anchor";
+  let assemblyFormat = "`<` (`?`) : ($a^)? `>`";
+}
+
+def TestTypeElseAnchorStruct : Test_Type<"TestTypeElseAnchorStruct"> {
+  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
+                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let mnemonic = "else_anchor_struct";
+  let assemblyFormat = "`<` (`?`) : (struct($a, $b)^)? `>`";
 }
 
 #endif // TEST_TYPEDEFS

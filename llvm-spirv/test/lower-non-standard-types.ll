@@ -1,11 +1,11 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -s %t.bc -o - | llvm-dis -o - | FileCheck %s --implicit-check-not="<6 x i32>"
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o - | llvm-dis -opaque-pointers=0 -o - | FileCheck %s --implicit-check-not="<6 x i32>"
 
 ; CHECK: [[ASCastInst:%.*]] = addrspacecast <3 x i64> addrspace(1)* @Id to <3 x i64> addrspace(4)*
 ; CHECK: [[LoadInst1:%.*]] = load <3 x i64>, <3 x i64> addrspace(4)* [[ASCastInst]], align 32
+; CHECK: [[LoadInst2:%.*]] = load <3 x i64>, <3 x i64> addrspace(4)* [[ASCastInst]], align 32
 ; CHECK: [[ExtrElInst1:%.*]] = extractelement <3 x i64> [[LoadInst1]], i64 0
 ; CHECK: [[TruncInst1:%.*]] = trunc i64 [[ExtrElInst1]] to i32
-; CHECK: [[LoadInst2:%.*]] = load <3 x i64>, <3 x i64> addrspace(4)* [[ASCastInst]], align 32
 ; CHECK: [[ExtrElInst2:%.*]] = extractelement <3 x i64> [[LoadInst2]], i64 2
 ; CHECK: [[LShrInst:%.*]] = lshr i64 [[ExtrElInst2]], 32
 ; CHECK: [[TruncInst2:%.*]] = trunc i64 [[LShrInst]] to i32
@@ -24,8 +24,8 @@ define dso_local spir_func void @vmult2() local_unnamed_addr #0 !sycl_explicit_s
 entry:
   %0 = load <6 x i32>, <6 x i32> addrspace(4)* addrspacecast (<6 x i32> addrspace(1)* bitcast (<3 x i64> addrspace(1)* @Id to <6 x i32> addrspace(1)*) to <6 x i32> addrspace(4)*), align 32
   %1 = load <6 x i32>, <6 x i32> addrspace(4)* addrspacecast (<6 x i32> addrspace(1)* bitcast (<3 x i64> addrspace(1)* @Id to <6 x i32> addrspace(1)*) to <6 x i32> addrspace(4)*), align 32
-  %2 = extractelement <6 x i32> %0, i32 1
-  %3 = extractelement <6 x i32> %1, i32 4
+  %2 = extractelement <6 x i32> %0, i32 0
+  %3 = extractelement <6 x i32> %1, i32 5
   %conv1 = sitofp i32 %2 to float
   %conv2 = sitofp i32 %3 to float
   ret void

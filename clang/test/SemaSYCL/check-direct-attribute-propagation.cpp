@@ -177,7 +177,7 @@ int main() {
         []() [[intel::max_work_group_size(8, 8, 8)]]{});
 
     // CHECK:       FunctionDecl {{.*}}test_kernel13
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
@@ -192,12 +192,12 @@ int main() {
 
     // Test attribute is not propagated.
     // CHECK:      FunctionDecl {{.*}}test_kernel14
-    // CHECK-NOT:  ReqdWorkGroupSizeAttr
+    // CHECK-NOT:  SYCLReqdWorkGroupSizeAttr
     h.single_task<class test_kernel14>(
         []() { func4(); });
 
     // CHECK:       FunctionDecl {{.*}}test_kernel15
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8

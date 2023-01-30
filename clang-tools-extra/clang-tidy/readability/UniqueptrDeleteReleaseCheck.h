@@ -19,14 +19,14 @@ namespace readability {
 /// replaces them with: ``<unique_ptr expr> = nullptr;``
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability-uniqueptr-delete-release.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability/uniqueptr-delete-release.html
 class UniqueptrDeleteReleaseCheck : public ClangTidyCheck {
 public:
   UniqueptrDeleteReleaseCheck(StringRef Name, ClangTidyContext *Context);
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 

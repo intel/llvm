@@ -71,15 +71,15 @@ define i32 @lshr12_i32(i32 %x) {
 
 ; negative test - uses
 
-define i32 @lshr8_i32_use(i32 %x, i32* %p) {
+define i32 @lshr8_i32_use(i32 %x, ptr %p) {
 ; CHECK-LABEL: @lshr8_i32_use(
 ; CHECK-NEXT:    [[S:%.*]] = lshr i32 [[X:%.*]], 12
-; CHECK-NEXT:    store i32 [[S]], i32* [[P:%.*]], align 4
+; CHECK-NEXT:    store i32 [[S]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.bswap.i32(i32 [[S]])
 ; CHECK-NEXT:    ret i32 [[R]]
 ;
   %s = lshr i32 %x, 12
-  store i32 %s, i32* %p
+  store i32 %s, ptr %p
   %r = call i32 @llvm.bswap.i32(i32 %s)
   ret i32 %r
 }
@@ -133,15 +133,15 @@ define i64 @shl42_i64(i64 %x) {
 
 ; negative test - uses
 
-define i32 @shl8_i32_use(i32 %x, i32* %p) {
+define i32 @shl8_i32_use(i32 %x, ptr %p) {
 ; CHECK-LABEL: @shl8_i32_use(
 ; CHECK-NEXT:    [[S:%.*]] = shl i32 [[X:%.*]], 8
-; CHECK-NEXT:    store i32 [[S]], i32* [[P:%.*]], align 4
+; CHECK-NEXT:    store i32 [[S]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.bswap.i32(i32 [[S]])
 ; CHECK-NEXT:    ret i32 [[R]]
 ;
   %s = shl i32 %x, 8
-  store i32 %s, i32* %p
+  store i32 %s, ptr %p
   %r = call i32 @llvm.bswap.i32(i32 %s)
   ret i32 %r
 }
@@ -155,6 +155,54 @@ define i64 @swap_shl16_i64(i64 %x) {
 ;
   %b = call i64 @llvm.bswap.i64(i64 %x)
   %s = shl i64 %b, 16
+  %r = call i64 @llvm.bswap.i64(i64 %s)
+  ret i64 %r
+}
+
+; canonicalize shift after bswap if shift amount is multiple of 8-bits
+; (including non-uniform vector elements)
+
+define <2 x i32> @variable_lshr_v2i32(<2 x i32> %x, <2 x i32> %n) {
+; CHECK-LABEL: @variable_lshr_v2i32(
+; CHECK-NEXT:    [[SHAMT:%.*]] = and <2 x i32> [[N:%.*]], <i32 -8, i32 -16>
+; CHECK-NEXT:    [[TMP1:%.*]] = call <2 x i32> @llvm.bswap.v2i32(<2 x i32> [[X:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = lshr <2 x i32> [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    ret <2 x i32> [[R]]
+;
+  %shamt = and <2 x i32> %n, <i32 -8, i32 -16>
+  %s = shl <2 x i32> %x, %shamt
+  %r = call <2 x i32> @llvm.bswap.v2i32(<2 x i32> %s)
+  ret <2 x i32> %r
+}
+
+; PR55327 - swaps cancel
+
+define i64 @variable_shl_i64(i64 %x, i64 %n) {
+; CHECK-LABEL: @variable_shl_i64(
+; CHECK-NEXT:    [[N8:%.*]] = shl i64 [[N:%.*]], 3
+; CHECK-NEXT:    [[SHAMT:%.*]] = and i64 [[N8]], 56
+; CHECK-NEXT:    [[R:%.*]] = lshr i64 [[X:%.*]], [[SHAMT]]
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %b = tail call i64 @llvm.bswap.i64(i64 %x)
+  %n8 = shl i64 %n, 3
+  %shamt = and i64 %n8, 56
+  %s = shl i64 %b, %shamt
+  %r = tail call i64 @llvm.bswap.i64(i64 %s)
+  ret i64 %r
+}
+
+; negative test - must have multiple of 8-bit shift amount
+
+define i64 @variable_shl_not_masked_enough_i64(i64 %x, i64 %n) {
+; CHECK-LABEL: @variable_shl_not_masked_enough_i64(
+; CHECK-NEXT:    [[SHAMT:%.*]] = and i64 [[N:%.*]], -4
+; CHECK-NEXT:    [[S:%.*]] = shl i64 [[X:%.*]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = call i64 @llvm.bswap.i64(i64 [[S]])
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %shamt = and i64 %n, -4
+  %s = shl i64 %x, %shamt
   %r = call i64 @llvm.bswap.i64(i64 %s)
   ret i64 %r
 }

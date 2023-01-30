@@ -46,12 +46,6 @@ llvm_config.use_default_substitutions()
 config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt',
                    'lit.cfg.py', 'lit.site.cfg.py']
 
-# test_source_root: The root path where tests are located.
-config.test_source_root = os.path.dirname(__file__)
-
-# test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.mlir_obj_root, 'test')
-
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.mlir_tools_dir, append_path=True)
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
@@ -66,27 +60,31 @@ tools = [
     'mlir-capi-ir-test',
     'mlir-capi-llvm-test',
     'mlir-capi-pass-test',
-    'mlir-capi-sparse-tensor-test',
-    'mlir-capi-quant-test',
     'mlir-capi-pdl-test',
+    'mlir-capi-quant-test',
+    'mlir-capi-sparse-tensor-test',
+    'mlir-capi-transform-test',
     'mlir-cpu-runner',
     'mlir-linalg-ods-yaml-gen',
     'mlir-reduce',
     'mlir-pdll',
+    'not',
 ]
+
+if config.enable_spirv_cpu_runner:
+  tools.extend(['mlir-spirv-cpu-runner'])
 
 # The following tools are optional
 tools.extend([
-    ToolSubst('toy-ch1', unresolved='ignore'),
-    ToolSubst('toy-ch2', unresolved='ignore'),
-    ToolSubst('toy-ch3', unresolved='ignore'),
-    ToolSubst('toy-ch4', unresolved='ignore'),
-    ToolSubst('toy-ch5', unresolved='ignore'),
-    ToolSubst('%linalg_test_lib_dir', config.linalg_test_lib_dir, unresolved='ignore'),
-    ToolSubst('%mlir_runner_utils_dir', config.mlir_runner_utils_dir, unresolved='ignore'),
-    ToolSubst('%spirv_wrapper_library_dir', config.spirv_wrapper_library_dir, unresolved='ignore'),
-    ToolSubst('%vulkan_wrapper_library_dir', config.vulkan_wrapper_library_dir, unresolved='ignore'),
-    ToolSubst('%mlir_integration_test_dir', config.mlir_integration_test_dir, unresolved='ignore'),
+    ToolSubst('toyc-ch1', unresolved='ignore'),
+    ToolSubst('toyc-ch2', unresolved='ignore'),
+    ToolSubst('toyc-ch3', unresolved='ignore'),
+    ToolSubst('toyc-ch4', unresolved='ignore'),
+    ToolSubst('toyc-ch5', unresolved='ignore'),
+    ToolSubst('toyc-ch6', unresolved='ignore'),
+    ToolSubst('toyc-ch7', unresolved='ignore'),
+    ToolSubst('%mlir_lib_dir', config.mlir_lib_dir, unresolved='ignore'),
+    ToolSubst('%mlir_src_dir', config.mlir_src_root, unresolved='ignore'),
 ])
 
 python_executable = config.python_executable
@@ -94,6 +92,10 @@ python_executable = config.python_executable
 # TODO: detect Darwin/Windows situation (or mark these tests as unsupported on these platforms).
 if "asan" in config.available_features and "Linux" in config.host_os:
   python_executable = f"LD_PRELOAD=$({config.host_cxx} -print-file-name=libclang_rt.asan-{config.host_arch}.so) {config.python_executable}"
+# On Windows the path to python could contains spaces in which case it needs to be provided in quotes.
+# This is the equivalent of how %python is setup in llvm/utils/lit/lit/llvm/config.py.
+elif "Windows" in config.host_os:
+  python_executable = '"%s"' % (python_executable)
 tools.extend([
   ToolSubst('%PYTHON', python_executable, unresolved='ignore'),
 ])
@@ -106,23 +108,38 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 # it can be explicitly opted-in by prefixing the variable name with $
 config.environment['FILECHECK_OPTS'] = "-enable-var-scope --allow-unused-prefixes=false"
 
-
-if config.native_target in config.targets_to_build:
-    config.available_features.add('llvm_has_native_target')
-
-
-
 # Add the python path for both the source and binary tree.
 # Note that presently, the python sources come from the source tree and the
 # binaries come from the build tree. This should be unified to the build tree
 # by copying/linking sources to build.
 if config.enable_bindings_python:
-    llvm_config.with_environment('PYTHONPATH', [
-        os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_core'),
-        os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_test'),
-    ], append_path=True)
+  llvm_config.with_environment('PYTHONPATH', [
+      os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_core'),
+      os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_test'),
+  ], append_path=True)
 
 if config.enable_assertions:
-    config.available_features.add('asserts')
+  config.available_features.add('asserts')
 else:
-    config.available_features.add('noasserts')
+  config.available_features.add('noasserts')
+
+def have_host_jit_feature_support(feature_name):
+  mlir_cpu_runner_exe = lit.util.which('mlir-cpu-runner', config.mlir_tools_dir)
+
+  if not mlir_cpu_runner_exe:
+    return False
+
+  try:
+    mlir_cpu_runner_cmd = subprocess.Popen(
+        [mlir_cpu_runner_exe, '--host-supports-' + feature_name], stdout=subprocess.PIPE)
+  except OSError:
+    print('could not exec mlir-cpu-runner')
+    return False
+
+  mlir_cpu_runner_out = mlir_cpu_runner_cmd.stdout.read().decode('ascii')
+  mlir_cpu_runner_cmd.wait()
+
+  return 'true' in mlir_cpu_runner_out
+
+if have_host_jit_feature_support('jit'):
+  config.available_features.add('host-supports-jit')

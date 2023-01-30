@@ -302,9 +302,9 @@ void SPIRVEntry::setLine(const std::shared_ptr<const SPIRVLine> &L) {
 }
 
 void SPIRVEntry::addMemberDecorate(SPIRVMemberDecorate *Dec) {
-  assert(canHaveMemberDecorates() &&
-         MemberDecorates.find(Dec->getPair()) == MemberDecorates.end());
-  MemberDecorates[Dec->getPair()] = Dec;
+  assert(canHaveMemberDecorates());
+  MemberDecorates.insert(std::make_pair(
+      std::make_pair(Dec->getMemberNumber(), Dec->getDecorateKind()), Dec));
   Module->addDecorate(Dec);
   SPIRVDBG(spvdbgs() << "[addMemberDecorate] " << *Dec << '\n';)
 }
@@ -388,6 +388,33 @@ SPIRVEntry::getMemberDecorationStringLiteral(Decoration Kind,
     return {};
 
   return getVecString(Loc->second->getVecLiteral());
+}
+
+std::vector<std::vector<std::string>>
+SPIRVEntry::getAllDecorationStringLiterals(Decoration Kind) const {
+  auto Loc = Decorates.find(Kind);
+  if (Loc == Decorates.end())
+    return {};
+
+  std::vector<std::vector<std::string>> Literals;
+  auto It = Decorates.equal_range(Kind);
+  for (auto Itr = It.first; Itr != It.second; ++Itr)
+    Literals.push_back(getVecString(Itr->second->getVecLiteral()));
+  return Literals;
+}
+
+std::vector<std::vector<std::string>>
+SPIRVEntry::getAllMemberDecorationStringLiterals(Decoration Kind,
+                                                 SPIRVWord MemberNumber) const {
+  auto Loc = MemberDecorates.find({MemberNumber, Kind});
+  if (Loc == MemberDecorates.end())
+    return {};
+
+  std::vector<std::vector<std::string>> Literals;
+  auto It = MemberDecorates.equal_range({MemberNumber, Kind});
+  for (auto Itr = It.first; Itr != It.second; ++Itr)
+    Literals.push_back(getVecString(Itr->second->getVecLiteral()));
+  return Literals;
 }
 
 std::vector<SPIRVWord>
@@ -521,7 +548,8 @@ void SPIRVEntry::updateModuleVersion() const {
   if (!Module)
     return;
 
-  Module->setMinSPIRVVersion(getRequiredSPIRVVersion());
+  Module->setMinSPIRVVersion(
+      static_cast<VersionNumber>(getRequiredSPIRVVersion()));
 }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E) {
@@ -579,11 +607,12 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeFloatingPointModeALTINTEL:
   case ExecutionModeFloatingPointModeIEEEINTEL:
   case ExecutionModeSharedLocalMemorySizeINTEL:
+  case ExecutionModeNamedBarrierCountINTEL:
   case ExecutionModeSubgroupSize:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:
-  case internal::ExecutionModeStreamingInterfaceINTEL:
+  case ExecutionModeStreamingInterfaceINTEL:
     WordLiterals.resize(1);
     break;
   default:

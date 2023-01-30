@@ -17,7 +17,6 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-class FunctionPass;
 class Module;
 class StringRef;
 class raw_ostream;
@@ -49,11 +48,6 @@ public:
 private:
   HWAddressSanitizerOptions Options;
 };
-
-FunctionPass *
-createHWAddressSanitizerLegacyPassPass(bool CompileKernel = false,
-                                       bool Recover = false,
-                                       bool DisableOptimization = false);
 
 namespace HWASanAccessInfo {
 

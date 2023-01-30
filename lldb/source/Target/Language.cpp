@@ -144,7 +144,7 @@ Language::GetHardcodedSynthetics() {
   return {};
 }
 
-std::vector<ConstString>
+std::vector<FormattersMatchCandidate>
 Language::GetPossibleFormattersMatches(ValueObject &valobj,
                                        lldb::DynamicValueType use_dynamic) {
   return {};
@@ -426,6 +426,14 @@ bool Language::GetFormatterPrefixSuffix(ValueObject &valobj,
                                         std::string &prefix,
                                         std::string &suffix) {
   return false;
+}
+
+bool Language::DemangledNameContainsPath(llvm::StringRef path, 
+                                         ConstString demangled) const {
+  // The base implementation does a simple contains comparision:
+  if (path.empty())
+    return false;
+  return demangled.GetStringRef().contains(path);                                         
 }
 
 DumpValueObjectOptions::DeclPrintingHelper Language::GetDeclPrintingHelper() {

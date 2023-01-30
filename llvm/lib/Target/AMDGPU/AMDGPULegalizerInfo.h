@@ -60,8 +60,6 @@ public:
                                 MachineIRBuilder &B) const;
   bool legalizeInsertVectorElt(MachineInstr &MI, MachineRegisterInfo &MRI,
                                MachineIRBuilder &B) const;
-  bool legalizeShuffleVector(MachineInstr &MI, MachineRegisterInfo &MRI,
-                             MachineIRBuilder &B) const;
 
   bool legalizeSinCos(MachineInstr &MI, MachineRegisterInfo &MRI,
                       MachineIRBuilder &B) const;
@@ -88,6 +86,12 @@ public:
 
   bool legalizeBuildVector(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B) const;
+
+  void buildMultiply(LegalizerHelper &Helper, MutableArrayRef<Register> Accum,
+                     ArrayRef<Register> Src0, ArrayRef<Register> Src1,
+                     bool UsePartialMad64_32,
+                     bool SeparateOddAlignedProducts) const;
+  bool legalizeMul(LegalizerHelper &Helper, MachineInstr &MI) const;
   bool legalizeCTLZ_CTTZ(MachineInstr &MI, MachineRegisterInfo &MRI,
                          MachineIRBuilder &B) const;
 
@@ -96,9 +100,13 @@ public:
                       const TargetRegisterClass *ArgRC, LLT ArgTy) const;
   bool loadInputValue(Register DstReg, MachineIRBuilder &B,
                       AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
+
   bool legalizePreloadedArgIntrin(
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
     AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
+  bool legalizeWorkitemIDIntrinsic(
+      MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+      unsigned Dim, AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
 
   Register getKernargParameterPtr(MachineIRBuilder &B, int64_t Offset) const;
   bool legalizeKernargMemParameter(MachineInstr &MI, MachineIRBuilder &B,
@@ -145,6 +153,13 @@ public:
 
   bool legalizeImplicitArgPtr(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
+
+  bool getLDSKernelId(Register DstReg, MachineRegisterInfo &MRI,
+                      MachineIRBuilder &B) const;
+
+  bool legalizeLDSKernelId(MachineInstr &MI, MachineRegisterInfo &MRI,
+                           MachineIRBuilder &B) const;
+
   bool legalizeIsAddrSpace(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B, unsigned AddrSpace) const;
 

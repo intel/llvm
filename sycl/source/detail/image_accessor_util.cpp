@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/builtins.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/builtins.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // For Nearest Filtering mode, process cl_float4 Coordinates and return the
@@ -23,12 +23,12 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
     cl_float4 Tempuvw(0);
-    Tempuvw = 2.0f * cl::sycl::rint(0.5f * Coorduvw);
-    Tempuvw = cl::sycl::fabs(Coorduvw - Tempuvw);
+    Tempuvw = 2.0f * sycl::rint(0.5f * Coorduvw);
+    Tempuvw = sycl::fabs(Coorduvw - Tempuvw);
     Tempuvw = Tempuvw * (Rangewhd.convert<cl_float>());
-    Tempuvw = (cl::sycl::floor(Tempuvw));
+    Tempuvw = (sycl::floor(Tempuvw));
     Coordijk = Tempuvw.convert<cl_int>();
-    Coordijk = cl::sycl::min(Coordijk, (Rangewhd - 1));
+    Coordijk = sycl::min(Coordijk, (Rangewhd - 1));
     // Eg:
     // u,v,w = {2.3,1.7,0.5} // normalized coordinates.
     // w,h,d = {9,9,9}
@@ -47,12 +47,10 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
   case addressing_mode::repeat: {
 
     cl_float4 Tempuvw(0);
-    Tempuvw =
-        (Coorduvw - cl::sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
-    Coordijk = (cl::sycl::floor(Tempuvw)).convert<cl_int>();
+    Tempuvw = (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
+    Coordijk = (sycl::floor(Tempuvw)).convert<cl_int>();
     cl_int4 GreaterThanEqual = (Coordijk >= Rangewhd);
-    Coordijk =
-        cl::sycl::select(Coordijk, (Coordijk - Rangewhd), GreaterThanEqual);
+    Coordijk = sycl::select(Coordijk, (Coordijk - Rangewhd), GreaterThanEqual);
     // Eg:
     // u = 2.3; v = 1.5; w = 0.5; // normalized coordinates.
     // w,h,d  = {9,9,9};
@@ -70,15 +68,15 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
     // i = 2; j = 4; k = 4;
   } break;
   case addressing_mode::clamp_to_edge:
-    Coordijk = (cl::sycl::floor(Coorduvw)).convert<cl_int>();
-    Coordijk = cl::sycl::clamp(Coordijk, cl_int4(0), (Rangewhd - 1));
+    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = sycl::clamp(Coordijk, cl_int4(0), (Rangewhd - 1));
     break;
   case addressing_mode::clamp:
-    Coordijk = (cl::sycl::floor(Coorduvw)).convert<cl_int>();
-    Coordijk = cl::sycl::clamp(Coordijk, cl_int4(-1), Rangewhd);
+    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = sycl::clamp(Coordijk, cl_int4(-1), Rangewhd);
     break;
   case addressing_mode::none:
-    Coordijk = (cl::sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
     break;
   }
   return Coordijk;
@@ -92,49 +90,48 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
 // coordinates and multiplication coefficients.
 cl_int8 getPixelCoordLinearFiltMode(cl_float4 Coorduvw,
                                     const addressing_mode SmplAddrMode,
-                                    const range<3> ImgRange, cl_float4 &Retabc) {
+                                    const range<3> ImgRange,
+                                    cl_float4 &Retabc) {
   cl_int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   cl_int4 Ci0j0k0(0);
   cl_int4 Ci1j1k1(0);
-  cl_int4 Int_uvwsubhalf = cl::sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+  cl_int4 Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
 
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
     cl_float4 Temp;
-    Temp = (cl::sycl::rint(Coorduvw * 0.5f)) * 2.0f;
-    Temp = cl::sycl::fabs(Coorduvw - Temp);
+    Temp = (sycl::rint(Coorduvw * 0.5f)) * 2.0f;
+    Temp = sycl::fabs(Coorduvw - Temp);
     Coorduvw = Temp * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = cl::sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
 
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
 
-    Ci0j0k0 = cl::sycl::max(Ci0j0k0, 0);
-    Ci1j1k1 = cl::sycl::min(Ci1j1k1, (Rangewhd - 1));
+    Ci0j0k0 = sycl::max(Ci0j0k0, 0);
+    Ci1j1k1 = sycl::min(Ci1j1k1, (Rangewhd - 1));
   } break;
   case addressing_mode::repeat: {
 
     Coorduvw =
-        (Coorduvw - cl::sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = cl::sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+        (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
+    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
 
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
 
-    Ci0j0k0 =
-        cl::sycl::select(Ci0j0k0, (Ci0j0k0 + Rangewhd), Ci0j0k0 < cl_int4(0));
-    Ci1j1k1 =
-        cl::sycl::select(Ci1j1k1, (Ci1j1k1 - Rangewhd), Ci1j1k1 >= Rangewhd);
+    Ci0j0k0 = sycl::select(Ci0j0k0, (Ci0j0k0 + Rangewhd), Ci0j0k0 < cl_int4(0));
+    Ci1j1k1 = sycl::select(Ci1j1k1, (Ci1j1k1 - Rangewhd), Ci1j1k1 >= Rangewhd);
 
   } break;
   case addressing_mode::clamp_to_edge: {
-    Ci0j0k0 = cl::sycl::clamp(Int_uvwsubhalf, cl_int4(0), (Rangewhd - 1));
-    Ci1j1k1 = cl::sycl::clamp((Int_uvwsubhalf + 1), cl_int4(0), (Rangewhd - 1));
+    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, cl_int4(0), (Rangewhd - 1));
+    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), cl_int4(0), (Rangewhd - 1));
     break;
   }
   case addressing_mode::clamp: {
-    Ci0j0k0 = cl::sycl::clamp(Int_uvwsubhalf, cl_int4(-1), Rangewhd);
-    Ci1j1k1 = cl::sycl::clamp((Int_uvwsubhalf + 1), cl_int4(-1), Rangewhd);
+    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, cl_int4(-1), Rangewhd);
+    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), cl_int4(-1), Rangewhd);
     break;
   }
   case addressing_mode::none: {
@@ -188,5 +185,5 @@ cl_float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

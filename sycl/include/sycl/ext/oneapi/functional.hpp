@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/functional.hpp>
+#include <sycl/functional.hpp>
 
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -24,8 +23,7 @@ template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using maximum = sycl::maximum<T>;
 template <typename T = void> using minimum = sycl::minimum<T>;
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
@@ -104,5 +102,5 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -18,7 +18,14 @@
 #ifndef PI_HIP_HPP
 #define PI_HIP_HPP
 
-#include "CL/sycl/detail/pi.h"
+// This version should be incremented for any change made to this file or its
+// corresponding .cpp file.
+#define _PI_HIP_PLUGIN_VERSION 1
+
+#define _PI_HIP_PLUGIN_VERSION_STRING                                          \
+  _PI_PLUGIN_VERSION_STRING(_PI_HIP_PLUGIN_VERSION)
+
+#include "sycl/detail/pi.h"
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -50,12 +57,15 @@ pi_result hip_piKernelRelease(pi_kernel);
 /// \endcond
 }
 
+using _pi_stream_guard = std::unique_lock<std::mutex>;
+
 /// A PI platform stores all known PI devices,
 ///  in the HIP plugin this is just a vector of
 ///  available devices since initialization is done
 ///  when devices are used.
 ///
 struct _pi_platform {
+  static hipEvent_t evBase_; // HIP event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -71,6 +81,7 @@ private:
   native_type cuDevice_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
+  pi_context context_;
 
 public:
   _pi_device(native_type cuDevice, pi_platform platform)
@@ -81,6 +92,10 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void set_context(pi_context ctx) { context_ = ctx; };
+
+  pi_context get_context() { return context_; };
 };
 
 /// PI context mapping to a HIP context object.
@@ -137,11 +152,9 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  hipEvent_t evBase_; // HIP event used as base counter
-
   _pi_context(kind k, hipCtx_t ctxt, _pi_device *devId)
-      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        evBase_(nullptr) {
+      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1} {
+    deviceId_->set_context(this);
     hip_piDeviceRetain(deviceId_);
   };
 
@@ -363,18 +376,55 @@ struct _pi_mem {
 ///
 struct _pi_queue {
   using native_type = hipStream_t;
+  static constexpr int default_num_compute_streams = 64;
+  static constexpr int default_num_transfer_streams = 16;
 
-  native_type stream_;
+  std::vector<native_type> compute_streams_;
+  std::vector<native_type> transfer_streams_;
+  // delay_compute_ keeps track of which streams have been recently reused and
+  // their next use should be delayed. If a stream has been recently reused it
+  // will be skipped the next time it would be selected round-robin style. When
+  // skipped, its delay flag is cleared.
+  std::vector<bool> delay_compute_;
+  // keep track of which streams have applied barrier
+  std::vector<bool> compute_applied_barrier_;
+  std::vector<bool> transfer_applied_barrier_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
+  hipEvent_t barrier_event_ = nullptr;
+  hipEvent_t barrier_tmp_event_ = nullptr;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
+  std::atomic_uint32_t compute_stream_idx_;
+  std::atomic_uint32_t transfer_stream_idx_;
+  unsigned int num_compute_streams_;
+  unsigned int num_transfer_streams_;
+  unsigned int last_sync_compute_streams_;
+  unsigned int last_sync_transfer_streams_;
+  unsigned int flags_;
+  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be
+  // locked at the same time, compute_stream_sync_mutex_ should be locked first
+  // to avoid deadlocks
+  std::mutex compute_stream_sync_mutex_;
+  std::mutex compute_stream_mutex_;
+  std::mutex transfer_stream_mutex_;
+  std::mutex barrier_mutex_;
 
-  _pi_queue(hipStream_t stream, _pi_context *context, _pi_device *device,
-            pi_queue_properties properties)
-      : stream_{stream}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0} {
+  _pi_queue(std::vector<native_type> &&compute_streams,
+            std::vector<native_type> &&transfer_streams, _pi_context *context,
+            _pi_device *device, pi_queue_properties properties,
+            unsigned int flags)
+      : compute_streams_{std::move(compute_streams)},
+        transfer_streams_{std::move(transfer_streams)},
+        delay_compute_(compute_streams_.size(), false),
+        compute_applied_barrier_(compute_streams_.size()),
+        transfer_applied_barrier_(transfer_streams_.size()), context_{context},
+        device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
+        compute_stream_idx_{0}, transfer_stream_idx_{0},
+        num_compute_streams_{0}, num_transfer_streams_{0},
+        last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
+        flags_(flags) {
     hip_piContextRetain(context_);
     hip_piDeviceRetain(device_);
   }
@@ -384,9 +434,166 @@ struct _pi_queue {
     hip_piDeviceRelease(device_);
   }
 
-  native_type get() const noexcept { return stream_; };
+  void compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                 pi_uint32 stream_i);
+  void transfer_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                  pi_uint32 stream_i);
+
+  // get_next_compute/transfer_stream() functions return streams from
+  // appropriate pools in round-robin fashion
+  native_type get_next_compute_stream(pi_uint32 *stream_token = nullptr);
+  // this overload tries select a stream that was used by one of dependancies.
+  // If that is not possible returns a new stream. If a stream is reused it
+  // returns a lock that needs to remain locked as long as the stream is in use
+  native_type get_next_compute_stream(pi_uint32 num_events_in_wait_list,
+                                      const pi_event *event_wait_list,
+                                      _pi_stream_guard &guard,
+                                      pi_uint32 *stream_token = nullptr);
+  native_type get_next_transfer_stream();
+  native_type get() { return get_next_compute_stream(); };
+
+  bool has_been_synchronized(pi_uint32 stream_token) {
+    // stream token not associated with one of the compute streams
+    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
+      return false;
+    }
+    return last_sync_compute_streams_ >= stream_token;
+  }
+
+  bool can_reuse_stream(pi_uint32 stream_token) {
+    // stream token not associated with one of the compute streams
+    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
+      return false;
+    }
+    // If the command represented by the stream token was not the last command
+    // enqueued to the stream we can not reuse the stream - we need to allow for
+    // commands enqueued after it and the one we are about to enqueue to run
+    // concurrently
+    bool is_last_command =
+        (compute_stream_idx_ - stream_token) <= compute_streams_.size();
+    // If there was a barrier enqueued to the queue after the command
+    // represented by the stream token we should not reuse the stream, as we can
+    // not take that stream into account for the bookkeeping for the next
+    // barrier - such a stream would not be synchronized with. Performance-wise
+    // it does not matter that we do not reuse the stream, as the work
+    // represented by the stream token is guaranteed to be complete by the
+    // barrier before any work we are about to enqueue to the stream will start,
+    // so the event does not need to be synchronized with.
+    return is_last_command && !has_been_synchronized(stream_token);
+  }
+
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
+    }
+    return true;
+  }
+
+  template <typename T> void for_each_stream(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(compute_streams_[i]);
+      }
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(transfer_streams_[i]);
+      }
+    }
+  }
+
+  template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
+    auto sync_compute = [&f, &streams = compute_streams_,
+                         &delay = delay_compute_](unsigned int start,
+                                                  unsigned int stop) {
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+        delay[i] = false;
+      }
+    };
+    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start,
+                                                            unsigned int stop) {
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+      }
+    };
+    {
+      unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      std::lock_guard compute_sync_guard(compute_stream_sync_mutex_);
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int start = last_sync_compute_streams_;
+      unsigned int end = num_compute_streams_ < size
+                             ? num_compute_streams_
+                             : compute_stream_idx_.load();
+      if (ResetUsed) {
+        last_sync_compute_streams_ = end;
+      }
+      if (end - start >= size) {
+        sync_compute(0, size);
+      } else {
+        start %= size;
+        end %= size;
+        if (start < end) {
+          sync_compute(start, end);
+        } else {
+          sync_compute(start, size);
+          sync_compute(0, end);
+        }
+      }
+    }
+    {
+      unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
+      if (size > 0) {
+        std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+        unsigned int start = last_sync_transfer_streams_;
+        unsigned int end = num_transfer_streams_ < size
+                               ? num_transfer_streams_
+                               : transfer_stream_idx_.load();
+        if (ResetUsed) {
+          last_sync_transfer_streams_ = end;
+        }
+        if (end - start >= size) {
+          sync_transfer(0, size);
+        } else {
+          start %= size;
+          end %= size;
+          if (start < end) {
+            sync_transfer(start, end);
+          } else {
+            sync_transfer(start, size);
+            sync_transfer(0, end);
+          }
+        }
+      }
+    }
+  }
 
   _pi_context *get_context() const { return context_; };
+
+  _pi_device *get_device() const { return device_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -414,6 +621,10 @@ public:
   native_type get() const noexcept { return evEnd_; };
 
   pi_queue get_queue() const noexcept { return queue_; }
+
+  hipStream_t get_stream() const noexcept { return stream_; }
+
+  pi_uint32 get_compute_stream_token() const noexcept { return streamToken_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
@@ -458,8 +669,11 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native HIP. This maps closely to the underlying HIP event.
-  static pi_event make_native(pi_command_type type, pi_queue queue) {
-    return new _pi_event(type, queue->get_context(), queue);
+  static pi_event
+  make_native(pi_command_type type, pi_queue queue, hipStream_t stream,
+              pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
+    return new _pi_event(type, queue->get_context(), queue, stream,
+                         stream_token);
   }
 
   pi_result release();
@@ -469,14 +683,16 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for HIP.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+  _pi_event(pi_command_type type, pi_context context, pi_queue queue,
+            hipStream_t stream, pi_uint32 stream_token);
 
   pi_command_type commandType_; // The type of command associated with event.
 
   std::atomic_uint32_t refCount_; // Event reference count.
 
-  bool isCompleted_; // Signifies whether the operations have completed
-                     //
+  bool hasBeenWaitedOn_; // Signifies whether the event has been waited
+                         // on through a call to wait(), which implies
+                         // that it has completed.
 
   bool isRecorded_; // Signifies wether a native HIP event has been recorded
                     // yet.
@@ -484,6 +700,7 @@ private:
                     // PI event has started or not
                     //
 
+  pi_uint32 streamToken_;
   pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // HIP event handle. If this _pi_event represents a user
@@ -496,6 +713,9 @@ private:
 
   pi_queue queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
+
+  hipStream_t stream_; // hipStream_t associated with the event. If this is a
+                       // user event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated

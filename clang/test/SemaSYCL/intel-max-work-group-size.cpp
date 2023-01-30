@@ -5,6 +5,7 @@
 [[intel::max_work_group_size(12, 12, 12, 12)]] void f0(); // expected-error {{'max_work_group_size' attribute requires exactly 3 arguments}}
 [[intel::max_work_group_size("derp", 1, 2)]] void f1();   // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
 [[intel::max_work_group_size(1, 1, 1)]] int i;            // expected-error {{'max_work_group_size' attribute only applies to functions}}
+[[intel::max_work_group_size(-8, 8, -8)]] void neg();     // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
 // Tests for Intel FPGA 'max_work_group_size' attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
@@ -100,8 +101,46 @@ f15() {} // OK
 [[intel::max_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f17(){}; // OK
 
 [[sycl::reqd_work_group_size(16)]]            // expected-note {{conflicting attribute is here}}
-[[intel::max_work_group_size(1, 1, 16)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[intel::max_work_group_size(16, 1, 1)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 f18();
 
-[[intel::max_work_group_size(16, 16, 1)]] void f19();
+[[intel::max_work_group_size(1, 16, 16)]] void f19();
 [[sycl::reqd_work_group_size(16, 16)]] void f19(); // OK
+
+// Test that checks wrong function template instantiation and ensures that the type
+// is checked properly when instantiating from the template definition.
+
+template <typename Ty, typename Ty1, typename Ty2>
+// expected-error@+1 3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+[[intel::max_work_group_size(Ty{}, Ty1{}, Ty2{})]] void f20() {}
+
+struct S {};
+void var() {
+  // expected-note@+1 {{in instantiation of function template specialization 'f20<S, S, S>' requested here}}
+  f20<S, S, S>();
+}
+
+// Test that checks expression is not a constant expression.
+// expected-note@+1 3{{declared here}}
+int foo();
+// expected-error@+2 3{{expression is not an integral constant expression}}
+// expected-note@+1 3{{non-constexpr function 'foo' cannot be used in a constant expression}}
+[[intel::max_work_group_size(foo() + 12, foo() + 12, foo() + 12)]] void f21();
+
+// Test that checks expression is a constant expression.
+constexpr int bar() { return 0; }
+[[intel::max_work_group_size(bar() + 12, bar() + 12, bar() + 12)]] void f22(); // OK
+
+struct DAFuncObj {
+  [[intel::max_work_group_size(4, 4, 4)]] // expected-note {{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(8, 8, 4)]]   // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}} \
+                                          // expected-warning{{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                          // expected-note{{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  void
+  operator()() const {}
+};
+
+struct Func {
+  // expected-warning@+1 {{unknown attribute 'max_work_group_size' ignored}}
+  [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
+};

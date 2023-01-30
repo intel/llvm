@@ -107,15 +107,18 @@ public:
   llvm::Error getSystemGPUArch(const llvm::opt::ArgList &Args,
                                std::string &GPUArch) const;
 
+  llvm::Error detectSystemGPUs(const llvm::opt::ArgList &Args,
+                               SmallVector<std::string, 1> &GPUArchs) const;
+
 protected:
   /// Check and diagnose invalid target ID specified by -mcpu.
   virtual void checkTargetID(const llvm::opt::ArgList &DriverArgs) const;
 
   /// The struct type returned by getParsedTargetID.
   struct ParsedTargetIDType {
-    Optional<std::string> OptionalTargetID;
-    Optional<std::string> OptionalGPUArch;
-    Optional<llvm::StringMap<bool>> OptionalFeatures;
+    std::optional<std::string> OptionalTargetID;
+    std::optional<std::string> OptionalGPUArch;
+    std::optional<llvm::StringMap<bool>> OptionalFeatures;
   };
 
   /// Get target ID, GPU arch, and target ID features if the target ID is
@@ -126,8 +129,6 @@ protected:
   /// Get GPU arch from -mcpu without checking.
   StringRef getGPUArch(const llvm::opt::ArgList &DriverArgs) const;
 
-  llvm::Error detectSystemGPUs(const llvm::opt::ArgList &Args,
-                               SmallVector<std::string, 1> &GPUArchs) const;
 };
 
 class LLVM_LIBRARY_VISIBILITY ROCMToolChain : public AMDGPUToolChain {

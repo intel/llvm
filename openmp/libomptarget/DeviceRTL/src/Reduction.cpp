@@ -18,11 +18,11 @@
 #include "Types.h"
 #include "Utils.h"
 
-using namespace _OMP;
+using namespace ompx;
 
 namespace {
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 void gpu_regular_warp_reduce(void *reduce_data, ShuffleReductFnTy shflFct) {
   for (uint32_t mask = mapping::getWarpSize() / 2; mask > 0; mask /= 2) {
@@ -167,8 +167,8 @@ uint32_t roundToWarpsize(uint32_t s) {
 
 uint32_t kmpcMin(uint32_t x, uint32_t y) { return x < y ? x : y; }
 
-static volatile uint32_t IterCnt = 0;
-static volatile uint32_t Cnt = 0;
+static uint32_t IterCnt = 0;
+static uint32_t Cnt = 0;
 
 } // namespace
 
@@ -211,7 +211,7 @@ int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
   // to the number of slots in the buffer.
   bool IsMaster = (ThreadId == 0);
   while (IsMaster) {
-    Bound = atomic::load((uint32_t *)&IterCnt, __ATOMIC_SEQ_CST);
+    Bound = atomic::load(&IterCnt, atomic::seq_cst);
     if (TeamId < Bound + num_of_records)
       break;
   }
@@ -223,13 +223,12 @@ int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
     } else
       lgredFct(GlobalBuffer, ModBockId, reduce_data);
 
-    fence::system(__ATOMIC_SEQ_CST);
+    fence::system(atomic::seq_cst);
 
     // Increment team counter.
     // This counter is incremented by all teams in the current
     // BUFFER_SIZE chunk.
-    ChunkTeamCount =
-        atomic::inc((uint32_t *)&Cnt, num_of_records - 1u, __ATOMIC_SEQ_CST);
+    ChunkTeamCount = atomic::inc(&Cnt, num_of_records - 1u, atomic::seq_cst);
   }
   // Synchronize
   if (mapping::isSPMDMode())
@@ -305,8 +304,7 @@ int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
   if (IsMaster && ChunkTeamCount == num_of_records - 1) {
     // Allow SIZE number of teams to proceed writing their
     // intermediate results to the global buffer.
-    atomic::add((uint32_t *)&IterCnt, uint32_t(num_of_records),
-                __ATOMIC_SEQ_CST);
+    atomic::add(&IterCnt, uint32_t(num_of_records), atomic::seq_cst);
   }
 
   return 0;

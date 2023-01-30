@@ -17,6 +17,7 @@
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Tools/PDLL/AST/Nodes.h"
+#include "mlir/Tools/PDLL/ODS/Operation.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
@@ -51,10 +52,15 @@ private:
   void generate(const ast::UserConstraintDecl *decl,
                 StringSet<> &nativeFunctions);
   void generate(const ast::UserRewriteDecl *decl, StringSet<> &nativeFunctions);
-  void generateConstraintOrRewrite(StringRef name, bool isConstraint,
-                                   ArrayRef<ast::VariableDecl *> inputs,
-                                   StringRef codeBlock,
+  void generateConstraintOrRewrite(const ast::CallableDecl *decl,
+                                   bool isConstraint,
                                    StringSet<> &nativeFunctions);
+
+  /// Return the native name for the type of the given type.
+  StringRef getNativeTypeName(ast::Type type);
+
+  /// Return the native name for the type of the given variable decl.
+  StringRef getNativeTypeName(ast::VariableDecl *decl);
 
   /// The stream to output to.
   raw_ostream &os;
@@ -73,7 +79,7 @@ void CodeGen::generate(const ast::Module &astModule, ModuleOp module) {
   int patternIndex = 0;
   for (pdl::PatternOp pattern : module.getOps<pdl::PatternOp>()) {
     // If the pattern has a name, use that. Otherwise, generate a unique name.
-    if (Optional<StringRef> patternName = pattern.sym_name()) {
+    if (std::optional<StringRef> patternName = pattern.getSymName()) {
       patternNames.insert(patternName->str());
     } else {
       std::string name;
@@ -87,10 +93,12 @@ void CodeGen::generate(const ast::Module &astModule, ModuleOp module) {
   os << "} // end namespace\n\n";
 
   // Emit function to add the generated matchers to the pattern list.
-  os << "static void LLVM_ATTRIBUTE_UNUSED populateGeneratedPDLLPatterns("
-        "::mlir::RewritePatternSet &patterns) {\n";
+  os << "template <typename... ConfigsT>\n"
+        "static void LLVM_ATTRIBUTE_UNUSED populateGeneratedPDLLPatterns("
+        "::mlir::RewritePatternSet &patterns, ConfigsT &&...configs) {\n";
   for (const auto &name : patternNames)
-    os << "  patterns.add<" << name << ">(patterns.getContext());\n";
+    os << "  patterns.add<" << name
+       << ">(patterns.getContext(), configs...);\n";
   os << "}\n";
 }
 
@@ -98,14 +106,15 @@ void CodeGen::generate(pdl::PatternOp pattern, StringRef patternName,
                        StringSet<> &nativeFunctions) {
   const char *patternClassStartStr = R"(
 struct {0} : ::mlir::PDLPatternModule {{
-  {0}(::mlir::MLIRContext *context)
+  template <typename... ConfigsT>
+  {0}(::mlir::MLIRContext *context, ConfigsT &&...configs)
     : ::mlir::PDLPatternModule(::mlir::parseSourceString<::mlir::ModuleOp>(
 )";
   os << llvm::formatv(patternClassStartStr, patternName);
 
   os << "R\"mlir(";
   pattern->print(os, OpPrintingFlags().enableDebugInfo());
-  os << "\n    )mlir\", context)) {\n";
+  os << "\n    )mlir\", context), std::forward<ConfigsT>(configs)...) {\n";
 
   // Register any native functions used within the pattern.
   StringSet<> registeredNativeFunctions;
@@ -118,9 +127,9 @@ struct {0} : ::mlir::PDLPatternModule {{
   };
   pattern.walk([&](Operation *op) {
     if (auto constraintOp = dyn_cast<pdl::ApplyNativeConstraintOp>(op))
-      checkRegisterNativeFn(constraintOp.name(), "Constraint");
+      checkRegisterNativeFn(constraintOp.getName(), "Constraint");
     else if (auto rewriteOp = dyn_cast<pdl::ApplyNativeRewriteOp>(op))
-      checkRegisterNativeFn(rewriteOp.name(), "Rewrite");
+      checkRegisterNativeFn(rewriteOp.getName(), "Rewrite");
   });
   os << "  }\n};\n\n";
 }
@@ -134,7 +143,7 @@ void CodeGen::generateConstraintAndRewrites(const ast::Module &astModule,
   module.walk([&](Operation *op) {
     TypeSwitch<Operation *>(op)
         .Case<pdl::ApplyNativeConstraintOp, pdl::ApplyNativeRewriteOp>(
-            [&](auto op) { usedFns.insert(op.name()); });
+            [&](auto op) { usedFns.insert(op.getName()); });
   });
 
   for (const ast::Decl *decl : astModule.getChildren()) {
@@ -152,55 +161,88 @@ void CodeGen::generateConstraintAndRewrites(const ast::Module &astModule,
 
 void CodeGen::generate(const ast::UserConstraintDecl *decl,
                        StringSet<> &nativeFunctions) {
-  return generateConstraintOrRewrite(decl->getName().getName(),
-                                     /*isConstraint=*/true, decl->getInputs(),
-                                     *decl->getCodeBlock(), nativeFunctions);
+  return generateConstraintOrRewrite(cast<ast::CallableDecl>(decl),
+                                     /*isConstraint=*/true, nativeFunctions);
 }
 
 void CodeGen::generate(const ast::UserRewriteDecl *decl,
                        StringSet<> &nativeFunctions) {
-  return generateConstraintOrRewrite(decl->getName().getName(),
-                                     /*isConstraint=*/false, decl->getInputs(),
-                                     *decl->getCodeBlock(), nativeFunctions);
+  return generateConstraintOrRewrite(cast<ast::CallableDecl>(decl),
+                                     /*isConstraint=*/false, nativeFunctions);
 }
 
-void CodeGen::generateConstraintOrRewrite(StringRef name, bool isConstraint,
-                                          ArrayRef<ast::VariableDecl *> inputs,
-                                          StringRef codeBlock,
-                                          StringSet<> &nativeFunctions) {
-  nativeFunctions.insert(name);
+StringRef CodeGen::getNativeTypeName(ast::Type type) {
+  return llvm::TypeSwitch<ast::Type, StringRef>(type)
+      .Case([&](ast::AttributeType) { return "::mlir::Attribute"; })
+      .Case([&](ast::OperationType opType) -> StringRef {
+        // Use the derived Op class when available.
+        if (const auto *odsOp = opType.getODSOperation())
+          return odsOp->getNativeClassName();
+        return "::mlir::Operation *";
+      })
+      .Case([&](ast::TypeType) { return "::mlir::Type"; })
+      .Case([&](ast::ValueType) { return "::mlir::Value"; })
+      .Case([&](ast::TypeRangeType) { return "::mlir::TypeRange"; })
+      .Case([&](ast::ValueRangeType) { return "::mlir::ValueRange"; });
+}
 
-  // TODO: Should there be something explicit for handling optionality?
-  auto getCppType = [&](ast::Type type) -> StringRef {
-    return llvm::TypeSwitch<ast::Type, StringRef>(type)
-        .Case([&](ast::AttributeType) { return "::mlir::Attribute"; })
-        .Case([&](ast::OperationType) {
-          // TODO: Allow using the derived Op class when possible.
-          return "::mlir::Operation *";
-        })
-        .Case([&](ast::TypeType) { return "::mlir::Type"; })
-        .Case([&](ast::ValueType) { return "::mlir::Value"; })
-        .Case([&](ast::TypeRangeType) { return "::mlir::TypeRange"; })
-        .Case([&](ast::ValueRangeType) { return "::mlir::ValueRange"; });
-  };
-  os << "static " << (isConstraint ? "::mlir::LogicalResult " : "void ") << name
-     << "PDLFn(::mlir::PatternRewriter &rewriter, "
-     << (isConstraint ? "" : "::mlir::PDLResultList &results, ")
-     << "::llvm::ArrayRef<::mlir::PDLValue> values) {\n";
-
-  const char *argumentInitStr = R"(
-  {0} {1} = {{};
-  if (values[{2}])
-    {1} = values[{2}].cast<{0}>();
-  (void){1};
-)";
-  for (const auto &it : llvm::enumerate(inputs)) {
-    const ast::VariableDecl *input = it.value();
-    os << llvm::formatv(argumentInitStr, getCppType(input->getType()),
-                        input->getName().getName(), it.index());
+StringRef CodeGen::getNativeTypeName(ast::VariableDecl *decl) {
+  // Try to extract a type name from the variable's constraints.
+  for (ast::ConstraintRef &cst : decl->getConstraints()) {
+    if (auto *userCst = dyn_cast<ast::UserConstraintDecl>(cst.constraint)) {
+      if (Optional<StringRef> name = userCst->getNativeInputType(0))
+        return *name;
+      return getNativeTypeName(userCst->getInputs()[0]);
+    }
   }
 
-  os << "  " << codeBlock.trim() << "\n}\n";
+  // Otherwise, use the type of the variable.
+  return getNativeTypeName(decl->getType());
+}
+
+void CodeGen::generateConstraintOrRewrite(const ast::CallableDecl *decl,
+                                          bool isConstraint,
+                                          StringSet<> &nativeFunctions) {
+  StringRef name = decl->getName()->getName();
+  nativeFunctions.insert(name);
+
+  os << "static ";
+
+  // TODO: Work out a proper modeling for "optionality".
+
+  // Emit the result type.
+  // If this is a constraint, we always return a LogicalResult.
+  // TODO: This will need to change if we allow Constraints to return values as
+  // well.
+  if (isConstraint) {
+    os << "::mlir::LogicalResult";
+  } else {
+    // Otherwise, generate a type based on the results of the callable.
+    // If the callable has explicit results, use those to build the result.
+    // Otherwise, use the type of the callable.
+    ArrayRef<ast::VariableDecl *> results = decl->getResults();
+    if (results.empty()) {
+      os << "void";
+    } else if (results.size() == 1) {
+      os << getNativeTypeName(results[0]);
+    } else {
+      os << "std::tuple<";
+      llvm::interleaveComma(results, os, [&](ast::VariableDecl *result) {
+        os << getNativeTypeName(result);
+      });
+      os << ">";
+    }
+  }
+
+  os << " " << name << "PDLFn(::mlir::PatternRewriter &rewriter";
+  if (!decl->getInputs().empty()) {
+    os << ", ";
+    llvm::interleaveComma(decl->getInputs(), os, [&](ast::VariableDecl *input) {
+      os << getNativeTypeName(input) << " " << input->getName().getName();
+    });
+  }
+  os << ") {\n";
+  os << "  " << decl->getCodeBlock()->trim() << "\n}\n\n";
 }
 
 //===----------------------------------------------------------------------===//

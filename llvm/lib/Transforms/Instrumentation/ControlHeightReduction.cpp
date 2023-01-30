@@ -26,6 +26,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
@@ -37,6 +38,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include <optional>
 #include <set>
 #include <sstream>
 
@@ -45,6 +47,9 @@ using namespace llvm;
 #define DEBUG_TYPE "chr"
 
 #define CHR_DEBUG(X) LLVM_DEBUG(X)
+
+static cl::opt<bool> DisableCHR("disable-chr", cl::init(false), cl::Hidden,
+                                cl::desc("Disable CHR for all functions"));
 
 static cl::opt<bool> ForceCHR("force-chr", cl::init(false), cl::Hidden,
                               cl::desc("Apply CHR for all functions"));
@@ -64,6 +69,10 @@ static cl::opt<std::string> CHRModuleList(
 static cl::opt<std::string> CHRFunctionList(
     "chr-function-list", cl::init(""), cl::Hidden,
     cl::desc("Specify file to retrieve the list of functions to apply CHR to"));
+
+static cl::opt<unsigned> CHRDupThreshsold(
+    "chr-dup-threshold", cl::init(3), cl::Hidden,
+    cl::desc("Max number of duplications by CHR for a region"));
 
 static StringSet<> CHRModules;
 static StringSet<> CHRFunctions;
@@ -102,47 +111,6 @@ static void parseCHRFilterFiles() {
 }
 
 namespace {
-class ControlHeightReductionLegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  ControlHeightReductionLegacyPass() : FunctionPass(ID) {
-    initializeControlHeightReductionLegacyPassPass(
-        *PassRegistry::getPassRegistry());
-    parseCHRFilterFiles();
-  }
-
-  bool runOnFunction(Function &F) override;
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<BlockFrequencyInfoWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<ProfileSummaryInfoWrapperPass>();
-    AU.addRequired<RegionInfoPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-  }
-};
-} // end anonymous namespace
-
-char ControlHeightReductionLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(ControlHeightReductionLegacyPass,
-                      "chr",
-                      "Reduce control height in the hot paths",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(BlockFrequencyInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(RegionInfoPass)
-INITIALIZE_PASS_END(ControlHeightReductionLegacyPass,
-                    "chr",
-                    "Reduce control height in the hot paths",
-                    false, false)
-
-FunctionPass *llvm::createControlHeightReductionLegacyPass() {
-  return new ControlHeightReductionLegacyPass();
-}
-
-namespace {
 
 struct CHRStats {
   CHRStats() = default;
@@ -162,10 +130,10 @@ struct CHRStats {
 
 // RegInfo - some properties of a Region.
 struct RegInfo {
-  RegInfo() : R(nullptr), HasBranch(false) {}
-  RegInfo(Region *RegionIn) : R(RegionIn), HasBranch(false) {}
-  Region *R;
-  bool HasBranch;
+  RegInfo() = default;
+  RegInfo(Region *RegionIn) : R(RegionIn) {}
+  Region *R = nullptr;
+  bool HasBranch = false;
   SmallVector<SelectInst *, 8> Selects;
 };
 
@@ -379,23 +347,27 @@ class CHR {
                                  BasicBlock *EntryBlock,
                                  BasicBlock *NewEntryBlock,
                                  ValueToValueMapTy &VMap);
-  void fixupBranchesAndSelects(CHRScope *Scope,
-                               BasicBlock *PreEntryBlock,
-                               BranchInst *MergedBR,
-                               uint64_t ProfileCount);
-  void fixupBranch(Region *R,
-                   CHRScope *Scope,
-                   IRBuilder<> &IRB,
+  void fixupBranchesAndSelects(CHRScope *Scope, BasicBlock *PreEntryBlock,
+                               BranchInst *MergedBR, uint64_t ProfileCount);
+  void fixupBranch(Region *R, CHRScope *Scope, IRBuilder<> &IRB,
                    Value *&MergedCondition, BranchProbability &CHRBranchBias);
-  void fixupSelect(SelectInst* SI,
-                   CHRScope *Scope,
-                   IRBuilder<> &IRB,
+  void fixupSelect(SelectInst *SI, CHRScope *Scope, IRBuilder<> &IRB,
                    Value *&MergedCondition, BranchProbability &CHRBranchBias);
   void addToMergedCondition(bool IsTrueBiased, Value *Cond,
-                            Instruction *BranchOrSelect,
-                            CHRScope *Scope,
-                            IRBuilder<> &IRB,
-                            Value *&MergedCondition);
+                            Instruction *BranchOrSelect, CHRScope *Scope,
+                            IRBuilder<> &IRB, Value *&MergedCondition);
+  unsigned getRegionDuplicationCount(const Region *R) {
+    unsigned Count = 0;
+    // Find out how many times region R is cloned. Note that if the parent
+    // of R is cloned, R is also cloned, but R's clone count is not updated
+    // from the clone of the parent. We need to accumlate all the counts
+    // from the ancestors to get the clone count.
+    while (R) {
+      Count += DuplicationCount[R];
+      R = R->getParent();
+    }
+    return Count;
+  }
 
   Function &F;
   BlockFrequencyInfo &BFI;
@@ -419,6 +391,8 @@ class CHR {
   DenseMap<SelectInst *, BranchProbability> SelectBiasMap;
   // All the scopes.
   DenseSet<CHRScope *> Scopes;
+  // This maps records how many times this region is cloned.
+  DenseMap<const Region *, unsigned> DuplicationCount;
 };
 
 } // end anonymous namespace
@@ -436,7 +410,10 @@ raw_ostream &operator<<(raw_ostream &OS, const CHRScope &Scope) {
   return OS;
 }
 
-static bool shouldApply(Function &F, ProfileSummaryInfo& PSI) {
+static bool shouldApply(Function &F, ProfileSummaryInfo &PSI) {
+  if (DisableCHR)
+    return false;
+
   if (ForceCHR)
     return true;
 
@@ -446,7 +423,6 @@ static bool shouldApply(Function &F, ProfileSummaryInfo& PSI) {
     return CHRFunctions.count(F.getName());
   }
 
-  assert(PSI.hasProfileSummary() && "Empty PSI?");
   return PSI.isFunctionEntryHot(&F);
 }
 
@@ -502,7 +478,7 @@ static bool isHoistableInstructionType(Instruction *I) {
 static bool isHoistable(Instruction *I, DominatorTree &DT) {
   if (!isHoistableInstructionType(I))
     return false;
-  return isSafeToSpeculativelyExecute(I, nullptr, &DT);
+  return isSafeToSpeculativelyExecute(I, nullptr, nullptr, &DT);
 }
 
 // Recursively traverse the use-def chains of the given value and return a set
@@ -769,9 +745,21 @@ CHRScope * CHR::findScope(Region *R) {
       return nullptr;
   // If any of the basic blocks have address taken, we must skip this region
   // because we cannot clone basic blocks that have address taken.
-  for (BasicBlock *BB : R->blocks())
+  for (BasicBlock *BB : R->blocks()) {
     if (BB->hasAddressTaken())
       return nullptr;
+    // If we encounter llvm.coro.id, skip this region because if the basic block
+    // is cloned, we end up inserting a token type PHI node to the block with
+    // llvm.coro.begin.
+    // FIXME: This could lead to less optimal codegen, because the region is
+    // excluded, it can prevent CHR from merging adjacent regions into bigger
+    // scope and hoisting more branches.
+    for (Instruction &I : *BB)
+      if (auto *II = dyn_cast<IntrinsicInst>(&I))
+        if (II->getIntrinsicID() == Intrinsic::coro_id)
+          return nullptr;
+  }
+
   if (Exit) {
     // Try to find an if-then block (check if R is an if-then).
     // if (cond) {
@@ -1695,11 +1683,32 @@ void CHR::transformScopes(CHRScope *Scope, DenseSet<PHINode *> &TrivialPHIs) {
   CHR_DEBUG(dbgs() << "transformScopes " << *Scope << "\n");
 
   assert(Scope->RegInfos.size() >= 1 && "Should have at least one Region");
+
+  for (RegInfo &RI : Scope->RegInfos) {
+    const Region *R = RI.R;
+    unsigned Duplication = getRegionDuplicationCount(R);
+    CHR_DEBUG(dbgs() << "Dup count for R=" << R << "  is " << Duplication
+                     << "\n");
+    if (Duplication >= CHRDupThreshsold) {
+      CHR_DEBUG(dbgs() << "Reached the dup threshold of " << Duplication
+                       << " for this region");
+      ORE.emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "DupThresholdReached",
+                                        R->getEntry()->getTerminator())
+               << "Reached the duplication threshold for the region";
+      });
+      return;
+    }
+  }
+  for (RegInfo &RI : Scope->RegInfos) {
+    DuplicationCount[RI.R]++;
+  }
+
   Region *FirstRegion = Scope->RegInfos[0].R;
   BasicBlock *EntryBlock = FirstRegion->getEntry();
   Region *LastRegion = Scope->RegInfos[Scope->RegInfos.size() - 1].R;
   BasicBlock *ExitBlock = LastRegion->getExit();
-  Optional<uint64_t> ProfileCount = BFI.getBlockProfileCount(EntryBlock);
+  std::optional<uint64_t> ProfileCount = BFI.getBlockProfileCount(EntryBlock);
 
   if (ExitBlock) {
     // Insert a trivial phi at the exit block (where the CHR hot path and the
@@ -1752,7 +1761,7 @@ void CHR::transformScopes(CHRScope *Scope, DenseSet<PHINode *> &TrivialPHIs) {
   // Create the combined branch condition and constant-fold the branches/selects
   // in the hot path.
   fixupBranchesAndSelects(Scope, PreEntryBlock, MergedBr,
-                          ProfileCount.getValueOr(0));
+                          ProfileCount.value_or(0));
 }
 
 // A helper for transformScopes. Clone the blocks in the scope (excluding the
@@ -1781,13 +1790,12 @@ void CHR::cloneScopeBlocks(CHRScope *Scope,
   // Place the cloned blocks right after the original blocks (right before the
   // exit block of.)
   if (ExitBlock)
-    F.getBasicBlockList().splice(ExitBlock->getIterator(),
-                                 F.getBasicBlockList(),
-                                 NewBlocks[0]->getIterator(), F.end());
+    F.splice(ExitBlock->getIterator(), &F, NewBlocks[0]->getIterator(),
+             F.end());
 
   // Update the cloned blocks/instructions to refer to themselves.
-  for (unsigned i = 0, e = NewBlocks.size(); i != e; ++i)
-    for (Instruction &I : *NewBlocks[i])
+  for (BasicBlock *NewBB : NewBlocks)
+    for (Instruction &I : *NewBB)
       RemapInstruction(&I, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
 
@@ -1829,7 +1837,7 @@ BranchInst *CHR::createMergedBranch(BasicBlock *PreEntryBlock,
   BranchInst *NewBR = BranchInst::Create(NewEntryBlock,
                                          cast<BasicBlock>(VMap[NewEntryBlock]),
                                          ConstantInt::getTrue(F.getContext()));
-  PreEntryBlock->getInstList().push_back(NewBR);
+  NewBR->insertInto(PreEntryBlock, PreEntryBlock->end());
   assert(NewEntryBlock->getSinglePredecessor() == EntryBlock &&
          "NewEntryBlock's only pred must be EntryBlock");
   return NewBR;
@@ -1949,28 +1957,27 @@ void CHR::fixupSelect(SelectInst *SI, CHRScope *Scope,
 // A helper for fixupBranch/fixupSelect. Add a branch condition to the merged
 // condition.
 void CHR::addToMergedCondition(bool IsTrueBiased, Value *Cond,
-                               Instruction *BranchOrSelect,
-                               CHRScope *Scope,
-                               IRBuilder<> &IRB,
-                               Value *&MergedCondition) {
-  if (IsTrueBiased) {
-    MergedCondition = IRB.CreateAnd(MergedCondition, Cond);
-  } else {
+                               Instruction *BranchOrSelect, CHRScope *Scope,
+                               IRBuilder<> &IRB, Value *&MergedCondition) {
+  if (!IsTrueBiased) {
     // If Cond is an icmp and all users of V except for BranchOrSelect is a
     // branch, negate the icmp predicate and swap the branch targets and avoid
     // inserting an Xor to negate Cond.
-    bool Done = false;
-    if (auto *ICmp = dyn_cast<ICmpInst>(Cond))
-      if (negateICmpIfUsedByBranchOrSelectOnly(ICmp, BranchOrSelect, Scope)) {
-        MergedCondition = IRB.CreateAnd(MergedCondition, Cond);
-        Done = true;
-      }
-    if (!Done) {
-      Value *Negate = IRB.CreateXor(
-          ConstantInt::getTrue(F.getContext()), Cond);
-      MergedCondition = IRB.CreateAnd(MergedCondition, Negate);
-    }
+    auto *ICmp = dyn_cast<ICmpInst>(Cond);
+    if (!ICmp ||
+        !negateICmpIfUsedByBranchOrSelectOnly(ICmp, BranchOrSelect, Scope))
+      Cond = IRB.CreateXor(ConstantInt::getTrue(F.getContext()), Cond);
   }
+
+  // Select conditions can be poison, while branching on poison is immediate
+  // undefined behavior. As such, we need to freeze potentially poisonous
+  // conditions derived from selects.
+  if (isa<SelectInst>(BranchOrSelect) &&
+      !isGuaranteedNotToBeUndefOrPoison(Cond))
+    Cond = IRB.CreateFreeze(Cond);
+
+  // Use logical and to avoid propagating poison from later conditions.
+  MergedCondition = IRB.CreateLogicalAnd(MergedCondition, Cond);
 }
 
 void CHR::transformScopes(SmallVectorImpl<CHRScope *> &CHRScopes) {
@@ -2012,7 +2019,7 @@ bool CHR::run() {
     findScopes(AllScopes);
     CHR_DEBUG(dumpScopes(AllScopes, "All scopes"));
 
-    // Split the scopes if 1) the conditiona values of the biased
+    // Split the scopes if 1) the conditional values of the biased
     // branches/selects of the inner/lower scope can't be hoisted up to the
     // outermost/uppermost scope entry, or 2) the condition values of the biased
     // branches/selects in a scope (including subscopes) don't share at least
@@ -2069,18 +2076,6 @@ bool CHR::run() {
   }
 
   return Changed;
-}
-
-bool ControlHeightReductionLegacyPass::runOnFunction(Function &F) {
-  BlockFrequencyInfo &BFI =
-      getAnalysis<BlockFrequencyInfoWrapperPass>().getBFI();
-  DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  ProfileSummaryInfo &PSI =
-      getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-  RegionInfo &RI = getAnalysis<RegionInfoPass>().getRegionInfo();
-  std::unique_ptr<OptimizationRemarkEmitter> OwnedORE =
-      std::make_unique<OptimizationRemarkEmitter>(&F);
-  return CHR(F, BFI, DT, PSI, RI, *OwnedORE).run();
 }
 
 namespace llvm {

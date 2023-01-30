@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -cl-std=CL2.0 -O0 -debug-info-kind=standalone -gno-column-info -emit-llvm %s -o %t.ll -no-opaque-pointers
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -cl-std=CL2.0 -O0 -debug-info-kind=standalone -gno-column-info -emit-llvm %s -o %t.ll
 // RUN: llvm-as %t.ll -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 // Test that no debug info instruction is inserted
@@ -14,11 +14,11 @@
 kernel
 void sample() {
   int arr[10];
-  #pragma clang loop unroll(full)
+  #pragma clang loop unroll(enable)
   for (int i = 0; i < 10; i++)
     arr[i] = 0;
   int j = 0;
-  #pragma clang loop unroll(full)
+  #pragma clang loop unroll(enable)
   do {
     arr[j] = 0;
   } while (j++ < 10);

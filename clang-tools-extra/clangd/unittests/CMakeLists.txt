@@ -81,6 +81,7 @@ add_unittest(ClangdUnitTests ClangdTests
   SemanticSelectionTests.cpp
   SerializationTests.cpp
   SourceCodeTests.cpp
+  StdLibTests.cpp
   SymbolCollectorTests.cpp
   SymbolInfoTests.cpp
   SyncAPI.cpp
@@ -152,6 +153,7 @@ clang_target_link_libraries(ClangdTests
   clangTooling
   clangToolingCore
   clangToolingInclusions
+  clangToolingInclusionsStdlib
   clangToolingRefactoring
   clangToolingSyntax
   )

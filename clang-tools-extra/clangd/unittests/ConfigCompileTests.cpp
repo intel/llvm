@@ -13,7 +13,6 @@
 #include "Feature.h"
 #include "TestFS.h"
 #include "clang/Basic/DiagnosticSema.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
@@ -471,7 +470,7 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
 
   // None defaults to ".".
-  Frag = GetFrag(FooPath, llvm::None);
+  Frag = GetFrag(FooPath, std::nullopt);
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
   ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
@@ -535,6 +534,14 @@ TEST_F(ConfigCompileTests, AllScopes) {
   Frag.Completion.AllScopes = true;
   EXPECT_TRUE(compileAndApply());
   EXPECT_TRUE(Conf.Completion.AllScopes);
+}
+
+TEST_F(ConfigCompileTests, Style) {
+  Frag = {};
+  Frag.Style.FullyQualifiedNamespaces.push_back(std::string("foo"));
+  Frag.Style.FullyQualifiedNamespaces.push_back(std::string("bar"));
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_THAT(Conf.Style.FullyQualifiedNamespaces, ElementsAre("foo", "bar"));
 }
 } // namespace
 } // namespace config

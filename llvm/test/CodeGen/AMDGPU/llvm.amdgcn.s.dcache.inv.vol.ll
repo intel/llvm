@@ -16,7 +16,7 @@ define amdgpu_kernel void @test_s_dcache_inv_vol() #0 {
 
 ; GCN-LABEL: {{^}}test_s_dcache_inv_vol_insert_wait:
 ; GCN-NEXT: ; %bb.0:
-; GCN-NEXT: s_dcache_inv_vol
+; GCN: s_dcache_inv_vol
 ; GCN: s_waitcnt lgkmcnt(0) ; encoding
 define amdgpu_kernel void @test_s_dcache_inv_vol_insert_wait() #0 {
   call void @llvm.amdgcn.s.dcache.inv.vol()
@@ -24,7 +24,7 @@ define amdgpu_kernel void @test_s_dcache_inv_vol_insert_wait() #0 {
   br label %end
 
 end:
-  store volatile i32 3, i32 addrspace(1)* undef
+  store volatile i32 3, ptr addrspace(1) undef
   ret void
 }
 

@@ -20,7 +20,7 @@ def log(*args):
 
 
 elemwise_boiler = """
-func @main() -> f32 attributes {llvm.emit_c_interface} {
+func.func @main() -> f32 attributes {llvm.emit_c_interface} {
   %v0 = arith.constant 0.0 : f32
   %v1 = arith.constant 1.0 : f32
   %v2 = arith.constant 2.0 : f32
@@ -51,7 +51,7 @@ func @main() -> f32 attributes {llvm.emit_c_interface} {
 """
 
 matmul_boiler = """
-func @main() -> f32 attributes {llvm.emit_c_interface} {
+func.func @main() -> f32 attributes {llvm.emit_c_interface} {
   %v0 = arith.constant 0.0 : f32
   %v1 = arith.constant -1 : i8
   %v2 = arith.constant 2.0 : f32
@@ -82,7 +82,7 @@ func @main() -> f32 attributes {llvm.emit_c_interface} {
 """
 
 fill_boiler = """
-func @main() -> i32 attributes {llvm.emit_c_interface} {
+func.func @main() -> i32 attributes {llvm.emit_c_interface} {
   %O0 = memref.alloc() : memref<i32>
   %O1 = memref.alloc() : memref<16xi32>
   %O2 = memref.alloc() : memref<4x16xi32>
@@ -111,7 +111,7 @@ func @main() -> i32 attributes {llvm.emit_c_interface} {
 """
 
 fill_rng_boiler = """
-func @main() -> i32 attributes {llvm.emit_c_interface} {
+func.func @main() -> i32 attributes {llvm.emit_c_interface} {
   %O = memref.alloc() : memref<4x16xi32>
   %min = arith.constant -1000.0 : f64
   %max = arith.constant 1000.0 : f64
@@ -129,7 +129,7 @@ func @main() -> i32 attributes {llvm.emit_c_interface} {
 """
 
 conv_boiler = """
-func @main() -> i32 attributes {llvm.emit_c_interface} {
+func.func @main() -> i32 attributes {llvm.emit_c_interface} {
   %v0 = arith.constant 0 : i32
   %v1 = arith.constant 1.0 : f64
   %v2 = arith.constant 2.0 : f64
@@ -153,7 +153,7 @@ func @main() -> i32 attributes {llvm.emit_c_interface} {
 """
 
 pooling_boiler = """
-func @main() -> i32 attributes {llvm.emit_c_interface} {
+func.func @main() -> i32 attributes {llvm.emit_c_interface} {
   %v0 = arith.constant 0 : i32
   %v42 = arith.constant 42.0 : f64
   %v77 = arith.constant 77.0 : f64
@@ -186,20 +186,22 @@ func @main() -> i32 attributes {llvm.emit_c_interface} {
 
 
 def transform(module, boilerplate):
-  import mlir.conversions
-  import mlir.all_passes_registration
-  import mlir.transforms
-
   # TODO: Allow cloning functions from one module to another.
   # Atm we have to resort to string concatenation.
   ops = module.operation.regions[0].blocks[0].operations
   mod = Module.parse("\n".join([str(op) for op in ops]) + boilerplate)
 
-  pm = PassManager.parse(
-      "func.func(convert-linalg-to-loops, lower-affine, " +
-      "convert-math-to-llvm, convert-scf-to-cf, arith-expand, memref-expand), "
-      + "convert-vector-to-llvm, convert-memref-to-llvm, convert-func-to-llvm," +
-      "reconcile-unrealized-casts")
+  pm = PassManager('builtin.module')
+  pm.add("func.func(convert-linalg-to-loops)")
+  pm.add("func.func(lower-affine)")
+  pm.add("func.func(convert-math-to-llvm)")
+  pm.add("func.func(convert-scf-to-cf)")
+  pm.add("func.func(arith-expand)")
+  pm.add("func.func(memref-expand)")
+  pm.add("convert-vector-to-llvm")
+  pm.add("convert-memref-to-llvm")
+  pm.add("convert-func-to-llvm")
+  pm.add("reconcile-unrealized-casts")
   pm.run(mod)
   return mod
 

@@ -61,6 +61,7 @@ bool CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   case TargetOpcode::G_TRUNC:
   case TargetOpcode::G_PTR_ADD:
   case TargetOpcode::G_EXTRACT:
+  case TargetOpcode::G_SELECT:
     return true;
   }
   return false;
@@ -319,7 +320,7 @@ const GISelInstProfileBuilder &
 GISelInstProfileBuilder::addNodeID(const MachineInstr *MI) const {
   addNodeIDMBB(MI->getParent());
   addNodeIDOpcode(MI->getOpcode());
-  for (auto &Op : MI->operands())
+  for (const auto &Op : MI->operands())
     addNodeIDMachineOperand(Op);
   addNodeIDFlag(MI->getFlags());
   return *this;

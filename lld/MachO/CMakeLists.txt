@@ -14,6 +14,7 @@ add_lld_library(lldMachO
   Driver.cpp
   DriverUtils.cpp
   Dwarf.cpp
+  EhFrame.cpp
   ExportTrie.cpp
   ICF.cpp
   InputFiles.cpp
@@ -47,6 +48,7 @@ add_lld_library(lldMachO
   Option
   Passes
   Support
+  TargetParser
   TextAPI
 
   LINK_LIBS

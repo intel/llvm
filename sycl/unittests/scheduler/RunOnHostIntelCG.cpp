@@ -10,6 +10,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/PiMock.hpp>
+
 #include <detail/event_impl.hpp>
 
 using namespace sycl;
@@ -20,6 +22,7 @@ public:
   MockCGExecKernel(detail::NDRDescT NDRDesc,
                    std::unique_ptr<detail::HostKernelBase> HostKernel)
       : CGExecKernel(NDRDesc, std::move(HostKernel), /*SyclKernel*/ nullptr,
+                     /*Kernelbundle*/ nullptr,
                      /*ArgsStorage*/ {}, /*AccStorage*/ {},
                      /*SharedPtrStorage*/ {}, /*Requirements*/ {},
                      /*Events*/ {}, /*Args*/ {}, /*KernelName*/ "",
@@ -31,8 +34,11 @@ public:
 // Check that the command group associated with run_on_host_intel is properly
 // released on command destruction.
 TEST_F(SchedulerTest, RunOnHostIntelCG) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   MockScheduler MS;
-  detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(MQueue);
+  detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Q);
 
   detail::NDRDescT NDRDesc;
   NDRDesc.set(range<1>{1}, id<1>{0});

@@ -13,6 +13,7 @@
 #include "AMDGPU.h"
 #include "GCNSubtarget.h"
 #include "Utils/AMDGPUBaseInfo.h"
+#include "llvm/Analysis/CycleAnalysis.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsR600.h"
@@ -20,6 +21,10 @@
 #include "llvm/Transforms/IPO/Attributor.h"
 
 #define DEBUG_TYPE "amdgpu-attributor"
+
+namespace llvm {
+void initializeCycleInfoWrapperPassPass(PassRegistry &);
+}
 
 using namespace llvm;
 
@@ -72,6 +77,8 @@ intrinsicToAttrMask(Intrinsic::ID ID, bool &NonKernelOnly, bool &NeedsImplicit,
   case Intrinsic::amdgcn_workgroup_id_z:
   case Intrinsic::r600_read_tgid_z:
     return WORKGROUP_ID_Z;
+  case Intrinsic::amdgcn_lds_kernel_id:
+    return LDS_KERNEL_ID;
   case Intrinsic::amdgcn_dispatch_ptr:
     return DISPATCH_PTR;
   case Intrinsic::amdgcn_dispatch_id:
@@ -457,6 +464,10 @@ struct AAAMDAttributesFunction : public AAAMDAttributes {
       removeAssumedBits(QUEUE_PTR);
     }
 
+    if (isAssumed(LDS_KERNEL_ID) && funcRetrievesLDSKernelId(A)) {
+      removeAssumedBits(LDS_KERNEL_ID);
+    }
+
     return getAssumed() != OrigAssumed ? ChangeStatus::CHANGED
                                        : ChangeStatus::UNCHANGED;
   }
@@ -541,32 +552,31 @@ private:
 
   bool funcRetrievesMultigridSyncArg(Attributor &A) {
     auto Pos = llvm::AMDGPU::getMultigridSyncArgImplicitArgPosition();
-    AAPointerInfo::OffsetAndSize OAS(Pos, 8);
-    return funcRetrievesImplicitKernelArg(A, OAS);
+    AA::RangeTy Range(Pos, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
   }
 
   bool funcRetrievesHostcallPtr(Attributor &A) {
     auto Pos = llvm::AMDGPU::getHostcallImplicitArgPosition();
-    AAPointerInfo::OffsetAndSize OAS(Pos, 8);
-    return funcRetrievesImplicitKernelArg(A, OAS);
+    AA::RangeTy Range(Pos, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
   }
 
   bool funcRetrievesHeapPtr(Attributor &A) {
     if (AMDGPU::getAmdhsaCodeObjectVersion() != 5)
       return false;
-    AAPointerInfo::OffsetAndSize OAS(AMDGPU::ImplicitArg::HEAP_PTR_OFFSET, 8);
-    return funcRetrievesImplicitKernelArg(A, OAS);
+    AA::RangeTy Range(AMDGPU::ImplicitArg::HEAP_PTR_OFFSET, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
   }
 
   bool funcRetrievesQueuePtr(Attributor &A) {
     if (AMDGPU::getAmdhsaCodeObjectVersion() != 5)
       return false;
-    AAPointerInfo::OffsetAndSize OAS(AMDGPU::ImplicitArg::QUEUE_PTR_OFFSET, 8);
-    return funcRetrievesImplicitKernelArg(A, OAS);
+    AA::RangeTy Range(AMDGPU::ImplicitArg::QUEUE_PTR_OFFSET, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
   }
 
-  bool funcRetrievesImplicitKernelArg(Attributor &A,
-                                      AAPointerInfo::OffsetAndSize OAS) {
+  bool funcRetrievesImplicitKernelArg(Attributor &A, AA::RangeTy Range) {
     // Check if this is a call to the implicitarg_ptr builtin and it
     // is used to retrieve the hostcall pointer. The implicit arg for
     // hostcall is not used only if every use of the implicitarg_ptr
@@ -582,13 +592,23 @@ private:
           *this, IRPosition::callsite_returned(Call), DepClassTy::REQUIRED);
 
       return PointerInfoAA.forallInterferingAccesses(
-          OAS, [](const AAPointerInfo::Access &Acc, bool IsExact) {
+          Range, [](const AAPointerInfo::Access &Acc, bool IsExact) {
             return Acc.getRemoteInst()->isDroppable();
           });
     };
 
     bool UsedAssumedInformation = false;
     return !A.checkForAllCallLikeInstructions(DoesNotLeadToKernelArgLoc, *this,
+                                              UsedAssumedInformation);
+  }
+
+  bool funcRetrievesLDSKernelId(Attributor &A) {
+    auto DoesNotRetrieve = [&](Instruction &I) {
+      auto &Call = cast<CallBase>(I);
+      return Call.getIntrinsicID() != Intrinsic::amdgcn_lds_kernel_id;
+    };
+    bool UsedAssumedInformation = false;
+    return !A.checkForAllCallLikeInstructions(DoesNotRetrieve, *this,
                                               UsedAssumedInformation);
   }
 };
@@ -732,7 +752,7 @@ public:
 
   bool runOnModule(Module &M) override {
     SetVector<Function *> Functions;
-    AnalysisGetter AG;
+    AnalysisGetter AG(this);
     for (Function &F : M) {
       if (!F.isIntrinsic())
         Functions.insert(&F);
@@ -743,7 +763,8 @@ public:
     AMDGPUInformationCache InfoCache(M, AG, Allocator, nullptr, *TM);
     DenseSet<const char *> Allowed(
         {&AAAMDAttributes::ID, &AAUniformWorkGroupSize::ID,
-         &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID, &AAPointerInfo::ID});
+         &AAPotentialValues::ID, &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID,
+         &AAPointerInfo::ID, &AAPotentialConstantValues::ID});
 
     AttributorConfig AC(CGUpdater);
     AC.Allowed = &Allowed;
@@ -766,6 +787,10 @@ public:
     return Change == ChangeStatus::CHANGED;
   }
 
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<CycleInfoWrapperPass>();
+  }
+
   StringRef getPassName() const override { return "AMDGPU Attributor"; }
   TargetMachine *TM;
   static char ID;
@@ -775,4 +800,8 @@ public:
 char AMDGPUAttributor::ID = 0;
 
 Pass *llvm::createAMDGPUAttributorPass() { return new AMDGPUAttributor(); }
-INITIALIZE_PASS(AMDGPUAttributor, DEBUG_TYPE, "AMDGPU Attributor", false, false)
+INITIALIZE_PASS_BEGIN(AMDGPUAttributor, DEBUG_TYPE, "AMDGPU Attributor", false,
+                      false)
+INITIALIZE_PASS_DEPENDENCY(CycleInfoWrapperPass);
+INITIALIZE_PASS_END(AMDGPUAttributor, DEBUG_TYPE, "AMDGPU Attributor", false,
+                    false)

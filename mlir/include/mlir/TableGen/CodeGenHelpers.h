@@ -135,15 +135,16 @@ public:
   ///
   ///   LogicalResult(Operation *op, Attribute attr, StringRef attrName);
   ///
-  /// If a uniqued constraint was not found, this function returns None. The
-  /// uniqued constraints cannot be used in the context of an OpAdaptor.
+  /// If a uniqued constraint was not found, this function returns std::nullopt.
+  /// The uniqued constraints cannot be used in the context of an OpAdaptor.
   ///
   /// Pattern constraints have the form:
   ///
   ///   LogicalResult(PatternRewriter &rewriter, Operation *op, Attribute attr,
   ///                 StringRef failureStr);
   ///
-  Optional<StringRef> getAttrConstraintFn(const Constraint &constraint) const;
+  std::optional<StringRef>
+  getAttrConstraintFn(const Constraint &constraint) const;
 
   /// Get the name of the static function used for the given successor
   /// constraint. These functions are in the form:
@@ -187,19 +188,9 @@ private:
   /// ensure that the static functions have a unique name.
   std::string uniqueOutputLabel;
 
-  /// Unique constraints by their predicate and summary. Constraints that share
-  /// the same predicate may have different descriptions; ensure that the
-  /// correct error message is reported when verification fails.
-  struct ConstraintUniquer {
-    static Constraint getEmptyKey();
-    static Constraint getTombstoneKey();
-    static unsigned getHashValue(Constraint constraint);
-    static bool isEqual(Constraint lhs, Constraint rhs);
-  };
   /// Use a MapVector to ensure that functions are generated deterministically.
-  using ConstraintMap =
-      llvm::MapVector<Constraint, std::string,
-                      llvm::DenseMap<Constraint, unsigned, ConstraintUniquer>>;
+  using ConstraintMap = llvm::MapVector<Constraint, std::string,
+                                        llvm::DenseMap<Constraint, unsigned>>;
 
   /// A generic function to emit constraints
   void emitConstraints(const ConstraintMap &constraints, StringRef selfName,
@@ -226,27 +217,28 @@ private:
 std::string escapeString(StringRef value);
 
 namespace detail {
-template <typename> struct stringifier {
-  template <typename T> static std::string apply(T &&t) {
+template <typename>
+struct stringifier {
+  template <typename T>
+  static std::string apply(T &&t) {
     return std::string(std::forward<T>(t));
   }
 };
-template <> struct stringifier<Twine> {
-  static std::string apply(const Twine &twine) {
-    return twine.str();
-  }
+template <>
+struct stringifier<Twine> {
+  static std::string apply(const Twine &twine) { return twine.str(); }
 };
 template <typename OptionalT>
-struct stringifier<Optional<OptionalT>> {
-  static std::string apply(Optional<OptionalT> optional) {
-    return optional.hasValue() ? stringifier<OptionalT>::apply(*optional)
-                               : std::string();
+struct stringifier<std::optional<OptionalT>> {
+  static std::string apply(std::optional<OptionalT> optional) {
+    return optional ? stringifier<OptionalT>::apply(*optional) : std::string();
   }
 };
 } // namespace detail
 
 /// Generically convert a value to a std::string.
-template <typename T> std::string stringify(T &&t) {
+template <typename T>
+std::string stringify(T &&t) {
   return detail::stringifier<std::remove_reference_t<std::remove_const_t<T>>>::
       apply(std::forward<T>(t));
 }

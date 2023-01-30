@@ -433,7 +433,8 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
       m_profile_data_comm_mutex(), m_profile_data(), m_iohandler_sync(0),
       m_memory_cache(*this), m_allocated_memory_cache(*this),
       m_should_detach(false), m_next_event_action_up(), m_public_run_lock(),
-      m_private_run_lock(), m_finalizing(false),
+      m_private_run_lock(), m_currently_handling_do_on_removals(false),
+      m_resume_requested(false), m_finalizing(false),
       m_clear_thread_plans_on_stop(false), m_force_next_event_delivery(false),
       m_last_broadcast_state(eStateInvalid), m_destroy_in_process(false),
       m_can_interpret_function_calls(false), m_run_thread_plan_lock(),
@@ -1292,7 +1293,10 @@ uint32_t Process::AssignIndexIDToThread(uint64_t thread_id) {
 }
 
 StateType Process::GetState() {
-  return m_public_state.GetValue();
+  if (CurrentThreadIsPrivateStateThread())
+    return m_private_state.GetValue();
+  else
+    return m_public_state.GetValue();
 }
 
 void Process::SetPublicState(StateType new_state, bool restarted) {
@@ -1368,8 +1372,8 @@ Status Process::ResumeSynchronous(Stream *stream) {
 
   Status error = PrivateResume();
   if (error.Success()) {
-    StateType state = WaitForProcessToStop(llvm::None, nullptr, true,
-                                           listener_sp, stream);
+    StateType state =
+        WaitForProcessToStop(std::nullopt, nullptr, true, listener_sp, stream);
     const bool must_be_alive =
         false; // eStateExited is ok, so this must be false
     if (!StateIsStoppedState(state, must_be_alive))
@@ -1919,6 +1923,9 @@ Status Process::DisableSoftwareBreakpoint(BreakpointSite *bp_site) {
 //#define VERIFY_MEMORY_READS
 
 size_t Process::ReadMemory(addr_t addr, void *buf, size_t size, Status &error) {
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
   error.Clear();
   if (!GetDisableMemoryCache()) {
 #if defined(VERIFY_MEMORY_READS)
@@ -2031,6 +2038,9 @@ size_t Process::ReadMemoryFromInferior(addr_t addr, void *buf, size_t size,
                                        Status &error) {
   LLDB_SCOPED_TIMER();
 
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
   if (buf == nullptr || size == 0)
     return 0;
 
@@ -2113,6 +2123,9 @@ size_t Process::WriteMemoryPrivate(addr_t addr, const void *buf, size_t size,
 
 size_t Process::WriteMemory(addr_t addr, const void *buf, size_t size,
                             Status &error) {
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
 #if defined(ENABLE_MEMORY_CACHING)
   m_memory_cache.Flush(addr, size);
 #endif
@@ -2558,6 +2571,13 @@ Status Process::LaunchPrivate(ProcessLaunchInfo &launch_info, StateType &state,
   if (state == eStateStopped || state == eStateCrashed) {
     DidLaunch();
 
+    // Now that we know the process type, update its signal responses from the
+    // ones stored in the Target:
+    if (m_unix_signals_sp) {
+      StreamSP warning_strm = GetTarget().GetDebugger().GetAsyncErrorStream();
+      GetTarget().UpdateSignalsFromDummy(m_unix_signals_sp, warning_strm);
+    }
+
     DynamicLoader *dyld = GetDynamicLoader();
     if (dyld)
       dyld->DidLaunch();
@@ -2616,7 +2636,7 @@ Status Process::LoadCore() {
     // Wait for a stopped event since we just posted one above...
     lldb::EventSP event_sp;
     StateType state =
-        WaitForProcessToStop(llvm::None, &event_sp, true, listener_sp);
+        WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp);
 
     if (!StateIsStoppedState(state, false)) {
       Log *log = GetLog(LLDBLog::Process);
@@ -2634,6 +2654,10 @@ DynamicLoader *Process::GetDynamicLoader() {
   if (!m_dyld_up)
     m_dyld_up.reset(DynamicLoader::FindPlugin(this, ""));
   return m_dyld_up.get();
+}
+
+void Process::SetDynamicLoader(DynamicLoaderUP dyld_up) {
+  m_dyld_up = std::move(dyld_up);
 }
 
 DataExtractor Process::GetAuxvData() { return DataExtractor(); }
@@ -2737,6 +2761,19 @@ ListenerSP ProcessAttachInfo::GetListenerForProcess(Debugger &debugger) {
     return m_listener_sp;
   else
     return debugger.GetListener();
+}
+
+Status Process::WillLaunch(Module *module) {
+  return DoWillLaunch(module);
+}
+
+Status Process::WillAttachToProcessWithID(lldb::pid_t pid) {
+  return DoWillAttachToProcessWithID(pid);
+}
+
+Status Process::WillAttachToProcessWithName(const char *process_name,
+                                            bool wait_for_launch) {
+  return DoWillAttachToProcessWithName(process_name, wait_for_launch);
 }
 
 Status Process::Attach(ProcessAttachInfo &attach_info) {
@@ -2888,9 +2925,9 @@ void Process::CompleteAttach() {
   ArchSpec process_host_arch = GetSystemArchitecture();
   if (platform_sp) {
     const ArchSpec &target_arch = GetTarget().GetArchitecture();
-    if (target_arch.IsValid() &&
-        !platform_sp->IsCompatibleArchitecture(target_arch, process_host_arch,
-                                               false, nullptr)) {
+    if (target_arch.IsValid() && !platform_sp->IsCompatibleArchitecture(
+                                     target_arch, process_host_arch,
+                                     ArchSpec::CompatibleMatch, nullptr)) {
       ArchSpec platform_arch;
       platform_sp = GetTarget().GetDebugger().GetPlatformList().GetOrCreate(
           target_arch, process_host_arch, &platform_arch);
@@ -2918,6 +2955,12 @@ void Process::CompleteAttach() {
                   GetID());
       }
     }
+  }
+  // Now that we know the process type, update its signal responses from the
+  // ones stored in the Target:
+  if (m_unix_signals_sp) {
+    StreamSP warning_strm = GetTarget().GetDebugger().GetAsyncErrorStream();
+    GetTarget().UpdateSignalsFromDummy(m_unix_signals_sp, warning_strm);
   }
 
   // We have completed the attach, now it is time to find the dynamic loader
@@ -2995,7 +3038,7 @@ Status Process::ConnectRemote(llvm::StringRef remote_url) {
   if (error.Success()) {
     if (GetID() != LLDB_INVALID_PROCESS_ID) {
       EventSP event_sp;
-      StateType state = WaitForProcessStopPrivate(event_sp, llvm::None);
+      StateType state = WaitForProcessStopPrivate(event_sp, std::nullopt);
 
       if (state == eStateStopped || state == eStateCrashed) {
         // If we attached and actually have a process on the other end, then
@@ -3339,7 +3382,7 @@ bool Process::ShouldBroadcastEvent(Event *event_ptr) {
     m_stdio_communication.Disconnect();
     m_stdin_forward = false;
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case eStateConnected:
   case eStateAttaching:
   case eStateLaunching:
@@ -3742,7 +3785,7 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
   bool interrupt_requested = false;
   while (!exit_now) {
     EventSP event_sp;
-    GetEventsPrivate(event_sp, llvm::None, control_only);
+    GetEventsPrivate(event_sp, std::nullopt, control_only);
     if (event_sp->BroadcasterIs(&m_private_state_control_broadcaster)) {
       LLDB_LOGF(log,
                 "Process::%s (arg = %p, pid = %" PRIu64
@@ -4528,9 +4571,9 @@ public:
 private:
   lldb::ThreadPlanSP m_thread_plan_sp;
   bool m_already_reset = false;
-  bool m_private;
-  bool m_is_controlling;
-  bool m_okay_to_discard;
+  bool m_private = false;
+  bool m_is_controlling = false;
+  bool m_okay_to_discard = false;
 };
 } // anonymous namespace
 
@@ -4566,7 +4609,7 @@ GetExpressionTimeout(const EvaluateExpressionOptions &options,
     return GetOneThreadExpressionTimeout(options);
 
   if (!options.GetTimeout())
-    return llvm::None;
+    return std::nullopt;
   else
     return *options.GetTimeout() - GetOneThreadExpressionTimeout(options);
 }
@@ -4620,7 +4663,7 @@ HandleStoppedEvent(lldb::tid_t thread_id, const ThreadPlanSP &thread_plan_sp,
 
   if (!handle_interrupts &&
       Process::ProcessEventData::GetInterruptedFromEvent(event_sp.get()))
-    return llvm::None;
+    return std::nullopt;
 
   LLDB_LOG(log, "thread plan did not successfully complete");
   if (!options.DoesUnwindOnError())
@@ -5831,7 +5874,7 @@ Process::AdvanceAddressToNextBranchInstruction(Address default_stop_addr,
 Status Process::GetMemoryRegionInfo(lldb::addr_t load_addr,
                                     MemoryRegionInfo &range_info) {
   if (const lldb::ABISP &abi = GetABI())
-    load_addr = abi->FixDataAddress(load_addr);
+    load_addr = abi->FixAnyAddress(load_addr);
   return DoGetMemoryRegionInfo(load_addr, range_info);
 }
 
@@ -5866,7 +5909,7 @@ Status Process::GetMemoryRegions(lldb_private::MemoryRegionInfos &region_list) {
       range_end != LLDB_INVALID_ADDRESS &&
       // If we have non-address bits and some are set then the end
       // is at or beyond the end of mappable memory.
-      !(abi && (abi->FixDataAddress(range_end) != range_end)));
+      !(abi && (abi->FixAnyAddress(range_end) != range_end)));
 
   return error;
 }
@@ -6029,8 +6072,11 @@ bool Process::CallVoidArgVoidPtrReturn(const Address *address,
     llvm::consumeError(type_system_or_err.takeError());
     return false;
   }
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return false;
   CompilerType void_ptr_type =
-      type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
+      ts->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
   lldb::ThreadPlanSP call_plan_sp(new ThreadPlanCallFunction(
       *thread, *address, void_ptr_type, llvm::ArrayRef<addr_t>(), options));
   if (call_plan_sp) {

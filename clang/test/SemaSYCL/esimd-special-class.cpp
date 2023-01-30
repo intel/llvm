@@ -5,14 +5,14 @@
 // supported in esimd.
 
 #include "sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 void test() {
 
   queue q;
 
   q.submit([&](handler &h) {
-    cl::sycl::sampler Smplr;
-    cl::sycl::stream Stream(1024, 128, h);
+    sycl::sampler Smplr;
+    sycl::stream Stream(1024, 128, h);
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<class SamplerTester>(
         // expected-error@+1{{type 'sampler' is not supported in ESIMD context}}

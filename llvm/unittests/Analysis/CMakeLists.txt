@@ -2,18 +2,14 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   AsmParser
   Core
+  Passes
   Support
+  TargetParser
   TransformUtils
+  IPO
   )
 
-set(MLGO_TESTS TFUtilsTest.cpp MLModelRunnerTest.cpp)
-if (DEFINED LLVM_HAVE_TF_API)
-  LIST(APPEND EXTRA_TESTS ${MLGO_TESTS})
-else()
-  LIST(APPEND LLVM_OPTIONAL_SOURCES ${MLGO_TESTS})
-endif()
-
-add_llvm_unittest_with_input_files(AnalysisTests
+set(ANALYSIS_TEST_SOURCES
   AliasAnalysisTest.cpp
   AliasSetTrackerTest.cpp
   AssumeBundleQueriesTest.cpp
@@ -38,19 +34,35 @@ add_llvm_unittest_with_input_files(AnalysisTests
   LoopInfoTest.cpp
   LoopNestTest.cpp
   MemoryBuiltinsTest.cpp
+  MemoryProfileInfoTest.cpp
   MemorySSATest.cpp
+  MLModelRunnerTest.cpp
   PhiValuesTest.cpp
+  PluginInlineAdvisorAnalysisTest.cpp
   ProfileSummaryInfoTest.cpp
   ScalarEvolutionTest.cpp
   VectorFunctionABITest.cpp
   SparsePropagation.cpp
   TargetLibraryInfoTest.cpp
+  TensorSpecTest.cpp
   TBAATest.cpp
   UnrollAnalyzerTest.cpp
   ValueLatticeTest.cpp
   ValueTrackingTest.cpp
   VectorUtilsTest.cpp
-  ${EXTRA_TESTS}
   )
 
- target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)
+set(MLGO_TESTS TFUtilsTest.cpp TrainingLoggerTest.cpp)
+if (LLVM_HAVE_TFLITE)
+  LIST(APPEND ANALYSIS_TEST_SOURCES ${MLGO_TESTS})
+else()
+  LIST(APPEND LLVM_OPTIONAL_SOURCES ${MLGO_TESTS})
+endif()
+
+add_llvm_unittest_with_input_files(AnalysisTests
+  ${ANALYSIS_TEST_SOURCES}
+  )
+
+target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)
+
+add_subdirectory(InlineAdvisorPlugin)

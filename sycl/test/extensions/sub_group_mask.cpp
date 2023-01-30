@@ -8,9 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 int main() {
   for (size_t sgsize = 32; sgsize > 4; sgsize /= 2) {

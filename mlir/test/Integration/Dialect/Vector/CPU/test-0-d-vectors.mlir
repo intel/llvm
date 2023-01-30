@@ -1,34 +1,34 @@
 // RUN: mlir-opt %s -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-func @extract_element_0d(%a: vector<f32>) {
+func.func @extract_element_0d(%a: vector<f32>) {
   %1 = vector.extractelement %a[] : vector<f32>
   // CHECK: 42
   vector.print %1: f32
   return
 }
 
-func @insert_element_0d(%a: f32, %b: vector<f32>) -> (vector<f32>) {
+func.func @insert_element_0d(%a: f32, %b: vector<f32>) -> (vector<f32>) {
   %1 = vector.insertelement %a, %b[] : vector<f32>
   return %1: vector<f32>
 }
 
-func @print_vector_0d(%a: vector<f32>) {
+func.func @print_vector_0d(%a: vector<f32>) {
   // CHECK: ( 42 )
   vector.print %a: vector<f32>
   return
 }
 
-func @splat_0d(%a: f32) {
+func.func @splat_0d(%a: f32) {
   %1 = vector.splat %a : vector<f32>
   // CHECK: ( 42 )
   vector.print %1: vector<f32>
   return
 }
 
-func @broadcast_0d(%a: f32) {
+func.func @broadcast_0d(%a: f32) {
   %1 = vector.broadcast %a : f32 to vector<f32>
   // CHECK: ( 42 )
   vector.print %1: vector<f32>
@@ -55,7 +55,7 @@ func @broadcast_0d(%a: f32) {
   return
 }
 
-func @bitcast_0d() {
+func.func @bitcast_0d() {
   %0 = arith.constant 42 : i32
   %1 = arith.constant dense<0> : vector<i32>
   %2 = vector.insertelement %0, %1[] : vector<i32>
@@ -67,7 +67,7 @@ func @bitcast_0d() {
   return
 }
 
-func @constant_mask_0d() {
+func.func @constant_mask_0d() {
   %1 = vector.constant_mask [0] : vector<i1>
   // CHECK: ( 0 )
   vector.print %1: vector<i1>
@@ -77,7 +77,7 @@ func @constant_mask_0d() {
   return
 }
 
-func @arith_cmpi_0d(%smaller : vector<i32>, %bigger : vector<i32>) {
+func.func @arith_cmpi_0d(%smaller : vector<i32>, %bigger : vector<i32>) {
   %0 = arith.cmpi ult, %smaller, %bigger : vector<i32>
   // CHECK: ( 1 )
   vector.print %0: vector<i1>
@@ -93,7 +93,7 @@ func @arith_cmpi_0d(%smaller : vector<i32>, %bigger : vector<i32>) {
   return
 }
 
-func @create_mask_0d(%zero : index, %one : index) {
+func.func @create_mask_0d(%zero : index, %one : index) {
   %zero_mask = vector.create_mask %zero : vector<i1>
   // CHECK: ( 0 )
   vector.print %zero_mask : vector<i1>
@@ -105,7 +105,36 @@ func @create_mask_0d(%zero : index, %one : index) {
   return
 }
 
-func @entry() {
+func.func @reduce_add(%arg0: vector<f32>) {
+  %0 = vector.reduction <add>, %arg0 : vector<f32> into f32
+  vector.print %0 : f32
+  // CHECK: 5
+  return
+}
+
+func.func @fma_0d(%four: vector<f32>) {
+  %0 = vector.fma %four, %four, %four : vector<f32>
+  // 4 * 4 + 4 = 20
+  // CHECK: ( 20 )
+  vector.print %0: vector<f32>
+  return
+}
+
+func.func @transpose_0d(%arg: vector<i32>) {
+  %1 = vector.transpose %arg, [] : vector<i32> to vector<i32>
+  // CHECK: ( 42 )
+  vector.print %1: vector<i32>
+  return
+}
+
+func.func @shuffle_0d(%v0: vector<i32>, %v1: vector<i32>) {
+  %1 = vector.shuffle %v0, %v1 [0, 1, 0] : vector<i32>, vector<i32>
+  // CHECK: ( 42, 43, 42 )
+  vector.print %1: vector<3xi32>
+  return
+}
+
+func.func @entry() {
   %0 = arith.constant 42.0 : f32
   %1 = arith.constant dense<0.0> : vector<f32>
   %2 = call  @insert_element_0d(%0, %1) : (f32, vector<f32>) -> (vector<f32>)
@@ -130,6 +159,16 @@ func @entry() {
   %zero_idx = arith.constant 0 : index
   %one_idx = arith.constant 1 : index
   call  @create_mask_0d(%zero_idx, %one_idx) : (index, index) -> ()
+
+  %red_array = arith.constant dense<5.0> : vector<f32>
+  call  @reduce_add(%red_array) : (vector<f32>) -> ()
+
+  %5 = arith.constant dense<4.0> : vector<f32>
+  call  @fma_0d(%5) : (vector<f32>) -> ()
+  %6 = arith.constant dense<42> : vector<i32>
+  %7 = arith.constant dense<43> : vector<i32>
+  call @transpose_0d(%6) : (vector<i32>) -> ()
+  call @shuffle_0d(%6, %7) : (vector<i32>, vector<i32>) -> ()
 
   return
 }

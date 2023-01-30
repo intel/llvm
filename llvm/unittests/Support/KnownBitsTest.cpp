@@ -41,10 +41,9 @@ TEST(KnownBitsTest, AddCarryExhaustive) {
           });
         });
 
-        KnownBits KnownComputed = KnownBits::computeForAddCarry(
-            Known1, Known2, KnownCarry);
-        EXPECT_EQ(Known.Zero, KnownComputed.Zero);
-        EXPECT_EQ(Known.One, KnownComputed.One);
+        KnownBits KnownComputed =
+            KnownBits::computeForAddCarry(Known1, Known2, KnownCarry);
+        EXPECT_EQ(Known, KnownComputed);
       });
     });
   });
@@ -79,10 +78,9 @@ static void TestAddSubExhaustive(bool IsAdd) {
         });
       });
 
-      KnownBits KnownComputed = KnownBits::computeForAddSub(
-          IsAdd, /*NSW*/false, Known1, Known2);
-      EXPECT_EQ(Known.Zero, KnownComputed.Zero);
-      EXPECT_EQ(Known.One, KnownComputed.One);
+      KnownBits KnownComputed =
+          KnownBits::computeForAddSub(IsAdd, /*NSW*/ false, Known1, Known2);
+      EXPECT_EQ(Known, KnownComputed);
 
       // The NSW calculation is not precise, only check that it's
       // conservatively correct.
@@ -201,32 +199,25 @@ TEST(KnownBitsTest, BinaryExhaustive) {
       });
 
       KnownBits ComputedAnd = Known1 & Known2;
-      EXPECT_EQ(KnownAnd.Zero, ComputedAnd.Zero);
-      EXPECT_EQ(KnownAnd.One, ComputedAnd.One);
+      EXPECT_EQ(KnownAnd, ComputedAnd);
 
       KnownBits ComputedOr = Known1 | Known2;
-      EXPECT_EQ(KnownOr.Zero, ComputedOr.Zero);
-      EXPECT_EQ(KnownOr.One, ComputedOr.One);
+      EXPECT_EQ(KnownOr, ComputedOr);
 
       KnownBits ComputedXor = Known1 ^ Known2;
-      EXPECT_EQ(KnownXor.Zero, ComputedXor.Zero);
-      EXPECT_EQ(KnownXor.One, ComputedXor.One);
+      EXPECT_EQ(KnownXor, ComputedXor);
 
       KnownBits ComputedUMax = KnownBits::umax(Known1, Known2);
-      EXPECT_EQ(KnownUMax.Zero, ComputedUMax.Zero);
-      EXPECT_EQ(KnownUMax.One, ComputedUMax.One);
+      EXPECT_EQ(KnownUMax, ComputedUMax);
 
       KnownBits ComputedUMin = KnownBits::umin(Known1, Known2);
-      EXPECT_EQ(KnownUMin.Zero, ComputedUMin.Zero);
-      EXPECT_EQ(KnownUMin.One, ComputedUMin.One);
+      EXPECT_EQ(KnownUMin, ComputedUMin);
 
       KnownBits ComputedSMax = KnownBits::smax(Known1, Known2);
-      EXPECT_EQ(KnownSMax.Zero, ComputedSMax.Zero);
-      EXPECT_EQ(KnownSMax.One, ComputedSMax.One);
+      EXPECT_EQ(KnownSMax, ComputedSMax);
 
       KnownBits ComputedSMin = KnownBits::smin(Known1, Known2);
-      EXPECT_EQ(KnownSMin.Zero, ComputedSMin.Zero);
-      EXPECT_EQ(KnownSMin.One, ComputedSMin.One);
+      EXPECT_EQ(KnownSMin, ComputedSMin);
 
       // The following are conservatively correct, but not guaranteed to be
       // precise.
@@ -356,49 +347,49 @@ TEST(KnownBitsTest, ICmpExhaustive) {
         });
       });
 
-      Optional<bool> KnownEQ = KnownBits::eq(Known1, Known2);
-      Optional<bool> KnownNE = KnownBits::ne(Known1, Known2);
-      Optional<bool> KnownUGT = KnownBits::ugt(Known1, Known2);
-      Optional<bool> KnownUGE = KnownBits::uge(Known1, Known2);
-      Optional<bool> KnownULT = KnownBits::ult(Known1, Known2);
-      Optional<bool> KnownULE = KnownBits::ule(Known1, Known2);
-      Optional<bool> KnownSGT = KnownBits::sgt(Known1, Known2);
-      Optional<bool> KnownSGE = KnownBits::sge(Known1, Known2);
-      Optional<bool> KnownSLT = KnownBits::slt(Known1, Known2);
-      Optional<bool> KnownSLE = KnownBits::sle(Known1, Known2);
+      std::optional<bool> KnownEQ = KnownBits::eq(Known1, Known2);
+      std::optional<bool> KnownNE = KnownBits::ne(Known1, Known2);
+      std::optional<bool> KnownUGT = KnownBits::ugt(Known1, Known2);
+      std::optional<bool> KnownUGE = KnownBits::uge(Known1, Known2);
+      std::optional<bool> KnownULT = KnownBits::ult(Known1, Known2);
+      std::optional<bool> KnownULE = KnownBits::ule(Known1, Known2);
+      std::optional<bool> KnownSGT = KnownBits::sgt(Known1, Known2);
+      std::optional<bool> KnownSGE = KnownBits::sge(Known1, Known2);
+      std::optional<bool> KnownSLT = KnownBits::slt(Known1, Known2);
+      std::optional<bool> KnownSLE = KnownBits::sle(Known1, Known2);
 
-      EXPECT_EQ(AllEQ || NoneEQ, KnownEQ.hasValue());
-      EXPECT_EQ(AllNE || NoneNE, KnownNE.hasValue());
-      EXPECT_EQ(AllUGT || NoneUGT, KnownUGT.hasValue());
-      EXPECT_EQ(AllUGE || NoneUGE, KnownUGE.hasValue());
-      EXPECT_EQ(AllULT || NoneULT, KnownULT.hasValue());
-      EXPECT_EQ(AllULE || NoneULE, KnownULE.hasValue());
-      EXPECT_EQ(AllSGT || NoneSGT, KnownSGT.hasValue());
-      EXPECT_EQ(AllSGE || NoneSGE, KnownSGE.hasValue());
-      EXPECT_EQ(AllSLT || NoneSLT, KnownSLT.hasValue());
-      EXPECT_EQ(AllSLE || NoneSLE, KnownSLE.hasValue());
+      EXPECT_EQ(AllEQ || NoneEQ, KnownEQ.has_value());
+      EXPECT_EQ(AllNE || NoneNE, KnownNE.has_value());
+      EXPECT_EQ(AllUGT || NoneUGT, KnownUGT.has_value());
+      EXPECT_EQ(AllUGE || NoneUGE, KnownUGE.has_value());
+      EXPECT_EQ(AllULT || NoneULT, KnownULT.has_value());
+      EXPECT_EQ(AllULE || NoneULE, KnownULE.has_value());
+      EXPECT_EQ(AllSGT || NoneSGT, KnownSGT.has_value());
+      EXPECT_EQ(AllSGE || NoneSGE, KnownSGE.has_value());
+      EXPECT_EQ(AllSLT || NoneSLT, KnownSLT.has_value());
+      EXPECT_EQ(AllSLE || NoneSLE, KnownSLE.has_value());
 
-      EXPECT_EQ(AllEQ, KnownEQ.hasValue() && KnownEQ.getValue());
-      EXPECT_EQ(AllNE, KnownNE.hasValue() && KnownNE.getValue());
-      EXPECT_EQ(AllUGT, KnownUGT.hasValue() && KnownUGT.getValue());
-      EXPECT_EQ(AllUGE, KnownUGE.hasValue() && KnownUGE.getValue());
-      EXPECT_EQ(AllULT, KnownULT.hasValue() && KnownULT.getValue());
-      EXPECT_EQ(AllULE, KnownULE.hasValue() && KnownULE.getValue());
-      EXPECT_EQ(AllSGT, KnownSGT.hasValue() && KnownSGT.getValue());
-      EXPECT_EQ(AllSGE, KnownSGE.hasValue() && KnownSGE.getValue());
-      EXPECT_EQ(AllSLT, KnownSLT.hasValue() && KnownSLT.getValue());
-      EXPECT_EQ(AllSLE, KnownSLE.hasValue() && KnownSLE.getValue());
+      EXPECT_EQ(AllEQ, KnownEQ.has_value() && *KnownEQ);
+      EXPECT_EQ(AllNE, KnownNE.has_value() && *KnownNE);
+      EXPECT_EQ(AllUGT, KnownUGT.has_value() && *KnownUGT);
+      EXPECT_EQ(AllUGE, KnownUGE.has_value() && *KnownUGE);
+      EXPECT_EQ(AllULT, KnownULT.has_value() && *KnownULT);
+      EXPECT_EQ(AllULE, KnownULE.has_value() && *KnownULE);
+      EXPECT_EQ(AllSGT, KnownSGT.has_value() && *KnownSGT);
+      EXPECT_EQ(AllSGE, KnownSGE.has_value() && *KnownSGE);
+      EXPECT_EQ(AllSLT, KnownSLT.has_value() && *KnownSLT);
+      EXPECT_EQ(AllSLE, KnownSLE.has_value() && *KnownSLE);
 
-      EXPECT_EQ(NoneEQ, KnownEQ.hasValue() && !KnownEQ.getValue());
-      EXPECT_EQ(NoneNE, KnownNE.hasValue() && !KnownNE.getValue());
-      EXPECT_EQ(NoneUGT, KnownUGT.hasValue() && !KnownUGT.getValue());
-      EXPECT_EQ(NoneUGE, KnownUGE.hasValue() && !KnownUGE.getValue());
-      EXPECT_EQ(NoneULT, KnownULT.hasValue() && !KnownULT.getValue());
-      EXPECT_EQ(NoneULE, KnownULE.hasValue() && !KnownULE.getValue());
-      EXPECT_EQ(NoneSGT, KnownSGT.hasValue() && !KnownSGT.getValue());
-      EXPECT_EQ(NoneSGE, KnownSGE.hasValue() && !KnownSGE.getValue());
-      EXPECT_EQ(NoneSLT, KnownSLT.hasValue() && !KnownSLT.getValue());
-      EXPECT_EQ(NoneSLE, KnownSLE.hasValue() && !KnownSLE.getValue());
+      EXPECT_EQ(NoneEQ, KnownEQ.has_value() && !*KnownEQ);
+      EXPECT_EQ(NoneNE, KnownNE.has_value() && !*KnownNE);
+      EXPECT_EQ(NoneUGT, KnownUGT.has_value() && !*KnownUGT);
+      EXPECT_EQ(NoneUGE, KnownUGE.has_value() && !*KnownUGE);
+      EXPECT_EQ(NoneULT, KnownULT.has_value() && !*KnownULT);
+      EXPECT_EQ(NoneULE, KnownULE.has_value() && !*KnownULE);
+      EXPECT_EQ(NoneSGT, KnownSGT.has_value() && !*KnownSGT);
+      EXPECT_EQ(NoneSGE, KnownSGE.has_value() && !*KnownSGE);
+      EXPECT_EQ(NoneSLT, KnownSLT.has_value() && !*KnownSLT);
+      EXPECT_EQ(NoneSLE, KnownSLE.has_value() && !*KnownSLE);
     });
   });
 }
@@ -476,8 +467,7 @@ TEST(KnownBitsTest, SExtOrTrunc) {
       KnownBits Baseline;
       InitKnownBits(Baseline, Input.sextOrTrunc(Size));
       Test = Test.sextOrTrunc(Size);
-      EXPECT_EQ(Test.One, Baseline.One);
-      EXPECT_EQ(Test.Zero, Baseline.Zero);
+      EXPECT_EQ(Test, Baseline);
     }
   }
 }
@@ -516,6 +506,31 @@ TEST(KnownBitsTest, CommonBitsSet) {
                 KnownBits::haveNoCommonBitsSet(Known1, Known2));
     });
   });
+}
+
+TEST(KnownBitsTest, ConcatBits) {
+  unsigned Bits = 4;
+  for (unsigned LoBits = 1; LoBits < Bits; ++LoBits) {
+    unsigned HiBits = Bits - LoBits;
+    ForeachKnownBits(LoBits, [&](const KnownBits &KnownLo) {
+      ForeachKnownBits(HiBits, [&](const KnownBits &KnownHi) {
+        KnownBits KnownAll = KnownHi.concat(KnownLo);
+
+        EXPECT_EQ(KnownLo.countMinPopulation() + KnownHi.countMinPopulation(),
+                  KnownAll.countMinPopulation());
+        EXPECT_EQ(KnownLo.countMaxPopulation() + KnownHi.countMaxPopulation(),
+                  KnownAll.countMaxPopulation());
+
+        KnownBits ExtractLo = KnownAll.extractBits(LoBits, 0);
+        KnownBits ExtractHi = KnownAll.extractBits(HiBits, LoBits);
+
+        EXPECT_EQ(KnownLo.One.getZExtValue(), ExtractLo.One.getZExtValue());
+        EXPECT_EQ(KnownHi.One.getZExtValue(), ExtractHi.One.getZExtValue());
+        EXPECT_EQ(KnownLo.Zero.getZExtValue(), ExtractLo.Zero.getZExtValue());
+        EXPECT_EQ(KnownHi.Zero.getZExtValue(), ExtractHi.Zero.getZExtValue());
+      });
+    });
+  }
 }
 
 } // end anonymous namespace

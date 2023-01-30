@@ -262,7 +262,7 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          OptionalFileEntryRef File, StringRef SearchPath,
                           StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     bool isImport = (IncludeTok.is(tok::identifier) &&
@@ -508,8 +508,11 @@ static CXErrorCode clang_indexSourceFile_Impl(
   if (source_filename)
     Args->push_back(source_filename);
 
+  CreateInvocationOptions CIOpts;
+  CIOpts.Diags = Diags;
+  CIOpts.ProbePrecompiled = true; // FIXME: historical default. Needed?
   std::shared_ptr<CompilerInvocation> CInvok =
-      createInvocationFromCommandLine(*Args, Diags);
+      createInvocation(*Args, std::move(CIOpts));
 
   if (!CInvok)
     return CXError_Failure;

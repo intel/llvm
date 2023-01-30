@@ -48,6 +48,12 @@ void ARMException::beginFunction(const MachineFunction *MF) {
   }
 }
 
+void ARMException::markFunctionEnd() {
+  if (shouldEmitCFI)
+    Asm->OutStreamer->emitCFIEndProc();
+  DwarfCFIExceptionBase::markFunctionEnd();
+}
+
 /// endFunction - Gather and emit post-function exception information.
 ///
 void ARMException::endFunction(const MachineFunction *MF) {
@@ -94,7 +100,7 @@ void ARMException::emitTypeInfos(unsigned TTypeEncoding,
   // Emit the Catch TypeInfos.
   if (VerboseAsm && !TypeInfos.empty()) {
     Asm->OutStreamer->AddComment(">> Catch TypeInfos <<");
-    Asm->OutStreamer->AddBlankLine();
+    Asm->OutStreamer->addBlankLine();
     Entry = TypeInfos.size();
   }
 
@@ -109,7 +115,7 @@ void ARMException::emitTypeInfos(unsigned TTypeEncoding,
   // Emit the Exception Specifications.
   if (VerboseAsm && !FilterIds.empty()) {
     Asm->OutStreamer->AddComment(">> Filter TypeInfos <<");
-    Asm->OutStreamer->AddBlankLine();
+    Asm->OutStreamer->addBlankLine();
     Entry = 0;
   }
   for (std::vector<unsigned>::const_iterator

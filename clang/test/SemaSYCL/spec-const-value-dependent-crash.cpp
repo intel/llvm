@@ -7,12 +7,12 @@ sycl::queue myQueue;
 
 int main() {
    constexpr int default_val = 20;
-   cl::sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const> SC(default_val);
+   sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const> SC(default_val);
   
   myQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_sc>(
         [=] {
-          cl::sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const> res = SC;
+          sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const> res = SC;
         });
   });
   return 0;
@@ -21,4 +21,4 @@ int main() {
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const>':'sycl::ext::oneapi::experimental::spec_constant<int, MyInt32Const>' 'void ()'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const>':'sycl::ext::oneapi::experimental::spec_constant<int, MyInt32Const>' 'void ()'

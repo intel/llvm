@@ -28,12 +28,6 @@
 /* Default linker to use. */
 #define CLANG_DEFAULT_LINKER ""
 
-/* Default C/ObjC standard to use. */
-/* #undef CLANG_DEFAULT_STD_C */
-
-/* Default C++/ObjC++ standard to use. */
-/* #undef CLANG_DEFAULT_STD_CXX */
-
 /* Default C++ stdlib to use. */
 #define CLANG_DEFAULT_CXX_STDLIB ""
 
@@ -55,8 +49,8 @@
 /* Default architecture for SystemZ. */
 #define CLANG_SYSTEMZ_DEFAULT_ARCH "z10"
 
-/* Multilib suffix for libdir. */
-#define CLANG_LIBDIR_SUFFIX ""
+/* Multilib basename for libdir. */
+#define CLANG_INSTALL_LIBDIR_BASENAME "lib"
 
 /* Relative directory for resource files */
 #define CLANG_RESOURCE_DIR ""
@@ -79,9 +73,6 @@
 
 /* Define if we have sys/resource.h (rlimits) */
 /* CLANG_HAVE_RLIMITS defined conditionally below */
-
-/* The LLVM product name and version */
-#define BACKEND_PACKAGE_STRING "LLVM 12.0.0git"
 
 /* Linker version detected at compile time. */
 /* #undef HOST_LINK_VERSION */

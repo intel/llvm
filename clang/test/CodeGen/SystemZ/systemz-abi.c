@@ -17,6 +17,8 @@
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple s390x-linux-gnu -target-cpu arch13 \
 // RUN:   -emit-llvm -o - %s -mfloat-abi soft | FileCheck %s \
 // RUN:   --check-prefixes=CHECK,SOFT-FLOAT
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple s390x-linux-gnu -target-cpu z16 \
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple s390x-linux-gnu -target-cpu arch14 \
 // RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple s390x-linux-gnu -target-cpu arch14 \
@@ -41,7 +43,7 @@ long long pass_longlong(long long arg) { return arg; }
 // CHECK-LABEL: define{{.*}} i64 @pass_longlong(i64 %{{.*}})
 
 __int128 pass_int128(__int128 arg) { return arg; }
-// CHECK-LABEL: define{{.*}} void @pass_int128(i128* noalias sret(i128) align 16 %{{.*}}, i128* %0)
+// CHECK-LABEL: define{{.*}} void @pass_int128(i128* noalias sret(i128) align 8 %{{.*}}, i128* %0)
 
 float pass_float(float arg) { return arg; }
 // CHECK-LABEL: define{{.*}} float @pass_float(float %{{.*}})

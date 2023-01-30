@@ -12,6 +12,7 @@
 #include "clang/Tooling/Transformer/RangeSelector.h"
 #include "clang/Tooling/Transformer/RewriteRule.h"
 #include "clang/Tooling/Transformer/Stencil.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
@@ -109,18 +110,18 @@ protected:
             "clang-tool", std::make_shared<PCHContainerOperations>(),
             FileContents)) {
       llvm::errs() << "Running tool failed.\n";
-      return None;
+      return std::nullopt;
     }
     if (ErrorCount != 0) {
       llvm::errs() << "Generating changes failed.\n";
-      return None;
+      return std::nullopt;
     }
     auto ChangedCode =
         applyAtomicChanges("input.cc", Code, Changes, ApplyChangesSpec());
     if (!ChangedCode) {
       llvm::errs() << "Applying changes failed: "
                    << llvm::toString(ChangedCode.takeError()) << "\n";
-      return None;
+      return std::nullopt;
     }
     return *ChangedCode;
   }
@@ -805,7 +806,7 @@ TEST_F(TransformerTest, WithMetadata) {
       "clang-tool", std::make_shared<PCHContainerOperations>(), {}));
   ASSERT_EQ(Changes.size(), 1u);
   const llvm::Any &Metadata = Changes[0].getMetadata();
-  ASSERT_TRUE(llvm::any_isa<int>(Metadata));
+  ASSERT_TRUE(llvm::any_cast<int>(&Metadata));
   EXPECT_THAT(llvm::any_cast<int>(Metadata), 5);
 }
 
@@ -1617,10 +1618,9 @@ TEST_F(TransformerTest, MultipleFiles) {
       "clang-tool", std::make_shared<PCHContainerOperations>(),
       {{"input.h", Header}}));
 
-  std::sort(Changes.begin(), Changes.end(),
-            [](const AtomicChange &L, const AtomicChange &R) {
-              return L.getFilePath() < R.getFilePath();
-            });
+  llvm::sort(Changes, [](const AtomicChange &L, const AtomicChange &R) {
+    return L.getFilePath() < R.getFilePath();
+  });
 
   ASSERT_EQ(Changes[0].getFilePath(), "./input.h");
   EXPECT_THAT(Changes[0].getInsertedHeaders(), IsEmpty());

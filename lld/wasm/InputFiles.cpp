@@ -44,10 +44,10 @@ namespace wasm {
 
 void InputFile::checkArch(Triple::ArchType arch) const {
   bool is64 = arch == Triple::wasm64;
-  if (is64 && !config->is64.hasValue()) {
+  if (is64 && !config->is64) {
     fatal(toString(this) +
           ": must specify -mwasm64 to process wasm64 object files");
-  } else if (config->is64.getValueOr(false) != is64) {
+  } else if (config->is64.value_or(false) != is64) {
     fatal(toString(this) +
           ": wasm32 object file can't be linked in wasm64 mode");
   }
@@ -61,7 +61,7 @@ Optional<MemoryBufferRef> readFile(StringRef path) {
   auto mbOrErr = MemoryBuffer::getFile(path);
   if (auto ec = mbOrErr.getError()) {
     error("cannot open " + path + ": " + ec.message());
-    return None;
+    return std::nullopt;
   }
   std::unique_ptr<MemoryBuffer> &mb = *mbOrErr;
   MemoryBufferRef mbref = mb->getMemBufferRef();
@@ -739,8 +739,8 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
   if (objSym.isUndefined() || excludedByComdat) {
     flags |= WASM_SYMBOL_UNDEFINED;
     if (objSym.isExecutable())
-      return symtab->addUndefinedFunction(name, None, None, flags, &f, nullptr,
-                                          true);
+      return symtab->addUndefinedFunction(name, std::nullopt, std::nullopt,
+                                          flags, &f, nullptr, true);
     return symtab->addUndefinedData(name, flags, &f);
   }
 

@@ -6,7 +6,7 @@
 // unique string is generated.
 
 using namespace sycl::ext::oneapi;
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 device_global<int> A;
@@ -16,16 +16,16 @@ struct Foo {
   static device_global<int> C;
 };
 device_global<int> Foo::C;
-// CHECK: @A = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
-// CHECK: @_ZL1B = internal addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
-// CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
+// CHECK: @A = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
+// CHECK: @_ZL1B = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
+// CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
 
 device_global<int> same_name;
 namespace NS {
 device_global<int> same_name;
 }
-// CHECK: @same_name = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
-// CHECK: @_ZN2NS9same_nameE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
+// CHECK: @same_name = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
+// CHECK: @_ZN2NS9same_nameE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
 
 // decorated with only global_variable_allowed attribute
 template <typename T>
@@ -47,18 +47,18 @@ only_global_var_allowed<int> no_device_global;
 inline namespace Bar {
 device_global<float> InlineNS;
 }
-// CHECK: @_ZN3Bar8InlineNSE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #[[BAR_INLINENS_ATTRS:[0-9]+]]
+// CHECK: @_ZN3Bar8InlineNSE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.0" zeroinitializer, align 8 #[[BAR_INLINENS_ATTRS:[0-9]+]]
 
 template <typename T> struct TS {
 public:
   static device_global<T> d;
 };
 template <> device_global<int> TS<int>::d{};
-// CHECK: @_ZN2TSIiE1dE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
+// CHECK: @_ZN2TSIiE1dE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
 
 template <typename T>
 device_global<T> templ_dev_global;
-// CHECK: @[[TEMPL_DEV_GLOB:[a-zA-Z0-9_]+]] = linkonce_odr addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, comdat, align 8 #[[TEMPL_DEV_GLOB_ATTRS:[0-9]+]]
+// CHECK: @[[TEMPL_DEV_GLOB:[a-zA-Z0-9_]+]] = linkonce_odr addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, comdat, align 8 #[[TEMPL_DEV_GLOB_ATTRS:[0-9]+]]
 
 void foo() {
   q.submit([&](handler &h) {
@@ -79,7 +79,7 @@ void foo() {
 namespace {
 device_global<int> same_name;
 }
-// CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
+// CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
 
 namespace {
 void bar() {
@@ -89,8 +89,8 @@ void bar() {
 }
 } // namespace
 
-// CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_no_opaque_device_global.cpp, i8 addrspace(4)* null }]
-// CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
+// CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_no_opaque_device_global.cpp, i8 addrspace(4)* null }]
+// CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
 
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }

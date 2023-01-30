@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s -convert-linalg-to-parallel-loops -split-input-file | FileCheck %s
 
 #map0 = affine_map<(d0, d1) -> (d0, d1)>
-func @linalg_generic_sum(%lhs: memref<2x2xf32>,
+func.func @linalg_generic_sum(%lhs: memref<2x2xf32>,
                          %rhs: memref<2x2xf32>,
                          %sum: memref<2x2xf32>) {
   linalg.generic {
@@ -9,7 +9,7 @@ func @linalg_generic_sum(%lhs: memref<2x2xf32>,
     iterator_types = ["parallel", "parallel"]}
       ins(%lhs, %rhs : memref<2x2xf32>, memref<2x2xf32>)
      outs(%sum : memref<2x2xf32>) {
-    ^bb0(%lhs_in: f32, %rhs_in: f32, %sum_out: f32):   
+    ^bb0(%lhs_in: f32, %rhs_in: f32, %sum_out: f32):
       %0 = arith.addf %lhs_in, %rhs_in : f32
       linalg.yield %0 : f32
   }
@@ -38,7 +38,7 @@ func @linalg_generic_sum(%lhs: memref<2x2xf32>,
   indexing_maps = #accesses
 }
 
-func @lower_outer_parallel(%A: memref<?x?x?x?xf32>, %B: memref<?x?x?xf32>) {
+func.func @lower_outer_parallel(%A: memref<?x?x?x?xf32>, %B: memref<?x?x?xf32>) {
   linalg.generic #trait
       ins(%A : memref<?x?x?x?xf32>)
      outs(%B : memref<?x?x?xf32>) {
@@ -71,7 +71,7 @@ func @lower_outer_parallel(%A: memref<?x?x?x?xf32>, %B: memref<?x?x?xf32>) {
   indexing_maps = #accesses
 }
 
-func @lower_mixed_parallel(%A: memref<?x?x?x?x?x?xf32>, %B: memref<?x?x?x?xf32>) {
+func.func @lower_mixed_parallel(%A: memref<?x?x?x?x?x?xf32>, %B: memref<?x?x?x?xf32>) {
   linalg.generic #trait
       ins(%A : memref<?x?x?x?x?x?xf32>)
      outs(%B : memref<?x?x?x?xf32>) {

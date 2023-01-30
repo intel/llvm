@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 //  constexpr basic_string_view(const _CharT* _s, size_type _len)
 //      : __data (_s), __size(_len) {}
-
 
 #include <string_view>
 #include <string>
@@ -44,6 +45,7 @@ int main(int, char**) {
     }
 #endif
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"QBCDE", 5 );
     test ( L"QBCDE", 2 );
     test ( L"", 0 );
@@ -55,6 +57,7 @@ int main(int, char**) {
     static_assert ( sv1.data() == s, "" );
     }
 #endif
+#endif // TEST_HAS_NO_WIDE_CHARACTERS
 
 #if TEST_STD_VER >= 11
     test ( u"QBCDE", 5 );

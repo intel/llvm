@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -57,7 +57,7 @@ def boilerplate(attr: st.EncodingAttr):
   this part is purely done as string input.
   """
   return f"""
-func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> tensor<3x2xf64>
+func.func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> tensor<3x2xf64>
   attributes {{ llvm.emit_c_interface }} {{
   %a = sparse_tensor.convert %ad : tensor<3x4xf64> to tensor<3x4xf64, {attr}>
   %0 = call @spMxM(%a, %b, %c) : (tensor<3x4xf64, {attr}>,
@@ -120,13 +120,10 @@ def main():
     # a *single* sparse tensor. Note that we deliberate do not exhaustively
     # search the full state space to reduce runtime of the test. It is
     # straightforward to adapt the code below to explore more combinations.
-    par = 0
-    vec = 0
+
     vl = 1
     e = False
-    opt = (f'parallelization-strategy={par} '
-           f'vectorization-strategy={vec} '
-           f'vl={vl} enable-simd-index32={e}')
+    opt = (f'parallelization-strategy=none')
     levels = [[st.DimLevelType.dense, st.DimLevelType.dense],
               [st.DimLevelType.dense, st.DimLevelType.compressed],
               [st.DimLevelType.compressed, st.DimLevelType.dense],
@@ -142,7 +139,7 @@ def main():
       for ordering in orderings:
         for pwidth in bitwidths:
           for iwidth in bitwidths:
-            attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
+            attr = st.EncodingAttr.get(level, ordering, None, pwidth, iwidth)
             build_compile_and_run_SpMM(attr, compiler)
             count = count + 1
     # CHECK: Passed 8 tests

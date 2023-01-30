@@ -74,7 +74,9 @@ bool isSupportedAArch64(uint64_t Type) {
   case ELF::R_AARCH64_TLSDESC_ADD_LO12:
   case ELF::R_AARCH64_TLSDESC_CALL:
   case ELF::R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
+  case ELF::R_AARCH64_PREL16:
   case ELF::R_AARCH64_PREL32:
+  case ELF::R_AARCH64_PREL64:
   case ELF::R_AARCH64_ABS16:
   case ELF::R_AARCH64_ABS32:
   case ELF::R_AARCH64_ABS64:
@@ -121,6 +123,7 @@ size_t getSizeForTypeAArch64(uint64_t Type) {
     errs() << object::getELFRelocationTypeName(ELF::EM_AARCH64, Type) << '\n';
     llvm_unreachable("unsupported relocation type");
   case ELF::R_AARCH64_ABS16:
+  case ELF::R_AARCH64_PREL16:
     return 2;
   case ELF::R_AARCH64_CALL26:
   case ELF::R_AARCH64_JUMP26:
@@ -157,15 +160,22 @@ size_t getSizeForTypeAArch64(uint64_t Type) {
   case ELF::R_AARCH64_ABS32:
     return 4;
   case ELF::R_AARCH64_ABS64:
+  case ELF::R_AARCH64_PREL64:
     return 8;
   }
 }
 
-bool skipRelocationProcessX86(uint64_t Type, uint64_t Contents) {
+bool skipRelocationTypeX86(uint64_t Type) { return Type == ELF::R_X86_64_NONE; }
+
+bool skipRelocationTypeAArch64(uint64_t Type) {
+  return Type == ELF::R_AARCH64_NONE || Type == ELF::R_AARCH64_LD_PREL_LO19;
+}
+
+bool skipRelocationProcessX86(uint64_t &Type, uint64_t Contents) {
   return false;
 }
 
-bool skipRelocationProcessAArch64(uint64_t Type, uint64_t Contents) {
+bool skipRelocationProcessAArch64(uint64_t &Type, uint64_t Contents) {
   auto IsMov = [](uint64_t Contents) -> bool {
     // The bits 28-23 are 0b100101
     return (Contents & 0x1f800000) == 0x12800000;
@@ -181,11 +191,24 @@ bool skipRelocationProcessAArch64(uint64_t Type, uint64_t Contents) {
     return (Contents & 0x9f000000) == 0x10000000;
   };
 
+  auto IsAddImm = [](uint64_t Contents) -> bool {
+    // The bits 30-23 are 0b00100010
+    return (Contents & 0x7F800000) == 0x11000000;
+  };
+
   auto IsNop = [](uint64_t Contents) -> bool { return Contents == 0xd503201f; };
 
   // The linker might eliminate the instruction and replace it with NOP, ignore
   if (IsNop(Contents))
     return true;
+
+  // The linker might relax ADRP+LDR instruction sequence for loading symbol
+  // address from GOT table to ADRP+ADD sequence that would point to the
+  // binary-local symbol. Change relocation type in order to process it right.
+  if (Type == ELF::R_AARCH64_LD64_GOT_LO12_NC && IsAddImm(Contents)) {
+    Type = ELF::R_AARCH64_ADD_ABS_LO12_NC;
+    return false;
+  }
 
   // The linker might perform TLS relocations relaxations, such as
   // changed TLS access model (e.g. changed global dynamic model
@@ -258,7 +281,9 @@ uint64_t adjustValueAArch64(uint64_t Type, uint64_t Value, uint64_t PC) {
     llvm_unreachable("not supported relocation");
   case ELF::R_AARCH64_ABS32:
     break;
+  case ELF::R_AARCH64_PREL16:
   case ELF::R_AARCH64_PREL32:
+  case ELF::R_AARCH64_PREL64:
     Value -= PC;
     break;
   }
@@ -282,8 +307,12 @@ uint64_t extractValueAArch64(uint64_t Type, uint64_t Contents, uint64_t PC) {
   case ELF::R_AARCH64_ABS32:
   case ELF::R_AARCH64_ABS64:
     return Contents;
+  case ELF::R_AARCH64_PREL16:
+    return static_cast<int64_t>(PC) + SignExtend64<16>(Contents & 0xffff);
   case ELF::R_AARCH64_PREL32:
     return static_cast<int64_t>(PC) + SignExtend64<32>(Contents & 0xffffffff);
+  case ELF::R_AARCH64_PREL64:
+    return static_cast<int64_t>(PC) + Contents;
   case ELF::R_AARCH64_TLSDESC_CALL:
   case ELF::R_AARCH64_JUMP26:
   case ELF::R_AARCH64_CALL26:
@@ -505,7 +534,9 @@ bool isPCRelativeAArch64(uint64_t Type) {
   case ELF::R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
   case ELF::R_AARCH64_TLSDESC_ADR_PREL21:
   case ELF::R_AARCH64_TLSDESC_ADR_PAGE21:
+  case ELF::R_AARCH64_PREL16:
   case ELF::R_AARCH64_PREL32:
+  case ELF::R_AARCH64_PREL64:
     return true;
   }
 }
@@ -524,7 +555,13 @@ size_t Relocation::getSizeForType(uint64_t Type) {
   return getSizeForTypeX86(Type);
 }
 
-bool Relocation::skipRelocationProcess(uint64_t Type, uint64_t Contents) {
+bool Relocation::skipRelocationType(uint64_t Type) {
+  if (Arch == Triple::aarch64)
+    return skipRelocationTypeAArch64(Type);
+  return skipRelocationTypeX86(Type);
+}
+
+bool Relocation::skipRelocationProcess(uint64_t &Type, uint64_t Contents) {
   if (Arch == Triple::aarch64)
     return skipRelocationProcessAArch64(Type, Contents);
   return skipRelocationProcessX86(Type, Contents);
@@ -548,6 +585,12 @@ bool Relocation::isGOT(uint64_t Type) {
   if (Arch == Triple::aarch64)
     return isGOTAArch64(Type);
   return isGOTX86(Type);
+}
+
+bool Relocation::isX86GOTPCRELX(uint64_t Type) {
+  if (Arch != Triple::x86_64)
+    return false;
+  return Type == ELF::R_X86_64_GOTPCRELX || Type == ELF::R_X86_64_REX_GOTPCRELX;
 }
 
 bool Relocation::isNone(uint64_t Type) { return Type == getNone(); }

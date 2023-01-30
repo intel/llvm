@@ -15,8 +15,8 @@
 #include "TargetInfo/CSKYTargetInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDecoderOps.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
-#include "llvm/MC/MCFixedLenDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -361,7 +361,7 @@ static DecodeStatus DecodeRegSeqOperandD2(MCInst &Inst, uint64_t Imm,
 static DecodeStatus decodeImmShiftOpValue(MCInst &Inst, uint64_t Imm,
                                           int64_t Address,
                                           const MCDisassembler *Decoder) {
-  Inst.addOperand(MCOperand::createImm(Log2(Imm)));
+  Inst.addOperand(MCOperand::createImm(Log2_64(Imm)));
   return MCDisassembler::Success;
 }
 

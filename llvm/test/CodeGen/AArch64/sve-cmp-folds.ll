@@ -53,6 +53,50 @@ define <vscale x 4 x i1> @not_fcmp_uge_nxv4f32(<vscale x 4 x float> %a, <vscale 
   ret <vscale x 4 x i1> %not
 }
 
+define <vscale x 16 x i8> @icmp_cnot_nxv16i8(<vscale x 16 x i8> %a) {
+; CHECK-LABEL: icmp_cnot_nxv16i8:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.b
+; CHECK-NEXT:    cnot z0.b, p0/m, z0.b
+; CHECK-NEXT:    ret
+  %mask = icmp eq <vscale x 16 x i8> %a, zeroinitializer
+  %zext = zext <vscale x 16 x i1> %mask to <vscale x 16 x i8>
+  ret <vscale x 16 x i8> %zext
+}
+
+define <vscale x 8 x i16> @icmp_cnot_nxv8i16(<vscale x 8 x i16> %a) {
+; CHECK-LABEL: icmp_cnot_nxv8i16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.h
+; CHECK-NEXT:    cnot z0.h, p0/m, z0.h
+; CHECK-NEXT:    ret
+  %mask = icmp eq <vscale x 8 x i16> %a, zeroinitializer
+  %zext = zext <vscale x 8 x i1> %mask to <vscale x 8 x i16>
+  ret <vscale x 8 x i16> %zext
+}
+
+define <vscale x 4 x i32> @icmp_cnot_nxv4i32(<vscale x 4 x i32> %a) {
+; CHECK-LABEL: icmp_cnot_nxv4i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    cnot z0.s, p0/m, z0.s
+; CHECK-NEXT:    ret
+  %mask = icmp eq <vscale x 4 x i32> %a, zeroinitializer
+  %zext = zext <vscale x 4 x i1> %mask to <vscale x 4 x i32>
+  ret <vscale x 4 x i32> %zext
+}
+
+define <vscale x 2 x i64> @icmp_cnot_nxv2i64(<vscale x 2 x i64> %a) {
+; CHECK-LABEL: icmp_cnot_nxv2i64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.d
+; CHECK-NEXT:    cnot z0.d, p0/m, z0.d
+; CHECK-NEXT:    ret
+  %mask = icmp eq <vscale x 2 x i64> %a, zeroinitializer
+  %zext = zext <vscale x 2 x i1> %mask to <vscale x 2 x i64>
+  ret <vscale x 2 x i64> %zext
+}
+
 define i1 @foo_first(<vscale x 4 x float> %a, <vscale x 4 x float> %b) {
 ; CHECK-LABEL: foo_first:
 ; CHECK:       // %bb.0:
@@ -170,6 +214,17 @@ define i1 @whilelt_first(i64 %next, i64 %end) {
   ret i1 %bit
 }
 
+define i1 @lane_mask_first(i64 %next, i64 %end) {
+; CHECK-LABEL: lane_mask_first:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    whilelo p0.s, x0, x1
+; CHECK-NEXT:    cset w0, mi
+; CHECK-NEXT:    ret
+  %predicate = call <vscale x 4 x i1> @llvm.get.active.lane.mask.nxv4i1.i64(i64 %next, i64 %end)
+  %bit = extractelement <vscale x 4 x i1> %predicate, i64 0
+  ret i1 %bit
+}
+
 declare i64 @llvm.vscale.i64()
 declare <vscale x 4 x i1> @llvm.aarch64.sve.whilege.nxv4i1.i64(i64, i64)
 declare <vscale x 4 x i1> @llvm.aarch64.sve.whilegt.nxv4i1.i64(i64, i64)
@@ -179,3 +234,4 @@ declare <vscale x 4 x i1> @llvm.aarch64.sve.whilele.nxv4i1.i64(i64, i64)
 declare <vscale x 4 x i1> @llvm.aarch64.sve.whilelo.nxv4i1.i64(i64, i64)
 declare <vscale x 4 x i1> @llvm.aarch64.sve.whilels.nxv4i1.i64(i64, i64)
 declare <vscale x 4 x i1> @llvm.aarch64.sve.whilelt.nxv4i1.i64(i64, i64)
+declare <vscale x 4 x i1> @llvm.get.active.lane.mask.nxv4i1.i64(i64, i64)

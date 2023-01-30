@@ -14,7 +14,6 @@
 #include "SymbolTable.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Reproduce.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Object/Archive.h"
@@ -25,17 +24,17 @@
 #include "llvm/Support/TarWriter.h"
 #include "llvm/WindowsDriver/MSVCPaths.h"
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 extern std::unique_ptr<class LinkerDriver> driver;
 
 using llvm::COFF::MachineTypes;
 using llvm::COFF::WindowsSubsystem;
-using llvm::Optional;
+using std::optional;
 
 class COFFOptTable : public llvm::opt::OptTable {
 public:
@@ -54,6 +53,7 @@ extern COFFOptTable optTable;
 struct ParsedDirectives {
   std::vector<StringRef> exports;
   std::vector<StringRef> includes;
+  std::vector<StringRef> excludes;
   llvm::opt::InputArgList args;
 };
 
@@ -104,8 +104,8 @@ public:
 
 private:
   // Searches a file from search paths.
-  Optional<StringRef> findFile(StringRef filename);
-  Optional<StringRef> findLib(StringRef filename);
+  std::optional<StringRef> findFile(StringRef filename);
+  std::optional<StringRef> findLib(StringRef filename);
   StringRef doFindFile(StringRef filename);
   StringRef doFindLib(StringRef filename);
   StringRef doFindLibMinGW(StringRef filename);
@@ -159,7 +159,8 @@ private:
   std::vector<StringRef> filePaths;
   std::vector<MemoryBufferRef> resources;
 
-  llvm::StringSet<> directivesExports;
+  llvm::DenseSet<StringRef> directivesExports;
+  llvm::DenseSet<StringRef> excludedSymbols;
 
   COFFLinkerContext &ctx;
 
@@ -234,7 +235,6 @@ enum {
 #undef OPTION
 };
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 #endif

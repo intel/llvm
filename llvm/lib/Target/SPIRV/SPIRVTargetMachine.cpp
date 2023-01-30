@@ -30,6 +30,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetOptions.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -44,17 +45,15 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSPIRVTarget() {
 }
 
 static std::string computeDataLayout(const Triple &TT) {
-  std::string DataLayout = "e-m:e";
-
   const auto Arch = TT.getArch();
   if (Arch == Triple::spirv32)
-    DataLayout += "-p:32:32";
-  else if (Arch == Triple::spirv64)
-    DataLayout += "-p:64:64";
-  return DataLayout;
+    return "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-"
+           "v96:128-v192:256-v256:256-v512:512-v1024:1024";
+  return "e-i64:64-v16:16-v24:32-v32:32-v48:64-"
+         "v96:128-v192:256-v256:256-v512:512-v1024:1024";
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   if (!RM)
     return Reloc::PIC_;
   return *RM;
@@ -66,13 +65,13 @@ SPIRVTargetObjectFile::~SPIRVTargetObjectFile() {}
 SPIRVTargetMachine::SPIRVTargetMachine(const Target &T, const Triple &TT,
                                        StringRef CPU, StringRef FS,
                                        const TargetOptions &Options,
-                                       Optional<Reloc::Model> RM,
-                                       Optional<CodeModel::Model> CM,
+                                       std::optional<Reloc::Model> RM,
+                                       std::optional<CodeModel::Model> CM,
                                        CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
+      TLOF(std::make_unique<SPIRVTargetObjectFile>()),
       Subtarget(TT, CPU.str(), FS.str(), *this) {
   initAsmInfo();
   setGlobalISel(true);
@@ -95,6 +94,7 @@ public:
   void addISelPrepare() override;
 
   bool addIRTranslator() override;
+  void addPreLegalizeMachineIR() override;
   bool addLegalizeMachineIR() override;
   bool addRegBankSelect() override;
   bool addGlobalInstructionSelect() override;
@@ -124,6 +124,7 @@ void SPIRVPassConfig::addPostRegAlloc() {
   disablePass(&PatchableFunctionID);
   disablePass(&ShrinkWrapID);
   disablePass(&LiveDebugValuesID);
+  disablePass(&MachineLateInstrsCleanupID);
 
   // Do not work with OpPhi.
   disablePass(&BranchFolderPassID);
@@ -141,22 +142,33 @@ TargetPassConfig *SPIRVTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new SPIRVPassConfig(*this, PM);
 }
 
-void SPIRVPassConfig::addIRPasses() { TargetPassConfig::addIRPasses(); }
+void SPIRVPassConfig::addIRPasses() {
+  TargetPassConfig::addIRPasses();
+  addPass(createSPIRVRegularizerPass());
+  addPass(createSPIRVPrepareFunctionsPass());
+}
 
-void SPIRVPassConfig::addISelPrepare() { TargetPassConfig::addISelPrepare(); }
+void SPIRVPassConfig::addISelPrepare() {
+  addPass(createSPIRVEmitIntrinsicsPass(&getTM<SPIRVTargetMachine>()));
+  TargetPassConfig::addISelPrepare();
+}
 
 bool SPIRVPassConfig::addIRTranslator() {
   addPass(new IRTranslator(getOptLevel()));
   return false;
 }
 
-// Use a default legalizer.
+void SPIRVPassConfig::addPreLegalizeMachineIR() {
+  addPass(createSPIRVPreLegalizerPass());
+}
+
+// Use the default legalizer.
 bool SPIRVPassConfig::addLegalizeMachineIR() {
   addPass(new Legalizer());
   return false;
 }
 
-// Do not add a RegBankSelect pass, as we only ever need virtual registers.
+// Do not add the RegBankSelect pass, as we only ever need virtual registers.
 bool SPIRVPassConfig::addRegBankSelect() {
   disablePass(&RegBankSelect::ID);
   return false;
@@ -174,6 +186,7 @@ class SPIRVInstructionSelect : public InstructionSelect {
 };
 } // namespace
 
+// Add the custom SPIRVInstructionSelect from above.
 bool SPIRVPassConfig::addGlobalInstructionSelect() {
   addPass(new SPIRVInstructionSelect());
   return false;

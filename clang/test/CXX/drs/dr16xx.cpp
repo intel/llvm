@@ -42,6 +42,12 @@ namespace dr1611 { // dr1611: dup 1658
   C c;
 }
 
+namespace dr1652 { // dr1652: 3.6
+  int a, b;
+  int arr[&a + 1 == &b ? 1 : 2]; // expected-error 2{{variable length array}}
+                                 // expected-note@-1 {{points past the end}}
+}
+
 namespace dr1684 { // dr1684: 3.6
 #if __cplusplus >= 201103L
   struct NonLiteral { // expected-note {{because}}
@@ -292,7 +298,7 @@ namespace dr1687 { // dr1687: 7
 #if __cplusplus > 201703L
   enum E1 {};
   enum E2 {};
-  auto c = To<E1>() <=> To<E2>(); // expected-error {{invalid operands to binary expression ('To<dr1687::E1>' and 'To<dr1687::E2>')}}
+  auto c = To<E1>() <=> To<E2>(); // expected-error {{invalid operands to binary expression ('To<E1>' and 'To<E2>')}}
 #endif
 }
 

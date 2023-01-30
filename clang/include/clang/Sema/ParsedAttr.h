@@ -21,7 +21,6 @@
 #include "clang/Sema/Ownership.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Registry.h"
 #include "llvm/Support/VersionTuple.h"
@@ -439,7 +438,7 @@ private:
     return *getTrailingObjects<ParsedType>();
   }
 
-  /// The property data immediately follows the object is is mutually exclusive
+  /// The property data immediately follows the object is mutually exclusive
   /// with arguments.
   detail::PropertyData &getPropertyDataBuffer() {
     assert(IsProperty);
@@ -658,6 +657,18 @@ public:
   bool isSupportedByPragmaAttribute() const;
   bool supportsNonconformingLambdaSyntax() const;
 
+  /// Returns whether a [[]] attribute, if specified ahead of a declaration,
+  /// should be applied to the decl-specifier-seq instead (i.e. whether it
+  /// "slides" to the decl-specifier-seq).
+  ///
+  /// By the standard, attributes specified before the declaration always
+  /// appertain to the declaration, but historically we have allowed some of
+  /// these attributes to slide to the decl-specifier-seq, so we need to keep
+  /// supporting this behavior.
+  ///
+  /// This may only be called if isStandardAttributeSyntax() returns true.
+  bool slidesFromDeclToDeclSpecLegacyBehavior() const;
+
   /// If the parsed attribute has a semantic equivalent, and it would
   /// have a semantic Spelling enumeration (due to having semantically-distinct
   /// spelling variations), return the value of that semantic spelling. If the
@@ -707,6 +718,17 @@ public:
     case ParsedAttr::AT_OpenCLPrivateAddressSpace:
       return LangAS::sycl_private;
     case ParsedAttr::AT_OpenCLGenericAddressSpace:
+    default:
+      return LangAS::Default;
+    }
+  }
+
+  /// If this is an HLSL address space attribute, returns its representation
+  /// in LangAS, otherwise returns default address space.
+  LangAS asHLSLLangAS() const {
+    switch (getParsedKind()) {
+    case ParsedAttr::AT_HLSLGroupSharedAddressSpace:
+      return LangAS::hlsl_groupshared;
     default:
       return LangAS::Default;
     }
@@ -782,7 +804,7 @@ class AttributePool {
   friend class AttributeFactory;
   friend class ParsedAttributes;
   AttributeFactory &Factory;
-  llvm::TinyPtrVector<ParsedAttr *> Attrs;
+  llvm::SmallVector<ParsedAttr *> Attrs;
 
   void *allocate(size_t size) {
     return Factory.allocate(size);
@@ -907,11 +929,17 @@ public:
 };
 
 class ParsedAttributesView {
-  using VecTy = llvm::TinyPtrVector<ParsedAttr *>;
+  using VecTy = llvm::SmallVector<ParsedAttr *>;
   using SizeType = decltype(std::declval<VecTy>().size());
 
 public:
   SourceRange Range;
+
+  static const ParsedAttributesView &none() {
+    static const ParsedAttributesView Attrs;
+    return Attrs;
+  }
+
   bool empty() const { return AttrList.empty(); }
   SizeType size() const { return AttrList.size(); }
   ParsedAttr &operator[](SizeType pos) { return *AttrList[pos]; }
@@ -1114,6 +1142,11 @@ private:
   mutable AttributePool pool;
 };
 
+/// Consumes the attributes from `First` and `Second` and concatenates them into
+/// `Result`. Sets `Result.Range` to the combined range of `First` and `Second`.
+void takeAndConcatenateAttrs(ParsedAttributes &First, ParsedAttributes &Second,
+                             ParsedAttributes &Result);
+
 /// These constants match the enumerated choices of
 /// err_attribute_argument_n_type and err_attribute_argument_type.
 enum AttributeArgumentNType {
@@ -1162,21 +1195,21 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
 /// it explicit is hard. This constructor causes ambiguity with
 /// DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB, SourceRange R).
 /// We use SFINAE to disable any conversion and remove any ambiguity.
-template <typename ACI,
-          typename std::enable_if_t<
-              std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
+template <
+    typename ACI,
+    std::enable_if_t<std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
-                                           const ACI &CI) {
+                                             const ACI &CI) {
   DB.AddTaggedVal(reinterpret_cast<uint64_t>(CI.getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;
 }
 
-template <typename ACI,
-          typename std::enable_if_t<
-              std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
+template <
+    typename ACI,
+    std::enable_if_t<std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
-                                           const ACI* CI) {
+                                             const ACI *CI) {
   DB.AddTaggedVal(reinterpret_cast<uint64_t>(CI->getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;

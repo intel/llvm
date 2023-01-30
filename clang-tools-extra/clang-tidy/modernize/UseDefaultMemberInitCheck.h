@@ -20,7 +20,7 @@ namespace modernize {
 /// member initializer.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-default-member-init.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/modernize/use-default-member-init.html
 class UseDefaultMemberInitCheck : public ClangTidyCheck {
 public:
   UseDefaultMemberInitCheck(StringRef Name, ClangTidyContext *Context);
@@ -30,7 +30,7 @@ public:
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 

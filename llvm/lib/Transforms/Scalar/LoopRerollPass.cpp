@@ -1224,13 +1224,14 @@ bool LoopReroll::DAGRootTracker::validate(ReductionTracker &Reductions) {
     dbgs() << "LRR: " << KV.second.find_first() << "\t" << *KV.first << "\n";
   });
 
+  BatchAAResults BatchAA(*AA);
   for (unsigned Iter = 1; Iter < Scale; ++Iter) {
     // In addition to regular aliasing information, we need to look for
     // instructions from later (future) iterations that have side effects
     // preventing us from reordering them past other instructions with side
     // effects.
     bool FutureSideEffects = false;
-    AliasSetTracker AST(*AA);
+    AliasSetTracker AST(BatchAA);
     // The map between instructions in f(%iv.(i+1)) and f(%iv).
     DenseMap<Value *, Value *> BaseMap;
 
@@ -1326,15 +1327,16 @@ bool LoopReroll::DAGRootTracker::validate(ReductionTracker &Reductions) {
       // Make sure that we don't alias with any instruction in the alias set
       // tracker. If we do, then we depend on a future iteration, and we
       // can't reroll.
-      if (RootInst->mayReadFromMemory())
+      if (RootInst->mayReadFromMemory()) {
         for (auto &K : AST) {
-          if (K.aliasesUnknownInst(RootInst, *AA)) {
+          if (isModOrRefSet(K.aliasesUnknownInst(RootInst, BatchAA))) {
             LLVM_DEBUG(dbgs() << "LRR: iteration root match failed at "
                               << *BaseInst << " vs. " << *RootInst
                               << " (depends on future store)\n");
             return false;
           }
         }
+      }
 
       // If we've past an instruction from a future iteration that may have
       // side effects, and this instruction might also, then we can't reorder

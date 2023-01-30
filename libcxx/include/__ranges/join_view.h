@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_JOIN_VIEW_H
 #define _LIBCPP___RANGES_JOIN_VIEW_H
 
@@ -23,10 +24,9 @@
 #include <__ranges/all.h>
 #include <__ranges/concepts.h>
 #include <__ranges/non_propagating_cache.h>
-#include <__ranges/ref_view.h>
-#include <__ranges/subrange.h>
+#include <__ranges/range_adaptor.h>
 #include <__ranges/view_interface.h>
-#include <__utility/declval.h>
+#include <__type_traits/maybe_const.h>
 #include <__utility/forward.h>
 #include <optional>
 #include <type_traits>
@@ -37,7 +37,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#if _LIBCPP_STD_VER > 17
 
 namespace ranges {
   template<class>
@@ -52,7 +52,8 @@ namespace ranges {
     using _InnerC = typename iterator_traits<iterator_t<range_reference_t<_View>>>::iterator_category;
 
     using iterator_category = _If<
-      derived_from<_OuterC, bidirectional_iterator_tag> && derived_from<_InnerC, bidirectional_iterator_tag>,
+      derived_from<_OuterC, bidirectional_iterator_tag> && derived_from<_InnerC, bidirectional_iterator_tag> &&
+        common_range<range_reference_t<_View>>,
       bidirectional_iterator_tag,
       _If<
         derived_from<_OuterC, forward_iterator_tag> && derived_from<_InnerC, forward_iterator_tag>,
@@ -211,7 +212,8 @@ namespace ranges {
 
   public:
     using iterator_concept = _If<
-      __ref_is_glvalue && bidirectional_range<_Base> && bidirectional_range<range_reference_t<_Base>>,
+      __ref_is_glvalue && bidirectional_range<_Base> && bidirectional_range<range_reference_t<_Base>> &&
+          common_range<range_reference_t<_Base>>,
       bidirectional_iterator_tag,
       _If<
         __ref_is_glvalue && forward_range<_Base> && forward_range<range_reference_t<_Base>>,
@@ -346,9 +348,24 @@ namespace ranges {
   template<class _Range>
   explicit join_view(_Range&&) -> join_view<views::all_t<_Range>>;
 
+namespace views {
+namespace __join_view {
+struct __fn : __range_adaptor_closure<__fn> {
+  template<class _Range>
+  [[nodiscard]] _LIBCPP_HIDE_FROM_ABI
+  constexpr auto operator()(_Range&& __range) const
+    noexcept(noexcept(join_view<all_t<_Range&&>>(std::forward<_Range>(__range))))
+    -> decltype(      join_view<all_t<_Range&&>>(std::forward<_Range>(__range)))
+    { return          join_view<all_t<_Range&&>>(std::forward<_Range>(__range)); }
+};
+} // namespace __join_view
+inline namespace __cpo {
+  inline constexpr auto join = __join_view::__fn{};
+} // namespace __cpo
+} // namespace views
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

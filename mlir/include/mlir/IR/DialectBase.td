@@ -17,11 +17,6 @@
 // Dialect definitions
 //===----------------------------------------------------------------------===//
 
-// "Enum" values for emitAccessorPrefix of Dialect.
-defvar kEmitAccessorPrefix_Raw = 0;      // Don't emit any getter/setter prefix.
-defvar kEmitAccessorPrefix_Prefixed = 1; // Only emit with getter/setter prefix.
-defvar kEmitAccessorPrefix_Both = 2;     // Emit without and with prefix.
-
 class Dialect {
   // The name of the dialect.
   string name = ?;
@@ -73,27 +68,23 @@ class Dialect {
   // If this dialect overrides the hook for op interface fallback.
   bit hasOperationInterfaceFallback = 0;
 
-  // If this dialect should use default generated attribute parser boilerplate:
-  // it'll dispatch the parsing to every individual attributes directly.
-  bit useDefaultAttributePrinterParser = 1;
+  // If this dialect should use default generated attribute parser boilerplate.
+  // When set, ODS will generate declarations for the attribute parsing and
+  // printing hooks in the dialect and default implementations that dispatch to
+  // each individual attribute directly.
+  bit useDefaultAttributePrinterParser = 0;
 
   // If this dialect should use default generated type parser boilerplate:
-  // it'll dispatch the parsing to every individual types directly.
-  bit useDefaultTypePrinterParser = 1;
+  // When set, ODS will generate declarations for the type parsing and printing
+  // hooks in the dialect and default implementations that dispatch to each
+  // individual type directly.
+  bit useDefaultTypePrinterParser = 0;
 
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
 
-  // Whether to emit raw/with no prefix or format changes, or emit with
-  // accessor with prefix only and UpperCamel suffix or to emit accessors with
-  // both.
-  //
-  // If emitting with prefix is specified then the attribute/operand's
-  // name is converted to UpperCamel from snake_case (which would result in
-  // leaving UpperCamel unchanged while also converting lowerCamel to
-  // UpperCamel) and prefixed with `get` or `set` depending on if it is a getter
-  // or setter.
-  int emitAccessorPrefix = kEmitAccessorPrefix_Raw;
+  // If this dialect can be extended at runtime with new operations or types.
+  bit isExtensible = 0;
 }
 
 #endif // DIALECTBASE_TD

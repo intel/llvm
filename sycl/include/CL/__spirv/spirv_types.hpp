@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -108,32 +109,35 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+enum class MatrixLayout : uint32_t {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  Packed = 2,
+  Dynamic = 3
+};
+#else
 enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
   PackedA = 2,
-  PackedB = 3
+  PackedB = 3,
+  Unused = 4
 };
+#endif
 
-// TODO: replace the following W/A with a better solution when we have it.
-// The following structure is used to represent the joint matrix type in the
-// LLVM IR. The structure has a pointer to a multidimensional array member which
-// makes the encoding of the matrix type information within the LLVM IR looks
-// like this:
-// %struct.__spirv_JointMatrixINTEL = type { [42 x [6 x [2 x [1 x float]]]]* }
-// Note that an array cannot be of zero size but MatrixLayout and Scope
-// parameters can; hence '+ 1' is added to the 3rd and 4th dimensions.
-// In general, representing a matrix type information like this is a bit odd
-// (especially for MatrixLayout and Scope parameters). But with the current
-// tools we have in Clang, this is the only way to preserve and communicate this
-// information to SPIRV translator.
-// The long term solution would be to introduce a matrix type in Clang and use
-// it instead of this member.
-template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
+enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
+
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup,
+          MatrixUse U = MatrixUse::MatrixA>
+struct __spirv_JointMatrixINTEL;
+#else
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_JointMatrixINTEL {
-  T (*Value)[R][C][static_cast<size_t>(U) + 1][static_cast<size_t>(S) + 1];
-};
+struct __spirv_JointMatrixINTEL;
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 } // namespace __spv
 
@@ -156,14 +160,14 @@ struct ConstantPipeStorage {
   int32_t _Capacity;
 };
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Arbitrary precision integer type
-template <int Bits> using ap_int = _ExtInt(Bits);
+template <int Bits> using ap_int = _BitInt(Bits);
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

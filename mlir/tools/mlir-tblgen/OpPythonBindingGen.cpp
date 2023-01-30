@@ -50,6 +50,10 @@ class _Dialect(_ods_ir.Dialect):
 
 )Py";
 
+constexpr const char *dialectExtensionTemplate = R"Py(
+from ._{0}_ops_gen import _Dialect
+)Py";
+
 /// Template for operation class:
 ///   {0} is the Python class name;
 ///   {1} is the operation name.
@@ -67,7 +71,7 @@ class {0}(_ods_ir.OpView):
 /// Each segment spec is either None (default) or an array of integers
 /// where:
 ///   1 = single element (expect non sequence operand/result)
-///   0 = optional element (expect a value or None)
+///   0 = optional element (expect a value or std::nullopt)
 ///   -1 = operand/result is a sequence corresponding to a variadic
 constexpr const char *opClassSizedSegmentsTemplate = R"Py(
   _ODS_{0}_SEGMENTS = {1}
@@ -270,17 +274,22 @@ static llvm::cl::opt<std::string>
                   llvm::cl::desc("The dialect to run the generator for"),
                   llvm::cl::init(""), llvm::cl::cat(clOpPythonBindingCat));
 
+static llvm::cl::opt<std::string> clDialectExtensionName(
+    "dialect-extension", llvm::cl::desc("The prefix of the dialect extension"),
+    llvm::cl::init(""), llvm::cl::cat(clOpPythonBindingCat));
+
 using AttributeClasses = DenseMap<StringRef, StringRef>;
 
-/// Checks whether `str` is a Python keyword.
-static bool isPythonKeyword(StringRef str) {
-  static llvm::StringSet<> keywords(
-      {"and",   "as",     "assert",   "break", "class",  "continue",
-       "def",   "del",    "elif",     "else",  "except", "finally",
-       "for",   "from",   "global",   "if",    "import", "in",
-       "is",    "lambda", "nonlocal", "not",   "or",     "pass",
-       "raise", "return", "try",      "while", "with",   "yield"});
-  return keywords.contains(str);
+/// Checks whether `str` is a Python keyword or would shadow builtin function.
+static bool isPythonReserved(StringRef str) {
+  static llvm::StringSet<> reserved(
+      {"and",      "as",    "assert", "break",      "callable", "class",
+       "continue", "def",   "del",    "elif",       "else",     "except",
+       "finally",  "for",   "from",   "global",     "if",       "import",
+       "in",       "is",    "lambda", "nonlocal",   "not",      "or",
+       "pass",     "raise", "return", "issubclass", "try",      "type",
+       "while",    "with",  "yield"});
+  return reserved.contains(str);
 }
 
 /// Checks whether `str` would shadow a generated variable or attribute
@@ -298,7 +307,7 @@ static bool isODSReserved(StringRef str) {
 /// (does not change the `name` if it already is suitable) and returns the
 /// modified version.
 static std::string sanitizeName(StringRef name) {
-  if (isPythonKeyword(name) || isODSReserved(name))
+  if (isPythonReserved(name) || isODSReserved(name))
     return (name + "_").str();
   return name.str();
 }
@@ -523,16 +532,30 @@ constexpr const char *multiOperandAppendPackTemplate =
     "operands.append(_get_op_results_or_values({0}))";
 constexpr const char *multiResultAppendTemplate = "results.extend({0})";
 
-/// Template for setting an attribute in the operation builder.
-///   {0} is the attribute name;
-///   {1} is the builder argument name.
-constexpr const char *initAttributeTemplate = R"Py(attributes["{0}"] = {1})Py";
+/// Template for attribute builder from raw input in the operation builder.
+///   {0} is the builder argument name;
+///   {1} is the attribute builder from raw;
+///   {2} is the attribute builder from raw.
+/// Use the value the user passed in if either it is already an Attribute or
+/// there is no method registered to make it an Attribute.
+constexpr const char *initAttributeWithBuilderTemplate =
+    R"Py(attributes["{1}"] = ({0} if (
+    issubclass(type({0}), _ods_ir.Attribute) or
+    not _ods_ir.AttrBuilder.contains('{2}')) else
+      _ods_ir.AttrBuilder.get('{2}')({0}, context=_ods_context)))Py";
 
-/// Template for setting an optional attribute in the operation builder.
-///   {0} is the attribute name;
-///   {1} is the builder argument name.
-constexpr const char *initOptionalAttributeTemplate =
-    R"Py(if {1} is not None: attributes["{0}"] = {1})Py";
+/// Template for attribute builder from raw input for optional attribute in the
+/// operation builder.
+///   {0} is the builder argument name;
+///   {1} is the attribute builder from raw;
+///   {2} is the attribute builder from raw.
+/// Use the value the user passed in if either it is already an Attribute or
+/// there is no method registered to make it an Attribute.
+constexpr const char *initOptionalAttributeWithBuilderTemplate =
+    R"Py(if {0} is not None: attributes["{1}"] = ({0} if (
+        issubclass(type({0}), _ods_ir.Attribute) or
+        not _ods_ir.AttrBuilder.contains('{2}')) else
+          _ods_ir.AttrBuilder.get('{2}')({0}, context=_ods_context)))Py";
 
 constexpr const char *initUnitAttributeTemplate =
     R"Py(if bool({1}): attributes["{0}"] = _ods_ir.UnitAttr.get(
@@ -620,6 +643,13 @@ populateBuilderArgs(const Operator &op,
     if (!op.getArg(i).is<NamedAttribute *>())
       operandNames.push_back(name);
   }
+}
+
+/// Populates `builderArgs` with the Python-compatible names of builder function
+/// successor arguments. Additionally, `successorArgNames` is also populated.
+static void populateBuilderArgsSuccessors(
+    const Operator &op, llvm::SmallVectorImpl<std::string> &builderArgs,
+    llvm::SmallVectorImpl<std::string> &successorArgNames) {
 
   for (int i = 0, e = op.getNumSuccessors(); i < e; ++i) {
     NamedSuccessor successor = op.getSuccessor(i);
@@ -641,6 +671,7 @@ static void
 populateBuilderLinesAttr(const Operator &op,
                          llvm::ArrayRef<std::string> argNames,
                          llvm::SmallVectorImpl<std::string> &builderLines) {
+  builderLines.push_back("_ods_context = _ods_get_default_loc_context(loc)");
   for (int i = 0, e = op.getNumArgs(); i < e; ++i) {
     Argument arg = op.getArg(i);
     auto *attribute = arg.dyn_cast<NamedAttribute *>();
@@ -654,10 +685,11 @@ populateBuilderLinesAttr(const Operator &op,
       continue;
     }
 
-    builderLines.push_back(llvm::formatv(attribute->attr.isOptional()
-                                             ? initOptionalAttributeTemplate
-                                             : initAttributeTemplate,
-                                         attribute->name, argNames[i]));
+    builderLines.push_back(llvm::formatv(
+        attribute->attr.isOptional() || attribute->attr.hasDefaultValue()
+            ? initOptionalAttributeWithBuilderTemplate
+            : initAttributeWithBuilderTemplate,
+        argNames[i], attribute->name, attribute->attr.getAttrDefName()));
   }
 }
 
@@ -737,8 +769,7 @@ constexpr const char *appendSameResultsTemplate = "results.extend([{0}] * {1})";
 /// corresponding interface:
 ///   - {0} is the name of the class for which the types are inferred.
 constexpr const char *inferTypeInterfaceTemplate =
-    R"PY(_ods_context = _ods_get_default_loc_context(loc)
-results = _ods_ir.InferTypeOpInterface({0}).inferReturnTypes(
+    R"PY(results = _ods_ir.InferTypeOpInterface({0}).inferReturnTypes(
     operands=operands,
     attributes=_ods_ir.DictAttr.get(attributes, context=_ods_context),
     context=_ods_context,
@@ -857,6 +888,8 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   populateBuilderArgsResults(op, builderArgs);
   size_t numResultArgs = builderArgs.size();
   populateBuilderArgs(op, builderArgs, operandArgNames, successorArgNames);
+  size_t numOperandAttrArgs = builderArgs.size() - numResultArgs;
+  populateBuilderArgsSuccessors(op, builderArgs, successorArgNames);
 
   populateBuilderLinesOperand(op, operandArgNames, builderLines);
   populateBuilderLinesAttr(
@@ -868,10 +901,52 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   populateBuilderLinesSuccessors(op, successorArgNames, builderLines);
   populateBuilderRegions(op, builderArgs, builderLines);
 
-  builderArgs.push_back("*");
-  builderArgs.push_back("loc=None");
-  builderArgs.push_back("ip=None");
-  os << llvm::formatv(initTemplate, llvm::join(builderArgs, ", "),
+  // Layout of builderArgs vector elements:
+  // [ result_args  operand_attr_args successor_args regions ]
+
+  // Determine whether the argument corresponding to a given index into the
+  // builderArgs vector is a python keyword argument or not.
+  auto isKeywordArgFn = [&](size_t builderArgIndex) -> bool {
+    // All result, successor, and region arguments are positional arguments.
+    if ((builderArgIndex < numResultArgs) ||
+        (builderArgIndex >= (numResultArgs + numOperandAttrArgs)))
+      return false;
+    // Keyword arguments:
+    // - optional named attributes (including unit attributes)
+    // - default-valued named attributes
+    // - optional operands
+    Argument a = op.getArg(builderArgIndex - numResultArgs);
+    if (auto *nattr = a.dyn_cast<NamedAttribute *>())
+      return (nattr->attr.isOptional() || nattr->attr.hasDefaultValue());
+    if (auto *ntype = a.dyn_cast<NamedTypeConstraint *>())
+      return ntype->isOptional();
+    return false;
+  };
+
+  // StringRefs in functionArgs refer to strings allocated by builderArgs.
+  llvm::SmallVector<llvm::StringRef> functionArgs;
+
+  // Add positional arguments.
+  for (size_t i = 0, cnt = builderArgs.size(); i < cnt; ++i) {
+    if (!isKeywordArgFn(i))
+      functionArgs.push_back(builderArgs[i]);
+  }
+
+  // Add a bare '*' to indicate that all following arguments must be keyword
+  // arguments.
+  functionArgs.push_back("*");
+
+  // Add a default 'None' value to each keyword arg string, and then add to the
+  // function args list.
+  for (size_t i = 0, cnt = builderArgs.size(); i < cnt; ++i) {
+    if (isKeywordArgFn(i)) {
+      builderArgs[i].append("=None");
+      functionArgs.push_back(builderArgs[i]);
+    }
+  }
+  functionArgs.push_back("loc=None");
+  functionArgs.push_back("ip=None");
+  os << llvm::formatv(initTemplate, llvm::join(functionArgs, ", "),
                       llvm::join(builderLines, "\n    "));
 }
 
@@ -962,8 +1037,14 @@ static bool emitAllOps(const llvm::RecordKeeper &records, raw_ostream &os) {
   AttributeClasses attributeClasses;
   constructAttributeMapping(records, attributeClasses);
 
-  os << llvm::formatv(fileHeader, clDialectName.getValue());
-  os << llvm::formatv(dialectClassTemplate, clDialectName.getValue());
+  bool isExtension = !clDialectExtensionName.empty();
+  os << llvm::formatv(fileHeader, isExtension
+                                      ? clDialectExtensionName.getValue()
+                                      : clDialectName.getValue());
+  if (isExtension)
+    os << llvm::formatv(dialectExtensionTemplate, clDialectName.getValue());
+  else
+    os << llvm::formatv(dialectClassTemplate, clDialectName.getValue());
 
   for (const llvm::Record *rec : records.getAllDerivedDefinitions("Op")) {
     Operator op(rec);

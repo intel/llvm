@@ -29,13 +29,16 @@ class TestingConfig(object):
             'CLANG',
             'LLDB',
             'LD_PRELOAD',
+            'LLVM_SYMBOLIZER_PATH',
             'ASAN_SYMBOLIZER_PATH',
+            'HWASAN_SYMBOLIZER_PATH',
             'LSAN_SYMBOLIZER_PATH',
             'MSAN_SYMBOLIZER_PATH',
             'TSAN_SYMBOLIZER_PATH',
             'UBSAN_SYMBOLIZER_PATH',
             'ASAN_OPTIONS',
             'LSAN_OPTIONS',
+            'HWASAN_OPTIONS',
             'MSAN_OPTIONS',
             'TSAN_OPTIONS',
             'UBSAN_OPTIONS',
@@ -57,9 +60,12 @@ class TestingConfig(object):
             'WindowsSDKLibVersion',
             'SOURCE_DATE_EPOCH',
             'GTEST_FILTER',
+            'DFLTCC',
         ]
 
-        if sys.platform == 'win32':
+        if sys.platform.startswith('aix'):
+            pass_vars += ['LIBPATH']
+        elif sys.platform == 'win32':
             pass_vars += [
                 'COMSPEC',
                 'INCLUDE',

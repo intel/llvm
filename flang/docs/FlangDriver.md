@@ -13,20 +13,13 @@
    :local:
 ```
 
-
-> **_NOTE:_** This document assumes that Flang's drivers can already generate code and
-> produce executables. However, this is still work-in-progress. By making this
-> assumption, we are able to prepare this document ahead-of-time and to provide
-> an overview of the design that we are working towards.
-
 There are two main drivers in Flang:
 * the compiler driver, `flang-new`
 * the frontend driver, `flang-new -fc1`
 
 > **_NOTE:_** The diagrams in this document refer to `flang` as opposed to
-> `flang-new`. This is because the diagrams reflect the final design that we
-> are still working towards. See the note on [the flang script](https://github.com/llvm/llvm-project/blob/main/flang/docs/FlangDriver.md#the-flang-script)
-> below for more context.
+> `flang-new`. Eventually, `flang-new` will be renamed as `flang` and the
+> diagrams reflect the final design that we are still working towards.
 
 The **compiler driver** will allow you to control all compilation phases (e.g.
 preprocessing, semantic checks, code-generation, code-optimisation, lowering
@@ -212,32 +205,25 @@ is `ParseSyntaxOnlyAction`, which corresponds to `-fsyntax-only`. In other
 words, `flang-new -fc1 <input-file>` is equivalent to `flang-new -fc1 -fsyntax-only
 <input-file>`.
 
-## The `flang` script
-The `flang` wrapper script for `flang-new` was introduced as a development tool
-and to facilitate testing. While code-generation is not available in Flang, you
-can use it as a drop-in replacement for other Fortran compilers in your build
-scripts.
-
-The `flang` wrapper script will:
+## The `flang-to-external-fc` script
+The `flang-to-external-fc` wrapper script for `flang-new` was introduced as a
+development tool and to facilitate testing. The `flang-to-external-fc` wrapper
+script will:
 * use `flang-new` to unparse the input source file (i.e. it will run `flang-new
   -fc1 -fdebug-unparse <input-file>`), and then
 * call a host Fortran compiler, e.g. `gfortran`, to compile the unparsed file.
 
-Here's a basic breakdown of what happens inside `flang` when you run `flang
-file.f90`:
+Here's a basic breakdown of what happens inside `flang-to-external-fc` when you
+run `flang-to-external-fc file.f90`:
 ```bash
 flang-new -fc1 -fdebug-unparse file.f90 -o file-unparsed.f90
 gfortran file-unparsed.f90
 ```
 This is a simplified version for illustration purposes only. In practice,
-`flang` adds a few more frontend options and it also supports various other use
-cases (e.g. compiling C files, linking existing object files). `gfortran` is
-the default host compiler used by `flang`. You can change it by setting the
-`FLANG_FC` environment variable.
-
-Our intention is to replace `flang` with `flang-new`. Please consider `flang`
-as a temporary substitute for Flang's compiler driver while the actual driver
-is in development.
+`flang-to-external-fc` adds a few more frontend options and it also supports
+various other use cases (e.g. compiling C files, linking existing object
+files). `gfortran` is the default host compiler used by `flang-to-external-fc`.
+You can change it by setting the `FLANG_FC` environment variable.
 
 ## Adding new Compiler Options
 Adding a new compiler option in Flang consists of two steps:
@@ -337,6 +323,24 @@ the `ExecuteCompilerInvocation.cpp` file. Here's an example for
 At this point you should be able to trigger that frontend action that you have
 just added using your new frontend option.
 
+
+# CMake Support
+As of [#7246](https://gitlab.kitware.com/cmake/cmake/-/merge_requests/7246)
+(and soon to be released CMake 3.24.0), `cmake` can detect `flang-new` as a
+supported Fortran compiler. You can configure your CMake projects to use
+`flang-new` as follows:
+```bash
+cmake -DCMAKE_Fortran_FLAGS="-flang-experimental-exec" -DCMAKE_Fortran_COMPILER=<path/to/flang-new> <src/dir>
+```
+You should see the following in the output:
+```
+-- The Fortran compiler identification is LLVMFlang <version>
+```
+where `<version>` corresponds to the LLVM Flang version. Note that while
+generating executables remains experimental, you will need to inform CMake to
+use the `-flang-experimental-exec` flag when invoking `flang-new` as in the
+example above.
+
 # Testing
 In LIT, we define two variables that you can use to invoke Flang's drivers:
 * `%flang` is expanded as `flang-new` (i.e. the compiler driver)
@@ -395,25 +399,30 @@ to run, so in order for your plugin to do something, you will need to implement
 the `ExecuteAction` method in your plugin class. This method will contain the
 implementation of what the plugin actually does, for example:
 ```cpp
+// Forward declaration
+struct ParseTreeVisitor;
+
 void ExecuteAction() override {
-  auto &parseTree{instance().parsing().parseTree()};
   ParseTreeVisitor visitor;
-  Fortran::parser::Walk(parseTree, visitor);
+  Fortran::parser::Walk(getParsing().parseTree(), visitor);
 }
 ```
-In the example plugin, the `ExecuteAction` method first gets a reference to the
-parse tree, `instance().parsing().parseTree()`, then declares a `visitor`
-struct, before passing both of these to the `Fortran::parser::Walk` function
-that will traverse the parse tree. Implementation and details of the `Walk`
-function can be found in `flang/include/flang/Parser/parse-tree-visitor.h`.
+In the example plugin, the `ExecuteAction` method first creates an instance of
+`visitor` struct, before passing it together with the parse tree to the
+`Fortran::parser::Walk` function that will traverse the parse tree. The parse
+tree will normally be generated by the frontend driver and can be retrieved in
+your plugin through the `getParsing()` member method. Implementation and
+details of the `Walk` function can be found in
+`flang/include/flang/Parser/parse-tree-visitor.h`.
 
-A `visitor` struct should define different `Pre` and `Post` functions that take
-the type of a specific `ParseTree` node as an argument. When the `Walk` function
-is traversing the parse tree, these functions will be run before/after a node
-of that type is visited. Template functions for `Pre`/`Post` are defined so that
-when a node is visited that you have not defined a function for, it will still
-be able to continue. `Pre` returns a `bool` indicating whether to visit that
-node's children or not. For example:
+You will have to define your own `visitor` struct. It should define different
+`Pre` and `Post` functions that take the type of a specific `ParseTree` node as
+an argument. When the `Walk` function is traversing the parse tree, these
+functions will be run before/after a node of that type is visited. Template
+functions for `Pre`/`Post` are defined so that when a node is visited that you
+have not defined a function for, it will still be able to continue. `Pre`
+returns a `bool` indicating whether to visit that node's children or not. For
+example:
 ```cpp
 struct ParseTreeVisitor {
   template <typename A> bool Pre(const A&) { return true; }
@@ -498,3 +507,93 @@ Lastly, if `ParseTree` modifications are performed, then it might be necessary
 to re-analyze expressions and modify scope or symbols. You can check
 [Semantics.md](Semantics.md) for more details on how `ParseTree` is edited
 e.g. during the semantic checks.
+
+# LLVM Pass Plugins
+
+Pass plugins are dynamic shared objects that consist of one or more LLVM IR
+passes. The `-fpass-plugin` option enables these passes to be passed to the
+middle-end where they are added to the optimization pass pipeline and run after
+lowering to LLVM IR.The exact position of the pass in the pipeline will depend
+on how it has been registered with the `llvm::PassBuilder`. See the
+documentation for
+[`llvm::PassBuilder`](https://llvm.org/doxygen/classllvm_1_1PassBuilder.html)
+for details.
+
+The framework to enable pass plugins in `flang-new` uses the exact same
+machinery as that used by `clang` and thus has the same capabilities and
+limitations.
+
+In order to use a pass plugin, the pass(es) must be compiled into a dynamic
+shared object which is then loaded using the `-fpass-plugin` option.
+
+```
+flang-new -fpass-plugin=/path/to/plugin.so <file.f90>
+```
+
+This option is available in both the compiler driver and the frontend driver.
+Note that LLVM plugins are not officially supported on Windows.
+
+## LLVM Pass Extensions
+
+Pass extensions are similar to plugins, except that they can also be linked
+statically. Setting `-DLLVM_${NAME}_LINK_INTO_TOOLS` to `ON` in the cmake
+command turns the project into a statically linked extension. An example would
+be Polly, e.g., using `-DLLVM_POLLY_LINK_INTO_TOOLS=ON` would link Polly passes
+into `flang-new` as built-in middle-end passes.
+
+See the
+[`WritingAnLLVMNewPMPass`](https://llvm.org/docs/WritingAnLLVMNewPMPass.html#id9)
+documentation for more details.
+
+## Ofast and Fast Math
+`-Ofast` in Flang means `-O3 -ffast-math`. `-fstack-arrays` will be added to
+`-Ofast` in the future (https://github.com/llvm/llvm-project/issues/59231).
+
+`-ffast-math` means the following:
+ - `-fno-honor-infinities`
+ - `-fno-honor-nans`
+ - `-fassociative-math`
+ - `-freciprocal-math`
+ - `-fapprox-func`
+ - `-fno-signed-zeros`
+ - `-ffp-contract=fast`
+
+These correspond to LLVM IR Fast Math attributes:
+https://llvm.org/docs/LangRef.html#fast-math-flags
+
+When `-ffast-math` is specified, any linker steps generated by the compiler
+driver will also link to `crtfastmath.o`, which adds a static constructor
+that sets the FTZ/DAZ bits in MXCSR, affecting not only the current only the
+current compilation unit but all static and shared libraries included in the
+program. Setting these bits causes denormal floating point numbers to be flushed
+to zero.
+
+### Comparison with GCC/GFortran
+GCC/GFortran translate `-Ofast` to
+`-O3 -ffast-math -fstack-arrays -fno-semantic-interposition`. `-fstack-arrays`
+is TODO for Flang.
+`-fno-semantic-interposition` is not used because clang does not enable this as
+part of `-Ofast` as the default behaviour is similar.
+
+GCC/GFortran has a wider definition of `-ffast-math`: also including
+`-fno-trapping-math`,  `-fno-rounding-math`, and  `-fsignaling-nans`; these
+aren't included in Flang because Flang currently has no support for strict
+floating point and so always acts as though these flags were specified.
+
+GCC/GFortran will also set flush-to-zero mode: linking `crtfastmath.o`, the same
+as Flang.
+
+### Comparison with nvfortran
+nvfortran defines `-fast` as
+`-O2 -Munroll=c:1 -Mnoframe -Mlre -Mpre -Mvect=simd -Mcache_align -Mflushz -Mvect`.
+ - `-O2 -Munroll=c:1 -Mlre -Mautoinline -Mpre -Mvect-simd` affect code
+   optimization. `flang -O3` should enable all optimizations for execution time,
+   similarly to `clang -O3`. The `-O3` pipeline has passes that perform
+   transformations like inlining, vectorisation, unrolling, etc. Additionally,
+   the GVN and LICM passes perform redundancy elimination like `Mpre` and `Mlre`
+ - `-Mnoframe`: the equivalent flag would be `-fomit-frame-pointer`. This flag
+   is not yet supported in Flang and so Flang follows GFortran in not including
+   this in `-Ofast`. There is no plan to include this flag as part of `-Ofast`.
+ - `-Mcache_align`: there is no equivalent flag in Flang or Clang.
+ - `-Mflushz`: flush-to-zero mode - when `-ffast-math` is specified, Flang will
+   link to `crtfastmath.o` to ensure denormal numbers are flushed to zero.

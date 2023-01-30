@@ -64,7 +64,7 @@ void IRInstructionData::initializeInstruction() {
   // Here we collect the operands and their types for determining whether
   // the structure of the operand use matches between two different candidates.
   for (Use &OI : Inst->operands()) {
-    if (isa<CmpInst>(Inst) && RevisedPredicate.hasValue()) {
+    if (isa<CmpInst>(Inst) && RevisedPredicate) {
       // If we have a CmpInst where the predicate is reversed, it means the
       // operands must be reversed as well.
       OperVals.insert(OperVals.begin(), OI.get());
@@ -183,9 +183,9 @@ CmpInst::Predicate IRInstructionData::getPredicate() const {
   assert(isa<CmpInst>(Inst) &&
          "Can only get a predicate from a compare instruction");
 
-  if (RevisedPredicate.hasValue())
-    return RevisedPredicate.getValue();
-  
+  if (RevisedPredicate)
+    return *RevisedPredicate;
+
   return cast<CmpInst>(Inst)->getPredicate();
 }
 
@@ -193,7 +193,7 @@ StringRef IRInstructionData::getCalleeName() const {
   assert(isa<CallInst>(Inst) &&
          "Can only get a name from a call instruction");
 
-  assert(CalleeName.hasValue() && "CalleeName has not been set");
+  assert(CalleeName && "CalleeName has not been set");
 
   return *CalleeName;
 }
@@ -526,19 +526,13 @@ static bool checkNumberingAndReplaceCommutative(
   for (Value *V : SourceOperands) {
     ArgVal = SourceValueToNumberMapping.find(V)->second;
 
+    // Instead of finding a current mapping, we attempt to insert a set.
     std::tie(ValueMappingIt, WasInserted) = CurrentSrcTgtNumberMapping.insert(
         std::make_pair(ArgVal, TargetValueNumbers));
 
-    // Instead of finding a current mapping, we inserted a set.  This means a
-    // mapping did not exist for the source Instruction operand, it has no
-    // current constraints we need to check.
-    if (WasInserted)
-      continue;
-
-    // If a mapping already exists for the source operand to the values in the
-    // other IRSimilarityCandidate we need to iterate over the items in other
-    // IRSimilarityCandidate's Instruction to determine whether there is a valid
-    // mapping of Value to Value.
+    // We need to iterate over the items in other IRSimilarityCandidate's
+    // Instruction to determine whether there is a valid mapping of
+    // Value to Value.
     DenseSet<unsigned> NewSet;
     for (unsigned &Curr : ValueMappingIt->second)
       // If we can find the value in the mapping, we add it to the new set.
@@ -557,7 +551,6 @@ static bool checkNumberingAndReplaceCommutative(
     // any items from the other operands, so we move to check the next operand.
     if (ValueMappingIt->second.size() != 1)
       continue;
-
 
     unsigned ValToRemove = *ValueMappingIt->second.begin();
     // When there is only one item left in the mapping for and operand, remove
@@ -1212,7 +1205,7 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(
   populateMapper(Modules, InstrList, IntegerMapping);
   findCandidates(InstrList, IntegerMapping);
 
-  return SimilarityCandidates.getValue();
+  return *SimilarityCandidates;
 }
 
 SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
@@ -1229,7 +1222,7 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
   populateMapper(M, InstrList, IntegerMapping);
   findCandidates(InstrList, IntegerMapping);
 
-  return SimilarityCandidates.getValue();
+  return *SimilarityCandidates;
 }
 
 INITIALIZE_PASS(IRSimilarityIdentifierWrapperPass, "ir-similarity-identifier",
@@ -1271,7 +1264,8 @@ IRSimilarityIdentifier IRSimilarityAnalysis::run(Module &M,
 PreservedAnalyses
 IRSimilarityAnalysisPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
   IRSimilarityIdentifier &IRSI = AM.getResult<IRSimilarityAnalysis>(M);
-  Optional<SimilarityGroupList> &SimilarityCandidatesOpt = IRSI.getSimilarity();
+  std::optional<SimilarityGroupList> &SimilarityCandidatesOpt =
+      IRSI.getSimilarity();
 
   for (std::vector<IRSimilarityCandidate> &CandVec : *SimilarityCandidatesOpt) {
     OS << CandVec.size() << " candidates of length "

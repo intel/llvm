@@ -8,10 +8,11 @@
 
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "CoroInternal.h"
+#include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
 
 using namespace llvm;
 
@@ -35,7 +36,7 @@ public:
         AnyResumeFnPtrTy(FunctionType::get(Type::getVoidTy(Context), Int8Ptr,
                                            /*isVarArg=*/false)
                              ->getPointerTo()) {}
-  bool lowerEarlyIntrinsics(Function &F);
+  void lowerEarlyIntrinsics(Function &F);
 };
 }
 
@@ -100,6 +101,25 @@ void Lowerer::lowerCoroDone(IntrinsicInst *II) {
   II->eraseFromParent();
 }
 
+static void buildDebugInfoForNoopResumeDestroyFunc(Function *NoopFn) {
+  Module &M = *NoopFn->getParent();
+  if (M.debug_compile_units().empty())
+     return;
+
+  DICompileUnit *CU = *M.debug_compile_units_begin();
+  DIBuilder DB(M, /*AllowUnresolved*/ false, CU);
+  std::array<Metadata *, 2> Params{nullptr, nullptr};
+  auto *SubroutineType =
+      DB.createSubroutineType(DB.getOrCreateTypeArray(Params));
+  StringRef Name = NoopFn->getName();
+  auto *SP = DB.createFunction(
+      CU, /*Name=*/Name, /*LinkageName=*/Name, /*File=*/ CU->getFile(),
+      /*LineNo=*/0, SubroutineType, /*ScopeLine=*/0, DINode::FlagArtificial,
+      DISubprogram::SPFlagDefinition);
+  NoopFn->setSubprogram(SP);
+  DB.finalize();
+}
+
 void Lowerer::lowerCoroNoop(IntrinsicInst *II) {
   if (!NoopCoro) {
     LLVMContext &C = Builder.getContext();
@@ -116,8 +136,9 @@ void Lowerer::lowerCoroNoop(IntrinsicInst *II) {
     // Create a Noop function that does nothing.
     Function *NoopFn =
         Function::Create(FnTy, GlobalValue::LinkageTypes::PrivateLinkage,
-                         "NoopCoro.ResumeDestroy", &M);
+                         "__NoopCoro_ResumeDestroy", &M);
     NoopFn->setCallingConv(CallingConv::Fast);
+    buildDebugInfoForNoopResumeDestroyFunc(NoopFn);
     auto *Entry = BasicBlock::Create(C, "entry", NoopFn);
     ReturnInst::Create(C, Entry);
 
@@ -145,8 +166,7 @@ static void setCannotDuplicate(CoroIdInst *CoroId) {
       CB->setCannotDuplicate();
 }
 
-bool Lowerer::lowerEarlyIntrinsics(Function &F) {
-  bool Changed = false;
+void Lowerer::lowerEarlyIntrinsics(Function &F) {
   CoroIdInst *CoroId = nullptr;
   SmallVector<CoroFreeInst *, 4> CoroFrees;
   bool HasCoroSuspend = false;
@@ -181,12 +201,9 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
       case Intrinsic::coro_id:
         if (auto *CII = cast<CoroIdInst>(&I)) {
           if (CII->getInfo().isPreSplit()) {
-            assert(F.hasFnAttribute(CORO_PRESPLIT_ATTR) &&
-                   F.getFnAttribute(CORO_PRESPLIT_ATTR).getValueAsString() ==
-                       UNPREPARED_FOR_SPLIT &&
+            assert(F.isPresplitCoroutine() &&
                    "The frontend uses Swtich-Resumed ABI should emit "
-                   "\"coroutine.presplit\" attribute with value \"0\" for the "
-                   "coroutine.");
+                   "\"coroutine.presplit\" attribute for the coroutine.");
             setCannotDuplicate(CII);
             CII->setCoroutineSelf();
             CoroId = cast<CoroIdInst>(&I);
@@ -196,9 +213,7 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
       case Intrinsic::coro_id_retcon:
       case Intrinsic::coro_id_retcon_once:
       case Intrinsic::coro_id_async:
-        // TODO: Remove the line once we support it in the corresponding
-        // frontend.
-        F.addFnAttr(CORO_PRESPLIT_ATTR, PREPARED_FOR_SPLIT);
+        F.setPresplitCoroutine();
         break;
       case Intrinsic::coro_resume:
         lowerResumeOrDestroy(*CB, CoroSubFnInst::ResumeIndex);
@@ -213,8 +228,6 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
         lowerCoroDone(cast<IntrinsicInst>(&I));
         break;
     }
-
-    Changed = true;
   }
 
   // Make sure that all CoroFree reference the coro.id intrinsic.
@@ -231,8 +244,6 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
     for (Argument &A : F.args())
       if (A.hasNoAliasAttr())
         A.removeAttr(Attribute::NoAlias);
-
-  return Changed;
 }
 
 static bool declaresCoroEarlyIntrinsics(const Module &M) {

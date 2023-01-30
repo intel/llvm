@@ -9,7 +9,7 @@
 
 #include "device_math.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__NVPTX__)
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
@@ -137,7 +137,7 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 #include <math.h>
 // FLOAT PROPERTIES
 #define _D0 3 // little-endian, small long doubles
@@ -444,4 +444,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR__
+#endif // __SPIR__ || __NVPTX__

@@ -6,39 +6,38 @@
 
 #include "sycl.hpp"
 
-using namespace cl;
 int main() {
-  cl::sycl::kernel_single_task<class first_kernel>([]() {});
+  sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 constexpr sycl::specialization_id a{2};
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::a>() {
 // CHECK-NEXT: return "____ZL1a";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 sycl::ext::oneapi::device_global<int> b;
 
 struct Wrapper {
   static constexpr sycl::specialization_id a{18};
   static sycl::ext::oneapi::device_global<float> b;
 };
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Wrapper::a>() {
 // CHECK-NEXT:   return "_ZN7Wrapper1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename T>
 struct TemplateWrapper {
@@ -47,16 +46,16 @@ struct TemplateWrapper {
 };
 
 template class TemplateWrapper<float>;
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::TemplateWrapper<float>::a>() {
 // CHECK-NEXT:   return "_ZN15TemplateWrapperIfE1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace {
 constexpr sycl::specialization_id a{2};
@@ -71,16 +70,16 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM0]]()>() {
 // CHECK-NEXT:   return "____ZN12_GLOBAL__N_11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 // CHECK: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
@@ -117,16 +116,16 @@ constexpr sycl::specialization_id a{2};
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__shim_[[SHIM3]]()>() {
 // CHECK-NEXT:   return "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 sycl::ext::oneapi::device_global<int> b;
 // CHECK: namespace outer {
 // CHECK-NEXT: namespace {
@@ -177,16 +176,16 @@ struct Wrapper {
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__shim_[[SHIM7]]()>() {
 // CHECK-NEXT:   return "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_17Wrapper1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -247,8 +246,8 @@ struct Wrapper {
 } // namespace
 } // namespace outer
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
-// CHECK-NEXT: #include <CL/sycl/detail/device_global_map.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>
+// CHECK-NEXT: #include <sycl/detail/device_global_map.hpp>
 // CHECK-NEXT: namespace sycl::detail {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {

@@ -29,8 +29,12 @@ struct FdSync {
 
 struct FdDesc {
   FdSync *sync;
+  // This is used to establish write -> epoll_wait synchronization
+  // where epoll_wait receives notification about the write.
+  atomic_uintptr_t aux_sync;  // FdSync*
   Tid creation_tid;
   StackID creation_stack;
+  bool closed;
 };
 
 struct FdContext {
@@ -103,6 +107,10 @@ static void init(ThreadState *thr, uptr pc, int fd, FdSync *s,
     unref(thr, pc, d->sync);
     d->sync = 0;
   }
+  unref(thr, pc,
+        reinterpret_cast<FdSync *>(
+            atomic_load(&d->aux_sync, memory_order_relaxed)));
+  atomic_store(&d->aux_sync, 0, memory_order_relaxed);
   if (flags()->io_sync == 0) {
     unref(thr, pc, s);
   } else if (flags()->io_sync == 1) {
@@ -113,6 +121,7 @@ static void init(ThreadState *thr, uptr pc, int fd, FdSync *s,
   }
   d->creation_tid = thr->tid;
   d->creation_stack = CurrentStackId(thr, pc);
+  d->closed = false;
   // This prevents false positives on fd_close_norace3.cpp test.
   // The mechanics of the false positive are not completely clear,
   // but it happens only if global reset is enabled (flush_memory_ms=1)
@@ -148,7 +157,7 @@ void FdOnFork(ThreadState *thr, uptr pc) {
   }
 }
 
-bool FdLocation(uptr addr, int *fd, Tid *tid, StackID *stack) {
+bool FdLocation(uptr addr, int *fd, Tid *tid, StackID *stack, bool *closed) {
   for (int l1 = 0; l1 < kTableSizeL1; l1++) {
     FdDesc *tab = (FdDesc*)atomic_load(&fdctx.tab[l1], memory_order_relaxed);
     if (tab == 0)
@@ -159,6 +168,7 @@ bool FdLocation(uptr addr, int *fd, Tid *tid, StackID *stack) {
       *fd = l1 * kTableSizeL1 + l2;
       *tid = d->creation_tid;
       *stack = d->creation_stack;
+      *closed = d->closed;
       return true;
     }
   }
@@ -185,6 +195,8 @@ void FdRelease(ThreadState *thr, uptr pc, int fd) {
   MemoryAccess(thr, pc, (uptr)d, 8, kAccessRead);
   if (s)
     Release(thr, pc, (uptr)s);
+  if (uptr aux_sync = atomic_load(&d->aux_sync, memory_order_acquire))
+    Release(thr, pc, aux_sync);
 }
 
 void FdAccess(ThreadState *thr, uptr pc, int fd) {
@@ -229,8 +241,13 @@ void FdClose(ThreadState *thr, uptr pc, int fd, bool write) {
   }
   unref(thr, pc, d->sync);
   d->sync = 0;
-  d->creation_tid = kInvalidTid;
-  d->creation_stack = kInvalidStackID;
+  unref(thr, pc,
+        reinterpret_cast<FdSync *>(
+            atomic_load(&d->aux_sync, memory_order_relaxed)));
+  atomic_store(&d->aux_sync, 0, memory_order_relaxed);
+  d->closed = true;
+  d->creation_tid = thr->tid;
+  d->creation_stack = CurrentStackId(thr, pc);
 }
 
 void FdFileCreate(ThreadState *thr, uptr pc, int fd) {
@@ -285,6 +302,30 @@ void FdPollCreate(ThreadState *thr, uptr pc, int fd) {
   if (bogusfd(fd))
     return;
   init(thr, pc, fd, allocsync(thr, pc));
+}
+
+void FdPollAdd(ThreadState *thr, uptr pc, int epfd, int fd) {
+  DPrintf("#%d: FdPollAdd(%d, %d)\n", thr->tid, epfd, fd);
+  if (bogusfd(epfd) || bogusfd(fd))
+    return;
+  FdDesc *d = fddesc(thr, pc, fd);
+  // Associate fd with epoll fd only once.
+  // While an fd can be associated with multiple epolls at the same time,
+  // or with different epolls during different phases of lifetime,
+  // synchronization semantics (and examples) of this are unclear.
+  // So we don't support this for now.
+  // If we change the association, it will also create lifetime management
+  // problem for FdRelease which accesses the aux_sync.
+  if (atomic_load(&d->aux_sync, memory_order_relaxed))
+    return;
+  FdDesc *epd = fddesc(thr, pc, epfd);
+  FdSync *s = epd->sync;
+  if (!s)
+    return;
+  uptr cmp = 0;
+  if (atomic_compare_exchange_strong(
+          &d->aux_sync, &cmp, reinterpret_cast<uptr>(s), memory_order_release))
+    ref(s);
 }
 
 void FdSocketCreate(ThreadState *thr, uptr pc, int fd) {

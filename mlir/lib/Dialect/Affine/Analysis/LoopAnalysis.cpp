@@ -23,6 +23,8 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
+#include <numeric>
+#include <optional>
 #include <type_traits>
 
 using namespace mlir;
@@ -77,28 +79,29 @@ void mlir::getTripCountMapAndOperands(
                             tripCountValueMap.getOperands().end());
 }
 
-/// Returns the trip count of the loop if it's a constant, None otherwise. This
-/// method uses affine expression analysis (in turn using getTripCount) and is
-/// able to determine constant trip count in non-trivial cases.
+/// Returns the trip count of the loop if it's a constant, std::nullopt
+/// otherwise. This method uses affine expression analysis (in turn using
+/// getTripCount) and is able to determine constant trip count in non-trivial
+/// cases.
 Optional<uint64_t> mlir::getConstantTripCount(AffineForOp forOp) {
   SmallVector<Value, 4> operands;
   AffineMap map;
   getTripCountMapAndOperands(forOp, &map, &operands);
 
   if (!map)
-    return None;
+    return std::nullopt;
 
   // Take the min if all trip counts are constant.
   Optional<uint64_t> tripCount;
   for (auto resultExpr : map.getResults()) {
     if (auto constExpr = resultExpr.dyn_cast<AffineConstantExpr>()) {
-      if (tripCount.hasValue())
-        tripCount = std::min(tripCount.getValue(),
-                             static_cast<uint64_t>(constExpr.getValue()));
+      if (tripCount.has_value())
+        tripCount =
+            std::min(*tripCount, static_cast<uint64_t>(constExpr.getValue()));
       else
         tripCount = constExpr.getValue();
     } else
-      return None;
+      return std::nullopt;
   }
   return tripCount;
 }
@@ -117,7 +120,7 @@ uint64_t mlir::getLargestDivisorOfTripCount(AffineForOp forOp) {
   // The largest divisor of the trip count is the GCD of the individual largest
   // divisors.
   assert(map.getNumResults() >= 1 && "expected one or more results");
-  Optional<uint64_t> gcd;
+  std::optional<uint64_t> gcd;
   for (auto resultExpr : map.getResults()) {
     uint64_t thisGcd;
     if (auto constExpr = resultExpr.dyn_cast<AffineConstantExpr>()) {
@@ -132,13 +135,13 @@ uint64_t mlir::getLargestDivisorOfTripCount(AffineForOp forOp) {
       // Trip count is not a known constant; return its largest known divisor.
       thisGcd = resultExpr.getLargestKnownDivisor();
     }
-    if (gcd.hasValue())
-      gcd = llvm::GreatestCommonDivisor64(gcd.getValue(), thisGcd);
+    if (gcd.has_value())
+      gcd = std::gcd(*gcd, thisGcd);
     else
       gcd = thisGcd;
   }
-  assert(gcd.hasValue() && "value expected per above logic");
-  return gcd.getValue();
+  assert(gcd.has_value() && "value expected per above logic");
+  return *gcd;
 }
 
 /// Given an induction variable `iv` of type AffineForOp and an access `index`

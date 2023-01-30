@@ -8,20 +8,20 @@
 ; RUN: opt < %s -passes='module(coro-early),cgscc(coro-split,coro-split)' -S | FileCheck %s
 
 ; This file is based on coro-debug-frame-variable.ll.
-; CHECK:  define internal fastcc void @f.resume(%f.Frame* noalias nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[RESUME_FN_DBG_NUM:[0-9]+]]
+; CHECK:  define internal fastcc void @f.resume(%f.Frame* noundef nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[RESUME_FN_DBG_NUM:[0-9]+]]
 ; CHECK-NEXT:       entry.resume:
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[XVAR_RESUME:[0-9]+]],
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[YVAR_RESUME:[0-9]+]],
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[ZVAR_RESUME:[0-9]+]],
 
-; CHECK:  define internal fastcc void @f.destroy(%f.Frame* noalias nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[DESTROY_FN_DBG_NUM:[0-9]+]] {
+; CHECK:  define internal fastcc void @f.destroy(%f.Frame* noundef nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[DESTROY_FN_DBG_NUM:[0-9]+]] {
 ; CHECK-NEXT:       entry.destroy:
 ; CHECK-NEXT:         %FramePtr.debug = alloca
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[XVAR_DESTROY:[0-9]+]],
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[YVAR_DESTROY:[0-9]+]],
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[ZVAR_DESTROY:[0-9]+]],
 
-; CHECK: define internal fastcc void @f.cleanup(%f.Frame* noalias nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[CLEANUP_FN_DBG_NUM:[0-9]+]] {
+; CHECK: define internal fastcc void @f.cleanup(%f.Frame* noundef nonnull align 16 dereferenceable(80) %FramePtr) !dbg ![[CLEANUP_FN_DBG_NUM:[0-9]+]] {
 ; CHECK:       entry.cleanup:
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[XVAR_CLEANUP:[0-9]+]],
 ; CHECK:         call void @llvm.dbg.addr(metadata %f.Frame** %FramePtr.debug, metadata ![[YVAR_CLEANUP:[0-9]+]],
@@ -43,7 +43,7 @@
 source_filename = "../llvm/test/Transforms/Coroutines/coro-debug-dbg.values-O2.ll"
 declare void @consume(i32)
 
-define void @f(i32 %i, i32 %j, i8* %ptr) "coroutine.presplit"="0" !dbg !8 {
+define void @f(i32 %i, i32 %j, i8* %ptr) presplitcoroutine !dbg !8 {
 entry:
   %__promise = alloca i8, align 8
   %x = alloca [10 x i32], align 16

@@ -21,7 +21,7 @@ class Complex_Op<string mnemonic, list<Trait> traits = []>
 // floating-point element type. These operations take two operands and return
 // one result, all of which must be complex numbers of the same type.
 class ComplexArithmeticOp<string mnemonic, list<Trait> traits = []> :
-    Complex_Op<mnemonic, traits # [NoSideEffect, SameOperandsAndResultType,
+    Complex_Op<mnemonic, traits # [Pure, SameOperandsAndResultType,
     Elementwise]> {
   let arguments = (ins Complex<AnyFloat>:$lhs, Complex<AnyFloat>:$rhs);
   let results = (outs Complex<AnyFloat>:$result);
@@ -32,7 +32,7 @@ class ComplexArithmeticOp<string mnemonic, list<Trait> traits = []> :
 // floating-point element type. These operations take one operand and return
 // one result; the operand must be a complex number.
 class ComplexUnaryOp<string mnemonic, list<Trait> traits = []> :
-    Complex_Op<mnemonic, traits # [NoSideEffect, Elementwise]> {
+    Complex_Op<mnemonic, traits # [Pure, Elementwise]> {
   let arguments = (ins Complex<AnyFloat>:$complex);
   let assemblyFormat = "$complex attr-dict `:` type($complex)";
 }
@@ -73,6 +73,26 @@ def AddOp : ComplexArithmeticOp<"add"> {
     %a = complex.add %b, %c : complex<f32>
     ```
   }];
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Atan2
+//===----------------------------------------------------------------------===//
+
+def Atan2Op : ComplexArithmeticOp<"atan2"> {
+  let summary = "complex 2-argument arctangent";
+  let description = [{
+    For complex numbers it is expressed using complex logarithm
+    atan2(y, x) = -i * log((x + i * y) / sqrt(x**2 + y**2))
+
+    Example:
+
+    ```mlir
+    %a = complex.atan2 %b, %c : complex<f32>
+    ```
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -80,7 +100,7 @@ def AddOp : ComplexArithmeticOp<"add"> {
 //===----------------------------------------------------------------------===//
 
 def ConstantOp : Complex_Op<"constant", [
-    ConstantLike, NoSideEffect,
+    ConstantLike, Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>
   ]> {
   let summary = "complex number constant operation";
@@ -101,7 +121,7 @@ def ConstantOp : Complex_Op<"constant", [
   let assemblyFormat = "$value attr-dict `:` type($complex)";
   let hasFolder = 1;
   let hasVerifier = 1;
-  
+
   let extraClassDeclaration = [{
     /// Returns true if a constant operation can be built with the given value
     /// and result type.
@@ -110,11 +130,31 @@ def ConstantOp : Complex_Op<"constant", [
 }
 
 //===----------------------------------------------------------------------===//
+// CosOp
+//===----------------------------------------------------------------------===//
+
+def CosOp : ComplexUnaryOp<"cos", [SameOperandsAndResultType]> {
+  let summary = "computes cosine of a complex number";
+  let description = [{
+    The `cos` op takes a single complex number and computes the cosine of
+    it, i.e. `cos(x)`, where `x` is the input value.
+
+    Example:
+
+    ```mlir
+    %a = complex.cos %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
 // CreateOp
 //===----------------------------------------------------------------------===//
 
 def CreateOp : Complex_Op<"create",
-    [NoSideEffect,
+    [Pure,
      AllTypesMatch<["real", "imaginary"]>,
      TypesMatchWith<"complex element type matches real operand type",
                     "complex", "real",
@@ -163,7 +203,7 @@ def DivOp : ComplexArithmeticOp<"div"> {
 //===----------------------------------------------------------------------===//
 
 def EqualOp : Complex_Op<"eq",
-    [NoSideEffect, AllTypesMatch<["lhs", "rhs"]>, Elementwise]> {
+    [Pure, AllTypesMatch<["lhs", "rhs"]>, Elementwise]> {
   let summary = "computes whether two complex values are equal";
   let description = [{
     The `eq` op takes two complex numbers and returns whether they are equal.
@@ -196,6 +236,33 @@ def ExpOp : ComplexUnaryOp<"exp", [SameOperandsAndResultType]> {
 
     ```mlir
     %a = complex.exp %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Expm1Op
+//===----------------------------------------------------------------------===//
+
+def Expm1Op : ComplexUnaryOp<"expm1", [SameOperandsAndResultType]> {
+  let summary = "computes exponential of a complex number minus 1";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `complex.expm1` ssa-use `:` type
+    ```
+
+    complex.expm1(x) := complex.exp(x) - 1
+
+    Example:
+
+    ```mlir
+    %a = complex.expm1 %b : complex<f32>
     ```
   }];
 
@@ -244,6 +311,8 @@ def LogOp : ComplexUnaryOp<"log", [SameOperandsAndResultType]> {
   }];
 
   let results = (outs Complex<AnyFloat>:$result);
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -300,6 +369,8 @@ def NegOp : ComplexUnaryOp<"neg", [SameOperandsAndResultType]> {
   }];
 
   let results = (outs Complex<AnyFloat>:$result);
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -307,7 +378,7 @@ def NegOp : ComplexUnaryOp<"neg", [SameOperandsAndResultType]> {
 //===----------------------------------------------------------------------===//
 
 def NotEqualOp : Complex_Op<"neq",
-    [NoSideEffect, AllTypesMatch<["lhs", "rhs"]>, Elementwise]> {
+    [Pure, AllTypesMatch<["lhs", "rhs"]>, Elementwise]> {
   let summary = "computes whether two complex values are not equal";
   let description = [{
     The `neq` op takes two complex numbers and returns whether they are not
@@ -324,6 +395,24 @@ def NotEqualOp : Complex_Op<"neq",
   let results = (outs I1:$result);
 
   let assemblyFormat = "$lhs `,` $rhs  attr-dict `:` type($lhs)";
+}
+
+//===----------------------------------------------------------------------===//
+// PowOp
+//===----------------------------------------------------------------------===//
+
+def PowOp : ComplexArithmeticOp<"pow"> {
+  let summary = "complex power function";
+  let description = [{
+    The `sqrt` operation takes a complex number raises it to the given complex
+    exponent.
+
+    Example:
+
+    ```mlir
+    %a = complex.pow %b, %c : complex<f32>
+    ```
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -350,6 +439,25 @@ def ReOp : ComplexUnaryOp<"re",
 }
 
 //===----------------------------------------------------------------------===//
+// RsqrtOp
+//===----------------------------------------------------------------------===//
+
+def RsqrtOp : ComplexUnaryOp<"rsqrt", [SameOperandsAndResultType]> {
+  let summary = "complex reciprocal of square root";
+  let description = [{
+    The `rsqrt` operation computes reciprocal of square root.
+
+    Example:
+
+    ```mlir
+    %a = complex.rsqrt %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
 // SignOp
 //===----------------------------------------------------------------------===//
 
@@ -363,6 +471,45 @@ def SignOp : ComplexUnaryOp<"sign", [SameOperandsAndResultType]> {
 
     ```mlir
     %a = complex.sign %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// SinOp
+//===----------------------------------------------------------------------===//
+
+def SinOp : ComplexUnaryOp<"sin", [SameOperandsAndResultType]> {
+  let summary = "computes sine of a complex number";
+  let description = [{
+    The `sin` op takes a single complex number and computes the sine of
+    it, i.e. `sin(x)`, where `x` is the input value.
+
+    Example:
+
+    ```mlir
+    %a = complex.sin %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// SqrtOp
+//===----------------------------------------------------------------------===//
+
+def SqrtOp : ComplexUnaryOp<"sqrt", [SameOperandsAndResultType]> {
+  let summary = "complex square root";
+  let description = [{
+    The `sqrt` operation takes a complex number and returns its square root.
+
+    Example:
+
+    ```mlir
+    %a = complex.sqrt %b : complex<f32>
     ```
   }];
 
@@ -384,6 +531,89 @@ def SubOp : ComplexArithmeticOp<"sub"> {
     %a = complex.sub %b, %c : complex<f32>
     ```
   }];
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// TanhOp
+//===----------------------------------------------------------------------===//
+
+def TanhOp : ComplexUnaryOp<"tanh", [SameOperandsAndResultType]> {
+  let summary = "complex hyperbolic tangent";
+  let description = [{
+    The `tanh` operation takes a complex number and returns its hyperbolic
+    tangent.
+
+    Example:
+
+    ```mlir
+    %a = complex.tanh %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// TanOp
+//===----------------------------------------------------------------------===//
+
+def TanOp : ComplexUnaryOp<"tan", [SameOperandsAndResultType]> {
+  let summary = "computes tangent of a complex number";
+  let description = [{
+    The `tan` op takes a single complex number and computes the tangent of
+    it, i.e. `tan(x)`, where `x` is the input value.
+
+    Example:
+
+    ```mlir
+    %a = complex.tan %b : complex<f32>
+    ```
+  }];
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// Conj
+//===----------------------------------------------------------------------===//
+
+def ConjOp : ComplexUnaryOp<"conj", [SameOperandsAndResultType]> {
+  let summary = "Calculate the complex conjugate";
+  let description = [{
+    The `conj` op takes a single complex number and computes the
+    complex conjugate.
+
+    Example:
+
+    ```mlir
+    %a = complex.conj %b: complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// AngleOp
+//===----------------------------------------------------------------------===//
+
+def AngleOp : ComplexUnaryOp<"angle",
+                           [TypesMatchWith<"complex element type matches result type",
+                                           "complex", "result",
+                                           "$_self.cast<ComplexType>().getElementType()">]> {
+  let summary = "computes argument value of a complex number";
+  let description = [{
+    The `angle` op takes a single complex number and computes its argument value with a branch cut along the negative real axis.
+
+    Example:
+
+    ```mlir
+         %a = complex.angle %b : complex<f32>
+    ```
+  }];
+  let results = (outs AnyFloat:$result);
 }
 
 #endif // COMPLEX_OPS

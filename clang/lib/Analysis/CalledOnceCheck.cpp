@@ -319,7 +319,7 @@ public:
       // We care about logical not only if we care about comparisons.
       if (!ShouldRetrieveFromComparisons)
         return nullptr;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     // Function pointer/references can be dereferenced before a call.
     // That doesn't make it, however, any different from a regular call.
     // For this reason, dereference operation is a "no-op".
@@ -513,7 +513,7 @@ public:
     if (const Stmt *Terminator = Conditional->getTerminatorStmt()) {
       return NotCalledClarifier{Conditional, SuccWithoutCall}.Visit(Terminator);
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::Optional<Clarification> VisitIfStmt(const IfStmt *If) {
@@ -563,7 +563,7 @@ public:
 
   llvm::Optional<Clarification> VisitBinaryOperator(const BinaryOperator *) {
     // We don't want to report on short-curcuit logical operations.
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::Optional<Clarification> VisitStmt(const Stmt *Terminator) {
@@ -997,7 +997,7 @@ private:
 
   /// Return true/false if 'swift_async' attribute states that the given
   /// parameter is conventionally called once.
-  /// Return llvm::None if the given declaration doesn't have 'swift_async'
+  /// Return std::nullopt if the given declaration doesn't have 'swift_async'
   /// attribute.
   static llvm::Optional<bool> isConventionalSwiftAsync(const Decl *D,
                                                        unsigned ParamIndex) {
@@ -1008,7 +1008,7 @@ private:
 
       return A->getCompletionHandlerIndex().getASTIndex() == ParamIndex;
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   /// Return true if the specified selector represents init method.
@@ -1065,7 +1065,7 @@ private:
     // 'swift_async' goes first and overrides anything else.
     if (auto ConventionalAsync =
             isConventionalSwiftAsync(Function, ParamIndex)) {
-      return ConventionalAsync.getValue();
+      return *ConventionalAsync;
     }
 
     return shouldBeCalledOnce(Function->getParamDecl(ParamIndex)) ||
@@ -1082,7 +1082,7 @@ private:
 
     // 'swift_async' goes first and overrides anything else.
     if (auto ConventionalAsync = isConventionalSwiftAsync(Method, ParamIndex)) {
-      return ConventionalAsync.getValue();
+      return *ConventionalAsync;
     }
 
     const ParmVarDecl *Parameter = Method->getParamDecl(ParamIndex);
@@ -1644,7 +1644,7 @@ private:
       return getIndex(*Parameter);
     }
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::Optional<unsigned> getIndex(const ParmVarDecl &Parameter) const {
@@ -1662,7 +1662,7 @@ private:
       return It - TrackedParams.begin();
     }
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   const ParmVarDecl *getParameter(unsigned Index) const {

@@ -37,9 +37,14 @@ class SystemZMachineFunctionInfo : public MachineFunctionInfo {
   unsigned NumLocalDynamics;
 
 public:
-  explicit SystemZMachineFunctionInfo(MachineFunction &MF)
-    : VarArgsFirstGPR(0), VarArgsFirstFPR(0), VarArgsFrameIndex(0),
-      RegSaveFrameIndex(0), FramePointerSaveIndex(0), NumLocalDynamics(0) {}
+  SystemZMachineFunctionInfo(const Function &F, const TargetSubtargetInfo *STI)
+      : VarArgsFirstGPR(0), VarArgsFirstFPR(0), VarArgsFrameIndex(0),
+        RegSaveFrameIndex(0), FramePointerSaveIndex(0), NumLocalDynamics(0) {}
+
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
 
   // Get and set the first and last call-saved GPR that should be saved by
   // this function and the SP offset for the STMG.  These are 0 if no GPRs

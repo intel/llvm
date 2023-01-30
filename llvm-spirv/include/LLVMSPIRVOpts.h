@@ -39,13 +39,13 @@
 #ifndef SPIRV_LLVMSPIRVOPTS_H
 #define SPIRV_LLVMSPIRVOPTS_H
 
-#include <llvm/ADT/Optional.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 
 #include <cassert>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace llvm {
@@ -206,7 +206,7 @@ private:
 
   // Unknown LLVM intrinsics will be translated as external function calls in
   // SPIR-V
-  llvm::Optional<ArgList> SPIRVAllowUnknownIntrinsics{};
+  std::optional<ArgList> SPIRVAllowUnknownIntrinsics{};
 
   // Enable support for extra DIExpression opcodes not listed in the SPIR-V
   // DebugInfo specification.

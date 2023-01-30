@@ -22,11 +22,12 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
-namespace experimental::matrix {
+namespace experimental {
+namespace matrix {
 
 enum class tpu {
   dpas,
@@ -59,7 +60,6 @@ template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
           int M = 0, int N = 0, int K = 0, typename Enabled = void>
 struct tpu_params;
 
-#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int M, int N, int K) {
   // is_same_v is a C++17 feature
@@ -96,7 +96,6 @@ constexpr bool are_types_valid_amx() {
   else
     return false;
 }
-#endif
 
 // General query:
 // types are not given, no default sizes and no implicit matrix construction
@@ -132,7 +131,6 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
       sizeof(combinations) / sizeof(combination);
 };
 
-#if __cplusplus >= 201703L
 // Sizes-only query
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc>
@@ -268,7 +266,6 @@ constexpr bool are_types_valid_dpas() {
   else
     return false;
 }
-#endif
 
 // General Query
 // specialization for when types are not given --> no default values
@@ -327,7 +324,6 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
 // Sizes-only query:
 // Specialization for when only types are given, need to query only sizes
 
-#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
                   typename std::enable_if<(!std::is_same_v<Ta, void> &&
@@ -415,9 +411,9 @@ struct tpu_params<
   uint32_t numtiles = -1; // does not apply for DPAS
   scope_t scope = scope_t::sub_group;
 };
-#endif
-} // namespace experimental::matrix
+} // namespace matrix
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

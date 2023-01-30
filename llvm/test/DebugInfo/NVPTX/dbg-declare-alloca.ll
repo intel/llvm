@@ -1,4 +1,5 @@
-; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -dwarf-directory=0 | FileCheck %s
+; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda | FileCheck %s
+; RUN: %if ptxas %{ llc < %s -mtriple=nvptx64-nvidia-cuda | %ptxas-verify %}
 
 ; CHECK: .target sm_20, debug
 
@@ -149,11 +150,11 @@
 ; CHECK-NEXT: .b8 115
 ; CHECK-NEXT: .b8 116
 ; CHECK-NEXT: .b8 0
-; CHECK-NEXT: .b64 Lfunc_begin0                    // DW_AT_low_pc
-; CHECK-NEXT: .b64 Lfunc_end0                      // DW_AT_high_pc
+; CHECK-NEXT: .b64 $L__func_begin0                 // DW_AT_low_pc
+; CHECK-NEXT: .b64 $L__func_end0                   // DW_AT_high_pc
 ; CHECK-NEXT: .b8 2                                // Abbrev [2] 0x31:0x3c DW_TAG_subprogram
-; CHECK-NEXT: .b64 Lfunc_begin0                    // DW_AT_low_pc
-; CHECK-NEXT: .b64 Lfunc_end0                      // DW_AT_high_pc
+; CHECK-NEXT: .b64 $L__func_begin0                 // DW_AT_low_pc
+; CHECK-NEXT: .b64 $L__func_end0                   // DW_AT_high_pc
 ; CHECK-NEXT: .b8 1                                // DW_AT_frame_base
 ; CHECK-NEXT: .b8 156
 ; CHECK-NEXT: .b8 117                              // DW_AT_name
@@ -221,15 +222,15 @@
 define void @use_dbg_declare() #0 !dbg !7 {
 entry:
   %o = alloca %struct.Foo, align 4
-  call void @llvm.dbg.declare(metadata %struct.Foo* %o, metadata !10, metadata !15), !dbg !16
-  call void @escape_foo(%struct.Foo* %o), !dbg !17
+  call void @llvm.dbg.declare(metadata ptr %o, metadata !10, metadata !15), !dbg !16
+  call void @escape_foo(ptr %o), !dbg !17
   ret void, !dbg !18
 }
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare void @escape_foo(%struct.Foo*)
+declare void @escape_foo(ptr)
 
 attributes #0 = { noinline nounwind uwtable }
 attributes #1 = { nounwind readnone speculatable }
