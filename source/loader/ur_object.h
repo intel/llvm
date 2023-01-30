@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -12,6 +12,7 @@
 #define UR_OBJECT_H 1
 
 #include "ur_singleton.h"
+#include "ur_util.h"
 
 //////////////////////////////////////////////////////////////////////////
 struct dditable_t
