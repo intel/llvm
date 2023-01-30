@@ -1592,8 +1592,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   }
 
   if (T->isBuiltinType()) {
-    if (BuiltinTypeCache.find(T) != BuiltinTypeCache.end())
-      return BuiltinTypeCache[T];
+    if (const auto Iter = BuiltinTypeCache.find(T);
+        Iter != BuiltinTypeCache.end())
+      return Iter->second;
 
     mlir::Type Ty = getMLIRType(cast<clang::BuiltinType>(T));
     BuiltinTypeCache[T] = Ty;
