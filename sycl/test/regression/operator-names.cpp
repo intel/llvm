@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c %s -o %t.out -Wno-deprecated -fno-operator-names
+// RUN: %clangxx -fsycl -fsyntax-only %s -Wno-deprecated -fno-operator-names
 //
 //===----------------------------------------------------------------------===//
 // This test checks if any SYCL header files use C++ operator name keywords
