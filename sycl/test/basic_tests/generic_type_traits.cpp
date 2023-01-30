@@ -55,6 +55,8 @@ int main() {
 
   static_assert(d::is_ugenint<s::cl_uint3>::value == true, "");
 
+  static_assert(d::is_half<s::half>::value);
+
   // TODO add checks for the following type traits
   /*
   is_doublen
