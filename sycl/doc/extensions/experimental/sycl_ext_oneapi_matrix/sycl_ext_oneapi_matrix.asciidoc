@@ -853,10 +853,10 @@ using the `tpu_params` query class.
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| matrix_type::(u)int8_t  | matrix_type::(u)int8_t |
-matrix_type::sint32_t  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-|  matrix_type::bf16       |  matrix_type::bf16   |
-matrix_type::fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+| `matrix_type::(u)int8_t`  | `matrix_type::(u)int8_t` |
+`matrix_type::sint32_t`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
+`matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |======================
 
 ==== Intel XMX Supported Combinations
@@ -864,12 +864,12 @@ matrix_type::fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| matrix_type::(u)int8_t  | matrix_type::(u)int8_t |
-matrix_type::int32_t  |  +<=+ 8 |  16 |  32
-|  matrix_type::fp16       |  matrix_type::fp16   |
-matrix_type::fp32   |  +<=+ 8 |  16   |  16
-|  matrix_type::bf16       |  matrix_type::bf16   |
-matrix_type::fp32   |  +<=+ 8 |  16   |  16
+| `matrix_type::(u)int8_t`  | `matrix_type::(u)int8_t` |
+`matrix_type::int32_t`  |  +<=+ 8 |  16 |  32
+|  `matrix_type::fp16`       |  `matrix_type::fp16`   |
+`matrix_type::fp32`   |  +<=+ 8 |  16   |  16
+|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
+`matrix_type::fp32`   |  +<=+ 8 |  16   |  16
 |======================
 
 
