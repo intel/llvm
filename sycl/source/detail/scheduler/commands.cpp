@@ -113,6 +113,7 @@ static void applyFuncOnFilteredArgs(
       if (EliminatedArgMask[Arg.MIndex]) {
         if (Arg.MType == kernel_param_kind_t::kind_accessor)
           Func(Arg, NextTrueIndex);
+
         continue;
       }
 
@@ -1983,7 +1984,8 @@ static pi_result SetKernelParamsAndLaunch(
   const detail::plugin &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+                  &Queue, &EliminatedArgMask](detail::ArgDesc &Arg,
+                                              size_t NextTrueIndex) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
@@ -2001,6 +2003,9 @@ static pi_result SetKernelParamsAndLaunch(
         throw sycl::exception(make_error_code(errc::kernel_argument),
                               "placeholder accessor must be bound by calling "
                               "handler::require() before it can be used.");
+
+      if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
+        break;
 
       RT::PiMem MemArg = (RT::PiMem)RawMemArg.value();
       if (Plugin.getBackend() == backend::opencl) {
