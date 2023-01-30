@@ -18,8 +18,6 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#define DEBUG_TYPE "sycl-to-gpu"
-
 using namespace mlir;
 using namespace mlir::sycl;
 
