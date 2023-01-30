@@ -1,7 +1,7 @@
-# Matrix Programming Extension for DPC++: sycl_ext_oneapi_matrix
+sycl_ext_oneapi_matrix
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
-:dpcpp: pass:[DPC++]
 
 // This section needs to be after the document title.
 :doctype: book
@@ -9,8 +9,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -20,41 +19,62 @@
 
 == Notice
 
+[%hardbreaks]
 Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+== Status
 
-**_NOTE:_** _This document describes the current design and API for the matrix
-extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R) XMX) and Nvidia(R) Tensor Cores._
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
-## Introduction
-This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Intel XMX in Intel GPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
+== Backend support status
+This extension is currently implemented in {dpcpp} only for devices that contain a matrix hardware, specifically Intel(R) Advanced Matrix Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R) XMX) and Nvidia(R) Tensor Cores.
 
-## Feature test macro
+== Overview
+Joint matrix is a SYCL extension for matrix hardware programming. It
+unifies targets like Intel AMX in CPUs, Intel XMX in Intel GPUs and Nvidia Tensor Cores. This provides portable but performant API for users who want to build their own neural networks applications, perform custom optimzations, or experiment with new operations in a timely and performing manner.
+
+== Specification
+
+=== Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_MATRIX` to one of the values defined in the table below.
-Applications can test for the existence of this macro to determine if the
+specification. An implementation supporting this extension must predefine
+the macro `SYCL_EXT_ONEAPI_MATRIX` to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+value to determine which of the extension's features the implementation supports.
 
-[frame="none",options="header"]
-|======================
-|Value |Description
-|1     |The APIs of this experimental extension are not versioned, so the feature-test macro always has this value. 
-|======================
+[%header,cols="1,5"]
+|===
+|Value
+|Description
 
-## Matrix API Versions
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Matrix API Versions
 
 While this document presents the core API that unifies Intel AMX, Intel XMX, and Nvidia Tensor Cores, the implementations support slightly different versions of the API. For this reason, we introduce a new macro, namely `SYCL_EXT_ONEAPI_MATRIX_VERSION`  to distinguish between these different implementations. The goal in the next few months is to get rid of this implementation versioning macro. These are the current values for this macro.
 
@@ -62,11 +82,11 @@ While this document presents the core API that unifies Intel AMX, Intel XMX, and
 |======================
 |Value |Description
 |1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in link:../../deprecated/sycl_ext_oneapi_matrix_no_use.asciidoc[matrix extension]
-|2     |JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported 
-|3     |Implementation on Nvidia Tensor Cores
+|3     |Initial implementation on Nvidia Tensor Cores
+|4     |JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. Plus, AOT implementation on Nvidia tensor Cores 
 |======================
 
-## New `joint_matrix` class
+=== New `joint_matrix` class
 We introduce a new class called `joint_matrix`. The user needs to specify the group memory scope, the type of the elements, the shape, the matrix use, and the memory layout of the matrix. This results in the following description:
 
 ```c++
@@ -81,7 +101,7 @@ struct joint_matrix {
 
 IMPORTANT: Matrix layout defaulting to `layout::dynamic` applies only to matrix with `use::accumulator`
 
-#### Use
+==== Use
 Specifying the usage of the matrix: matrix left (A), matrix right (B) or accumulator +(C)+ is required by backend implementations to reason about the layout of the matrix in registers.
 
 ```c++
@@ -94,10 +114,10 @@ enum class use {
 }
 ```
 
-#### Shape
+==== Shape
 The shape of a `joint_matrix` refers to its number of rows `Rows` and number of columns `Cols`.
 
-#### Layout
+==== Layout
 This specifies the memory layout and it can be row major or column major.
 
 ```c++
@@ -111,7 +131,7 @@ enum class layout {
 ```
 
 
-#### Group Memory Scope
+==== Group Memory Scope
 In this API, we use the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The group scope is added as an additional template parameter.
 
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported
@@ -123,7 +143,7 @@ joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA;
 ```
 
 
-## Matrix Operations and their Execution Scope
+=== Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices, namely load, store, and the actual multiply and add operation. This set of functions can be easily extended if the matrix hardware implements new features.
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by each work item in the group.
@@ -132,7 +152,7 @@ To be aligned with the SYCL 2020 group algorithms, an additional group argument 
 
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported.  
 
-#### Load
+==== Load
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -157,7 +177,7 @@ The second overload without a memory layout must not be used with a `joint_matri
 The base pointer `src` here determines the starting address of the matrix to be loaded from. `Layout` determines whether the data is being read in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
 
 
-#### Store
+==== Store
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -172,7 +192,7 @@ This function stores the data in the accumulator matrix from the 2d tiles back t
 The base pointer `dest` here determines the starting address of the matrix to be stored. `Layout` determines whether the data is being written in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
 
 
-#### Multiply and Add
+==== Multiply and Add
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -187,7 +207,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
 
 
-#### Matrix Initialization: `joint_matrix_fill`
+==== Matrix Initialization: `joint_matrix_fill`
 Unlike `joint_matrix_load` that assumes that all the matrices are directly loaded from memory, `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to the `_tile_zero` intrinsic: 
 
 ```c++
@@ -199,8 +219,8 @@ namespace sycl::ext::oneapi::experimental::matrix {
 ```
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported.  
 
-#### Element Indexing and Piece-Wise Operations
-##### Background
+==== Element Indexing and Piece-Wise Operations
+===== Background
 Besides matrix multiply and add, this extension aims to make it possible to perform piece-wise operations on matrices in a SPMD manner. The mechanisms that are recommended to perform such piece-wise operations depend upon which of the following classes the operation falls into:
 
 Class 1- Element-wise operations where the same operation is performed on every element of the matrix, such that the operation can be performed without knowledge of the position of the element within the matrix. Activation functions or adding a constant value to every element of the matrix are two examples.
@@ -209,7 +229,7 @@ Class 2- Piece-wise operations where the operation depends on the element index 
 
 // We explored multiple options to enable this feature in the matrix interface: 1) Allowing non-restrictive element indexing on the matrix elements would result into slow indexing on the GPU, 2) Operator overloading can represent only element-wise operations and not the operations on pieces (row, column, diagonal, etc) of the matrix. 3) Providing specific functions for these piece-wise operations can resolve some of the functions we know of today like the ones involved in quantization but it is not general to any problem that may occur in the future. 
 
-##### Explicit conversion with mapping from SIMD to SPMD
+===== Explicit conversion with mapping from SIMD to SPMD
 The data elements in a `joint_matrix` are distributed or shared across the work-items in the Group in an implementation-defined way. There is no fixed allocation of matrix elements owned by a `joint_matrix` instance to the WIs comprising the group used to instantiate it. For instance, the matrix is a shared entity among the work items in the case of the AMX backend because the AMX tile that holds the matrix data is a 2d register that is shared among the work items. Therefore the partitioning among the WIs is implementation defined. However, it is necessary to allocate WIs to specific elements of the matrix in order to perform element-wise operations. In order to be able to perform element-wise operations in a general and efficient way, we provide a conversion function from the `joint_matrix` domain that is owned by a group of work items to the portion that is owned by each work item. This enables the WI to perform piece-wise operations on the matrix within the SYCL SPMD programming model.
 
 We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI. The indexing provided inside the `wi_data` class accesses only the portion of the current WI and returns  `wi_element`. This latter holds a reference to the original joint_matrix that `wi_data` was constructed from. This means that modifying `wi_data` also modifies the corresponding joint matrix elements. Users can use the `=` operator to update the element of the `joint_matrix` represented by the `wi_element` after the element-wise operation.
@@ -257,7 +277,7 @@ for (int i = 0; i < wi_data_c.length(); i++)
 
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported.
 
-##### Work-item data to joint matrix mapping coordinates
+===== Work-item data to joint matrix mapping coordinates
 The `wi_data` and `wi_element` classes provide access to the matrix elements that are local to the calling work-item. However, the distribution of matrix elements to each work-item is implementation-defined, so application code cannot assume any fixed distribution. Instead, application code can use the `get_coord` method to query the matrix coordinates of an individual `wi_element`.
 
 `get_coord` returns [row,col] coordinates of the current object `wi_element` of the joint matrix.  The code above results into the following:
@@ -273,7 +293,7 @@ for (int i = 0; i < data.length(); ++i) {
 
 IMPORTANT: `get_coord` is not implemented yet.
 
-## Example using int8_t type
+=== Example using int8_t type
 ```c++
 using namespace sycl::ext::oneapi::experimental::matrix;
 
@@ -312,7 +332,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 }).wait();
 ```
 
-== Query Interface
+=== Query Interface
 Intel AMX, Intel XMX and Nvidia TPUs support different sizes and types (see Appendix: Supported Combinations Per Hardware). The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
 This also offers development and tuning productivity by both scientists and library developers. The query interface we are proposing here is a compile-time query, so there will be no runtime errors.
 
@@ -520,7 +540,7 @@ enum class scope_t {
 };
 }
 ```
-=== Validation Example:
+==== Validation Example:
 ```c++
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
@@ -529,7 +549,7 @@ size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
-=== Default Values Example:
+==== Default Values Example:
 ```c++
 using myparams = tpu_params_both<tpu::xmx16, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
@@ -543,7 +563,7 @@ myparams::joint_matrix_accumulator<sub_group> sub_c;
 
 ```
 
-=== General Query Example:
+==== General Query Example:
 ```c++
 constexpr int M = 1500; // with msize = 8 and msize = 4,
           // M can be broken up to 125 sequence of 8-sized ops and remaining 500 using 125 sequence of 4-sized ops
@@ -559,11 +579,11 @@ joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 //Remainder handling
 ```
 
-## Appendix: Supported Combinations Per Hardware
+=== Appendix: Supported Combinations Per Hardware
 
 The table below provides a list of the combinations that `joint_matrix` implementations support on each of Intel AMX and Intel XMX hardware. Note that these can be returned in a parametrized way using the `tpu_params` query class.
 
-### Intel AMX Supported Combinations
+==== Intel AMX Supported Combinations
 
 [frame="none",options="header"]
 |======================
@@ -572,7 +592,7 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 |  bf16       |  bf16   |   fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |======================
 
-### Intel XMX Supported Combinations
+==== Intel XMX Supported Combinations
 
 [frame="none",options="header"]
 |======================
@@ -583,7 +603,7 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 |======================
 
 
-## Revision History
+=== Revision History
 
 [frame="none",options="header"]
 |======================

@@ -1,8 +1,7 @@
-# Intel-specific matrix features
+= sycl_ext_oneapi_matrix
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
-:dpcpp: pass:[DPC++]
 
 // This section needs to be after the document title.
 :doctype: book
@@ -10,8 +9,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -21,44 +19,68 @@
 
 == Notice
 
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2022 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-**_NOTE:_** This document describes the extra features and details for the implementation of `joint_matrix` extension on Intel AMX and Intel XMX.
- This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**.
+This extension also depends on the following other SYCL extensions:
 
-## Introduction
+* link:../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[
+  sycl_ext_oneapi_matrix]
+
+== Status
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+This document describes the extra features and details for the implementation of `joint_matrix` extension on Intel AMX and Intel XMX.
+
+== Overview
 The Intel backend implementations on both Intel AMX and Intel XMX  support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad`, `joint_matrix_fill`, `get_wi_data`, and the query interface, as they are defined in the sycl_ext_oneapi_matrix extension. There are additional specifics about the supported layouts that enable extra performance and functionality listed in this document.
 This extension presents some supplementary Intel AMX and Intel XMX features not contained within the sycl_ext_oneapi_matrix extension. The additional features are built on top of the sycl_ext_oneapi_matrix extension but are only supported by the Intel AMX and Intel XMX backends.
 
-## Feature test macro
+== Specification
+
+=== Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_INTEL_MATRIX` to one of the values defined in the table below.
+specification. An implementation supporting this extension must predefine the macro `SYCL_EXT_INTEL_MATRIX` to one of the values defined in the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
 
-[frame="none",options="header"]
-|======================
-|Value |Description
-|1     |Introduce `packed` layout and extend `joint_matrix_store` to Matrix A and B.
-|======================
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
 
 
-## Extra Functionality
+=== Joint Matrix Intel-Specific Matrix Features
 
-### Layout
+==== Layout
 Besides row major and column major layouts, `layout` introduces the custom layout packed layout that refers to the VNNI format descibed in the following section.
 
 ```c++
@@ -70,17 +92,16 @@ enum class layout {
 ```
 
 
-### Layout argument in `joint_matrix_load`
+==== Layout argument in `joint_matrix_load`
 `layout` in `joint_matrix_load` can take `packed` as argument to specify that the data has already been transformed into VNNI format (`packed`). in this case, `stride` argument of `joint_matrix_load` describes the number of elements between consecutive rows for packed layouts.
 
 In order to get maximum performance on Intel AMX and Intel XMX, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
 
 IMPORTANT: In the current Intel AMX and Intel XMX implementations, the layout in the load of matrix B (provided by the `layout memL` parameter below) must be `packed` or `row_major`. Automatic VNNI transform is supported on AMX. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C (provided by the `layout memL` parameter below) must also be `row_major`.
 
-### Store Operation
+==== Store Operation
 Besides store of matrix `accumulator`, the Intel implementation allows store on matrix `a` and `b` as well. 
 
-#### Store
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -92,11 +113,11 @@ namespace sycl::ext::intel::experimental::matrix {
 ```
 
 
-## VNNI/Packed Layout
+==== VNNI/Packed Layout
 Intel AMX and Intel XMX compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
 The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transformation.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed` layout for a 16-bit type.
 
-#### Example 1: 16-bit elements
+===== Example 1: 16-bit elements
       // Example of a 4 row x 4 column matrix using a 16-bit data element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
       // ---------------------------------
@@ -112,7 +133,7 @@ The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the ca
       // a1, a2, b1, b2, c1, c2, d1, d2
       // a3, a4, b3, b4, c3, c4, d3, d4
 
-#### Example 2: 8-bit elements
+===== Example 2: 8-bit elements
 
       // Example of a 4 row x 4 column matrix using a 8-bit data element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
@@ -128,10 +149,10 @@ The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the ca
       // ---------------------------------
       // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
 
-## Open Questions
+== Issues
 - Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case)? Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
 
-## Revision History
+== Revision History
 
 [frame="none",options="header"]
 |======================
