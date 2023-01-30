@@ -65,6 +65,19 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 struct joint_matrix;
 
+// Differentiating between the "element type" and the "storage element type"
+template <typename T> struct helper_traits {
+  using element_type = T;
+  using storage_element_type = T;
+  using fill_argument_type = T;
+};
+
+template <> struct helper_traits<precision::tf32> {
+  using element_type = precision::tf32;
+  using storage_element_type = float;
+  using fill_argument_type = float;
+};
+
 template <typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout = layout::dynamic, typename Group = sycl::sub_group>
 class wi_element {
@@ -72,12 +85,19 @@ class wi_element {
   std::size_t idx;
 
 public:
+  using storage_element_type = typename helper_traits<T>::storage_element_type;
   wi_element(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
-  operator T() {
+  operator storage_element_type() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx);
+    storage_element_type elem =
+        __spirv_VectorExtractDynamic<storage_element_type, T, NumRows, NumCols,
+                                     spv_matrix_use_traits<Use>::value,
+                                     spv_matrix_layout_traits<Layout>::value,
+                                     spv_scope_traits<Group>::value>(M.spvm,
+                                                                     idx);
+    return elem;
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -95,7 +115,8 @@ public:
 
   template <typename T2> wi_element &operator=(const T2 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(M.spvm, static_cast<T>(rhs), idx);
+    M.spvm = __spirv_VectorInsertDynamic(
+        M.spvm, static_cast<storage_element_type>(rhs), idx);
     return *this;
 #else
     (void)rhs;
@@ -122,8 +143,13 @@ public:
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
-        static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx)               \
-                           op static_cast<T>(rhs)),                            \
+        static_cast<storage_element_type>(                                     \
+            __spirv_VectorExtractDynamic<                                      \
+                storage_element_type, T, NumRows, NumCols,                     \
+                spv_matrix_use_traits<Use>::value,                             \
+                spv_matrix_layout_traits<Layout>::value,                       \
+                spv_scope_traits<Group>::value>(M.spvm, idx)                   \
+                op static_cast<storage_element_type>(rhs)),                    \
         idx);                                                                  \
     return *this;                                                              \
   }

@@ -24,10 +24,11 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
 __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
                              __spv::Scope::Flag Sc = S, int MemOperand = 0);
@@ -107,18 +108,20 @@ template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
 extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
     __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename Ts, typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
+extern SYCL_EXTERNAL Ts __spirv_VectorExtractDynamic(
     __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *, size_t i);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename Ts, typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
-                            T val, size_t i);
+                            Ts val, size_t i);
 #else
 template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,

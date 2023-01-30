@@ -68,6 +68,12 @@ public:
     return (jm.cuda_impl.wi_marray[i]);
 #else
     return wi_element<T, Rows, Cols, Use, Layout, Group>(jm, i);
+    /*using storage_element_type = typename
+      helper_traits<T>::storage_element_type; storage_element_type elems =
+        __spirv_VectorExtractDynamic<storage_element_type, T, Rows, Cols,
+      spv_matrix_use_traits<Use>::value,
+      spv_matrix_layout_traits<Layout>::value,
+      spv_scope_traits<Group>::value>(jm.spvm, i); return elems;*/
 #endif
   };
 };
@@ -157,21 +163,21 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
@@ -210,7 +216,7 @@ joint_matrix_load(Group sg,
 #else
   T *Ptr = src.get();
   res.spvm =
-      __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+      __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
