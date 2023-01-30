@@ -133,6 +133,25 @@ struct urContextTest : urDeviceTest {
   ur_context_handle_t context;
 };
 
+struct urMemBufferTest : urContextTest {
+
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096,
+                                     nullptr, &buffer));
+    ASSERT_NE(nullptr, buffer);
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
+    }
+    urContextTest::TearDown();
+  }
+
+  ur_mem_handle_t buffer = nullptr;
+};
+
 } // namespace uur
 
 #define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                             \
@@ -156,6 +175,23 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
     UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::TearDown());
   }
   ur_context_handle_t context;
+};
+
+template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+    ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                     4096, nullptr, &buffer));
+    ASSERT_NE(nullptr, buffer);
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
+    }
+    urContextTestWithParam<T>::TearDown();
+  }
+  ur_mem_handle_t buffer = nullptr;
 };
 
 struct urQueueTest : urContextTest {
@@ -288,6 +324,21 @@ struct urMemBufferQueueTest : urQueueTest {
   const size_t size = sizeof(uint32_t) * count;
   ur_mem_handle_t buffer = nullptr;
 };
+
+/// @brief
+/// @tparam T
+/// @param info
+/// @return
+template <class T>
+std::string deviceTestWithParamPrinter(
+    const ::testing::TestParamInfo<std::tuple<ur_device_handle_t, T>> &info) {
+  auto device = std::get<0>(info.param);
+  auto param = std::get<1>(info.param);
+
+  std::stringstream ss;
+  ss << param;
+  return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
+}
 
 } // namespace uur
 
