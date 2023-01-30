@@ -131,10 +131,4 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp">
   ];
 }
 
-def ConvertToLLVMABI : Pass<"convert-to-llvm-abi", "mlir::ModuleOp"> {
-  let summary = "Convert MemRef ABI to LLVM Pointer ABI";
-  let constructor = "::mlir::polygeist::createConvertToLLVMABIPass()";
-  let dependentDialects = ["LLVM::LLVMDialect"];
-}
-
 #endif // POLYGEIST_PASSES
