@@ -370,6 +370,7 @@ __SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
+    // FIXME: This must fail at link-time if KernelName not in any available compilation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
   return detail::get_kernel_id_impl(KI::getName());
 }
