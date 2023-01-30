@@ -206,7 +206,7 @@ The following group functions support the `ballot_group`, `cluster_group`,
 `tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
 
 * `group_barrier`
-* `broadcast`
+* `group_broadcast`
 
 The following group algorithms support `ballot_group`, `cluster_group`,
 `tangle_group`, `opportunistic_group` and `masked_sub_group` group types:
