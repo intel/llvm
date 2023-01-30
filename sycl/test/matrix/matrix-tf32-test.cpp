@@ -34,7 +34,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B);
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
-  // buffer<float, 2> bufA(A.get_data(), range<2>(M, K));
   buffer<float, 2> bufA(A.get_data(), range<2>(M, K));
   buffer<float, 2> bufB(B.get_data(), range<2>(K, N));
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
@@ -59,9 +58,11 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, precision::tf32, use::a, TM, TK> sub_a;
+           joint_matrix<sub_group, precision::tf32, use::a, TM, TK,
+                        layout::row_major>
+               sub_a;
            joint_matrix<sub_group, precision::tf32, use::b, TK, TN,
-                        sycl::ext::intel::experimental::matrix::layout::packed>
+                        layout::row_major>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            joint_matrix_load(sg, sub_c,
@@ -71,7 +72,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k, K);
-             // Assume we alreay in vnni format.
              joint_matrix_load(
                  sg, sub_b,
                  accB.get_pointer() + (k) * (N) + sg_starty / SG_SZ * TN, N);
@@ -115,7 +115,6 @@ void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
       for (int k = 0; k < K; k++) {
         float va = A_mem[m * K + k];
         float vb = B_mem[k * N + n];
-        float acc = C_mem[m * N + n];
         C_mem[m * N + n] = va * vb;
       }
     }
