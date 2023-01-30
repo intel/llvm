@@ -4734,7 +4734,7 @@ static void maybeEmitPipeStorageMetadata(const VarDecl *D,
 
   if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
     const auto *CE = cast<ConstantExpr>(IOAttr->getID());
-    Optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
     llvm::LLVMContext &Context = CGM.getLLVMContext();
 
     llvm::Metadata *AttrMDArgs[] = {

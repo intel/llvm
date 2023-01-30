@@ -627,9 +627,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLWorkGroupSizeHintAttr *A =
           FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
-    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
-    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
     // On SYCL target the dimensions are reversed if present.
@@ -657,9 +657,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLReqdWorkGroupSizeAttr *A =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
-    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
-    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
     // On SYCL target the dimensions are reversed if present.
@@ -685,7 +685,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   // kernel-or-device when that spelling, fall-back to old behavior.
   if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {
     const auto *CE = cast<ConstantExpr>(ReqSubGroup->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
@@ -733,7 +733,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getZExtValue()))};
     Fn->setMetadata("num_simd_work_items",
@@ -742,7 +742,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("scheduler_target_fmax_mhz",
@@ -751,7 +751,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("max_global_work_dim",
@@ -774,7 +774,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
@@ -1105,7 +1105,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsDevice && D) {
     if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
       const auto *CE = cast<ConstantExpr>(A->getValue());
-      Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+      std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
           llvm::ConstantAsMetadata::get(
               Builder.getInt32(ArgVal->getZExtValue())),

@@ -1086,7 +1086,7 @@ static void GetBranchWeights(Instruction *TI,
 static void FitWeights(MutableArrayRef<uint64_t> Weights) {
   uint64_t Max = *std::max_element(Weights.begin(), Weights.end());
   if (Max > UINT_MAX) {
-    unsigned Offset = 32 - countLeadingZeros(Max);
+    unsigned Offset = 32 - llvm::countl_zero(Max);
     for (uint64_t &I : Weights)
       I >>= Offset;
   }
@@ -6552,7 +6552,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
 
     // Make the mask's bitwidth at least 8-bit and a power-of-2 to avoid
     // unnecessary illegal types.
-    uint64_t TableSizePowOf2 = NextPowerOf2(std::max(7ULL, TableSize - 1ULL));
+    uint64_t TableSizePowOf2 = llvm::bit_ceil(std::max<uint64_t>(8, TableSize));
     APInt MaskInt(TableSizePowOf2, 0);
     APInt One(TableSizePowOf2, 1);
     // Build bitmask; fill in a 1 bit for every case.
@@ -6694,7 +6694,7 @@ static bool ReduceSwitchRange(SwitchInst *SI, IRBuilder<> &Builder,
   // less than 64.
   unsigned Shift = 64;
   for (auto &V : Values)
-    Shift = std::min(Shift, countTrailingZeros((uint64_t)V));
+    Shift = std::min(Shift, (unsigned)llvm::countr_zero((uint64_t)V));
   assert(Shift < 64);
   if (Shift > 0)
     for (auto &V : Values)

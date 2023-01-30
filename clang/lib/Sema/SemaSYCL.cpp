@@ -172,7 +172,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         RecordDecl *RD = SourceTy->getAsRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -275,7 +275,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -661,7 +661,7 @@ public:
   }
 
   bool TraverseIfStmt(IfStmt *S) {
-    if (llvm::Optional<Stmt *> ActiveStmt =
+    if (std::optional<Stmt *> ActiveStmt =
             S->getNondiscardedCase(SemaRef.Context)) {
       if (*ActiveStmt)
         return TraverseStmt(*ActiveStmt);

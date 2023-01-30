@@ -1071,7 +1071,7 @@ public:
   Expected<std::optional<StringRef>>
   ReadBundleStart(MemoryBuffer &Input) override {
     if (NextBundle == Bundles.end())
-      return None;
+      return std::nullopt;
     CurrBundle = NextBundle++;
     return CurrBundle->first();
   }

@@ -3355,7 +3355,7 @@ void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
+  auto CheckAndConvertArg = [&](Expr *E) -> std::optional<Expr *> {
     // We can only check if the expression is not value dependent.
     if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
@@ -3377,9 +3377,9 @@ void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
-  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
-  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  std::optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  std::optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  std::optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
   if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
   XDim = XDimConvert.value();
@@ -3762,7 +3762,7 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
+  auto CheckAndConvertArg = [&](Expr *E) -> std::optional<Expr *> {
     // Check if the expression is not value dependent.
     if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
@@ -3783,9 +3783,9 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
-  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
-  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  std::optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  std::optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  std::optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
   if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
   XDim = XDimConvert.value();
