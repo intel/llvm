@@ -5,9 +5,9 @@
 #include <sycl/sycl.hpp>
 
 #if SYCL_EXT_INTEL_BACKEND_ESIMD_EMULATOR == 1
-constexpr bool macro_deifned = true;
+constexpr bool macro_defined = true;
 #else
-constexpr bool macro_deifned = false;
+constexpr bool macro_defined = false;
 #endif
 
 int main() {
