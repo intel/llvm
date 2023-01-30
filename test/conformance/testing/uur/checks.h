@@ -285,4 +285,46 @@ inline std::ostream &operator<<(std::ostream &out,
   return out;
 }
 
+inline std::ostream &operator<<(std::ostream &out, const ur_mem_info_t &info) {
+  switch (info) {
+
+#define CASE(name)                                                             \
+  case name:                                                                   \
+    out << #name;                                                              \
+    break;
+
+    CASE(UR_MEM_INFO_SIZE)
+    CASE(UR_MEM_INFO_CONTEXT)
+
+#undef CASE
+  default:
+    out << "UNKOWN_UR_MEM_INFO_TYPE";
+    break;
+  }
+  return out;
+}
+
+inline std::ostream &operator<<(std::ostream &out, const ur_mem_flag_t &flag) {
+  switch (flag) {
+#define CASE(name)                                                             \
+  case name:                                                                   \
+    out << #name;                                                              \
+    break;
+
+    CASE(UR_MEM_FLAG_READ_WRITE);
+    CASE(UR_MEM_FLAG_WRITE_ONLY);
+    CASE(UR_MEM_FLAG_READ_ONLY);
+    CASE(UR_MEM_FLAG_USE_HOST_POINTER);
+    CASE(UR_MEM_FLAG_ALLOC_HOST_POINTER);
+    CASE(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER);
+
+#undef CASE
+
+  default:
+    out << "UNKOWN_UR_MEM_FLAG_TYPE";
+    break;
+  }
+  return out;
+}
+
 #endif // UR_CONFORMANCE_INCLUDE_CHECKS_H_INCLUDED
