@@ -36,17 +36,15 @@ class ConvertSYCLToGPUPass
 } // namespace
 
 void ConvertSYCLToGPUPass::runOnOperation() {
-  auto *context = &getContext();
+  auto &context = getContext();
 
-  RewritePatternSet patterns(context);
-  ConversionTarget target(*context);
+  RewritePatternSet patterns(&context);
+  ConversionTarget target(context);
 
   populateSYCLToGPUConversionPatterns(patterns);
 
-  target.addLegalDialect<arith::ArithDialect>();
-  target.addLegalDialect<gpu::GPUDialect>();
-  target.addLegalDialect<memref::MemRefDialect>();
-  target.addLegalDialect<SYCLDialect>();
+  target.addLegalDialect<arith::ArithDialect, gpu::GPUDialect,
+                         memref::MemRefDialect, SYCLDialect>();
 
   target
       .addIllegalOp<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
