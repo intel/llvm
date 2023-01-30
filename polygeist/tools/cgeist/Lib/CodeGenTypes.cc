@@ -1596,9 +1596,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         Iter != BuiltinTypeCache.end())
       return Iter->second;
 
-    mlir::Type Ty = getMLIRType(cast<clang::BuiltinType>(T));
-    BuiltinTypeCache[T] = Ty;
-    return Ty;
+    return BuiltinTypeCache[T] = getMLIRType(cast<clang::BuiltinType>(T));
   }
 
   LLVM_DEBUG(llvm::dbgs() << "QT: "; QT->dump(); llvm::dbgs() << "\n");
