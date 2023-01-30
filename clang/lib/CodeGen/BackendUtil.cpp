@@ -850,6 +850,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // Only enable CGProfilePass when using integrated assembler, since
   // non-integrated assemblers don't recognize .cgprofile section.
   PTO.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
+  // Enable a custom optimization pipeline for non-user SYCL code.
   PTO.OptimizeSYCLFramework =
       CodeGenOpts.OptimizeSYCLFramework && !CodeGenOpts.DisableLLVMPasses;
 

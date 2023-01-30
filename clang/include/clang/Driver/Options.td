@@ -3006,7 +3006,7 @@ def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
-  HelpText<"Option used in conjunction with -O0 flag to "
+  HelpText<"Option used in conjunction with -O0 to "
   "optimize SYCL framework utility functions and leave user's kernel code unoptimized. (experimental)">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
