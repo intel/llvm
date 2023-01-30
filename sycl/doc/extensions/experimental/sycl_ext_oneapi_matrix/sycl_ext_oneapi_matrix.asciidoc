@@ -434,18 +434,18 @@ for (int i = 0; i < data.length(); ++i) {
 IMPORTANT: `get_coord` is not implemented yet.
 
 === Joint Matrix Additional Types
-Besides C++ half, float, double types, and sycl::bfloat16 types, joint
+Besides C++ `half`, `float`, `double` types, and `sycl::bfloat16` types, joint
 matrix implementations may support other low-precision floating-point types
 such as tf32. tf32 type has a 19 bit format with one sign bit, 8
 exponent bits offering the same range as fp32,  and 10 mantissa bits
 offering same precision as  half type. The usage of tf32 type is
 restricted to `joint_matrix` using:
-sycl::ext::oneapi::experimental::matrix::precision::tf32. 
+`sycl::ext::oneapi::experimental::matrix::precision::tf32`. 
 
 Joint matrix type tf32 is defined as an empty class with no member functions. 
 ```c++
 namespace precision {
-class tf32;
+  class tf32;
 } 
 ```
 Besides the type, one conversion function is added:
@@ -780,18 +780,18 @@ enum class matrix_type {
   tf32,
   fp32,
   fp64,
-  sint2,
-  sint4,
-  sint8,
-  sint16,
-  sint32, 
-  sint64,
-  uint2,
-  uint4,
-  uint8,
-  uint16,
-  uint32,
-  uint64
+  sint2_t,
+  sint4_t,
+  sint8_t,
+  sint16_t,
+  sint32_t, 
+  sint64_t,
+  uint2_t,
+  uint4_t,
+  uint8_t,
+  uint16_t,
+  uint32_t,
+  uint64_t
 };
 
 enum class scope_t {
@@ -853,8 +853,10 @@ using the `tpu_params` query class.
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| (u)int8_t  | (u)int8_t |  int32_t  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-|  bf16       |  bf16   |   fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+| matrix_type::(u)int8_t  | matrix_type::(u)int8_t |
+matrix_type::sint32_t  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|  matrix_type::bf16       |  matrix_type::bf16   |
+matrix_type::fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |======================
 
 ==== Intel XMX Supported Combinations
@@ -862,9 +864,12 @@ using the `tpu_params` query class.
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| (u)int8_t  | (u)int8_t |  int32_t  |  +<=+ 8 |  16 |  32
-|  fp16       |  fp16   |   fp32   |  +<=+ 8 |  16   |  16
-|  bf16       |  bf16   |   fp32   |  +<=+ 8 |  16   |  16
+| matrix_type::(u)int8_t  | matrix_type::(u)int8_t |
+matrix_type::int32_t  |  +<=+ 8 |  16 |  32
+|  matrix_type::fp16       |  matrix_type::fp16   |
+matrix_type::fp32   |  +<=+ 8 |  16   |  16
+|  matrix_type::bf16       |  matrix_type::bf16   |
+matrix_type::fp32   |  +<=+ 8 |  16   |  16
 |======================
 
 

@@ -137,11 +137,12 @@ store on matrix `a` and `b` as well.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
-  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+  template <typename Group, typename T, typename S,
+            size_t NumRows, size_t NumCols,
             use Use, layout Layout, access::address_space Space>
   void joint_matrix_store(Group sg,
     joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+    multi_ptr<S, Space, IsDecorated> src, size_t stride);
 }
 ```
 
