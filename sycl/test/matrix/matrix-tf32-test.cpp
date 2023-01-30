@@ -21,15 +21,6 @@ public:
   big_matrix(T *data) : mat(data) {}
 };
 
-/*// this should be replaced with a DPC++ and spirv functions
-float round_to_tf32(float a) {
-  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
-  tmp_uint += 0x1000u;     // Round up the 13th last bit
-  tmp_uint &= 0xFFFFE000u; // Zero out the bottom 13 bits
-  float ret = reinterpret_cast<float &>(tmp_uint);
-  return ret;
-  }*/
-
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
