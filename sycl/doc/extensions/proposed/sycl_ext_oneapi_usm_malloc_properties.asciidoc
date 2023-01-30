@@ -155,7 +155,7 @@ It also informs the runtime to allocate the memory with this alignment.
 using namespace sycl::ext::oneapi::experimental;
 
 properties P7{alignment<512>};
-properties P8{alignment<1>};
+properties P8{alignment<2>};
 properties P9{alignment<64>};
 
 // APtr10 is of type annotated_ptr<int, decltype(properties{alignment<512>, usm_kind<sycl::usm::alloc::device>})>
@@ -163,7 +163,7 @@ properties P9{alignment<64>};
 auto APtr10 = malloc_device_annotated<int>(N, q, P7);
 
 // APtr11 is of type annotated_ptr<int, decltype(properties{alignment<1>, usm_kind<sycl::usm::alloc::device>})>
-// The raw pointer of APtr11 is sizeof(int)-byte aligned
+// The raw pointer of APtr11 is sizeof(int)-byte aligned, e.g., 4 for some implementations
 auto APtr11 = malloc_device_annotated<int>(N, q, P8);
 
 // APtr12 is of type annotated_ptr<void, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
@@ -199,7 +199,7 @@ auto APtr15 = annotated_aligned_alloc_device<int>(N, q, 128, P10);
 auto APtr16 = annotated_aligned_alloc_device<int>(N, q, 16, P10);
 
 // APtr17 is of type annotated_ptr<int, decltype(properties{alignment<8>, usm_kind<sycl::usm::alloc::device>})>
-// The raw pointer of APtr17 is 56-byte aligned
+// The raw pointer of APtr17 is 56-byte aligned (if this alignment is supported by the implementation)
 auto APtr17 = annotated_aligned_alloc_device<int>(N, q, 7, P11);
 ----
 
@@ -426,7 +426,7 @@ Throws a synchronous `exception` with the
 `errc::feature_not_supported` error code if the `syclDevice`
 does not have `aspect::usm_device_allocations`.  The `syclDevice`
 must either be contained by `syclContext` or it must be a
-<<descendent-device>> of some device that is contained by that context,
+descendent device of some device that is contained by that context,
 otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
@@ -470,7 +470,7 @@ Throws a
 synchronous `exception` with the `errc::feature_not_supported`
 error code if the `syclDevice` does not have
 `aspect::usm_device_allocations`.  The `syclDevice` must either be
-contained by `syclContext` or it must be a <<descendent-device>> of some
+contained by `syclContext` or it must be a descendent device of some
 device that is contained by that context, otherwise this function throws a
 synchronous `exception` with the `errc::invalid` error code.
 
@@ -983,7 +983,7 @@ Throws a synchronous `exception` with the
 `errc::feature_not_supported` error code if the `syclDevice`
 does not have `aspect::usm_shared_allocations`.  The `syclDevice`
 must either be contained by `syclContext` or it must be a
-<<descendent-device>> of some device that is contained by that context,
+descendent device of some device that is contained by that context,
 otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
@@ -1026,7 +1026,7 @@ Throws a synchronous `exception` with the
 `errc::feature_not_supported` error code if the `syclDevice`
 does not have `aspect::usm_shared_allocations`.  The `syclDevice`
 must either be contained by `syclContext` or it must be a
-<<descendent-device>> of some device that is contained by that context,
+descendent device of some device that is contained by that context,
 otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
@@ -1259,7 +1259,7 @@ Runtime properties in `propList` will not appear as properties of the returned `
 The `syclDevice` parameter is
 ignored if the allocation kind is `sycl::usm::alloc::host`.  If the allocation kind is not
 `usm::alloc::host`, `syclDevice` must either be contained by
-`syclContext` or it must be a <<descendent-device>> of some device that
+`syclContext` or it must be a descendent device of some device that
 is contained by that context, otherwise this function throws a synchronous
 `exception` with the `errc::invalid` error code.
 
@@ -1298,7 +1298,7 @@ Runtime properties in `propList` will not appear as properties of the returned `
 The `syclDevice` parameter is
 ignored if the allocation kind is `sycl::usm::alloc::host`.  If the allocation kind is not
 `sycl::usm::alloc::host`, `syclDevice` must either be contained by
-`syclContext` or it must be a <<descendent-device>> of some device that
+`syclContext` or it must be a descendent device of some device that
 is contained by that context, otherwise this function throws a synchronous
 `exception` with the `errc::invalid` error code.
 
@@ -1525,6 +1525,7 @@ a|
 sycl::ext::oneapi::experimental::alignment
 | 	
 If this property is passed to a USM memory allocation function with `properties` support, it instructs the runtime to allocate memory with this alignment in bytes.
+The set of allowed alignments is implementation defined. Specifying an alignment that is not supported causes the allocation function to return an `annotated_ptr` containing a raw pointer that is `nullptr`.
 |
 link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 |====
@@ -1604,12 +1605,3 @@ void free(annotated_ptr<T, propList> &ptr,
 | Alternate form where `syclQueue` provides the `context`. 
 |====
 
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2023-01-25|Jessica Davies|*Initial public working draft*
-|========================================
