@@ -13,7 +13,7 @@ TEST(AccessorPlaceholderTest, NoCommandGroupPlaceholderNoneTargetDevice) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_TRUE(acc.is_placeholder());
+  EXPECT_TRUE(acc.is_placeholder());
 }
 
 TEST(AccessorPlaceholderTest, NoCommandGroupPlaceholderTrueTargetDevice) {
@@ -26,7 +26,7 @@ TEST(AccessorPlaceholderTest, NoCommandGroupPlaceholderTrueTargetDevice) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_TRUE(acc.is_placeholder());
+  EXPECT_TRUE(acc.is_placeholder());
 }
 
 TEST(AccessorPlaceholderTest, NoCommandGroupPlaceholderFalseTargetDevice) {
@@ -39,7 +39,7 @@ TEST(AccessorPlaceholderTest, NoCommandGroupPlaceholderFalseTargetDevice) {
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
   AccT acc(data_buf);
-  ASSERT_TRUE(acc.is_placeholder());
+  EXPECT_TRUE(acc.is_placeholder());
 }
 
 TEST(AccessorPlaceholderTest, PlaceholderNoneTargetDevice) {

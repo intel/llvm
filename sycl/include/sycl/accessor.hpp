@@ -288,10 +288,10 @@ protected:
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
   // SYCL2020 4.7.6.9.4.3
   // IsPlaceHolder template parameter has no bearing on whether the accessor
-  // instance is a placeholder. This is determined solely by the constructor
+  // instance is a placeholder. This is determined solely by the constructor.
   // The rule seems to be: if the constructor receives a CommandGroupHandler
   // it is NOT a placeholder. Otherwise, it is a placeholder.
-  // used. However, according to 4.7.6.9.4.6. accessor specialization with
+  // However, according to 4.7.6.9.4.6. accessor specialization with
   // target::host_buffer is never a placeholder. So, if the constructor
   // used receives a CommandGroupHandler, the accessor will never be a
   // placeholder. If it doesn't, but IsHostBuf is true, it won't be a
