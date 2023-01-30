@@ -138,15 +138,19 @@ located on the `peer` device.
 currently enabled from this device to the `peer` device.
 
 * `ext::oneapi::peer_access::atomics_supported`: When this query returns true,
-it indicates that this device may perform atomic operationson USM device memory
-allocations located on the `peer` device when peer access is enabled to that
-device. If the query returns false, attempting to perform atomic operations on
-`peer` memory will have undefined behavior.
+it indicates that this device may concurrently perform atomic operations on USM
+device memory allocations located on the `peer` device when peer access is enabled
+to that device. Atomics performed on a peer device's memory must have
+`memory_scope::system` scope.
+If the query returns false, attempting to perform atomic operations
+on `peer` memory will have undefined behavior.
 
 |void enable_peer_access(const device &peer)
 |Enables this device to access USM device allocations located on the peer
 device. This does not permit the peer device to access this device's memory.
-This device must be in the same context as the allocations being accessed.
+Once this access is enabled, SYCL kernel functions and the explicit memory
+functions may access USM device allocations on the peer device subject to the
+normal rules about context as described in the core SYCL specification.
 Throws an exception if access cannot be enabled or if access is already
 enabled.
 
