@@ -728,8 +728,7 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
         return make_error<StringError>(
             formatv("invalid argument to SimplifyCFG pass bonus-threshold "
                     "parameter: '{0}' ",
-                    ParamName)
-                .str(),
+                    ParamName).str(),
             inconvertibleErrorCode());
       Result.bonusInstThreshold(BonusInstThreshold.getSExtValue());
     } else {
