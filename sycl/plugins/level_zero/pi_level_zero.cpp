@@ -4957,8 +4957,12 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     ZeModule = nullptr;
     Program->State = _pi_program::Invalid;
     Result = mapError(ZeResult);
-    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-    ZeModule = nullptr;
+    if (Program->ZeBuildLog)
+      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+    if (ZeModule) {
+      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+      ZeModule = nullptr;
+    }
   } else {
     // The call to zeModuleCreate does not report an error if there are
     // unresolved symbols because it thinks these could be resolved later via a
@@ -4971,8 +4975,12 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
       Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
                    ? PI_ERROR_BUILD_PROGRAM_FAILURE
                    : mapError(ZeResult);
-      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-      ZeModule = nullptr;
+      if (Program->ZeBuildLog)
+        ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+      if (ZeModule) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+        ZeModule = nullptr;
+      }
     }
   }
 
