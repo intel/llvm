@@ -2255,6 +2255,11 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 /// \return PI_SUCCESS
 pi_result cuda_piextContextGetNativeHandle(pi_context context,
                                            pi_native_handle *nativeHandle) {
+  // Currently only support context interop with one device
+  if (context->get().size() != 1) {
+    return PI_ERROR_INVALID_CONTEXT;
+  }
+
   *nativeHandle = reinterpret_cast<pi_native_handle>(context->get()[0]);
   return PI_SUCCESS;
 }
@@ -2276,6 +2281,11 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piContext != nullptr);
   assert(ownNativeHandle == false);
+
+  // Currently only support context interop with one device
+  if (num_devices != 1) {
+    return PI_ERROR_INVALID_OPERATION;
+  }
 
   CUcontext newContext = reinterpret_cast<CUcontext>(nativeHandle);
 
@@ -2490,8 +2500,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
 
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
-    ScopedContext active(context->get()[0]);
-
     retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
         context, parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
   } catch (pi_result err) {
@@ -2893,6 +2901,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
       return PI_ERROR_INVALID_EVENT;
     }
 
+    // all events must be in the same context
     auto context = event_list[0]->get_native_context();
     ScopedContext active(context);
 
@@ -3607,6 +3616,8 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
   pi_result retError = PI_SUCCESS;
 
   try {
+    // We need a context for the linking operations but the result can later be
+    // used in any other context, so just use the first one.
     ScopedContext active(context->get()[0]);
 
     CUlinkState state;
@@ -5091,6 +5102,9 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
   assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
+    // cuMemAllocHost requires an active context but the allocation is then
+    // available on all the USM compatible contexts and devices so we can
+    // simply use the first one.
     ScopedContext active(context->get()[0]);
     result = PI_CHECK_ERROR(cuMemAllocHost(result_ptr, size));
   } catch (pi_result error) {
