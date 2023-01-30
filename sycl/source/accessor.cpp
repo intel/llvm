@@ -25,7 +25,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           OffsetInBytes, IsSubBuffer, PropertyList, false));
+                           false, OffsetInBytes, IsSubBuffer, PropertyList));
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
@@ -37,7 +37,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           OffsetInBytes, IsSubBuffer, PropertyList, IsPlaceH));
+                           IsPlaceH, OffsetInBytes, IsSubBuffer, PropertyList));
 }
 
 id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
