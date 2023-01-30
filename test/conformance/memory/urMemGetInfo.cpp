@@ -9,10 +9,10 @@ UUR_TEST_SUITE_P(urMemGetInfoTest,
                  uur::deviceTestWithParamPrinter<ur_mem_info_t>);
 
 TEST_P(urMemGetInfoTest, Success) {
-  ur_mem_info_t info = getParam();
-  size_t size;
-  ASSERT_SUCCESS(urMemGetInfo(buffer, info, 0, nullptr, &size));
-  ASSERT_NE(size, 0);
-  std::vector<uint8_t> info_data(size);
-  ASSERT_SUCCESS(urMemGetInfo(buffer, info, size, info_data.data(), nullptr));
+    ur_mem_info_t info = getParam();
+    size_t size;
+    ASSERT_SUCCESS(urMemGetInfo(buffer, info, 0, nullptr, &size));
+    ASSERT_NE(size, 0);
+    std::vector<uint8_t> info_data(size);
+    ASSERT_SUCCESS(urMemGetInfo(buffer, info, size, info_data.data(), nullptr));
 }

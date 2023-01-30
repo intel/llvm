@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include <uur/fixtures.h>
@@ -6,9 +6,9 @@
 struct urDeviceGetInfoTest : uur::urAllDevicesTest,
                              ::testing::WithParamInterface<ur_device_info_t> {
 
-  void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
-  }
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -117,20 +117,20 @@ INSTANTIATE_TEST_SUITE_P(
         // UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES
         ),
     [](const ::testing::TestParamInfo<ur_device_info_t> &info) {
-      std::stringstream ss;
-      ss << info.param;
-      return ss.str();
+        std::stringstream ss;
+        ss << info.param;
+        return ss.str();
     });
 
 TEST_P(urDeviceGetInfoTest, Success) {
-  ur_device_info_t info_type = GetParam();
-  for (auto device : devices) {
-    size_t size = 0;
-    ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
-    void *info_data = alloca(size);
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, info_type, size, info_data, nullptr));
-    ASSERT_NE(info_data, nullptr);
-  }
+    ur_device_info_t info_type = GetParam();
+    for (auto device : devices) {
+        size_t size = 0;
+        ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, 0, nullptr, &size));
+        ASSERT_NE(size, 0);
+        void *info_data = alloca(size);
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(device, info_type, size, info_data, nullptr));
+        ASSERT_NE(info_data, nullptr);
+    }
 }

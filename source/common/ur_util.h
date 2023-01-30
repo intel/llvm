@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -15,25 +15,31 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 #if defined(_WIN32)
-#  include <Windows.h>
-#  define MAKE_LIBRARY_NAME(NAME, VERSION)    NAME".dll"
-#  define MAKE_LAYER_NAME(NAME)    NAME".dll"
-#  define LOAD_DRIVER_LIBRARY(NAME) LoadLibraryExA(NAME, nullptr, 0)
-#  define FREE_DRIVER_LIBRARY(LIB)  if(LIB) FreeLibrary(LIB)
-#  define GET_FUNCTION_PTR(LIB, FUNC_NAME) GetProcAddress(LIB, FUNC_NAME)
-#  define string_copy_s strncpy_s
+#include <Windows.h>
+#define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define MAKE_LAYER_NAME(NAME) NAME ".dll"
+#define LOAD_DRIVER_LIBRARY(NAME) LoadLibraryExA(NAME, nullptr, 0)
+#define FREE_DRIVER_LIBRARY(LIB)                                               \
+    if (LIB)                                                                   \
+    FreeLibrary(LIB)
+#define GET_FUNCTION_PTR(LIB, FUNC_NAME) GetProcAddress(LIB, FUNC_NAME)
+#define string_copy_s strncpy_s
 #else
-#  include <dlfcn.h>
-#  define HMODULE void*
-#  define MAKE_LIBRARY_NAME(NAME, VERSION)    "lib" NAME ".so." VERSION
-#  define MAKE_LAYER_NAME(NAME)    "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
-#  define LOAD_DRIVER_LIBRARY(NAME) dlopen(NAME, RTLD_LAZY|RTLD_LOCAL|RTLD_DEEPBIND)
-#  define FREE_DRIVER_LIBRARY(LIB)  if(LIB) dlclose(LIB)
-#  define GET_FUNCTION_PTR(LIB, FUNC_NAME) dlsym(LIB, FUNC_NAME)
-#  define string_copy_s strncpy
+#include <dlfcn.h>
+#define HMODULE void *
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#define MAKE_LAYER_NAME(NAME)                                                  \
+    "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
+#define LOAD_DRIVER_LIBRARY(NAME)                                              \
+    dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
+#define FREE_DRIVER_LIBRARY(LIB)                                               \
+    if (LIB)                                                                   \
+    dlclose(LIB)
+#define GET_FUNCTION_PTR(LIB, FUNC_NAME) dlsym(LIB, FUNC_NAME)
+#define string_copy_s strncpy
 #endif
 
-inline std::string create_library_path(const char *name, const char *path){
+inline std::string create_library_path(const char *name, const char *path) {
     std::string library_path;
     if (path && (strcmp("", path) != 0)) {
         library_path.assign(path);
@@ -51,15 +57,14 @@ inline std::string create_library_path(const char *name, const char *path){
 
 //////////////////////////////////////////////////////////////////////////
 #if !defined(_WIN32) && (__GNUC__ >= 4)
-#define __urdlllocal  __attribute__ ((visibility ("hidden")))
+#define __urdlllocal __attribute__((visibility("hidden")))
 #else
 #define __urdlllocal
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-inline bool getenv_tobool( const char* name )
-{
-    const char* env = nullptr;
+inline bool getenv_tobool(const char *name) {
+    const char *env = nullptr;
 
 #if defined(_WIN32)
     char buffer[8];
@@ -71,9 +76,9 @@ inline bool getenv_tobool( const char* name )
     env = getenv(name);
 #endif
 
-    if( nullptr == env )
+    if (nullptr == env)
         return false;
-    return 0 == strcmp( "1", env );
+    return 0 == strcmp("1", env);
 }
 
 #endif /* UR_UTIL_H */

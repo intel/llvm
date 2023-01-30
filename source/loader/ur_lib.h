@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -14,32 +14,30 @@
 #include "ur_api.h"
 #include "ur_ddi.h"
 #include "ur_util.h"
-#include <vector>
 #include <mutex>
+#include <vector>
 
-namespace ur_lib
-{
-    ///////////////////////////////////////////////////////////////////////////////
-    class context_t
-    {
-    public:
+namespace ur_lib {
+///////////////////////////////////////////////////////////////////////////////
+class context_t {
+  public:
 #ifdef DYNAMIC_LOAD_LOADER
-        HMODULE loader = nullptr;
+    HMODULE loader = nullptr;
 #endif
 
-        context_t();
-        ~context_t();
+    context_t();
+    ~context_t();
 
-        std::once_flag initOnce;
+    std::once_flag initOnce;
 
-        ur_result_t Init(ur_platform_init_flags_t pflags, ur_device_init_flags_t dflags);
+    ur_result_t Init(ur_platform_init_flags_t pflags,
+                     ur_device_init_flags_t dflags);
 
-        ur_result_t urInit();
-        ur_dditable_t   urDdiTable = {};
+    ur_result_t urInit();
+    ur_dditable_t urDdiTable = {};
+};
 
-    };
-
-    extern context_t *context;
+extern context_t *context;
 
 } // namespace ur_lib
 
