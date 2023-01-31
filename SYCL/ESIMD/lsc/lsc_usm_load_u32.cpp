@@ -16,12 +16,13 @@ constexpr uint32_t seed = 188;
 
 template <int TestCastNum, typename T> bool tests() {
   bool passed = true;
-
+#ifndef USE_SCALAR_OFFSET
   // non transpose
   passed &= test<TestCastNum, T, 1, 4, 32, 1, false>(rand());
   passed &= test<TestCastNum + 1, T, 1, 4, 32, 2, false>(rand());
   passed &= test<TestCastNum + 2, T, 1, 4, 16, 2, false>(rand());
   passed &= test<TestCastNum + 3, T, 1, 4, 4, 1, false>(rand());
+#endif
   passed &= test<TestCastNum + 4, T, 1, 1, 1, 1, false>(1);
   passed &= test<TestCastNum + 5, T, 2, 1, 1, 1, false>(1);
 

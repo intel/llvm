@@ -95,7 +95,11 @@ bool test(uint32_t pmask = 0xffffffff) {
               lsc_block_store<T, VS, lsc_data_size::default_size>(
                   out + elem_off, vals);
             } else {
+#ifndef USE_SCALAR_OFFSET
               simd<Toffset, VL> offset(byte_off, VS * sizeof(T));
+#else
+              Toffset offset = byte_off;
+#endif
               simd_mask<VL> pred;
               for (int i = 0; i < VL; i++)
                 pred.template select<1, 1>(i) = (pmask >> i) & 1;
@@ -142,8 +146,17 @@ bool test(uint32_t pmask = 0xffffffff) {
     for (int i = 0; i < Size; i++) {
       Tuint in_val = sycl::bit_cast<Tuint>(in[i]);
       Tuint out_val = sycl::bit_cast<Tuint>(out[i]);
+#ifndef USE_SCALAR_OFFSET
       Tuint e = (pmask >> ((i / VS) % VL)) & 1 ? in_val & vmask
                                                : sycl::bit_cast<Tuint>(old_val);
+#else
+      // Calculate the mask to identify the areas that were actually updated
+      constexpr uint16_t mask =
+          1U << ((sycl::bit_cast<uint32_t>((float)VL) >> 23) - 126);
+      Tuint e = ((i / VS) % VL == 0) && (pmask >> ((i / VS) % VL)) & (mask - 1)
+                    ? in_val & vmask
+                    : sycl::bit_cast<Tuint>(old_val);
+#endif
       if (out_val != e) {
         passed = false;
         std::cout << "out[" << i << "] = 0x" << std::hex << out_val

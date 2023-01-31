@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
+// TODO: esimd_emulator doesn't support xchg operation
 // UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -216,8 +217,12 @@ bool test(queue q, const Config &cfg) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
           rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
             int i = ii;
+#ifndef USE_SCALAR_OFFSET
             simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                      cfg.stride * sizeof(T));
+#else
+            Toffset offsets = 0;
+#endif
             simd_mask<N> m = 1;
             m[cfg.masked_lane] = 0;
         // barrier to achieve better contention:
@@ -318,8 +323,14 @@ template <class T, int N> struct ImplInc {
   static T init(int i, const Config &cfg) { return (T)0; }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg)
                  ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups)
+#else
+    T gold =
+        i == 0
+            ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1))
+#endif
                  : init(i, cfg);
     return gold;
   }
@@ -331,11 +342,20 @@ template <class T, int N> struct ImplDec {
   static constexpr int base = 5;
 
   static T init(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups + base);
+#else
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1) +
+               base);
+#endif
   }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? (T)base : init(i, cfg);
+#else
+    T gold = i == 0 ? (T)base : init(i, cfg);
+#endif
     return gold;
   }
 };
@@ -364,7 +384,11 @@ template <class T, int N> struct ImplStore {
   static T init(int i, const Config &cfg) { return 0; }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
+#else
+    T gold = i == 0 ? base : init(i, cfg);
+#endif
     return gold;
   }
 
@@ -378,9 +402,15 @@ template <class T, int N, class C, C Op> struct ImplAdd {
   static T init(int i, const Config &cfg) { return 0; }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? (T)(cfg.repeat * cfg.threads_per_group *
                                          cfg.n_groups * (T)(1 + FPDELTA))
                                    : init(i, cfg);
+#else
+    T gold = i == 0 ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
+                          (N - 1) * (T)(1 + FPDELTA))
+                    : init(i, cfg);
+#endif
     return gold;
   }
 
@@ -393,13 +423,23 @@ template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
                    (T)(1 + FPDELTA) +
                base);
+#else
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1) *
+                   (T)(1 + FPDELTA) +
+               base);
+#endif
   }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
+#else
+    T gold = i == 0 ? base : init(i, cfg);
+#endif
     return gold;
   }
 
@@ -416,7 +456,11 @@ template <class T, int N, class C, C Op> struct ImplMin {
   }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? (T)MIN : init(i, cfg);
+#else
+    T gold = i == 0 ? (T)MIN : init(i, cfg);
+#endif
     return gold;
   }
 
@@ -431,7 +475,11 @@ template <class T, int N, class C, C Op> struct ImplMax {
   static T init(int i, const Config &cfg) { return (T)FPDELTA; }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg)
+#else
+    T gold = i == 0
+#endif
                  ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + FPDELTA)
                  : init(i, cfg);
     return gold;
@@ -482,7 +530,11 @@ template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static T init(int i, const Config &cfg) { return base - 1; }
 
   static T gold(int i, const Config &cfg) {
+#ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg)
+#else
+    T gold = i == 0
+#endif
                  ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + base)
                  : init(i, cfg);
     return gold;
@@ -606,12 +658,14 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types<8, ImplLoad>(q, cfg);
+#ifndef USE_SCALAR_OFFSET
   if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
     passed &= test_int_types<8, ImplStore>(q, cfg);
 #ifndef USE_DWORD_ATOMICS
   if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
     passed &= test<float, 8, ImplStore>(q, cfg);
 #endif // USE_DWORD_ATOMICS
+#endif
   // TODO: check double other vector lengths in LSC mode.
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");

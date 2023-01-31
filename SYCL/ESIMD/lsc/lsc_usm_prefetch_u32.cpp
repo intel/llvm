@@ -21,6 +21,7 @@ constexpr cache_hint L3H = cache_hint::uncached;
 template <int TestCastNum, typename T> bool tests() {
   bool passed = true;
   // non transpose
+#ifndef USE_SCALAR_OFFSET
   passed &=
       test<TestCastNum, T, 1, 4, 32, 1, false, DS, L1H, L3H, true>(rand());
   passed &=
@@ -29,6 +30,7 @@ template <int TestCastNum, typename T> bool tests() {
       test<TestCastNum + 2, T, 1, 4, 16, 2, false, DS, L1H, L3H, true>(rand());
   passed &=
       test<TestCastNum + 3, T, 1, 4, 4, 1, false, DS, L1H, L3H, true>(rand());
+#endif
   passed &= test<TestCastNum + 4, T, 1, 1, 1, 1, false, DS, L1H, L3H, true>(1);
   passed &= test<TestCastNum + 5, T, 2, 1, 1, 1, false, DS, L1H, L3H, true>(1);
 

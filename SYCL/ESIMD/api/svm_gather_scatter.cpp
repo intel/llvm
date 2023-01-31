@@ -61,7 +61,11 @@ template <typename T, int N> bool test(queue &Q) {
   try {
     Q.submit([&](handler &CGH) {
        CGH.parallel_for(sycl::range<1>{1}, [=](id<1>) SYCL_ESIMD_KERNEL {
+#ifndef USE_SCALAR_OFFSET
          simd<Toffset, N> Offsets(0u, sizeof(T));
+#else
+             Toffset Offsets = 0;
+#endif
          scatter<T, N>(Dst, Offsets, gather<T, N>(Src, Offsets));
        });
      }).wait();
@@ -72,7 +76,11 @@ template <typename T, int N> bool test(queue &Q) {
 
   unsigned NumErrs = 0;
   for (int I = 0; I < N; ++I)
+#ifndef USE_SCALAR_OFFSET
     if (Dst[I] != Src[I])
+#else
+    if ((Dst[I] != Src[I] && I == 0) || (I != 0 && Dst[I] != 0))
+#endif
       if (++NumErrs <= 10)
         std::cout << "failed at " << I << ": " << Dst[I]
                   << " (Dst) != " << Src[I] << " (Src)\n";
@@ -90,48 +98,59 @@ int main(void) {
   bool Pass = true;
 
   Pass &= test<int8_t, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
   Pass &= test<int8_t, 2>(Q);
   Pass &= test<int8_t, 4>(Q);
   Pass &= test<int8_t, 8>(Q);
   Pass &= test<int8_t, 16>(Q);
   Pass &= test<int8_t, 32>(Q);
+#endif
 
   Pass &= test<int16_t, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
   Pass &= test<int16_t, 2>(Q);
   Pass &= test<int16_t, 4>(Q);
   Pass &= test<int16_t, 8>(Q);
   Pass &= test<int16_t, 16>(Q);
   Pass &= test<int16_t, 32>(Q);
+#endif
 
   Pass &= test<int32_t, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
   Pass &= test<int32_t, 2>(Q);
   Pass &= test<int32_t, 4>(Q);
   Pass &= test<int32_t, 8>(Q);
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
-
+#endif
   if (Dev.has(aspect::fp16)) {
     Pass &= test<half, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
     Pass &= test<half, 2>(Q);
     Pass &= test<half, 4>(Q);
     Pass &= test<half, 8>(Q);
     Pass &= test<half, 16>(Q);
     Pass &= test<half, 32>(Q);
+#endif
   }
 
   Pass &= test<bfloat16, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
   Pass &= test<bfloat16, 2>(Q);
   Pass &= test<bfloat16, 4>(Q);
   Pass &= test<bfloat16, 8>(Q);
   Pass &= test<bfloat16, 16>(Q);
   Pass &= test<bfloat16, 32>(Q);
+#endif
 #ifdef USE_TF32
   Pass &= test<tfloat32, 1>(Q);
+#ifndef USE_SCALAR_OFFSET
   Pass &= test<tfloat32, 2>(Q);
   Pass &= test<tfloat32, 4>(Q);
   Pass &= test<tfloat32, 8>(Q);
   Pass &= test<tfloat32, 16>(Q);
   Pass &= test<tfloat32, 32>(Q);
+#endif
 #endif
 
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
