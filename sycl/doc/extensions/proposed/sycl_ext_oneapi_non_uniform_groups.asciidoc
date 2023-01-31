@@ -60,7 +60,7 @@ not rely on APIs defined in this specification.*
 
 Many modern hardware architectures support flexible sub-divisions of
 work-groups and sub-groups to support fine-grained work scheduling. A common
-use-case for such flexibility is communication and synchronization between
+use-case for such flexibility is communication between and coordination of
 work-items in divergent control flow.
 
 This proposal introduces new classes to represent sub-divisions of SYCL's
@@ -232,9 +232,9 @@ ballot-group contains all work-items where the predicate is false.
 New ballot-groups are created by partitioning an existing group, using the
 `get_ballot_group` free-function.
 
-NOTE: Creating a ballot-group requires synchronization of the parent group,
-since work-items must exchange predicate values in order to determine group
-membership.
+NOTE: Creating a ballot-group requires a barrier across all work-items in the
+parent group, since work-items must exchange predicate values in order to
+determine group membership.
 
 [source, c++]
 ----
@@ -380,7 +380,7 @@ auto inner = sycl::ext::oneapi::experimental::get_ballot_group(sg, will_branch);
 
 if (will_branch)
 {
-  // synchronize across the work-items that took the branch
+  // wait for all work-items that took the branch to hit the barrier
   sycl::group_barrier(inner);
 
   // reduce across subset of outer work-items that took the branch
@@ -402,9 +402,9 @@ property.
 New cluster-groups are created by partitioning an existing group, using the
 `get_cluster_group` free-function.
 
-NOTE: Creating a cluster-group does not require synchronization of the parent
-group, since work-items can independently identify cluster members given a
-fixed cluster size.
+NOTE: Creating a cluster-group does not require a barrier across all work-items
+in the parent group, since work-items can independently identify cluster
+members given a fixed cluster size.
 
 [source, c++]
 ----
@@ -567,10 +567,10 @@ work-items currently executing the same control flow.
 New tangle-groups are created by partitioning an existing group, using the
 `get_tangle_group` free-function.
 
-NOTE: Creating a tangle-group may require synchronization of the parent group
-on some devices, since it may be necessary to wait for work-items to
-reconverge. For consistency, synchronization is required by all
-implementations.
+NOTE: Creating a tangle-group may implicitly synchronize members of the
+`tangle_group` on some devices, since it may be necessary to wait for
+work-items to reconverge. For consistency, this synchronization is required by
+all implementations.
 
 [source, c++]
 ----
@@ -585,10 +585,7 @@ tangle_group get_tangle_group(Group group);
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
 std::is_same_v<Group, sycl::sub_group>` is true.
 
-_Preconditions_: All work-items in `group` must encounter this function in
-converged control flow.
-
-_Effects_: Synchronizes all work-items in `group`.
+_Effects_: Synchronizes all work-items in the resulting `tangle_group`.
 
 _Returns_: A `tangle_group` consisting of the work-items in `group` which are
 part of the same tangle.
@@ -713,7 +710,7 @@ auto sg = it.get_sub_group();
 auto will_branch = sg.get_local_linear_id() % 2 == 0;
 if (will_branch)
 {
-  // synchronize across the work-items that took the branch
+  // wait for all work-items that took the branch to hit the barrier
   auto inner = sycl::ext::oneapi::experimental::get_tangle_group(sg);
   sycl::group_barrier(inner);
 
@@ -746,9 +743,9 @@ group. There are no guarantees that a group returned by
 control flow, nor the same set of work-items as the group returned by any
 previous call to `get_opportunistic_group()`.
 
-NOTE: Creating an opportunistic group does not require synchronization because
-it is designed to capture whichever set of work-items happen to call
-`get_opportunistic_group()` simultaneously.
+NOTE: Creating an opportunistic group does not require a barrier or introduce
+any synchronization because it is designed to capture whichever set of
+work-items happen to call `get_opportunistic_group()` simultaneously.
 
 [source, c++]
 ----
@@ -936,9 +933,10 @@ corresponding bit set in `mask`.
 Masked sub-groups are created by calls to the `get_masked_sub_group()`
 function, which applies a bitmask to an existing sub-group.
 
-NOTE: Creating a masked sub-group does not require synchronization of the
-parent sub-group, since work-items can independently identify members directly
-from the specified membership mask.
+NOTE: Creating a masked sub-group does not require a barrier across all
+work-items in the parent sub-group or introduce any sychronization, since
+work-items can independently identify members directly from the specified
+membership mask.
 
 
 ==== `masked_sub_group` Class
