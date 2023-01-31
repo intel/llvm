@@ -40,9 +40,11 @@ template <typename DataT, int Dims> void CheckLocalAccessor() {
 
 template <typename DataT, int Dims> void CheckAccessorForModes() {
   CheckDeviceAccessor<DataT, Dims, sycl::access::mode::read>();
-  CheckDeviceAccessor<DataT, Dims, sycl::access::mode::read_write>();
-  CheckDeviceAccessor<DataT, Dims, sycl::access::mode::write>();
   CheckLocalAccessor<DataT, Dims>();
+  if constexpr (!std::is_const<DataT>::value) {
+    CheckDeviceAccessor<DataT, Dims, sycl::access::mode::read_write>();
+    CheckDeviceAccessor<DataT, Dims, sycl::access::mode::write>();
+  }
 }
 
 template <typename DataT> void CheckAccessorForAllDimsAndModes() {
