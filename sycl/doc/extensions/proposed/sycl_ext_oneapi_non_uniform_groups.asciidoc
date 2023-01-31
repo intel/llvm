@@ -906,7 +906,7 @@ template <sycl::memory_order Order,
 int atomic_aggregate_inc(sycl::sub_group sg, sycl::atomic_ref<int, Order, Scope, AddressSpace> ptr) {
 
   // get the set of work-items that called this function simultaneously
-  auto active_group = sycl::ext::oneapi::experimental::get_opportunistic_group(sub_group);
+  auto active_group = sycl::ext::oneapi::experimental::this_kernel::get_opportunistic_group();
 
   // increment the atomic once on behalf of all active work-items
   int count = active_group.get_local_linear_range();
