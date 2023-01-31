@@ -1131,6 +1131,8 @@ public:
 #define RVV_TYPE(Name, Id, SingletonId) \
   CanQualType SingletonId;
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) CanQualType SingletonId;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
@@ -1478,6 +1480,9 @@ public:
   ///
   /// \pre \p EltTy must be a built-in type.
   QualType getScalableVectorType(QualType EltTy, unsigned NumElts) const;
+
+  /// Return a WebAssembly externref type.
+  QualType getWebAssemblyExternrefType() const;
 
   /// Return the unique reference to a vector type of the specified
   /// element type and size.

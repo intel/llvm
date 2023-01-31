@@ -18,6 +18,7 @@
 #include "flang/Lower/Mangler.h"
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
+#include "flang/Lower/Support/Utils.h"
 #include "flang/Lower/SymbolMap.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/Character.h"
@@ -306,6 +307,8 @@ struct IntrinsicLibrary {
   mlir::Value genSpacing(mlir::Type resultType,
                          llvm::ArrayRef<mlir::Value> args);
   fir::ExtendedValue genSpread(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
+  fir::ExtendedValue genStorageSize(mlir::Type,
+                                    llvm::ArrayRef<fir::ExtendedValue>);
   fir::ExtendedValue genSum(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
   void genSystemClock(llvm::ArrayRef<fir::ExtendedValue>);
   mlir::Value genTrailz(mlir::Type, llvm::ArrayRef<mlir::Value>);
@@ -595,9 +598,9 @@ static constexpr IntrinsicHandler handlers[]{
      &I::genGetEnvironmentVariable,
      {{{"name", asBox},
        {"value", asBox, handleDynamicOptional},
-       {"length", asAddr},
-       {"status", asAddr},
-       {"trim_name", asAddr},
+       {"length", asBox, handleDynamicOptional},
+       {"status", asAddr, handleDynamicOptional},
+       {"trim_name", asAddr, handleDynamicOptional},
        {"errmsg", asBox, handleDynamicOptional}}},
      /*isElemental=*/false},
     {"iachar", &I::genIchar},
@@ -817,6 +820,10 @@ static constexpr IntrinsicHandler handlers[]{
     {"spread",
      &I::genSpread,
      {{{"source", asBox}, {"dim", asValue}, {"ncopies", asValue}}},
+     /*isElemental=*/false},
+    {"storage_size",
+     &I::genStorageSize,
+     {{{"a", asInquired}, {"kind", asValue}}},
      /*isElemental=*/false},
     {"sum",
      &I::genSum,
@@ -3196,6 +3203,14 @@ void IntrinsicLibrary::genGetEnvironmentVariable(
   const fir::ExtendedValue &trimName = args[4];
   const fir::ExtendedValue &errmsg = args[5];
 
+  if (!name)
+    fir::emitFatalError(loc, "expected NAME parameter");
+
+  // If none of the optional parameters are present, do nothing.
+  if (!isStaticallyPresent(value) && !isStaticallyPresent(length) &&
+      !isStaticallyPresent(status) && !isStaticallyPresent(errmsg))
+    return;
+
   // Handle optional TRIM_NAME argument
   mlir::Value trim;
   if (isStaticallyAbsent(trimName)) {
@@ -3220,39 +3235,27 @@ void IntrinsicLibrary::genGetEnvironmentVariable(
                .getResults()[0];
   }
 
-  if (isStaticallyPresent(value) || isStaticallyPresent(status) ||
-      isStaticallyPresent(errmsg)) {
-    mlir::Type boxNoneTy = fir::BoxType::get(builder.getNoneType());
-    mlir::Value valBox =
-        isStaticallyPresent(value)
-            ? fir::getBase(value)
-            : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
-    mlir::Value errBox =
-        isStaticallyPresent(errmsg)
-            ? fir::getBase(errmsg)
-            : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
-    mlir::Value stat = fir::runtime::genEnvVariableValue(builder, loc, name,
-                                                         valBox, trim, errBox);
-    if (isStaticallyPresent(status)) {
-      mlir::Value statAddr = fir::getBase(status);
-      mlir::Value statIsPresentAtRuntime =
-          builder.genIsNotNullAddr(loc, statAddr);
-      builder.genIfThen(loc, statIsPresentAtRuntime)
-          .genThen(
-              [&]() { builder.createStoreWithConvert(loc, stat, statAddr); })
-          .end();
-    }
-  }
-
-  if (isStaticallyPresent(length)) {
-    mlir::Value lenAddr = fir::getBase(length);
-    mlir::Value lenIsPresentAtRuntime = builder.genIsNotNullAddr(loc, lenAddr);
-    builder.genIfThen(loc, lenIsPresentAtRuntime)
-        .genThen([&]() {
-          mlir::Value len =
-              fir::runtime::genEnvVariableLength(builder, loc, name, trim);
-          builder.createStoreWithConvert(loc, len, lenAddr);
-        })
+  mlir::Type boxNoneTy = fir::BoxType::get(builder.getNoneType());
+  mlir::Value valBox =
+      isStaticallyPresent(value)
+          ? fir::getBase(value)
+          : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
+  mlir::Value lenBox =
+      isStaticallyPresent(length)
+          ? fir::getBase(length)
+          : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
+  mlir::Value errBox =
+      isStaticallyPresent(errmsg)
+          ? fir::getBase(errmsg)
+          : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
+  mlir::Value stat = fir::runtime::genGetEnvVariable(builder, loc, name, valBox,
+                                                     lenBox, trim, errBox);
+  if (isStaticallyPresent(status)) {
+    mlir::Value statAddr = fir::getBase(status);
+    mlir::Value statIsPresentAtRuntime =
+        builder.genIsNotNullAddr(loc, statAddr);
+    builder.genIfThen(loc, statIsPresentAtRuntime)
+        .genThen([&]() { builder.createStoreWithConvert(loc, stat, statAddr); })
         .end();
   }
 }
@@ -4785,6 +4788,57 @@ IntrinsicLibrary::genSpread(mlir::Type resultType,
   fir::runtime::genSpread(builder, loc, resultIrBox, source, dim, ncopies);
 
   return readAndAddCleanUp(resultMutableBox, resultType, "SPREAD");
+}
+
+// STORAGE_SIZE
+fir::ExtendedValue
+IntrinsicLibrary::genStorageSize(mlir::Type resultType,
+                                 llvm::ArrayRef<fir::ExtendedValue> args) {
+  assert(args.size() == 2 || args.size() == 1);
+  mlir::Value box = fir::getBase(args[0]);
+  mlir::Type boxTy = box.getType();
+  mlir::Type kindTy = builder.getDefaultIntegerType();
+  bool needRuntimeCheck = false;
+  std::string errorMsg;
+
+  if (fir::isUnlimitedPolymorphicType(boxTy) &&
+      (fir::isAllocatableType(boxTy) || fir::isPointerType(boxTy))) {
+    needRuntimeCheck = true;
+    errorMsg =
+        fir::isPointerType(boxTy)
+            ? "unlimited polymorphic disassociated POINTER in STORAGE_SIZE"
+            : "unlimited polymorphic unallocated ALLOCATABLE in STORAGE_SIZE";
+  } else if (fir::isPolymorphicType(boxTy) && fir::isPointerType(boxTy)) {
+    needRuntimeCheck = true;
+    errorMsg = "polymorphic disassociated POINTER in STORAGE_SIZE";
+  }
+  const fir::MutableBoxValue *mutBox = args[0].getBoxOf<fir::MutableBoxValue>();
+  if (needRuntimeCheck && mutBox) {
+    mlir::Value isNotAllocOrAssoc =
+        fir::factory::genIsNotAllocatedOrAssociatedTest(builder, loc, *mutBox);
+    builder.genIfThen(loc, isNotAllocOrAssoc)
+        .genThen([&]() {
+          fir::runtime::genReportFatalUserError(builder, loc, errorMsg);
+        })
+        .end();
+  }
+
+  // Handle optional kind argument
+  bool absentKind = isStaticallyAbsent(args, 1);
+  if (!absentKind) {
+    mlir::Operation *defKind = fir::getBase(args[1]).getDefiningOp();
+    assert(mlir::isa<mlir::arith::ConstantOp>(*defKind) &&
+           "kind not a constant");
+    auto constOp = mlir::dyn_cast<mlir::arith::ConstantOp>(*defKind);
+    kindTy = builder.getIntegerType(
+        builder.getKindMap().getIntegerBitsize(fir::toInt(constOp)));
+  }
+
+  if (box.getType().isa<fir::ReferenceType>())
+    box = builder.create<fir::LoadOp>(loc, box);
+  mlir::Value eleSize = builder.create<fir::BoxEleSizeOp>(loc, kindTy, box);
+  mlir::Value c8 = builder.createIntegerConstant(loc, kindTy, 8);
+  return builder.create<mlir::arith::MulIOp>(loc, eleSize, c8);
 }
 
 // SUM

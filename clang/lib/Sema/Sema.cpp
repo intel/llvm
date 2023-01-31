@@ -472,6 +472,13 @@ void Sema::Initialize() {
 #include "clang/Basic/RISCVVTypes.def"
   }
 
+  if (Context.getTargetInfo().getTriple().isWasm() &&
+      Context.getTargetInfo().hasFeature("reference-types")) {
+#define WASM_TYPE(Name, Id, SingletonId)                                       \
+  addImplicitTypedef(Name, Context.SingletonId);
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+  }
+
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {
     DeclarationName MSVaList = &Context.Idents.get("__builtin_ms_va_list");
     if (IdResolver.begin(MSVaList) == IdResolver.end())
@@ -2425,7 +2432,8 @@ FunctionScopeInfo *Sema::getEnclosingFunction() const {
 LambdaScopeInfo *Sema::getEnclosingLambda() const {
   for (auto *Scope : llvm::reverse(FunctionScopes)) {
     if (auto *LSI = dyn_cast<sema::LambdaScopeInfo>(Scope)) {
-      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext)) {
+      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext) &&
+          LSI->AfterParameterList) {
         // We have switched contexts due to template instantiation.
         // FIXME: We should swap out the FunctionScopes during code synthesis
         // so that we don't need to check for this.
@@ -2451,8 +2459,8 @@ LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
       return nullptr;
   }
   auto *CurLSI = dyn_cast<LambdaScopeInfo>(*I);
-  if (CurLSI && CurLSI->Lambda &&
-      !CurLSI->Lambda->Encloses(CurContext)) {
+  if (CurLSI && CurLSI->Lambda && CurLSI->CallOperator &&
+      !CurLSI->Lambda->Encloses(CurContext) && CurLSI->AfterParameterList) {
     // We have switched contexts due to template instantiation.
     assert(!CodeSynthesisContexts.empty());
     return nullptr;
