@@ -266,7 +266,7 @@ __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
 scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
@@ -794,7 +794,7 @@ scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
 scatter_rgba(T *p, Toffset offset,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
@@ -1040,7 +1040,10 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
+    simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, mask);
 }

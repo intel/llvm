@@ -963,7 +963,7 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
 lsc_scatter(T *p, Toffset offset, __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
   lsc_scatter<T, NElts, DS, L1H, L3H, N>(
@@ -1616,10 +1616,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
-                      __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 ((Op != __ESIMD_NS::atomic_op::store &&
+                                   Op != __ESIMD_NS::atomic_op::xchg) ||
+                                  N == 1),
+                             __ESIMD_NS::simd<T, N>>
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), src0, pred);
 }
