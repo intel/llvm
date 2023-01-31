@@ -115,9 +115,6 @@ flow] as below:
 This extension introduces some new terminology to describe other kinds of
 control flow, to simplify the description of the behavior for new group types.
 
-A work-item is said to have _active_ control flow for a given point of
-execution if it follows the sequence of statements currently being executed.
-
 Two or more work-items are considered to have _simultaneous_ execution at a
 given point if they execute statements at the same time. A common example of
 simultaneous execution is when work-items are mapped to different lanes of the
@@ -944,7 +941,7 @@ membership mask.
 The `masked_sub_group` class contains an additional `get_mask()` function,
 returning the membership mask. Since the other member functions of
 `masked_sub_group` reflect the original sub-group, developers must use this
-mask to reason about the numbering of active work-items in the group.
+mask to reason about the local numbering of work-items within the group.
 
 [source, c++]
 ----
@@ -1041,8 +1038,8 @@ bool leader() const;
 _Returns_: `true` for exactly one work-item in the masked sub-group, if the
 calling work-item is the leader of the masked sub-group, and `false` for all
 other work-items in the masked sub-group. The leader of the masked sub-group
-is guaranteed to be the lowest-numbered active work-item (i.e. the work-item
-corresponding to the least-significant bit in the mask).
+is guaranteed to be the work-item corresponding to the least-significant bit in
+the mask.
 
 [source,c++]
 ----
@@ -1054,8 +1051,8 @@ are considered a member of this `masked_sub_group`.
 
 ==== Usage Example
 
-A `masked_sub_group` can be used to implement algorithms where some sort of
-active mask is already present:
+A `masked_sub_group` can be used to implement algorithms where a membership
+mask is already present or easily computed:
 
 [source, c++]
 ----
@@ -1090,11 +1087,11 @@ float sum = x;
 for (int phase = 1; phase < sg.get_max_local_range() / 2; phase *= 2)
 {
   // create representation of work-items still active in this phase
-  auto active_items = sycl::ext::oneapi::experimental::get_tangle_group(sg);
+  auto active_group = sycl::ext::oneapi::experimental::get_tangle_group(sg);
 
   // call shift only for work-items that are still active
   // note that the shift is now 1, because of how tangle-group local IDs are defined
-  sum += sycl::shift_group_left(active_items, x, 1);
+  sum += sycl::shift_group_left(active_group, x, 1);
 }
 ----
 
