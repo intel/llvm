@@ -4977,10 +4977,6 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
       Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
                    ? PI_ERROR_BUILD_PROGRAM_FAILURE
                    : mapError(ZeResult);
-      if (Program->ZeBuildLog) {
-        ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-        Program->ZeBuildLog = nullptr;
-      }
       if (ZeModule) {
         ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
         ZeModule = nullptr;
