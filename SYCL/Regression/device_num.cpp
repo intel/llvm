@@ -26,6 +26,7 @@ const std::map<backend, std::string> BackendStringMap = {
     {backend::opencl, "opencl"},
     {backend::host, "host"},
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
+    {backend::ext_oneapi_unified_runtime, "ext_oneapi_unified_runtime"},
     {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
     {backend::ext_oneapi_hip, "ext_oneapi_hip"}};
