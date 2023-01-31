@@ -768,17 +768,17 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
-    cl_int Range = getRangeInternal();
+    int Range = getRangeInternal();
     return range<1>(Range);
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
-    cl_int2 Range = getRangeInternal();
+    int2 Range = getRangeInternal();
     return range<2>(Range[0], Range[1]);
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
   range<3> get_range() const {
-    cl_int3 Range = getRangeInternal();
+    int3 Range = getRangeInternal();
     return range<3>(Range[0], Range[1], Range[2]);
   }
 
@@ -926,12 +926,12 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
-    cl_int2 Count = MBaseAcc.getRangeInternal();
+    int2 Count = MBaseAcc.getRangeInternal();
     return range<1>(Count.x());
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
-    cl_int3 Count = MBaseAcc.getRangeInternal();
+    int3 Count = MBaseAcc.getRangeInternal();
     return range<2>(Count.x(), Count.y());
   }
 
@@ -1102,7 +1102,7 @@ protected:
   // range and offset are not supported.
   void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
 
-  ConcreteASPtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
 
   template <typename DataT_, int Dimensions_, access::mode AccessMode_,
             access::target AccessTarget_, access::placeholder IsPlaceholder_,
@@ -1180,7 +1180,7 @@ public:
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
                sizeof(MAccData)];
 
-  PtrType getQualifiedPtr() const {
+  PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
       return reinterpret_cast<PtrType>(MAccData->MData);
     else
@@ -1213,6 +1213,11 @@ public:
                                                const DataT, DataT>::type;
   using reference = value_type &;
   using const_reference = const DataT &;
+
+  template <access::decorated IsDecorated>
+  using accessor_ptr =
+      std::conditional_t<AccessTarget == access::target::device,
+                         global_ptr<value_type, IsDecorated>, value_type *>;
 
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
@@ -2025,7 +2030,12 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
-  DataT *get_pointer() const {
+#if SYCL_LANGUAGE_VERSION >= 202001
+  std::add_pointer_t<value_type> get_pointer() const noexcept
+#else
+  DataT *get_pointer() const
+#endif
+  {
     return getPointerAdjusted();
   }
 
@@ -2128,7 +2138,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  size_t getTotalOffset() const {
+  size_t getTotalOffset() const noexcept {
     size_t TotalOffset = 0;
     detail::dim_loop<Dimensions>([&, this](size_t I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
@@ -2147,7 +2157,7 @@ private:
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
-  auto getPointerAdjusted() const {
+  auto getPointerAdjusted() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return getQualifiedPtr() - getTotalOffset();
 #else
@@ -2678,6 +2688,9 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+
+  template <access::decorated IsDecorated>
+  using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
