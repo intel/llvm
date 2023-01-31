@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 //=---queue_offset_shortcut_initlist.cpp - SYCL queue offset shortcuts test--=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
