@@ -14,8 +14,6 @@
 
 #include <tuple>
 
-// Using mp11 to sort property lists.
-namespace __MP11_NS = sycl::detail::boost::mp11;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
@@ -111,12 +109,14 @@ template <typename RHS> struct SelectNonVoid<void, RHS> {
 
 // Sort types accoring to their PropertyID.
 struct SortByPropertyId {
-  template<typename T, typename U> using fn =
-      __MP11_NS::mp_bool<PropertyID<T>::value < PropertyID<U>::value>;
+  template <typename T1, typename T2>
+  using fn = sycl::detail::boost::mp11::mp_bool <
+             PropertyID<T1>::value<PropertyID<T2>::value>;
 };
 template <typename... Ts> struct Sorted {
   static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
                 "Unrecognized property in property list.");
+  using __MP11_NS = sycl::detail::boost::mp11;
   using properties = __MP11_NS::mp_list<Ts...>;
   using sortedProperties = __MP11_NS::mp_sort_q<properties, SortByPropertyId>;
   using type = __MP11_NS::mp_rename<sortedProperties, std::tuple>;
