@@ -178,6 +178,10 @@ namespace sycl::ext::oneapi::experimental {
 `ballot_group`, `cluster_group`, `tangle_group`, `opportunisic_group` or
 `masked_sub_group`.
 
+Additionally, the `is_group<T>::value` trait from SYCL 2020 is `std::true_type`
+if `T` is one of: `ballot_group`, `cluster_group`, `tangle_group`,
+`opportunistic_group` or `masked_sub_group`.
+
 
 === Group Functions and Algorithms
 
