@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// HIP backend has had no support for the generic address space yet
-// XFAIL: hip
-
 #include "load.h"
 
 int main() { load_test_all<access::address_space::generic_space>(); }

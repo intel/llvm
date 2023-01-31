@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// hip does not support native floating point atomics
-// XFAIL: hip
-
 #define SYCL_USE_NATIVE_FP_ATOMICS
 #define FP_TESTS_ONLY
 

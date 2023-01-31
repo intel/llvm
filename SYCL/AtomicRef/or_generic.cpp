@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// HIP backend have had no support for the generic address space yet
-// XFAIL: hip
-
 #include "or.h"
 
 int main() { or_test_all<access::address_space::generic_space>(); }

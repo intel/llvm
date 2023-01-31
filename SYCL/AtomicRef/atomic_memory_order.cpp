@@ -2,9 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// L0, OpenCL, and HIP backends don't currently support
+// L0, OpenCL backends don't currently support
 // info::device::atomic_memory_order_capabilities
-// UNSUPPORTED: level_zero || opencl || hip
+// UNSUPPORTED: level_zero || opencl
 
 // NOTE: General tests for atomic memory order capabilities.
 

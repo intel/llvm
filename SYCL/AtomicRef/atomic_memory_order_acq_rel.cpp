@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // L0, OpenCL, and HIP backends don't currently support
 // info::device::atomic_memory_order_capabilities
-// UNSUPPORTED: level_zero, opencl, hip
+// UNSUPPORTED: level_zero, opencl
 
 // NOTE: Tests fetch_add for acquire and release memory ordering.
 
