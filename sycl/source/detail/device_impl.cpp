@@ -466,13 +466,9 @@ uint64_t device_impl::getCurrentDeviceTime() {
                                                             : result);
 
   if (result == PI_ERROR_INVALID_OPERATION) {
-    std::string errorMsg{};
-    char *p;
+    char *p = nullptr;
     plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
-    while (*p != '\0') {
-      errorMsg += *p;
-      p++;
-    }
+    std::string errorMsg(p ? p : "");
     throw sycl::feature_not_supported(
         "Device and/or backend does not support querying timestamp: " +
             errorMsg,
