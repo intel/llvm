@@ -17,8 +17,8 @@
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK: {{.*}}esimd-large-grf.ll.tmp_esimd_large_grf_1.ll|{{.*}}esimd-large-grf.ll.tmp_esimd_large_grf_1.prop|{{.*}}esimd-large-grf.ll.tmp_esimd_large_grf_1.sym
-; CHECK: {{.*}}esimd-large-grf.ll.tmp_esimd_2.ll|{{.*}}esimd-large-grf.ll.tmp_esimd_2.prop|{{.*}}esimd-large-grf.ll.tmp_esimd_2.sym
+; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
+; CHECK: {{.*}}_2.ll|{{.*}}_2.prop|{{.*}}_2.sym
 
 ; CHECK-ESIMD-LargeGRF-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-LargeGRF-PROP: isLargeGRF=1|1

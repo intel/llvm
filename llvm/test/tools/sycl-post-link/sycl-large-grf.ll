@@ -16,7 +16,7 @@
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK: {{.*}}large_grf_1.ll|{{.*}}large_grf_1.prop|{{.*}}large_grf_1.sym
+; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
 
 ; CHECK-LARGE-GRF-PROP: isLargeGRF=1|1
 
