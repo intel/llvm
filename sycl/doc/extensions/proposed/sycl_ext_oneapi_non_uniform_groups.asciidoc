@@ -190,10 +190,8 @@ namespace sycl::ext::oneapi::experimental {
 === Group Functions and Algorithms
 
 When a user-constructed group is passed to a group function or group algorithm,
-all work-items in the group must call exactly the same function under the same
-set of conditions -- calling the same function under different conditions
-(e.g. in different iterations of a loop, or different branches of a conditional
-statement) results in undefined behavior.
+all work-items in the group must call the function or algorithm in converged
+control flow. Violating this restriction results in undefined behavior.
 
 If a work-item calls a group function or group algorithm using an object that
 represents a group to which the work-item does not belong, this results in
