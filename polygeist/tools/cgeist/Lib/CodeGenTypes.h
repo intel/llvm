@@ -60,6 +60,7 @@ class CodeGenTypes {
   clang::CodeGen::CGCXXABI &TheCXXABI;
 
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> TypeCache;
+  std::map<const clang::Type *, mlir::Type> BuiltinTypeCache;
 
 public:
   CodeGenTypes(clang::CodeGen::CodeGenModule &CGM,
