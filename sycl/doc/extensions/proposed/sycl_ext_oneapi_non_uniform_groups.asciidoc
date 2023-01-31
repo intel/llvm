@@ -909,6 +909,17 @@ NOTE: Masked sub-groups exist primarily to support experimentation with
 arbitrary subsets of work-items within a sub-group, and to support the
 migration of algorithms already expressed via masks.
 
+
+==== Creation
+
+Masked sub-groups are created by calls to the `get_masked_sub_group()`
+function, which applies a bitmask to an existing sub-group.
+
+NOTE: Creating a masked sub-group does not require a barrier across all
+work-items in the parent sub-group or introduce any sychronization, since
+work-items can independently identify members directly from the specified
+membership mask.
+
 [source, c++]
 ----
 namespace ext::oneapi::experimental {
@@ -923,17 +934,6 @@ must encounter this function in converged control flow.
 
 _Returns_: A `masked_sub_group` consisting of the work-items in `sg` with a
 corresponding bit set in `mask`.
-
-
-==== Creation
-
-Masked sub-groups are created by calls to the `get_masked_sub_group()`
-function, which applies a bitmask to an existing sub-group.
-
-NOTE: Creating a masked sub-group does not require a barrier across all
-work-items in the parent sub-group or introduce any sychronization, since
-work-items can independently identify members directly from the specified
-membership mask.
 
 
 ==== `masked_sub_group` Class
