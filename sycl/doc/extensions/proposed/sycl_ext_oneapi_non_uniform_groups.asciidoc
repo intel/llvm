@@ -493,7 +493,8 @@ _Returns_: A `range` representing the number of cluster-groups.
 ----
 range_type get_local_range() const;
 ----
-_Returns_: A `range` representing the number of work-items in the cluster-group.
+_Returns_: A `range` representing the number of work-items in the
+cluster-group, which is always equal to `ClusterSize`.
 
 [source,c++]
 ----
