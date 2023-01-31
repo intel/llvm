@@ -1687,6 +1687,8 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
           blocking_read, count, offset, dst, num_events_in_wait_list,
           cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
   return cast<pi_result>(Res);
+}
+
 pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
                                    const char *pipe_symbol, pi_bool blocking,
                                    void *ptr, size_t size,

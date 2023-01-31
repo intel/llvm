@@ -5550,6 +5550,8 @@ pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
     result = error;
   }
   return result;
+}
+
 /// Host Pipes
 pi_result cuda_piextEnqueueReadHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,

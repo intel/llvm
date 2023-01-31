@@ -5317,6 +5317,8 @@ pi_result hip_piextEnqueueDeviceGlobalVariableRead(
 
   sycl::detail::pi::die(
       "hip_piextEnqueueDeviceGlobalVariableRead not implemented");
+}
+
 /// Host Pipes
 pi_result hip_piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
                                        const char *pipe_symbol,

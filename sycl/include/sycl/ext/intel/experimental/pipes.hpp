@@ -45,18 +45,22 @@ template <class _name, class _dataT, int32_t _min_capacity = 0,
           class = void>
 class pipe {
 public:
-#ifdef __SYCL_DEVICE_ONLY__
   struct 
+#ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_global_variable(
     "sycl-host-pipe", nullptr)]][[__sycl_detail__::sycl_type(host_pipe)]]
-  ConstantPipeStorageExp : ConstantPipeStorage {
+#endif // __SYCL_DEVICE_ONLY___
+  ConstantPipeStorageExp 
+#ifdef __SYCL_DEVICE_ONLY__
+  : ConstantPipeStorage
+#endif // __SYCL_DEVICE_ONLY___
+  {
     int32_t _ReadyLatency;
     int32_t _BitsPerSymbol;
     bool _UsesValid;
     bool _FirstSymInHighOrderBits;
     protocol_name _Protocol;
   };
-#endif
 
   // Non-blocking pipes
 
@@ -275,14 +279,18 @@ private:
   static constexpr bool m_first_symbol_in_high_order_bits = detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
   static constexpr protocol_name m_protocol = detail::ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(protocol_name::AVALON_STREAMING);
 
-
+public:
+  static constexpr struct ConstantPipeStorageExp m_Storage = { 
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct ConstantPipeStorageExp m_Storage = { { m_Size, m_Alignment,
-                                                           m_Capacity}, m_ready_latency,
+                                                          { m_Size, m_Alignment, m_Capacity }, 
+#endif // __SYCL_DEVICE_ONLY___
+                                                           m_ready_latency,
                                                            m_bits_per_symbol, m_uses_valid,
                                                            m_first_symbol_in_high_order_bits,
                                                            m_protocol };
 
+#ifdef __SYCL_DEVICE_ONLY__
+private:
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
   template <typename _T>

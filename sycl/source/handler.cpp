@@ -859,6 +859,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   id<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                     Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
+}
 
 void handler::read_write_host_pipe(const std::string &Name, void *Ptr,
                                    size_t Size, bool Block, bool Read) {
