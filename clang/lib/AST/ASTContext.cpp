@@ -930,39 +930,6 @@ ParentMapContext &ASTContext::getParentMapContext() {
   return *ParentMapCtx.get();
 }
 
-static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
-                                           const LangOptions &LOpts) {
-  if (LOpts.FakeAddressSpaceMap) {
-    // The fake address space map must have a distinct entry for each
-    // language-specific address space.
-    static const unsigned FakeAddrSpaceMap[] = {
-        0,  // Default
-        1,  // opencl_global
-        3,  // opencl_local
-        2,  // opencl_constant
-        0,  // opencl_private
-        4,  // opencl_generic
-        5,  // opencl_global_device
-        6,  // opencl_global_host
-        7,  // cuda_device
-        8,  // cuda_constant
-        9,  // cuda_shared
-        1,  // sycl_global
-        5,  // sycl_global_device
-        6,  // sycl_global_host
-        3,  // sycl_local
-        0,  // sycl_private
-        10, // ptr32_sptr
-        11, // ptr32_uptr
-        12, // ptr64
-        13, // hlsl_groupshared
-    };
-    return &FakeAddrSpaceMap;
-  } else {
-    return &T.getAddressSpaceMap();
-  }
-}
-
 static bool isAddrSpaceMapManglingEnabled(const TargetInfo &TI,
                                           const LangOptions &LangOpts) {
   switch (LangOpts.getAddressSpaceMapMangling()) {
@@ -1293,7 +1260,6 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
   this->AuxTarget = AuxTarget;
 
   ABI.reset(createCXXABI(Target));
-  AddrSpaceMap = getAddressSpaceMap(Target, LangOpts);
   AddrSpaceMapMangling = isAddrSpaceMapManglingEnabled(Target, LangOpts);
 
   // C99 6.2.5p19.
@@ -2180,6 +2146,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       if (Target->hasBFloat16Type()) {
         Width = Target->getBFloat16Width();
         Align = Target->getBFloat16Align();
+      } else if ((getLangOpts().SYCLIsDevice ||
+                  (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
+                 AuxTarget->hasBFloat16Type()) {
+        Width = AuxTarget->getBFloat16Width();
+        Align = AuxTarget->getBFloat16Align();
       }
       break;
     case BuiltinType::Float16:
@@ -6987,7 +6958,7 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
                                      PrettyArrayType->getIndexTypeQualifiers());
 
   // int x[_Nullable] -> int * _Nullable
-  if (auto Nullability = Ty->getNullability(*this)) {
+  if (auto Nullability = Ty->getNullability()) {
     Result = const_cast<ASTContext *>(this)->getAttributedType(
         AttributedType::getNullabilityAttrKind(*Nullability), Result, Result);
   }
@@ -12285,10 +12256,7 @@ uint64_t ASTContext::getTargetNullPointerValue(QualType QT) const {
 }
 
 unsigned ASTContext::getTargetAddressSpace(LangAS AS) const {
-  if (isTargetAddressSpace(AS))
-    return toTargetAddressSpace(AS);
-  else
-    return (*AddrSpaceMap)[(unsigned)AS];
+  return getTargetInfo().getTargetAddressSpace(AS);
 }
 
 bool ASTContext::hasSameExpr(const Expr *X, const Expr *Y) const {
@@ -13369,6 +13337,18 @@ QualType ASTContext::getCorrespondingSignedFixedPointType(QualType Ty) const {
   }
 }
 
+std::vector<std::string> ASTContext::filterFunctionTargetVersionAttrs(
+    const TargetVersionAttr *TV) const {
+  assert(TV != nullptr);
+  llvm::SmallVector<StringRef, 8> Feats;
+  std::vector<std::string> ResFeats;
+  TV->getFeatures(Feats);
+  for (auto &Feature : Feats)
+    if (Target->validateCpuSupports(Feature.str()))
+      ResFeats.push_back("?" + Feature.str());
+  return ResFeats;
+}
+
 ParsedTargetAttr
 ASTContext::filterFunctionTargetAttrs(const TargetAttr *TD) const {
   assert(TD != nullptr);
@@ -13427,12 +13407,32 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
   } else if (const auto *TC = FD->getAttr<TargetClonesAttr>()) {
     std::vector<std::string> Features;
     StringRef VersionStr = TC->getFeatureStr(GD.getMultiVersionIndex());
-    if (VersionStr.startswith("arch="))
-      TargetCPU = VersionStr.drop_front(sizeof("arch=") - 1);
-    else if (VersionStr != "default")
-      Features.push_back((StringRef{"+"} + VersionStr).str());
-
+    if (Target->getTriple().isAArch64()) {
+      // TargetClones for AArch64
+      if (VersionStr != "default") {
+        SmallVector<StringRef, 1> VersionFeatures;
+        VersionStr.split(VersionFeatures, "+");
+        for (auto &VFeature : VersionFeatures) {
+          VFeature = VFeature.trim();
+          Features.push_back((StringRef{"?"} + VFeature).str());
+        }
+      }
+      Features.insert(Features.begin(),
+                      Target->getTargetOpts().FeaturesAsWritten.begin(),
+                      Target->getTargetOpts().FeaturesAsWritten.end());
+    } else {
+      if (VersionStr.startswith("arch="))
+        TargetCPU = VersionStr.drop_front(sizeof("arch=") - 1);
+      else if (VersionStr != "default")
+        Features.push_back((StringRef{"+"} + VersionStr).str());
+    }
     Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU, Features);
+  } else if (const auto *TV = FD->getAttr<TargetVersionAttr>()) {
+    std::vector<std::string> Feats = filterFunctionTargetVersionAttrs(TV);
+    Feats.insert(Feats.begin(),
+                 Target->getTargetOpts().FeaturesAsWritten.begin(),
+                 Target->getTargetOpts().FeaturesAsWritten.end());
+    Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU, Feats);
   } else {
     FeatureMap = Target->getTargetOpts().FeatureMap;
   }

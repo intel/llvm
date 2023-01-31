@@ -83,4 +83,7 @@
 /* Whether to enable opaque pointers by default */
 #cmakedefine01 CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
 
+/* Whether to enable opaque pointers for SPIR-V by default */
+#cmakedefine01 SPIRV_ENABLE_OPAQUE_POINTERS
+
 #endif

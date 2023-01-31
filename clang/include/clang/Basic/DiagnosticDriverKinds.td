@@ -222,8 +222,6 @@ def warn_drv_missing_plugin_name : Warning<
 def warn_drv_missing_plugin_arg : Warning<
   "missing plugin argument for plugin %0 in %1">,
   InGroup<InvalidCommandLineArgument>;
-def err_drv_invalid_libcxx_deployment : Error<
-  "invalid deployment target for -stdlib=libc++ (requires %0 or later)">;
 def err_drv_invalid_argument_to_option : Error<
   "invalid argument '%0' to -%1">;
 def err_drv_missing_sanitizer_ignorelist : Error<
@@ -472,6 +470,9 @@ def warn_drv_deprecated_option : Warning<
 def warn_drv_deprecated_option_release : Warning<
   "option '%0' is deprecated and will be removed in a future release">,
   InGroup<Deprecated>;
+def warn_drv_deprecated_argument_option_release : Warning<
+  "argument '%0' for option '%1' is deprecated and will be removed in a "
+  "future release">, InGroup<Deprecated>;
 def warn_ignoring_verify_debuginfo_preserve_export : Warning<
   "ignoring -fverify-debuginfo-preserve-export=%0 because "
   "-fverify-debuginfo-preserve wasn't enabled">,

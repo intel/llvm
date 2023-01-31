@@ -13,6 +13,7 @@
 #include "Support.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -712,8 +713,8 @@ namespace {
 struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
   bool UsesLargeGRF = false;
-  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size
-  // and other properties
+  SmallVector<int, 3> ReqdWorkGroupSize;
+  // TODO: extend this further with reqd-sub-group-size and other properties
 
   UsedOptionalFeatures() = default;
 
@@ -734,17 +735,37 @@ struct UsedOptionalFeatures {
     if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF))
       UsesLargeGRF = true;
 
+    if (const MDNode *MDN = F->getMetadata("reqd_work_group_size")) {
+      size_t NumOperands = MDN->getNumOperands();
+      assert(NumOperands >= 1 && NumOperands <= 3 &&
+             "reqd_work_group_size does not have between 1 and 3 operands.");
+      ReqdWorkGroupSize.reserve(NumOperands);
+      for (const MDOperand &MDOp : MDN->operands())
+        ReqdWorkGroupSize.push_back(
+            mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+    }
+
     llvm::hash_code AspectsHash =
         llvm::hash_combine_range(Aspects.begin(), Aspects.end());
     llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
-    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash, LargeGRFHash));
+    llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
+        ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
+    Hash = static_cast<unsigned>(
+        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash));
   }
 
   std::string generateModuleName(StringRef BaseName) const {
-    if (Aspects.empty())
-      return BaseName.str() + "-no-aspects";
+    std::string Ret = BaseName.str();
+    if (!ReqdWorkGroupSize.empty()) {
+      Ret += "-reqd-wg-size";
+      for (int V : ReqdWorkGroupSize)
+        Ret += "-" + std::to_string(V);
+    }
 
-    std::string Ret = BaseName.str() + "-aspects";
+    if (Aspects.empty())
+      return Ret + "-no-aspects";
+
+    Ret += "-aspects";
     for (int A : Aspects) {
       Ret += "-" + std::to_string(A);
     }
