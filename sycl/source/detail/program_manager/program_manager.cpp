@@ -2271,6 +2271,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     // Drop 8 bytes describing the size of the byte array.
     ReqdSubGroupSize.dropBytes(8);
     int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
+    auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
     if (!std::any_of(SupportedSubGroupSizes.cbegin(),
                      SupportedSubGroupSizes.cend(),
                      [&ReqdSubGroupSizeVal](int i) {
