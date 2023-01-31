@@ -462,9 +462,12 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
-  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      DeviceMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      SharedMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      SharedReadOnlyMemAllocContexts;
 
   // Since L0 native runtime does not distinguisg "shared device_read_only"
   // vs regular "shared" allocations, we have keep track of it to use
