@@ -14,6 +14,8 @@ class U;
 class Foo;
 } // namespace std
 
+enum class test_enum : std::size_t { a, b };
+
 template <typename T>
 struct Templated_kernel_name;
 
@@ -65,6 +67,9 @@ int main() {
   });
   q.submit([&](handler &h) {
     h.single_task<std::ptrdiff_t>([=] {});
+  });
+  q.submit([&](handler &h) {
+    h.single_task<Templated_kernel_name<test_enum>>([=] {});
   });
 
   return 0;

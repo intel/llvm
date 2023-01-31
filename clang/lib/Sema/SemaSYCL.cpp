@@ -4776,7 +4776,7 @@ class SYCLFwdDeclEmitter
     D->print(OS, Policy);
 
     if (const auto *ED = dyn_cast<EnumDecl>(D)) {
-      QualType T = ED->getIntegerType();
+      QualType T = ED->getIntegerType().getCanonicalType();
       // Backup since getIntegerType() returns null for enum forward
       // declaration with no fixed underlying type
       if (T.isNull())
