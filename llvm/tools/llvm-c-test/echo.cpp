@@ -1385,9 +1385,6 @@ int llvm_echo(void) {
   size_t ModuleIdentLen;
   const char *ModuleName = LLVMGetModuleIdentifier(Src, &ModuleIdentLen);
   LLVMContextRef Ctx = LLVMContextCreate();
-  // FIXME: Delete once after the project is ready for opaque
-  // pointers. Original code assued that "default" value is "true".
-  LLVMContextSetOpaquePointers(Ctx, true);
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext(ModuleName, Ctx);
 
   LLVMSetSourceFileName(M, SourceFileName, SourceFileLen);
