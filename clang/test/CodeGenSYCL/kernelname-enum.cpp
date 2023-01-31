@@ -215,6 +215,8 @@ int main() {
 // NUL: enum class EnumValueIn : int;
 // NUL: template <EnumValueIn EnumValue, typename EnumTypeIn> class Baz;
 // NUL: template <typename EnumTypeOut, template <EnumValueIn EnumValue, typename EnumTypeIn> class T> class dummy_functor_8;
+// NUL: enum class TestStdEnum : unsigned long;
+// NUL: template <TestStdEnum value> class dummy_functor_9;
 
 // CHECK: Specializations of KernelInfo for kernel function types:
 // NUL: template <> struct KernelInfo<::dummy_functor_1<static_cast<::no_namespace_int>(0)>>
@@ -237,3 +239,5 @@ int main() {
 // CHECK: template <> struct KernelInfo<::T1<::T3<::type_argument_template_enum::E>>>
 // NUL: template <> struct KernelInfo<::dummy_functor_8<::EnumTypeOut, Baz>>
 // UL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '1', '5', 'd', 'u', 'm', 'm', 'y', '_', 'f', 'u', 'n', 'c', 't', 'o', 'r', '_', '8', 'I', '1', '1', 'E', 'n', 'u', 'm', 'T', 'y', 'p', 'e', 'O', 'u', 't', '3', 'B', 'a', 'z', 'E'>
+// NUL: template <> struct KernelInfo<::dummy_functor_9<static_cast<::TestStdEnum>(0)>> {
+// UL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '1', '5', 'd', 'u', 'm', 'm', 'y', '_', 'f', 'u', 'n', 'c', 't', 'o', 'r', '_', '9', 'I', 'L', '1', '1', 'T', 'e', 's', 't', 'S', 't', 'd', 'E', 'n', 'u', 'm', '0', 'E', 'E'>
