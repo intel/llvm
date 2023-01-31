@@ -116,10 +116,11 @@ struct SortByPropertyId {
 template <typename... Ts> struct Sorted {
   static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
                 "Unrecognized property in property list.");
-  using __MP11_NS = sycl::detail::boost::mp11;
-  using properties = __MP11_NS::mp_list<Ts...>;
-  using sortedProperties = __MP11_NS::mp_sort_q<properties, SortByPropertyId>;
-  using type = __MP11_NS::mp_rename<sortedProperties, std::tuple>;
+  using properties = sycl::detail::boost::mp11::mp_list<Ts...>;
+  using sortedProperties =
+      sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
+  using type =
+      sycl::detail::boost::mp11::mp_rename<sortedProperties, std::tuple>;
 };
 
 // Checks if the types in a tuple are sorted w.r.t. their PropertyID.
