@@ -100,6 +100,41 @@ Address ABIInfo::EmitMSVAArg(CodeGenFunction &CGF, Address VAListAddr,
   return Address::invalid();
 }
 
+static ABIArgInfo classifyOpenCL(QualType Ty, ASTContext &Context) {
+  if (Ty->isVoidType())
+    return ABIArgInfo::getIgnore();
+
+  if (const EnumType *EnumTy = Ty->getAs<EnumType>())
+    Ty = EnumTy->getDecl()->getIntegerType();
+
+  if (const RecordType *RT = Ty->getAs<RecordType>())
+    return ABIArgInfo::getIndirect(Context.getTypeAlignInChars(RT),
+                                   /*ByVal=*/false);
+
+  if (Context.isPromotableIntegerType(Ty))
+    return ABIArgInfo::getExtend(Ty);
+
+  return ABIArgInfo::getDirect();
+}
+
+static bool doOpenCLClassification(CGFunctionInfo &FI, ASTContext &Context) {
+  if (!Context.getLangOpts().OpenCL)
+    return false;
+  if (!Context.getLangOpts().OpenCLForceVectorABI)
+    return false;
+
+  // Use OpenCL classify to prevent coercing
+  // Vector ABI must be enforced by enabling the corresponding option
+  // Otherwise, vector types will be coerced to a matching integer
+  // type to conform with ABI, e.g.: <8 x i8> will be coerced to i64
+  FI.getReturnInfo() = classifyOpenCL(FI.getReturnType(), Context);
+
+  for (auto &Arg : FI.arguments())
+    Arg.info = classifyOpenCL(Arg.type, Context);
+
+  return true;
+}
+
 static llvm::Type *getVAListElementType(CodeGenFunction &CGF) {
   return CGF.ConvertTypeForMem(
       CGF.getContext().getBuiltinVaListType()->getPointeeType());
@@ -1984,6 +2019,10 @@ ABIArgInfo X86_32ABIInfo::classifyArgumentType(QualType Ty,
 }
 
 void X86_32ABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  ASTContext &Context = getContext();
+  if (doOpenCLClassification(FI, Context))
+    return;
+
   CCState State(FI);
   if (IsMCUABI)
     State.FreeRegs = 3;
@@ -3970,6 +4009,9 @@ X86_64ABIInfo::classifyRegCallStructType(QualType Ty, unsigned &NeededInt,
 }
 
 void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  ASTContext &Context = getContext();
+  if (doOpenCLClassification(FI, Context))
+    return;
 
   const unsigned CallingConv = FI.getCallingConvention();
   // It is possible to force Win64 calling convention on any x86_64 target by
@@ -4427,6 +4469,10 @@ ABIArgInfo WinX86_64ABIInfo::classify(QualType Ty, unsigned &FreeSSERegs,
 }
 
 void WinX86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  ASTContext &Context = getContext();
+  if (doOpenCLClassification(FI, Context))
+    return;
+
   const unsigned CC = FI.getCallingConvention();
   bool IsVectorCall = CC == llvm::CallingConv::X86_VectorCall;
   bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;
