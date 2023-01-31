@@ -304,6 +304,10 @@ protected:
       AccessMode == access::mode::discard_read_write;
 
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
+  static constexpr bool isConst = std::is_const<DataT>::value;
+  static_assert(
+      !isConst || IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
 
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
