@@ -218,10 +218,9 @@ mlir::sycl::VecType::verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
 }
 
 unsigned mlir::sycl::getDimensions(mlir::Type Type) {
-  if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>()) {
+  if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>())
     Type = MemRefTy.getElementType();
-  }
   return TypeSwitch<mlir::Type, unsigned>(Type)
-      .Case<AccessorType, ItemType, NdRangeType, GroupType, IDType, NdItemType,
+      .Case<AccessorType, GroupType, IDType, ItemType, NdItemType, NdRangeType,
             RangeType>([](auto Ty) { return Ty.getDimension(); });
 }
