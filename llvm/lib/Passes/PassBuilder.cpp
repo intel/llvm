@@ -1242,8 +1242,8 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
 #define MODULE_ANALYSIS(NAME, CREATE_PASS)                                     \
   if (Name == "require<" NAME ">") {                                           \
     MPM.addPass(                                                               \
-        RequireAnalysisPass<std::remove_reference_t<decltype(CREATE_PASS)>,    \
-                            Module>());                                        \
+        RequireAnalysisPass<                                                   \
+            std::remove_reference_t<decltype(CREATE_PASS)>, Module>());        \
     return Error::success();                                                   \
   }                                                                            \
   if (Name == "invalidate<" NAME ">") {                                        \
@@ -1376,10 +1376,10 @@ Error PassBuilder::parseCGSCCPass(CGSCCPassManager &CGPM,
   }
 #define CGSCC_ANALYSIS(NAME, CREATE_PASS)                                      \
   if (Name == "require<" NAME ">") {                                           \
-    CGPM.addPass(                                                              \
-        RequireAnalysisPass<std::remove_reference_t<decltype(CREATE_PASS)>,    \
-                            LazyCallGraph::SCC, CGSCCAnalysisManager,          \
-                            LazyCallGraph &, CGSCCUpdateResult &>());          \
+    CGPM.addPass(RequireAnalysisPass<                                          \
+                 std::remove_reference_t<decltype(CREATE_PASS)>,               \
+                 LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,    \
+                 CGSCCUpdateResult &>());                                      \
     return Error::success();                                                   \
   }                                                                            \
   if (Name == "invalidate<" NAME ">") {                                        \
@@ -1498,8 +1498,8 @@ Error PassBuilder::parseFunctionPass(FunctionPassManager &FPM,
 #define FUNCTION_ANALYSIS(NAME, CREATE_PASS)                                   \
   if (Name == "require<" NAME ">") {                                           \
     FPM.addPass(                                                               \
-        RequireAnalysisPass<std::remove_reference_t<decltype(CREATE_PASS)>,    \
-                            Function>());                                      \
+        RequireAnalysisPass<                                                   \
+            std::remove_reference_t<decltype(CREATE_PASS)>, Function>());      \
     return Error::success();                                                   \
   }                                                                            \
   if (Name == "invalidate<" NAME ">") {                                        \
@@ -1594,10 +1594,10 @@ Error PassBuilder::parseLoopPass(LoopPassManager &LPM,
   }
 #define LOOP_ANALYSIS(NAME, CREATE_PASS)                                       \
   if (Name == "require<" NAME ">") {                                           \
-    LPM.addPass(                                                               \
-        RequireAnalysisPass<std::remove_reference_t<decltype(CREATE_PASS)>,    \
-                            Loop, LoopAnalysisManager,                         \
-                            LoopStandardAnalysisResults &, LPMUpdater &>());   \
+    LPM.addPass(RequireAnalysisPass<                                           \
+                std::remove_reference_t<decltype(CREATE_PASS)>, Loop,          \
+                LoopAnalysisManager, LoopStandardAnalysisResults &,            \
+                LPMUpdater &>());                                              \
     return Error::success();                                                   \
   }                                                                            \
   if (Name == "invalidate<" NAME ">") {                                        \
@@ -1708,14 +1708,12 @@ Error PassBuilder::parsePassPipeline(ModulePassManager &MPM,
       Pipeline = {{"function", std::move(*Pipeline)}};
     } else if (isLoopNestPassName(FirstName, LoopPipelineParsingCallbacks,
                                   UseMemorySSA)) {
-      Pipeline = {
-          {"function",
-           {{UseMemorySSA ? "loop-mssa" : "loop", std::move(*Pipeline)}}}};
+      Pipeline = {{"function", {{UseMemorySSA ? "loop-mssa" : "loop",
+                                 std::move(*Pipeline)}}}};
     } else if (isLoopPassName(FirstName, LoopPipelineParsingCallbacks,
                               UseMemorySSA)) {
-      Pipeline = {
-          {"function",
-           {{UseMemorySSA ? "loop-mssa" : "loop", std::move(*Pipeline)}}}};
+      Pipeline = {{"function", {{UseMemorySSA ? "loop-mssa" : "loop",
+                                 std::move(*Pipeline)}}}};
     } else {
       for (auto &C : TopLevelPipelineParsingCallbacks)
         if (C(MPM, *Pipeline))
