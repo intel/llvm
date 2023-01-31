@@ -2591,8 +2591,6 @@ urMemFree(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
-///         + `NULL == pPropValue`
-///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -2605,8 +2603,8 @@ urMemGetMemAllocInfo(
     const void* pMem,                               ///< [in] pointer to USM memory object
     ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
-    void* pPropValue,                               ///< [out] value of the USM allocation property
-    size_t* pPropValueSizeRet                       ///< [out] bytes returned in USM allocation property
+    void* pPropValue,                               ///< [out][optional] value of the USM allocation property
+    size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
     )
 {
     auto pfnGetMemAllocInfo = ur_lib::context->urDdiTable.Mem.pfnGetMemAllocInfo;
