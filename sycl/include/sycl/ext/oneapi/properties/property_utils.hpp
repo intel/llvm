@@ -10,8 +10,12 @@
 
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/detail/boost/mp11.hpp>
 
 #include <tuple>
+
+// Using mp11 to sort property lists.
+namespace __MP11_NS = sycl::detail::boost::mp11;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -187,12 +191,17 @@ template <typename T, typename... Ts> struct MergeAll<std::tuple<T, Ts...>> {
   using type = typename MergeAll<reduced>::type;
 };
 
-// Performs merge-sort on types with PropertyID.
+// Sort types accoring to their PropertyID.
+struct SortByPropertyId {
+  template<typename T, typename U> using fn =
+      __MP11_NS::mp_bool<PropertyID<T>::value < PropertyID<U>::value>;
+};
 template <typename... Ts> struct Sorted {
   static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
                 "Unrecognized property in property list.");
-  using split = typename CreateTuplePairs<Ts...>::type;
-  using type = typename MergeAll<split>::type;
+  using properties = __MP11_NS::mp_list<Ts...>;
+  using sortedProperties = __MP11_NS::mp_sort_q<properties, SortByPropertyId>;
+  using type = __MP11_NS::mp_rename<sortedProperties, std::tuple>;
 };
 
 // Checks if the types in a tuple are sorted w.r.t. their PropertyID.
