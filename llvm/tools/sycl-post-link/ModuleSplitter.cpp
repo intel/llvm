@@ -714,7 +714,8 @@ struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
   bool UsesLargeGRF = false;
   SmallVector<int, 3> ReqdWorkGroupSize;
-  // TODO: extend this further with reqd-sub-group-size and other properties
+  int ReqdSubGroupSize = 0;
+  // TODO: extend this further with other properties
 
   UsedOptionalFeatures() = default;
 
@@ -745,13 +746,24 @@ struct UsedOptionalFeatures {
             mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
     }
 
+    if (const MDNode *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
+      size_t NumOperands = MDN->getNumOperands();
+      assert(NumOperands == 1 &&
+             "reqd_sub_group_size does not have 1 operand.");
+      ReqdSubGroupSize =
+          mdconst::extract<ConstantInt>(*(MDN->operands().begin()))
+              ->getZExtValue();
+    }
+
     llvm::hash_code AspectsHash =
         llvm::hash_combine_range(Aspects.begin(), Aspects.end());
     llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
     llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
         ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
-    Hash = static_cast<unsigned>(
-        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash));
+    llvm::hash_code ReqdSubGroupSizeHash = llvm::hash_value(ReqdSubGroupSize);
+    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash, LargeGRFHash,
+                                                    ReqdWorkGroupSizeHash,
+                                                    ReqdSubGroupSizeHash));
   }
 
   std::string generateModuleName(StringRef BaseName) const {
@@ -760,6 +772,11 @@ struct UsedOptionalFeatures {
       Ret += "-reqd-wg-size";
       for (int V : ReqdWorkGroupSize)
         Ret += "-" + std::to_string(V);
+    }
+
+    if (ReqdSubGroupSize != 0) {
+      Ret += "-reqd-sub-group-size";
+      Ret += "-" + std::to_string(ReqdSubGroupSize);
     }
 
     if (Aspects.empty())

@@ -6,17 +6,17 @@
 ;   q.submit([&](sycl::handler &h) {
 ;       h.parallel_for<class KernelA>(
 ;           sycl::range<1>(32),
-;           [=](sycl::item<1> it) [[sycl::reqd_work_group_size(32)]] {});
+;           [=](sycl::item<1> it) [[sycl::reqd_sub_group_size(16)]] {});
 ;     });
 ;   q.submit([&](sycl::handler &h) {
 ;       h.parallel_for<class KernelB>(
 ;           sycl::range<1>(32),
-;           [=](sycl::item<1> it) [[sycl::reqd_work_group_size(64)]] {});
+;           [=](sycl::item<1> it) [[sycl::reqd_sub_group_size(32)]] {});
 ;     });
 ;   q.submit([&](sycl::handler &h) {
 ;       h.parallel_for<class KernelC>(
 ;           sycl::range<1>(32),
-;           [=](sycl::item<1> it) [[sycl::reqd_work_group_size(32)]] {});
+;           [=](sycl::item<1> it) [[sycl::reqd_sub_group_size(16)]] {});
 ;     });
 ;   return 0;
 ; }
@@ -26,12 +26,12 @@
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefix CHECK-PROP-AUTO-SPLIT-1
 
 ; CHECK-PROP-AUTO-SPLIT-0: [SYCL/device requirements]
-; CHECK-PROP-AUTO-SPLIT-0: reqd_work_group_size=2|gAAAAAAAAAAQAAAA
+; CHECK-PROP-AUTO-SPLIT-0: reqd_sub_group_size=2|gAAAAAAAAAAEAAAA
 
 ; CHECK-PROP-AUTO-SPLIT-1: [SYCL/device requirements]
-; CHECK-PROP-AUTO-SPLIT-1: reqd_work_group_size=2|gAAAAAAAAAAIAAAA
+; CHECK-PROP-AUTO-SPLIT-1: reqd_sub_group_size=2|gAAAAAAAAAAIAAAA
 
-; ModuleID = '/tmp/source-5f7d0d.bc'
+; ModuleID = '/tmp/source-706237.bc'
 source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -51,7 +51,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC = comdat any
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E7KernelAEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E7KernelAEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !intel_reqd_sub_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !51
   %1 = extractelement <3 x i64> %0, i64 0
@@ -64,13 +64,13 @@ entry:
 declare void @llvm.assume(i1 noundef) #1
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !60 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !60 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE0_clES4_E7KernelBEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE0_clES4_E7KernelBEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !intel_reqd_sub_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !62
   %1 = extractelement <3 x i64> %0, i64 0
@@ -80,13 +80,13 @@ entry:
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !71 !kernel_arg_buffer_location !49 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !71 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE1_clES4_E7KernelCEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE1_clES4_E7KernelCEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !intel_reqd_sub_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !72
   %1 = extractelement <3 x i64> %0, i64 0
@@ -96,12 +96,12 @@ entry:
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !81 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !81 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
-attributes #0 = { norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="source.cpp" "uniform-work-group-size"="true" }
+attributes #0 = { norecurse "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="source.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
 
 !opencl.spir.version = !{!0}
@@ -156,9 +156,9 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !43 = !{!"clang version 16.0.0"}
 !44 = !{i32 1, !"wchar_size", i32 4}
 !45 = !{i32 7, !"frame-pointer", i32 2}
-!46 = !{i32 8347054}
+!46 = !{i32 8347768}
 !47 = !{i32 -1, i32 -1}
-!48 = !{i32 32}
+!48 = !{i32 16}
 !49 = !{}
 !50 = !{i1 true, i1 true}
 !51 = !{!52, !54, !56, !58}
@@ -171,7 +171,7 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !58 = distinct !{!58, !59, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE: %agg.result"}
 !59 = distinct !{!59, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE"}
 !60 = !{i32 170}
-!61 = !{i32 64}
+!61 = !{i32 32}
 !62 = !{!63, !65, !67, !69}
 !63 = distinct !{!63, !64, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv: %agg.result"}
 !64 = distinct !{!64, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv"}
@@ -181,7 +181,7 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !68 = distinct !{!68, !"_ZN4sycl3_V16detail7Builder7getItemILi1ELb1EEENSt9enable_ifIXT0_EKNS0_4itemIXT_EXT0_EEEE4typeEv"}
 !69 = distinct !{!69, !70, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE: %agg.result"}
 !70 = distinct !{!70, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE"}
-!71 = !{i32 352}
+!71 = !{i32 351}
 !72 = !{!73, !75, !77, !79}
 !73 = distinct !{!73, !74, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv: %agg.result"}
 !74 = distinct !{!74, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv"}
@@ -191,4 +191,4 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !78 = distinct !{!78, !"_ZN4sycl3_V16detail7Builder7getItemILi1ELb1EEENSt9enable_ifIXT0_EKNS0_4itemIXT_EXT0_EEEE4typeEv"}
 !79 = distinct !{!79, !80, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE: %agg.result"}
 !80 = distinct !{!80, !"_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE"}
-!81 = !{i32 534}
+!81 = !{i32 532}

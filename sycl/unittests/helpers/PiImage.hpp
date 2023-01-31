@@ -505,13 +505,30 @@ inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
   return {"reqd_work_group_size", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
 }
 
+inline PiProperty makeReqdSubGroupSizeProp(const int &ReqdSubGroupSize) {
+  const size_t BYTES_FOR_SIZE = 8;
+  std::vector<int> ReqdSubGroupSizeVec = {ReqdSubGroupSize};
+  std::vector<char> ValData(BYTES_FOR_SIZE + sizeof(int));
+  uint64_t ValDataSize = ValData.size();
+  std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
+                          ValData.data());
+  auto *ReqdSubGroupSizePtr =
+      reinterpret_cast<const unsigned char *>(&ReqdSubGroupSizeVec[0]);
+  std::uninitialized_copy(ReqdSubGroupSizePtr,
+                          ReqdSubGroupSizePtr + sizeof(int),
+                          ValData.data() + BYTES_FOR_SIZE);
+  return {"reqd_sub_group_size", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+}
+
 inline void
 addDeviceRequirementsProps(PiPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
-                           const std::vector<int> &ReqdWGSize = {}) {
+                           const std::vector<int> &ReqdWGSize = {}, const int& ReqdSubGroupSize = 0) {
   PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
+  if (ReqdSubGroupSize != 0)
+    Value.push_back(makeReqdSubGroupSizeProp(ReqdSubGroupSize));
   Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                std::move(Value));
 }

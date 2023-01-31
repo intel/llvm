@@ -10,6 +10,7 @@ class TestKernelCPUInvalidReqdWGSize1D;
 class TestKernelCPUInvalidReqdWGSize2D;
 class TestKernelCPUInvalidReqdWGSize3D;
 class TestKernelCPUValidReqdWGSize3D;
+class TestKernelCPUInvalidReqSubGroupSize;
 class TestKernelGPU;
 class TestKernelACC;
 
@@ -69,13 +70,6 @@ template <> struct KernelInfo<TestKernelCPUInvalidReqdWGSize2D> {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
 template <> struct KernelInfo<TestKernelCPUInvalidReqdWGSize3D> {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int) {
@@ -91,13 +85,6 @@ template <> struct KernelInfo<TestKernelCPUInvalidReqdWGSize3D> {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
 template <> struct KernelInfo<TestKernelCPUValidReqdWGSize3D> {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int) {
@@ -113,13 +100,21 @@ template <> struct KernelInfo<TestKernelCPUValidReqdWGSize3D> {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
+template <> struct KernelInfo<TestKernelCPUInvalidReqSubGroupSize> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() {
+    return "TestKernelCPUInvalidReqSubGroupSize";
+  }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
+};
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
 template <> struct KernelInfo<TestKernelGPU> {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int) {
@@ -133,13 +128,6 @@ template <> struct KernelInfo<TestKernelGPU> {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
 template <> struct KernelInfo<TestKernelACC> {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int) {
@@ -159,11 +147,13 @@ template <> struct KernelInfo<TestKernelACC> {
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
+                     const std::vector<sycl::aspect> &Aspects,
+                     const std::vector<int> &ReqdWGSize = {},
+                     const int &ReqdSubGroupSize = 0) {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
-  addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
+  addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize, ReqdSubGroupSize);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
@@ -180,10 +170,10 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[7] = {
+static sycl::unittest::PiImage Imgs[8] = {
     // Images for validating checks based on max_work_group_size + aspects
-    generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu},
-                         {32}), // 32 <= 256 (OK)
+    generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu}, {32},
+                         16), // 32 <= 256 (OK), 16 is in {8, 16, 32}}
     generateDefaultImage({"TestKernelCPUInvalidReqdWGSize1D"},
                          {sycl::aspect::cpu}, {257}), // 257 > 256 (FAIL)
     generateDefaultImage({"TestKernelCPUInvalidReqdWGSize2D"},
@@ -195,11 +185,14 @@ static sycl::unittest::PiImage Imgs[7] = {
     generateDefaultImage(
         {"TestKernelCPUValidReqdWGSize3D"}, {sycl::aspect::cpu},
         {2, 4, 5}), // 2 <= 254 (OK), 4 <= 255 (OK), 5 <= 256 (OK)
+    generateDefaultImage({"TestKernelCPUInvalidReqSubGroupSize"},
+                         {sycl::aspect::cpu}, {32},
+                         256), // 256 is NOT in {8, 16, 32} (FAIL)
     // Images for validating checks for aspects
     generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu}),
     generateDefaultImage({"TestKernelACC"}, {sycl::aspect::accelerator})};
 
-static sycl::unittest::PiImageArray<7> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<8> ImgArray{Imgs};
 
 static pi_result redefinedDeviceGetInfoCPU(pi_device device,
                                            pi_device_info param_name,
@@ -217,6 +210,17 @@ static pi_result redefinedDeviceGetInfoCPU(pi_device device,
   if (param_name == PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES) {
     auto *Result = static_cast<size_t *>(param_value);
     *Result = 256;
+  }
+  if (param_name == PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 3 * sizeof(size_t);
+    }
+    if (param_value) {
+      auto *Result = static_cast<size_t *>(param_value);
+      Result[0] = 8;
+      Result[1] = 16;
+      Result[2] = 32;
+    }
   }
   return PI_SUCCESS;
 }
@@ -320,6 +324,16 @@ TEST(IsCompatible, CPUValidReqdWGSize3D) {
   const sycl::device Dev = Plt.get_devices()[0];
 
   EXPECT_TRUE(sycl::is_compatible<TestKernelCPUValidReqdWGSize3D>(Dev));
+}
+
+TEST(IsCompatible, CPUInvalidReqSubGroupSize) {
+  sycl::unittest::PiMock Mock;
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoCPU);
+  sycl::platform Plt = Mock.getPlatform();
+  const sycl::device Dev = Plt.get_devices()[0];
+
+  EXPECT_FALSE(sycl::is_compatible<TestKernelCPUInvalidReqSubGroupSize>(Dev));
 }
 
 TEST(IsCompatible, GPU) {

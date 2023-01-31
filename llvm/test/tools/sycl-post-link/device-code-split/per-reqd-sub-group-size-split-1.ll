@@ -1,53 +1,53 @@
 ; This test emulates two translation units with 3 kernels:
-; TU0_kernel0 - 1st translation unit, no aspects used
-; TU0_kernel1 - 1st translation unit, aspect 1 is used
-; TU1_kernel2 - 2nd translation unit, no aspects used
+; TU0_kernel0 - 1st translation unit, no reqd_sub_group_size attribute used
+; TU0_kernel1 - 1st translation unit, reqd_sub_group_size attribute is used
+; TU1_kernel2 - 2nd translation unit, no reqd_sub_group_size attribute used
 
 ; The test is intended to check that sycl-post-link correctly separates kernels
-; that use aspects from kernels which doesn't use aspects regardless of device
-; code split mode
+; that use reqd_sub_group_size attributes from kernels which doesn't use them
+; regardless of device code split mode
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-M0-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M1-IR \
+; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M2-IR \
 ; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
-; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M1-IR \
-; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
-; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M1-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
+; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 
 ; RUN: sycl-post-link -split=source -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-M0-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M2-IR \
-; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M1-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M2-IR \
+; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
-; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M1-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
+; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 
 ; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-M0-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M1-IR \
-; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
+; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M2-IR \
-; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
+; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M1-SYMS \
-; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
+; RUN: --implicit-check-not kernel0 --implicit-check-not kernel2
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M2-SYMS \
-; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
+; RUN: --implicit-check-not kernel1 --implicit-check-not kernel2
 
 ; Regardless of device code split mode, each kernel should go into a separate
 ; device image
@@ -92,7 +92,7 @@ entry:
   ret i32 %0
 }
 
-define dso_local spir_kernel void @TU0_kernel1() #0 !sycl_used_aspects !2 {
+define dso_local spir_kernel void @TU0_kernel1() #0 !intel_reqd_sub_group_size !2 {
 entry:
   call spir_func void @foo1()
   ret void
@@ -130,4 +130,4 @@ attributes #1 = { "sycl-module-id"="TU2.cpp" }
 
 !0 = !{i32 1, i32 2}
 !1 = !{i32 4, i32 100000}
-!2 = !{i32 1}
+!2 = !{i32 32}

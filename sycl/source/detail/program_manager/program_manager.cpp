@@ -2197,8 +2197,9 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 
   auto AspectsPropIt = getPropIt("aspects");
   auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
+  auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
-  if (!AspectsPropIt && !ReqdWGSizePropIt)
+  if (!AspectsPropIt && !ReqdWGSizePropIt && !ReqdSubGroupSizePropIt)
     return true;
 
   // Checking if device supports defined aspects
@@ -2260,6 +2261,22 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
         if (static_cast<size_t>(ReqdWGSizeVec[i]) >
             std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
           return false;
+    }
+  }
+
+  // Checking if device supports defined required sub-group size
+  if (ReqdSubGroupSizePropIt) {
+    ByteArray ReqdSubGroupSize =
+        DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    ReqdSubGroupSize.dropBytes(8);
+    int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
+    if (!std::any_of(SupportedSubGroupSizes.cbegin(),
+                     SupportedSubGroupSizes.cend(),
+                     [&ReqdSubGroupSizeVal](int i) {
+                       return i == ReqdSubGroupSizeVal;
+                     })) {
+      return false;
     }
   }
   return true;

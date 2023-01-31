@@ -32,7 +32,8 @@ void llvm::getSYCLDeviceRequirements(
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
       {"sycl_used_aspects", "aspects"},
       {"sycl_fixed_targets", "fixed_target"},
-      {"reqd_work_group_size", "reqd_work_group_size"}};
+      {"reqd_work_group_size", "reqd_work_group_size"},
+      {"intel_reqd_sub_group_size", "reqd_sub_group_size"}};
 
   for (const auto &MD : ReqdMDs) {
     std::set<uint32_t> Values;
