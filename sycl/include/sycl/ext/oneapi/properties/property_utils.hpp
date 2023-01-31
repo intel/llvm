@@ -16,7 +16,6 @@
 
 // Using mp11 to sort property lists.
 namespace __MP11_NS = sycl::detail::boost::mp11;
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
