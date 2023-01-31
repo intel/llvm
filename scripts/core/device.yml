@@ -236,7 +236,7 @@ etors:
     - name: PARTITION_AFFINITY_DOMAIN
       desc: "uint32_t: return a bit-field of affinity domain $x_device_affinity_domain_flags_t"
     - name: PARTITION_TYPE
-      desc: "uint32_t: return a bit-field of $x_device_partition_property_flags_t for properties specified in $xDevicePartition"
+      desc: "$x_device_partition_property_t[]: return a list of $x_device_partition_property_t for properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
       desc: "uint32_t: max number of sub groups"
     - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS

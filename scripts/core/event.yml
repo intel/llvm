@@ -57,8 +57,8 @@ etors:
       desc: Event created by $xEnqueueUSMMemcpy
     - name: USM_PREFETCH
       desc: Event created by $xEnqueueUSMPrefetch
-    - name: USM_MEM_ADVICE
-      desc: Event created by $xEnqueueUSMMemAdvice
+    - name: USM_MEM_ADVISE
+      desc: Event created by $xEnqueueUSMMemAdvise
     - name: USM_FILL_2D
       desc: Event created by $xEnqueueUSMFill2D
     - name: USM_MEMSET_2D

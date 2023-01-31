@@ -317,7 +317,7 @@ class ur_command_v(IntEnum):
     USM_MEMSET = 17                                 ## Event created by ::urEnqueueUSMMemset
     USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
     USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
-    USM_MEM_ADVICE = 20                             ## Event created by ::urEnqueueUSMMemAdvice
+    USM_MEM_ADVISE = 20                             ## Event created by ::urEnqueueUSMMemAdvise
     USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
     USM_MEMSET_2D = 22                              ## Event created by ::urEnqueueUSMMemset2D
     USM_MEMCPY_2D = 23                              ## Event created by ::urEnqueueUSMMemcpy2D
@@ -777,8 +777,9 @@ class ur_device_info_v(IntEnum):
     PARTITION_MAX_SUB_DEVICES = 77                  ## uint32_t: maximum number of sub-devices when the device is partitioned
     PARTITION_AFFINITY_DOMAIN = 78                  ## uint32_t: return a bit-field of affinity domain
                                                     ## ::ur_device_affinity_domain_flags_t
-    PARTITION_TYPE = 79                             ## uint32_t: return a bit-field of ::ur_device_partition_property_flags_t
-                                                    ## for properties specified in ::urDevicePartition
+    PARTITION_TYPE = 79                             ## ::ur_device_partition_property_t[]: return a list of
+                                                    ## ::ur_device_partition_property_t for properties specified in
+                                                    ## ::urDevicePartition
     MAX_NUM_SUB_GROUPS = 80                         ## uint32_t: max number of sub groups
     SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## bool: support sub group independent forward progress
     SUB_GROUP_SIZES_INTEL = 82                      ## uint32_t[]: return an array of sub group sizes supported on Intel
