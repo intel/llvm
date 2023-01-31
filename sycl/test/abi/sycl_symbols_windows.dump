@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -359,8 +359,10 @@
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHHH_NAEBVproperty_list@23@@Z
+??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_NH4AEBVproperty_list@23@@Z
 ??0AccessorImplHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0AccessorImplHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHHH_NAEBVproperty_list@23@@Z
+??0AccessorImplHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_NH4AEBVproperty_list@23@@Z
 ??0HostProfilingInfo@detail@_V1@sycl@@QEAA@XZ
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VLocalAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
@@ -1038,6 +1040,7 @@
 ?isInterop@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isOutOfRange@detail@_V1@sycl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@_V1@sycl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?isPlaceholder@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
 ?isStateExplicitKernelBundle@handler@_V1@sycl@@AEBA_NXZ
 ?isValidModeForDestinationAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
