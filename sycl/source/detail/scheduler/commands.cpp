@@ -2106,12 +2106,7 @@ pi_int32 enqueueImpKernel(
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
   RT::PiKernel Kernel = nullptr;
-  // Cacheable kernels use per-kernel mutexes that will be fetched from the
-  // cache, others (e.g. interoperability kernels) share a single mutex.
-  // TODO consider adding a PiKernel -> mutex map for allowing to enqueue
-  // different PiKernel's in parallel.
-  static std::mutex NoncacheableEnqueueMutex;
-  std::mutex *KernelMutex = &NoncacheableEnqueueMutex;
+  std::mutex *KernelMutex = nullptr;
   RT::PiProgram Program = nullptr;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
@@ -2152,6 +2147,14 @@ pi_int32 enqueueImpKernel(
               OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
               SyclProg.get());
       assert(FoundKernel == Kernel);
+    } else {
+      // Non-cacheable kernels use mutexes from kernel_impls.
+      // TODO this can still result in a race condition if multiple SYCL
+      // kernels are created with the same native handle. To address this,
+      // we need to either store and use a pi_native_handle -> mutex map or
+      // reuse and return existing SYCL kernels from make_native to avoid
+      // their duplication in such cases.
+      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     }
   } else {
     std::tie(Kernel, KernelMutex, Program) =
