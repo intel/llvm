@@ -468,7 +468,7 @@ module polymorphic_test
   end subroutine
 
 ! CHECK-LABEL: func.func @_QMpolymorphic_testFhost_assocPinternal(
-! CHECK-SAME: %[[TUPLE:.*]]: !fir.ref<tuple<!fir.class<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>> {fir.host_assoc}) {
+! CHECK-SAME: %[[TUPLE:.*]]: !fir.ref<tuple<!fir.class<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>> {fir.host_assoc}) attributes {fir.internal_proc} {
 ! CHECK: %[[POS_IN_TUPLE:.*]] = arith.constant 0 : i32
 ! CHECK: %[[COORD_OF_CLASS:.*]] = fir.coordinate_of %[[TUPLE]], %[[POS_IN_TUPLE]] : (!fir.ref<tuple<!fir.class<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>, i32) -> !fir.ref<!fir.class<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>
 ! CHECK: %[[CLASS:.*]] = fir.load %[[COORD_OF_CLASS]] : !fir.ref<!fir.class<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>
@@ -721,6 +721,22 @@ module polymorphic_test
 ! CHECK: %[[LOAD_P:.*]] = fir.load %[[P]] : !fir.ref<!fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>
 ! CHECK: %[[BOX_NONE:.*]] = fir.convert %[[LOAD_P]] : (!fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>) -> !fir.box<none>
 ! CHECK: %{{.*}} = fir.call @_FortranAioInputDescriptor(%{{.*}}, %[[BOX_NONE]]) {{.*}} : (!fir.ref<i8>, !fir.box<none>) -> i1
+
+  function unlimited_polymorphic_alloc_array_ret()
+    class(*), allocatable :: unlimited_polymorphic_alloc_array_ret(:)
+  end function
+
+  subroutine test_unlimited_polymorphic_alloc_array_ret()
+    select type (a => unlimited_polymorphic_alloc_array_ret())
+      type is (real)
+        print*, 'type is real' 
+    end select
+  end subroutine
+
+! CHECK-LABEL: func.func @_QMpolymorphic_testPtest_unlimited_polymorphic_alloc_array_ret() {
+! CHECK: %[[RES_TMP:.*]] = fir.alloca !fir.class<!fir.heap<!fir.array<?xnone>>> {bindc_name = ".result"}
+! CHECK: %[[RES:.*]] = fir.call @_QMpolymorphic_testPunlimited_polymorphic_alloc_array_ret() fastmath<contract> : () -> !fir.class<!fir.heap<!fir.array<?xnone>>>
+! CHECK: fir.save_result %[[RES]] to %[[RES_TMP]] : !fir.class<!fir.heap<!fir.array<?xnone>>>, !fir.ref<!fir.class<!fir.heap<!fir.array<?xnone>>>>
 
 end module
 

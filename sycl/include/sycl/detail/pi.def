@@ -147,4 +147,9 @@ _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
 
 _PI_API(piGetDeviceAndHostTimer)
+
+// Device global variable
+_PI_API(piextEnqueueDeviceGlobalVariableWrite)
+_PI_API(piextEnqueueDeviceGlobalVariableRead)
+
 #undef _PI_API

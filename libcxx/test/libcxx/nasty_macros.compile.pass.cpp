@@ -59,6 +59,11 @@
 # undef _M
 #endif
 
+// Test that libc++ doesn't use names that collide with FreeBSD system macros.
+#ifndef __FreeBSD__
+#  define __null_sentinel NASTY_MACRO
+#endif
+
 // tchar.h defines these macros on Windows
 #ifndef _WIN32
 # define _UI   NASTY_MACRO
@@ -212,6 +217,7 @@ END-SCRIPT
 #include <errno.h>
 #include <exception>
 #include <execution>
+#include <expected>
 #include <fenv.h>
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #   include <filesystem>

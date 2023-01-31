@@ -37,6 +37,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <variant>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -360,6 +361,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
     NativePrograms[Res] = &Img;
   }
 
+  Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
+
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
@@ -388,7 +391,9 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
-                                          const RTDeviceBinaryImage &Img) {
+                                          const RTDeviceBinaryImage &Img,
+                                          const std::vector<device> &Devs,
+                                          const detail::plugin &Plugin) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -426,12 +431,25 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
+  if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
+       Plugin.getBackend() == backend::opencl) &&
+      std::all_of(Devs.begin(), Devs.end(),
+                  [](const device &Dev) { return Dev.is_gpu(); }) &&
+      Img.getDeviceGlobals().size() != 0) {
+    // If the image has device globals we need to add the
+    // -ze-take-global-address option to tell IGC to record addresses of these.
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-ze-take-global-address";
+  }
 }
 
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
-                                  const RTDeviceBinaryImage &Img) {
-  appendCompileOptionsFromImage(CompileOpts, Img);
+                                  const RTDeviceBinaryImage &Img,
+                                  const std::vector<device> &Devices,
+                                  const detail::plugin &Plugin) {
+  appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
@@ -597,9 +615,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
                  &LinkOpts, SpecConsts] {
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img);
-
     const detail::plugin &Plugin = ContextImpl->getPlugin();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
+
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
@@ -635,6 +653,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), {Device}, &Img);
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
@@ -1618,6 +1638,32 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   return BinImages;
 }
 
+DeviceGlobalMapEntry *
+ProgramManager::getDeviceGlobalEntry(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  auto Entry = m_Ptr2DeviceGlobal.find(DeviceGlobalPtr);
+  assert(Entry != m_Ptr2DeviceGlobal.end() && "Device global entry not found");
+  return Entry->second;
+}
+
+std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
+    const std::vector<std::string> &UniqueIds,
+    bool ExcludeDeviceImageScopeDecorated) {
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  FoundEntries.reserve(UniqueIds.size());
+
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  for (const std::string &UniqueId : UniqueIds) {
+    auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
+    assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
+           "Device global not found in map.");
+    if (!ExcludeDeviceImageScopeDecorated ||
+        !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
+      FoundEntries.push_back(DeviceGlobalEntry->second.get());
+  }
+  return FoundEntries;
+}
+
 std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
@@ -1666,7 +1712,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     for (const sycl::device &Dev : Devs) {
       if (!compatibleWithDevice(BinImage, Dev) ||
-          !doesDevSupportImgAspects(Dev, *BinImage))
+          !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -1845,8 +1891,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
   applyCompileOptionsFromEnvironment(CompileOptions);
-  appendCompileOptionsFromImage(CompileOptions,
-                                *(InputImpl->get_bin_image_ref()));
+  appendCompileOptionsFromImage(
+      CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(), CompileOptions.c_str(),
@@ -1968,9 +2014,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // TODO: Unify this code with getBuiltPIProgram
   auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img);
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2030,6 +2076,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
@@ -2131,25 +2179,88 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
                         &(BuildResult->MBuildResultMutex));
 }
 
-bool doesDevSupportImgAspects(const device &Dev,
-                              const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &PropRange =
-      Img.getDeviceRequirements();
-  RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
-      PropRange.begin(), PropRange.end(),
-      [](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
-        using namespace std::literals;
-        return (*Prop)->Name == "aspects"sv;
-      });
-  if (PropIt == PropRange.end())
+bool doesDevSupportDeviceRequirements(const device &Dev,
+                                      const RTDeviceBinaryImage &Img) {
+  auto getPropIt = [&Img](const std::string &PropName) {
+    const RTDeviceBinaryImage::PropertyRange &PropRange =
+        Img.getDeviceRequirements();
+    RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
+        PropRange.begin(), PropRange.end(),
+        [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+          return (*Prop)->Name == PropName;
+        });
+    return (PropIt == PropRange.end())
+               ? std::nullopt
+               : std::optional<
+                     RTDeviceBinaryImage::PropertyRange::ConstIterator>{PropIt};
+  };
+
+  auto AspectsPropIt = getPropIt("aspects");
+  auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
+
+  if (!AspectsPropIt && !ReqdWGSizePropIt)
     return true;
-  ByteArray Aspects = DeviceBinaryProperty(*PropIt).asByteArray();
-  // Drop 8 bytes describing the size of the byte array.
-  Aspects.dropBytes(8);
-  while (!Aspects.empty()) {
-    aspect Aspect = Aspects.consume<aspect>();
-    if (!Dev.has(Aspect))
+
+  // Checking if device supports defined aspects
+  if (AspectsPropIt) {
+    ByteArray Aspects =
+        DeviceBinaryProperty(*(AspectsPropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    Aspects.dropBytes(8);
+    while (!Aspects.empty()) {
+      aspect Aspect = Aspects.consume<aspect>();
+      if (!Dev.has(Aspect))
+        return false;
+    }
+  }
+
+  // Checking if device supports defined required work group size
+  if (ReqdWGSizePropIt) {
+    ByteArray ReqdWGSize =
+        DeviceBinaryProperty(*(ReqdWGSizePropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    ReqdWGSize.dropBytes(8);
+    int ReqdWGSizeAllDimsTotal = 1;
+    std::vector<int> ReqdWGSizeVec;
+    int Dims = 0;
+    while (!ReqdWGSize.empty()) {
+      int SingleDimSize = ReqdWGSize.consume<int>();
+      ReqdWGSizeAllDimsTotal *= SingleDimSize;
+      ReqdWGSizeVec.push_back(SingleDimSize);
+      Dims++;
+    }
+    if (static_cast<size_t>(ReqdWGSizeAllDimsTotal) >
+        Dev.get_info<info::device::max_work_group_size>())
       return false;
+    // Creating std::variant to call max_work_item_sizes one time to avoid
+    // performance drop
+    std::variant<id<1>, id<2>, id<3>> MaxWorkItemSizesVariant;
+    if (Dims == 1)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<1>>();
+    else if (Dims == 2)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<2>>();
+    else // (Dims == 3)
+      MaxWorkItemSizesVariant =
+          Dev.get_info<info::device::max_work_item_sizes<3>>();
+    for (int i = 0; i < Dims; i++) {
+      // Extracting value from std::variant to avoid dealing with type-safety
+      // issues after that
+      if (Dims == 1) {
+        // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else if (Dims == 2) {
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+      } else // (Dims == 3)
+        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+            std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+          return false;
+    }
   }
   return true;
 }

@@ -1810,7 +1810,7 @@ public:
     for (auto *V : VariableVec)
       EntryStateMap[V] = DFSState::Unvisited;
     // Run topoligical sort
-    for (auto ES : EntryStateMap) {
+    for (const auto &ES : EntryStateMap) {
       if (visit(ES.first))
         llvm_unreachable("Cyclic dependency for types detected");
     }
