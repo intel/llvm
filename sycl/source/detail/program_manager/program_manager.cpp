@@ -1843,6 +1843,26 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
+void setSpecializationConstants(
+    const std::shared_ptr<device_image_impl> &InputImpl, RT::PiProgram Prog,
+    const plugin &Plugin) {
+  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+  const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
+      &SpecConstData = InputImpl->get_spec_const_data_ref();
+  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
+
+  for (const auto &DescPair : SpecConstData) {
+    for (const device_image_impl::SpecConstDescT &SpecIDDesc :
+         DescPair.second) {
+      if (SpecIDDesc.IsSet) {
+        Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
+            SpecConsts.data() + SpecIDDesc.BlobOffset);
+      }
+    }
+  }
+}
+
 device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
@@ -1872,8 +1892,10 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
                                        InputImpl->get_context(), Devs[0]);
 
-  if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
+  if (InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
     enableITTAnnotationsIfNeeded(Prog, Plugin);
+    setSpecializationConstants(InputImpl, Prog, Plugin);
+  }
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -1885,8 +1907,6 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   PIDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
-  // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
@@ -2035,22 +2055,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (!DeviceCodeWasInCache &&
         InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
       enableITTAnnotationsIfNeeded(NativePrg, Plugin);
-
-      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
-      const std::map<std::string,
-                     std::vector<device_image_impl::SpecConstDescT>>
-          &SpecConstData = InputImpl->get_spec_const_data_ref();
-
-      for (const auto &DescPair : SpecConstData) {
-        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-             DescPair.second) {
-          if (SpecIDDesc.IsSet) {
-            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
-                SpecConsts.data() + SpecIDDesc.BlobOffset);
-          }
-        }
-      }
+      setSpecializationConstants(InputImpl, NativePrg, Plugin);
     }
 
     ProgramPtr ProgramManaged(
