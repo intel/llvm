@@ -1,7 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -triple spir64 -verify -emit-llvm %s -o - | FileCheck %s
 
-// expected-no-diagnostics
-
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
