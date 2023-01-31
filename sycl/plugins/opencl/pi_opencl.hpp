@@ -118,35 +118,4 @@ inline const OpenCLVersion V3_0(3, 0);
 
 } // namespace OCLV
 
-// Following are helper data structures to extend OpenCL plugin behavior.
-// These data structures are persistent during run-time.
-// TODO: Optimizations to clean-up resources during CL objects deletion
-// A longer term solution will be to extend pi_* data structures to add new
-// fields and get rid of these data structures.
-
-// This data structure is used to represent information about cslice subdevices.
-struct csliceSubDevInfo {
-  cl_device_id cl_dev; // device to which the cslice belongs
-  size_t family;
-  size_t index;
-};
-
-// This data structure is used to store all cslice subdevices.
-// For a regular pi_device, cl_device_id can be obtained by a simple typecast.
-// For a cslice subdevice, we explicitly store the cl_device_id and then
-// retrieve it when needed.
-std::map<pi_device, csliceSubDevInfo> cslice_devices;
-
-// This map is used to capture pi_device info during queue creation and retrieve
-// it during getinfo calls.
-std::map<pi_queue, const pi_device> queue2dev;
-
-// This map is used to capture pi_device info during context creation and
-// retrieve it during getinfo calls.
-std::map<pi_context, std::vector<pi_device>> context2devlist;
-
-// This map is used to capture pi_device info during program creation and
-// retrieve it during getinfo calls.
-std::map<pi_program, std::vector<pi_device>> program2devlist;
-
 #endif // PI_OPENCL_HPP

@@ -78,6 +78,37 @@ constexpr size_t MaxMessageSize = 256;
 thread_local pi_result ErrorMessageCode = PI_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
 
+// Following are helper data structures to extend OpenCL plugin behavior.
+// These data structures are persistent during run-time.
+// TODO: Optimizations to clean-up resources during CL objects deletion
+// A longer term solution will be to extend pi_* data structures to add new
+// fields and get rid of these data structures.
+
+// This data structure is used to represent information about cslice subdevices.
+struct csliceSubDevInfo {
+  cl_device_id cl_dev; // device to which the cslice belongs
+  size_t family;
+  size_t index;
+};
+
+// This data structure is used to store all cslice subdevices.
+// For a regular pi_device, cl_device_id can be obtained by a simple typecast.
+// For a cslice subdevice, we explicitly store the cl_device_id and then
+// retrieve it when needed.
+static std::map<pi_device, csliceSubDevInfo> cslice_devices;
+
+// This map is used to capture pi_device info during queue creation and retrieve
+// it during getinfo calls.
+static std::map<pi_queue, const pi_device> queue2dev;
+
+// This map is used to capture pi_device info during context creation and
+// retrieve it during getinfo calls.
+static std::map<pi_context, std::vector<pi_device>> context2devlist;
+
+// This map is used to capture pi_device info during program creation and
+// retrieve it during getinfo calls.
+static std::map<pi_program, std::vector<pi_device>> program2devlist;
+
 // Utility function for setting a message and warning
 [[maybe_unused]] static void setErrorMessage(const char *message,
                                              pi_result error_code) {
@@ -303,15 +334,12 @@ static std::vector<cl_device_id> getClDevices(pi_uint32 num_devices,
   return cl_devices;
 }
 
-// Return true if the device is a PVC device
+// Return true if the device is a Data Center GPU Max series (PVC) device.
 static bool isPVC(pi_device device) {
-  // Identify device name.
-  const size_t MAXDEVICENAMELEN = 64;
-  std::string device_name(MAXDEVICENAMELEN, ' ');
-  cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_NAME,
-                               MAXDEVICENAMELEN, &device_name[0], nullptr);
-  return (res == CL_SUCCESS) &&
-         (device_name.find("0x0bd5") != std::string::npos);
+  cl_uint deviceId;
+  cl_int res = clGetDeviceInfo(getClDevice(device), CL_DEVICE_ID_INTEL,
+                               sizeof(cl_uint), &deviceId, nullptr);
+  return (res == CL_SUCCESS) && ((deviceId & 0xff0) == 0xbd0);
 }
 
 // End of helper functions
@@ -532,15 +560,15 @@ pi_result piDevicePartition(pi_device device,
       }
     }
     *out_num_devices = sub_device_count;
-    if (out_devices) {
-      for (uint32_t i = 0; i < *out_num_devices; ++i) {
-        out_devices[i] = cast<pi_device>(new cl_device_id());
-        csliceSubDevInfo info;
-        info.cl_dev = cast<cl_device_id>(device);
-        info.family = family;
-        info.index = i % (*out_num_devices);
-        cslice_devices.insert({out_devices[i], info});
-      }
+    if (!out_devices)
+      return PI_SUCCESS;
+    for (uint32_t i = 0; i < *out_num_devices; ++i) {
+      out_devices[i] = cast<pi_device>(new cl_device_id());
+      csliceSubDevInfo info;
+      info.cl_dev = cast<cl_device_id>(device);
+      info.family = family;
+      info.index = i;
+      cslice_devices.insert({out_devices[i], info});
     }
     return PI_SUCCESS;
   }
@@ -723,7 +751,7 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
-  if (version >= OCLV::V2_0) {
+  if (version < OCLV::V2_0) {
     *queue = cast<pi_queue>(clCreateCommandQueue(
         cast<cl_context>(context), getClDevice(device),
         cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
