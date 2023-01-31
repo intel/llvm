@@ -390,16 +390,6 @@ if (will_branch)
 
   // reduce across subset of outer work-items that took the branch
   float ix = sycl::reduce_over_group(inner, x, plus<>());
-
-  // further subdivide group into work-items that will branch further
-  auto will_branch_further = inner.get_local_linear_id() < 8;
-  auto inner_inner = sycl::ext::oneapi::experimental::get_ballot_group(inner, will_branch_further);
-
-  if (will_branch_further)
-  {
-    // synchronize across the work-items that took both branches
-    sycl::group_barrier(inner_inner);
-  }
 }
 ----
 
@@ -734,15 +724,6 @@ if (will_branch)
 
   // reduce across subset of outer work-items that took the branch
   float ix = sycl::reduce_over_group(inner, x, plus<>());
-
-  // further subdivide group into work-items that will branch further
-  auto will_branch_further = inner.get_local_linear_id() < 8;
-  if (will_branch_further)
-  {
-    // synchronize across the work-items that took both branches
-    auto inner_inner = sycl::ext::oneapi::experimental::get_tangle_group(inner);
-    sycl::group_barrier(inner_inner);
-  }
 }
 ----
 
