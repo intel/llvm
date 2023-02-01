@@ -8,6 +8,7 @@
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
