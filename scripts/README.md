@@ -8,7 +8,7 @@ Installing Python dependencies:
   ~~~~
   * Install all python requirements.
   ~~~~
-    py -m pip install -r ..\third_party\requirements.txt
+    python -m pip install -r ../third_party/requirements.txt
   ~~~~
 
 Documentation is generated from source code using Doxygen.  
