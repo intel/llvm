@@ -3268,8 +3268,6 @@ namespace driver
     /// @brief Intercept function for urInit
     __urdlllocal ur_result_t UR_APICALL
     urInit(
-        ur_platform_init_flags_t platform_flags,        ///< [in] platform initialization flags.
-                                                        ///< must be 0 (default) or a combination of ::ur_platform_init_flag_t.
         ur_device_init_flags_t device_flags             ///< [in] device initialization flags.
                                                         ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
         )
@@ -3280,7 +3278,7 @@ namespace driver
         auto pfnInit = d_context.urDdiTable.Global.pfnInit;
         if( nullptr != pfnInit )
         {
-            result = pfnInit( platform_flags, device_flags );
+            result = pfnInit( device_flags );
         }
         else
         {
