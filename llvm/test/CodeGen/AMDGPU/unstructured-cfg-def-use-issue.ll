@@ -6,11 +6,13 @@ define hidden void @widget() {
 ; GCN-LABEL: widget:
 ; GCN:       ; %bb.0: ; %bb
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    s_or_saveexec_b64 s[16:17], -1
-; GCN-NEXT:    buffer_store_dword v40, off, s[0:3], s32 offset:4 ; 4-byte Folded Spill
-; GCN-NEXT:    s_mov_b64 exec, s[16:17]
-; GCN-NEXT:    v_writelane_b32 v40, s33, 16
+; GCN-NEXT:    s_mov_b32 s16, s33
 ; GCN-NEXT:    s_mov_b32 s33, s32
+; GCN-NEXT:    s_or_saveexec_b64 s[18:19], -1
+; GCN-NEXT:    buffer_store_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Spill
+; GCN-NEXT:    buffer_store_dword v42, off, s[0:3], s33 offset:8 ; 4-byte Folded Spill
+; GCN-NEXT:    s_mov_b64 exec, s[18:19]
+; GCN-NEXT:    v_writelane_b32 v42, s16, 0
 ; GCN-NEXT:    s_addk_i32 s32, 0x400
 ; GCN-NEXT:    buffer_store_dword v41, off, s[0:3], s33 ; 4-byte Folded Spill
 ; GCN-NEXT:    v_writelane_b32 v40, s30, 0
@@ -118,11 +120,13 @@ define hidden void @widget() {
 ; GCN-NEXT:    v_readlane_b32 s31, v40, 1
 ; GCN-NEXT:    v_readlane_b32 s30, v40, 0
 ; GCN-NEXT:    buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
+; GCN-NEXT:    v_readlane_b32 s4, v42, 0
+; GCN-NEXT:    s_or_saveexec_b64 s[6:7], -1
+; GCN-NEXT:    buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
+; GCN-NEXT:    buffer_load_dword v42, off, s[0:3], s33 offset:8 ; 4-byte Folded Reload
+; GCN-NEXT:    s_mov_b64 exec, s[6:7]
 ; GCN-NEXT:    s_addk_i32 s32, 0xfc00
-; GCN-NEXT:    v_readlane_b32 s33, v40, 16
-; GCN-NEXT:    s_or_saveexec_b64 s[4:5], -1
-; GCN-NEXT:    buffer_load_dword v40, off, s[0:3], s32 offset:4 ; 4-byte Folded Reload
-; GCN-NEXT:    s_mov_b64 exec, s[4:5]
+; GCN-NEXT:    s_mov_b32 s33, s4
 ; GCN-NEXT:    s_waitcnt vmcnt(0)
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
 ; GCN-NEXT:  .LBB0_9: ; %bb2
@@ -138,7 +142,7 @@ define hidden void @widget() {
 ; GCN-NEXT:    s_branch .LBB0_4
 ; SI-OPT-LABEL: @widget(
 ; SI-OPT-NEXT:  bb:
-; SI-OPT-NEXT:    [[TMP:%.*]] = load i32, i32 addrspace(1)* null, align 16
+; SI-OPT-NEXT:    [[TMP:%.*]] = load i32, ptr addrspace(1) null, align 16
 ; SI-OPT-NEXT:    [[TMP1:%.*]] = icmp slt i32 [[TMP]], 21
 ; SI-OPT-NEXT:    br i1 [[TMP1]], label [[BB4:%.*]], label [[BB2:%.*]]
 ; SI-OPT:       bb2:
@@ -163,10 +167,10 @@ define hidden void @widget() {
 ; SI-OPT-NEXT:    call void @llvm.amdgcn.end.cf.i64(i64 [[TMP2]])
 ; SI-OPT-NEXT:    br label [[BB12]]
 ; SI-OPT:       bb12:
-; SI-OPT-NEXT:    store float 0.000000e+00, float addrspace(1)* null, align 8
+; SI-OPT-NEXT:    store float 0.000000e+00, ptr addrspace(1) null, align 8
 ; SI-OPT-NEXT:    ret void
 bb:
-  %tmp = load i32, i32 addrspace(1)* null, align 16
+  %tmp = load i32, ptr addrspace(1) null, align 16
   %tmp1 = icmp slt i32 %tmp, 21
   br i1 %tmp1, label %bb4, label %bb2
 
@@ -191,7 +195,7 @@ bb9:                                              ; preds = %bb4, %bb2
   br i1 %tmp11, label %bb6, label %bb12
 
 bb12:                                             ; preds = %bb9, %bb2
-  store float 0.000000e+00, float addrspace(1)* null, align 8
+  store float 0.000000e+00, ptr addrspace(1) null, align 8
   ret void
 }
 
@@ -201,15 +205,15 @@ declare hidden float @wibble() local_unnamed_addr
 define hidden void @blam() {
 ; SI-OPT-LABEL: @blam(
 ; SI-OPT-NEXT:  bb:
-; SI-OPT-NEXT:    [[TMP:%.*]] = load float, float* null, align 16
+; SI-OPT-NEXT:    [[TMP:%.*]] = load float, ptr null, align 16
 ; SI-OPT-NEXT:    br label [[BB2:%.*]]
 ; SI-OPT:       bb1:
 ; SI-OPT-NEXT:    br label [[BB2]]
 ; SI-OPT:       bb2:
 ; SI-OPT-NEXT:    [[TID:%.*]] = call i32 @llvm.amdgcn.workitem.id.x()
-; SI-OPT-NEXT:    [[GEP:%.*]] = getelementptr inbounds i32, i32 addrspace(1)* null, i32 [[TID]]
-; SI-OPT-NEXT:    [[TMP3:%.*]] = load i32, i32 addrspace(1)* [[GEP]], align 16
-; SI-OPT-NEXT:    store float 0.000000e+00, float addrspace(5)* null, align 8
+; SI-OPT-NEXT:    [[GEP:%.*]] = getelementptr inbounds i32, ptr addrspace(1) null, i32 [[TID]]
+; SI-OPT-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) [[GEP]], align 16
+; SI-OPT-NEXT:    store float 0.000000e+00, ptr addrspace(5) null, align 8
 ; SI-OPT-NEXT:    br label [[BB4:%.*]]
 ; SI-OPT:       bb4:
 ; SI-OPT-NEXT:    [[TMP5:%.*]] = icmp slt i32 [[TMP3]], 3
@@ -231,7 +235,7 @@ define hidden void @blam() {
 ; SI-OPT-NEXT:    call void @llvm.amdgcn.end.cf.i64(i64 [[TMP5]])
 ; SI-OPT-NEXT:    br label [[BB1]]
 ; SI-OPT:       bb10:
-; SI-OPT-NEXT:    store float 0x7FF8000000000000, float addrspace(5)* null, align 16
+; SI-OPT-NEXT:    store float 0x7FF8000000000000, ptr addrspace(5) null, align 16
 ; SI-OPT-NEXT:    br label [[BB18:%.*]]
 ; SI-OPT:       bb11:
 ; SI-OPT-NEXT:    [[TMP12:%.*]] = call float @spam()
@@ -249,23 +253,25 @@ define hidden void @blam() {
 ; SI-OPT-NEXT:    br i1 [[TMP10]], label [[BB17:%.*]], label [[BB16:%.*]]
 ; SI-OPT:       bb16:
 ; SI-OPT-NEXT:    call void @llvm.amdgcn.end.cf.i64(i64 [[TMP11]])
-; SI-OPT-NEXT:    store float 0x7FF8000000000000, float addrspace(5)* null, align 16
+; SI-OPT-NEXT:    store float 0x7FF8000000000000, ptr addrspace(5) null, align 16
 ; SI-OPT-NEXT:    br label [[BB17]]
 ; SI-OPT:       bb17:
-; SI-OPT-NEXT:    store float [[TMP]], float addrspace(5)* null, align 16
+; SI-OPT-NEXT:    store float [[TMP]], ptr addrspace(5) null, align 16
 ; SI-OPT-NEXT:    br label [[BB18]]
 ; SI-OPT:       bb18:
-; SI-OPT-NEXT:    store float 0x7FF8000000000000, float addrspace(5)* null, align 4
+; SI-OPT-NEXT:    store float 0x7FF8000000000000, ptr addrspace(5) null, align 4
 ; SI-OPT-NEXT:    br label [[BB2]]
 ;
 ; GCN-LABEL: blam:
 ; GCN:       ; %bb.0: ; %bb
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    s_or_saveexec_b64 s[16:17], -1
-; GCN-NEXT:    buffer_store_dword v40, off, s[0:3], s32 offset:20 ; 4-byte Folded Spill
-; GCN-NEXT:    s_mov_b64 exec, s[16:17]
-; GCN-NEXT:    v_writelane_b32 v40, s33, 18
+; GCN-NEXT:    s_mov_b32 s16, s33
 ; GCN-NEXT:    s_mov_b32 s33, s32
+; GCN-NEXT:    s_or_saveexec_b64 s[18:19], -1
+; GCN-NEXT:    buffer_store_dword v40, off, s[0:3], s33 offset:20 ; 4-byte Folded Spill
+; GCN-NEXT:    buffer_store_dword v46, off, s[0:3], s33 offset:24 ; 4-byte Folded Spill
+; GCN-NEXT:    s_mov_b64 exec, s[18:19]
+; GCN-NEXT:    v_writelane_b32 v46, s16, 0
 ; GCN-NEXT:    s_addk_i32 s32, 0x800
 ; GCN-NEXT:    buffer_store_dword v41, off, s[0:3], s33 offset:16 ; 4-byte Folded Spill
 ; GCN-NEXT:    buffer_store_dword v42, off, s[0:3], s33 offset:12 ; 4-byte Folded Spill
@@ -382,7 +388,7 @@ define hidden void @blam() {
 ; GCN-NEXT:    buffer_store_dword v44, off, s[0:3], 0
 ; GCN-NEXT:    s_branch .LBB1_2
 bb:
-  %tmp = load float, float* null, align 16
+  %tmp = load float, ptr null, align 16
   br label %bb2
 
 bb1:                                              ; preds = %bb8, %bb6
@@ -390,9 +396,9 @@ bb1:                                              ; preds = %bb8, %bb6
 
 bb2:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
-  %gep  = getelementptr inbounds i32, i32 addrspace(1)* null, i32 %tid
-  %tmp3 = load i32, i32 addrspace(1)* %gep, align 16
-  store float 0.000000e+00, float addrspace(5)* null, align 8
+  %gep  = getelementptr inbounds i32, ptr addrspace(1) null, i32 %tid
+  %tmp3 = load i32, ptr addrspace(1) %gep, align 16
+  store float 0.000000e+00, ptr addrspace(5) null, align 8
   br label %bb4
 
 bb4:                                              ; preds = %bb2
@@ -408,7 +414,7 @@ bb8:                                              ; preds = %bb4
   br i1 %tmp9, label %bb10, label %bb1
 
 bb10:                                             ; preds = %bb8
-  store float 0x7FF8000000000000, float addrspace(5)* null, align 16
+  store float 0x7FF8000000000000, ptr addrspace(5) null, align 16
   br label %bb18
 
 bb11:                                             ; preds = %bb6
@@ -421,15 +427,15 @@ bb14:                                             ; preds = %bb11
   br i1 %tmp15, label %bb17, label %bb16
 
 bb16:                                             ; preds = %bb14
-  store float 0x7FF8000000000000, float addrspace(5)* null, align 16
+  store float 0x7FF8000000000000, ptr addrspace(5) null, align 16
   br label %bb17
 
 bb17:                                             ; preds = %bb16, %bb14
-  store float %tmp, float addrspace(5)* null, align 16
+  store float %tmp, ptr addrspace(5) null, align 16
   br label %bb18
 
 bb18:                                             ; preds = %bb17, %bb10
-  store float 0x7FF8000000000000, float addrspace(5)* null, align 4
+  store float 0x7FF8000000000000, ptr addrspace(5) null, align 4
   br label %bb2
 }
 

@@ -20,7 +20,7 @@ SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::ac
 SYCL_EXTERNAL void acc(sycl::local_accessor<int, 1>) {}
 
 // CHK-DEVICE: define dso_local spir_func void @_Z3accN4sycl3_V18accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
-SYCL_EXTERNAL void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::image>) {} 
+SYCL_EXTERNAL void acc(sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 1, sycl::access::mode::read, sycl::access::target::image>) {} 
 
 // CHK-DEVICE: define dso_local spir_func void @_Z11private_memN4sycl3_V114private_memoryIiLi1EEE({{.*}})
 SYCL_EXTERNAL void private_mem(sycl::private_memory<int, 1>) {};
@@ -53,7 +53,7 @@ void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::
 void acc(sycl::local_accessor<int, 1>) {}
 
 // CHK-HOST: define dso_local void @_Z3accN4sycl3_V18accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2019ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
-void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::host_image>) {} 
+void acc(sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 1, sycl::access::mode::read, sycl::access::target::host_image>) {} 
 
 // CHK-HOST: define dso_local void @_Z3bufN4sycl3_V16bufferIiLi1ENS0_6detail17aligned_allocatorIiEEvEE({{.*}})
 void buf(sycl::buffer<int>) {}

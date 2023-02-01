@@ -78,13 +78,21 @@ std::string getCurrentDSODir() {
 
 // these are cribbed from include/sycl/detail/pi.hpp
 // a new plugin must be added to both places.
+#ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
-
+#else //llvm-mingw
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
+#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
+#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
+#endif
 // ------------------------------------
 
 static std::map<std::string, void *> dllMap;

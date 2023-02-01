@@ -30,20 +30,22 @@ void llvm::getSYCLDeviceRequirements(
   // Scan the module and if the metadata is present fill the corresponing
   // property with metadata's aspects
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
-      {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
+      {"sycl_used_aspects", "aspects"},
+      {"sycl_fixed_targets", "fixed_target"},
+      {"reqd_work_group_size", "reqd_work_group_size"}};
 
   for (const auto &MD : ReqdMDs) {
-    std::set<uint32_t> Aspects;
+    std::set<uint32_t> Values;
     for (const Function &F : M) {
       if (const MDNode *MDN = F.getMetadata(MD.first)) {
         for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
-          Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+          Values.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
       }
     }
     // We don't need the "fixed_target" property if it's empty
-    if (std::string(MD.first) == "sycl_fixed_targets" && Aspects.empty())
+    if (std::string(MD.first) == "sycl_fixed_targets" && Values.empty())
       continue;
     Requirements[MD.second] =
-        std::vector<uint32_t>(Aspects.begin(), Aspects.end());
+        std::vector<uint32_t>(Values.begin(), Values.end());
   }
 }

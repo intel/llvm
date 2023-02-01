@@ -1,15 +1,15 @@
-; RUN: llvm-as < %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
 
-; RUN: llvm-spirv -s %t.bc -o %t.regularized.bc
-; RUN: llvm-dis %t.regularized.bc -o %t.regularized.ll
+; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regularized.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
 ; RUN: FileCheck < %t.regularized.ll %s --check-prefix=CHECK-REGULARIZED
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix -o %t.spv
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-REGULARIZED: %[[Alloca:.*]] = alloca %"class.cl::sycl::ext::intel::experimental::bfloat16", align 2
 ; CHECK-REGULARIZED: %[[ASCast:.*]] = addrspacecast %"class.cl::sycl::ext::intel::experimental::bfloat16"* %[[Alloca]] to %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)*
