@@ -20,6 +20,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -1427,18 +1428,14 @@ static bool checkForCircularDependency(Command *, bool, KernelFusionCommand *);
 static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
                                       KernelFusionCommand *Fusion) {
   if (isPartOfFusion(Cmd, Fusion)) {
-    if (PredPartOfFusion) {
-      // If this is part of the fusion and the predecessor also was, we can stop
-      // the traversal here. A direct dependency between two kernels in the same
-      // fusion will never form a cyclic dependency and by iterating over all
-      // commands in a fusion, we will detect any cycles originating from the
-      // current command.
-      return false;
-    } else {
-      // If the predecessor was not part of the fusion, but the current command
-      // is, we have found a potential cycle in the dependency graph.
-      return true;
-    }
+    // If this is part of the fusion and the predecessor also was, we can stop
+    // the traversal here. A direct dependency between two kernels in the same
+    // fusion will never form a cyclic dependency and by iterating over all
+    // commands in a fusion, we will detect any cycles originating from the
+    // current command.
+    // If the predecessor was not part of the fusion, but the current command
+    // is, we have found a potential cycle in the dependency graph.
+    return !PredPartOfFusion;
   }
   return checkForCircularDependency(Cmd, false, Fusion);
 }
@@ -1502,13 +1499,10 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   // means, that the dependency is created through a third command not part of
   // the fusion, on which this kernel depends and which in turn depends on
   // another kernel in fusion list.
-  bool CreatesCircularDep = false;
-  for (auto *Cmd : CmdList) {
-    if (checkForCircularDependency(Cmd, true, PlaceholderCmd)) {
-      CreatesCircularDep = true;
-      break;
-    }
-  }
+  bool CreatesCircularDep =
+      std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
+        return checkForCircularDependency(Cmd, true, PlaceholderCmd);
+      });
   if (CreatesCircularDep) {
     // If fusing would create a fused kernel, cancel the fusion.
     printFusionWarning(
