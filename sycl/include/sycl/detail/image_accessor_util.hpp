@@ -368,11 +368,10 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 
     // Extracting each 5-bit channel data.
     // PixelData.x will be of type std::uint16_t.
-    vec<std::uint16_t, 4> Temp(PixelData.x());
-    vec<std::uint16_t, 4> MaskBits(0x7C00 /*r:bits 10-14*/,
-                                   0x03E0 /*g:bits 5-9*/, 0x001F /*b:bits 0-4*/,
-                                   0x0000);
-    vec<std::uint16_t, 4> ShiftBits(10, 5, 0, 0);
+    ushort4 Temp(PixelData.x());
+    ushort4 MaskBits(0x7C00 /*r:bits 10-14*/, 0x03E0 /*g:bits 5-9*/,
+                     0x001F /*b:bits 0-4*/, 0x0000);
+    ushort4 ShiftBits(10, 5, 0, 0);
     Temp = (Temp & MaskBits) >> ShiftBits;
     RetData = (Temp.template convert<float>()) / 31.0f;
     break;
@@ -477,21 +476,21 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 // appropriate conversion rules.
 template <typename ChannelType>
 vec<ChannelType, 4>
-convertWriteData(const vec<std::uint32_t, 4> WriteData,
+convertWriteData(const uint4 WriteData,
                  const image_channel_type ImageChannelType) {
   switch (ImageChannelType) {
   case image_channel_type::unsigned_int8: {
     // convert_uchar_sat(Data)
     std::uint32_t MinVal = min_v<std::uint8_t>();
     std::uint32_t MaxVal = max_v<std::uint8_t>();
-    vec<std::uint32_t, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    uint4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int16: {
     // convert_ushort_sat(Data)
     std::uint32_t MinVal = min_v<std::uint16_t>();
     std::uint32_t MaxVal = max_v<std::uint16_t>();
-    vec<std::uint32_t, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    uint4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int32:
@@ -779,8 +778,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 }
 
 // Method called to read a Coord by getColor function when the Coord is
-// in-range. This method takes Unnormalized Coords - 'PixelCoord' as
-// int4. Invalid Coord are denoted by 0. Steps:
+// in-range. This method takes Unnormalized Coords - 'PixelCoord' as int4.
+// Invalid Coord are denoted by 0. Steps:
 // 1. Compute Offset for given Unnormalised Coordinates using ImagePitch and
 // ElementSize.(getImageOffset)
 // 2. Add this Offset to BasePtr to compute the location of the Image.
@@ -1082,11 +1081,11 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   // Step 2 & Step 3:
 
   // converToFloat4 converts CoordT of any kind - std::int32_t, int2, int4,
-  // float, vec<float, 2> and float4 into Coordinates of kind float4 with no
-  // loss of precision. For pixel_coordinates already in float4 format, the
-  // function returns the same values. This conversion is done to enable
-  // implementation of one common function getPixelCoordXXXMode, for any
-  // datatype of CoordT passed.
+  // float, float2 and float4 into Coordinates of kind float4 with no loss of
+  // precision. For pixel_coordinates already in float4 format, the function
+  // returns the same values. This conversion is done to enable implementation
+  // of one common function getPixelCoordXXXMode, for any datatype of CoordT
+  // passed.
   FloatCoorduvw = convertToFloat4(Coorduvw);
   switch (SmplFiltMode) {
   case filtering_mode::nearest: {
