@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h -fsycl-unique-prefix=THE_PREFIX %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h -fsycl-unique-prefix=THE_PREFIX %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 // RUN: FileCheck -input-file=%t.header.h %s --check-prefix=CHECK-HEADER
 #include "sycl.hpp"
