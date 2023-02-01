@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     ur_device_handle_t pDevice = nullptr;
 
     // Initialize the platform
-    status = urInit(0, 0);
+    status = urInit(0);
     if (status != UR_RESULT_SUCCESS) {
         std::cout << "urInit failed with return code: " << status << std::endl;
         return 1;

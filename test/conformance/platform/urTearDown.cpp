@@ -4,9 +4,8 @@
 
 struct urTearDownTest : testing::Test {
     void SetUp() override {
-        ur_platform_init_flags_t platform_flags = 0;
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_SUCCESS(urInit(platform_flags, device_flags));
+        ASSERT_SUCCESS(urInit(device_flags));
     }
 };
 

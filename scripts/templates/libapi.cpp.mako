@@ -56,8 +56,8 @@ ${th.make_func_name(n, tags, obj)}(
 {
 %if re.match("Init", obj['name']):
     static ${x}_result_t result = ${X}_RESULT_SUCCESS;
-    std::call_once(${x}_lib::context->initOnce, [platform_flags, device_flags]() {
-        result = ${x}_lib::context->Init(platform_flags, device_flags);
+    std::call_once(${x}_lib::context->initOnce, [device_flags]() {
+        result = ${x}_lib::context->Init(device_flags);
     });
 
     if( ${X}_RESULT_SUCCESS != result )
