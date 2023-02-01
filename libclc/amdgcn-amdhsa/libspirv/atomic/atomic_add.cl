@@ -32,11 +32,15 @@ AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, __hip_atomic_fetch_add)
     return *(float *)&ret;                                                                                 \
   }
 
-AMDGPU_ATOMIC_FP32_ADD_IMPL(global, U3AS1, 1, __oclc_ISA_version >= 9010,
+AMDGPU_ATOMIC_FP32_ADD_IMPL(global, U3AS1, 1,
+                            __oclc_ISA_version >= 9010 &&
+                                __oclc_ISA_version < 10000,
                             __builtin_amdgcn_global_atomic_fadd_f32)
 AMDGPU_ATOMIC_FP32_ADD_IMPL(local, U3AS3, 1, __oclc_ISA_version >= 8000,
                             __builtin_amdgcn_ds_atomic_fadd_f32)
-AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0, __oclc_ISA_version >= 9400,
+AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0,
+                            __oclc_ISA_version >= 9400 &&
+                                __oclc_ISA_version < 10000,
                             __builtin_amdgcn_flat_atomic_fadd_f32)
 
 #define AMDGPU_ATOMIC_FP64_ADD_IMPL(AS, AS_MANGLED, SUB1, SUB2, CHECK,                                                          \
@@ -74,11 +78,17 @@ AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0, __oclc_ISA_version >= 9400,
   }
 
 #ifdef cl_khr_int64_base_atomics
-AMDGPU_ATOMIC_FP64_ADD_IMPL(global, U3AS1, 1, 5, __oclc_ISA_version >= 9010,
+AMDGPU_ATOMIC_FP64_ADD_IMPL(global, U3AS1, 1, 5,
+                            __oclc_ISA_version >= 9010 &&
+                                __oclc_ISA_version < 10000,
                             __builtin_amdgcn_global_atomic_fadd_f64)
-AMDGPU_ATOMIC_FP64_ADD_IMPL(local, U3AS3, 1, 5, __oclc_ISA_version >= 9010,
+AMDGPU_ATOMIC_FP64_ADD_IMPL(local, U3AS3, 1, 5,
+                            __oclc_ISA_version >= 9010 &&
+                                __oclc_ISA_version < 10000,
                             __builtin_amdgcn_ds_atomic_fadd_f64)
-AMDGPU_ATOMIC_FP64_ADD_IMPL(, , 0, 4, __oclc_ISA_version >= 9400,
+AMDGPU_ATOMIC_FP64_ADD_IMPL(, , 0, 4,
+                            __oclc_ISA_version >= 9400 &&
+                                __oclc_ISA_version < 10000,
                             __builtin_amdgcn_flat_atomic_fadd_f64)
 #endif
 

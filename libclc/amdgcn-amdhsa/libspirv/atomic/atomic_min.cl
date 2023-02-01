@@ -26,12 +26,14 @@ AMDGPU_ATOMIC_FP_MINMAX_IMPL(Min, <, float, f, int, i, , , 0, 4_ii, false, )
 
 #ifdef cl_khr_int64_base_atomics
 AMDGPU_ATOMIC_FP_MINMAX_IMPL(Min, <, double, d, long, l, global, U3AS1, 1, 5_ll,
-                             __oclc_ISA_version >= 9010,
+                             __oclc_ISA_version >= 9010 &&
+                                 __oclc_ISA_version < 10000,
                              __builtin_amdgcn_global_atomic_fmin_f64)
 AMDGPU_ATOMIC_FP_MINMAX_IMPL(Min, <, double, d, long, l, local, U3AS3, 1, 5_ll,
                              false, )
 AMDGPU_ATOMIC_FP_MINMAX_IMPL(Min, <, double, d, long, l, , , 0, 4_ll,
-                             __oclc_ISA_version >= 9010,
+                             __oclc_ISA_version >= 9010 &&
+                                 __oclc_ISA_version < 10000,
                              __builtin_amdgcn_flat_atomic_fmin_f64)
 #endif
 
