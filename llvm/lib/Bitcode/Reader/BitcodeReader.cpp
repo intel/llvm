@@ -3870,7 +3870,8 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   GlobalVariable *NewGV =
       new GlobalVariable(*TheModule, Ty, isConstant, Linkage, nullptr, Name,
                          nullptr, TLM, AddressSpace, ExternallyInitialized);
-  NewGV->setAlignment(Alignment);
+  if (Alignment)
+    NewGV->setAlignment(*Alignment);
   if (!Section.empty())
     NewGV->setSection(Section);
   NewGV->setVisibility(Visibility);
@@ -4029,7 +4030,8 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   MaybeAlign Alignment;
   if (Error Err = parseAlignmentValue(Record[5], Alignment))
     return Err;
-  Func->setAlignment(Alignment);
+  if (Alignment)
+    Func->setAlignment(*Alignment);
   if (Record[6]) {
     if (Record[6] - 1 >= SectionTable.size())
       return error("Invalid ID");
