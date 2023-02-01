@@ -1777,6 +1777,7 @@ public:
   }
 
   /// Invokes a lambda on the host. Dependencies are satisfied on the host.
+  // comment
   ///
   /// \param Func is a lambda that is executed on the host
   template <typename FuncT>
