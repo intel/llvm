@@ -77,6 +77,9 @@ static StringRef ExecutableName;
 /// Binary path for the CUDA installation.
 static std::string CudaBinaryPath;
 
+/// Mutex lock to protect writes to shared TempFiles in parallel.
+static std::mutex TempFilesMutex;
+
 /// Temporary files created by the linker wrapper.
 static std::list<SmallString<128>> TempFiles;
 
@@ -200,6 +203,7 @@ std::string getMainExecutable(const char *Name) {
 
 /// Get a temporary filename suitable for output.
 Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
+  std::scoped_lock<decltype(TempFilesMutex)> Lock(TempFilesMutex);
   SmallString<128> OutputFile;
   if (SaveTemps) {
     (Prefix + "." + Extension).toNullTerminatedStringRef(OutputFile);
@@ -392,9 +396,11 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
-    for (const opt::Arg *Arg :
-         Args.filtered(OPT_library, OPT_rpath, OPT_library_path))
+    for (const opt::Arg *Arg : Args.filtered(OPT_library, OPT_library_path))
       Arg->render(Args, LinkerArgs);
+    for (const opt::Arg *Arg : Args.filtered(OPT_rpath))
+      LinkerArgs.push_back(
+          Args.MakeArgString("-Wl,-rpath," + StringRef(Arg->getValue())));
     llvm::copy(LinkerArgs, std::back_inserter(CmdArgs));
   }
 
@@ -1047,6 +1053,7 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
           return createFileError(*OutputOrErr, EC);
       }
 
+      std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
       OffloadingImage TheImage{};
       TheImage.TheImageKind =
           Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
@@ -1058,7 +1065,6 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
            Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ))}};
       TheImage.Image = std::move(*FileOrErr);
 
-      std::lock_guard<decltype(ImageMtx)> Guard(ImageMtx);
       Images[Kind].emplace_back(std::move(TheImage));
     }
     return Error::success();
