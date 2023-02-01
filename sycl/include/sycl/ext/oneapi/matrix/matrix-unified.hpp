@@ -68,12 +68,6 @@ public:
     return (jm.cuda_impl.wi_marray[i]);
 #else
     return wi_element<T, Rows, Cols, Use, Layout, Group>(jm, i);
-    /*using storage_element_type = typename
-      helper_traits<T>::storage_element_type; storage_element_type elems =
-        __spirv_VectorExtractDynamic<storage_element_type, T, Rows, Cols,
-      spv_matrix_use_traits<Use>::value,
-      spv_matrix_layout_traits<Layout>::value,
-      spv_scope_traits<Group>::value>(jm.spvm, i); return elems;*/
 #endif
   };
 };
@@ -125,11 +119,12 @@ joint_matrix_fill(Group sg,
   std::ignore = sg;
   res.cuda_impl.wi_marray = v;
 #else
+  using storage_element_type = typename helper_traits<T>::storage_element_type;
   res.spvm =
-      __spirv_CompositeConstruct<T, NumRows, NumCols,
+      __spirv_CompositeConstruct<storage_element_type, T, NumRows, NumCols,
                                  spv_matrix_use_traits<Use>::value,
                                  spv_matrix_layout_traits<Layout>::value>(
-          static_cast<T>(v));
+          static_cast<storage_element_type>(v));
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -253,21 +248,21 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
@@ -339,12 +334,12 @@ inline __SYCL_ALWAYS_INLINE
 
 // This function rounds the bottom 13 bits up or down, and then zeros out the
 // bottom bits
-inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
+inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
 #else
-  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
+  uint32_t tmp_uint = reinterpret_cast<const uint32_t &>(a);
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
   float ret = 0;

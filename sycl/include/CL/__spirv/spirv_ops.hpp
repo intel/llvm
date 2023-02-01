@@ -33,11 +33,12 @@ __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
                              __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *Object,
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
@@ -96,10 +97,11 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
 __spirv_CompositeConstruct(const T v);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,

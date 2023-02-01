@@ -83,7 +83,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              }
              for (int i = 0; i < get_wi_data(sg, sub_b).length(); i++) {
                get_wi_data(sg, sub_b)[i] =
-                   round_to_tf32(static_cast<float>(get_wi_data(sg, sub_b)[i]));
+                   round_to_tf32(get_wi_data(sg, sub_b)[i]);
              }
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
