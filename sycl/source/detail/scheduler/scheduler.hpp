@@ -189,17 +189,6 @@ using CommandPtr = std::unique_ptr<Command>;
 using FusionList = std::unique_ptr<KernelFusionCommand>;
 using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 
-#ifndef _WIN32
-// Windows and Linux both call shutdown, but threading differences
-// mean we don't defer mem object destruction on Windows, because
-// their destruction may occur AFTER the Scheduler is destroyed,
-// which will lead to errors. This is, in part, due to us not
-// draining the thread pool on Windows (b.c. that may result
-// in premature destruction of Scheduler)
-// TODO: re-enable both thread-pool draining and deferredMemObj
-// destruction on Windows.
-#define __SYCL_DEFER_MEM_OBJ_DESTRUCTION 1
-#endif
 
 /// Memory Object Record
 ///
@@ -511,6 +500,7 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
+  bool isShuttingDown = false;
 
   // POD struct to convey some additional information from GraphBuilder::addCG
   // to the Scheduler to support kernel fusion.

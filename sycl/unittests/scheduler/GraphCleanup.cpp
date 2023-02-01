@@ -422,7 +422,6 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   ASSERT_FALSE(MockAuxResourceDeleted);
 
   EventCompleted = true;
-#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   // Acquire lock to keep deferred mem obj from releasing so that they can be
   // checked.
   {
@@ -431,7 +430,6 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     ASSERT_TRUE(MockAuxResourceDeleted);
     ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 1u);
   }
-#endif
 
   MSPtr->cleanupCommands({});
   ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);

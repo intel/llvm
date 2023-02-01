@@ -69,6 +69,13 @@ void event_impl::waitInternal() {
         "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
+#ifdef _WIN32
+    // during shutdown it's possible that outstanding threads on win may
+    // be terminated, in which case the NotifyHostTaskComplete will not be called and
+    // the cv.wait() below will hang forever.
+    if (Scheduler::getInstance().isShuttingDown)
+      return;
+#endif
     std::unique_lock<std::mutex> lock(MMutex);
     cv.wait(lock, [this] { return MState == HES_Complete; });
   }

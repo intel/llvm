@@ -31,6 +31,7 @@ namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
+
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
 // Scheduler usage. Origin idea is to track usage of Scheduler from main and
@@ -44,6 +45,10 @@ public:
       MCounter++;
   }
   ~ObjectUsageCounter() {
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
+      if (xptiTraceEnabled())
+	return; // When doing xpti tracing, we can't safely perform some shutdown ops.
+#endif
     if (!MModifyCounter)
       return;
 
@@ -194,7 +199,7 @@ void GlobalHandler::unloadPlugins() {
 }
 
 void GlobalHandler::prepareSchedulerToRelease() {
-#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
+#ifndef _WIN32
   drainThreadPool();
 #endif
   if (MScheduler.Inst)

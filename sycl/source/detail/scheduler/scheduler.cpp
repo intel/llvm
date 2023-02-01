@@ -392,11 +392,8 @@ Scheduler::Scheduler() {
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
-#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
+
   BlockingT blockValue = BlockingT::BLOCKING;
-#else
-  BlockingT blockValue = BlockingT::NON_BLOCKING;
-#endif
 
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
@@ -410,9 +407,13 @@ void Scheduler::releaseResources() {
   // existing deferred mem objects under write lock, during this process we
   // cleanup commands related to this record, command may have last reference to
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
-  // with size only so all confitions for deferred release are satisfied) is
+  // with size only so all conditions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
+  // Windows: once we are shutting down, we can't rely on thread completion.
+  // So we clean up the deferred mem objects, but don't loop.
+#ifndef _WIN32
   while (!isDeferredMemObjectsEmpty())
+#endif
     cleanupDeferredMemObjects(blockValue);
 }
 
@@ -499,6 +500,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking == BlockingT::BLOCKING) {
+    this->isShuttingDown = true;
     std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
@@ -506,6 +508,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
     }
     // if any objects in TempStorage exist - it is leaving scope and being
     // deleted
+    return;
   }
 
   std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;

@@ -155,7 +155,6 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 
 void SYCLMemObjT::detachMemoryObject(
     const std::shared_ptr<SYCLMemObjT> &Self) const {
-#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   // Check MRecord without read lock because at this point we expect that no
   // commands that operate on the buffer can be created. MRecord is nullptr on
   // buffer creation and set to meaningfull
@@ -166,7 +165,6 @@ void SYCLMemObjT::detachMemoryObject(
   // ForceDeferredMemObjRelease in scheduler.
   if (MRecord && (!MHostPtrProvided || Scheduler::ForceDeferredMemObjRelease))
     Scheduler::getInstance().deferMemObjRelease(Self);
-#endif
 }
 
 } // namespace detail
