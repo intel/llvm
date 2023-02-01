@@ -980,7 +980,10 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     debugPrintBinaryImages();
   }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
+  auto It = m_DeviceImages.find(KSId);
+  assert(It != m_DeviceImages.end() &&
+         "No device image found for the given kernel set id");
+  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *It->second;
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
