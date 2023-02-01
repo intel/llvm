@@ -6,7 +6,7 @@
 ; RUN: llvm-lto -opaque-pointers -thinlto -thinlto-action=import -thinlto-index=%t3 %t.bc %t2.bc
 ; RUN: llvm-lto -opaque-pointers -thinlto -thinlto-action=run %t.bc %t2.bc -exported-symbol=_Z4LinkPKcS0_
 ; RUN: llvm-nm %t.bc.thinlto.o | FileCheck %s
-; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t.bc %t2.bc -o %t.out \
 ; RUN:   -r %t.bc,_Z4LinkPKcS0_,plx \
 ; RUN:   -r %t.bc,link,l \
 ; RUN:   -r %t2.bc,get_link,plx

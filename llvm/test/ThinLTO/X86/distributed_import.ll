@@ -6,7 +6,7 @@
 ; RUN: llvm-bcanalyzer -dump %t1.thinlink.bc | FileCheck --check-prefix=THINLINKBITCODE %s
 
 ; First perform the thin link on the normal bitcode file.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-distributed-indexes \
 ; RUN:     -r=%t1.bc,g, \
 ; RUN:     -r=%t1.bc,analias, \
@@ -34,7 +34,7 @@
 ; Next perform the thin link on the minimized bitcode files, and compare dumps
 ; of the resulting indexes to the above dumps to ensure they are identical.
 ; RUN: rm -f %t1.bc.thinlto.bc %t2.bc.thinlto.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-distributed-indexes \
 ; RUN:     -r=%t1.bc,g, \
 ; RUN:     -r=%t1.bc,analias, \

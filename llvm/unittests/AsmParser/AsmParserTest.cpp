@@ -68,6 +68,7 @@ TEST(AsmParserTest, SlotMappingTest) {
 
 TEST(AsmParserTest, TypeAndConstantValueParsing) {
   LLVMContext Ctx;
+  Ctx.setOpaquePointers(true);
   SMDiagnostic Error;
   StringRef Source = "define void @test() {\n  entry:\n  ret void\n}";
   auto Mod = parseAssemblyString(Source, Error, Ctx);

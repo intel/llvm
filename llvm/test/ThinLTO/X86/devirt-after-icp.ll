@@ -44,7 +44,7 @@
 
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t.o %s
 
-; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \

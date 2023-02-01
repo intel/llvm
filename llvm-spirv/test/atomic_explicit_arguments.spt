@@ -31,14 +31,14 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s
+; RUN: llvm-spirv -r -emit-opaque-pointers --spirv-target-env=CL2.0 %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
 
-; CHECK: define spir_func i32 @load(i32 addrspace(4)* %obj, i32 %order, i32 %scope) #0 {
+; CHECK: define spir_func i32 @load(ptr addrspace(4) %obj, i32 %order, i32 %scope) #0 {
 ; CHECK: entry:
 ; CHECK:   %call1 = call spir_func i32 @__translate_spirv_memory_scope(i32 %scope)
 ; CHECK:   %call2 = call spir_func i32 @__translate_spirv_memory_order(i32 %order)
-; CHECK:   %call = call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %obj, i32 %call2, i32 %call1)
+; CHECK:   %call = call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr addrspace(4) %obj, i32 %call2, i32 %call1)
 ; CHECK:   ret i32 %call
 ; CHECK: }
 
