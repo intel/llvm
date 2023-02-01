@@ -10,36 +10,37 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-extern int __oclc_ISA_version;
-
-//extern float __builtin_amdgcn_global_atomic_fadd_f32(global float *, float);
+extern constant int __oclc_ISA_version;
 
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, int, i, __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned int, j, __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, __hip_atomic_fetch_add)
-//AMDGPU_ATOMIC(_Z21__spirv_AtomicFAddEXT, float, f, __hip_atomic_fetch_add)
 
-#define AMDGPU_ATOMIC_FP32_IMPL(AS, AS_MANGLED, SUB1)                                                        \
+#define AMDGPU_ATOMIC_FP32_ADD_IMPL(AS, AS_MANGLED, SUB1, CHECK, NEW_BUILTIN)                                \
   _CLC_DEF float                                                                                             \
       _Z21__spirv_AtomicFAddEXT##P##AS_MANGLED##fN5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagEf( \
           volatile AS float *p, enum Scope scope,                                                            \
           enum MemorySemanticsMask semantics, float val) {                                                   \
+    if (CHECK) {                                                                                             \
+      float ret = NEW_BUILTIN(p, val);                                                                       \
+      return *(float *)&ret;                                                                                 \
+    }                                                                                                        \
     int atomic_scope = 0, memory_order = 0;                                                                  \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                 \
-    float ret;                                                                                               \
-    if (__oclc_ISA_version > 9010)                                                                           \
-      ret = __builtin_amdgcn_global_atomic_fadd_f32(p, val);                                                 \
-    else                                                                                                     \
-      ret = __hip_atomic_fetch_add(p, val, memory_order, atomic_scope);                                      \
+    float ret = __hip_atomic_fetch_add(p, val, memory_order, atomic_scope);                                  \
     return *(float *)&ret;                                                                                   \
   }
 
-AMDGPU_ATOMIC_FP32_IMPL(global, U3AS1, 1)
-// AMDGPU_ATOMIC_FP32_IMPL(local, U3AS3, 1)
-// AMDGPU_ATOMIC_FP32_IMPL(, , 0)
+AMDGPU_ATOMIC_FP32_ADD_IMPL(global, U3AS1, 1, __oclc_ISA_version >= 9010,
+                            __builtin_amdgcn_global_atomic_fadd_f32)
+AMDGPU_ATOMIC_FP32_ADD_IMPL(local, U3AS3, 1, __oclc_ISA_version >= 8000,
+                            __builtin_amdgcn_ds_atomic_fadd_f32)
+AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0, __oclc_ISA_version >= 9400,
+                            __builtin_amdgcn_flat_atomic_fadd_f32)
 
-#define AMDGPU_ATOMIC_FP64_ADD_IMPL(AS, AS_MANGLED, SUB1, SUB2)                                                                 \
+#define AMDGPU_ATOMIC_FP64_ADD_IMPL(AS, AS_MANGLED, SUB1, SUB2, CHECK,                                                          \
+                                    NEW_BUILTIN)                                                                                \
   _CLC_DEF long                                                                                                                 \
       _Z29__spirv_AtomicCompareExchangeP##AS_MANGLED##lN5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagES##SUB2##_ll(   \
           volatile AS long *, enum Scope, enum MemorySemanticsMask,                                                             \
@@ -51,6 +52,10 @@ AMDGPU_ATOMIC_FP32_IMPL(global, U3AS1, 1)
       _Z21__spirv_AtomicFAddEXTP##AS_MANGLED##dN5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagEd(                      \
           volatile AS double *p, enum Scope scope,                                                                              \
           enum MemorySemanticsMask semantics, double val) {                                                                     \
+    if (CHECK) {                                                                                                                \
+      double ret = NEW_BUILTIN(p, val);                                                                                         \
+      return *(double *)&ret;                                                                                                   \
+    }                                                                                                                           \
     int atomic_scope = 0, memory_order = 0;                                                                                     \
     volatile AS long *int_pointer = (volatile AS long *)p;                                                                      \
     long old_int_val = 0, new_int_val = 0;                                                                                      \
@@ -69,12 +74,16 @@ AMDGPU_ATOMIC_FP32_IMPL(global, U3AS1, 1)
   }
 
 #ifdef cl_khr_int64_base_atomics
-AMDGPU_ATOMIC_FP64_ADD_IMPL(global, U3AS1, 1, 5)
-AMDGPU_ATOMIC_FP64_ADD_IMPL(local, U3AS3, 1, 5)
-AMDGPU_ATOMIC_FP64_ADD_IMPL(, , 0, 4)
+AMDGPU_ATOMIC_FP64_ADD_IMPL(global, U3AS1, 1, 5, __oclc_ISA_version >= 9010,
+                            __builtin_amdgcn_global_atomic_fadd_f64)
+AMDGPU_ATOMIC_FP64_ADD_IMPL(local, U3AS3, 1, 5, __oclc_ISA_version >= 9010,
+                            __builtin_amdgcn_ds_atomic_fadd_f64)
+AMDGPU_ATOMIC_FP64_ADD_IMPL(, , 0, 4, __oclc_ISA_version >= 9400,
+                            __builtin_amdgcn_flat_atomic_fadd_f64)
 #endif
 
 #undef AMDGPU_ATOMIC
 #undef AMDGPU_ATOMIC_IMPL
+#undef AMDGPU_ATOMIC_FP32_ADD_IMPL
 #undef AMDGPU_ATOMIC_FP64_ADD_IMPL
 #undef GET_ATOMIC_SCOPE_AND_ORDER

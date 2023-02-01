@@ -339,6 +339,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			elseif( ${ARCH} STREQUAL amdgcn )
 				# AMDGCN needs generic address space for atomics
 				set( flags "SHELL:-Xclang -cl-std=CL2.0")
+				set( flags "SHELL:-mcpu=gfx940")
 			else()
 				set ( flags )
 			endif()
