@@ -21,14 +21,15 @@
 #include <sycl/types.hpp>
 
 #include <cmath>
+#include <cstdint>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <typename T>
-using IsValidCoordType =
-    typename is_contained<T, type_list<opencl::cl_int, opencl::cl_float>>::type;
+using IsValidCoordType = typename is_contained<
+    T, type_list<opencl::cl_int, opencl::cl_float, float>>::type;
 
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]
@@ -56,20 +57,20 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 // calculation won't pass 0.
 // Non-valid coordinates are written as 0.
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<opencl::cl_float, 4>>
+detail::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(T Coords) {
   return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<opencl::cl_float, 4>>
+detail::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(vec<T, 2> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
           0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<opencl::cl_float, 4>>
+detail::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(vec<T, 4> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()),
           static_cast<float>(Coords.z()), 0.f};
@@ -99,17 +100,16 @@ getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
          Coords.z() * ImgPitch[1];
 }
 
-// Process vec<opencl::cl_float, 4> Coordinates and return the appropriate Pixel
+// Process float4 Coordinates and return the appropriate Pixel
 // Coordinates to read from based on Addressing Mode for Nearest filter mode.
 __SYCL_EXPORT vec<opencl::cl_int, 4>
-getPixelCoordNearestFiltMode(vec<opencl::cl_float, 4>, const addressing_mode,
-                             const range<3>);
+getPixelCoordNearestFiltMode(float4, const addressing_mode, const range<3>);
 
-// Process vec<opencl::cl_float, 4> Coordinates and return the appropriate Pixel
+// Process float4 Coordinates and return the appropriate Pixel
 // Coordinates to read from based on Addressing Mode for Linear filter mode.
 __SYCL_EXPORT vec<opencl::cl_int, 8>
-getPixelCoordLinearFiltMode(vec<opencl::cl_float, 4>, const addressing_mode,
-                            const range<3>, vec<opencl::cl_float, 4> &);
+getPixelCoordLinearFiltMode(float4, const addressing_mode, const range<3>,
+                            float4 &);
 
 // Check if PixelCoord are out of range for Sampler with clamp adressing mode.
 __SYCL_EXPORT bool isOutOfRange(const vec<opencl::cl_int, 4> PixelCoord,
@@ -118,8 +118,7 @@ __SYCL_EXPORT bool isOutOfRange(const vec<opencl::cl_int, 4> PixelCoord,
 
 // Get Border Color for the image_channel_order, the border color values are
 // only used when the sampler has clamp addressing mode.
-__SYCL_EXPORT vec<opencl::cl_float, 4>
-getBorderColor(const image_channel_order ImgChannelOrder);
+__SYCL_EXPORT float4 getBorderColor(const image_channel_order ImgChannelOrder);
 
 // Reads data from a pixel at Ptr location, based on the number of Channels in
 // Order and returns the data.
@@ -328,26 +327,26 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
                      const image_channel_type ImageChannelType,
-                     vec<opencl::cl_float, 4> &RetData) {
+                     float4 &RetData) {
 
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
     //  max(-1.0f, (float)c / 127.0f)
-    RetData = (PixelData.template convert<opencl::cl_float>()) / 127.0f;
+    RetData = (PixelData.template convert<float>()) / 127.0f;
     RetData = sycl::fmax(RetData, -1);
     break;
   case image_channel_type::snorm_int16:
     // max(-1.0f, (float)c / 32767.0f)
-    RetData = (PixelData.template convert<opencl::cl_float>()) / 32767.0f;
+    RetData = (PixelData.template convert<float>()) / 32767.0f;
     RetData = sycl::fmax(RetData, -1);
     break;
   case image_channel_type::unorm_int8:
     // (float)c / 255.0f
-    RetData = (PixelData.template convert<opencl::cl_float>()) / 255.0f;
+    RetData = (PixelData.template convert<float>()) / 255.0f;
     break;
   case image_channel_type::unorm_int16:
     // (float)c / 65535.0f
-    RetData = (PixelData.template convert<opencl::cl_float>()) / 65535.0f;
+    RetData = (PixelData.template convert<float>()) / 65535.0f;
     break;
   case image_channel_type::unorm_short_565: {
     // TODO: Missing information in OpenCL spec. check if the below code is
@@ -360,9 +359,9 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
                                        0x07E0 /*g:bits 5-10*/,
                                        0x001F /*b:bits 0-4*/, 0x0000);
     vec<opencl::cl_ushort, 4> ShiftBits(11, 5, 0, 0);
-    vec<opencl::cl_float, 4> DivisorToNormalise(31.0f, 63.0f, 31.0f, 1);
+    float4 DivisorToNormalise(31.0f, 63.0f, 31.0f, 1);
     Temp = (Temp & MaskBits) >> ShiftBits;
-    RetData = (Temp.template convert<opencl::cl_float>()) / DivisorToNormalise;
+    RetData = (Temp.template convert<float>()) / DivisorToNormalise;
     break;
   }
   case image_channel_type::unorm_short_555: {
@@ -377,7 +376,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
                                0x001F /*b:bits 0-4*/, 0x0000);
     vec<cl_ushort, 4> ShiftBits(10, 5, 0, 0);
     Temp = (Temp & MaskBits) >> ShiftBits;
-    RetData = (Temp.template convert<opencl::cl_float>()) / 31.0f;
+    RetData = (Temp.template convert<float>()) / 31.0f;
     break;
   }
   case image_channel_type::unorm_int_101010: {
@@ -389,7 +388,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
                                      0x000003FF /*b:bits 0-9*/, 0x00000000);
     vec<opencl::cl_uint, 4> ShiftBits(20, 10, 0, 0);
     Temp = (Temp & MaskBits) >> ShiftBits;
-    RetData = (Temp.template convert<opencl::cl_float>()) / 1023.0f;
+    RetData = (Temp.template convert<float>()) / 1023.0f;
     break;
   }
   case image_channel_type::signed_int8:
@@ -402,17 +401,17 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - vec<opencl::cl_float, 4> is incompatible with "
+        "Datatype of read data - float4 is incompatible with "
         "the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
     // Host has conversion from float to half with accuracy as required in
     // section 8.3.2 OpenCL spec.
-    RetData = PixelData.template convert<opencl::cl_float>();
+    RetData = PixelData.template convert<float>();
     break;
   case image_channel_type::fp32:
-    RetData = PixelData.template convert<opencl::cl_float>();
+    RetData = PixelData.template convert<float>();
     break;
   }
 }
@@ -420,26 +419,26 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
                      const image_channel_type ImageChannelType,
-                     vec<opencl::cl_half, 4> &RetData) {
-  vec<opencl::cl_float, 4> RetDataFloat;
+                     half4 &RetData) {
+  float4 RetDataFloat;
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
     //  max(-1.0f, (half)c / 127.0f)
-    RetDataFloat = (PixelData.template convert<opencl::cl_float>()) / 127.0f;
+    RetDataFloat = (PixelData.template convert<float>()) / 127.0f;
     RetDataFloat = sycl::fmax(RetDataFloat, -1);
     break;
   case image_channel_type::snorm_int16:
     // max(-1.0f, (half)c / 32767.0f)
-    RetDataFloat = (PixelData.template convert<opencl::cl_float>()) / 32767.0f;
+    RetDataFloat = (PixelData.template convert<float>()) / 32767.0f;
     RetDataFloat = sycl::fmax(RetDataFloat, -1);
     break;
   case image_channel_type::unorm_int8:
     // (half)c / 255.0f
-    RetDataFloat = (PixelData.template convert<opencl::cl_float>()) / 255.0f;
+    RetDataFloat = (PixelData.template convert<float>()) / 255.0f;
     break;
   case image_channel_type::unorm_int16:
     // (half)c / 65535.0f
-    RetDataFloat = (PixelData.template convert<opencl::cl_float>()) / 65535.0f;
+    RetDataFloat = (PixelData.template convert<float>()) / 65535.0f;
     break;
   case image_channel_type::unorm_short_565:
   case image_channel_type::unorm_short_555:
@@ -463,7 +462,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
-    RetData = PixelData.template convert<opencl::cl_half>();
+    RetData = PixelData.template convert<half>();
     return;
   case image_channel_type::fp32:
     throw sycl::invalid_parameter_error(
@@ -471,7 +470,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
-  RetData = RetDataFloat.template convert<opencl::cl_half>();
+  RetData = RetDataFloat.template convert<half>();
 }
 
 // Converts data to write into appropriate datatype based on the channel of the
@@ -548,9 +547,8 @@ convertWriteData(const vec<opencl::cl_int, 4> WriteData,
 }
 
 template <typename ChannelType>
-vec<ChannelType, 4> processFloatDataToPixel(vec<opencl::cl_float, 4> WriteData,
-                                            float MulFactor) {
-  vec<opencl::cl_float, 4> Temp = WriteData * MulFactor;
+vec<ChannelType, 4> processFloatDataToPixel(float4 WriteData, float MulFactor) {
+  float4 Temp = WriteData * MulFactor;
   vec<opencl::cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
   vec<opencl::cl_int, 4> TempInIntSaturated =
       sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
@@ -559,7 +557,7 @@ vec<ChannelType, 4> processFloatDataToPixel(vec<opencl::cl_float, 4> WriteData,
 
 template <typename ChannelType>
 vec<ChannelType, 4>
-convertWriteData(const vec<opencl::cl_float, 4> WriteData,
+convertWriteData(const float4 WriteData,
                  const image_channel_type ImageChannelType) {
 
   vec<ChannelType, 4> PixelData;
@@ -581,7 +579,7 @@ convertWriteData(const vec<opencl::cl_float, 4> WriteData,
     // TODO: Missing information in OpenCL spec.
     throw sycl::feature_not_supported(
         "Currently unsupported datatype conversion from image_channel_type "
-        "to vec<opencl::cl_float, 4>.",
+        "to float4.",
         PI_ERROR_INVALID_OPERATION);
   case image_channel_type::unorm_short_555:
     // TODO: Missing information in OpenCL spec.
@@ -623,7 +621,7 @@ convertWriteData(const vec<opencl::cl_float, 4> WriteData,
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - vec<opencl::cl_float, 4> is incompatible "
+        "Datatype of data to write - float4 is incompatible "
         "with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -638,10 +636,9 @@ convertWriteData(const vec<opencl::cl_float, 4> WriteData,
 
 template <typename ChannelType>
 vec<ChannelType, 4>
-convertWriteData(const vec<opencl::cl_half, 4> WriteData,
+convertWriteData(const half4 WriteData,
                  const image_channel_type ImageChannelType) {
-  vec<opencl::cl_float, 4> WriteDataFloat =
-      WriteData.convert<opencl::cl_float>();
+  float4 WriteDataFloat = WriteData.convert<float>();
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
     // convert_char_sat_rte(h * 127.0f)
@@ -673,7 +670,7 @@ convertWriteData(const vec<opencl::cl_half, 4> WriteData,
     // image with channel datatype - signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - vec<opencl::cl_float, 4> is incompatible "
+        "Datatype of data to write - float4 is incompatible "
         "with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -681,7 +678,7 @@ convertWriteData(const vec<opencl::cl_half, 4> WriteData,
     return WriteData.convert<ChannelType>();
   case image_channel_type::fp32:
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - vec<opencl::cl_float, 4> is incompatible "
+        "Datatype of data to write - float4 is incompatible "
         "with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -779,13 +776,13 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
     writePixel(
         // convertWriteDataToHalf<typename
         // TryToGetElementType<WriteDataT>::type>(
-        convertWriteData<opencl::cl_half>(Color, ImgChannelType),
-        reinterpret_cast<opencl::cl_half *>(Ptr), ImgChannelOrder,
+        convertWriteData<half>(Color, ImgChannelType),
+        reinterpret_cast<half *>(Ptr), ImgChannelOrder,
         ImgChannelType);
     break;
   case image_channel_type::fp32:
-    writePixel(convertWriteData<opencl::cl_float>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_float *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<float>(Color, ImgChannelType),
+               reinterpret_cast<float *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   }
@@ -805,7 +802,7 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 // 5. Convert the Read Data into Return DataT based on conversion rules in
 // the Spec.(convertReadData)
 // Possible DataT are vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
-// vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>;
+// float4, half4;
 template <typename DataT>
 DataT ReadPixelData(const vec<opencl::cl_int, 4> PixelCoord,
                     const id<3> ImgPitch,
@@ -900,14 +897,14 @@ DataT ReadPixelData(const vec<opencl::cl_int, 4> PixelCoord,
         image_channel_type::unsigned_int32, Color);
     break;
   case image_channel_type::fp16:
-    convertReadData<opencl::cl_half>(
-        readPixel(reinterpret_cast<opencl::cl_half *>(Ptr), ImageChannelOrder,
+    convertReadData<half>(
+        readPixel(reinterpret_cast<half *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::fp16, Color);
     break;
   case image_channel_type::fp32:
-    convertReadData<opencl::cl_float>(
-        readPixel(reinterpret_cast<opencl::cl_float *>(Ptr), ImageChannelOrder,
+    convertReadData<float>(
+        readPixel(reinterpret_cast<float *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::fp32, Color);
     break;
@@ -926,7 +923,7 @@ DataT getColor(const vec<opencl::cl_int, 4> PixelCoord,
                const uint8_t ElementSize) {
   DataT RetData;
   if (isOutOfRange(PixelCoord, SmplAddrMode, ImgRange)) {
-    vec<opencl::cl_float, 4> BorderColor = getBorderColor(ImgChannelOrder);
+    float4 BorderColor = getBorderColor(ImgChannelOrder);
     RetData = BorderColor.convert<typename TryToGetElementType<DataT>::type>();
   } else {
     RetData = ReadPixelData<DataT>(PixelCoord, ImgPitch, ImgChannelType,
@@ -942,7 +939,7 @@ DataT getColor(const vec<opencl::cl_int, 4> PixelCoord,
 // 3. Computes the return Color Value using a,b,c and the Color values.
 template <typename DataT>
 DataT ReadPixelDataLinearFiltMode(const vec<opencl::cl_int, 8> CoordValues,
-                                  const vec<opencl::cl_float, 4> abc,
+                                  const float4 abc,
                                   const addressing_mode SmplAddrMode,
                                   const range<3> ImgRange, id<3> ImgPitch,
                                   const image_channel_type ImgChannelType,
@@ -956,37 +953,29 @@ DataT ReadPixelDataLinearFiltMode(const vec<opencl::cl_int, 8> CoordValues,
     DataT Res =
         getColor<DataT>(V, SmplAddrMode, ImgRange, ImgPitch, ImgChannelType,
                         ImgChannelOrder, BasePtr, ElementSize);
-    return Res.template convert<opencl::cl_float>();
+    return Res.template convert<float>();
   };
 
   // Get Color Values at each Coordinate.
-  vec<opencl::cl_float, 4> Ci0j0k0 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k0, 0});
+  float4 Ci0j0k0 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k0, 0});
 
-  vec<opencl::cl_float, 4> Ci1j0k0 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k0, 0});
+  float4 Ci1j0k0 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k0, 0});
 
-  vec<opencl::cl_float, 4> Ci0j1k0 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k0, 0});
+  float4 Ci0j1k0 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k0, 0});
 
-  vec<opencl::cl_float, 4> Ci1j1k0 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k0, 0});
+  float4 Ci1j1k0 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k0, 0});
 
-  vec<opencl::cl_float, 4> Ci0j0k1 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k1, 0});
+  float4 Ci0j0k1 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k1, 0});
 
-  vec<opencl::cl_float, 4> Ci1j0k1 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k1, 0});
+  float4 Ci1j0k1 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k1, 0});
 
-  vec<opencl::cl_float, 4> Ci0j1k1 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k1, 0});
+  float4 Ci0j1k1 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k1, 0});
 
-  vec<opencl::cl_float, 4> Ci1j1k1 =
-      getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k1, 0});
+  float4 Ci1j1k1 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k1, 0});
 
-  opencl::cl_float a = abc.x();
-  opencl::cl_float b = abc.y();
-  opencl::cl_float c = abc.z();
+  float a = abc.x();
+  float b = abc.y();
+  float c = abc.z();
 
   Ci0j0k0 = (1 - a) * (1 - b) * (1 - c) * Ci0j0k0;
   Ci1j0k0 = a * (1 - b) * (1 - c) * Ci1j0k0;
@@ -997,8 +986,8 @@ DataT ReadPixelDataLinearFiltMode(const vec<opencl::cl_int, 8> CoordValues,
   Ci0j1k1 = (1 - a) * b * c * Ci0j1k1;
   Ci1j1k1 = a * b * c * Ci1j1k1;
 
-  vec<opencl::cl_float, 4> RetData = Ci0j0k0 + Ci1j0k0 + Ci0j1k0 + Ci1j1k0 +
-                                     Ci0j0k1 + Ci1j0k1 + Ci0j1k1 + Ci1j1k1;
+  float4 RetData = Ci0j0k0 + Ci1j0k0 + Ci0j1k0 + Ci1j1k0 + Ci0j0k1 + Ci1j0k1 +
+                   Ci0j1k1 + Ci1j1k1;
 
   // For 2D image:k0 = 0, k1 = 0, c = 0.5
   // RetData = (1 – a) * (1 – b) * Ci0j0 + a * (1 – b) * Ci1j0 +
@@ -1062,7 +1051,7 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   filtering_mode SmplFiltMode = Smpl.get_filtering_mode();
 
   CoordT Coorduvw;
-  vec<opencl::cl_float, 4> FloatCoorduvw;
+  float4 FloatCoorduvw;
   DataT RetData;
 
   // Step 1:
@@ -1110,10 +1099,10 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   // Step 2 & Step 3:
 
   // converToFloat4 converts CoordT of any kind - opencl::cl_int,
-  // vec<opencl::cl_int, 2>, vec<opencl::cl_int, 4>, opencl::cl_float,
-  // vec<opencl::cl_float, 2> and vec<opencl::cl_float, 4> into Coordinates of
-  // kind vec<opencl::cl_float, 4> with no loss of precision. For
-  // pixel_coordinates already in vec<opencl::cl_float, 4> format, the function
+  // vec<opencl::cl_int, 2>, vec<opencl::cl_int, 4>, float,
+  // vec<float, 2> and float4 into Coordinates of
+  // kind float4 with no loss of precision. For
+  // pixel_coordinates already in float4 format, the function
   // returns the same values. This conversion is done to enable implementation
   // of one common function getPixelCoordXXXMode, for any datatype of CoordT
   // passed.
@@ -1133,7 +1122,7 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
     break;
   }
   case filtering_mode::linear: {
-    vec<opencl::cl_float, 4> Retabc;
+    float4 Retabc;
     // Get Pixel Coordinates in integers that will be read from in the Image.
     // Return i0,j0,k0,0,i1,j1,k1,0 to form 8 coordinates in a 3D image and
     // multiplication factors a,b,c
