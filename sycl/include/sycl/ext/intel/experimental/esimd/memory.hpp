@@ -487,6 +487,17 @@ lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
       p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
 }
 
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
+                             __ESIMD_NS::simd<T, N * NElts>>
+lsc_gather(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
+}
+
 /// Accessor-based gather.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
@@ -733,6 +744,16 @@ __ESIMD_API void lsc_prefetch(const T *p,
   using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
   lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
                                           pred);
+}
+
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
+lsc_prefetch(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
 }
 
 /// USM pointer prefetch transposed gather with 1 channel.
@@ -990,6 +1011,17 @@ __ESIMD_API void lsc_scatter(T *p,
   using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
   lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
                                          vals, pred);
+}
+
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
+lsc_scatter(T *p, Toffset offset, __ESIMD_NS::simd<T, N * NElts> vals,
+            __ESIMD_NS::simd_mask<N> pred = 1) {
+  lsc_scatter<T, NElts, DS, L1H, L3H, N>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), vals, pred);
 }
 
 /// Accessor-based scatter.
@@ -1915,6 +1947,17 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
       p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
 }
 
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
+}
+
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
@@ -1976,6 +2019,20 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
       p, __ESIMD_NS::simd<Ty, N>(offsets), src0, pred);
 }
 
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 ((Op != __ESIMD_NS::atomic_op::store &&
+                                   Op != __ESIMD_NS::atomic_op::xchg) ||
+                                  N == 1),
+                             __ESIMD_NS::simd<T, N>>
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), src0, pred);
+}
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
@@ -2038,6 +2095,19 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
   using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Ty, N>(offsets), src0, src1, pred);
+}
+
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                      __ESIMD_NS::simd<T, N> src1,
+                      __ESIMD_NS::simd_mask<N> pred = 1) {
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), src0, src1, pred);
 }
 
 /// Accessor-based atomic.
@@ -2243,6 +2313,14 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
       p, offsets, mask);
 }
 
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+    atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, mask);
+}
+
 /// LSC version of the single-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
 __ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
@@ -2257,6 +2335,15 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
                                      simd<T, N> src0, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+    atomic_update(T *p, Toffset offset, simd<T, N> src0,
+                  simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, src0, mask);
 }
 
 /// LSC version of the two-argument atomic update.
@@ -2278,6 +2365,15 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
                                      simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+    atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
+                  simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, src1, src0, mask);
 }
 
 /// RAII-style class used to implement "semi-dynamic" SLM allocation.
