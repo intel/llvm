@@ -33,7 +33,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: define spir_func i32 @foo(i32 %x)
 
-; CHECK-LLVM: define spir_kernel void @bar(ptr %y)
+; CHECK-LLVM: define spir_func void @bar(ptr %y)
 ; CHECK-LLVM: [[PTRTOINT:%.*]] = ptrtoint ptr @foo to i64
 ; CHECK-LLVM: store i64 [[PTRTOINT]], ptr %y, align 8
 
@@ -43,7 +43,7 @@ define spir_func i32 @foo(i32 %x) {
 
 @foo.alias = internal alias i32 (i32), i32 (i32)* @foo
 
-define spir_kernel void @bar(i64* %y) {
+define spir_func void @bar(i64* %y) {
   store i64 ptrtoint (i32 (i32)* @foo.alias to i64), i64* %y
   ret void
 }
