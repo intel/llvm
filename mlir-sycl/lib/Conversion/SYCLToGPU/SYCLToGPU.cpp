@@ -24,8 +24,8 @@ using namespace mlir::sycl;
 namespace {
 /// Returns the result of creating an operation to get a reference to an element
 /// of a sycl::id or sycl::range.
-Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
-                  Value index, ArrayAttr argumentTypes,
+Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
+                  Value res, Value index, ArrayAttr argumentTypes,
                   FlatSymbolRefAttr functionName) {
   return TypeSwitch<Type, Value>(res.getType())
       .Case<IDType, RangeType>([&](auto arg) {
@@ -35,7 +35,8 @@ Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
         using OpTy = std::conditional_t<std::is_same_v<ArgTy, IDType>,
                                         SYCLIDGetOp, SYCLRangeGetOp>;
         return builder.create<OpTy>(
-            loc, dimMtTy, res, index, argumentTypes, functionName, functionName,
+            loc, underlyingArrTy, res, index, argumentTypes, functionName,
+            functionName,
             builder.getAttr<FlatSymbolRefAttr>(ArgTy::getMnemonic()));
       });
 }
@@ -106,7 +107,8 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
   const auto loc = op->getLoc();
   const auto targetIndexTy = rewriter.getIntegerType(64);
   const auto getIndexTy = rewriter.getIntegerType(32);
-  const auto dimMtTy = MemRefType::get(dimensions, targetIndexTy, {}, 4);
+  const auto underlyingArrTy =
+      MemRefType::get(dimensions, targetIndexTy, {}, 4);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
   const auto alloca = static_cast<Value>(
@@ -126,7 +128,7 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
     const auto val = static_cast<Value>(rewriter.create<arith::IndexCastOp>(
         loc, targetIndexTy,
         getDimension(rewriter, loc, opName, dimensionAttrname, i)));
-    const auto ptr = createGetOp(rewriter, loc, dimMtTy, res, index,
+    const auto ptr = createGetOp(rewriter, loc, underlyingArrTy, res, index,
                                  argumentTypes, functionName);
     rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
   }
