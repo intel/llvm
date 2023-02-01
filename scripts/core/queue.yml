@@ -55,6 +55,11 @@ etors:
       value: "$X_BIT(6)"
       desc: "High priority queue"
 --- #--------------------------------------------------------------------------
+type: typedef
+desc: "Queue property type"
+name: $x_queue_property_t
+value: intptr_t
+--- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue Properties"
 class: $xQueue
@@ -66,18 +71,6 @@ etors:
     - name: COMPUTE_INDEX
       value: "-2"
       desc: "[uint32_t]: the queue index"
---- #--------------------------------------------------------------------------
-type: struct
-desc: "Queue property value"
-class: $xQueue
-name: $x_queue_property_value_t
-members:
-    - type: $x_queue_properties_t
-      name: propertyType
-      desc: "[in] queue property"
-    - type: uint32_t
-      name: propertyValue
-      desc: "[in] queue property value"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a command queue"
@@ -123,7 +116,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_queue_property_value_t*
+    - type: const $x_queue_property_t*
       name: pProps
       desc: |
             [in] specifies a list of queue properties and their corresponding values.

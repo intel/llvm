@@ -2243,6 +2243,10 @@ typedef enum ur_queue_flag_t
 } ur_queue_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue property type
+typedef intptr_t ur_queue_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue Properties
 typedef enum ur_queue_properties_t
 {
@@ -2251,15 +2255,6 @@ typedef enum ur_queue_properties_t
     UR_QUEUE_PROPERTIES_FORCE_UINT32 = 0x7fffffff
 
 } ur_queue_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Queue property value
-typedef struct ur_queue_property_value_t
-{
-    ur_queue_properties_t propertyType;             ///< [in] queue property
-    uint32_t propertyValue;                         ///< [in] queue property value
-
-} ur_queue_property_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
@@ -2319,7 +2314,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_device_handle_t hDevice,                     ///< [in] handle of the device object
-    ur_queue_property_value_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
+    const ur_queue_property_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
                                                     ///< Each property name is immediately followed by the corresponding
                                                     ///< desired value.
                                                     ///< The list is terminated with a 0. 
@@ -2522,6 +2517,10 @@ typedef enum ur_sampler_properties_t
 } ur_sampler_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Sampler Properties type
+typedef intptr_t ur_sampler_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler addressing mode
 typedef enum ur_sampler_addressing_mode_t
 {
@@ -2533,15 +2532,6 @@ typedef enum ur_sampler_addressing_mode_t
     UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
 
 } ur_sampler_addressing_mode_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Sampler properties <name, value> pair
-typedef struct ur_sampler_property_value_t
-{
-    ur_sampler_properties_t propName;               ///< [in] Sampler property
-    uint32_t propValue;                             ///< [in] Sampler property value
-
-} ur_sampler_property_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a sampler object in a context
@@ -2573,7 +2563,7 @@ typedef struct ur_sampler_property_value_t
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
-    const ur_sampler_property_value_t* pProps,      ///< [in] specifies a list of sampler property names and their
+    const ur_sampler_property_t* pProps,            ///< [in] specifies a list of sampler property names and their
                                                     ///< corresponding values.
     ur_sampler_handle_t* phSampler                  ///< [out] pointer to handle of sampler object created
     );
@@ -5773,7 +5763,7 @@ typedef struct ur_kernel_callbacks_t
 typedef struct ur_sampler_create_params_t
 {
     ur_context_handle_t* phContext;
-    const ur_sampler_property_value_t** ppProps;
+    const ur_sampler_property_t** ppProps;
     ur_sampler_handle_t** pphSampler;
 } ur_sampler_create_params_t;
 
@@ -7159,7 +7149,7 @@ typedef struct ur_queue_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
-    ur_queue_property_value_t** ppProps;
+    const ur_queue_property_t** ppProps;
     ur_queue_handle_t** pphQueue;
 } ur_queue_create_params_t;
 

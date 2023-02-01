@@ -577,6 +577,11 @@ class ur_queue_flags_t(c_int):
 
 
 ###############################################################################
+## @brief Queue property type
+class ur_queue_property_t(c_intptr_t):
+    pass
+
+###############################################################################
 ## @brief Queue Properties
 class ur_queue_properties_v(IntEnum):
     FLAGS = -1                                      ## [::ur_queue_flags_t]: the bitfield of queue flags
@@ -586,14 +591,6 @@ class ur_queue_properties_t(c_int):
     def __str__(self):
         return str(ur_queue_properties_v(self.value))
 
-
-###############################################################################
-## @brief Queue property value
-class ur_queue_property_value_t(Structure):
-    _fields_ = [
-        ("propertyType", ur_queue_properties_t),                        ## [in] queue property
-        ("propertyValue", c_ulong)                                      ## [in] queue property value
-    ]
 
 ###############################################################################
 ## @brief Get sample object information
@@ -625,6 +622,11 @@ class ur_sampler_properties_t(c_int):
 
 
 ###############################################################################
+## @brief Sampler Properties type
+class ur_sampler_property_t(c_intptr_t):
+    pass
+
+###############################################################################
 ## @brief Sampler addressing mode
 class ur_sampler_addressing_mode_v(IntEnum):
     MIRRORED_REPEAT = 0                             ## Mirrored Repeat
@@ -637,14 +639,6 @@ class ur_sampler_addressing_mode_t(c_int):
     def __str__(self):
         return str(ur_sampler_addressing_mode_v(self.value))
 
-
-###############################################################################
-## @brief Sampler properties <name, value> pair
-class ur_sampler_property_value_t(Structure):
-    _fields_ = [
-        ("propName", ur_sampler_properties_t),                          ## [in] Sampler property
-        ("propValue", c_ulong)                                          ## [in] Sampler property value
-    ]
 
 ###############################################################################
 ## @brief USM memory property flags
@@ -1500,9 +1494,9 @@ class ur_kernel_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urSamplerCreate
 if __use_win_types:
-    _urSamplerCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_value_t), POINTER(ur_sampler_handle_t) )
+    _urSamplerCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_t), POINTER(ur_sampler_handle_t) )
 else:
-    _urSamplerCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_value_t), POINTER(ur_sampler_handle_t) )
+    _urSamplerCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_t), POINTER(ur_sampler_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urSamplerRetain
@@ -1918,9 +1912,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueCreate
 if __use_win_types:
-    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_value_t), POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_t), POINTER(ur_queue_handle_t) )
 else:
-    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_value_t), POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_t), POINTER(ur_queue_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueRetain

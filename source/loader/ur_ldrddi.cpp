@@ -2301,7 +2301,7 @@ namespace loader
     urQueueCreate(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         ur_device_handle_t hDevice,                     ///< [in] handle of the device object
-        ur_queue_property_value_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
+        const ur_queue_property_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
                                                         ///< Each property name is immediately followed by the corresponding
                                                         ///< desired value.
                                                         ///< The list is terminated with a 0. 
@@ -2526,7 +2526,7 @@ namespace loader
     __urdlllocal ur_result_t UR_APICALL
     urSamplerCreate(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
-        const ur_sampler_property_value_t* pProps,      ///< [in] specifies a list of sampler property names and their
+        const ur_sampler_property_t* pProps,            ///< [in] specifies a list of sampler property names and their
                                                         ///< corresponding values.
         ur_sampler_handle_t* phSampler                  ///< [out] pointer to handle of sampler object created
         )
