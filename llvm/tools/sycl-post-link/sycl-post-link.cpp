@@ -238,7 +238,7 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
 // Optional.
 // Otherwise, it returns an Optional containing a list of reached
 // SPIR kernel function's names.
-Optional<std::vector<StringRef>>
+std::optional<std::vector<StringRef>>
 traverseCGToFindSPIRKernels(const Function *StartingFunction) {
   std::queue<const Function *> FunctionsToVisit;
   std::unordered_set<const Function *> VisitedFunctions;

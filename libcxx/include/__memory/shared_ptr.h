@@ -366,15 +366,15 @@ struct __compatible_with
 template <class _Ptr, class = void>
 struct __is_deletable : false_type { };
 template <class _Ptr>
-struct __is_deletable<_Ptr, decltype(delete declval<_Ptr>())> : true_type { };
+struct __is_deletable<_Ptr, decltype(delete std::declval<_Ptr>())> : true_type { };
 
 template <class _Ptr, class = void>
 struct __is_array_deletable : false_type { };
 template <class _Ptr>
-struct __is_array_deletable<_Ptr, decltype(delete[] declval<_Ptr>())> : true_type { };
+struct __is_array_deletable<_Ptr, decltype(delete[] std::declval<_Ptr>())> : true_type { };
 
 template <class _Dp, class _Pt,
-    class = decltype(declval<_Dp>()(declval<_Pt>()))>
+    class = decltype(std::declval<_Dp>()(std::declval<_Pt>()))>
 static true_type __well_formed_deleter_test(int);
 
 template <class, class>
@@ -991,7 +991,7 @@ struct __unbounded_array_control_block<_Tp[], _Alloc> : __shared_weak_count
         return (__bytes + __align - 1) & ~(__align - 1);
     }
 
-    _LIBCPP_HIDE_FROM_ABI
+    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
     ~__unbounded_array_control_block() override { } // can't be `= default` because of the sometimes-non-trivial union member __data_
 
 private:
@@ -1058,7 +1058,7 @@ struct __bounded_array_control_block<_Tp[_Count], _Alloc>
         std::__uninitialized_allocator_value_construct_n(__alloc_, std::addressof(__data_[0]), _Count);
     }
 
-    _LIBCPP_HIDE_FROM_ABI
+    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
     ~__bounded_array_control_block() override { } // can't be `= default` because of the sometimes-non-trivial union member __data_
 
 private:

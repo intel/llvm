@@ -17,7 +17,7 @@
 ; DIS-NOT: typeidMetadata
 
 ; Index based WPD
-; RUN: llvm-lto2 run %t2.o -save-temps -opaque-pointers -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t2.o -save-temps -opaque-pointers -pass-remarks=. \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,plx \
 ; RUN:   -r=%t2.o,_ZN1D1mEi,

@@ -1,14 +1,14 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regularized.bc
-; RUN: llvm-dis -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv -s %t.bc -o %t.regularized.bc
+; RUN: llvm-dis %t.regularized.bc -o %t.regularized.ll
 ; RUN: FileCheck < %t.regularized.ll %s
 
 ; Translation cycle should be successful:
 ; RUN: llvm-spirv %t.regularized.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 
-; CHECK: %[[#Base:]] = load i1, i1 addrspace(4)*{{.*}}, align 1
-; CHECK: %[[#LoadShift:]] = load i32, i32 addrspace(4)*{{.*}} align 4
+; CHECK: %[[#Base:]] = load i1, ptr addrspace(4){{.*}}, align 1
+; CHECK: %[[#LoadShift:]] = load i32, ptr addrspace(4){{.*}} align 4
 ; CHECK: %[[#AndShift:]] = and i32 %[[#LoadShift]], 1
 ; CHECK: %[[#CmpShift:]] = icmp ne i32 %[[#AndShift]], 0
 ; CHECK: %[[#ExtBase:]] = select i1 %[[#Base]], i32 1, i32 0
@@ -29,14 +29,14 @@ target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @foo(<2 x i1> %vec1, <2 x i1> %vec2) align 2 {
-  %1 = alloca %"class.ac" addrspace(4)*, align 8
+  %1 = alloca ptr addrspace(4), align 8
   %2 = alloca i32, align 4
-  %3 = addrspacecast %"class.ac" addrspace(4)** %1 to %"class.ac" addrspace(4)* addrspace(4)*
-  %4 = addrspacecast i32* %2 to i32 addrspace(4)*
-  %5 = load %"class.ac" addrspace(4)*, %"class.ac" addrspace(4)* addrspace(4)* %3, align 8
-  %6 = getelementptr inbounds %"class.ac", %"class.ac" addrspace(4)* %5, i32 0, i32 0
-  %7 = load i1, i1 addrspace(4)* %6, align 1
-  %8 = load i32, i32 addrspace(4)* %4, align 4
+  %3 = addrspacecast ptr %1 to ptr addrspace(4)
+  %4 = addrspacecast ptr %2 to ptr addrspace(4)
+  %5 = load ptr addrspace(4), ptr addrspace(4) %3, align 8
+  %6 = getelementptr inbounds %"class.ac", ptr addrspace(4) %5, i32 0, i32 0
+  %7 = load i1, ptr addrspace(4) %6, align 1
+  %8 = load i32, ptr addrspace(4) %4, align 4
   %9 = trunc i32 %8 to i1
   %10 = lshr i1 %7, %9
   %11 = zext i1 %10 to i32

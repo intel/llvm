@@ -1,5 +1,6 @@
-; RUN: not llc --mtriple=loongarch32 --disable-verify < %s 2>&1 | FileCheck %s
+; RUN: not llc --mtriple=loongarch32 < %s 2>&1 | FileCheck %s
 
+declare void @llvm.loongarch.cacop.w(i32, i32, i32)
 declare i32 @llvm.loongarch.crc.w.b.w(i32, i32)
 declare i32 @llvm.loongarch.crc.w.h.w(i32, i32)
 declare i32 @llvm.loongarch.crc.w.w.w(i32, i32)
@@ -15,8 +16,36 @@ declare i64 @llvm.loongarch.iocsrrd.d(i32)
 declare void @llvm.loongarch.iocsrwr.d(i64, i32)
 declare void @llvm.loongarch.asrtle.d(i64, i64)
 declare void @llvm.loongarch.asrtgt.d(i64, i64)
-declare i64 @llvm.loongarch.lddir.d(i64, i32)
-declare void @llvm.loongarch.ldpte.d(i64, i32)
+declare i64 @llvm.loongarch.lddir.d(i64, i64 immarg)
+declare void @llvm.loongarch.ldpte.d(i64, i64 immarg)
+
+define void @cacop_arg0_out_of_hi_range(i32 %a) nounwind {
+; CHECK: argument to 'llvm.loongarch.cacop.w' out of range
+entry:
+  call void @llvm.loongarch.cacop.w(i32 32, i32 %a, i32 1024)
+  ret void
+}
+
+define void @cacop_arg0_out_of_lo_range(i32 %a) nounwind {
+; CHECK: argument to 'llvm.loongarch.cacop.w' out of range
+entry:
+  call void @llvm.loongarch.cacop.w(i32 -1, i32 %a, i32 1024)
+  ret void
+}
+
+define void @cacop_arg2_out_of_hi_range(i32 %a) nounwind {
+; CHECK: argument to 'llvm.loongarch.cacop.w' out of range
+entry:
+  call void @llvm.loongarch.cacop.w(i32 1, i32 %a, i32 4096)
+  ret void
+}
+
+define void @cacop_arg2_out_of_lo_range(i32 %a) nounwind {
+; CHECK: argument to 'llvm.loongarch.cacop.w' out of range
+entry:
+  call void @llvm.loongarch.cacop.w(i32 1, i32 %a, i32 -4096)
+  ret void
+}
 
 define i32 @crc_w_b_w(i32 %a, i32 %b) nounwind {
 ; CHECK: llvm.loongarch.crc.w.b.w requires target: loongarch64
@@ -126,13 +155,13 @@ entry:
 define i64 @lddir_d(i64 %a) {
 ; CHECK: llvm.loongarch.lddir.d requires target: loongarch64
 entry:
-  %0 = tail call i64 @llvm.loongarch.lddir.d(i64 %a, i32 1)
+  %0 = tail call i64 @llvm.loongarch.lddir.d(i64 %a, i64 1)
   ret i64 %0
 }
 
 define void @ldpte_d(i64 %a) {
 ; CHECK: llvm.loongarch.ldpte.d requires target: loongarch64
 entry:
-  tail call void @llvm.loongarch.ldpte.d(i64 %a, i32 1)
+  tail call void @llvm.loongarch.ldpte.d(i64 %a, i64 1)
   ret void
 }

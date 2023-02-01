@@ -1,4 +1,4 @@
-; RUN: not llvm-as %s -o /dev/null 2>&1 | FileCheck %s
+; RUN: not llvm-as -opaque-pointers %s -o /dev/null 2>&1 | FileCheck %s
 
 ; Make sure that speculatable is not allowed on a call site if the
 ; declaration is not also speculatable.
@@ -15,9 +15,9 @@ define i32 @call_not_speculatable() {
 @gv = internal unnamed_addr constant i32 0
 
 ; CHECK: speculatable attribute may not apply to call sites
-; CHECK-NEXT: %ret = call float bitcast (i32* @gv to float ()*)() #0
+; CHECK-NEXT: %ret = call float @gv() #0
 define float @call_bitcast_speculatable() {
-  %ret = call float bitcast (i32* @gv to float()*)() #0
+  %ret = call float @gv() #0
   ret float %ret
 }
 

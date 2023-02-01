@@ -90,6 +90,7 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -317,10 +318,10 @@ AST_POLYMORPHIC_MATCHER_P(isExpandedFromMacro,
   // Verifies that the statement' beginning and ending are both expanded from
   // the same instance of the given macro.
   auto& Context = Finder->getASTContext();
-  llvm::Optional<SourceLocation> B =
+  std::optional<SourceLocation> B =
       internal::getExpansionLocOfMacro(MacroName, Node.getBeginLoc(), Context);
   if (!B) return false;
-  llvm::Optional<SourceLocation> E =
+  std::optional<SourceLocation> E =
       internal::getExpansionLocOfMacro(MacroName, Node.getEndLoc(), Context);
   if (!E) return false;
   return *B == *E;
@@ -5459,16 +5460,15 @@ AST_MATCHER_P(ArraySubscriptExpr, hasBase,
   return false;
 }
 
-/// Matches a 'for', 'while', 'do while' statement or a function
-/// definition that has a given body. Note that in case of functions
-/// this matcher only matches the definition itself and not the other
-/// declarations of the same function.
+/// Matches a 'for', 'while', 'do' statement or a function definition that has
+/// a given body. Note that in case of functions this matcher only matches the
+/// definition itself and not the other declarations of the same function.
 ///
 /// Given
 /// \code
 ///   for (;;) {}
 /// \endcode
-/// hasBody(compoundStmt())
+/// forStmt(hasBody(compoundStmt()))
 ///   matches 'for (;;) {}'
 /// with compoundStmt()
 ///   matching '{}'
@@ -5478,12 +5478,11 @@ AST_MATCHER_P(ArraySubscriptExpr, hasBase,
 ///   void f();
 ///   void f() {}
 /// \endcode
-/// hasBody(functionDecl())
+/// functionDecl(hasBody(compoundStmt()))
 ///   matches 'void f() {}'
 /// with compoundStmt()
 ///   matching '{}'
 ///   but does not match 'void f();'
-
 AST_POLYMORPHIC_MATCHER_P(hasBody,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(DoStmt, ForStmt,
                                                           WhileStmt,
@@ -5630,7 +5629,7 @@ AST_POLYMORPHIC_MATCHER_P(
     AST_POLYMORPHIC_SUPPORTED_TYPES(BinaryOperator, CXXOperatorCallExpr,
                                     CXXRewrittenBinaryOperator, UnaryOperator),
     std::string, Name) {
-  if (Optional<StringRef> OpName = internal::getOpName(Node))
+  if (std::optional<StringRef> OpName = internal::getOpName(Node))
     return *OpName == Name;
   return false;
 }
@@ -5824,8 +5823,6 @@ AST_MATCHER_P(ExplicitCastExpr, hasDestinationType,
 
 /// Matches implicit casts whose destination type matches a given
 /// matcher.
-///
-/// FIXME: Unit test this matcher
 AST_MATCHER_P(ImplicitCastExpr, hasImplicitDestinationType,
               internal::Matcher<QualType>, InnerMatcher) {
   return InnerMatcher.matches(Node.getType(), Finder, Builder);

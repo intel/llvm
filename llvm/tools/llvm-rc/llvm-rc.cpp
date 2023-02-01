@@ -76,9 +76,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 };
 } // namespace rc_opt
 
-class RcOptTable : public opt::OptTable {
+class RcOptTable : public opt::GenericOptTable {
 public:
-  RcOptTable() : OptTable(rc_opt::InfoTable, /* IgnoreCase = */ true) {}
+  RcOptTable() : GenericOptTable(rc_opt::InfoTable, /* IgnoreCase = */ true) {}
 };
 
 enum Windres_ID {
@@ -110,10 +110,10 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 };
 } // namespace windres_opt
 
-class WindresOptTable : public opt::OptTable {
+class WindresOptTable : public opt::GenericOptTable {
 public:
   WindresOptTable()
-      : OptTable(windres_opt::InfoTable, /* IgnoreCase = */ false) {}
+      : GenericOptTable(windres_opt::InfoTable, /* IgnoreCase = */ false) {}
 };
 
 static ExitOnError ExitOnErr;
@@ -740,10 +740,10 @@ int llvm_rc_main(int Argc, char **Argv) {
 
   char **DashDash = std::find_if(Argv + 1, Argv + Argc,
                                  [](StringRef Str) { return Str == "--"; });
-  ArrayRef<const char *> ArgsArr = makeArrayRef(Argv + 1, DashDash);
+  ArrayRef<const char *> ArgsArr = ArrayRef(Argv + 1, DashDash);
   ArrayRef<const char *> FileArgsArr;
   if (DashDash != Argv + Argc)
-    FileArgsArr = makeArrayRef(DashDash + 1, Argv + Argc);
+    FileArgsArr = ArrayRef(DashDash + 1, Argv + Argc);
 
   RcOptions Opts = getOptions(Argv[0], ArgsArr, FileArgsArr);
 

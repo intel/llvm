@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "VPlan.h"
+#include "VPlanCFG.h"
 #include "VPlanDominatorTree.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
@@ -196,9 +197,7 @@ VPBlockBase *VPBlockBase::getEnclosingBlockWithPredecessors() {
 }
 
 void VPBlockBase::deleteCFG(VPBlockBase *Entry) {
-  SmallVector<VPBlockBase *, 8> Blocks(depth_first(Entry));
-
-  for (VPBlockBase *Block : Blocks)
+  for (VPBlockBase *Block : to_vector(depth_first(Entry)))
     delete Block;
 }
 
@@ -575,6 +574,26 @@ void VPRegionBlock::print(raw_ostream &O, const Twine &Indent,
   printSuccessors(O, Indent);
 }
 #endif
+
+VPlan::~VPlan() {
+  clearLiveOuts();
+
+  if (Entry) {
+    VPValue DummyValue;
+    for (VPBlockBase *Block : depth_first(Entry))
+      Block->dropAllReferences(&DummyValue);
+
+    VPBlockBase::deleteCFG(Entry);
+  }
+  for (VPValue *VPV : VPValuesToFree)
+    delete VPV;
+  if (TripCount)
+    delete TripCount;
+  if (BackedgeTakenCount)
+    delete BackedgeTakenCount;
+  for (auto &P : VPExternalDefs)
+    delete P.second;
+}
 
 VPActiveLaneMaskPHIRecipe *VPlan::getActiveLaneMaskPhi() {
   VPBasicBlock *Header = getVectorLoopRegion()->getEntryBasicBlock();
