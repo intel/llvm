@@ -61,7 +61,7 @@ atomics. 32-bit atomics are guaranteed to be supported for all devices, while
 64-bit atomics are an optional feature.
 
 This extension introduces 16-bit atomics as a new optional feature. It adds a
-a new aspect to identify devices with support for 16-bit atomics, and adds
+new aspect to identify devices with support for 16-bit atomics, and adds
 new specializations of `sycl::atomic_ref` for 16-bit types including `short`,
 `unsigned short`, `sycl::half` and `sycl::ext::oneapi::bfloat16`.
 
