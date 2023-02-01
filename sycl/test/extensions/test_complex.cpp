@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #define SYCL_EXT_ONEAPI_COMPLEX
 

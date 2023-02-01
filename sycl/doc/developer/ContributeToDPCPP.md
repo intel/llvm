@@ -106,10 +106,41 @@ end-to-end or SYCL-CTS tests.
 
 - [check-sycl](/sycl/test) target contains 2 types of tests: LIT tests and
   unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
-  code IR verification, static_assert tests. Unit tests check DPC++ runtime
+  code IR verification, `static_assert` tests. Unit tests check DPC++ runtime
   behavior and do not perform any device code compilation, instead relying on
   redefining plugin API with [PiMock](/sycl/unittests/helpers/PiMock.hpp) when
   necessary.
+
+When adding new test to `check-sycl`, please consider the following:
+
+- if you only need to check that compilation succeeds, please use
+  [`-fsyntax-only`](https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fsyntax-only)
+  compiler flag for such tests: it instructs the compiler to launch reduced
+  set of commands and produce no output (no need to add `-o %t.out`).
+
+- if you are only interested in checking device or host compilation, please use
+  corresponding flags to reduce the scope of test and therefore speed it up.
+  To launch only device compilation, use `-fsycl-device-only` compiler flag; to
+  launch only host compilation, use `%fsycl-host-only` substitution.
+
+- tests which want to check generated device code (either in LLVM IR or SPIR-V
+  form) should be placed under [check_device_code](/sycl/test/check_device_code)
+  folder.
+
+- if compiler invocation in your LIT test produces an output file, please make
+  sure to redirect it into a temporary file using `-o` option and
+  [`%t`](https://llvm.org/docs/CommandGuide/lit.html#substitutions)
+  substitution. This is needed to avoid possible race conditions when two LIT
+  tests attempt to write into the same file.
+
+- if you need to check some runtime behavior please add unit test instead of
+  LIT test. Unit tests are built with regular C++ compiler which is used to
+  build the project and therefore they are not affected by `clang++` being slow
+  when the project is built in Debug mode. As another side effect of using
+  standard C++ compiler, device side compilation is skipped entirely, making
+  them quicker to compile. And finally, unit tests are written with
+  [googletest](https://google.github.io/googletest/primer.html) framework,
+  which allows to use plenty of useful assertions and other helpers.
 
 ### DPC++ end-to-end (E2E) tests
 
