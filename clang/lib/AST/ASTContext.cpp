@@ -78,7 +78,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/Support/Capacity.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -2564,8 +2563,7 @@ unsigned ASTContext::getTypeUnadjustedAlign(const Type *T) const {
 }
 
 unsigned ASTContext::getOpenMPDefaultSimdAlign(QualType T) const {
-  unsigned SimdAlign = llvm::OpenMPIRBuilder::getOpenMPDefaultSimdAlign(
-      getTargetInfo().getTriple(), Target->getTargetOpts().FeatureMap);
+  unsigned SimdAlign = getTargetInfo().getSimdDefaultAlign();
   return SimdAlign;
 }
 
@@ -4105,7 +4103,8 @@ QualType ASTContext::getWebAssemblyExternrefType() const {
     return SingletonId;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   }
-  assert(false && "shouldn't try to generate type externref outside WebAssembly target");
+  llvm_unreachable(
+      "shouldn't try to generate type externref outside WebAssembly target");
 }
 
 /// getScalableVectorType - Return the unique reference to a scalable vector
