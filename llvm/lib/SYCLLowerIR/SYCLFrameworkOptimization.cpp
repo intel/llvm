@@ -16,8 +16,10 @@ using namespace sycl;
 
 PreservedAnalyses AddDebugFuncAttrs::run(Module &M, ModuleAnalysisManager &) {
   for (Function &F : M) {
-    F.addFnAttr(Attribute::NoInline);
-    F.addFnAttr(Attribute::OptimizeNone);
+    if (!F.hasFnAttribute(Attribute::MinSize) && !F.hasFnAttribute(Attribute::AlwaysInline)) {
+      F.addFnAttr(Attribute::NoInline);
+      F.addFnAttr(Attribute::OptimizeNone);
+    }
   }
 
   return PreservedAnalyses::all();
