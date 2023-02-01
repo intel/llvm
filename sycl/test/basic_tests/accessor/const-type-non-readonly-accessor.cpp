@@ -16,8 +16,6 @@ int main() {
     defaultQueue.submit([&](handler &cgh) {
       sycl::accessor accA{bufA, cgh, read_write};
     });
-
-    defaultQueue.throw_asynchronous();
   } catch (const exception &e) {
     std::cout << "Exception caught: " << e.what() << std::endl;
   }
