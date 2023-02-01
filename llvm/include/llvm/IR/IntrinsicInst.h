@@ -596,7 +596,7 @@ public:
 class FPBuiltinIntrinsic : public IntrinsicInst {
 public:
   static const std::string FPBUILTIN_PREFIX;
-  static const std::string FP_MAX_ERROR;
+  static const std::string FPBUILTIN_MAX_ERROR;
 
   std::optional<float> getRequiredAccuracy() const;
 

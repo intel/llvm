@@ -22962,12 +22962,12 @@ new callsite attributes beginning with "fpbuiltin-". All such string attribute
 identifiers are considered reserved for use with fpbuiltin intrinsics.
 
 No transformation should be performed on any fpbuiltin intrinsic if the
-intrinsic has any callsite attributes begining with "fpbuiltin-" that that code
+intrinsic has any callsite attributes begining with "fpbuiltin-" that the code
 performing the transformation does not recognize.
 
 Unless otherwise specified using callsite attributes, the fpbuiltin intrinsics
-do not set ``errno`` or and may be assumed not to trap or raise floating-point
-exceptions.
+do not set ``errno`` or and are not guaranteed to maintain correct
+floating-point exception state.
 
 All fpbuiltin intrinsics are overloaded intrinsics which may operate on any
 scalar or vector floating-point type. Not all targets support all types.

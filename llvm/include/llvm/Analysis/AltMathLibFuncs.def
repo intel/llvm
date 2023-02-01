@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// This .def file will create descriptions of available fpbuilt math library
+// This .def file will create descriptions of available fpbuiltin math library
 // function implementations and their constraining attributes. The current
 // support is limited to a fake test library for verifying the infrastructure.
 // The fake implementation can be removed when a real implementation is

@@ -30,6 +30,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Statepoint.h"
 #include <optional>
+#include <string>
 
 using namespace llvm;
 
@@ -299,10 +300,11 @@ ElementCount FPBuiltinIntrinsic::getElementCount() const {
 }
 
 const std::string FPBuiltinIntrinsic::FPBUILTIN_PREFIX = "fpbuiltin-";
-const std::string FPBuiltinIntrinsic::FP_MAX_ERROR = "fpbuiltin-max-error";
+const std::string FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR =
+    "fpbuiltin-max-error";
 
 std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
-  if (!hasFnAttr(FP_MAX_ERROR))
+  if (!hasFnAttr(FPBUILTIN_MAX_ERROR))
     return std::nullopt;
   // This should be a string attribute with a floating-point value
   // If it isn't the IR verifier should report the problem. Here
@@ -310,7 +312,7 @@ std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
   // TODO: Create Attribute::getValueAsDouble()?
   double Accuracy;
   // getAsDouble returns false if it succeeds
-  if (getFnAttr(FP_MAX_ERROR).getValueAsString().getAsDouble(Accuracy))
+  if (getFnAttr(FPBUILTIN_MAX_ERROR).getValueAsString().getAsDouble(Accuracy))
     return std::nullopt;
   return (float)Accuracy;
 }
