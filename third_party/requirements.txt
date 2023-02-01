@@ -1,6 +1,6 @@
 alabaster==0.7.12
 Babel==2.7.0
-beautifulsoup4==4.8.1
+beautifulsoup4==4.11.1
 breathe==4.33.1
 bs4==0.0.1
 certifi==2019.11.28
