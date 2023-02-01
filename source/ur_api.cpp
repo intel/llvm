@@ -1555,7 +1555,6 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pHost`
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -1568,7 +1567,7 @@ urMemBufferCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_mem_flags_t flags,                           ///< [in] allocation and usage information flags
     size_t size,                                    ///< [in] size in bytes of the memory object to be allocated
-    void* pHost,                                    ///< [in] pointer to the buffer data
+    void* pHost,                                    ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t* phBuffer                       ///< [out] pointer to handle of the memory buffer created
     )
 {
