@@ -65,11 +65,9 @@ int test(queue &Q, BOpT1 BOp1, BOpT2 BOp2, const nd_range<Dims> &Range) {
                    })
         .wait();
   } else if constexpr (TC == TestCase::Dependency) {
-    auto E = Q.single_task([=]() {
-      std::fill(Arr1, Arr1 + NElems, 1);
-      std::fill(Arr2, Arr2 + NElems, 2);
-    });
-    Q.parallel_for(Range, E, R1, R2,
+    auto E1 = Q.fill<T1>(Arr1, 1, NElems);
+    auto E2 = Q.fill<T2>(Arr2, 2, NElems, E1);
+    Q.parallel_for(Range, E2, R1, R2,
                    [=](nd_item<Dims> It, auto &Sum1, auto &Sum2) {
                      size_t LinId = It.get_global_linear_id();
                      Sum1.combine(static_cast<T1>(LinId) + Arr1[LinId]);
@@ -77,8 +75,8 @@ int test(queue &Q, BOpT1 BOp1, BOpT2 BOp2, const nd_range<Dims> &Range) {
                    })
         .wait();
   } else {
-    auto E1 = Q.single_task([=]() { std::fill(Arr1, Arr1 + NElems, 1); });
-    auto E2 = Q.single_task([=]() { std::fill(Arr2, Arr2 + NElems, 2); });
+    auto E1 = Q.fill<T1>(Arr1, 1, NElems);
+    auto E2 = Q.fill<T2>(Arr2, 2, NElems);
     std::vector<event> EVec{E1, E2};
     Q.parallel_for(Range, EVec, R1, R2,
                    [=](nd_item<Dims> It, auto &Sum1, auto &Sum2) {

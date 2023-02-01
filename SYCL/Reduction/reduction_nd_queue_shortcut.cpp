@@ -45,13 +45,13 @@ int test(queue &Q, BinaryOperation BOp, const nd_range<Dims> &Range) {
        Sum.combine(static_cast<T>(LinId) + Arr[LinId]);
      }).wait();
   } else if constexpr (TC == TestCase::Dependency) {
-    auto E = Q.single_task([=]() { std::fill(Arr, Arr + NElems, 1); });
+    auto E = Q.fill<T>(Arr, 1, NElems);
     Q.parallel_for(Range, E, Redu, [=](nd_item<Dims> It, auto &Sum) {
        size_t LinId = It.get_global_linear_id();
        Sum.combine(static_cast<T>(LinId) + Arr[LinId]);
      }).wait();
   } else {
-    auto E = Q.single_task([=]() { std::fill(Arr, Arr + NElems, 1); });
+    auto E = Q.fill<T>(Arr, 1, NElems);
     std::vector<event> EVec{E};
     Q.parallel_for(Range, EVec, Redu, [=](nd_item<Dims> It, auto &Sum) {
        size_t LinId = It.get_global_linear_id();
