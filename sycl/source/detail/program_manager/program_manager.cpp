@@ -1843,17 +1843,20 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
-void setSpecializationConstants(
-    const std::shared_ptr<device_image_impl> &InputImpl, RT::PiProgram Prog,
-    const plugin &Plugin) {
+static void
+setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
+                           RT::PiProgram Prog, const plugin &Plugin) {
+  // Set ITT annotation specialization constant if needed.
+  enableITTAnnotationsIfNeeded(Prog, Plugin);
+
   std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
   const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
       &SpecConstData = InputImpl->get_spec_const_data_ref();
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
-  for (const auto &DescPair : SpecConstData) {
-    for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-         DescPair.second) {
+  // Set all specialization IDs from descriptors in the input device image.
+  for (const auto &[_, SpecConstDescs] : SpecConstData) {
+    for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
       if (SpecIDDesc.IsSet) {
         Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
             Prog, SpecIDDesc.ID, SpecIDDesc.Size,
@@ -1892,10 +1895,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
                                        InputImpl->get_context(), Devs[0]);
 
-  if (InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
-    enableITTAnnotationsIfNeeded(Prog, Plugin);
+  if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
     setSpecializationConstants(InputImpl, Prog, Plugin);
-  }
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -2090,10 +2091,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         Img, Context, Devs[0], CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache &&
-        InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
-      enableITTAnnotationsIfNeeded(NativePrg, Plugin);
+        InputImpl->get_bin_image_ref()->supportsSpecConstants())
       setSpecializationConstants(InputImpl, NativePrg, Plugin);
-    }
 
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
