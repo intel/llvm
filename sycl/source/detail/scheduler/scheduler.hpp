@@ -189,7 +189,6 @@ using CommandPtr = std::unique_ptr<Command>;
 using FusionList = std::unique_ptr<KernelFusionCommand>;
 using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 
-
 /// Memory Object Record
 ///
 /// The MemObjRecord is used in command groups (todo better desc).

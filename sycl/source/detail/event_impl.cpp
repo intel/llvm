@@ -71,8 +71,8 @@ void event_impl::waitInternal() {
     // Wait for the host event
 #ifdef _WIN32
     // during shutdown it's possible that outstanding threads on win may
-    // be terminated, in which case the NotifyHostTaskComplete will not be called and
-    // the cv.wait() below will hang forever.
+    // be terminated, in which case the NotifyHostTaskComplete will not be
+    // called and the cv.wait() below will hang forever.
     if (Scheduler::getInstance().isShuttingDown)
       return;
 #endif
