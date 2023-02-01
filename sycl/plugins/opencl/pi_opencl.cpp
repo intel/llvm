@@ -2120,14 +2120,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // We clear all the 'map' variables here.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
-  cslice_devices.clear();
-  queue2dev.clear();
-  for (auto &entry : context2devlist)
-    entry.second.clear();
-  context2devlist.clear();
-  for (auto &entry : program2devlist)
-    entry.second.clear();
-  program2devlist.clear();
   return PI_SUCCESS;
 }
 
