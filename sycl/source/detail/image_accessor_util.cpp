@@ -15,12 +15,11 @@ namespace detail {
 
 // For Nearest Filtering mode, process float4 Coordinates and
 // return the appropriate Pixel Coordinates based on Addressing Mode.
-vec<opencl::cl_int, 4>
-getPixelCoordNearestFiltMode(float4 Coorduvw,
-                             const addressing_mode SmplAddrMode,
-                             const range<3> ImgRange) {
-  vec<opencl::cl_int, 4> Coordijk(0);
-  vec<opencl::cl_int, 4> Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
+int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
+                                  const addressing_mode SmplAddrMode,
+                                  const range<3> ImgRange) {
+  int4 Coordijk(0);
+  int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
     float4 Tempuvw(0);
@@ -50,7 +49,7 @@ getPixelCoordNearestFiltMode(float4 Coorduvw,
     float4 Tempuvw(0);
     Tempuvw = (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
     Coordijk = (sycl::floor(Tempuvw)).convert<cl_int>();
-    vec<opencl::cl_int, 4> GreaterThanEqual = (Coordijk >= Rangewhd);
+    int4 GreaterThanEqual = (Coordijk >= Rangewhd);
     Coordijk = sycl::select(Coordijk, (Coordijk - Rangewhd), GreaterThanEqual);
     // Eg:
     // u = 2.3; v = 1.5; w = 0.5; // normalized coordinates.
@@ -70,11 +69,11 @@ getPixelCoordNearestFiltMode(float4 Coorduvw,
   } break;
   case addressing_mode::clamp_to_edge:
     Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
-    Coordijk = sycl::clamp(Coordijk, vec<opencl::cl_int, 4>(0), (Rangewhd - 1));
+    Coordijk = sycl::clamp(Coordijk, int4(0), (Rangewhd - 1));
     break;
   case addressing_mode::clamp:
     Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
-    Coordijk = sycl::clamp(Coordijk, vec<opencl::cl_int, 4>(-1), Rangewhd);
+    Coordijk = sycl::clamp(Coordijk, int4(-1), Rangewhd);
     break;
   case addressing_mode::none:
     Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
@@ -89,15 +88,13 @@ getPixelCoordNearestFiltMode(float4 Coorduvw,
 // Retabc contains the values of (a,b,c,0)
 // The caller of this function should use these values to create the 8 pixel
 // coordinates and multiplication coefficients.
-vec<opencl::cl_int, 8> getPixelCoordLinearFiltMode(float4 Coorduvw,
-                                    const addressing_mode SmplAddrMode,
-                                    const range<3> ImgRange,
-                                    float4 &Retabc) {
-  vec<opencl::cl_int, 4> Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
-  vec<opencl::cl_int, 4> Ci0j0k0(0);
-  vec<opencl::cl_int, 4> Ci1j1k1(0);
-  vec<opencl::cl_int, 4> Int_uvwsubhalf =
-      sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
+                                 const addressing_mode SmplAddrMode,
+                                 const range<3> ImgRange, float4 &Retabc) {
+  int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
+  int4 Ci0j0k0(0);
+  int4 Ci1j1k1(0);
+  int4 Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
 
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
@@ -122,22 +119,18 @@ vec<opencl::cl_int, 8> getPixelCoordLinearFiltMode(float4 Coorduvw,
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
 
-    Ci0j0k0 = sycl::select(Ci0j0k0, (Ci0j0k0 + Rangewhd),
-                           Ci0j0k0 < vec<opencl::cl_int, 4>(0));
+    Ci0j0k0 = sycl::select(Ci0j0k0, (Ci0j0k0 + Rangewhd), Ci0j0k0 < int4(0));
     Ci1j1k1 = sycl::select(Ci1j1k1, (Ci1j1k1 - Rangewhd), Ci1j1k1 >= Rangewhd);
 
   } break;
   case addressing_mode::clamp_to_edge: {
-    Ci0j0k0 =
-        sycl::clamp(Int_uvwsubhalf, vec<opencl::cl_int, 4>(0), (Rangewhd - 1));
-    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), vec<opencl::cl_int, 4>(0),
-                          (Rangewhd - 1));
+    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, int4(0), (Rangewhd - 1));
+    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), int4(0), (Rangewhd - 1));
     break;
   }
   case addressing_mode::clamp: {
-    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, vec<opencl::cl_int, 4>(-1), Rangewhd);
-    Ci1j1k1 =
-        sycl::clamp((Int_uvwsubhalf + 1), vec<opencl::cl_int, 4>(-1), Rangewhd);
+    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, int4(-1), Rangewhd);
+    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), int4(-1), Rangewhd);
     break;
   }
   case addressing_mode::none: {
@@ -148,7 +141,7 @@ vec<opencl::cl_int, 8> getPixelCoordLinearFiltMode(float4 Coorduvw,
   }
   Retabc = (Coorduvw - 0.5f) - (Int_uvwsubhalf.convert<cl_float>());
   Retabc.w() = 0.0f;
-  return vec<opencl::cl_int, 8>(Ci0j0k0, Ci1j1k1);
+  return int8(Ci0j0k0, Ci1j1k1);
 }
 
 // Function returns true when PixelCoord is out of image's range.
@@ -156,8 +149,8 @@ vec<opencl::cl_int, 8> getPixelCoordLinearFiltMode(float4 Coorduvw,
 // Note: For addressing_mode::none , spec says outofrange access is not defined.
 // This function handles this addressing_mode to avoid accessing out of bound
 // memories on host.
-bool isOutOfRange(const vec<opencl::cl_int, 4> PixelCoord,
-                  const addressing_mode SmplAddrMode, const range<3> ImgRange) {
+bool isOutOfRange(const int4 PixelCoord, const addressing_mode SmplAddrMode,
+                  const range<3> ImgRange) {
 
   if (SmplAddrMode != addressing_mode::clamp &&
       SmplAddrMode != addressing_mode::none)
@@ -174,8 +167,7 @@ bool isOutOfRange(const vec<opencl::cl_int, 4> PixelCoord,
   return (CheckWidth || CheckHeight || CheckDepth);
 }
 
-float4
-getBorderColor(const image_channel_order ImgChannelOrder) {
+float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 
   float4 BorderColor(0.0f);
   switch (ImgChannelOrder) {

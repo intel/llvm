@@ -294,7 +294,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - std::uint32_t4 is incompatible with the "
+        "Datatype of read data - cl_uint4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -315,7 +315,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - int4 is incompatible with "
+        "Datatype of read data - cl_int4 is incompatible with "
         "the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -398,8 +398,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - float4 is incompatible with "
-        "the "
+        "Datatype of read data - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
@@ -503,7 +502,7 @@ convertWriteData(const vec<std::uint32_t, 4> WriteData,
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - std::uint32_t4 is incompatible with the "
+        "Datatype of data to write - cl_uint4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -536,8 +535,7 @@ convertWriteData(const int4 WriteData,
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - int4 is incompatible "
-        "with the "
+        "Datatype of data to write - cl_int4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -576,7 +574,7 @@ convertWriteData(const float4 WriteData,
     // TODO: Missing information in OpenCL spec.
     throw sycl::feature_not_supported(
         "Currently unsupported datatype conversion from image_channel_type "
-        "to float4.",
+        "to cl_float4.",
         PI_ERROR_INVALID_OPERATION);
   case image_channel_type::unorm_short_555:
     // TODO: Missing information in OpenCL spec.
@@ -618,8 +616,7 @@ convertWriteData(const float4 WriteData,
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - float4 is incompatible "
-        "with the "
+        "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
@@ -667,16 +664,14 @@ convertWriteData(const half4 WriteData,
     // image with channel datatype - signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - float4 is incompatible "
-        "with the "
+        "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
     return WriteData.convert<ChannelType>();
   case image_channel_type::fp32:
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - float4 is incompatible "
-        "with the "
+        "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -796,8 +791,7 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 // variable.(readPixel)
 // 5. Convert the Read Data into Return DataT based on conversion rules in
 // the Spec.(convertReadData)
-// Possible DataT are int4, uint4,
-// float4, half4;
+// Possible DataT are int4, uint4, float4, half4;
 template <typename DataT>
 DataT ReadPixelData(const int4 PixelCoord, const id<3> ImgPitch,
                     const image_channel_type ImageChannelType,
@@ -1087,14 +1081,12 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
 
   // Step 2 & Step 3:
 
-  // converToFloat4 converts CoordT of any kind - std::int32_t,
-  // int2, int4, float,
-  // vec<float, 2> and float4 into Coordinates of
-  // kind float4 with no loss of precision. For
-  // pixel_coordinates already in float4 format, the function
-  // returns the same values. This conversion is done to enable implementation
-  // of one common function getPixelCoordXXXMode, for any datatype of CoordT
-  // passed.
+  // converToFloat4 converts CoordT of any kind - std::int32_t, int2, int4,
+  // float, vec<float, 2> and float4 into Coordinates of kind float4 with no
+  // loss of precision. For pixel_coordinates already in float4 format, the
+  // function returns the same values. This conversion is done to enable
+  // implementation of one common function getPixelCoordXXXMode, for any
+  // datatype of CoordT passed.
   FloatCoorduvw = convertToFloat4(Coorduvw);
   switch (SmplFiltMode) {
   case filtering_mode::nearest: {
