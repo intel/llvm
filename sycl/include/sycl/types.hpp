@@ -2411,6 +2411,10 @@ struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
+template <typename T, typename... Ts, std::size_t N>
+struct is_device_copyable<std::tuple<T, Ts...>[N]>
+    : is_device_copyable<std::tuple<T, Ts...>> {};
+
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
 // is device copyable by default).
@@ -2432,6 +2436,10 @@ struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
         T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
                             std::is_trivially_destructible<T>::value &&
                             !is_device_copyable<T>::value>> : std::true_type {};
+
+template <typename T, int N>
+struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+    IsDeprecatedDeviceCopyable<T[N]> : IsDeprecatedDeviceCopyable<T> {};
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Checks that the fields of the type T with indices 0 to (NumFieldsToCheck - 1)
