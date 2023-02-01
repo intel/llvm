@@ -571,8 +571,9 @@ pi_result piDevicePartition(pi_device device,
       info.family = family;
       info.index = i;
       cslice_devices.insert({out_devices[i], info});
-      if (result = clRetainDevice(info.cl_dev))
-        return cast<pi_result>(result);
+      auto res = clRetainDevice(info.cl_dev);
+      if (res)
+        return cast<pi_result>(res);
     }
     return PI_SUCCESS;
   }
@@ -2119,9 +2120,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // We clear all the 'map' variables here.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
-  for (auto &entry : cslice_devices)
-    if (entry.first)
-      delete entry.first;
   cslice_devices.clear();
   queue2dev.clear();
   for (auto &entry : context2devlist)
