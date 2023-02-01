@@ -4369,8 +4369,6 @@ namespace loader
     /// @brief Intercept function for urInit
     __urdlllocal ur_result_t UR_APICALL
     urInit(
-        ur_platform_init_flags_t platform_flags,        ///< [in] platform initialization flags.
-                                                        ///< must be 0 (default) or a combination of ::ur_platform_init_flag_t.
         ur_device_init_flags_t device_flags             ///< [in] device initialization flags.
                                                         ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
         )
@@ -4382,7 +4380,7 @@ namespace loader
         {
             if(platform.initStatus != UR_RESULT_SUCCESS)
                 continue;
-            platform.initStatus = platform.dditable.ur.Global.pfnInit( platform_flags, device_flags );
+            platform.initStatus = platform.dditable.ur.Global.pfnInit( device_flags );
             if(platform.initStatus == UR_RESULT_SUCCESS)
                 atLeastOneplatformValid = true;
         }

@@ -11,14 +11,6 @@ desc: "Intel $OneApi Level-Zero Runtime APIs for Runtime"
 ordinal: "2"
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Supported platform initialization flags"
-class: $x
-name: $x_platform_init_flags_t
-etors:
-    - name: LEVEL_ZERO
-      desc: "initialize Unified Runtime platform drivers"
---- #--------------------------------------------------------------------------
-type: enum
 desc: "Supported device initialization flags"
 class: $x
 name: $x_device_init_flags_t
@@ -41,12 +33,6 @@ details:
     - "The application may call this function from simultaneous threads."
     - "The implementation of this function must be thread-safe for scenarios where multiple libraries may initialize the driver(s) simultaneously."
 params:
-    - type: $x_platform_init_flags_t
-      name: platform_flags
-      desc: |
-            [in] platform initialization flags.
-            must be 0 (default) or a combination of $x_platform_init_flag_t.
-      init: "0"
     - type: $x_device_init_flags_t
       name: device_flags
       desc: |

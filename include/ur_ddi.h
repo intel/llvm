@@ -1316,7 +1316,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnGetLastResult_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urInit 
 typedef ur_result_t (UR_APICALL *ur_pfnInit_t)(
-    ur_platform_init_flags_t,
     ur_device_init_flags_t
     );
 

@@ -31,9 +31,8 @@ std::ostream &operator<<(std::ostream &out,
 uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
-    ur_platform_init_flags_t platform_flags = 0;
     ur_device_init_flags_t device_flags = 0;
-    if (urInit(platform_flags, device_flags)) {
+    if (urInit(device_flags)) {
         error = "urInit() failed";
         return;
     }
