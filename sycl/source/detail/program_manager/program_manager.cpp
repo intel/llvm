@@ -1852,7 +1852,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
   const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
       &SpecConstData = InputImpl->get_spec_const_data_ref();
-  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
+  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   // Set all specialization IDs from descriptors in the input device image.
   for (const auto &[_, SpecConstDescs] : SpecConstData) {
