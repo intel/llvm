@@ -74,7 +74,6 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       dbgs() << BuiltinCall.getRequiredAccuracy().value() << "\n";
   });
 
-//  if (BuiltinCall->hasUnecognizedFPAttrs.push_back();
   StringSet RecognizedAttrs = { FPBuiltinIntrinsic::FP_MAX_ERROR };
   if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
     report_fatal_error(
@@ -83,8 +82,6 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
         false);
     return false;
   }
-
-
 
   /// Call TLI to select a function implementation to call
   StringRef ImplName = TLI.selectFPBuiltinImplementation(&BuiltinCall);

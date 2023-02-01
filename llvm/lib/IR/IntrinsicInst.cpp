@@ -341,9 +341,6 @@ bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
   }
 }
 
-
-
-
 std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
