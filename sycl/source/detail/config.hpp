@@ -237,7 +237,7 @@ getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -576,6 +576,34 @@ private:
     if (ResetCache)
       Val = parseValue();
     return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
+  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = true;
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

@@ -458,7 +458,7 @@ static void printCFIRegister(unsigned DwarfReg, raw_ostream &OS,
     return;
   }
 
-  if (Optional<unsigned> Reg = TRI->getLLVMRegNum(DwarfReg, true))
+  if (std::optional<unsigned> Reg = TRI->getLLVMRegNum(DwarfReg, true))
     OS << printReg(*Reg, TRI);
   else
     OS << "<badreg>";
@@ -756,8 +756,9 @@ void MachineOperand::print(raw_ostream &OS, LLT TypeToPrint,
 }
 
 void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
-                           LLT TypeToPrint, Optional<unsigned> OpIdx, bool PrintDef,
-                           bool IsStandalone, bool ShouldPrintRegisterTies,
+                           LLT TypeToPrint, std::optional<unsigned> OpIdx,
+                           bool PrintDef, bool IsStandalone,
+                           bool ShouldPrintRegisterTies,
                            unsigned TiedOperandIdx,
                            const TargetRegisterInfo *TRI,
                            const TargetIntrinsicInfo *IntrinsicInfo) const {

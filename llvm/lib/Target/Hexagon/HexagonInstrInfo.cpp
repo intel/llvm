@@ -751,9 +751,9 @@ public:
     return MI == EndLoop;
   }
 
-  Optional<bool>
-  createTripCountGreaterCondition(int TC, MachineBasicBlock &MBB,
-                                  SmallVectorImpl<MachineOperand> &Cond) override {
+  std::optional<bool> createTripCountGreaterCondition(
+      int TC, MachineBasicBlock &MBB,
+      SmallVectorImpl<MachineOperand> &Cond) override {
     if (TripCount == -1) {
       // Check if we're done with the loop.
       Register Done = TII->createVR(MF, MVT::i1);
@@ -954,8 +954,11 @@ void HexagonInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 }
 
 void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-      MachineBasicBlock::iterator I, Register SrcReg, bool isKill, int FI,
-      const TargetRegisterClass *RC, const TargetRegisterInfo *TRI) const {
+                                           MachineBasicBlock::iterator I,
+                                           Register SrcReg, bool isKill, int FI,
+                                           const TargetRegisterClass *RC,
+                                           const TargetRegisterInfo *TRI,
+                                           Register VReg) const {
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -998,10 +1001,12 @@ void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   }
 }
 
-void HexagonInstrInfo::loadRegFromStackSlot(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg,
-    int FI, const TargetRegisterClass *RC,
-    const TargetRegisterInfo *TRI) const {
+void HexagonInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator I,
+                                            Register DestReg, int FI,
+                                            const TargetRegisterClass *RC,
+                                            const TargetRegisterInfo *TRI,
+                                            Register VReg) const {
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();

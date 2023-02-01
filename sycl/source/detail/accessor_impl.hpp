@@ -41,6 +41,7 @@ class Command;
 
 class __SYCL_EXPORT AccessorImplHost {
 public:
+  // TODO: Remove when ABI break is allowed.
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
@@ -49,7 +50,19 @@ public:
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
         MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList) {}
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(false) {}
+
+  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {})
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(IsPlaceH) {}
 
   ~AccessorImplHost();
 
@@ -57,7 +70,8 @@ public:
       : MAccData(Other.MAccData), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList) {}
+        MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList),
+        MIsPlaceH(Other.MIsPlaceH) {}
 
   AccessorImplHost &operator=(const AccessorImplHost &Other) {
     MAccData = Other.MAccData;
@@ -68,6 +82,7 @@ public:
     MOffsetInBytes = Other.MOffsetInBytes;
     MIsSubBuffer = Other.MIsSubBuffer;
     MPropertyList = Other.MPropertyList;
+    MIsPlaceH = Other.MIsPlaceH;
     return *this;
   }
 
@@ -106,6 +121,9 @@ public:
 
   // To preserve runtime properties
   property_list MPropertyList;
+
+  // Placeholder flag
+  bool MIsPlaceH;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;

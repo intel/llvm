@@ -403,9 +403,9 @@ void ObjFile::initializeSymbols() {
       if (config->mingw && prevailingComdat)
         recordPrevailingSymbolForMingw(coffSym, prevailingSectionMap);
     } else {
-      // createDefined() returns None if a symbol belongs to a section that
-      // was pending at the point when the symbol was read. This can happen in
-      // two cases:
+      // createDefined() returns std::nullopt if a symbol belongs to a section
+      // that was pending at the point when the symbol was read. This can happen
+      // in two cases:
       // 1) section definition symbol for a comdat leader;
       // 2) symbol belongs to a comdat section associated with another section.
       // In both of these cases, we can expect the section to be resolved by
@@ -629,8 +629,8 @@ std::optional<Symbol *> ObjFile::createDefined(
   // The second symbol entry has the name of the comdat symbol, called the
   // "comdat leader".
   // When this function is called for the first symbol entry of a comdat,
-  // it sets comdatDefs and returns None, and when it's called for the second
-  // symbol entry it reads comdatDefs and then sets it back to nullptr.
+  // it sets comdatDefs and returns std::nullopt, and when it's called for the
+  // second symbol entry it reads comdatDefs and then sets it back to nullptr.
 
   // Handle comdat leader.
   if (const coff_aux_section_definition *def = comdatDefs[sectionNumber]) {
@@ -876,11 +876,13 @@ void PDBInputFile::parse() {
   ctx.pdbInputFileInstances[mb.getBufferIdentifier().str()] = this;
 
   std::unique_ptr<pdb::IPDBSession> thisSession;
-  loadErr.emplace(pdb::NativeSession::createFromPdb(
-      MemoryBuffer::getMemBuffer(mb, false), thisSession));
-  if (*loadErr)
+  Error E = pdb::NativeSession::createFromPdb(
+      MemoryBuffer::getMemBuffer(mb, false), thisSession);
+  if (E) {
+    loadErrorStr.emplace(toString(std::move(E)));
     return; // fail silently at this point - the error will be handled later,
             // when merging the debug type stream
+  }
 
   session.reset(static_cast<pdb::NativeSession *>(thisSession.release()));
 
@@ -888,7 +890,7 @@ void PDBInputFile::parse() {
   auto expectedInfo = pdbFile.getPDBInfoStream();
   // All PDB Files should have an Info stream.
   if (!expectedInfo) {
-    loadErr.emplace(expectedInfo.takeError());
+    loadErrorStr.emplace(toString(expectedInfo.takeError()));
     return;
   }
   debugTypesObj = makeTypeServerSource(ctx, this);

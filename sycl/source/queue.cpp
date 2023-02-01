@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
@@ -187,15 +188,16 @@ template <typename PropertyT> PropertyT queue::get_property() const {
   return impl->get_property<PropertyT>();
 }
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const noexcept;
-template __SYCL_EXPORT property::queue::enable_profiling
-queue::get_property<property::queue::enable_profiling>() const;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  template __SYCL_EXPORT bool queue::has_property<NS_QUALIFIER::PROP_NAME>()   \
+      const noexcept;                                                          \
+  template __SYCL_EXPORT NS_QUALIFIER::PROP_NAME                               \
+  queue::get_property<NS_QUALIFIER::PROP_NAME>() const;
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::in_order>() const;
-template __SYCL_EXPORT property::queue::in_order
-queue::get_property<property::queue::in_order>() const;
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+
+#include <sycl/properties/queue_properties.def>
 
 bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();

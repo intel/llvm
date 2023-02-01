@@ -4,24 +4,23 @@
 target triple = "aarch64-unknown-linux-gnu"
 
 ; Ensure we don't crash when trying to combine fp<->int conversions
-define void @fp_convert_combine_crash(<8 x float> *%a, <8 x i32> *%b) #0 {
+define void @fp_convert_combine_crash(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: fp_convert_combine_crash:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, .LCPI0_0
+; CHECK-NEXT:    ldp q0, q1, [x0]
+; CHECK-NEXT:    fmov z2.s, #8.00000000
 ; CHECK-NEXT:    ptrue p0.s, vl4
-; CHECK-NEXT:    ldp q0, q2, [x0]
-; CHECK-NEXT:    ldr q1, [x8, :lo12:.LCPI0_0]
-; CHECK-NEXT:    fmul z0.s, p0/m, z0.s, z1.s
-; CHECK-NEXT:    fmul z1.s, p0/m, z1.s, z2.s
+; CHECK-NEXT:    fmul z0.s, p0/m, z0.s, z2.s
 ; CHECK-NEXT:    fcvtzs z0.s, p0/m, z0.s
+; CHECK-NEXT:    fmul z1.s, p0/m, z1.s, z2.s
 ; CHECK-NEXT:    fcvtzs z1.s, p0/m, z1.s
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %f = load <8 x float>, <8 x float>* %a
+  %f = load <8 x float>, ptr %a
   %mul.i = fmul <8 x float> %f, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00,
                                  float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
   %vcvt.i = fptosi <8 x float> %mul.i to <8 x i32>
-  store <8 x i32> %vcvt.i, <8 x i32>* %b
+  store <8 x i32> %vcvt.i, ptr %b
   ret void
 }
 

@@ -63,7 +63,7 @@ def ShapedTypeInterface : TypeInterface<"ShapedType"> {
       type. If a shape is not provided, the current shape of the type is used.
     }],
     "::mlir::ShapedType", "cloneWith", (ins
-      "::llvm::Optional<::llvm::ArrayRef<int64_t>>":$shape,
+      "::std::optional<::llvm::ArrayRef<int64_t>>":$shape,
       "::mlir::Type":$elementType
     )>,
 
@@ -121,7 +121,7 @@ def ShapedTypeInterface : TypeInterface<"ShapedType"> {
     }
     /// Return a clone of this type with the given new element type.
     auto clone(::mlir::Type elementType) {
-      return $_type.cloneWith(/*shape=*/llvm::None, elementType);
+      return $_type.cloneWith(/*shape=*/std::nullopt, elementType);
     }
 
     /// If an element type is an integer or a float, return its width. Otherwise,

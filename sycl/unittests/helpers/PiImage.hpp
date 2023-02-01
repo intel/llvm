@@ -455,9 +455,31 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   return Prop;
 }
 
+/// Utility function to create a device global info property.
+///
+/// \param Name is the name of the device global name.
+/// \param TypeSize is the size of the underlying type in the device global.
+/// \param DeviceImageScoped is whether the device global was device image scope
+/// decorated.
+inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
+                                       const uint32_t TypeSize,
+                                       const std::uint32_t DeviceImageScoped) {
+  constexpr size_t BYTES_FOR_SIZE = 8;
+  const std::uint64_t BytesForArgs = 2 * sizeof(std::uint32_t);
+  std::vector<char> DescData;
+  DescData.resize(BYTES_FOR_SIZE + BytesForArgs);
+  std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
+  std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
+  std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
+              &DeviceImageScoped, sizeof(DeviceImageScoped));
+
+  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+
+  return Prop;
+}
+
 /// Utility function to add aspects to property set.
-inline void addAspects(PiPropertySet &Props,
-                       const std::vector<sycl::aspect> &Aspects) {
+inline PiProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   const size_t BYTES_FOR_SIZE = 8;
   std::vector<char> ValData(BYTES_FOR_SIZE +
                             Aspects.size() * sizeof(sycl::aspect));
@@ -467,8 +489,29 @@ inline void addAspects(PiPropertySet &Props,
   auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
   std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
                           ValData.data() + BYTES_FOR_SIZE);
-  PiProperty Prop{"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
-  PiArray<PiProperty> Value{std::move(Prop)};
+  return {"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+}
+
+inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
+  const size_t BYTES_FOR_SIZE = 8;
+  std::vector<char> ValData(BYTES_FOR_SIZE + ReqdWGSize.size() * sizeof(int));
+  uint64_t ValDataSize = ValData.size();
+  std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
+                          ValData.data());
+  auto *ReqdWGSizePtr = reinterpret_cast<const unsigned char *>(&ReqdWGSize[0]);
+  std::uninitialized_copy(ReqdWGSizePtr,
+                          ReqdWGSizePtr + ReqdWGSize.size() * sizeof(int),
+                          ValData.data() + BYTES_FOR_SIZE);
+  return {"reqd_work_group_size", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+}
+
+inline void
+addDeviceRequirementsProps(PiPropertySet &Props,
+                           const std::vector<sycl::aspect> &Aspects,
+                           const std::vector<int> &ReqdWGSize = {}) {
+  PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
+  if (!ReqdWGSize.empty())
+    Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
   Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                std::move(Value));
 }

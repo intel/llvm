@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::targets;
@@ -117,6 +118,10 @@ std::string RISCVTargetInfo::convertConstraint(const char *&Constraint) const {
   return R;
 }
 
+static unsigned getVersionValue(unsigned MajorVersion, unsigned MinorVersion) {
+  return MajorVersion * 1000000 + MinorVersion * 1000;
+}
+
 void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__ELF__");
@@ -152,10 +157,10 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
   for (auto &Extension : ISAInfo->getExtensions()) {
     auto ExtName = Extension.first;
     auto ExtInfo = Extension.second;
-    unsigned Version =
-        (ExtInfo.MajorVersion * 1000000) + (ExtInfo.MinorVersion * 1000);
 
-    Builder.defineMacro(Twine("__riscv_", ExtName), Twine(Version));
+    Builder.defineMacro(
+        Twine("__riscv_", ExtName),
+        Twine(getVersionValue(ExtInfo.MajorVersion, ExtInfo.MinorVersion)));
   }
 
   if (ISAInfo->hasExtension("m") || ISAInfo->hasExtension("zmmul"))
@@ -193,12 +198,11 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (ISAInfo->hasExtension("zve32x")) {
     Builder.defineMacro("__riscv_vector");
     // Currently we support the v0.10 RISC-V V intrinsics.
-    unsigned Version = (0 * 1000000) + (10 * 1000);
-    Builder.defineMacro("__riscv_v_intrinsic", Twine(Version));
+    Builder.defineMacro("__riscv_v_intrinsic", Twine(getVersionValue(0, 10)));
   }
 }
 
-const Builtin::Info RISCVTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
@@ -270,7 +274,7 @@ RISCVTargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
 /// Return true if has this feature, need to sync with handleTargetFeatures.
 bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
   bool Is64Bit = getTriple().getArch() == llvm::Triple::riscv64;
-  auto Result = llvm::StringSwitch<Optional<bool>>(Feature)
+  auto Result = llvm::StringSwitch<std::optional<bool>>(Feature)
                     .Case("riscv", true)
                     .Case("riscv32", !Is64Bit)
                     .Case("riscv64", Is64Bit)
@@ -278,7 +282,7 @@ bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
                     .Case("64bit", Is64Bit)
                     .Default(std::nullopt);
   if (Result)
-    return Result.value();
+    return *Result;
 
   if (ISAInfo->isSupportedExtensionFeature(Feature))
     return ISAInfo->hasExtension(Feature);

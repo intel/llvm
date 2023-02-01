@@ -16,8 +16,6 @@
 #define LLVM_IR_INSTRTYPES_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringMap.h"
@@ -833,6 +831,17 @@ public:
   /// Return the inverse of the instruction's predicate.
   Predicate getInversePredicate() const {
     return getInversePredicate(getPredicate());
+  }
+
+  /// Returns the ordered variant of a floating point compare.
+  ///
+  /// For example, UEQ -> OEQ, ULT -> OLT, OEQ -> OEQ
+  static Predicate getOrderedPredicate(Predicate Pred) {
+    return static_cast<Predicate>(Pred & FCMP_ORD);
+  }
+
+  Predicate getOrderedPredicate() const {
+    return getOrderedPredicate(getPredicate());
   }
 
   /// For example, EQ -> NE, UGT -> ULE, SLT -> SGE,
@@ -2031,7 +2040,7 @@ public:
   ///
   /// It is an error to call this for operand bundle types that may have
   /// multiple instances of them on the same instruction.
-  Optional<OperandBundleUse> getOperandBundle(uint32_t ID) const {
+  std::optional<OperandBundleUse> getOperandBundle(uint32_t ID) const {
     assert(countOperandBundlesOfType(ID) < 2 && "Precondition violated!");
 
     for (unsigned i = 0, e = getNumOperandBundles(); i != e; ++i) {

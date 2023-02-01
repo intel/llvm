@@ -744,7 +744,7 @@ public:
                        ExecutionContextScope *exe_scope) {
     if (llvm::Optional<uint64_t> bit_size = GetBitSize(type, exe_scope))
       return (*bit_size + 7) / 8;
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::Optional<uint64_t>
@@ -825,6 +825,8 @@ public:
   GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
                                 const char *name, bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) override;
+
+  bool IsTemplateType(lldb::opaque_compiler_type_t type) override;
 
   size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
                                  bool expand_pack) override;

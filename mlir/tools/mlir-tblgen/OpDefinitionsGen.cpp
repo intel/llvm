@@ -216,7 +216,7 @@ struct AttributeMetadata {
   /// Whether the attribute is required.
   bool isRequired;
   /// The ODS attribute constraint. Not present for implicit attributes.
-  Optional<Attribute> constraint;
+  std::optional<Attribute> constraint;
   /// The number of required attributes less than this attribute.
   unsigned lowerBound = 0;
   /// The number of required attributes greater than this attribute.
@@ -731,7 +731,7 @@ static void genAttributeVerifier(
                                 StringRef varName) {
     std::string condition = attr.getPredicate().getCondition();
 
-    Optional<StringRef> constraintFn;
+    std::optional<StringRef> constraintFn;
     if (emitHelper.isEmittingForOp() &&
         (constraintFn = staticVerifierEmitter.getAttrConstraintFn(attr))) {
       body << formatv(verifyAttrUnique, *constraintFn, varName, attrName);
@@ -1129,7 +1129,7 @@ void OpEmitter::genAttrSetters() {
       method = createMethod("bool");
     else if (isOptional)
       method =
-          createMethod("::llvm::Optional<" + baseAttr.getReturnType() + ">");
+          createMethod("::std::optional<" + baseAttr.getReturnType() + ">");
     else
       method = createMethod(attr.getReturnType());
     if (!method)
@@ -1148,7 +1148,7 @@ void OpEmitter::genAttrSetters() {
 
     // TODO: Handle unit attr parameters specially, given that it is treated as
     // optional but not in the same way as the others (i.e. it uses bool over
-    // Optional<>).
+    // std::optional<>).
     StringRef paramStr = isUnitAttr ? "attrValue" : "*attrValue";
     const char *optionalCodeBody = R"(
     if (attrValue)
@@ -1174,9 +1174,8 @@ void OpEmitter::genOptionalAttrRemovers() {
   // use the string interface. Enables better compile time verification.
   auto emitRemoveAttr = [&](StringRef name) {
     auto upperInitial = name.take_front().upper();
-    auto suffix = name.drop_front();
     auto *method = opClass.addMethod("::mlir::Attribute",
-                                     "remove" + upperInitial + suffix + "Attr");
+                                     op.getRemoverName(name) + "Attr");
     if (!method)
       return;
     method->body() << formatv("  return (*this)->removeAttr({0}AttrName());",
@@ -1890,12 +1889,13 @@ getBuilderSignature(const Builder &builder) {
 
   for (unsigned i = 0, e = params.size(); i < e; ++i) {
     // If no name is provided, generate one.
-    Optional<StringRef> paramName = params[i].getName();
+    std::optional<StringRef> paramName = params[i].getName();
     std::string name =
         paramName ? paramName->str() : "odsArg" + std::to_string(i);
 
     StringRef defaultValue;
-    if (Optional<StringRef> defaultParamValue = params[i].getDefaultValue())
+    if (std::optional<StringRef> defaultParamValue =
+            params[i].getDefaultValue())
       defaultValue = *defaultParamValue;
 
     arguments.emplace_back(params[i].getCppType(), std::move(name),
@@ -1910,7 +1910,7 @@ void OpEmitter::genBuilder() {
   for (const Builder &builder : op.getBuilders()) {
     SmallVector<MethodParameter> arguments = getBuilderSignature(builder);
 
-    Optional<StringRef> body = builder.getBody();
+    std::optional<StringRef> body = builder.getBody();
     auto properties = body ? Method::Static : Method::StaticDeclaration;
     auto *method =
         opClass.addMethod("void", "build", properties, std::move(arguments));
@@ -2949,7 +2949,7 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
   adaptor.addField("::mlir::ValueRange", "odsOperands");
   adaptor.addField("::mlir::DictionaryAttr", "odsAttrs");
   adaptor.addField("::mlir::RegionRange", "odsRegions");
-  adaptor.addField("::llvm::Optional<::mlir::OperationName>", "odsOpName");
+  adaptor.addField("::std::optional<::mlir::OperationName>", "odsOpName");
 
   const auto *attrSizedOperands =
       op.getTrait("::m::OpTrait::AttrSizedOperandSegments");

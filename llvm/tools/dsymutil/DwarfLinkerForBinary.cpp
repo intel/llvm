@@ -18,8 +18,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -411,7 +409,7 @@ void DwarfLinkerForBinary::collectRelocationsToApplyToSwiftReflectionSections(
     }
 
     auto CalculateAddressOfSymbolInDwarfSegment =
-        [&]() -> llvm::Optional<int64_t> {
+        [&]() -> std::optional<int64_t> {
       auto Symbol = It->getSymbol();
       auto SymbolAbsoluteAddress = Symbol->getAddress();
       if (!SymbolAbsoluteAddress)
@@ -447,7 +445,7 @@ void DwarfLinkerForBinary::collectRelocationsToApplyToSwiftReflectionSections(
 
     bool ShouldSubtractDwarfVM = false;
     // For the second symbol there are two possibilities.
-    llvm::Optional<int64_t> SecondSymbolAddress;
+    std::optional<int64_t> SecondSymbolAddress;
     auto Sym = It->getSymbol();
     if (Sym != MO->symbol_end()) {
       Expected<StringRef> SymbolName = Sym->getName();
@@ -544,7 +542,7 @@ void DwarfLinkerForBinary::copySwiftReflectionMetadata(
       // place.
       SectionToOffsetInDwarf[SectionKind] += Section.getSize();
       Streamer->emitSwiftReflectionSection(SectionKind, *SectionContents,
-                                           Section.getAlignment(),
+                                           Section.getAlignment().value(),
                                            Section.getSize());
     }
   }
@@ -980,7 +978,7 @@ bool DwarfLinkerForBinary::AddressManager::isLiveVariable(
     const DWARFDie &DIE, CompileUnit::DIEInfo &MyInfo) {
   const auto *Abbrev = DIE.getAbbreviationDeclarationPtr();
 
-  Optional<uint32_t> LocationIdx =
+  std::optional<uint32_t> LocationIdx =
       Abbrev->findAttributeIndex(dwarf::DW_AT_location);
   if (!LocationIdx)
     return false;
@@ -999,7 +997,8 @@ bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
     const DWARFDie &DIE, CompileUnit::DIEInfo &MyInfo) {
   const auto *Abbrev = DIE.getAbbreviationDeclarationPtr();
 
-  Optional<uint32_t> LowPcIdx = Abbrev->findAttributeIndex(dwarf::DW_AT_low_pc);
+  std::optional<uint32_t> LowPcIdx =
+      Abbrev->findAttributeIndex(dwarf::DW_AT_low_pc);
   if (!LowPcIdx)
     return false;
 
@@ -1015,8 +1014,8 @@ bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
   }
 
   if (Form == dwarf::DW_FORM_addrx) {
-    Optional<DWARFFormValue> AddrValue = DIE.find(dwarf::DW_AT_low_pc);
-    if (Optional<uint64_t> AddrOffsetSectionBase =
+    std::optional<DWARFFormValue> AddrValue = DIE.find(dwarf::DW_AT_low_pc);
+    if (std::optional<uint64_t> AddrOffsetSectionBase =
             DIE.getDwarfUnit()->getAddrOffsetSectionBase()) {
       uint64_t StartOffset = *AddrOffsetSectionBase + AddrValue->getRawUValue();
       uint64_t EndOffset =

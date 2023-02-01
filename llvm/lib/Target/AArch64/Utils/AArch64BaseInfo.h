@@ -536,7 +536,7 @@ inline unsigned getNumElementsFromSVEPredPattern(unsigned Pattern) {
 }
 
 /// Return specific VL predicate pattern based on the number of elements.
-inline Optional<unsigned>
+inline std::optional<unsigned>
 getSVEPredPatternFromNumElements(unsigned MinNumElts) {
   switch (MinNumElts) {
   default:
@@ -574,10 +574,16 @@ namespace AArch64ExactFPImm {
 }
 
 namespace AArch64PState {
-  struct PState : SysAlias{
+  struct PStateImm0_15 : SysAlias{
     using SysAlias::SysAlias;
   };
-  #define GET_PSTATE_DECL
+  #define GET_PSTATEIMM0_15_DECL
+  #include "AArch64GenSystemOperands.inc"
+
+  struct PStateImm0_1 : SysAlias{
+    using SysAlias::SysAlias;
+  };
+  #define GET_PSTATEIMM0_1_DECL
   #include "AArch64GenSystemOperands.inc"
 }
 
@@ -839,7 +845,7 @@ inline static StringRef AArch64PACKeyIDToString(AArch64PACKey::ID KeyID) {
 }
 
 /// Return numeric key ID for 2-letter identifier string.
-inline static Optional<AArch64PACKey::ID>
+inline static std::optional<AArch64PACKey::ID>
 AArch64StringToPACKeyID(StringRef Name) {
   if (Name == "ia")
     return AArch64PACKey::IA;

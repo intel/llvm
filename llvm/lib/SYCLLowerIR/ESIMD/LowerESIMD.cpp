@@ -34,6 +34,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
@@ -131,8 +132,6 @@ enum class lsc_subopcode : uint8_t {
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
-
-static constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
 
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
@@ -866,93 +865,10 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
   return Suff;
 }
 
-// Turn a MDNode into llvm::value or its subclass.
-// Return nullptr if the underlying value has type mismatch.
-template <typename Ty = llvm::Value> Ty *getVal(llvm::Metadata *M) {
-  if (auto VM = dyn_cast<llvm::ValueAsMetadata>(M))
-    if (auto V = dyn_cast<Ty>(VM->getValue()))
-      return V;
-  return nullptr;
-}
-
-static inline llvm::Metadata *getMD(llvm::Value *V) {
-  return llvm::ValueAsMetadata::get(V);
-}
-
-// A functor which updates ESIMD kernel's uint64_t metadata in case it is less
-// than the given one. Used in callgraph traversal to update nbarriers or SLM
-// size metadata. Update is performed by the '()' operator and happens only
-// when given function matches one of the kernels - thus, only reachable kernels
-// are updated.
-struct UpdateUint64MetaDataToMaxValue {
-  Module &M;
-  // The uint64_t metadata key to update.
-  genx::KernelMDOp Key;
-  // The new metadata value. Must be greater than the old for update to happen.
-  uint64_t NewVal;
-  // Pre-selected nodes from GENX_KERNEL_METADATA which can only potentially be
-  // updated.
-  SmallVector<MDNode *, 4> CandidatesToUpdate;
-
-  UpdateUint64MetaDataToMaxValue(Module &M, genx::KernelMDOp Key,
-                                 uint64_t NewVal)
-      : M(M), Key(Key), NewVal(NewVal) {
-    // Pre-select nodes for update to do less work in the '()' operator.
-    llvm::NamedMDNode *GenXKernelMD = M.getNamedMetadata(GENX_KERNEL_METADATA);
-    llvm::esimd::assert_and_diag(GenXKernelMD, "invalid genx.kernels metadata");
-    for (auto Node : GenXKernelMD->operands()) {
-      if (Node->getNumOperands() <= (unsigned)Key) {
-        continue;
-      }
-      llvm::Value *Old = getVal(Node->getOperand(Key));
-      uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
-
-      if (OldVal < NewVal) {
-        CandidatesToUpdate.push_back(Node);
-      }
-    }
-  }
-
-  void operator()(Function *F) {
-    // Update the meta data attribute for the current function.
-    for (auto Node : CandidatesToUpdate) {
-      assert(Node->getNumOperands() > (unsigned)Key);
-
-      if (getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) != F) {
-        continue;
-      }
-      llvm::Value *Old = getVal(Node->getOperand(Key));
-#ifndef NDEBUG
-      uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
-      assert(OldVal < NewVal);
-#endif // NDEBUG
-      llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
-      Node->replaceOperandWith(Key, getMD(New));
-    }
-  }
-};
-
 // TODO Specify document behavior for slm_init and nbarrier_init when:
 // 1) they are called not from kernels
 // 2) there are multiple such calls reachable from a kernel
 // 3) when a call in external function linked by the Back-End
-
-// This function sets/updates VCSLMSize attribute to the kernels
-// calling this intrinsic initializing SLM memory.
-static void translateSLMInit(CallInst &CI) {
-  auto F = CI.getFunction();
-  auto *ArgV = CI.getArgOperand(0);
-  llvm::esimd::assert_and_diag(isa<ConstantInt>(ArgV), __FILE__,
-                               " integral constant is expected for slm size");
-
-  uint64_t NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
-  assert(NewVal != 0 && "zero slm bytes being requested");
-  UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
-      *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
-  // TODO: Keep track of traversed functions (use 4-argument version of
-  // traverseCallgraphUp) to avoid repeating traversals over same function.
-  sycl::utils::traverseCallgraphUp(F, SetMaxSLMSize);
-}
 
 // This function sets/updates VCNamedBarrierCount attribute to the kernels
 // calling this intrinsic initializing the number of named barriers.
@@ -965,7 +881,7 @@ static void translateNbarrierInit(CallInst &CI) {
 
   auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(NewVal != 0 && "zero named barrier count being requested");
-  UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
+  esimd::UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
   // TODO: Keep track of traversed functions to avoid repeating traversals
   // over same function.
@@ -1131,12 +1047,20 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
           ? GenXIntrinsic::getGenXDeclaration(
                 EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
           : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
+  // llvm::Attribute::ReadNone must not be used for call statements anymore.
+  bool FixReadNone =
+      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
+  if (FixReadNone)
+    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
+
   // Use hardcoded prefix when EEI has no name.
   std::string ResultName =
       ((EEI->hasName() ? Twine(EEI->getName()) : Twine("Res")) + "." +
        FullIntrinName)
           .str();
   Instruction *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, EEI);
+  if (FixReadNone)
+    (cast<CallInst>(Inst))->setMemoryEffects(MemoryEffects::none());
   Inst->setDebugLoc(EEI->getDebugLoc());
 
   if (IsVectorCall) {
@@ -1479,14 +1403,21 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                                  GenXOverloadedTypes);
   }
 
-  Instruction *NewCI = IntrinsicInst::Create(
+  // llvm::Attribute::ReadNone must not be used for call statements anymore.
+  bool FixReadNone =
+      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
+  if (FixReadNone)
+    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
+  CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
-  if (CI.getDebugLoc())
-    NewCI->setDebugLoc(CI.getDebugLoc());
-  NewCI = addCastInstIfNeeded(&CI, NewCI);
-  CI.replaceAllUsesWith(NewCI);
+  if (FixReadNone)
+    NewCI->setMemoryEffects(MemoryEffects::none());
+  NewCI->setDebugLoc(CI.getDebugLoc());
+
+  Instruction *NewInst = addCastInstIfNeeded(&CI, NewCI);
+  CI.replaceAllUsesWith(NewInst);
   CI.eraseFromParent();
 }
 
@@ -1506,10 +1437,10 @@ static std::string getMDString(MDNode *N, unsigned I) {
 }
 
 void generateKernelMetadata(Module &M) {
-  if (M.getNamedMetadata(GENX_KERNEL_METADATA))
+  if (M.getNamedMetadata(esimd::GENX_KERNEL_METADATA))
     return;
 
-  auto Kernels = M.getOrInsertNamedMetadata(GENX_KERNEL_METADATA);
+  auto Kernels = M.getOrInsertNamedMetadata(esimd::GENX_KERNEL_METADATA);
   assert(Kernels->getNumOperands() == 0 && "metadata out of sync");
 
   LLVMContext &Ctx = M.getContext();
@@ -1547,6 +1478,8 @@ void generateKernelMetadata(Module &M) {
     auto *KernelArgTypes = F.getMetadata("kernel_arg_type");
     auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
     unsigned Idx = 0;
+
+    auto getMD = [](Value *Val) { return esimd::getMetadata(Val); };
 
     // Iterate argument list to gather argument kinds and generate argument
     // descriptors.
@@ -1645,9 +1578,11 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
   generateKernelMetadata(M);
+  // This function needs to run after generateKernelMetadata, as it
+  // uses the generated metadata:
+  size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
-  size_t AmountOfESIMDIntrCalls = 0;
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
@@ -1725,13 +1660,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
 
-      if (Name.startswith("__esimd_slm_init") &&
-          isa<ConstantInt>(CI->getArgOperand(0))) {
-        // tag the kernel with meta-data SLMSize, and remove this builtin
-        translateSLMInit(*CI);
-        ToErase.push_back(CI);
-        continue;
-      }
       if (Name.startswith("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);

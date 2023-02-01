@@ -1252,7 +1252,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->trace = args.hasArg(OPT_trace);
   config->undefined = args::getStrings(args, OPT_undefined);
   config->undefinedVersion =
-      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
+      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, false);
   config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
@@ -2791,15 +2791,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   config->imageBase = getImageBase(args);
 
-  if (config->emachine == EM_ARM) {
-    // FIXME: These warnings can be removed when lld only uses these features
-    // when the input objects have been compiled with an architecture that
-    // supports them.
-    if (config->armHasBlx == false)
-      warn("lld uses blx instruction, no object with architecture supporting "
-           "feature detected");
-  }
-
   // This adds a .comment section containing a version string.
   if (!config->relocatable)
     ctx.inputSections.push_back(createCommentSection());
@@ -2824,6 +2815,10 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // output sections in the usual way.
   if (!config->relocatable)
     combineEhSections();
+
+  // Merge .riscv.attributes sections.
+  if (config->emachine == EM_RISCV)
+    mergeRISCVAttributesSections();
 
   {
     llvm::TimeTraceScope timeScope("Assign sections");

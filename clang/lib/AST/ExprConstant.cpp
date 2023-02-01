@@ -60,6 +60,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cstring>
 #include <functional>
+#include <optional>
 
 #define DEBUG_TYPE "exprconstant"
 
@@ -2482,6 +2483,7 @@ static bool EvalPointerValueAsBool(const APValue &Value, bool &Result) {
   // A null base expression indicates a null pointer.  These are always
   // evaluatable, and they are false unless the offset is zero.
   if (!Value.getLValueBase()) {
+    // TODO: Should a non-null pointer with an offset of zero evaluate to true?
     Result = !Value.getLValueOffset().isZero();
     return true;
   }
@@ -2494,6 +2496,7 @@ static bool EvalPointerValueAsBool(const APValue &Value, bool &Result) {
 }
 
 static bool HandleConversionToBool(const APValue &Val, bool &Result) {
+  // TODO: This function should produce notes if it fails.
   switch (Val.getKind()) {
   case APValue::None:
   case APValue::Indeterminate:
@@ -2518,6 +2521,9 @@ static bool HandleConversionToBool(const APValue &Val, bool &Result) {
   case APValue::LValue:
     return EvalPointerValueAsBool(Val, Result);
   case APValue::MemberPointer:
+    if (Val.getMemberPointerDecl() && Val.getMemberPointerDecl()->isWeak()) {
+      return false;
+    }
     Result = Val.getMemberPointerDecl();
     return true;
   case APValue::Vector:
@@ -6739,7 +6745,7 @@ static const FunctionDecl *getVirtualOperatorDelete(QualType T) {
 /// still exists and is of the right kind for the purpose of a deletion.
 ///
 /// On success, returns the heap allocation to deallocate. On failure, produces
-/// a diagnostic and returns None.
+/// a diagnostic and returns std::nullopt.
 static Optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
                                             const LValue &Pointer,
                                             DynAlloc::Kind DeallocKind) {
@@ -6833,7 +6839,7 @@ class BitCastBuffer {
   // FIXME: Its possible under the C++ standard for 'char' to not be 8 bits, but
   // we don't support a host or target where that is the case. Still, we should
   // use a more generic type in case we ever do.
-  SmallVector<Optional<unsigned char>, 32> Bytes;
+  SmallVector<std::optional<unsigned char>, 32> Bytes;
 
   static_assert(std::numeric_limits<unsigned char>::digits >= 8,
                 "Need at least 8 bit unsigned char");
@@ -9254,8 +9260,8 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   case Builtin::BIwmemchr:
     if (Info.getLangOpts().CPlusPlus11)
       Info.CCEDiag(E, diag::note_constexpr_invalid_function)
-        << /*isConstexpr*/0 << /*isConstructor*/0
-        << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
+          << /*isConstexpr*/ 0 << /*isConstructor*/ 0
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str();
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
     [[fallthrough]];
@@ -9300,7 +9306,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     // FIXME: We can compare the bytes in the correct order.
     if (IsRawByte && !isOneByteCharacterType(CharTy)) {
       Info.FFDiag(E, diag::note_constexpr_memchr_unsupported)
-          << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'")
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str()
           << CharTy;
       return false;
     }
@@ -9362,8 +9368,8 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   case Builtin::BIwmemmove:
     if (Info.getLangOpts().CPlusPlus11)
       Info.CCEDiag(E, diag::note_constexpr_invalid_function)
-        << /*isConstexpr*/0 << /*isConstructor*/0
-        << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
+          << /*isConstexpr*/ 0 << /*isConstructor*/ 0
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str();
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
     [[fallthrough]];
@@ -9848,6 +9854,9 @@ namespace {
     bool VisitCXXConstructExpr(const CXXConstructExpr *E, QualType T);
     bool VisitCXXStdInitializerListExpr(const CXXStdInitializerListExpr *E);
     bool VisitBinCmp(const BinaryOperator *E);
+    bool VisitCXXParenListInitExpr(const CXXParenListInitExpr *E);
+    bool VisitCXXParenListOrInitListExpr(const Expr *ExprToVisit,
+                                         ArrayRef<Expr *> Args);
   };
 }
 
@@ -9966,8 +9975,13 @@ bool RecordExprEvaluator::VisitCastExpr(const CastExpr *E) {
 bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
   if (E->isTransparent())
     return Visit(E->getInit(0));
+  return VisitCXXParenListOrInitListExpr(E, E->inits());
+}
 
-  const RecordDecl *RD = E->getType()->castAs<RecordType>()->getDecl();
+bool RecordExprEvaluator::VisitCXXParenListOrInitListExpr(
+    const Expr *ExprToVisit, ArrayRef<Expr *> Args) {
+  const RecordDecl *RD =
+      ExprToVisit->getType()->castAs<RecordType>()->getDecl();
   if (RD->isInvalidDecl()) return false;
   const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(RD);
   auto *CXXRD = dyn_cast<CXXRecordDecl>(RD);
@@ -9978,7 +9992,25 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
       CXXRD && CXXRD->getNumBases());
 
   if (RD->isUnion()) {
-    const FieldDecl *Field = E->getInitializedFieldInUnion();
+    const FieldDecl *Field;
+    if (auto *ILE = dyn_cast<InitListExpr>(ExprToVisit)) {
+      Field = ILE->getInitializedFieldInUnion();
+    } else if (isa<CXXParenListInitExpr>(ExprToVisit)) {
+      assert(Args.size() == 1 &&
+             "Unions should have exactly 1 initializer in a C++ paren list");
+
+      for (const FieldDecl *FD : RD->fields()) {
+        if (FD->isUnnamedBitfield())
+          continue;
+
+        Field = FD;
+        break;
+      }
+    } else {
+      llvm_unreachable(
+          "Expression is neither an init list nor a C++ paren list");
+    }
+
     Result = APValue(Field);
     if (!Field)
       return true;
@@ -9989,7 +10021,7 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
     //        Is this difference ever observable for initializer lists which
     //        we don't build?
     ImplicitValueInitExpr VIE(Field->getType());
-    const Expr *InitExpr = E->getNumInits() ? E->getInit(0) : &VIE;
+    const Expr *InitExpr = Args.empty() ? &VIE : Args[0];
 
     LValue Subobject = This;
     if (!HandleLValueMember(Info, InitExpr, Subobject, Field, &Layout))
@@ -10018,8 +10050,8 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
   // Initialize base classes.
   if (CXXRD && CXXRD->getNumBases()) {
     for (const auto &Base : CXXRD->bases()) {
-      assert(ElementNo < E->getNumInits() && "missing init for base class");
-      const Expr *Init = E->getInit(ElementNo);
+      assert(ElementNo < Args.size() && "missing init for base class");
+      const Expr *Init = Args[ElementNo];
 
       LValue Subobject = This;
       if (!HandleLValueBase(Info, Init, Subobject, CXXRD, &Base))
@@ -10046,18 +10078,18 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
 
     LValue Subobject = This;
 
-    bool HaveInit = ElementNo < E->getNumInits();
+    bool HaveInit = ElementNo < Args.size();
 
     // FIXME: Diagnostics here should point to the end of the initializer
     // list, not the start.
-    if (!HandleLValueMember(Info, HaveInit ? E->getInit(ElementNo) : E,
+    if (!HandleLValueMember(Info, HaveInit ? Args[ElementNo] : ExprToVisit,
                             Subobject, Field, &Layout))
       return false;
 
     // Perform an implicit value-initialization for members beyond the end of
     // the initializer list.
     ImplicitValueInitExpr VIE(HaveInit ? Info.Ctx.IntTy : Field->getType());
-    const Expr *Init = HaveInit ? E->getInit(ElementNo++) : &VIE;
+    const Expr *Init = HaveInit ? Args[ElementNo++] : &VIE;
 
     if (Field->getType()->isIncompleteArrayType()) {
       if (auto *CAT = Info.Ctx.getAsConstantArrayType(Init->getType())) {
@@ -10691,6 +10723,11 @@ namespace {
       expandStringLiteral(Info, E, Result, AllocType);
       return true;
     }
+    bool VisitCXXParenListInitExpr(const CXXParenListInitExpr *E);
+    bool VisitCXXParenListOrInitListExpr(const Expr *ExprToVisit,
+                                         ArrayRef<Expr *> Args,
+                                         const Expr *ArrayFiller,
+                                         QualType AllocType = QualType());
   };
 } // end anonymous namespace
 
@@ -10766,6 +10803,16 @@ bool ArrayExprEvaluator::VisitInitListExpr(const InitListExpr *E,
   assert(!E->isTransparent() &&
          "transparent array list initialization is not string literal init?");
 
+  return VisitCXXParenListOrInitListExpr(E, E->inits(), E->getArrayFiller(),
+                                         AllocType);
+}
+
+bool ArrayExprEvaluator::VisitCXXParenListOrInitListExpr(
+    const Expr *ExprToVisit, ArrayRef<Expr *> Args, const Expr *ArrayFiller,
+    QualType AllocType) {
+  const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(
+      AllocType.isNull() ? ExprToVisit->getType() : AllocType);
+
   bool Success = true;
 
   assert((!Result.isArray() || Result.getArrayInitializedElts() == 0) &&
@@ -10774,13 +10821,12 @@ bool ArrayExprEvaluator::VisitInitListExpr(const InitListExpr *E,
   if (Result.isArray() && Result.hasArrayFiller())
     Filler = Result.getArrayFiller();
 
-  unsigned NumEltsToInit = E->getNumInits();
+  unsigned NumEltsToInit = Args.size();
   unsigned NumElts = CAT->getSize().getZExtValue();
-  const Expr *FillerExpr = E->hasArrayFiller() ? E->getArrayFiller() : nullptr;
 
   // If the initializer might depend on the array index, run it for each
   // array element.
-  if (NumEltsToInit != NumElts && MaybeElementDependentArrayFiller(FillerExpr))
+  if (NumEltsToInit != NumElts && MaybeElementDependentArrayFiller(ArrayFiller))
     NumEltsToInit = NumElts;
 
   LLVM_DEBUG(llvm::dbgs() << "The number of elements to initialize: "
@@ -10798,10 +10844,9 @@ bool ArrayExprEvaluator::VisitInitListExpr(const InitListExpr *E,
   }
 
   LValue Subobject = This;
-  Subobject.addArray(Info, E, CAT);
+  Subobject.addArray(Info, ExprToVisit, CAT);
   for (unsigned Index = 0; Index != NumEltsToInit; ++Index) {
-    const Expr *Init =
-        Index < E->getNumInits() ? E->getInit(Index) : FillerExpr;
+    const Expr *Init = Index < Args.size() ? Args[Index] : ArrayFiller;
     if (!EvaluateInPlace(Result.getArrayInitializedElt(Index),
                          Info, Subobject, Init) ||
         !HandleLValueArrayAdjustment(Info, Init, Subobject,
@@ -10817,9 +10862,10 @@ bool ArrayExprEvaluator::VisitInitListExpr(const InitListExpr *E,
 
   // If we get here, we have a trivial filler, which we can just evaluate
   // once and splat over the rest of the array elements.
-  assert(FillerExpr && "no array filler for incomplete init list");
+  assert(ArrayFiller && "no array filler for incomplete init list");
   return EvaluateInPlace(Result.getArrayFiller(), Info, Subobject,
-                         FillerExpr) && Success;
+                         ArrayFiller) &&
+         Success;
 }
 
 bool ArrayExprEvaluator::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E) {
@@ -10934,6 +10980,15 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
 
   return RecordExprEvaluator(Info, Subobject, *Value)
              .VisitCXXConstructExpr(E, Type);
+}
+
+bool ArrayExprEvaluator::VisitCXXParenListInitExpr(
+    const CXXParenListInitExpr *E) {
+  assert(dyn_cast<ConstantArrayType>(E->getType()) &&
+         "Expression result is not a constant array type");
+
+  return VisitCXXParenListOrInitListExpr(E, E->getInitExprs(),
+                                         E->getArrayFiller());
 }
 
 //===----------------------------------------------------------------------===//
@@ -12184,8 +12239,8 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     // A call to strlen is not a constant expression.
     if (Info.getLangOpts().CPlusPlus11)
       Info.CCEDiag(E, diag::note_constexpr_invalid_function)
-        << /*isConstexpr*/0 << /*isConstructor*/0
-        << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
+          << /*isConstexpr*/ 0 << /*isConstructor*/ 0
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str();
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
     [[fallthrough]];
@@ -12209,8 +12264,8 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     // A call to strlen is not a constant expression.
     if (Info.getLangOpts().CPlusPlus11)
       Info.CCEDiag(E, diag::note_constexpr_invalid_function)
-        << /*isConstexpr*/0 << /*isConstructor*/0
-        << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
+          << /*isConstexpr*/ 0 << /*isConstructor*/ 0
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str();
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
     [[fallthrough]];
@@ -12265,7 +12320,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
         !(isOneByteCharacterType(CharTy1) && isOneByteCharacterType(CharTy2))) {
       // FIXME: Consider using our bit_cast implementation to support this.
       Info.FFDiag(E, diag::note_constexpr_memcmp_unsupported)
-          << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'")
+          << ("'" + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'").str()
           << CharTy1 << CharTy2;
       return false;
     }
@@ -12967,41 +13022,55 @@ EvaluateComparisonBinaryOperator(EvalInfo &Info, const BinaryOperator *E,
     // Reject differing bases from the normal codepath; we special-case
     // comparisons to null.
     if (!HasSameBase(LHSValue, RHSValue)) {
+      auto DiagComparison = [&] (unsigned DiagID, bool Reversed = false) {
+        std::string LHS = LHSValue.toString(Info.Ctx, E->getLHS()->getType());
+        std::string RHS = RHSValue.toString(Info.Ctx, E->getRHS()->getType());
+        Info.FFDiag(E, DiagID)
+            << (Reversed ? RHS : LHS) << (Reversed ? LHS : RHS);
+        return false;
+      };
       // Inequalities and subtractions between unrelated pointers have
       // unspecified or undefined behavior.
-      if (!IsEquality) {
-        Info.FFDiag(E, diag::note_constexpr_pointer_comparison_unspecified);
-        return false;
-      }
+      if (!IsEquality)
+        return DiagComparison(
+            diag::note_constexpr_pointer_comparison_unspecified);
       // A constant address may compare equal to the address of a symbol.
       // The one exception is that address of an object cannot compare equal
       // to a null pointer constant.
+      // TODO: Should we restrict this to actual null pointers, and exclude the
+      // case of zero cast to pointer type?
       if ((!LHSValue.Base && !LHSValue.Offset.isZero()) ||
           (!RHSValue.Base && !RHSValue.Offset.isZero()))
-        return Error(E);
+        return DiagComparison(diag::note_constexpr_pointer_constant_comparison,
+                              !RHSValue.Base);
       // It's implementation-defined whether distinct literals will have
       // distinct addresses. In clang, the result of such a comparison is
       // unspecified, so it is not a constant expression. However, we do know
       // that the address of a literal will be non-null.
       if ((IsLiteralLValue(LHSValue) || IsLiteralLValue(RHSValue)) &&
           LHSValue.Base && RHSValue.Base)
-        return Error(E);
+        return DiagComparison(diag::note_constexpr_literal_comparison);
       // We can't tell whether weak symbols will end up pointing to the same
       // object.
       if (IsWeakLValue(LHSValue) || IsWeakLValue(RHSValue))
-        return Error(E);
+        return DiagComparison(diag::note_constexpr_pointer_weak_comparison,
+                              !IsWeakLValue(LHSValue));
       // We can't compare the address of the start of one object with the
       // past-the-end address of another object, per C++ DR1652.
-      if ((LHSValue.Base && LHSValue.Offset.isZero() &&
-           isOnePastTheEndOfCompleteObject(Info.Ctx, RHSValue)) ||
-          (RHSValue.Base && RHSValue.Offset.isZero() &&
-           isOnePastTheEndOfCompleteObject(Info.Ctx, LHSValue)))
-        return Error(E);
+      if (LHSValue.Base && LHSValue.Offset.isZero() &&
+          isOnePastTheEndOfCompleteObject(Info.Ctx, RHSValue))
+        return DiagComparison(diag::note_constexpr_pointer_comparison_past_end,
+                              true);
+      if (RHSValue.Base && RHSValue.Offset.isZero() &&
+           isOnePastTheEndOfCompleteObject(Info.Ctx, LHSValue))
+        return DiagComparison(diag::note_constexpr_pointer_comparison_past_end,
+                              false);
       // We can't tell whether an object is at the same address as another
       // zero sized object.
       if ((RHSValue.Base && isZeroSized(LHSValue)) ||
           (LHSValue.Base && isZeroSized(RHSValue)))
-        return Error(E);
+        return DiagComparison(
+            diag::note_constexpr_pointer_comparison_zero_sized);
       return Success(CmpResult::Unequal, E);
     }
 
@@ -13105,6 +13174,19 @@ EvaluateComparisonBinaryOperator(EvalInfo &Info, const BinaryOperator *E,
     if (!EvaluateMemberPointer(E->getRHS(), RHSValue, Info) || !LHSOK)
       return false;
 
+    // If either operand is a pointer to a weak function, the comparison is not
+    // constant.
+    if (LHSValue.getDecl() && LHSValue.getDecl()->isWeak()) {
+      Info.FFDiag(E, diag::note_constexpr_mem_pointer_weak_comparison)
+          << LHSValue.getDecl();
+      return true;
+    }
+    if (RHSValue.getDecl() && RHSValue.getDecl()->isWeak()) {
+      Info.FFDiag(E, diag::note_constexpr_mem_pointer_weak_comparison)
+          << RHSValue.getDecl();
+      return true;
+    }
+
     // C++11 [expr.eq]p2:
     //   If both operands are null, they compare equal. Otherwise if only one is
     //   null, they compare unequal.
@@ -13180,6 +13262,11 @@ bool RecordExprEvaluator::VisitBinCmp(const BinaryOperator *E) {
   return EvaluateComparisonBinaryOperator(Info, E, OnSuccess, [&]() {
     return ExprEvaluatorBaseTy::VisitBinCmp(E);
   });
+}
+
+bool RecordExprEvaluator::VisitCXXParenListInitExpr(
+    const CXXParenListInitExpr *E) {
+  return VisitCXXParenListOrInitListExpr(E, E->getInitExprs());
 }
 
 bool IntExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
@@ -15628,6 +15715,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::SYCLBuiltinBaseTypeExprClass:
   case Expr::SYCLUniqueStableNameExprClass:
   case Expr::SYCLUniqueStableIdExprClass:
+  case Expr::CXXParenListInitExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {

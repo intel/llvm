@@ -18,7 +18,6 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
@@ -452,7 +451,7 @@ std::string TokenBuffer::Mapping::str() const {
                     BeginSpelled, EndSpelled, BeginExpanded, EndExpanded));
 }
 
-llvm::Optional<llvm::ArrayRef<syntax::Token>>
+std::optional<llvm::ArrayRef<syntax::Token>>
 TokenBuffer::spelledForExpanded(llvm::ArrayRef<syntax::Token> Expanded) const {
   // Mapping an empty range is ambiguous in case of empty mappings at either end
   // of the range, bail out in that case.
@@ -533,7 +532,7 @@ TokenBuffer::fileForSpelled(llvm::ArrayRef<syntax::Token> Spelled) const {
   return File;
 }
 
-llvm::Optional<TokenBuffer::Expansion>
+std::optional<TokenBuffer::Expansion>
 TokenBuffer::expansionStartingAt(const syntax::Token *Spelled) const {
   assert(Spelled);
   const auto &File = fileForSpelled(*Spelled);

@@ -299,6 +299,17 @@ define i1 @nnan_unary_fneg() {
   ret i1 %tmp
 }
 
+define i1 @isNotKnownNeverNaN_fneg(double %x) {
+; CHECK-LABEL: @isNotKnownNeverNaN_fneg(
+; CHECK-NEXT:    [[NEG:%.*]] = fneg double [[X:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp ord double [[NEG]], [[NEG]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %neg = fneg double %x
+  %cmp = fcmp ord double %neg, %neg
+  ret i1 %cmp
+}
+
 define i1 @sitofp(i32 %arg0) {
 ; CHECK-LABEL: @sitofp(
 ; CHECK-NEXT:    ret i1 false
@@ -412,6 +423,16 @@ define i1 @nnan_frem(double %arg0, double %arg1) {
   ret i1 %tmp
 }
 
+define i1 @nnan_arithemtic_fence_src(double %arg) {
+; CHECK-LABEL: @nnan_arithemtic_fence_src(
+; CHECK-NEXT:    ret i1 true
+;
+  %nnan = fadd nnan double %arg, 1.0
+  %op = call double @llvm.arithmetic.fence.f64(double %nnan)
+  %tmp = fcmp ord double %op, %op
+  ret i1 %tmp
+}
+
 declare double @llvm.sqrt.f64(double)
 declare double @llvm.fabs.f64(double)
 declare double @llvm.canonicalize.f64(double)
@@ -425,3 +446,4 @@ declare double @llvm.rint.f64(double)
 declare double @llvm.nearbyint.f64(double)
 declare double @llvm.round.f64(double)
 declare double @llvm.roundeven.f64(double)
+declare double @llvm.arithmetic.fence.f64(double)

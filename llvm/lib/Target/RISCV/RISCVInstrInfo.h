@@ -62,12 +62,14 @@ public:
                            MachineBasicBlock::iterator MBBI, Register SrcReg,
                            bool IsKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const override;
+                           const TargetRegisterInfo *TRI,
+                           Register VReg) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI, Register DstReg,
                             int FrameIndex, const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const override;
+                            const TargetRegisterInfo *TRI,
+                            Register VReg) const override;
 
   using TargetInstrInfo::foldMemoryOperandImpl;
   MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
@@ -110,9 +112,17 @@ public:
   bool isBranchOffsetInRange(unsigned BranchOpc,
                              int64_t BrOffset) const override;
 
+  bool analyzeSelect(const MachineInstr &MI,
+                     SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
+                     unsigned &FalseOp, bool &Optimizable) const override;
+
+  MachineInstr *optimizeSelect(MachineInstr &MI,
+                               SmallPtrSetImpl<MachineInstr *> &SeenMIs,
+                               bool) const override;
+
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
 
-  Optional<DestSourcePair>
+  std::optional<DestSourcePair>
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
   bool verifyInstruction(const MachineInstr &MI,
@@ -205,7 +215,10 @@ public:
   bool hasReassociableSibling(const MachineInstr &Inst,
                               bool &Commuted) const override;
 
-  bool isAssociativeAndCommutative(const MachineInstr &Inst) const override;
+  bool isAssociativeAndCommutative(const MachineInstr &Inst,
+                                   bool Invert) const override;
+
+  std::optional<unsigned> getInverseOpcode(unsigned Opcode) const override;
 
 protected:
   const RISCVSubtarget &STI;
@@ -222,7 +235,8 @@ bool isZEXT_B(const MachineInstr &MI);
 // expect to see a FrameIndex operand.
 bool isRVVSpill(const MachineInstr &MI);
 
-Optional<std::pair<unsigned, unsigned>> isRVVSpillForZvlsseg(unsigned Opcode);
+std::optional<std::pair<unsigned, unsigned>>
+isRVVSpillForZvlsseg(unsigned Opcode);
 
 bool isFaultFirstLoad(const MachineInstr &MI);
 
@@ -235,6 +249,10 @@ bool hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2);
 
 // Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
 static constexpr int64_t VLMaxSentinel = -1LL;
+
+// Returns true if all uses of OrigMI only depend on the lower word of its
+// output, so we can transform OrigMI to the corresponding W-version.
+bool hasAllWUsers(const MachineInstr &MI, MachineRegisterInfo &MRI);
 } // namespace RISCV
 
 namespace RISCVVPseudosTable {

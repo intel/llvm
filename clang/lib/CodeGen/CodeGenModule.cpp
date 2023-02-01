@@ -100,6 +100,15 @@ static CGCXXABI *createCXXABI(CodeGenModule &CGM) {
   llvm_unreachable("invalid C++ ABI kind");
 }
 
+static bool SYCLCUDAIsHost(const clang::LangOptions &LangOpts) {
+  // Return true for the host compilation of SYCL CUDA sources.
+  return LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice;
+}
+static bool SYCLCUDAIsSYCLDevice(const clang::LangOptions &LangOpts) {
+  // Return true for the SYCL device compilation of SYCL CUDA sources.
+  return LangOpts.SYCLIsDevice && LangOpts.CUDA && !LangOpts.CUDAIsDevice;
+}
+
 CodeGenModule::CodeGenModule(ASTContext &C,
                              IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                              const HeaderSearchOptions &HSO,
@@ -144,6 +153,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   GlobalsInt8PtrTy = Int8Ty->getPointerTo(DL.getDefaultGlobalsAddressSpace());
   DefaultInt8PtrTy =
       Int8Ty->getPointerTo(getContext().getTargetAddressSpace(LangAS::Default));
+  ConstGlobalsPtrTy = Int8Ty->getPointerTo(
+      C.getTargetAddressSpace(GetGlobalConstantAddressSpace()));
   ASTAllocaAddressSpace = getTargetCodeGenInfo().getASTAllocaAddressSpace();
 
   // Build C++20 Module initializers.
@@ -806,9 +817,6 @@ void CodeGenModule::Release() {
                               1);
   }
 
-  if (CodeGenOpts.IBTSeal)
-    getModule().addModuleFlag(llvm::Module::Min, "ibt-seal", 1);
-
   if (CodeGenOpts.FunctionReturnThunks)
     getModule().addModuleFlag(llvm::Module::Override, "function_return_thunk_extern", 1);
 
@@ -861,12 +869,11 @@ void CodeGenModule::Release() {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
-    getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
-                              (CodeGenOpts.FP32DenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE) ||
-                              (CodeGenOpts.FPDenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE));
-    getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
+    getModule().addModuleFlag(
+        llvm::Module::Max, "nvvm-reflect-ftz",
+        (CodeGenOpts.FP32DenormalMode.Output != llvm::DenormalMode::IEEE) ||
+            (CodeGenOpts.FPDenormalMode.Output != llvm::DenormalMode::IEEE));
+    getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
@@ -1422,6 +1429,20 @@ static void AppendCPUSpecificCPUDispatchMangling(const CodeGenModule &CGM,
     Out << ".resolver";
 }
 
+static void AppendTargetVersionMangling(const CodeGenModule &CGM,
+                                        const TargetVersionAttr *Attr,
+                                        raw_ostream &Out) {
+  if (Attr->isDefaultVersion())
+    return;
+  Out << "._";
+  llvm::SmallVector<StringRef, 8> Feats;
+  Attr->getFeatures(Feats);
+  for (const auto &Feat : Feats) {
+    Out << 'M';
+    Out << Feat;
+  }
+}
+
 static void AppendTargetMangling(const CodeGenModule &CGM,
                                  const TargetAttr *Attr, raw_ostream &Out) {
   if (Attr->isDefaultVersion())
@@ -1467,14 +1488,27 @@ static void AppendTargetClonesMangling(const CodeGenModule &CGM,
                                        const TargetClonesAttr *Attr,
                                        unsigned VersionIndex,
                                        raw_ostream &Out) {
-  Out << '.';
-  StringRef FeatureStr = Attr->getFeatureStr(VersionIndex);
-  if (FeatureStr.startswith("arch="))
-    Out << "arch_" << FeatureStr.substr(sizeof("arch=") - 1);
-  else
-    Out << FeatureStr;
+  if (CGM.getTarget().getTriple().isAArch64()) {
+    StringRef FeatureStr = Attr->getFeatureStr(VersionIndex);
+    if (FeatureStr == "default")
+      return;
+    Out << "._";
+    SmallVector<StringRef, 8> Features;
+    FeatureStr.split(Features, "+");
+    for (auto &Feat : Features) {
+      Out << 'M';
+      Out << Feat;
+    }
+  } else {
+    Out << '.';
+    StringRef FeatureStr = Attr->getFeatureStr(VersionIndex);
+    if (FeatureStr.startswith("arch="))
+      Out << "arch_" << FeatureStr.substr(sizeof("arch=") - 1);
+    else
+      Out << FeatureStr;
 
-  Out << '.' << Attr->getMangledIndex(VersionIndex);
+    Out << '.' << Attr->getMangledIndex(VersionIndex);
+  }
 }
 
 static std::string getMangledNameImpl(CodeGenModule &CGM, GlobalDecl GD,
@@ -1529,6 +1563,9 @@ static std::string getMangledNameImpl(CodeGenModule &CGM, GlobalDecl GD,
         break;
       case MultiVersionKind::Target:
         AppendTargetMangling(CGM, FD->getAttr<TargetAttr>(), Out);
+        break;
+      case MultiVersionKind::TargetVersion:
+        AppendTargetVersionMangling(CGM, FD->getAttr<TargetVersionAttr>(), Out);
         break;
       case MultiVersionKind::TargetClones:
         AppendTargetClonesMangling(CGM, FD->getAttr<TargetClonesAttr>(),
@@ -2334,10 +2371,12 @@ bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,
   const auto *FD = dyn_cast_or_null<FunctionDecl>(GD.getDecl());
   FD = FD ? FD->getMostRecentDecl() : FD;
   const auto *TD = FD ? FD->getAttr<TargetAttr>() : nullptr;
+  const auto *TV = FD ? FD->getAttr<TargetVersionAttr>() : nullptr;
+  assert((!TD || !TV) && "both target_version and target specified");
   const auto *SD = FD ? FD->getAttr<CPUSpecificAttr>() : nullptr;
   const auto *TC = FD ? FD->getAttr<TargetClonesAttr>() : nullptr;
   bool AddedAttr = false;
-  if (TD || SD || TC) {
+  if (TD || TV || SD || TC) {
     llvm::StringMap<bool> FeatureMap;
     getContext().getFunctionFeatureMap(FeatureMap, GD);
 
@@ -2911,13 +2950,23 @@ void CodeGenModule::EmitDeferred() {
   for (GlobalDecl &D : CurDeclsToEmit) {
     // Emit a dummy __host__ function if a legit one is not already present in
     // case of SYCL compilation of CUDA sources.
-    if (LangOpts.CUDA && !LangOpts.CUDAIsDevice && LangOpts.SYCLIsHost) {
+    if (SYCLCUDAIsHost(LangOpts)) {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
-           OtherD.getCanonicalDecl().getDecl())) {
+           OtherD.getCanonicalDecl().getDecl()) &&
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDADeviceAttr>())
         continue;
-      }
+    }
+    // Emit a dummy __host__ function if a legit one is not already present in
+    // case of SYCL compilation of CUDA sources.
+    if (SYCLCUDAIsSYCLDevice(LangOpts)) {
+      GlobalDecl OtherD;
+      if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
+          (D.getCanonicalDecl().getDecl() !=
+           OtherD.getCanonicalDecl().getDecl()) &&
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDAHostAttr>())
+        continue;
     }
     const ValueDecl *VD = cast<ValueDecl>(D.getDecl());
     // If emitting for SYCL device, emit the deferred alias
@@ -3038,9 +3087,10 @@ llvm::Constant *CodeGenModule::EmitAnnotationString(StringRef Str) {
 
   // Not found yet, create a new global.
   llvm::Constant *s = llvm::ConstantDataArray::getString(getLLVMContext(), Str);
-  auto *gv =
-      new llvm::GlobalVariable(getModule(), s->getType(), true,
-                               llvm::GlobalValue::PrivateLinkage, s, ".str");
+  auto *gv = new llvm::GlobalVariable(
+      getModule(), s->getType(), true, llvm::GlobalValue::PrivateLinkage, s,
+      ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
+      ConstGlobalsPtrTy->getAddressSpace());
   gv->setSection(AnnotationSection);
   gv->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   AStr = gv;
@@ -3066,7 +3116,7 @@ llvm::Constant *CodeGenModule::EmitAnnotationLineNo(SourceLocation L) {
 llvm::Constant *CodeGenModule::EmitAnnotationArgs(const AnnotateAttr *Attr) {
   ArrayRef<Expr *> Exprs = {Attr->args_begin(), Attr->args_size()};
   if (Exprs.empty())
-    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
 
   llvm::FoldingSetNodeID ID;
   for (Expr *E : Exprs) {
@@ -3116,8 +3166,8 @@ llvm::Constant *CodeGenModule::EmitAnnotateAttr(llvm::GlobalValue *GV,
   // Create the ConstantStruct for the global annotation.
   llvm::Constant *Fields[] = {
       llvm::ConstantExpr::getBitCast(GVInGlobalsAS, GlobalsInt8PtrTy),
-      llvm::ConstantExpr::getBitCast(AnnoGV, GlobalsInt8PtrTy),
-      llvm::ConstantExpr::getBitCast(UnitGV, GlobalsInt8PtrTy),
+      llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
+      llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy),
       LineNoCst,
       Args,
   };
@@ -3138,7 +3188,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
       AnnotationNameValPairs =
           Attr->getFilteredAttributeNameValuePairs(getContext());
   if (AnnotationNameValPairs.empty())
-    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
 
   // For each name-value pair of the SYCL annotation attribute, create an
   // annotation string for it. This will be the annotation arguments. If the
@@ -3150,7 +3200,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
        AnnotationNameValPairs) {
     llvm::Constant *NameStrC = EmitAnnotationString(NVP.first);
     llvm::Constant *ValueStrC =
-        NVP.second == "" ? llvm::ConstantPointerNull::get(GlobalsInt8PtrTy)
+        NVP.second == "" ? llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)
                          : EmitAnnotationString(NVP.second);
     LLVMArgs.push_back(NameStrC);
     LLVMArgs.push_back(ValueStrC);
@@ -3168,12 +3218,13 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
   // arguments in the order they were added above. This is the final constant
   // used as the annotation value.
   auto *Struct = llvm::ConstantStruct::getAnon(LLVMArgs);
-  auto *GV = new llvm::GlobalVariable(getModule(), Struct->getType(), true,
-                                      llvm::GlobalValue::PrivateLinkage, Struct,
-                                      ".args");
+  auto *GV = new llvm::GlobalVariable(
+      getModule(), Struct->getType(), true, llvm::GlobalValue::PrivateLinkage,
+      Struct, ".args", nullptr, llvm::GlobalValue::NotThreadLocal,
+      ConstGlobalsPtrTy->getAddressSpace());
   GV->setSection(AnnotationSection);
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, GlobalsInt8PtrTy);
+  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, ConstGlobalsPtrTy);
 
   // Set the look-up reference to the final annotation value for future
   // annotations to reuse.
@@ -3567,16 +3618,10 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       // their device-side incarnations.
 
       // So device-only functions are the only things we skip, except for SYCL.
-      if (isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
-          Global->hasAttr<CUDADeviceAttr>()) {
-        // In SYCL, every (CUDA) __device__ function needs to have a __host__
-        // counterpart that will be emitted in case of it is not already
-        // present.
-        if (LangOpts.SYCLIsHost && MustBeEmitted(Global) &&
-            MayBeEmittedEagerly(Global))
-          addDeferredDeclToEmit(GD);
+      if (!LangOpts.isSYCL() && isa<FunctionDecl>(Global) &&
+          !Global->hasAttr<CUDAHostAttr>() && Global->hasAttr<CUDADeviceAttr>())
         return;
-      }
+
       assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
              "Expected Variable or Function");
     }
@@ -3601,8 +3646,13 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
     // Forward declarations are emitted lazily on first use.
     if (!FD->doesThisDeclarationHaveABody()) {
-      if (!FD->doesDeclarationForceExternallyVisibleDefinition())
-        return;
+      if (!FD->doesDeclarationForceExternallyVisibleDefinition()) {
+        // Force the declaration in SYCL compilation of CUDA sources.
+        if (!((SYCLCUDAIsHost(LangOpts) && Global->hasAttr<CUDAHostAttr>()) ||
+              (SYCLCUDAIsSYCLDevice(LangOpts) &&
+               Global->hasAttr<CUDADeviceAttr>())))
+          return;
+      }
 
       StringRef MangledName = getMangledName(GD);
 
@@ -3661,6 +3711,20 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   // function. If the global must always be emitted, do it eagerly if possible
   // to benefit from cache locality.
   if (MustBeEmitted(Global) && MayBeEmittedEagerly(Global)) {
+    // Avoid emitting the same __host__ __device__ functions,
+    // in SYCL-CUDA-host compilation, and
+    if (SYCLCUDAIsHost(LangOpts) && isa<FunctionDecl>(Global) &&
+        !Global->hasAttr<CUDAHostAttr>() && Global->hasAttr<CUDADeviceAttr>()) {
+      addDeferredDeclToEmit(GD);
+      return;
+    }
+    // in SYCL-CUDA-device compilation.
+    if (SYCLCUDAIsSYCLDevice(LangOpts) && isa<FunctionDecl>(Global) &&
+        Global->hasAttr<CUDAHostAttr>() && !Global->hasAttr<CUDADeviceAttr>()) {
+      addDeferredDeclToEmit(GD);
+      return;
+    }
+
     // Emit the definition if it can't be deferred.
     EmitGlobalDefinition(GD);
     return;
@@ -3684,6 +3748,39 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     addDeferredDeclToEmit(GD);
     EmittedDeferredDecls[MangledName] = GD;
   } else {
+
+    // For SYCL compilation of CUDA sources,
+    if (LangOpts.isSYCL() && LangOpts.CUDA && !LangOpts.CUDAIsDevice) {
+      // in case of SYCL-CUDA-host,
+      if (LangOpts.SYCLIsHost) {
+        if (Global->hasAttr<CUDAHostAttr>()) {
+          // remove already present __device__ function.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end())
+            DeferredDecls.erase(DDI);
+        } else if (Global->hasAttr<CUDADeviceAttr>()) {
+          // do not insert a __device__ function if a __host__ one is present.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end())
+            return;
+        }
+      }
+      // in case of SYCL-CUDA-device,
+      if (LangOpts.SYCLIsDevice) {
+        if (Global->hasAttr<CUDADeviceAttr>()) {
+          // remove already present __host__ function.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end())
+            DeferredDecls.erase(DDI);
+        } else if (Global->hasAttr<CUDAHostAttr>()) {
+          // do not insert a __host__ function if a __device__ one is present.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end())
+            return;
+        }
+      }
+    }
+
     // Otherwise, remember that we saw a deferred decl with this name.  The
     // first use of the mangled name will cause it to move into
     // DeferredDeclsToEmit.
@@ -3938,12 +4035,18 @@ static unsigned
 TargetMVPriority(const TargetInfo &TI,
                  const CodeGenFunction::MultiVersionResolverOption &RO) {
   unsigned Priority = 0;
-  for (StringRef Feat : RO.Conditions.Features)
+  unsigned NumFeatures = 0;
+  for (StringRef Feat : RO.Conditions.Features) {
     Priority = std::max(Priority, TI.multiVersionSortPriority(Feat));
+    NumFeatures++;
+  }
 
   if (!RO.Conditions.Architecture.empty())
     Priority = std::max(
         Priority, TI.multiVersionSortPriority(RO.Conditions.Architecture));
+
+  Priority += TI.multiVersionFeatureCost() * NumFeatures;
+
   return Priority;
 }
 
@@ -3988,13 +4091,19 @@ void CodeGenModule::emitMultiVersionFunctions() {
               }
               assert(Func && "This should have just been created");
             }
-
-            const auto *TA = CurFD->getAttr<TargetAttr>();
-            llvm::SmallVector<StringRef, 8> Feats;
-            TA->getAddedFeatures(Feats);
-
-            Options.emplace_back(cast<llvm::Function>(Func),
-                                 TA->getArchitecture(), Feats);
+            if (CurFD->getMultiVersionKind() == MultiVersionKind::Target) {
+              const auto *TA = CurFD->getAttr<TargetAttr>();
+              llvm::SmallVector<StringRef, 8> Feats;
+              TA->getAddedFeatures(Feats);
+              Options.emplace_back(cast<llvm::Function>(Func),
+                                   TA->getArchitecture(), Feats);
+            } else {
+              const auto *TVA = CurFD->getAttr<TargetVersionAttr>();
+              llvm::SmallVector<StringRef, 8> Feats;
+              TVA->getFeatures(Feats);
+              Options.emplace_back(cast<llvm::Function>(Func),
+                                   /*Architecture*/ "", Feats);
+            }
           });
     } else if (FD->isTargetClonesMultiVersion()) {
       const auto *TC = FD->getAttr<TargetClonesAttr>();
@@ -4024,10 +4133,19 @@ void CodeGenModule::emitMultiVersionFunctions() {
         StringRef Architecture;
         llvm::SmallVector<StringRef, 1> Feature;
 
-        if (Version.startswith("arch="))
-          Architecture = Version.drop_front(sizeof("arch=") - 1);
-        else if (Version != "default")
-          Feature.push_back(Version);
+        if (getTarget().getTriple().isAArch64()) {
+          if (Version != "default") {
+            llvm::SmallVector<StringRef, 8> VerFeats;
+            Version.split(VerFeats, "+");
+            for (auto &CurFeat : VerFeats)
+              Feature.push_back(CurFeat.trim());
+          }
+        } else {
+          if (Version.startswith("arch="))
+            Architecture = Version.drop_front(sizeof("arch=") - 1);
+          else if (Version != "default")
+            Feature.push_back(Version);
+        }
 
         Options.emplace_back(cast<llvm::Function>(Func), Architecture, Feature);
       }
@@ -4371,7 +4489,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     }
 
     llvm::Constant *BC = llvm::ConstantExpr::getBitCast(
-        F, Entry->getValueType()->getPointerTo());
+        F, Entry->getValueType()->getPointerTo(Entry->getAddressSpace()));
     addGlobalValReplacement(Entry, BC);
   }
 
@@ -4395,8 +4513,16 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // This is the first use or definition of a mangled name.  If there is a
     // deferred decl with this name, remember that we need to emit it at the end
     // of the file.
+    // In SYCL compilation of CUDA sources, avoid the emission if the
+    // __device__/__host__ attributes do not match.
     auto DDI = DeferredDecls.find(MangledName);
-    if (DDI != DeferredDecls.end()) {
+    if (DDI != DeferredDecls.end() &&
+        (!(getLangOpts().isSYCL() && getLangOpts().CUDA &&
+           !getLangOpts().CUDAIsDevice) ||
+         ((DDI->second).getDecl()->hasAttr<CUDAHostAttr>() ==
+              D->hasAttr<CUDAHostAttr>() &&
+          (DDI->second).getDecl()->hasAttr<CUDADeviceAttr>() ==
+              D->hasAttr<CUDADeviceAttr>()))) {
       // Move the potentially referenced deferred decl to the
       // DeferredDeclsToEmit list, and remove it from DeferredDecls (since we
       // don't need it anymore).
@@ -4435,8 +4561,8 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     return F;
   }
 
-  llvm::Type *PTy = llvm::PointerType::getUnqual(Ty);
-  return llvm::ConstantExpr::getBitCast(F, PTy);
+  return llvm::ConstantExpr::getBitCast(F,
+                                        Ty->getPointerTo(F->getAddressSpace()));
 }
 
 /// GetAddrOfFunction - Return the address of the given function.  If Ty is
@@ -4485,8 +4611,9 @@ llvm::Constant *CodeGenModule::GetFunctionStart(const ValueDecl *Decl) {
   llvm::GlobalValue *F =
       cast<llvm::GlobalValue>(GetAddrOfFunction(Decl)->stripPointerCasts());
 
-  return llvm::ConstantExpr::getBitCast(llvm::NoCFIValue::get(F),
-                                        llvm::Type::getInt8PtrTy(VMContext));
+  return llvm::ConstantExpr::getBitCast(
+      llvm::NoCFIValue::get(F),
+      llvm::Type::getInt8PtrTy(VMContext, F->getAddressSpace()));
 }
 
 static const FunctionDecl *
@@ -5213,9 +5340,9 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
     // Create the ConstantStruct for the global annotation.
     llvm::Constant *Fields[5] = {
         llvm::ConstantExpr::getBitCast(ASZeroGV, Int8PtrTy),
-        llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
-        llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy), LineNoCst,
-        llvm::ConstantPointerNull::get(Int8PtrTy)};
+        llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
+        llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy), LineNoCst,
+        llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)};
     Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
   }
 }

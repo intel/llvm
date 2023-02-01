@@ -790,7 +790,7 @@ void CodeGenFunction::EmitNullabilityCheck(LValue LHS, llvm::Value *RHS,
   if (!SanOpts.has(SanitizerKind::NullabilityAssign))
     return;
 
-  auto Nullability = LHS.getType()->getNullability(getContext());
+  auto Nullability = LHS.getType()->getNullability();
   if (!Nullability || *Nullability != NullabilityKind::NonNull)
     return;
 
@@ -1675,8 +1675,10 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
       if (address.getAddressSpace() != 0)
         Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
-      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation), Arg,
-                         AnnotStr, D.getLocation());
+      EmitAnnotationCall(
+          CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
+                           {CGM.Int8PtrTy, CGM.ConstGlobalsPtrTy}),
+          Arg, AnnotStr, D.getLocation());
     }
   }
 
@@ -2667,7 +2669,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   // function satisfy their nullability preconditions. This makes it necessary
   // to emit null checks for args in the function body itself.
   if (requiresReturnValueNullabilityCheck()) {
-    auto Nullability = Ty->getNullability(getContext());
+    auto Nullability = Ty->getNullability();
     if (Nullability && *Nullability == NullabilityKind::NonNull) {
       SanitizerScope SanScope(this);
       RetValNullabilityPrecondition =

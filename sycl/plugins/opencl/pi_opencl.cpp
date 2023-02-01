@@ -67,6 +67,10 @@ CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
 CONSTFIX char clGetDeviceFunctionPointerName[] =
     "clGetDeviceFunctionPointerINTEL";
+CONSTFIX char clEnqueueWriteGlobalVariableName[] =
+    "clEnqueueWriteGlobalVariableINTEL";
+CONSTFIX char clEnqueueReadGlobalVariableName[] =
+    "clEnqueueReadGlobalVariableINTEL";
 
 #undef CONSTFIX
 
@@ -162,7 +166,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
+  auto It = FuncPtrs.find(context);
+  if (It != FuncPtrs.end()) {
+    auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
     *fptr = F;
@@ -771,7 +777,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(Res);
 
   std::string ClResult(Size, ' ');
-  ret_err =
+  Res =
       clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
                        ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS)
@@ -1558,6 +1564,89 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueWriteGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t,
+    const void *, cl_uint, const cl_event *, cl_event *);
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueReadGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t, void *,
+    cl_uint, const cl_event *, cl_event *);
+
+/// API for writing data from host to a device global variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_write is true if the write should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueWriteGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueWriteGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_write, count, offset, src, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
+/// API reading data from a device global variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_read is true if the read should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueReadGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueReadGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_read, count, offset, dst, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
 /// API to set attributes controlling kernel execution
 ///
 /// \param kernel is the pi kernel to execute
@@ -1660,6 +1749,46 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  return PI_SUCCESS;
+}
+
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  OCLV::OpenCLVersion devVer, platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID = cast<cl_device_id>(Device);
+
+  // TODO: Cache OpenCL version for each device and platform
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getDeviceVersion(deviceID, devVer);
+
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getPlatformVersion(platform, platVer);
+
+  if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
+    setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        PI_ERROR_INVALID_OPERATION);
+    return PI_ERROR_INVALID_OPERATION;
+  }
+
+  if (DeviceTime) {
+    uint64_t dummy;
+    clGetDeviceAndHostTimer(deviceID, DeviceTime,
+                            HostTime == nullptr ? &dummy : HostTime);
+
+  } else if (HostTime) {
+    clGetHostTimer(deviceID, HostTime);
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1795,11 +1924,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

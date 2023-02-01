@@ -53,7 +53,7 @@ struct Config {
   /// For adding passes that run right before codegen.
   std::function<void(legacy::PassManager &)> PreCodeGenPassesHook;
   std::optional<Reloc::Model> RelocModel = Reloc::PIC_;
-  std::optional<CodeModel::Model> CodeModel = std::nullopt;
+  std::optional<CodeModel::Model> CodeModel;
   CodeGenOpt::Level CGOptLevel = CodeGenOpt::Default;
   CodeGenFileType CGFileType = CGFT_ObjectFile;
   unsigned OptLevel = 2;
@@ -153,7 +153,7 @@ struct Config {
   ///                    compilation.
   ///
   /// If threshold option is not specified, it is disabled by default.
-  llvm::Optional<uint64_t> RemarksHotnessThreshold = 0;
+  std::optional<uint64_t> RemarksHotnessThreshold = 0;
 
   /// The format used for serializing remarks (default: YAML).
   std::string RemarksFormat;

@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl6.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -25,6 +25,7 @@
 ??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$01@12@XZ
 ??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$02@12@XZ
 ??$get_info@Uaddress_bits@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic64@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uatomic_memory_order_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic_memory_order_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
@@ -176,6 +177,7 @@
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
+??$get_property@Vcompute_index@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcompute_index@0property@intel@ext@12@XZ
 ??$get_property@Vcontext_bound@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVcontext_bound@buffer@property@23@XZ
 ??$get_property@Vcontext_bound@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVcontext_bound@buffer@property@12@XZ
 ??$get_property@Vcontext_bound@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVcontext_bound@buffer@property@23@XZ
@@ -186,6 +188,7 @@
 ??$get_property@Vcontext_bound@image@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVcontext_bound@image@property@23@XZ
 ??$get_property@Vcontext_bound@image@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVcontext_bound@image@property@12@XZ
 ??$get_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVcontext_bound@image@property@12@XZ
+??$get_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdiscard_events@0property@oneapi@ext@12@XZ
 ??$get_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVenable_profiling@0property@12@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVin_order@queue@property@23@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVin_order@queue@property@12@XZ
@@ -211,18 +214,23 @@
 ??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVpriority_high@queue@property@oneapi@ext@23@XZ
 ??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA?AVpriority_high@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVpriority_high@queue@property@oneapi@ext@23@XZ
+??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVpriority_high@0property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVpriority_high@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVpriority_high@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVpriority_low@queue@property@oneapi@ext@23@XZ
 ??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA?AVpriority_low@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVpriority_low@queue@property@oneapi@ext@23@XZ
+??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVpriority_low@0property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVpriority_low@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVpriority_low@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVpriority_normal@queue@property@oneapi@ext@23@XZ
 ??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA?AVpriority_normal@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVpriority_normal@queue@property@oneapi@ext@23@XZ
+??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVpriority_normal@0property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVpriority_normal@queue@property@oneapi@ext@12@XZ
 ??$get_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVpriority_normal@queue@property@oneapi@ext@12@XZ
+??$get_property@Vuse_default_stream@cuda@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVuse_default_stream@cuda@0property@12@XZ
+??$get_property@Vuse_default_stream@queue@property@cuda@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVuse_default_stream@0property@cuda@oneapi@ext@12@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVuse_host_ptr@buffer@property@23@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVuse_host_ptr@buffer@property@12@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVuse_host_ptr@buffer@property@23@XZ
@@ -258,6 +266,7 @@
 ??$get_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVuse_primary_context@cuda@context@property@23@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
+??$has_property@Vcompute_index@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vcontext_bound@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -268,6 +277,7 @@
 ??$has_property@Vcontext_bound@image@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vcontext_bound@image@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
@@ -293,18 +303,23 @@
 ??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
+??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_high@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
+??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_low@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
+??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vpriority_normal@queue@property@oneapi@ext@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vuse_default_stream@cuda@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
+??$has_property@Vuse_default_stream@queue@property@cuda@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vuse_host_ptr@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -344,8 +359,10 @@
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHHH_NAEBVproperty_list@23@@Z
+??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_NH4AEBVproperty_list@23@@Z
 ??0AccessorImplHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0AccessorImplHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHHH_NAEBVproperty_list@23@@Z
+??0AccessorImplHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_NH4AEBVproperty_list@23@@Z
 ??0HostProfilingInfo@detail@_V1@sycl@@QEAA@XZ
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VLocalAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
@@ -522,6 +539,8 @@
 ??0stream_impl@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0stream_impl@detail@_V1@sycl@@QEAA@_K0AEAVhandler@23@@Z
 ??0stream_impl@detail@_V1@sycl@@QEAA@_K0AEBVproperty_list@23@@Z
+??0tls_code_loc_t@detail@_V1@sycl@@QEAA@AEBUcode_location@123@@Z
+??0tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorImplHost@detail@_V1@sycl@@QEAA@XZ
 ??1LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
@@ -557,22 +576,23 @@
 ??1sampler_impl@detail@_V1@sycl@@QEAA@XZ
 ??1stream@_V1@sycl@@QEAA@XZ
 ??1stream_impl@detail@_V1@sycl@@QEAA@XZ
-??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??1tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
-??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
-??4?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vplatform@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vplatform@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
-??4?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4AccessorImplHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
@@ -636,6 +656,7 @@
 ??4stream@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4tls_code_loc_t@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??8context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
@@ -820,20 +841,20 @@
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_memcpy2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_memset2d_impl@handler@_V1@sycl@@AEAAXPEAX_KH11@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVcontext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vdevice@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVdevice@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vevent@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVevent@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVcontext@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVkernel@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vkernel@_V1@sycl@@@2oneapi@ext@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVkernel@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vkernel_id@_V1@sycl@@@2oneapi@ext@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vplatform@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vplatform@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vplatform@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVplatform@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vqueue@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVqueue@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vkernel_id@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vkernel_id@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vstream@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVstream@34@@Z
 ?ext_oneapi_submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
@@ -1012,12 +1033,14 @@
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@6@W4bundle_state@23@@Z
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
+?initStreamHost@stream_impl@detail@_V1@sycl@@QEAAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isInterop@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isOutOfRange@detail@_V1@sycl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@_V1@sycl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?isPlaceholder@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
 ?isStateExplicitKernelBundle@handler@_V1@sycl@@AEBA_NXZ
 ?isValidModeForDestinationAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
@@ -1103,6 +1126,7 @@
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@@Z
 ?prefetch_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
+?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z

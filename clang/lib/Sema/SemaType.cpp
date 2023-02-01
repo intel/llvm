@@ -1527,9 +1527,10 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_half:    Result = Context.HalfTy; break;
   case DeclSpec::TST_BFloat16:
-    if (!S.Context.getTargetInfo().hasBFloat16Type())
-      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
-	<< "__bf16";
+    if (!S.Context.getTargetInfo().hasBFloat16Type() &&
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice) &&
+        !S.getLangOpts().SYCLIsDevice)
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__bf16";
     Result = Context.BFloat16Ty;
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
@@ -4717,8 +4718,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     // inner pointers.
     complainAboutMissingNullability = CAMN_InnerPointers;
 
-    if (T->canHaveNullability(/*ResultIfUnknown*/false) &&
-        !T->getNullability(S.Context)) {
+    if (T->canHaveNullability(/*ResultIfUnknown*/ false) &&
+        !T->getNullability()) {
       // Note that we allow but don't require nullability on dependent types.
       ++NumPointersRemaining;
     }
@@ -4939,8 +4940,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   // If the type itself could have nullability but does not, infer pointer
   // nullability and perform consistency checking.
   if (S.CodeSynthesisContexts.empty()) {
-    if (T->canHaveNullability(/*ResultIfUnknown*/false) &&
-        !T->getNullability(S.Context)) {
+    if (T->canHaveNullability(/*ResultIfUnknown*/ false) &&
+        !T->getNullability()) {
       if (isVaList(T)) {
         // Record that we've seen a pointer, but do nothing else.
         if (NumPointersRemaining > 0)
@@ -4963,9 +4964,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       }
     }
 
-    if (complainAboutMissingNullability == CAMN_Yes &&
-        T->isArrayType() && !T->getNullability(S.Context) && !isVaList(T) &&
-        D.isPrototypeContext() &&
+    if (complainAboutMissingNullability == CAMN_Yes && T->isArrayType() &&
+        !T->getNullability() && !isVaList(T) && D.isPrototypeContext() &&
         !hasOuterPointerLikeChunk(D, D.getNumTypeObjects())) {
       checkNullabilityConsistency(S, SimplePointerKind::Array,
                                   D.getDeclSpec().getTypeSpecTypeLoc());
@@ -5398,14 +5398,19 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       } else {
         // We allow a zero-parameter variadic function in C if the
         // function is marked with the "overloadable" attribute. Scan
-        // for this attribute now.
-        if (!FTI.NumParams && FTI.isVariadic && !LangOpts.CPlusPlus)
-          if (!D.getDeclarationAttributes().hasAttribute(
-                  ParsedAttr::AT_Overloadable) &&
-              !D.getAttributes().hasAttribute(ParsedAttr::AT_Overloadable) &&
-              !D.getDeclSpec().getAttributes().hasAttribute(
-                  ParsedAttr::AT_Overloadable))
+        // for this attribute now. We also allow it in C2x per WG14 N2975.
+        if (!FTI.NumParams && FTI.isVariadic && !LangOpts.CPlusPlus) {
+          if (LangOpts.C2x)
+            S.Diag(FTI.getEllipsisLoc(),
+                   diag::warn_c17_compat_ellipsis_only_parameter);
+          else if (!D.getDeclarationAttributes().hasAttribute(
+                       ParsedAttr::AT_Overloadable) &&
+                   !D.getAttributes().hasAttribute(
+                       ParsedAttr::AT_Overloadable) &&
+                   !D.getDeclSpec().getAttributes().hasAttribute(
+                       ParsedAttr::AT_Overloadable))
             S.Diag(FTI.getEllipsisLoc(), diag::err_ellipsis_first_param);
+        }
 
         if (FTI.NumParams && FTI.Params[0].Param == nullptr) {
           // C99 6.7.5.3p3: Reject int(x,y,z) when it's not a function
@@ -7471,7 +7476,7 @@ static bool checkNullabilityTypeSpecifier(TypeProcessingState &state,
   // This (unlike the code above) looks through typedefs that might
   // have nullability specifiers on them, which means we cannot
   // provide a useful Fix-It.
-  if (auto existingNullability = desugared->getNullability(S.Context)) {
+  if (auto existingNullability = desugared->getNullability()) {
     if (nullability != *existingNullability) {
       S.Diag(nullabilityLoc, diag::err_nullability_conflicting)
         << DiagNullabilityKind(nullability, isContextSensitive)
@@ -7570,7 +7575,7 @@ static bool checkObjCKindOfType(TypeProcessingState &state, QualType &type,
   // If we started with an object pointer type, rebuild it.
   if (ptrType) {
     equivType = S.Context.getObjCObjectPointerType(equivType);
-    if (auto nullability = type->getNullability(S.Context)) {
+    if (auto nullability = type->getNullability()) {
       // We create a nullability attribute from the __kindof attribute.
       // Make sure that will make sense.
       assert(attr.getAttributeSpellingListIndex() == 0 &&

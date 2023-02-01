@@ -502,7 +502,7 @@ def VOP3_CVT_SR_F8_F32_Profile : VOP3_Profile<VOPProfile<[i32, f32, i32, f32]>,
   let HasSrc2 = 0;
   let HasSrc2Mods = 1;
   let AsmVOP3OpSel = !subst(", $src2_modifiers", "",
-                            getAsmVOP3OpSel<3, HasClamp,
+                            getAsmVOP3OpSel<3, HasClamp, HasOMod,
                                             HasSrc0FloatMods, HasSrc1FloatMods,
                                             HasSrc2FloatMods>.ret);
   let HasExtVOP3DPP = 0;
@@ -681,31 +681,6 @@ class PermlanePat<SDPatternOperator permlane,
         SCSrc_b32:$src1, 0, SCSrc_b32:$src2, VGPR_32:$vdst_in)
 >;
 
-// Permlane intrinsic that has either fetch invalid or bound control
-// fields enabled.
-class BoundControlOrFetchInvalidPermlane<SDPatternOperator permlane> :
-  PatFrag<(ops node:$vdst_in, node:$src0, node:$src1, node:$src2,
-               node:$fi, node:$bc),
-          (permlane node:$vdst_in, node:$src0, node:
-                    $src1, node:$src2, node:$fi, node:$bc)> {
-  let PredicateCode = [{ return N->getConstantOperandVal(5) != 0 ||
-                                N->getConstantOperandVal(6) != 0; }];
-  let GISelPredicateCode = [{
-    return MI.getOperand(6).getImm() != 0 ||
-           MI.getOperand(7).getImm() != 0;
-  }];
-}
-
-// Drop the input value if it won't be read.
-class PermlaneDiscardVDstIn<SDPatternOperator permlane,
-                            Instruction inst> : GCNPat<
-  (permlane srcvalue, i32:$src0, i32:$src1, i32:$src2,
-            timm:$fi, timm:$bc),
-  (inst (as_i1timm $fi), VGPR_32:$src0, (as_i1timm $bc),
-        SCSrc_b32:$src1, 0, SCSrc_b32:$src2,
-        (IMPLICIT_DEF))
->;
-
 
 let SubtargetPredicate = isGFX10Plus in {
   let isCommutable = 1, isReMaterializable = 1 in {
@@ -720,13 +695,6 @@ let SubtargetPredicate = isGFX10Plus in {
 
   def : PermlanePat<int_amdgcn_permlane16, V_PERMLANE16_B32_e64>;
   def : PermlanePat<int_amdgcn_permlanex16, V_PERMLANEX16_B32_e64>;
-
-  def : PermlaneDiscardVDstIn<
-    BoundControlOrFetchInvalidPermlane<int_amdgcn_permlane16>,
-    V_PERMLANE16_B32_e64>;
-  def : PermlaneDiscardVDstIn<
-    BoundControlOrFetchInvalidPermlane<int_amdgcn_permlanex16>,
-    V_PERMLANEX16_B32_e64>;
 
   defm V_ADD_NC_U16 : VOP3Inst <"v_add_nc_u16", VOP3_Profile<VOP_I16_I16_I16, VOP3_OPSEL>, add>;
   defm V_SUB_NC_U16 : VOP3Inst <"v_sub_nc_u16", VOP3_Profile<VOP_I16_I16_I16, VOP3_OPSEL>, sub>;
@@ -774,7 +742,7 @@ class VOP3_DOT_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOP
   let InsVOP3OpSel = getInsVOP3OpSel<Src0RC64, Src1RC64, Src2RC64, NumSrcArgs,
                                      HasClamp, HasOMod, FP16InputMods,
                                      FP16InputMods, FP16InputMods>.ret;
-  let AsmVOP3OpSel = getAsmVOP3OpSel<NumSrcArgs, HasClamp, 1, 1, 1>.ret;
+  let AsmVOP3OpSel = getAsmVOP3OpSel<NumSrcArgs, HasClamp, HasOMod, 1, 1, 1>.ret;
 }
 
 let SubtargetPredicate = isGFX11Plus in {

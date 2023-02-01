@@ -13,13 +13,13 @@
 #include "PPCTargetMachine.h"
 #include "MCTargetDesc/PPCMCTargetDesc.h"
 #include "PPC.h"
+#include "PPCMachineFunctionInfo.h"
 #include "PPCMachineScheduler.h"
 #include "PPCMacroFusion.h"
 #include "PPCSubtarget.h"
 #include "PPCTargetObjectFile.h"
 #include "PPCTargetTransformInfo.h"
 #include "TargetInfo/PowerPCTargetInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
@@ -136,6 +136,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTarget() {
   initializePPCExpandAtomicPseudoPass(PR);
   initializeGlobalISel(PR);
   initializePPCCTRLoopsPass(PR);
+  initializePPCDAGToDAGISelPass(PR);
 }
 
 static bool isLittleEndianTriple(const Triple &T) {
@@ -231,9 +232,6 @@ static PPCTargetMachine::PPCABI computeTargetABI(const Triple &TT,
 
   assert(Options.MCOptions.getABIName().empty() &&
          "Unknown target-abi option!");
-
-  if (TT.isMacOSX())
-    return PPCTargetMachine::PPC_ABI_UNKNOWN;
 
   switch (TT.getArch()) {
   case Triple::ppc64le:
@@ -581,6 +579,12 @@ bool PPCTargetMachine::isLittleEndian() const {
   assert(Endianness != Endian::NOT_DETECTED &&
          "Unable to determine endianness");
   return Endianness == Endian::LITTLE;
+}
+
+MachineFunctionInfo *PPCTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return PPCFunctionInfo::create<PPCFunctionInfo>(Allocator, F, STI);
 }
 
 static MachineSchedRegistry

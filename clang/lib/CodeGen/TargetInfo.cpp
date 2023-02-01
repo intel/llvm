@@ -6018,6 +6018,16 @@ Address AArch64ABIInfo::EmitAAPCSVAArg(Address VAListAddr, QualType Ty,
                                        CodeGenFunction &CGF) const {
   ABIArgInfo AI = classifyArgumentType(Ty, /*IsVariadic=*/true,
                                        CGF.CurFnInfo->getCallingConvention());
+  // Empty records are ignored for parameter passing purposes.
+  if (AI.isIgnore()) {
+    uint64_t PointerSize = getTarget().getPointerWidth(LangAS::Default) / 8;
+    CharUnits SlotSize = CharUnits::fromQuantity(PointerSize);
+    VAListAddr = CGF.Builder.CreateElementBitCast(VAListAddr, CGF.Int8PtrTy);
+    auto *Load = CGF.Builder.CreateLoad(VAListAddr);
+    Address Addr = Address(Load, CGF.Int8Ty, SlotSize);
+    return CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
+  }
+
   bool IsIndirect = AI.isIndirect();
 
   llvm::Type *BaseTy = CGF.ConvertType(Ty);
@@ -7411,24 +7421,57 @@ public:
   ABIArgInfo classifyReturnType(QualType RetTy) const;
   ABIArgInfo classifyArgumentType(QualType ArgTy) const;
 
-  void computeInfo(CGFunctionInfo &FI) const override {
-    if (!getCXXABI().classifyReturnType(FI))
-      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
-    for (auto &I : FI.arguments())
-      I.info = classifyArgumentType(I.type);
-  }
-
+  void computeInfo(CGFunctionInfo &FI) const override;
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                     QualType Ty) const override;
 };
 
 class SystemZTargetCodeGenInfo : public TargetCodeGenInfo {
+  // These are used for speeding up the search for a visible vector ABI.
+  mutable bool HasVisibleVecABIFlag = false;
+  mutable std::set<const Type *> SeenTypes;
+
+  // Returns true (the first time) if Ty is or found to make use of a vector
+  // type (e.g. as a function argument).
+  bool isVectorTypeBased(const Type *Ty) const;
+
 public:
   SystemZTargetCodeGenInfo(CodeGenTypes &CGT, bool HasVector, bool SoftFloatABI)
       : TargetCodeGenInfo(
             std::make_unique<SystemZABIInfo>(CGT, HasVector, SoftFloatABI)) {
     SwiftInfo =
         std::make_unique<SwiftABIInfo>(CGT, /*SwiftErrorInRegister=*/false);
+  }
+
+  // The vector ABI is different when the vector facility is present and when
+  // a module e.g. defines an externally visible vector variable, a flag
+  // indicating a visible vector ABI is added. Eventually this will result in
+  // a GNU attribute indicating the vector ABI of the module.  Ty is the type
+  // of a variable or function parameter that is globally visible.
+  void handleExternallyVisibleObjABI(const Type *Ty,
+                                     CodeGen::CodeGenModule &M) const {
+    if (!HasVisibleVecABIFlag && isVectorTypeBased(Ty)) {
+      M.getModule().addModuleFlag(llvm::Module::Warning,
+                                  "s390x-visible-vector-ABI", 1);
+      HasVisibleVecABIFlag = true;
+    }
+  }
+
+  void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                           CodeGen::CodeGenModule &M) const override {
+    if (!D)
+      return;
+
+    // Check if the vector ABI becomes visible by an externally visible
+    // variable or function.
+    if (const auto *VD = dyn_cast<VarDecl>(D)) {
+      if (VD->isExternallyVisible())
+        handleExternallyVisibleObjABI(VD->getType().getTypePtr(), M);
+    }
+    else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->isExternallyVisible())
+        handleExternallyVisibleObjABI(FD->getType().getTypePtr(), M);
+    }
   }
 
   llvm::Value *testFPKind(llvm::Value *V, unsigned BuiltinID,
@@ -7588,6 +7631,9 @@ Address SystemZABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   // Every non-vector argument occupies 8 bytes and is passed by preference
   // in either GPRs or FPRs.  Vector arguments occupy 8 or 16 bytes and are
   // always passed on the stack.
+  const SystemZTargetCodeGenInfo &SZCGI =
+      static_cast<const SystemZTargetCodeGenInfo &>(
+          CGT.getCGM().getTargetCodeGenInfo());
   Ty = getContext().getCanonicalType(Ty);
   auto TyInfo = getContext().getTypeInfoInChars(Ty);
   llvm::Type *ArgTy = CGF.ConvertTypeForMem(Ty);
@@ -7598,6 +7644,7 @@ Address SystemZABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   bool IsVector = false;
   CharUnits UnpaddedSize;
   CharUnits DirectAlign;
+  SZCGI.handleExternallyVisibleObjABI(Ty.getTypePtr(), CGT.getCGM());
   if (IsIndirect) {
     DirectTy = llvm::PointerType::getUnqual(DirectTy);
     UnpaddedSize = DirectAlign = CharUnits::fromQuantity(8);
@@ -7790,6 +7837,51 @@ ABIArgInfo SystemZABIInfo::classifyArgumentType(QualType Ty) const {
     return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
 
   return ABIArgInfo::getDirect(nullptr);
+}
+
+void SystemZABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  const SystemZTargetCodeGenInfo &SZCGI =
+      static_cast<const SystemZTargetCodeGenInfo &>(
+          CGT.getCGM().getTargetCodeGenInfo());
+  if (!getCXXABI().classifyReturnType(FI))
+    FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+  unsigned Idx = 0;
+  for (auto &I : FI.arguments()) {
+    I.info = classifyArgumentType(I.type);
+    if (FI.isVariadic() && Idx++ >= FI.getNumRequiredArgs())
+      // Check if a vararg vector argument is passed, in which case the
+      // vector ABI becomes visible as the va_list could be passed on to
+      // other functions.
+      SZCGI.handleExternallyVisibleObjABI(I.type.getTypePtr(), CGT.getCGM());
+  }
+}
+
+bool SystemZTargetCodeGenInfo::isVectorTypeBased(const Type *Ty) const {
+  while (Ty->isPointerType() || Ty->isArrayType())
+    Ty = Ty->getPointeeOrArrayElementType();
+  if (!SeenTypes.insert(Ty).second)
+    return false;
+  if (Ty->isVectorType())
+    return true;
+  if (const auto *RecordTy = Ty->getAs<RecordType>()) {
+    const RecordDecl *RD = RecordTy->getDecl();
+    if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD))
+      if (CXXRD->hasDefinition())
+        for (const auto &I : CXXRD->bases())
+          if (isVectorTypeBased(I.getType().getTypePtr()))
+            return true;
+    for (const auto *FD : RD->fields())
+      if (isVectorTypeBased(FD->getType().getTypePtr()))
+        return true;
+  }
+  if (const auto *FT = Ty->getAs<FunctionType>())
+    if (isVectorTypeBased(FT->getReturnType().getTypePtr()))
+      return true;
+  if (const FunctionProtoType *Proto = Ty->getAs<FunctionProtoType>())
+    for (auto ParamType : Proto->getParamTypes())
+      if (isVectorTypeBased(ParamType.getTypePtr()))
+        return true;
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -8362,6 +8454,10 @@ public:
       LargeRet = true;
       return getNaturalAlignIndirect(Ty);
     }
+    // An i8 return value should not be extended to i16, since AVR has 8-bit
+    // registers.
+    if (Ty->isIntegralOrEnumerationType() && getContext().getTypeSize(Ty) <= 8)
+      return ABIArgInfo::getDirect();
     // Otherwise we follow the default way which is compatible.
     return DefaultABIInfo::classifyReturnType(Ty);
   }
@@ -8498,16 +8594,16 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
-        unsigned XDim = Attr->getXDimVal()->getZExtValue();
-        unsigned YDim = Attr->getYDimVal()->getZExtValue();
-        unsigned ZDim = Attr->getZDimVal()->getZExtValue();
 
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, YDim))));
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, ZDim))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getXDim()))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getYDim()))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getZDim()))));
 
         // Add a boolean constant operand for "required" (true) or "hint"
         // (false) for implementing the work_group_size_hint attr later.
@@ -9382,21 +9478,16 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   if (ReqdWGS || FlatWGS) {
     unsigned Min = 0;
     unsigned Max = 0;
-    unsigned XDim = 0;
-    unsigned YDim = 0;
-    unsigned ZDim = 0;
-    ASTContext &Ctx = M.getContext();
     if (FlatWGS) {
-      Min = FlatWGS->getMin()->EvaluateKnownConstInt(Ctx).getExtValue();
-      Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
-    }
-    if (ReqdWGS) {
-      XDim = ReqdWGS->getXDimVal()->getZExtValue();
-      YDim = ReqdWGS->getYDimVal()->getZExtValue();
-      ZDim = ReqdWGS->getZDimVal()->getZExtValue();
+      Min = FlatWGS->getMin()
+                ->EvaluateKnownConstInt(M.getContext())
+                .getExtValue();
+      Max = FlatWGS->getMax()
+                ->EvaluateKnownConstInt(M.getContext())
+                .getExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
-      Min = Max = XDim * YDim * ZDim;
+      Min = Max = ReqdWGS->getXDim() * ReqdWGS->getYDim() * ReqdWGS->getZDim();
 
     if (Min != 0) {
       assert(Min <= Max && "Min must be less than or equal Max");

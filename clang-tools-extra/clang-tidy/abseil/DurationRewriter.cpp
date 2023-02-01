@@ -68,7 +68,7 @@ getDurationInverseForScale(DurationScale Scale) {
 }
 
 /// If `Node` is a call to the inverse of `Scale`, return that inverse's
-/// argument, otherwise None.
+/// argument, otherwise std::nullopt.
 static llvm::Optional<std::string>
 rewriteInverseDurationCall(const MatchFinder::MatchResult &Result,
                            DurationScale Scale, const Expr &Node) {
@@ -87,7 +87,7 @@ rewriteInverseDurationCall(const MatchFinder::MatchResult &Result,
 }
 
 /// If `Node` is a call to the inverse of `Scale`, return that inverse's
-/// argument, otherwise None.
+/// argument, otherwise std::nullopt.
 static llvm::Optional<std::string>
 rewriteInverseTimeCall(const MatchFinder::MatchResult &Result,
                        DurationScale Scale, const Expr &Node) {
@@ -273,7 +273,7 @@ std::string rewriteExprFromNumberToDuration(
     const Expr *Node) {
   const Expr &RootNode = *Node->IgnoreParenImpCasts();
 
-  // First check to see if we can undo a complimentary function call.
+  // First check to see if we can undo a complementary function call.
   if (llvm::Optional<std::string> MaybeRewrite =
           rewriteInverseDurationCall(Result, Scale, RootNode))
     return *MaybeRewrite;
@@ -291,7 +291,7 @@ std::string rewriteExprFromNumberToTime(
     const Expr *Node) {
   const Expr &RootNode = *Node->IgnoreParenImpCasts();
 
-  // First check to see if we can undo a complimentary function call.
+  // First check to see if we can undo a complementary function call.
   if (llvm::Optional<std::string> MaybeRewrite =
           rewriteInverseTimeCall(Result, Scale, RootNode))
     return *MaybeRewrite;

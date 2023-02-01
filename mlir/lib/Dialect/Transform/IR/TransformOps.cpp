@@ -117,8 +117,8 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
 // AlternativesOp
 //===----------------------------------------------------------------------===//
 
-OperandRange
-transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+OperandRange transform::AlternativesOp::getSuccessorEntryOperands(
+    std::optional<unsigned> index) {
   if (index && getOperation()->getNumOperands() == 1)
     return getOperation()->getOperands();
   return OperandRange(getOperation()->operand_end(),
@@ -126,7 +126,7 @@ transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 }
 
 void transform::AlternativesOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   for (Region &alternative : llvm::drop_begin(
            getAlternatives(), index.has_value() ? *index + 1 : 0)) {
@@ -257,7 +257,7 @@ LogicalResult transform::AlternativesOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// ForeachOp
+// CastOp
 //===----------------------------------------------------------------------===//
 
 DiagnosedSilenceableFailure
@@ -338,7 +338,7 @@ void transform::ForeachOp::getEffects(
 }
 
 void transform::ForeachOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   Region *bodyRegion = &getBody();
   if (!index) {
@@ -353,7 +353,7 @@ void transform::ForeachOp::getSuccessorRegions(
 }
 
 OperandRange
-transform::ForeachOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+transform::ForeachOp::getSuccessorEntryOperands(std::optional<unsigned> index) {
   // The iteration variable op handle is mapped to a subset (one op to be
   // precise) of the payload ops of the ForeachOp operand.
   assert(index && *index == 0 && "unexpected region index");
@@ -447,6 +447,11 @@ transform::MergeHandlesOp::apply(transform::TransformResults &results,
   SetVector<Operation *> uniqued(operations.begin(), operations.end());
   results.set(getResult().cast<OpResult>(), uniqued.getArrayRef());
   return DiagnosedSilenceableFailure::success();
+}
+
+bool transform::MergeHandlesOp::allowsRepeatedHandleOperands() {
+  // Handles may be the same if deduplicating is enabled.
+  return getDeduplicate();
 }
 
 void transform::MergeHandlesOp::getEffects(
@@ -645,13 +650,22 @@ checkDoubleConsume(Value value,
 }
 
 LogicalResult transform::SequenceOp::verify() {
+  assert(getBodyBlock()->getNumArguments() == 1 &&
+         "the number of arguments must have been verified to be 1 by "
+         "PossibleTopLevelTransformOpTrait");
+
+  BlockArgument arg = getBodyBlock()->getArgument(0);
+  if (getRoot()) {
+    if (arg.getType() != getRoot().getType()) {
+      return emitOpError() << "expects the type of the block argument to match "
+                              "the type of the operand";
+    }
+  }
+
   // Check if the block argument has more than one consuming use.
-  for (BlockArgument argument : getBodyBlock()->getArguments()) {
-    auto report = [&]() {
-      return (emitOpError() << "block argument #" << argument.getArgNumber());
-    };
-    if (failed(checkDoubleConsume(argument, report)))
-      return failure();
+  if (failed(checkDoubleConsume(
+          arg, [this]() { return (emitOpError() << "block argument #0"); }))) {
+    return failure();
   }
 
   // Check properties of the nested operations they cannot check themselves.
@@ -728,8 +742,8 @@ void transform::SequenceOp::getEffects(
   }
 }
 
-OperandRange
-transform::SequenceOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+OperandRange transform::SequenceOp::getSuccessorEntryOperands(
+    std::optional<unsigned> index) {
   assert(index && *index == 0 && "unexpected region index");
   if (getOperation()->getNumOperands() == 1)
     return getOperation()->getOperands();
@@ -738,7 +752,7 @@ transform::SequenceOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 }
 
 void transform::SequenceOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index) {
     Region *bodyRegion = &getBody();
@@ -765,12 +779,12 @@ void transform::SequenceOp::build(OpBuilder &builder, OperationState &state,
                                   SequenceBodyBuilderFn bodyBuilder) {
   build(builder, state, resultTypes, failurePropagationMode, root);
   Region *region = state.regions.back().get();
-  auto bbArgType = root.getType();
+  Type bbArgType = root.getType();
+  OpBuilder::InsertionGuard guard(builder);
   Block *bodyBlock = builder.createBlock(
       region, region->begin(), TypeRange{bbArgType}, {state.location});
 
   // Populate body.
-  OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(bodyBlock);
   bodyBuilder(builder, state.location, bodyBlock->getArgument(0));
 }
@@ -782,11 +796,11 @@ void transform::SequenceOp::build(OpBuilder &builder, OperationState &state,
                                   SequenceBodyBuilderFn bodyBuilder) {
   build(builder, state, resultTypes, failurePropagationMode, /*root=*/Value());
   Region *region = state.regions.back().get();
+  OpBuilder::InsertionGuard guard(builder);
   Block *bodyBlock = builder.createBlock(
       region, region->begin(), TypeRange{bbArgType}, {state.location});
 
   // Populate body.
-  OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(bodyBlock);
   bodyBuilder(builder, state.location, bodyBlock->getArgument(0));
 }
@@ -874,19 +888,19 @@ void transform::PrintOp::build(OpBuilder &builder, OperationState &result,
 DiagnosedSilenceableFailure
 transform::PrintOp::apply(transform::TransformResults &results,
                           transform::TransformState &state) {
-  llvm::errs() << "[[[ IR printer: ";
+  llvm::outs() << "[[[ IR printer: ";
   if (getName().has_value())
-    llvm::errs() << *getName() << " ";
+    llvm::outs() << *getName() << " ";
 
   if (!getTarget()) {
-    llvm::errs() << "top-level ]]]\n" << *state.getTopLevel() << "\n";
+    llvm::outs() << "top-level ]]]\n" << *state.getTopLevel() << "\n";
     return DiagnosedSilenceableFailure::success();
   }
 
-  llvm::errs() << "]]]\n";
+  llvm::outs() << "]]]\n";
   ArrayRef<Operation *> targets = state.getPayloadOps(getTarget());
   for (Operation *target : targets)
-    llvm::errs() << *target << "\n";
+    llvm::outs() << *target << "\n";
 
   return DiagnosedSilenceableFailure::success();
 }

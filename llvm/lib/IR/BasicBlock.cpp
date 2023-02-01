@@ -62,9 +62,9 @@ void BasicBlock::insertInto(Function *NewParent, BasicBlock *InsertBefore) {
   assert(!Parent && "Already has a parent");
 
   if (InsertBefore)
-    NewParent->getBasicBlockList().insert(InsertBefore->getIterator(), this);
+    NewParent->insert(InsertBefore->getIterator(), this);
   else
-    NewParent->getBasicBlockList().push_back(this);
+    NewParent->insert(NewParent->end(), this);
 }
 
 BasicBlock::~BasicBlock() {
@@ -134,14 +134,13 @@ iplist<BasicBlock>::iterator BasicBlock::eraseFromParent() {
 }
 
 void BasicBlock::moveBefore(BasicBlock *MovePos) {
-  MovePos->getParent()->getBasicBlockList().splice(
-      MovePos->getIterator(), getParent()->getBasicBlockList(), getIterator());
+  MovePos->getParent()->splice(MovePos->getIterator(), getParent(),
+                               getIterator());
 }
 
 void BasicBlock::moveAfter(BasicBlock *MovePos) {
-  MovePos->getParent()->getBasicBlockList().splice(
-      ++MovePos->getIterator(), getParent()->getBasicBlockList(),
-      getIterator());
+  MovePos->getParent()->splice(++MovePos->getIterator(), getParent(),
+                               getIterator());
 }
 
 const Module *BasicBlock::getModule() const {
@@ -482,7 +481,7 @@ void BasicBlock::splice(BasicBlock::iterator ToIt, BasicBlock *FromBB,
 
 BasicBlock::iterator BasicBlock::erase(BasicBlock::iterator FromIt,
                                        BasicBlock::iterator ToIt) {
-  return getInstList().erase(FromIt, ToIt);
+  return InstList.erase(FromIt, ToIt);
 }
 
 void BasicBlock::replacePhiUsesWith(BasicBlock *Old, BasicBlock *New) {
@@ -519,14 +518,14 @@ const LandingPadInst *BasicBlock::getLandingPadInst() const {
   return dyn_cast<LandingPadInst>(getFirstNonPHI());
 }
 
-Optional<uint64_t> BasicBlock::getIrrLoopHeaderWeight() const {
+std::optional<uint64_t> BasicBlock::getIrrLoopHeaderWeight() const {
   const Instruction *TI = getTerminator();
   if (MDNode *MDIrrLoopHeader =
       TI->getMetadata(LLVMContext::MD_irr_loop)) {
     MDString *MDName = cast<MDString>(MDIrrLoopHeader->getOperand(0));
     if (MDName->getString().equals("loop_header_weight")) {
       auto *CI = mdconst::extract<ConstantInt>(MDIrrLoopHeader->getOperand(1));
-      return Optional<uint64_t>(CI->getValue().getZExtValue());
+      return std::optional<uint64_t>(CI->getValue().getZExtValue());
     }
   }
   return std::nullopt;

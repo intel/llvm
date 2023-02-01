@@ -126,8 +126,13 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        if (!Platform.get_devices(info::device_type::all).empty())
+
+        // The SYCL spec says that a platform has one or more devices. ( SYCL
+        // 2020 4.6.2 ) If we have an empty platform, we don't report it back
+        // from platform::get_platforms().
+        if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
+        }
       }
     }
   }
@@ -153,11 +158,12 @@ std::vector<platform> platform_impl::get_platforms() {
 // to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
 // in the places where the functionality diverges between these two
 // environment variables.
-// The return value is a vector that represents the indices of the chosen 
+// The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
 static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                              RT::PiPlatform Platform, ListT *FilterList) {
+                                           RT::PiPlatform Platform,
+                                           ListT *FilterList) {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -316,7 +322,7 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, const std::vector<int>& original_indices,
+    ods_target_list *OdsTargetList, const std::vector<int> &original_indices,
     PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
@@ -343,8 +349,7 @@ static std::vector<device> amendDeviceAndSubDevices(
                           target.DeviceType));
 
         } else if (target.DeviceNum) { // opencl:0
-          deviceMatch =
-              (target.DeviceNum.value() == original_indices[i]);
+          deviceMatch = (target.DeviceNum.value() == original_indices[i]);
         }
 
         if (deviceMatch) {
@@ -501,6 +506,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
 
+  // Some elements of PiDevices vector might be filtered out, so make a copy of
+  // handles to do a cleanup later
+  std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
+
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
@@ -518,8 +527,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, MPlatform, OdsTargetList);
   } else if (FilterList) {
-    PlatformDeviceIndices = filterDeviceFilter<device_filter_list, device_filter>(
-        PiDevices, MPlatform, FilterList);
+    PlatformDeviceIndices =
+        filterDeviceFilter<device_filter_list, device_filter>(
+            PiDevices, MPlatform, FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
@@ -531,6 +541,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
+
+  // The reference counter for handles, that we used to create sycl objects, is
+  // incremented, so we need to call release here.
+  for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
+    Plugin.call<PiApiKind::piDeviceRelease>(PiDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them

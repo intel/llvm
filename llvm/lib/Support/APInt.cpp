@@ -15,7 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/bit.h"
@@ -25,6 +24,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cmath>
+#include <optional>
 
 using namespace llvm;
 
@@ -2770,7 +2770,7 @@ APInt llvm::APIntOps::RoundingSDiv(const APInt &A, const APInt &B,
   llvm_unreachable("Unknown APInt::Rounding enum");
 }
 
-Optional<APInt>
+std::optional<APInt>
 llvm::APIntOps::SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
                                            unsigned RangeWidth) {
   unsigned CoeffWidth = A.getBitWidth();
@@ -2960,7 +2960,7 @@ llvm::APIntOps::SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
   return X;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 llvm::APIntOps::GetMostSignificantDifferentBit(const APInt &A, const APInt &B) {
   assert(A.getBitWidth() == B.getBitWidth() && "Must have the same bitwidth");
   if (A == B)

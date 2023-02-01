@@ -443,7 +443,7 @@ public:
     return loadBindings.lookup(base);
   }
 
-  /// `load` must be a LHS array_load. Returns `llvm::None` on error.
+  /// `load` must be a LHS array_load. Returns `std::nullopt` on error.
   llvm::Optional<size_t> findArgPosition(fir::ArrayLoadOp load);
 
   bool isLHS(fir::ArrayLoadOp load) {
@@ -475,7 +475,7 @@ public:
   /// Return the outermost loop in this FORALL nest.
   fir::DoLoopOp getOuterLoop() {
     assert(outerLoop.has_value());
-    return outerLoop.value();
+    return *outerLoop;
   }
 
   /// Return the statement context for the entire, outermost FORALL construct.

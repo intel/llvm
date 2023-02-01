@@ -29,7 +29,7 @@ define void @cast_alloca() {
 ; CHECK: v_mov_b32_e32 v1, s[[HIREG]]
 ; CHECK-NOT: v0
 ; CHECK-NOT: v1
-define void @cast_lds_gv() {
+define amdgpu_kernel void @cast_lds_gv() {
   %cast = addrspacecast ptr addrspace(3) @lds to ptr
   call void @flat_user(ptr %cast)
   ret void

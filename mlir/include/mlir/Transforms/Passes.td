@@ -30,10 +30,12 @@ def Canonicalizer : Pass<"canonicalize"> {
            "Seed the worklist in general top-down order">,
     Option<"enableRegionSimplification", "region-simplify", "bool",
            /*default=*/"true",
-           "Seed the worklist in general top-down order">,
+           "Perform control flow optimizations to the region tree">,
     Option<"maxIterations", "max-iterations", "int64_t",
            /*default=*/"10",
-           "Seed the worklist in general top-down order">
+           "Max. iterations between applying patterns / simplifying regions">,
+    Option<"maxNumRewrites", "max-num-rewrites", "int64_t", /*default=*/"-1",
+           "Max. number of pattern rewrites within an iteration">
   ] # RewritePassUtils.options;
 }
 
@@ -75,6 +77,16 @@ def CSE : Pass<"cse"> {
     Statistic<"numCSE", "num-cse'd", "Number of operations CSE'd">,
     Statistic<"numDCE", "num-dce'd", "Number of operations DCE'd">
   ];
+}
+
+def GenerateRuntimeVerification : Pass<"generate-runtime-verification"> {
+  let summary = "Generate additional runtime op verification checks";
+  let description = [{
+    This pass generates op-specific runtime checks using the
+    `RuntimeVerifiableOpInterface`. It can be run for debugging purposes after
+    passes that are suspected to introduce faulty IR.
+  }];
+  let constructor = "mlir::createGenerateRuntimeVerificationPass()";
 }
 
 def Inliner : Pass<"inline"> {

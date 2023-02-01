@@ -235,8 +235,8 @@ void Float2IntPass::walkBackwards() {
 }
 
 // Calculate result range from operand ranges.
-// Return None if the range cannot be calculated yet.
-Optional<ConstantRange> Float2IntPass::calcRange(Instruction *I) {
+// Return std::nullopt if the range cannot be calculated yet.
+std::optional<ConstantRange> Float2IntPass::calcRange(Instruction *I) {
   SmallVector<ConstantRange, 4> OpRanges;
   for (Value *O : I->operands()) {
     if (Instruction *OI = dyn_cast<Instruction>(O)) {
@@ -335,7 +335,7 @@ void Float2IntPass::walkForwards() {
     Instruction *I = Worklist.back();
     Worklist.pop_back();
 
-    if (Optional<ConstantRange> Range = calcRange(I))
+    if (std::optional<ConstantRange> Range = calcRange(I))
       seen(I, *Range);
     else
       Worklist.push_front(I); // Reprocess later.

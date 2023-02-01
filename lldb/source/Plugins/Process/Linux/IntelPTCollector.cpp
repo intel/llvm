@@ -64,16 +64,16 @@ Error IntelPTCollector::TraceStop(const TraceStopRequest &request) {
 
 /// \return
 ///   some file descriptor in /sys/fs/ associated with the cgroup of the given
-///   pid, or \a llvm::None if the pid is not part of a cgroup.
-static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
-  static Optional<int> fd;
+///   pid, or \a std::nullopt if the pid is not part of a cgroup.
+static std::optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
+  static std::optional<int> fd;
   if (fd)
     return fd;
 
   std::ifstream ifile;
   ifile.open(formatv("/proc/{0}/cgroup", pid));
   if (!ifile)
-    return None;
+    return std::nullopt;
 
   std::string line;
   while (std::getline(ifile, line)) {
@@ -82,7 +82,7 @@ static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
 
     std::string slice = line.substr(line.find_first_of("/"));
     if (slice.empty())
-      return None;
+      return std::nullopt;
     std::string cgroup_file = formatv("/sys/fs/cgroup/{0}", slice);
     // This cgroup should for the duration of the target, so we don't need to
     // invoke close ourselves.
@@ -92,7 +92,7 @@ static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
       return fd;
     }
   }
-  return None;
+  return std::nullopt;
 }
 
 Error IntelPTCollector::TraceStart(const TraceIntelPTStartRequest &request) {
@@ -119,7 +119,7 @@ Error IntelPTCollector::TraceStart(const TraceIntelPTStartRequest &request) {
       effective_request.enable_tsc = true;
 
       // We try to use cgroup filtering whenever possible
-      Optional<int> cgroup_fd;
+      std::optional<int> cgroup_fd;
       if (!request.disable_cgroup_filtering.value_or(false))
         cgroup_fd = GetCGroupFileDescriptor(m_process.GetID());
 

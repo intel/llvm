@@ -11,13 +11,13 @@
 
 #include "ARMTargetMachine.h"
 #include "ARM.h"
+#include "ARMMachineFunctionInfo.h"
 #include "ARMMacroFusion.h"
 #include "ARMSubtarget.h"
 #include "ARMTargetObjectFile.h"
 #include "ARMTargetTransformInfo.h"
 #include "MCTargetDesc/ARMMCTargetDesc.h"
 #include "TargetInfo/ARMTargetInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
@@ -109,6 +109,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeARMSLSHardeningPass(Registry);
   initializeMVELaneInterleavingPass(Registry);
   initializeARMFixCortexA57AES1742098Pass(Registry);
+  initializeARMDAGToDAGISelPass(Registry);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -264,6 +265,13 @@ ARMBaseTargetMachine::ARMBaseTargetMachine(const Target &T, const Triple &TT,
 }
 
 ARMBaseTargetMachine::~ARMBaseTargetMachine() = default;
+
+MachineFunctionInfo *ARMBaseTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return ARMFunctionInfo::create<ARMFunctionInfo>(
+      Allocator, F, static_cast<const ARMSubtarget *>(STI));
+}
 
 const ARMSubtarget *
 ARMBaseTargetMachine::getSubtargetImpl(const Function &F) const {

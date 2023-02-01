@@ -1,3 +1,5 @@
+add_subdirectory(tools)
+
 # By default, libcxx and libcxxabi share a library directory.
 if (NOT LIBCXX_CXX_ABI_LIBRARY_PATH)
   set(LIBCXX_CXX_ABI_LIBRARY_PATH "${LIBCXX_LIBRARY_DIR}" CACHE PATH
@@ -29,7 +31,7 @@ endif()
 if (CMAKE_CXX_COMPILER_TARGET)
   serialize_lit_param(target_triple "\"${CMAKE_CXX_COMPILER_TARGET}\"")
 else()
-  serialize_lit_param(target_triple "\"${LLVM_TARGET_TRIPLE}\"")
+  serialize_lit_param(target_triple "\"${LLVM_DEFAULT_TARGET_TRIPLE}\"")
 endif()
 
 if (LLVM_USE_SANITIZER)

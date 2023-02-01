@@ -146,7 +146,7 @@ void ComputationSliceState::dump() const {
 /// each slice dimension maps to an existing dst dimension and both the src
 /// and the dst loops for those dimensions have the same bounds. Returns false
 /// if both the src and the dst loops don't have the same bounds. Returns
-/// llvm::None if none of the above can be proven.
+/// std::nullopt if none of the above can be proven.
 Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
   assert(lbs.size() == ubs.size() && !lbs.empty() && !ivs.empty() &&
          "Unexpected number of lbs, ubs and ivs in slice");
@@ -283,7 +283,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
 }
 
 /// Returns true if the computation slice encloses all the iterations of the
-/// sliced loop nest. Returns false if it does not. Returns llvm::None if it
+/// sliced loop nest. Returns false if it does not. Returns std::nullopt if it
 /// cannot determine if the slice is maximal or not.
 Optional<bool> ComputationSliceState::isMaximal() const {
   // Fast check to determine if the computation slice is maximal. If the result
@@ -373,7 +373,7 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
     Optional<int64_t> diff =
         cstWithShapeBounds.getConstantBoundOnDimSize64(d, &lb, &lbDivisor);
     if (diff.has_value()) {
-      diffConstant = diff.value();
+      diffConstant = *diff;
       assert(diffConstant >= 0 && "Dim size bound can't be negative");
       assert(lbDivisor > 0);
     } else {
@@ -634,9 +634,9 @@ Optional<int64_t> MemRefRegion::getRegionSize() {
   return getMemRefEltSizeInBytes(memRefType) * *numElements;
 }
 
-/// Returns the size of memref data in bytes if it's statically shaped, None
-/// otherwise.  If the element of the memref has vector type, takes into account
-/// size of the vector as well.
+/// Returns the size of memref data in bytes if it's statically shaped,
+/// std::nullopt otherwise.  If the element of the memref has vector type, takes
+/// into account size of the vector as well.
 //  TODO: improve/complete this when we have target data.
 Optional<uint64_t> mlir::getMemRefSizeInBytes(MemRefType memRefType) {
   if (!memRefType.hasStaticShape())
@@ -1010,7 +1010,7 @@ bool mlir::buildSliceTripCountMap(
       }
       Optional<uint64_t> maybeConstTripCount = getConstantTripCount(forOp);
       if (maybeConstTripCount.has_value()) {
-        (*tripCountMap)[op] = maybeConstTripCount.value();
+        (*tripCountMap)[op] = *maybeConstTripCount;
         continue;
       }
       return false;
@@ -1019,7 +1019,7 @@ bool mlir::buildSliceTripCountMap(
     // Slice bounds are created with a constant ub - lb difference.
     if (!tripCount.has_value())
       return false;
-    (*tripCountMap)[op] = tripCount.value();
+    (*tripCountMap)[op] = *tripCount;
   }
   return true;
 }
@@ -1319,7 +1319,7 @@ static Optional<int64_t> getMemoryFootprintBytes(Block &block,
     Optional<int64_t> size = region.second->getRegionSize();
     if (!size.has_value())
       return std::nullopt;
-    totalSizeInBytes += size.value();
+    totalSizeInBytes += *size;
   }
   return totalSizeInBytes;
 }

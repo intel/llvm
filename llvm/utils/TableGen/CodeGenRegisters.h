@@ -392,7 +392,7 @@ namespace llvm {
     /// \return std::pair<SubClass, SubRegClass> where SubClass is a SubClass is
     /// a class where every register has SubIdx and SubRegClass is a class where
     /// every register is covered by the SubIdx subregister of SubClass.
-    Optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
+    std::optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
     getMatchingSubClassWithSubRegs(CodeGenRegBank &RegBank,
                                    const CodeGenSubRegIndex *SubIdx) const;
 
@@ -472,6 +472,13 @@ namespace llvm {
 
     // Called by CodeGenRegBank::CodeGenRegBank().
     static void computeSubClasses(CodeGenRegBank&);
+
+    // Get ordering value among register base classes.
+    std::optional<int> getBaseClassOrder() const {
+      if (TheDef && !TheDef->isValueUnset("BaseClassOrder"))
+        return TheDef->getValueAsInt("BaseClassOrder");
+      return {};
+    }
   };
 
   // Register categories are used when we need to deterine the category a

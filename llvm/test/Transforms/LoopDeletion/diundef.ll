@@ -1,4 +1,4 @@
-; RUN: opt %s -loop-deletion -S | FileCheck %s
+; RUN: opt %s -passes=loop-deletion -S | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -22,7 +22,7 @@ for.cond:                                         ; preds = %for.cond, %entry
 ; CHECK-NEXT: %call = tail call i32 {{.*}} @patatino()
 for.end:                                          ; preds = %for.cond
   %call = tail call i32 (...) @patatino() #3, !dbg !27
-  %0 = load i32, i32* @a, align 4, !dbg !28
+  %0 = load i32, ptr @a, align 4, !dbg !28
   ret i32 %0, !dbg !33
 }
 

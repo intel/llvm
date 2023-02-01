@@ -251,6 +251,20 @@ void CheckHelper::Check(const Symbol &symbol) {
   if (isDone) {
     return; // following checks do not apply
   }
+  if (symbol.attrs().test(Attr::PROTECTED)) {
+    if (symbol.owner().kind() != Scope::Kind::Module) { // C854
+      messages_.Say(
+          "A PROTECTED entity must be in the specification part of a module"_err_en_US);
+    }
+    if (!evaluate::IsVariable(symbol) && !IsProcedurePointer(symbol)) { // C855
+      messages_.Say(
+          "A PROTECTED entity must be a variable or pointer"_err_en_US);
+    }
+    if (InCommonBlock(symbol)) { // C856
+      messages_.Say(
+          "A PROTECTED entity may not be in a common block"_err_en_US);
+    }
+  }
   if (IsPointer(symbol)) {
     CheckPointer(symbol);
   }
@@ -353,6 +367,9 @@ void CheckHelper::Check(const Symbol &symbol) {
         messages_.Say(
             "An assumed-length CHARACTER(*) function cannot return a POINTER"_err_en_US);
       }
+    } else if (IsPointer(symbol)) {
+      messages_.Say(
+          "A procedure pointer should not have assumed-length CHARACTER(*) result type"_port_en_US);
     }
   }
   if (symbol.attrs().test(Attr::VALUE)) {
@@ -512,6 +529,8 @@ void CheckHelper::CheckObjectEntity(
   }
   CheckAssumedTypeEntity(symbol, details);
   WarnMissingFinal(symbol);
+  const DeclTypeSpec *type{details.type()};
+  const DerivedTypeSpec *derived{type ? type->AsDerived() : nullptr};
   if (!details.coshape().empty()) {
     bool isDeferredCoshape{details.coshape().CanBeDeferredShape()};
     if (IsAllocatable(symbol)) {
@@ -533,16 +552,14 @@ void CheckHelper::CheckObjectEntity(
             symbol.name());
       }
     }
-    if (const DeclTypeSpec *type{details.type()}) {
-      if (IsBadCoarrayType(type->AsDerived())) { // C747 & C824
-        messages_.Say(
-            "Coarray '%s' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR"_err_en_US,
-            symbol.name());
-      }
+    if (IsBadCoarrayType(derived)) { // C747 & C824
+      messages_.Say(
+          "Coarray '%s' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR"_err_en_US,
+          symbol.name());
     }
   }
   if (details.isDummy()) {
-    if (symbol.attrs().test(Attr::INTENT_OUT)) {
+    if (IsIntentOut(symbol)) {
       if (FindUltimateComponent(symbol, [](const Symbol &x) {
             return evaluate::IsCoarray(x) && IsAllocatable(x);
           })) { // C846
@@ -553,6 +570,22 @@ void CheckHelper::CheckObjectEntity(
         messages_.Say(
             "An INTENT(OUT) dummy argument may not be, or contain, EVENT_TYPE or LOCK_TYPE"_err_en_US);
       }
+      if (details.IsAssumedSize()) { // C834
+        if (type && type->IsPolymorphic()) {
+          messages_.Say(
+              "An INTENT(OUT) assumed-size dummy argument array may not be polymorphic"_err_en_US);
+        }
+        if (derived) {
+          if (derived->HasDefaultInitialization()) {
+            messages_.Say(
+                "An INTENT(OUT) assumed-size dummy argument array may not have a derived type with any default component initialization"_err_en_US);
+          }
+          if (IsFinalizable(*derived)) {
+            messages_.Say(
+                "An INTENT(OUT) assumed-size dummy argument array may not be finalizable"_err_en_US);
+          }
+        }
+      }
     }
     if (InPure() && !IsStmtFunction(DEREF(innermostSymbol_)) &&
         !IsPointer(symbol) && !IsIntentIn(symbol) &&
@@ -561,22 +594,20 @@ void CheckHelper::CheckObjectEntity(
         messages_.Say(
             "non-POINTER dummy argument of pure function must be INTENT(IN) or VALUE"_err_en_US);
       } else if (IsIntentOut(symbol)) {
-        if (const DeclTypeSpec *type{details.type()}) {
-          if (type && type->IsPolymorphic()) { // C1588
+        if (type && type->IsPolymorphic()) { // C1588
+          messages_.Say(
+              "An INTENT(OUT) dummy argument of a pure subroutine may not be polymorphic"_err_en_US);
+        } else if (derived) {
+          if (FindUltimateComponent(*derived, [](const Symbol &x) {
+                const DeclTypeSpec *type{x.GetType()};
+                return type && type->IsPolymorphic();
+              })) { // C1588
             messages_.Say(
-                "An INTENT(OUT) dummy argument of a pure subroutine may not be polymorphic"_err_en_US);
-          } else if (const DerivedTypeSpec *derived{type->AsDerived()}) {
-            if (FindUltimateComponent(*derived, [](const Symbol &x) {
-                  const DeclTypeSpec *type{x.GetType()};
-                  return type && type->IsPolymorphic();
-                })) { // C1588
-              messages_.Say(
-                  "An INTENT(OUT) dummy argument of a pure subroutine may not have a polymorphic ultimate component"_err_en_US);
-            }
-            if (HasImpureFinal(*derived)) { // C1587
-              messages_.Say(
-                  "An INTENT(OUT) dummy argument of a pure subroutine may not have an impure FINAL subroutine"_err_en_US);
-            }
+                "An INTENT(OUT) dummy argument of a pure subroutine may not have a polymorphic ultimate component"_err_en_US);
+          }
+          if (HasImpureFinal(*derived)) { // C1587
+            messages_.Say(
+                "An INTENT(OUT) dummy argument of a pure subroutine may not have an impure FINAL subroutine"_err_en_US);
           }
         }
       } else if (!IsIntentInOut(symbol)) { // C1586
@@ -655,14 +686,12 @@ void CheckHelper::CheckObjectEntity(
           "An initialized variable in BLOCK DATA must be in a COMMON block"_err_en_US);
     }
   }
-  if (const DeclTypeSpec *type{details.type()}) { // C708
-    if (type->IsPolymorphic() &&
-        !(type->IsAssumedType() || IsAllocatableOrPointer(symbol) ||
-            IsDummy(symbol))) {
-      messages_.Say("CLASS entity '%s' must be a dummy argument or have "
-                    "ALLOCATABLE or POINTER attribute"_err_en_US,
-          symbol.name());
-    }
+  if (type && type->IsPolymorphic() &&
+      !(type->IsAssumedType() || IsAllocatableOrPointer(symbol) ||
+          IsDummy(symbol))) { // C708
+    messages_.Say("CLASS entity '%s' must be a dummy argument or have "
+                  "ALLOCATABLE or POINTER attribute"_err_en_US,
+        symbol.name());
   }
 }
 
@@ -808,7 +837,7 @@ void CheckHelper::CheckProcEntity(
           "An ELEMENTAL subprogram may not have a dummy procedure"_err_en_US);
     }
     const Symbol *interface {
-      details.interface().symbol()
+      details.procInterface()
     };
     if (!symbol.attrs().test(Attr::INTRINSIC) &&
         (IsElementalProcedure(symbol) ||
@@ -837,11 +866,11 @@ void CheckHelper::CheckProcEntity(
           "Procedure component '%s' must have POINTER attribute"_err_en_US,
           name);
     }
-    CheckPassArg(symbol, details.interface().symbol(), details);
+    CheckPassArg(symbol, details.procInterface(), details);
   }
   if (symbol.attrs().test(Attr::POINTER)) {
     CheckPointerInitialization(symbol);
-    if (const Symbol *interface{details.interface().symbol()}) {
+    if (const Symbol * interface{details.procInterface()}) {
       const Symbol &ultimate{interface->GetUltimate()};
       if (ultimate.attrs().test(Attr::INTRINSIC)) {
         if (const auto intrinsic{
@@ -2041,8 +2070,8 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
     }
   }
   if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (!proc->interface().symbol() ||
-        !proc->interface().symbol()->attrs().test(Attr::BIND_C)) {
+    if (!proc->procInterface() ||
+        !proc->procInterface()->attrs().test(Attr::BIND_C)) {
       messages_.Say(symbol.name(),
           "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
       context_.SetError(symbol);
@@ -2363,11 +2392,13 @@ void CheckHelper::CheckDefinedIoProc(const Symbol &symbol,
 }
 
 void CheckHelper::CheckSymbolType(const Symbol &symbol) {
-  if (!IsAllocatableOrPointer(symbol)) { // C702
+  if (!IsAllocatable(symbol) &&
+      (!IsPointer(symbol) ||
+          (IsProcedure(symbol) && !symbol.HasExplicitInterface()))) { // C702
     if (auto dyType{evaluate::DynamicType::From(symbol)}) {
       if (dyType->HasDeferredTypeParameter()) {
         messages_.Say(
-            "'%s' has a type %s with a deferred type parameter but is neither an allocatable or a pointer"_err_en_US,
+            "'%s' has a type %s with a deferred type parameter but is neither an allocatable nor an object pointer"_err_en_US,
             symbol.name(), dyType->AsFortran());
       }
     }

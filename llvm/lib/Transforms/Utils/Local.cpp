@@ -17,8 +17,6 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -58,6 +56,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -444,8 +443,23 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     if (isRemovableAlloc(CB, TLI))
       return true;
 
-  if (!I->willReturn())
-    return false;
+  if (!I->willReturn()) {
+    auto *II = dyn_cast<IntrinsicInst>(I);
+    if (!II)
+      return false;
+
+    // TODO: These intrinsics are not safe to remove, because this may remove
+    // a well-defined trap.
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::wasm_trunc_signed:
+    case Intrinsic::wasm_trunc_unsigned:
+    case Intrinsic::ptrauth_auth:
+    case Intrinsic::ptrauth_resign:
+      return true;
+    default:
+      return false;
+    }
+  }
 
   if (!I->mayHaveSideEffects())
     return true;
@@ -1487,7 +1501,8 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
            "address of variable must have exactly 1 location operand.");
     if (auto *AI =
             dyn_cast_or_null<AllocaInst>(DII->getVariableLocationOp(0))) {
-      if (Optional<TypeSize> FragmentSize = AI->getAllocationSizeInBits(DL)) {
+      if (std::optional<TypeSize> FragmentSize =
+              AI->getAllocationSizeInBits(DL)) {
         return TypeSize::isKnownGE(ValueSize, *FragmentSize);
       }
     }
@@ -3014,9 +3029,9 @@ struct BitPart {
 ///
 /// Because we pass around references into \c BPS, we must use a container that
 /// does not invalidate internal references (std::map instead of DenseMap).
-static const Optional<BitPart> &
+static const std::optional<BitPart> &
 collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
-                std::map<Value *, Optional<BitPart>> &BPS, int Depth,
+                std::map<Value *, std::optional<BitPart>> &BPS, int Depth,
                 bool &FoundRoot) {
   auto I = BPS.find(V);
   if (I != BPS.end())
@@ -3266,7 +3281,7 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
 
   // Try to find all the pieces corresponding to the bswap.
   bool FoundRoot = false;
-  std::map<Value *, Optional<BitPart>> BPS;
+  std::map<Value *, std::optional<BitPart>> BPS;
   const auto &Res =
       collectBitParts(I, MatchBSwaps, MatchBitReversals, BPS, 0, FoundRoot);
   if (!Res)

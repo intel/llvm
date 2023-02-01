@@ -331,8 +331,8 @@ static bool getStaticPIE(const ArgList &Args, const ToolChain &TC) {
   if (HasStaticPIE && Args.hasArg(options::OPT_nopie)) {
     const Driver &D = TC.getDriver();
     const llvm::opt::OptTable &Opts = D.getOpts();
-    const char *StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
-    const char *NoPIEName = Opts.getOptionName(options::OPT_nopie);
+    StringRef StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
+    StringRef NoPIEName = Opts.getOptionName(options::OPT_nopie);
     D.Diag(diag::err_drv_cannot_mix_options) << StaticPIEName << NoPIEName;
   }
   return HasStaticPIE;
@@ -376,7 +376,7 @@ void tools::gnutools::Linker::constructLLVMARCommand(
   llvm::sys::path::append(LLVMARPath, "llvm-ar");
   const char *Exec = C.getArgs().MakeArgString(LLVMARPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None));
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, std::nullopt));
 }
 
 void tools::gnutools::StaticLibTool::ConstructJob(
@@ -2258,7 +2258,7 @@ void Generic_GCC::GCCInstallationDetector::print(raw_ostream &OS) const {
 
 bool Generic_GCC::GCCInstallationDetector::getBiarchSibling(Multilib &M) const {
   if (BiarchSibling) {
-    M = BiarchSibling.value();
+    M = *BiarchSibling;
     return true;
   }
   return false;

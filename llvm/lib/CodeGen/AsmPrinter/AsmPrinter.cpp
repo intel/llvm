@@ -754,7 +754,7 @@ void AsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   if (GVKind.isCommon()) {
     if (Size == 0) Size = 1;   // .comm Foo, 0 is undefined, avoid it.
     // .comm _foo, 42, 4
-    OutStreamer->emitCommonSymbol(GVSym, Size, Alignment.value());
+    OutStreamer->emitCommonSymbol(GVSym, Size, Alignment);
     return;
   }
 
@@ -769,7 +769,7 @@ void AsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
       Size = 1; // zerofill of 0 bytes is undefined.
     emitLinkage(GV, GVSym);
     // .zerofill __DATA, __bss, _foo, 400, 5
-    OutStreamer->emitZerofill(TheSection, GVSym, Size, Alignment.value());
+    OutStreamer->emitZerofill(TheSection, GVSym, Size, Alignment);
     return;
   }
 
@@ -788,14 +788,14 @@ void AsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
     // Prefer to simply fall back to .local / .comm in this case.
     if (MAI->getLCOMMDirectiveAlignmentType() != LCOMM::NoAlignment) {
       // .lcomm _foo, 42
-      OutStreamer->emitLocalCommonSymbol(GVSym, Size, Alignment.value());
+      OutStreamer->emitLocalCommonSymbol(GVSym, Size, Alignment);
       return;
     }
 
     // .local _foo
     OutStreamer->emitSymbolAttribute(GVSym, MCSA_Local);
     // .comm _foo, 42, 4
-    OutStreamer->emitCommonSymbol(GVSym, Size, Alignment.value());
+    OutStreamer->emitCommonSymbol(GVSym, Size, Alignment);
     return;
   }
 
@@ -816,7 +816,7 @@ void AsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
     if (GVKind.isThreadBSS()) {
       TheSection = getObjFileLowering().getTLSBSSSection();
-      OutStreamer->emitTBSSSymbol(TheSection, MangSym, Size, Alignment.value());
+      OutStreamer->emitTBSSSymbol(TheSection, MangSym, Size, Alignment);
     } else if (GVKind.isThreadData()) {
       OutStreamer->switchSection(TheSection);
 
@@ -1072,7 +1072,7 @@ static void emitComments(const MachineInstr &MI, raw_ostream &CommentOS) {
 
   // We assume a single instruction only has a spill or reload, not
   // both.
-  Optional<unsigned> Size;
+  std::optional<unsigned> Size;
   if ((Size = MI.getRestoreSize(TII))) {
     CommentOS << *Size << "-byte Reload\n";
   } else if ((Size = MI.getFoldedRestoreSize(TII))) {
@@ -1189,8 +1189,6 @@ static bool emitDebugValueComment(const MachineInstr *MI, AsmPrinter &AP) {
     }
     case MachineOperand::MO_TargetIndex: {
       OS << "!target-index(" << Op.getIndex() << "," << Op.getOffset() << ")";
-      // NOTE: Want this comment at start of line, don't emit with AddComment.
-      AP.OutStreamer->emitRawComment(OS.str());
       break;
     }
     case MachineOperand::MO_Register:
@@ -2051,7 +2049,7 @@ void AsmPrinter::emitRemarksSection(remarks::RemarkStreamer &RS) {
   remarks::RemarkSerializer &RemarkSerializer = RS.getSerializer();
 
   std::optional<SmallString<128>> Filename;
-  if (Optional<StringRef> FilenameRef = RS.getFilename()) {
+  if (std::optional<StringRef> FilenameRef = RS.getFilename()) {
     Filename = *FilenameRef;
     sys::fs::make_absolute(*Filename);
     assert(!Filename->empty() && "The filename can't be empty.");

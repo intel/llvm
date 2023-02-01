@@ -80,6 +80,7 @@ def FeatureStdExtZfh
 def HasStdExtZfh : Predicate<"Subtarget->hasStdExtZfh()">,
                              AssemblerPredicate<(all_of FeatureStdExtZfh),
                              "'Zfh' (Half-Precision Floating-Point)">;
+def NoStdExtZfh : Predicate<"!Subtarget->hasStdExtZfh()">;
 
 def HasStdExtZfhOrZfhmin
     : Predicate<"Subtarget->hasStdExtZfh() || Subtarget->hasStdExtZfhmin()">,
@@ -301,7 +302,7 @@ def HasStdExtCOrZcd
                 AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcd),
                                    "'C' (Compressed Instructions) or "
                                    "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
-                                   
+
 def FeatureExtZcf
     : SubtargetFeature<"experimental-zcf", "HasStdExtZcf", "true",
                        "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
@@ -444,6 +445,14 @@ def HasVendorXVentanaCondOps : Predicate<"Subtarget->hasVendorXVentanaCondOps()"
                                 AssemblerPredicate<(all_of FeatureVendorXVentanaCondOps),
                                 "'XVentanaCondOps' (Ventana Conditional Ops)">;
 
+def FeatureVendorXTHeadVdot
+    : SubtargetFeature<"xtheadvdot", "HasVendorXTHeadVdot", "true",
+                       "'xtheadvdot' (T-Head Vector Extensions for Dot)",
+                       [FeatureStdExtV]>;
+def HasVendorXTHeadVdot : Predicate<"Subtarget->hasVendorXTHeadVdot()">,
+                                    AssemblerPredicate<(all_of FeatureVendorXTHeadVdot),
+                                    "'xtheadvdot' (T-Head Vector Extensions for Dot)">;
+
 //===----------------------------------------------------------------------===//
 // LLVM specific features and extensions
 //===----------------------------------------------------------------------===//
@@ -524,6 +533,11 @@ def FeatureForcedAtomics : SubtargetFeature<
 def HasAtomicLdSt
     : Predicate<"Subtarget->hasStdExtA() || Subtarget->hasForcedAtomics()">;
 
+def FeatureTaggedGlobals : SubtargetFeature<"tagged-globals",
+    "AllowTaggedGlobals",
+    "true", "Use an instruction sequence for taking the address of a global "
+    "that allows a memory tag in the upper address bits">;
+
 //===----------------------------------------------------------------------===//
 // Named operands for CSR instructions.
 //===----------------------------------------------------------------------===//
@@ -541,6 +555,7 @@ include "RISCVInstrInfo.td"
 include "GISel/RISCVRegisterBanks.td"
 include "RISCVSchedRocket.td"
 include "RISCVSchedSiFive7.td"
+include "RISCVSchedSyntacoreSCR1.td"
 
 //===----------------------------------------------------------------------===//
 // RISC-V processors supported.
@@ -631,6 +646,14 @@ def : ProcessorModel<"sifive-u74", SiFive7Model, [Feature64Bit,
                                                   FeatureStdExtD,
                                                   FeatureStdExtC],
                      [TuneSiFive7]>;
+
+def : ProcessorModel<"syntacore-scr1-base", SyntacoreSCR1Model,
+                     [Feature32Bit, FeatureStdExtC],
+                     [TuneNoDefaultUnroll]>;
+
+def : ProcessorModel<"syntacore-scr1-max", SyntacoreSCR1Model,
+                     [Feature32Bit, FeatureStdExtM, FeatureStdExtC],
+                     [TuneNoDefaultUnroll]>;
 
 //===----------------------------------------------------------------------===//
 // Define the RISC-V target.

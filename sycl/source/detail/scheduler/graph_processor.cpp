@@ -32,7 +32,8 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, Cmd, BLOCKING);
+  bool Enqueued =
+      enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
@@ -65,13 +66,35 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
-    Command *Cmd, EnqueueResultT &EnqueueResult,
+    Command *Cmd, ReadLockT &GraphReadLock, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
     BlockingT Blocking) {
   if (!Cmd)
     return true;
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
+
+  if (KernelFusionCommand *FusionCmd = isPartOfActiveFusion(Cmd)) {
+    // The fusion is still in-flight, but some other event/command depending
+    // on one of the kernels in the fusion list has triggered it to be
+    // enqueued. To avoid circular dependencies and deadlocks, we will need to
+    // cancel fusion here and enqueue the kernels in the fusion list right
+    // away.
+    printFusionWarning("Aborting fusion because synchronization with one of "
+                       "the kernels in the fusion list was requested");
+    // We need to unlock the read lock, as cancelFusion in the scheduler will
+    // acquire a write lock to alter the graph.
+    GraphReadLock.unlock();
+    // Cancel fusion will take care of enqueueing all the kernels.
+    Scheduler::getInstance().cancelFusion(FusionCmd->getQueue());
+    // Lock the read lock again.
+    GraphReadLock.lock();
+    // The fusion (placeholder) command should have been enqueued by
+    // cancelFusion.
+    if (FusionCmd->isSuccessfullyEnqueued()) {
+      return true;
+    }
+  }
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
@@ -83,8 +106,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
-                          Blocking))
+      if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
+                          RootCommand, Blocking))
         return false;
   }
 
@@ -96,8 +119,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
-                          Blocking))
+      if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
+                          RootCommand, Blocking))
         return false;
   }
 

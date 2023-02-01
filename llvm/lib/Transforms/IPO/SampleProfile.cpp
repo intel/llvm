@@ -430,8 +430,8 @@ class SampleProfileMatcher {
   const PseudoProbeManager *ProbeManager;
 
   // Profile mismatching statstics.
-  uint64_t TotalProfiledCallsite = 0;
-  uint64_t NumMismatchedCallsite = 0;
+  uint64_t TotalProfiledCallsites = 0;
+  uint64_t NumMismatchedCallsites = 0;
   uint64_t MismatchedCallsiteSamples = 0;
   uint64_t TotalCallsiteSamples = 0;
   uint64_t TotalProfiledFunc = 0;
@@ -494,7 +494,7 @@ protected:
 
   bool inlineHotFunctions(Function &F,
                           DenseSet<GlobalValue::GUID> &InlinedGUIDs);
-  Optional<InlineCost> getExternalInlineAdvisorCost(CallBase &CB);
+  std::optional<InlineCost> getExternalInlineAdvisorCost(CallBase &CB);
   bool getExternalInlineAdvisorShouldInline(CallBase &CB);
   InlineCost shouldInlineCandidate(InlineCandidate &Candidate);
   bool getInlineCandidate(InlineCandidate *NewCandidate, CallBase *CB);
@@ -620,7 +620,7 @@ ErrorOr<uint64_t> SampleProfileLoader::getInstWeight(const Instruction &Inst) {
 ErrorOr<uint64_t> SampleProfileLoader::getProbeWeight(const Instruction &Inst) {
   assert(FunctionSamples::ProfileIsProbeBased &&
          "Profile is not pseudo probe based");
-  Optional<PseudoProbe> Probe = extractProbe(Inst);
+  std::optional<PseudoProbe> Probe = extractProbe(Inst);
   // Ignore the non-probe instruction. If none of the instruction in the BB is
   // probe, we choose to infer the BB's weight.
   if (!Probe)
@@ -773,7 +773,7 @@ SampleProfileLoader::findIndirectCallFunctionSamples(
 const FunctionSamples *
 SampleProfileLoader::findFunctionSamples(const Instruction &Inst) const {
   if (FunctionSamples::ProfileIsProbeBased) {
-    Optional<PseudoProbe> Probe = extractProbe(Inst);
+    std::optional<PseudoProbe> Probe = extractProbe(Inst);
     if (!Probe)
       return nullptr;
   }
@@ -1286,7 +1286,7 @@ bool SampleProfileLoader::tryInlineCandidate(
   // aggregation of duplication.
   if (Candidate.CallsiteDistribution < 1) {
     for (auto &I : IFI.InlinedCallSites) {
-      if (Optional<PseudoProbe> Probe = extractProbe(*I))
+      if (std::optional<PseudoProbe> Probe = extractProbe(*I))
         setProbeDistributionFactor(*I, Probe->Factor *
                                    Candidate.CallsiteDistribution);
     }
@@ -1311,7 +1311,7 @@ bool SampleProfileLoader::getInlineCandidate(InlineCandidate *NewCandidate,
     return false;
 
   float Factor = 1.0;
-  if (Optional<PseudoProbe> Probe = extractProbe(*CB))
+  if (std::optional<PseudoProbe> Probe = extractProbe(*CB))
     Factor = Probe->Factor;
 
   uint64_t CallsiteCount =
@@ -1320,7 +1320,7 @@ bool SampleProfileLoader::getInlineCandidate(InlineCandidate *NewCandidate,
   return true;
 }
 
-Optional<InlineCost>
+std::optional<InlineCost>
 SampleProfileLoader::getExternalInlineAdvisorCost(CallBase &CB) {
   std::unique_ptr<InlineAdvice> Advice = nullptr;
   if (ExternalInlineAdvisor) {
@@ -1339,15 +1339,15 @@ SampleProfileLoader::getExternalInlineAdvisorCost(CallBase &CB) {
 }
 
 bool SampleProfileLoader::getExternalInlineAdvisorShouldInline(CallBase &CB) {
-  Optional<InlineCost> Cost = getExternalInlineAdvisorCost(CB);
-  return Cost ? !!Cost.value() : false;
+  std::optional<InlineCost> Cost = getExternalInlineAdvisorCost(CB);
+  return Cost ? !!*Cost : false;
 }
 
 InlineCost
 SampleProfileLoader::shouldInlineCandidate(InlineCandidate &Candidate) {
-  if (Optional<InlineCost> ReplayCost =
+  if (std::optional<InlineCost> ReplayCost =
           getExternalInlineAdvisorCost(*Candidate.CallInstr))
-    return ReplayCost.value();
+    return *ReplayCost;
   // Adjust threshold based on call site hotness, only do this for callsite
   // prioritized inliner because otherwise cost-benefit check is done earlier.
   int SampleThreshold = SampleColdCallSiteThreshold;
@@ -1636,7 +1636,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
             // Prorate the callsite counts based on the pre-ICP distribution
             // factor to reflect what is already done to the callsite before
             // ICP, such as calliste cloning.
-            if (Optional<PseudoProbe> Probe = extractProbe(I)) {
+            if (std::optional<PseudoProbe> Probe = extractProbe(I)) {
               if (Probe->Factor < 1)
                 T = SampleRecord::adjustCallTargets(T.get(), Probe->Factor);
             }
@@ -2119,10 +2119,10 @@ void SampleProfileMatcher::detectProfileMismatch(const Function &F,
     uint64_t Count = I.second.getSamples();
     if (!I.second.getCallTargets().empty()) {
       TotalCallsiteSamples += Count;
-      TotalProfiledCallsite++;
+      TotalProfiledCallsites++;
       if (!MatchedCallsiteLocs.count(Loc)) {
         MismatchedCallsiteSamples += Count;
-        NumMismatchedCallsite++;
+        NumMismatchedCallsites++;
       }
     }
   }
@@ -2134,13 +2134,13 @@ void SampleProfileMatcher::detectProfileMismatch(const Function &F,
 
     uint64_t Count = 0;
     for (auto &FM : I.second) {
-      Count += FM.second.getTotalSamples();
+      Count += FM.second.getHeadSamplesEstimate();
     }
     TotalCallsiteSamples += Count;
-    TotalProfiledCallsite++;
+    TotalProfiledCallsites++;
     if (!MatchedCallsiteLocs.count(Loc)) {
       MismatchedCallsiteSamples += Count;
-      NumMismatchedCallsite++;
+      NumMismatchedCallsites++;
     }
   }
 }
@@ -2163,7 +2163,7 @@ void SampleProfileMatcher::detectProfileMismatch() {
              << ")"
              << " of samples are discarded due to function hash mismatch.\n";
     }
-    errs() << "(" << NumMismatchedCallsite << "/" << TotalProfiledCallsite
+    errs() << "(" << NumMismatchedCallsites << "/" << TotalProfiledCallsites
            << ")"
            << " of callsites' profile are invalid and "
            << "(" << MismatchedCallsiteSamples << "/" << TotalCallsiteSamples
@@ -2183,6 +2183,9 @@ void SampleProfileMatcher::detectProfileMismatch() {
                                 MismatchedFuncHashSamples);
       ProfStatsVec.emplace_back("TotalFuncHashSamples", TotalFuncHashSamples);
     }
+
+    ProfStatsVec.emplace_back("NumMismatchedCallsites", NumMismatchedCallsites);
+    ProfStatsVec.emplace_back("TotalProfiledCallsites", TotalProfiledCallsites);
     ProfStatsVec.emplace_back("MismatchedCallsiteSamples",
                               MismatchedCallsiteSamples);
     ProfStatsVec.emplace_back("TotalCallsiteSamples", TotalCallsiteSamples);

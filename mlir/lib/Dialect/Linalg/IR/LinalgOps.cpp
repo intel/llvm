@@ -174,18 +174,6 @@ static void printCommonStructuredOpParts(OpAsmPrinter &p, ValueRange inputs,
     p << " outs(" << outputs << " : " << outputs.getTypes() << ")";
 }
 
-static void printCommonStructuredOpPartsWithNewLine(OpAsmPrinter &p,
-                                                    ValueRange inputs,
-                                                    ValueRange outputs) {
-  if (!inputs.empty()) {
-    p.printNewline();
-    p << "ins(" << inputs << " : " << inputs.getTypes() << ")";
-  }
-  if (!outputs.empty()) {
-    p.printNewline();
-    p << "outs(" << outputs << " : " << outputs.getTypes() << ")";
-  }
-}
 //===----------------------------------------------------------------------===//
 // Specific parsing and printing for named structured ops created by ods-gen.
 //===----------------------------------------------------------------------===//
@@ -254,7 +242,8 @@ static void printNamedStructuredOp(OpAsmPrinter &p, Operation *op,
   p.printOptionalAttrDict(
       op->getAttrs(),
       /*elidedAttrs=*/{"operand_segment_sizes",
-                       // See generated code in mlir-linalg-yaml-gen.cpp
+                       // See generated code in
+                       // LinalgNamedStructuredOps.yamlgen.cpp.inc
                        "linalg.memoized_indexing_maps"});
 
   // Printing is shared with generic ops, except for the region and
@@ -272,7 +261,8 @@ static void printNamedStructuredOp(OpAsmPrinter &p, Operation *op,
 // TODO: Move this to a utility library.
 // The public methods on this class are referenced directly from generated code.
 // Helper build the unary, binary, and type conversion functions defined by the
-// DSL. See mlir-linalg-ods-yaml-gen.cpp for the code that uses this class.
+// DSL. See LinalgNamedStructuredOps.yamlgen.cpp.inc for the code that uses this
+// class.
 //
 // Implementations of the math functions must be polymorphic over numeric types,
 // internally performing necessary casts. If the function application makes no
@@ -1023,38 +1013,121 @@ void MapOp::build(
                        inputs, /*outputs=*/{}, bodyBuild);
 }
 
+static void addBodyWithPayloadOp(OpAsmParser &parser, OperationState &result,
+                                 const OperationName &payloadOpName,
+                                 const NamedAttrList &payloadOpAttrs,
+                                 ArrayRef<Value> operands) {
+  OpBuilder b(parser.getContext());
+  Region *body = result.addRegion();
+  Block &block = body->emplaceBlock();
+  b.setInsertionPointToStart(&block);
+  SmallVector<Value> bbArgs;
+  for (auto &operand : operands) {
+    block.addArgument(operand.getType().cast<ShapedType>().getElementType(),
+                      b.getUnknownLoc());
+  }
+
+  Operation *payloadOp = b.create(
+      result.location, b.getStringAttr(payloadOpName.getStringRef()),
+      block.getArguments(),
+      TypeRange{
+          result.operands.back().getType().cast<ShapedType>().getElementType()},
+      payloadOpAttrs);
+
+  b.create<YieldOp>(result.location, payloadOp->getResults());
+}
+
 ParseResult MapOp::parse(OpAsmParser &parser, OperationState &result) {
+  std::optional<OperationName> payloadOpName;
+  NamedAttrList payloadOpAttrs;
+  if (succeeded(parser.parseOptionalLBrace())) {
+    FailureOr<OperationName> operationName = parser.parseCustomOperationName();
+    if (failed(operationName))
+      return failure();
+    if (parser.parseOptionalAttrDict(payloadOpAttrs))
+      return failure();
+    payloadOpName = operationName.value();
+    if (parser.parseRBrace())
+      return failure();
+  }
+
   if (parseDstStyleOp(parser, result))
     return failure();
 
-  SmallVector<OpAsmParser::Argument> regionArgs;
-  if (parser.parseArgumentList(regionArgs, OpAsmParser::Delimiter::Paren,
-                               /*allowType=*/true, /*allowAttrs=*/true)) {
-    return failure();
+  if (payloadOpName.has_value()) {
+    addBodyWithPayloadOp(parser, result, payloadOpName.value(), payloadOpAttrs,
+                         makeArrayRef(result.operands).drop_back());
+  } else {
+    SmallVector<OpAsmParser::Argument> regionArgs;
+    if (parser.parseArgumentList(regionArgs, OpAsmParser::Delimiter::Paren,
+                                 /*allowType=*/true, /*allowAttrs=*/true)) {
+      return failure();
+    }
+    Region *body = result.addRegion();
+    if (parser.parseRegion(*body, regionArgs))
+      return failure();
   }
-
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, regionArgs))
-    return failure();
-
   return success();
 }
 
+// Retrieve the operation from the body, if it is the only one (except
+// yield) and if it gets the same amount of arguments as the body does.
+static Operation *findPayloadOp(Block *body) {
+  if (body->getOperations().size() != 2)
+    return nullptr;
+  Operation &payload = body->getOperations().front();
+  assert(isa<YieldOp>(body->getOperations().back()));
+
+  if (payload.getNumOperands() == 0 ||
+      payload.getNumOperands() != body->getNumArguments())
+    return nullptr;
+  for (const auto &[bbArg, operand] :
+       llvm::zip(payload.getOperands(), body->getArguments())) {
+    if (bbArg != operand)
+      return nullptr;
+  }
+  return &payload;
+}
+
+void printShortForm(OpAsmPrinter &p, Operation *payloadOp) {
+  SmallVector<StringRef> elidedAttrs;
+  std::string attrToElide;
+  p << " { " << payloadOp->getName().getStringRef();
+  for (const auto &attr : payloadOp->getAttrs()) {
+    auto fastAttr = attr.getValue().dyn_cast<mlir::arith::FastMathFlagsAttr>();
+    if (fastAttr && fastAttr.getValue() == mlir::arith::FastMathFlags::none) {
+      attrToElide = attr.getName().str();
+      elidedAttrs.push_back(attrToElide);
+      break;
+    }
+  }
+  p.printOptionalAttrDict(payloadOp->getAttrs(), elidedAttrs);
+  p << " }";
+}
+
 void MapOp::print(OpAsmPrinter &p) {
-  p.increaseIndent();
-  printCommonStructuredOpPartsWithNewLine(
-      p, SmallVector<Value>(getDpsInputOperands()),
-      SmallVector<Value>(getDpsInitOperands()));
+  Block *mapper = getBody();
+  Operation *payloadOp = findPayloadOp(mapper);
+  if (payloadOp) {
+    printShortForm(p, payloadOp);
+  }
+
+  printCommonStructuredOpParts(p, SmallVector<Value>(getDpsInputOperands()),
+                               SmallVector<Value>(getDpsInitOperands()));
   p.printOptionalAttrDict((*this)->getAttrs());
 
-  p.printNewline();
-  p << "(";
-  llvm::interleaveComma(getMapper().getArguments(), p,
-                        [&](auto arg) { p.printRegionArgument(arg); });
-  p << ") ";
+  if (!payloadOp) {
+    // Print region if the payload op was not detected.
+    p.increaseIndent();
+    p.printNewline();
+    p << "(";
+    llvm::interleaveComma(mapper->getArguments(), p,
+                          [&](auto arg) { p.printRegionArgument(arg); });
+    p << ") ";
 
-  p.printRegion(getMapper(), /*printEntryBlockArgs=*/false);
-  p.decreaseIndent();
+    p.printRegion(getMapper(), /*printEntryBlockArgs=*/false);
+    p.decreaseIndent();
+  }
 }
 
 LogicalResult MapOp::verify() {
@@ -1067,7 +1140,7 @@ LogicalResult MapOp::verify() {
                             "mapper, but got: "
                          << getInputs().size() << " and " << blockArgs.size();
 
-  // The parameters of mapper should all match the element type // of inputs.
+  // The parameters of mapper should all match the element type of inputs.
   for (const auto &[bbArgType, inputArg] :
        llvm::zip(bodyBlock->getArgumentTypes(), getInputs())) {
     auto inputElemType = inputArg.getType().cast<ShapedType>().getElementType();
@@ -1189,48 +1262,71 @@ static ParseResult parseDenseI64ArrayAttr(OpAsmParser &parser,
 }
 
 ParseResult ReduceOp::parse(OpAsmParser &parser, OperationState &result) {
+  std::optional<OperationName> payloadOpName;
+  NamedAttrList payloadOpAttrs;
+  if (succeeded(parser.parseOptionalLBrace())) {
+    FailureOr<OperationName> operationName = parser.parseCustomOperationName();
+    if (failed(operationName))
+      return failure();
+    if (parser.parseOptionalAttrDict(payloadOpAttrs))
+      return failure();
+    payloadOpName = operationName.value();
+    if (parser.parseRBrace())
+      return failure();
+  }
+
   if (parseDstStyleOp(
           parser, result, [&](OpAsmParser &parser, NamedAttrList &attributes) {
             return parseDenseI64ArrayAttr(parser, attributes, "dimensions");
           }))
     return failure();
 
-  SmallVector<OpAsmParser::Argument> regionArgs;
-  if (parser.parseArgumentList(regionArgs, OpAsmParser::Delimiter::Paren,
-                               /*allowType=*/true, /*allowAttrs=*/true)) {
-    return failure();
-  }
+  if (payloadOpName.has_value()) {
+    addBodyWithPayloadOp(parser, result, payloadOpName.value(), payloadOpAttrs,
+                         makeArrayRef(result.operands));
+  } else {
+    SmallVector<OpAsmParser::Argument> regionArgs;
+    if (parser.parseArgumentList(regionArgs, OpAsmParser::Delimiter::Paren,
+                                 /*allowType=*/true, /*allowAttrs=*/true)) {
+      return failure();
+    }
 
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, regionArgs))
-    return failure();
+    Region *body = result.addRegion();
+    if (parser.parseRegion(*body, regionArgs))
+      return failure();
+  }
 
   return success();
 }
 
 static void printDenseI64ArrayAttr(OpAsmPrinter &p, StringRef attributeName,
                                    ArrayRef<int64_t> attributeValue) {
-  p << attributeName << " = [" << attributeValue << "] ";
+  p << ' ' << attributeName << " = [" << attributeValue << "] ";
 }
 
 void ReduceOp::print(OpAsmPrinter &p) {
-  p.increaseIndent();
-  printCommonStructuredOpPartsWithNewLine(
-      p, SmallVector<Value>(getDpsInputOperands()),
-      SmallVector<Value>(getDpsInitOperands()));
-  p.printNewline();
+  Block *mapper = getBody();
+  Operation *payloadOp = findPayloadOp(mapper);
+  if (payloadOp) {
+    printShortForm(p, payloadOp);
+  }
 
+  printCommonStructuredOpParts(p, SmallVector<Value>(getDpsInputOperands()),
+                               SmallVector<Value>(getDpsInitOperands()));
   printDenseI64ArrayAttr(p, getDimensionsAttrName(), getDimensions());
   p.printOptionalAttrDict((*this)->getAttrs(), {getDimensionsAttrName()});
+  if (!payloadOp) {
+    // Print region if the payload op was not detected.
+    p.increaseIndent();
+    p.printNewline();
+    p << "(";
+    llvm::interleaveComma(mapper->getArguments(), p,
+                          [&](auto arg) { p.printRegionArgument(arg); });
+    p << ") ";
 
-  p.printNewline();
-  p << "(";
-  llvm::interleaveComma(getCombiner().getArguments(), p,
-                        [&](auto arg) { p.printRegionArgument(arg); });
-  p << ") ";
-
-  p.printRegion(getCombiner(), /*printEntryBlockArgs=*/false);
-  p.decreaseIndent();
+    p.printRegion(getCombiner(), /*printEntryBlockArgs=*/false);
+    p.decreaseIndent();
+  }
 }
 
 LogicalResult ReduceOp::verify() {
@@ -1379,15 +1475,10 @@ void TransposeOp::getAsmResultNames(
 }
 
 void TransposeOp::print(OpAsmPrinter &p) {
-  p.increaseIndent();
-  printCommonStructuredOpPartsWithNewLine(
-      p, SmallVector<Value>(getDpsInputOperands()),
-      SmallVector<Value>(getDpsInitOperands()));
-  p.printNewline();
-
+  printCommonStructuredOpParts(p, SmallVector<Value>(getDpsInputOperands()),
+                               SmallVector<Value>(getDpsInitOperands()));
   printDenseI64ArrayAttr(p, getPermutationAttrName(), getPermutation());
   p.printOptionalAttrDict((*this)->getAttrs(), {getPermutationAttrName()});
-  p.decreaseIndent();
 }
 
 LogicalResult TransposeOp::verify() {
@@ -1498,15 +1589,10 @@ void BroadcastOp::getAsmResultNames(
 }
 
 void BroadcastOp::print(OpAsmPrinter &p) {
-  p.increaseIndent();
-  printCommonStructuredOpPartsWithNewLine(
-      p, SmallVector<Value>(getDpsInputOperands()),
-      SmallVector<Value>(getDpsInitOperands()));
-  p.printNewline();
-
+  printCommonStructuredOpParts(p, SmallVector<Value>(getDpsInputOperands()),
+                               SmallVector<Value>(getDpsInitOperands()));
   printDenseI64ArrayAttr(p, getDimensionsAttrName(), getDimensions());
   p.printOptionalAttrDict((*this)->getAttrs(), {getDimensionsAttrName()});
-  p.decreaseIndent();
 }
 
 LogicalResult BroadcastOp::verify() {
@@ -1745,61 +1831,6 @@ struct EraseDeadLinalgOp : public OpInterfaceRewritePattern<LinalgOp> {
   }
 };
 
-struct FoldTensorCastProducerOp : public OpInterfaceRewritePattern<LinalgOp> {
-  using OpInterfaceRewritePattern<LinalgOp>::OpInterfaceRewritePattern;
-
-  LogicalResult matchAndRewrite(LinalgOp op,
-                                PatternRewriter &rewriter) const override {
-    // If no operand comes from a tensor::CastOp and can be folded then fail.
-    bool hasTensorCastOperand =
-        llvm::any_of(op->getOpOperands(), [&](OpOperand &opOperand) {
-          if (opOperand.get().isa<BlockArgument>())
-            return false;
-          auto castOp = opOperand.get().getDefiningOp<tensor::CastOp>();
-          return castOp && canFoldIntoConsumerOp(castOp);
-        });
-    if (!hasTensorCastOperand)
-      return failure();
-
-    SmallVector<Type, 4> newResultTypes;
-    newResultTypes.reserve(op->getNumResults());
-    SmallVector<Value, 4> newOperands;
-    newOperands.reserve(op->getNumOperands());
-    // Inputs may fold.
-    for (auto *input : op.getDpsInputOperands()) {
-      auto tensorCastOp = input->get().getDefiningOp<tensor::CastOp>();
-      newOperands.push_back(canFoldIntoConsumerOp(tensorCastOp)
-                                ? tensorCastOp.getSource()
-                                : input->get());
-    }
-    // Init tensors may fold, in which case the resultType must also change.
-    for (auto *output : op.getDpsInitOperands()) {
-      auto tensorCastOp = output->get().getDefiningOp<tensor::CastOp>();
-      bool fold = canFoldIntoConsumerOp(tensorCastOp);
-      newOperands.push_back(fold ? tensorCastOp.getOperand() : output->get());
-      if (!newOperands.back().getType().isa<MemRefType>())
-        newResultTypes.push_back(newOperands.back().getType());
-    }
-    // Clone op.
-    Operation *newOp = clone(rewriter, op, newResultTypes, newOperands);
-    SmallVector<Value, 4> replacements;
-    replacements.reserve(newOp->getNumResults());
-    for (auto result : llvm::zip(op->getResults(), newOp->getResults())) {
-      Value oldResult = std::get<0>(result);
-      Value newResult = std::get<1>(result);
-      if (newResult.getType() != oldResult.getType()) {
-        replacements.push_back(rewriter.create<tensor::CastOp>(
-            op->getLoc(), oldResult.getType(), newResult));
-      } else {
-        replacements.push_back(newResult);
-      }
-    }
-    rewriter.replaceOp(op, replacements);
-
-    return success();
-  }
-};
-
 /// Fold LinalgOps with `tensor.cast` consumer if the `tensor.cast` has
 /// result that is more static than the linalg op.
 struct FoldTensorCastConsumerOp : public OpRewritePattern<tensor::CastOp> {
@@ -2023,8 +2054,7 @@ struct InferStaticShapeOfOperands : public OpInterfaceRewritePattern<LinalgOp> {
 void LinalgDialect::getCanonicalizationPatterns(
     RewritePatternSet &results) const {
   results.add<EraseDeadLinalgOp, FoldTensorCastConsumerOp,
-              FoldTensorCastProducerOp, InferStaticShapeOfOperands>(
-      getContext());
+              InferStaticShapeOfOperands>(getContext());
 }
 
 Operation *LinalgDialect::materializeConstant(OpBuilder &builder,

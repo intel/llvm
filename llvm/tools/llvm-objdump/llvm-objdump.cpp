@@ -25,7 +25,6 @@
 #include "WasmDump.h"
 #include "XCOFFDump.h"
 #include "llvm/ADT/IndexedMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallSet.h"
@@ -120,28 +119,31 @@ private:
 };
 
 // ObjdumpOptID is in ObjdumpOptID.h
-
-#define PREFIX(NAME, VALUE) const char *const OBJDUMP_##NAME[] = VALUE;
+namespace objdump_opt {
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "ObjdumpOpts.inc"
 #undef PREFIX
 
 static constexpr opt::OptTable::Info ObjdumpInfoTable[] = {
-#define OBJDUMP_nullptr nullptr
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
-  {OBJDUMP_##PREFIX, NAME,         HELPTEXT,                                   \
-   METAVAR,          OBJDUMP_##ID, opt::Option::KIND##Class,                   \
-   PARAM,            FLAGS,        OBJDUMP_##GROUP,                            \
-   OBJDUMP_##ALIAS,  ALIASARGS,    VALUES},
+  {PREFIX,          NAME,         HELPTEXT,                                    \
+   METAVAR,         OBJDUMP_##ID, opt::Option::KIND##Class,                    \
+   PARAM,           FLAGS,        OBJDUMP_##GROUP,                             \
+   OBJDUMP_##ALIAS, ALIASARGS,    VALUES},
 #include "ObjdumpOpts.inc"
 #undef OPTION
-#undef OBJDUMP_nullptr
 };
+} // namespace objdump_opt
 
 class ObjdumpOptTable : public CommonOptTable {
 public:
   ObjdumpOptTable()
-      : CommonOptTable(ObjdumpInfoTable, " [options] <input object files>",
+      : CommonOptTable(objdump_opt::ObjdumpInfoTable,
+                       " [options] <input object files>",
                        "llvm object file dumper") {}
 };
 
@@ -154,27 +156,30 @@ enum OtoolOptID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const OTOOL_##NAME[] = VALUE;
+namespace otool {
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "OtoolOpts.inc"
 #undef PREFIX
 
 static constexpr opt::OptTable::Info OtoolInfoTable[] = {
-#define OTOOL_nullptr nullptr
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
-  {OTOOL_##PREFIX, NAME,       HELPTEXT,                                       \
-   METAVAR,        OTOOL_##ID, opt::Option::KIND##Class,                       \
-   PARAM,          FLAGS,      OTOOL_##GROUP,                                  \
-   OTOOL_##ALIAS,  ALIASARGS,  VALUES},
+  {PREFIX,        NAME,       HELPTEXT,                                        \
+   METAVAR,       OTOOL_##ID, opt::Option::KIND##Class,                        \
+   PARAM,         FLAGS,      OTOOL_##GROUP,                                   \
+   OTOOL_##ALIAS, ALIASARGS,  VALUES},
 #include "OtoolOpts.inc"
 #undef OPTION
-#undef OTOOL_nullptr
 };
+} // namespace otool
 
 class OtoolOptTable : public CommonOptTable {
 public:
   OtoolOptTable()
-      : CommonOptTable(OtoolInfoTable, " [option...] [file...]",
+      : CommonOptTable(otool::OtoolInfoTable, " [option...] [file...]",
                        "Mach-O object file displaying tool") {}
 };
 
@@ -461,6 +466,11 @@ static bool isCSKYElf(const ObjectFile &Obj) {
 
 static bool hasMappingSymbols(const ObjectFile &Obj) {
   return isArmElf(Obj) || isAArch64Elf(Obj) || isCSKYElf(Obj) ;
+}
+
+static bool isMappingSymbol(const SymbolInfoTy &Sym) {
+  return Sym.Name.startswith("$d") || Sym.Name.startswith("$x") ||
+         Sym.Name.startswith("$a") || Sym.Name.startswith("$t");
 }
 
 static void printRelocation(formatted_raw_ostream &OS, StringRef FileName,
@@ -863,7 +873,7 @@ addDynamicElfSymbols(const ELFObjectFileBase &Obj,
     llvm_unreachable("Unsupported binary format");
 }
 
-static Optional<SectionRef> getWasmCodeSection(const WasmObjectFile &Obj) {
+static std::optional<SectionRef> getWasmCodeSection(const WasmObjectFile &Obj) {
   for (auto SecI : Obj.sections()) {
     const WasmSection &Section = Obj.getWasmSection(SecI);
     if (Section.Type == wasm::WASM_SEC_CODE)
@@ -875,7 +885,7 @@ static Optional<SectionRef> getWasmCodeSection(const WasmObjectFile &Obj) {
 static void
 addMissingWasmCodeSymbols(const WasmObjectFile &Obj,
                           std::map<SectionRef, SectionSymbolsTy> &AllSymbols) {
-  Optional<SectionRef> Section = getWasmCodeSection(Obj);
+  std::optional<SectionRef> Section = getWasmCodeSection(Obj);
   if (!Section)
     return;
   SectionSymbolsTy &Symbols = AllSymbols[*Section];
@@ -1084,7 +1094,7 @@ SymbolInfoTy objdump::createSymbolInfo(const ObjectFile &Obj,
     DataRefImpl SymbolDRI = Symbol.getRawDataRefImpl();
 
     const uint32_t SymbolIndex = XCOFFObj.getSymbolIndex(SymbolDRI.p);
-    Optional<XCOFF::StorageMappingClass> Smc =
+    std::optional<XCOFF::StorageMappingClass> Smc =
         getXCOFFSymbolCsectSMC(XCOFFObj, Symbol);
     return SymbolInfoTy(Addr, Name, Smc, SymbolIndex,
                         isLabel(XCOFFObj, Symbol));
@@ -1271,7 +1281,7 @@ static void createFakeELFSections(ObjectFile &Obj) {
 }
 
 // Tries to fetch a more complete version of the given object file using its
-// Build ID. Returns None if nothing was found.
+// Build ID. Returns std::nullopt if nothing was found.
 static std::optional<OwningBinary<Binary>>
 fetchBinaryByBuildID(const ObjectFile &Obj) {
   std::optional<object::BuildIDRef> BuildID = getBuildID(&Obj);
@@ -1681,13 +1691,13 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
                                   SectionAddr + Start, CommentStream);
 
         if (!Status) {
-          // If onSymbolStart returns None, that means it didn't trigger any
-          // interesting handling for this symbol. Try the other symbols
+          // If onSymbolStart returns std::nullopt, that means it didn't trigger
+          // any interesting handling for this symbol. Try the other symbols
           // defined at this address.
           continue;
         }
 
-        if (Status.value() == MCDisassembler::Fail) {
+        if (*Status == MCDisassembler::Fail) {
           // If onSymbolStart returns Fail, that means it identified some kind
           // of special data at this address, but wasn't able to disassemble it
           // meaningfully. So we fall back to disassembling the failed region
@@ -1823,7 +1833,7 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
             bool PrintTarget =
                 MIA->evaluateBranch(Inst, SectionAddr + Index, Size, Target);
             if (!PrintTarget)
-              if (Optional<uint64_t> MaybeTarget =
+              if (std::optional<uint64_t> MaybeTarget =
                       MIA->evaluateMemoryOperandAddress(
                           Inst, STI, SectionAddr + Index, Size)) {
                 Target = *MaybeTarget;
@@ -1877,10 +1887,17 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
                 auto It = llvm::partition_point(
                     *TargetSymbols,
                     [=](const SymbolInfoTy &O) { return O.Addr <= Target; });
-                if (It != TargetSymbols->begin()) {
-                  TargetSym = &*(It - 1);
-                  break;
+                while (It != TargetSymbols->begin()) {
+                  --It;
+                  // Skip mapping symbols to avoid possible ambiguity as they
+                  // do not allow uniquely identifying the target address.
+                  if (!hasMappingSymbols(Obj) || !isMappingSymbol(*It)) {
+                    TargetSym = &*It;
+                    break;
+                  }
                 }
+                if (TargetSym)
+                  break;
               }
 
               // Print the labels corresponding to the target if there's any.
@@ -2480,7 +2497,7 @@ void objdump::printSymbol(const ObjectFile &O, const SymbolRef &Symbol,
     StringRef SectionName = unwrapOrError(Section->getName(), FileName);
     outs() << SectionName;
     if (O.isXCOFF()) {
-      Optional<SymbolRef> SymRef =
+      std::optional<SymbolRef> SymRef =
           getXCOFFSymbolContainingSymbolRef(cast<XCOFFObjectFile>(O), Symbol);
       if (SymRef) {
 
@@ -2494,8 +2511,8 @@ void objdump::printSymbol(const ObjectFile &O, const SymbolRef &Symbol,
             SymName = demangle(SymName);
 
           if (SymbolDescription)
-            SymName = getXCOFFSymbolDescription(
-                createSymbolInfo(O, SymRef.value()), SymName);
+            SymName = getXCOFFSymbolDescription(createSymbolInfo(O, *SymRef),
+                                                SymName);
 
           outs() << ' ' << SymName;
           outs() << ") ";
@@ -2603,7 +2620,7 @@ static void printRawClangAST(const ObjectFile *Obj) {
     return;
 
   StringRef ClangASTContents =
-      unwrapOrError(ClangASTSection.value().getContents(), Obj->getFileName());
+      unwrapOrError(ClangASTSection->getContents(), Obj->getFileName());
   outs().write(ClangASTContents.data(), ClangASTContents.size());
 }
 

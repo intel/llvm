@@ -260,6 +260,13 @@ bool CompilerType::IsScalarType() const {
   return false;
 }
 
+bool CompilerType::IsTemplateType() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->IsTemplateType(m_type);
+  return false;
+}
+
 bool CompilerType::IsTypedefType() const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
@@ -765,7 +772,7 @@ CompilerType::GetIntegralTemplateArgument(size_t idx, bool expand_pack) const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
       return type_system_sp->GetIntegralTemplateArgument(m_type, idx, expand_pack);
-  return llvm::None;
+  return std::nullopt;
 }
 
 CompilerType CompilerType::GetTypeForFormatters() const {

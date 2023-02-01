@@ -10,7 +10,6 @@
 #define LLVM_ADT_ARRAYREF_H
 
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
@@ -67,7 +66,7 @@ namespace llvm {
     /// Construct an empty ArrayRef.
     /*implicit*/ ArrayRef() = default;
 
-    /// Construct an empty ArrayRef from None.
+    /// Construct an empty ArrayRef from std::nullopt.
     /*implicit*/ ArrayRef(std::nullopt_t) {}
 
     /// Construct an ArrayRef from a single element.
@@ -75,12 +74,12 @@ namespace llvm {
       : Data(&OneElt), Length(1) {}
 
     /// Construct an ArrayRef from a pointer and length.
-    /*implicit*/ ArrayRef(const T *data, size_t length)
-      : Data(data), Length(length) {}
+    constexpr /*implicit*/ ArrayRef(const T *data, size_t length)
+        : Data(data), Length(length) {}
 
     /// Construct an ArrayRef from a range.
-    ArrayRef(const T *begin, const T *end)
-      : Data(begin), Length(end - begin) {}
+    constexpr ArrayRef(const T *begin, const T *end)
+        : Data(begin), Length(end - begin) {}
 
     /// Construct an ArrayRef from a SmallVector. This is templated in order to
     /// avoid instantiating SmallVectorTemplateCommon<T> whenever we
@@ -112,9 +111,9 @@ namespace llvm {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winit-list-lifetime"
 #endif
-    /*implicit*/ ArrayRef(const std::initializer_list<T> &Vec)
-    : Data(Vec.begin() == Vec.end() ? (T*)nullptr : Vec.begin()),
-      Length(Vec.size()) {}
+    constexpr /*implicit*/ ArrayRef(const std::initializer_list<T> &Vec)
+        : Data(Vec.begin() == Vec.end() ? (T *)nullptr : Vec.begin()),
+          Length(Vec.size()) {}
 #if LLVM_GNUC_PREREQ(9, 0, 0)
 #pragma GCC diagnostic pop
 #endif
@@ -320,7 +319,7 @@ namespace llvm {
     /// Construct an empty MutableArrayRef.
     /*implicit*/ MutableArrayRef() = default;
 
-    /// Construct an empty MutableArrayRef from None.
+    /// Construct an empty MutableArrayRef from std::nullopt.
     /*implicit*/ MutableArrayRef(std::nullopt_t) : ArrayRef<T>() {}
 
     /// Construct a MutableArrayRef from a single element.

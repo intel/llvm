@@ -15,7 +15,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCDirectives.h"
@@ -668,10 +667,9 @@ public:
   ///
   /// \param Symbol - The common symbol to emit.
   /// \param Size - The size of the common symbol.
-  /// \param ByteAlignment - The alignment of the symbol if
-  /// non-zero. This must be a power of 2.
+  /// \param ByteAlignment - The alignment of the symbol.
   virtual void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                unsigned ByteAlignment) = 0;
+                                Align ByteAlignment) = 0;
 
   /// Emit a local common (.lcomm) symbol.
   ///
@@ -679,17 +677,16 @@ public:
   /// \param Size - The size of the common symbol.
   /// \param ByteAlignment - The alignment of the common symbol in bytes.
   virtual void emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                     unsigned ByteAlignment);
+                                     Align ByteAlignment);
 
   /// Emit the zerofill section and an optional symbol.
   ///
   /// \param Section - The zerofill section to create and or to put the symbol
   /// \param Symbol - The zerofill symbol to emit, if non-NULL.
   /// \param Size - The size of the zerofill symbol.
-  /// \param ByteAlignment - The alignment of the zerofill symbol if
-  /// non-zero. This must be a power of 2 on some targets.
+  /// \param ByteAlignment - The alignment of the zerofill symbol.
   virtual void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                            uint64_t Size = 0, unsigned ByteAlignment = 0,
+                            uint64_t Size = 0, Align ByteAlignment = Align(1),
                             SMLoc Loc = SMLoc()) = 0;
 
   /// Emit a thread local bss (.tbss) symbol.
@@ -697,10 +694,9 @@ public:
   /// \param Section - The thread local common section.
   /// \param Symbol - The thread local common symbol to emit.
   /// \param Size - The size of the symbol.
-  /// \param ByteAlignment - The alignment of the thread local common symbol
-  /// if non-zero.  This must be a power of 2 on some targets.
+  /// \param ByteAlignment - The alignment of the thread local common symbol.
   virtual void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                              uint64_t Size, unsigned ByteAlignment = 0);
+                              uint64_t Size, Align ByteAlignment = Align(1));
 
   /// @}
   /// \name Generating Data
@@ -761,11 +757,11 @@ public:
 
   /// Special case of EmitULEB128Value that avoids the client having to
   /// pass in a MCExpr for constant integers.
-  void emitULEB128IntValue(uint64_t Value, unsigned PadTo = 0);
+  unsigned emitULEB128IntValue(uint64_t Value, unsigned PadTo = 0);
 
   /// Special case of EmitSLEB128Value that avoids the client having to
   /// pass in a MCExpr for constant integers.
-  void emitSLEB128IntValue(int64_t Value);
+  unsigned emitSLEB128IntValue(int64_t Value);
 
   /// Special case of EmitValue that avoids the client having to pass in
   /// a MCExpr for MCSymbols.
@@ -908,7 +904,7 @@ public:
   /// implements the DWARF2 '.file 4 "foo.c"' assembler directive.
   unsigned emitDwarfFileDirective(
       unsigned FileNo, StringRef Directory, StringRef Filename,
-      Optional<MD5::MD5Result> Checksum = std::nullopt,
+      std::optional<MD5::MD5Result> Checksum = std::nullopt,
       std::optional<StringRef> Source = std::nullopt, unsigned CUID = 0) {
     return cantFail(
         tryEmitDwarfFileDirective(FileNo, Directory, Filename, Checksum,
@@ -922,12 +918,12 @@ public:
   /// '.file 4 "dir/foo.c" md5 "..." source "..."' assembler directive.
   virtual Expected<unsigned> tryEmitDwarfFileDirective(
       unsigned FileNo, StringRef Directory, StringRef Filename,
-      Optional<MD5::MD5Result> Checksum = std::nullopt,
+      std::optional<MD5::MD5Result> Checksum = std::nullopt,
       std::optional<StringRef> Source = std::nullopt, unsigned CUID = 0);
 
   /// Specify the "root" file of the compilation, using the ".file 0" extension.
   virtual void emitDwarfFile0Directive(StringRef Directory, StringRef Filename,
-                                       Optional<MD5::MD5Result> Checksum,
+                                       std::optional<MD5::MD5Result> Checksum,
                                        std::optional<StringRef> Source,
                                        unsigned CUID = 0);
 
@@ -1084,9 +1080,9 @@ public:
 
   virtual void emitSyntaxDirective();
 
-  /// Record a relocation described by the .reloc directive. Return None if
-  /// succeeded. Otherwise, return a pair (Name is invalid, error message).
-  virtual Optional<std::pair<bool, std::string>>
+  /// Record a relocation described by the .reloc directive. Return std::nullopt
+  /// if succeeded. Otherwise, return a pair (Name is invalid, error message).
+  virtual std::optional<std::pair<bool, std::string>>
   emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
                      SMLoc Loc, const MCSubtargetInfo &STI) {
     return std::nullopt;

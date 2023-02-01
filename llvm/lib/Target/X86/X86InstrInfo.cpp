@@ -3573,7 +3573,7 @@ void X86InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   report_fatal_error("Cannot emit physreg copy instruction");
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 X86InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg())
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
@@ -3728,7 +3728,7 @@ static unsigned getLoadStoreRegOpcode(Register Reg,
   }
 }
 
-Optional<ExtAddrMode>
+std::optional<ExtAddrMode>
 X86InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
                                       const TargetRegisterInfo *TRI) const {
   const MCInstrDesc &Desc = MemI.getDesc();
@@ -3757,7 +3757,7 @@ X86InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
 
 bool X86InstrInfo::verifyInstruction(const MachineInstr &MI,
                                      StringRef &ErrInfo) const {
-  Optional<ExtAddrMode> AMOrNone = getAddrModeFromMemoryOp(MI, nullptr);
+  std::optional<ExtAddrMode> AMOrNone = getAddrModeFromMemoryOp(MI, nullptr);
   if (!AMOrNone)
     return true;
 
@@ -3926,12 +3926,10 @@ void X86InstrInfo::loadStoreTileReg(MachineBasicBlock &MBB,
   }
 }
 
-void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-                                       MachineBasicBlock::iterator MI,
-                                       Register SrcReg, bool isKill,
-                                       int FrameIdx,
-                                       const TargetRegisterClass *RC,
-                                       const TargetRegisterInfo *TRI) const {
+void X86InstrInfo::storeRegToStackSlot(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg,
+    bool isKill, int FrameIdx, const TargetRegisterClass *RC,
+    const TargetRegisterInfo *TRI, Register VReg) const {
   const MachineFunction &MF = *MBB.getParent();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
@@ -3954,7 +3952,8 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         Register DestReg, int FrameIdx,
                                         const TargetRegisterClass *RC,
-                                        const TargetRegisterInfo *TRI) const {
+                                        const TargetRegisterInfo *TRI,
+                                        Register VReg) const {
   const MachineFunction &MF = *MBB.getParent();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
@@ -8716,7 +8715,10 @@ bool X86InstrInfo::hasReassociableOperands(const MachineInstr &Inst,
 //       1. Other data types (integer, vectors)
 //       2. Other math / logic operations (xor, or)
 //       3. Other forms of the same operation (intrinsics and other variants)
-bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
+bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
+                                               bool Invert) const {
+  if (Invert)
+    return false;
   switch (Inst.getOpcode()) {
   case X86::ADD8rr:
   case X86::ADD16rr:
@@ -9041,7 +9043,7 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
 /// If \p DescribedReg overlaps with the MOVrr instruction's destination
 /// register then, if possible, describe the value in terms of the source
 /// register.
-static Optional<ParamLoadedValue>
+static std::optional<ParamLoadedValue>
 describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
                          const TargetRegisterInfo *TRI) {
   Register DestReg = MI.getOperand(0).getReg();
@@ -9074,7 +9076,7 @@ describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
   return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
 }
 
-Optional<ParamLoadedValue>
+std::optional<ParamLoadedValue>
 X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
   const MachineOperand *Op = nullptr;
   DIExpression *Expr = nullptr;

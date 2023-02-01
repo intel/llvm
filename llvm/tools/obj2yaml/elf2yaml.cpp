@@ -54,11 +54,11 @@ class ELFDumper {
   Expected<std::vector<ELFYAML::ProgramHeader>>
   dumpProgramHeaders(ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Sections);
 
-  Optional<DWARFYAML::Data>
+  std::optional<DWARFYAML::Data>
   dumpDWARFSections(std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections);
 
   Error dumpSymbols(const Elf_Shdr *Symtab,
-                    Optional<std::vector<ELFYAML::Symbol>> &Symbols);
+                    std::optional<std::vector<ELFYAML::Symbol>> &Symbols);
   Error dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
                    StringRef StrTable, ELFYAML::Symbol &S);
   Expected<std::vector<std::unique_ptr<ELFYAML::Chunk>>> dumpSections();
@@ -102,7 +102,7 @@ class ELFDumper {
   dumpPlaceholderSection(const Elf_Shdr *Shdr);
 
   bool shouldPrintSection(const ELFYAML::Section &S, const Elf_Shdr &SHdr,
-                          Optional<DWARFYAML::Data> DWARF);
+                          std::optional<DWARFYAML::Data> DWARF);
 
 public:
   ELFDumper(const object::ELFFile<ELFT> &O, std::unique_ptr<DWARFContext> DCtx);
@@ -183,7 +183,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
 template <class ELFT>
 bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
                                          const Elf_Shdr &SHdr,
-                                         Optional<DWARFYAML::Data> DWARF) {
+                                         std::optional<DWARFYAML::Data> DWARF) {
   // We only print the SHT_NULL section at index 0 when it
   // has at least one non-null field, because yaml2obj
   // normally creates the zero section at index 0 implicitly.
@@ -402,10 +402,10 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   }
 
   llvm::erase_if(Chunks, [this, &Y](const std::unique_ptr<ELFYAML::Chunk> &C) {
-    if (isa<ELFYAML::SectionHeaderTable>(*C.get()))
+    if (isa<ELFYAML::SectionHeaderTable>(*C))
       return false;
 
-    const ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+    const ELFYAML::Section &S = cast<ELFYAML::Section>(*C);
     return !shouldPrintSection(S, Sections[S.OriginalSecNdx], Y->DWARF);
   });
 
@@ -495,7 +495,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
     // It is not possible to have a non-Section chunk, because
     // obj2yaml does not create Fill chunks.
     for (const std::unique_ptr<ELFYAML::Chunk> &C : Chunks) {
-      ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+      ELFYAML::Section &S = cast<ELFYAML::Section>(*C);
       if (isInSegment<ELFT>(S, Sections[S.OriginalSecNdx], Phdr)) {
         if (!PH.FirstSec)
           PH.FirstSec = S.Name;
@@ -511,7 +511,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
 }
 
 template <class ELFT>
-Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
+std::optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
     std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections) {
   DWARFYAML::Data DWARF;
   for (std::unique_ptr<ELFYAML::Chunk> &C : Sections) {
@@ -530,13 +530,13 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
       cantFail(std::move(Err));
 
       if (RawSec->Name == ".debug_aranges")
-        Err = dumpDebugARanges(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugARanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_str")
-        Err = dumpDebugStrings(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugStrings(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_ranges")
-        Err = dumpDebugRanges(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugRanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_addr")
-        Err = dumpDebugAddr(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugAddr(*DWARFCtx, DWARF);
       else
         continue;
 
@@ -674,7 +674,8 @@ ELFDumper<ELFT>::dumpSections() {
 
 template <class ELFT>
 Error ELFDumper<ELFT>::dumpSymbols(
-    const Elf_Shdr *Symtab, Optional<std::vector<ELFYAML::Symbol>> &Symbols) {
+    const Elf_Shdr *Symtab,
+    std::optional<std::vector<ELFYAML::Symbol>> &Symbols) {
   if (!Symtab)
     return Error::success();
 

@@ -95,14 +95,20 @@ static bool contractSupportsMMAMatrixType(vector::ContractionOp contract,
 // Return true if the given map represents a transposed matrix load,
 // i.e. (d0, d1, ...) -> (dn-1, dn-2).
 static bool isTransposeMatrixLoadMap(OpBuilder &b, AffineMap permutationMap) {
+  MLIRContext *ctx = b.getContext();
   auto nDim = permutationMap.getNumDims();
-  if (nDim < 2)
-    return false;
+  AffineExpr zero = b.getAffineConstantExpr(0);
+  if (nDim < 2) {
+    // Support transposed+broadcasted cases: affine_map<(d0) -> (d0, 0)>.
+    AffineExpr dim0 = b.getAffineDimExpr(0);
+    return permutationMap == AffineMap::get(1, 0, {dim0, zero}, ctx);
+  }
 
   AffineExpr innerDim = b.getAffineDimExpr(nDim - 1);
   AffineExpr outerDim = b.getAffineDimExpr(nDim - 2);
-  return permutationMap ==
-         AffineMap::get(nDim, 0, {innerDim, outerDim}, b.getContext());
+  // Support both transposed and transposed+broadcasted cases.
+  return permutationMap == AffineMap::get(nDim, 0, {innerDim, outerDim}, ctx) ||
+         permutationMap == AffineMap::get(nDim, 0, {innerDim, zero}, ctx);
 }
 
 // Return the stide for the dimension 0 of |type| if it is a memref and has a
@@ -184,19 +190,33 @@ static bool broadcastSupportsMMAMatrixType(vector::BroadcastOp broadcastOp) {
 }
 
 /// Return the MMA elementwise enum associated with `op` if it is supported.
-/// Return `llvm::None` otherwise.
+/// Return `std::nullopt` otherwise.
 static std::optional<gpu::MMAElementwiseOp>
 convertElementwiseOpToMMA(Operation *op) {
   if (isa<arith::AddFOp>(op))
     return gpu::MMAElementwiseOp::ADDF;
   if (isa<arith::MulFOp>(op))
     return gpu::MMAElementwiseOp::MULF;
+  if (isa<arith::SubFOp>(op))
+    return gpu::MMAElementwiseOp::SUBF;
   if (isa<arith::MaxFOp>(op))
     return gpu::MMAElementwiseOp::MAXF;
   if (isa<arith::MinFOp>(op))
     return gpu::MMAElementwiseOp::MINF;
   if (isa<arith::DivFOp>(op))
     return gpu::MMAElementwiseOp::DIVF;
+  if (isa<arith::AddIOp>(op))
+    return gpu::MMAElementwiseOp::ADDI;
+  if (isa<arith::MulIOp>(op))
+    return gpu::MMAElementwiseOp::MULI;
+  if (isa<arith::SubIOp>(op))
+    return gpu::MMAElementwiseOp::SUBI;
+  if (isa<arith::DivSIOp>(op))
+    return gpu::MMAElementwiseOp::DIVS;
+  if (isa<arith::DivUIOp>(op))
+    return gpu::MMAElementwiseOp::DIVU;
+  if (isa<arith::NegFOp>(op))
+    return gpu::MMAElementwiseOp::NEGATEF;
   return std::nullopt;
 }
 
@@ -444,12 +464,18 @@ static void convertTransferReadOp(vector::TransferReadOp op,
                                   llvm::DenseMap<Value, Value> &valueMapping) {
   assert(op.getTransferRank() > 0 && "unexpected 0-d transfer");
   assert(transferReadSupportsMMAMatrixType(op, /*useNvGpu=*/false));
+
   std::optional<int64_t> stride =
       getMemrefConstantHorizontalStride(op.getShapedType());
+
   AffineMap map = op.getPermutationMap();
+  OpBuilder b(op);
+  bool isTranspose = isTransposeMatrixLoadMap(b, map);
+
   // Handle broadcast by setting the stride to 0.
-  if (map.getResult(0).isa<AffineConstantExpr>()) {
-    assert(map.getResult(0).cast<AffineConstantExpr>().getValue() == 0);
+  if (auto cstExpr =
+          map.getResult(isTranspose).dyn_cast<AffineConstantExpr>()) {
+    assert(cstExpr.getValue() == 0);
     stride = 0;
   }
   assert(stride);
@@ -457,8 +483,6 @@ static void convertTransferReadOp(vector::TransferReadOp op,
   gpu::MMAMatrixType type =
       gpu::MMAMatrixType::get(op.getVectorType().getShape(),
                               op.getVectorType().getElementType(), fragType);
-  OpBuilder b(op);
-  bool isTranspose = isTransposeMatrixLoadMap(b, map);
   Value load = b.create<gpu::SubgroupMmaLoadMatrixOp>(
       op.getLoc(), type, op.getSource(), op.getIndices(),
       b.getIndexAttr(*stride), isTranspose ? b.getUnitAttr() : UnitAttr());
@@ -473,9 +497,9 @@ static void convertTransferWriteOp(vector::TransferWriteOp op,
   assert(stride);
   OpBuilder b(op);
   Value matrix = valueMapping.find(op.getVector())->second;
-  b.create<gpu::SubgroupMmaStoreMatrixOp>(op.getLoc(), matrix, op.getSource(),
-                                          op.getIndices(),
-                                          b.getIndexAttr(*stride));
+  b.create<gpu::SubgroupMmaStoreMatrixOp>(
+      op.getLoc(), matrix, op.getSource(), op.getIndices(),
+      b.getIndexAttr(*stride), /*transpose=*/UnitAttr());
   op.erase();
 }
 
@@ -800,8 +824,9 @@ static void convertContractOp(vector::ContractionOp op,
   Value opA = valueMapping.find(op.getLhs())->second;
   Value opB = valueMapping.find(op.getRhs())->second;
   Value opC = valueMapping.find(op.getAcc())->second;
-  Value matmul = b.create<gpu::SubgroupMmaComputeOp>(op.getLoc(), opC.getType(),
-                                                     opA, opB, opC);
+  Value matmul = b.create<gpu::SubgroupMmaComputeOp>(
+      op.getLoc(), opC.getType(), opA, opB, opC, /*a_transpose=*/UnitAttr(),
+      /*b_transpose=*/UnitAttr());
   valueMapping[op.getResult()] = matmul;
 }
 

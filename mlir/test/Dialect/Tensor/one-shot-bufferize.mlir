@@ -114,7 +114,7 @@ func.func @insert_slice_fun_not_inplace(
     %t : tensor<4xf32> {bufferization.writable = false})
   -> tensor<?xf32>
 {
-  //      CHECK: %[[ALLOC:.*]] = memref.alloc(%{{.*}}) {alignment = 128 : i64} : memref<?xf32>
+  //      CHECK: %[[ALLOC:.*]] = memref.alloc(%{{.*}}) {alignment = 64 : i64} : memref<?xf32>
   //      CHECK: memref.copy %[[A]], %[[ALLOC]] : memref<?xf32{{.*}} to memref<?xf32>
   //      CHECK: %[[SV:.*]] = memref.subview %[[ALLOC]][0] [4] [1] : memref<?xf32> to memref<4xf32, strided<[1]>>
   //      CHECK: memref.copy %[[t]], %[[SV]] : memref<4xf32, strided{{.*}}> to memref<4xf32, strided<[1]>>
@@ -329,4 +329,21 @@ func.func @insert_slice_full_overwrite(%t: tensor<10xf32>, %b: tensor<10xf32>) -
   // CHECK: memref.copy %[[b]], %[[t]]
   %2 = tensor.insert_slice %b into %t[0][10][1] : tensor<10xf32> into tensor<10xf32>
   return %2 : tensor<10xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @dim_not_reading(
+//  CHECK-SAME:     %[[t:.*]]: memref<?xf32
+func.func @dim_not_reading(%t: tensor<?xf32>, %f: f32, %pos: index) 
+    -> (tensor<?xf32>, index)
+{
+  %c0 = arith.constant 0 : index
+  // CHECK-NOT: memref.alloc
+  // CHECK-NOT: memref.copy
+  //     CHECK: memref.store %{{.*}}, %[[t]]
+  %0 = tensor.insert %f into %t[%pos] : tensor<?xf32>
+  //     CHECK: memref.dim %[[t]]
+  %1 = tensor.dim %t, %c0 : tensor<?xf32>
+  return %0, %1 : tensor<?xf32>, index
 }

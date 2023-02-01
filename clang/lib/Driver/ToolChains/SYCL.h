@@ -119,7 +119,7 @@ template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
   if (Target.startswith(GPUArh)) {
     return resolveGenDevice(Target);
   }
-  return llvm::None;
+  return  std::nullopt;
 }
 
 } // end namespace gen
@@ -175,7 +175,7 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {\
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
   bool isPICDefaultForced() const override { return false; }

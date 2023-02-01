@@ -150,11 +150,6 @@ ModulePass *createDeadArgEliminationSYCLPass();
 ModulePass *createIPSCCPPass();
 
 //===----------------------------------------------------------------------===//
-/// createFunctionSpecializationPass - This pass propagates constants from call
-/// sites to the specialized version of the callee function.
-ModulePass *createFunctionSpecializationPass();
-
-//===----------------------------------------------------------------------===//
 //
 /// createLoopExtractorPass - This pass extracts all natural loops from the
 /// program into a function if it can.
@@ -165,18 +160,6 @@ Pass *createLoopExtractorPass();
 /// program into a function if it can.  This is used by bugpoint.
 ///
 Pass *createSingleLoopExtractorPass();
-
-/// createBlockExtractorPass - This pass extracts all the specified blocks
-/// from the functions in the module.
-///
-ModulePass *createBlockExtractorPass();
-ModulePass *
-createBlockExtractorPass(const SmallVectorImpl<BasicBlock *> &BlocksToExtract,
-                         bool EraseFunctions);
-ModulePass *
-createBlockExtractorPass(const SmallVectorImpl<SmallVector<BasicBlock *, 16>>
-                             &GroupsOfBlocksToExtract,
-                         bool EraseFunctions);
 
 /// createStripDeadPrototypesPass - This pass removes any function declarations
 /// (prototypes) that are not used.

@@ -15,12 +15,12 @@
 #include "MCTargetDesc/MipsMCTargetDesc.h"
 #include "Mips.h"
 #include "Mips16ISelDAGToDAG.h"
+#include "MipsMachineFunction.h"
 #include "MipsSEISelDAGToDAG.h"
 #include "MipsSubtarget.h"
 #include "MipsTargetObjectFile.h"
 #include "MipsTargetTransformInfo.h"
 #include "TargetInfo/MipsTargetInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -67,6 +67,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMipsTarget() {
   initializeMipsPreLegalizerCombinerPass(*PR);
   initializeMipsPostLegalizerCombinerPass(*PR);
   initializeMipsMulMulBugFixPass(*PR);
+  initializeMipsDAGToDAGISelPass(*PR);
 }
 
 static std::string computeDataLayout(const Triple &TT, StringRef CPU,
@@ -291,6 +292,12 @@ MipsTargetMachine::getTargetTransformInfo(const Function &F) const {
 
   LLVM_DEBUG(errs() << "Target Transform Info Pass Added\n");
   return TargetTransformInfo(MipsTTIImpl(this, F));
+}
+
+MachineFunctionInfo *MipsTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return MipsFunctionInfo::create<MipsFunctionInfo>(Allocator, F, STI);
 }
 
 // Implemented by targets that want to run passes immediately before

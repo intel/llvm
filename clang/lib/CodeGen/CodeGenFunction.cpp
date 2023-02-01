@@ -321,8 +321,10 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
 
 static void EmitIfUsed(CodeGenFunction &CGF, llvm::BasicBlock *BB) {
   if (!BB) return;
-  if (!BB->use_empty())
-    return CGF.CurFn->getBasicBlockList().push_back(BB);
+  if (!BB->use_empty()) {
+    CGF.CurFn->insert(CGF.CurFn->end(), BB);
+    return;
+  }
   delete BB;
 }
 
@@ -499,7 +501,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   // 4. Width of vector arguments and return types for this function.
   // 5. Width of vector aguments and return types for functions called by this
   //    function.
-  CurFn->addFnAttr("min-legal-vector-width", llvm::utostr(LargestVectorWidth));
+  if (getContext().getTargetInfo().getTriple().isX86())
+    CurFn->addFnAttr("min-legal-vector-width",
+                     llvm::utostr(LargestVectorWidth));
 
   // Add vscale_range attribute if appropriate.
   Optional<std::pair<unsigned, unsigned>> VScaleRange =
@@ -613,20 +617,59 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const WorkGroupSizeHintAttr *A = FD->getAttr<WorkGroupSizeHintAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
     Fn->setMetadata("work_group_size_hint", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const SYCLWorkGroupSizeHintAttr *A =
+          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
+
+    // On SYCL target the dimensions are reversed if present.
+    if (ZDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+    if (YDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+    AttrMDArgs.push_back(
+        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+
+    Fn->setMetadata("work_group_size_hint",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
-    // Attributes arguments (first and third) are reversed on SYCLDevice.
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt(
-            getLangOpts().SYCLIsDevice ? *A->getZDimVal() : *A->getXDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(
-            getLangOpts().SYCLIsDevice ? *A->getXDimVal() : *A->getZDimVal()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const SYCLReqdWorkGroupSizeAttr *A =
+          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
+
+    // On SYCL target the dimensions are reversed if present.
+    if (ZDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+    if (YDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+    AttrMDArgs.push_back(
+        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -1152,7 +1195,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // If we're checking nullability, we need to know whether we can check the
   // return value. Initialize the flag to 'true' and refine it in EmitParmDecl.
   if (SanOpts.has(SanitizerKind::NullabilityReturn)) {
-    auto Nullability = FnRetTy->getNullability(getContext());
+    auto Nullability = FnRetTy->getNullability();
     if (Nullability && *Nullability == NullabilityKind::NonNull) {
       if (!(SanOpts.has(SanitizerKind::ReturnsNonnullAttribute) &&
             CurCodeDecl && CurCodeDecl->getAttr<ReturnsNonNullAttr>()))
@@ -1655,13 +1698,18 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
       getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
       FD->hasAttr<CUDADeviceAttr>()) {
-    Fn->setLinkage(llvm::Function::WeakODRLinkage);
     if (FD->getReturnType()->isVoidType())
       Builder.CreateRetVoid();
     else
       Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
     return;
   }
+  // When compiling a CUDA file in SYCL device mode,
+  // set weak ODR linkage for possibly duplicated functions.
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsDevice &&
+      (FD->hasAttr<CUDADeviceAttr>() || FD->hasAttr<CUDAHostAttr>()))
+    Fn->setLinkage(llvm::Function::WeakODRLinkage);
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
@@ -2698,8 +2746,10 @@ llvm::Value *CodeGenFunction::EmitAnnotationCall(llvm::Function *AnnotationFn,
                                                  const AnnotateAttr *Attr) {
   SmallVector<llvm::Value *, 5> Args = {
       AnnotatedVal,
-      Builder.CreateBitCast(CGM.EmitAnnotationString(AnnotationStr), Int8PtrTy),
-      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationString(AnnotationStr),
+                            ConstGlobalsPtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location),
+                            ConstGlobalsPtrTy),
       CGM.EmitAnnotationLineNo(Location),
   };
   if (Attr)
@@ -2710,7 +2760,7 @@ llvm::Value *CodeGenFunction::EmitAnnotationCall(llvm::Function *AnnotationFn,
     const llvm::Intrinsic::ID ID = AnnotationFn->getIntrinsicID();
     if (ID == llvm::Intrinsic::ptr_annotation ||
         ID == llvm::Intrinsic::var_annotation)
-      Args.push_back(llvm::ConstantPointerNull::get(Int8PtrTy));
+      Args.push_back(llvm::ConstantPointerNull::get(ConstGlobalsPtrTy));
   }
   return Builder.CreateCall(AnnotationFn, Args);
 }
@@ -2719,9 +2769,12 @@ void CodeGenFunction::EmitVarAnnotations(const VarDecl *D, llvm::Value *V) {
   assert(D->hasAttr<AnnotateAttr>() && "no annotate attribute");
   // FIXME We create a new bitcast for every annotation because that's what
   // llvm-gcc was doing.
+  unsigned AS = V->getType()->getPointerAddressSpace();
+  llvm::Type *I8PtrTy = Builder.getInt8PtrTy(AS);
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
-    EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation),
-                       Builder.CreateBitCast(V, CGM.Int8PtrTy, V->getName()),
+    EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
+                                        {I8PtrTy, CGM.ConstGlobalsPtrTy}),
+                       Builder.CreateBitCast(V, I8PtrTy, V->getName()),
                        I->getAnnotation(), D->getLocation(), I);
 }
 
@@ -2735,19 +2788,18 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   llvm::PointerType *IntrinTy =
       llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
 
+  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                       {IntrinTy, CGM.ConstGlobalsPtrTy});
+
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (Addr.getElementType()->isIntegerTy()) {
-    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
     return Address(V, Addr.getElementType(), Addr.getAlignment());
   }
-
-  llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrinTy);
 
   for (const auto *I : D->specific_attrs<AnnotateAttr>()) {
     V = Builder.CreateBitCast(V, IntrinTy);
@@ -2764,8 +2816,9 @@ llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
   SmallVector<llvm::Value *, 5> Args = {
       AnnotatedVal,
       Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
-                            Int8PtrTy),
-      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
+                            ConstGlobalsPtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location),
+                            ConstGlobalsPtrTy),
       CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Attr)};
   return Builder.CreateCall(AnnotationFn, Args);
 }
@@ -2781,8 +2834,8 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
   llvm::Type *IntrType = VTy;
   if (!Addr.getElementType()->isIntegerTy())
     IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
-  llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrType);
+  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                       {IntrType, CGM.ConstGlobalsPtrTy});
 
   if (VTy != IntrType)
     V = Builder.CreateBitCast(V, IntrType);
@@ -2806,8 +2859,8 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (Addr.getElementType()->isIntegerTy()) {
-    llvm::Function *F =
-        CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                         {VTy, CGM.ConstGlobalsPtrTy});
     V = EmitAnnotationCall(F, V, AnnotStr, Location);
 
     return Address(V, Addr.getElementType(), Addr.getAlignment());
@@ -2815,8 +2868,8 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
 
   unsigned AS = VTy->getPointerAddressSpace();
   llvm::Type *Int8VPtrTy = llvm::Type::getInt8PtrTy(CGM.getLLVMContext(), AS);
-  llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, Int8VPtrTy);
+  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                       {Int8VPtrTy, CGM.ConstGlobalsPtrTy});
   V = Builder.CreateBitCast(V, Int8VPtrTy);
   V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
@@ -2940,8 +2993,22 @@ void CodeGenFunction::EmitKCFIOperandBundle(
     Bundles.emplace_back("kcfi", CGM.CreateKCFITypeId(FP->desugar()));
 }
 
-llvm::Value *
-CodeGenFunction::FormResolverCondition(const MultiVersionResolverOption &RO) {
+llvm::Value *CodeGenFunction::FormAArch64ResolverCondition(
+    const MultiVersionResolverOption &RO) {
+  llvm::SmallVector<StringRef, 8> CondFeatures;
+  for (const StringRef &Feature : RO.Conditions.Features) {
+    // Form condition for features which are not yet enabled in target
+    if (!getContext().getTargetInfo().hasFeature(Feature))
+      CondFeatures.push_back(Feature);
+  }
+  if (!CondFeatures.empty()) {
+    return EmitAArch64CpuSupports(CondFeatures);
+  }
+  return nullptr;
+}
+
+llvm::Value *CodeGenFunction::FormX86ResolverCondition(
+    const MultiVersionResolverOption &RO) {
   llvm::Value *Condition = nullptr;
 
   if (!RO.Conditions.Architecture.empty())
@@ -2979,8 +3046,72 @@ static void CreateMultiVersionResolverReturn(CodeGenModule &CGM,
 
 void CodeGenFunction::EmitMultiVersionResolver(
     llvm::Function *Resolver, ArrayRef<MultiVersionResolverOption> Options) {
-  assert(getContext().getTargetInfo().getTriple().isX86() &&
-         "Only implemented for x86 targets");
+
+  llvm::Triple::ArchType ArchType =
+      getContext().getTargetInfo().getTriple().getArch();
+
+  switch (ArchType) {
+  case llvm::Triple::x86:
+  case llvm::Triple::x86_64:
+    EmitX86MultiVersionResolver(Resolver, Options);
+    return;
+  case llvm::Triple::aarch64:
+    EmitAArch64MultiVersionResolver(Resolver, Options);
+    return;
+
+  default:
+    assert(false && "Only implemented for x86 and AArch64 targets");
+  }
+}
+
+void CodeGenFunction::EmitAArch64MultiVersionResolver(
+    llvm::Function *Resolver, ArrayRef<MultiVersionResolverOption> Options) {
+  assert(!Options.empty() && "No multiversion resolver options found");
+  assert(Options.back().Conditions.Features.size() == 0 &&
+         "Default case must be last");
+  bool SupportsIFunc = getContext().getTargetInfo().supportsIFunc();
+  assert(SupportsIFunc &&
+         "Multiversion resolver requires target IFUNC support");
+  bool AArch64CpuInitialized = false;
+  llvm::BasicBlock *CurBlock = createBasicBlock("resolver_entry", Resolver);
+
+  for (const MultiVersionResolverOption &RO : Options) {
+    Builder.SetInsertPoint(CurBlock);
+    llvm::Value *Condition = FormAArch64ResolverCondition(RO);
+
+    // The 'default' or 'all features enabled' case.
+    if (!Condition) {
+      CreateMultiVersionResolverReturn(CGM, Resolver, Builder, RO.Function,
+                                       SupportsIFunc);
+      return;
+    }
+
+    if (!AArch64CpuInitialized) {
+      Builder.SetInsertPoint(CurBlock, CurBlock->begin());
+      EmitAArch64CpuInit();
+      AArch64CpuInitialized = true;
+      Builder.SetInsertPoint(CurBlock);
+    }
+
+    llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
+    CGBuilderTy RetBuilder(*this, RetBlock);
+    CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder, RO.Function,
+                                     SupportsIFunc);
+    CurBlock = createBasicBlock("resolver_else", Resolver);
+    Builder.CreateCondBr(Condition, RetBlock, CurBlock);
+  }
+
+  // If no default, emit an unreachable.
+  Builder.SetInsertPoint(CurBlock);
+  llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  Builder.CreateUnreachable();
+  Builder.ClearInsertionPoint();
+}
+
+void CodeGenFunction::EmitX86MultiVersionResolver(
+    llvm::Function *Resolver, ArrayRef<MultiVersionResolverOption> Options) {
 
   bool SupportsIFunc = getContext().getTargetInfo().supportsIFunc();
 
@@ -2991,7 +3122,7 @@ void CodeGenFunction::EmitMultiVersionResolver(
 
   for (const MultiVersionResolverOption &RO : Options) {
     Builder.SetInsertPoint(CurBlock);
-    llvm::Value *Condition = FormResolverCondition(RO);
+    llvm::Value *Condition = FormX86ResolverCondition(RO);
 
     // The 'default' or 'generic' case.
     if (!Condition) {

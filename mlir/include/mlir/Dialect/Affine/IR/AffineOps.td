@@ -224,12 +224,12 @@ def AffineForOp : Affine_Op<"for",
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "int64_t":$lowerBound, "int64_t":$upperBound,
-      CArg<"int64_t", "1">:$step, CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"int64_t", "1">:$step, CArg<"ValueRange", "std::nullopt">:$iterArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">:$bodyBuilder)>,
     OpBuilder<(ins "ValueRange":$lbOperands, "AffineMap":$lbMap,
       "ValueRange":$ubOperands, "AffineMap":$ubMap, CArg<"int64_t", "1">:$step,
-      CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"ValueRange", "std::nullopt">:$iterArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">:$bodyBuilder)>
   ];
@@ -708,7 +708,7 @@ def AffineParallelOp : Affine_Op<"parallel",
     unsigned getNumDims();
 
     /// Get ranges as constants, may fail in dynamic case.
-    Optional<SmallVector<int64_t, 8>> getConstantRanges();
+    std::optional<SmallVector<int64_t, 8>> getConstantRanges();
 
     Block *getBody();
     OpBuilder getBodyBuilder();
@@ -925,7 +925,7 @@ def AffineYieldOp : Affine_Op<"yield", [Pure, Terminator, ReturnLike,
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
   ];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

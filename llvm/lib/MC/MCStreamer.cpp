@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -160,20 +159,22 @@ void MCStreamer::emitIntValue(APInt Value) {
 
 /// EmitULEB128IntValue - Special case of EmitULEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
+unsigned MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeULEB128(Value, OSE, PadTo);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 /// EmitSLEB128IntValue - Special case of EmitSLEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitSLEB128IntValue(int64_t Value) {
+unsigned MCStreamer::emitSLEB128IntValue(int64_t Value) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeSLEB128(Value, OSE);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 void MCStreamer::emitValue(const MCExpr *Value, unsigned Size, SMLoc Loc) {
@@ -227,19 +228,17 @@ void llvm::MCStreamer::emitNops(int64_t NumBytes, int64_t ControlledNopLen,
 /// The implementation in this class just redirects to emitFill.
 void MCStreamer::emitZeros(uint64_t NumBytes) { emitFill(NumBytes, 0); }
 
-Expected<unsigned>
-MCStreamer::tryEmitDwarfFileDirective(unsigned FileNo, StringRef Directory,
-                                      StringRef Filename,
-                                      Optional<MD5::MD5Result> Checksum,
-                                      std::optional<StringRef> Source,
-                                      unsigned CUID) {
+Expected<unsigned> MCStreamer::tryEmitDwarfFileDirective(
+    unsigned FileNo, StringRef Directory, StringRef Filename,
+    std::optional<MD5::MD5Result> Checksum, std::optional<StringRef> Source,
+    unsigned CUID) {
   return getContext().getDwarfFile(Directory, Filename, FileNo, Checksum,
                                    Source, CUID);
 }
 
 void MCStreamer::emitDwarfFile0Directive(StringRef Directory,
                                          StringRef Filename,
-                                         Optional<MD5::MD5Result> Checksum,
+                                         std::optional<MD5::MD5Result> Checksum,
                                          std::optional<StringRef> Source,
                                          unsigned CUID) {
   getContext().setMCLineTableRootFile(CUID, Directory, Filename, Checksum,
@@ -1205,9 +1204,9 @@ void MCStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {}
 void MCStreamer::emitELFSymverDirective(const MCSymbol *OriginalSym,
                                         StringRef Name, bool KeepOriginalSym) {}
 void MCStreamer::emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                       unsigned ByteAlignment) {}
+                                       Align ByteAlignment) {}
 void MCStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                uint64_t Size, unsigned ByteAlignment) {}
+                                uint64_t Size, Align ByteAlignment) {}
 void MCStreamer::changeSection(MCSection *, const MCExpr *) {}
 void MCStreamer::emitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) {}
 void MCStreamer::emitBytes(StringRef Data) {}

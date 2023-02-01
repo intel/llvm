@@ -13,7 +13,6 @@
 #include "llvm/AsmParser/LLParser.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -1471,7 +1470,7 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     return false;
   }
   case Attribute::Memory: {
-    Optional<MemoryEffects> ME = parseMemoryAttr();
+    std::optional<MemoryEffects> ME = parseMemoryAttr();
     if (!ME)
       return true;
     B.addMemoryAttr(*ME);
@@ -1787,8 +1786,34 @@ bool LLParser::parseOptionalAddrSpace(unsigned &AddrSpace, unsigned DefaultAS) {
   AddrSpace = DefaultAS;
   if (!EatIfPresent(lltok::kw_addrspace))
     return false;
+
+  auto ParseAddrspaceValue = [&](unsigned &AddrSpace) -> bool {
+    if (Lex.getKind() == lltok::StringConstant) {
+      auto AddrSpaceStr = Lex.getStrVal();
+      if (AddrSpaceStr == "A") {
+        AddrSpace = M->getDataLayout().getAllocaAddrSpace();
+      } else if (AddrSpaceStr == "G") {
+        AddrSpace = M->getDataLayout().getDefaultGlobalsAddressSpace();
+      } else if (AddrSpaceStr == "P") {
+        AddrSpace = M->getDataLayout().getProgramAddressSpace();
+      } else {
+        return tokError("invalid symbolic addrspace '" + AddrSpaceStr + "'");
+      }
+      Lex.Lex();
+      return false;
+    }
+    if (Lex.getKind() != lltok::APSInt)
+      return tokError("expected integer or string constant");
+    SMLoc Loc = Lex.getLoc();
+    if (parseUInt32(AddrSpace))
+      return true;
+    if (!isUInt<24>(AddrSpace))
+      return error(Loc, "invalid address space, must be a 24-bit integer");
+    return false;
+  };
+
   return parseToken(lltok::lparen, "expected '(' in address space") ||
-         parseUInt32(AddrSpace) ||
+         ParseAddrspaceValue(AddrSpace) ||
          parseToken(lltok::rparen, "expected ')' in address space");
 }
 
@@ -2237,7 +2262,7 @@ bool LLParser::parseAllocKind(AllocFnKind &Kind) {
   return false;
 }
 
-static Optional<MemoryEffects::Location> keywordToLoc(lltok::Kind Tok) {
+static std::optional<MemoryEffects::Location> keywordToLoc(lltok::Kind Tok) {
   switch (Tok) {
   case lltok::kw_argmem:
     return MemoryEffects::ArgMem;
@@ -2248,7 +2273,7 @@ static Optional<MemoryEffects::Location> keywordToLoc(lltok::Kind Tok) {
   }
 }
 
-static Optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
+static std::optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
   switch (Tok) {
   case lltok::kw_none:
     return ModRefInfo::NoModRef;
@@ -2263,7 +2288,7 @@ static Optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
   }
 }
 
-Optional<MemoryEffects> LLParser::parseMemoryAttr() {
+std::optional<MemoryEffects> LLParser::parseMemoryAttr() {
   MemoryEffects ME = MemoryEffects::none();
 
   // We use syntax like memory(argmem: read), so the colon should not be
@@ -2279,7 +2304,7 @@ Optional<MemoryEffects> LLParser::parseMemoryAttr() {
 
   bool SeenLoc = false;
   do {
-    Optional<MemoryEffects::Location> Loc = keywordToLoc(Lex.getKind());
+    std::optional<MemoryEffects::Location> Loc = keywordToLoc(Lex.getKind());
     if (Loc) {
       Lex.Lex();
       if (!EatIfPresent(lltok::colon)) {
@@ -2288,7 +2313,7 @@ Optional<MemoryEffects> LLParser::parseMemoryAttr() {
       }
     }
 
-    Optional<ModRefInfo> MR = keywordToModRef(Lex.getKind());
+    std::optional<ModRefInfo> MR = keywordToModRef(Lex.getKind());
     if (!MR) {
       if (!Loc)
         tokError("expected memory location (argmem, inaccessiblemem) "
@@ -2573,6 +2598,12 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
         return false;
     }
     break;
+  case lltok::kw_target: {
+    // Type ::= TargetExtType
+    if (parseTargetExtType(Result))
+      return true;
+    break;
+  }
   case lltok::lbrace:
     // Type ::= StructType
     if (parseAnonStructType(Result, false))
@@ -3080,6 +3111,60 @@ bool LLParser::parseArrayVectorType(Type *&Result, bool IsVector) {
   return false;
 }
 
+/// parseTargetExtType - handle target extension type syntax
+///   TargetExtType
+///     ::= 'target' '(' STRINGCONSTANT TargetExtTypeParams TargetExtIntParams ')'
+///
+///   TargetExtTypeParams
+///     ::= /*empty*/
+///     ::= ',' Type TargetExtTypeParams
+///
+///   TargetExtIntParams
+///     ::= /*empty*/
+///     ::= ',' uint32 TargetExtIntParams
+bool LLParser::parseTargetExtType(Type *&Result) {
+  Lex.Lex(); // Eat the 'target' keyword.
+
+  // Get the mandatory type name.
+  std::string TypeName;
+  if (parseToken(lltok::lparen, "expected '(' in target extension type") ||
+      parseStringConstant(TypeName))
+    return true;
+
+  // Parse all of the integer and type parameters at the same time; the use of
+  // SeenInt will allow us to catch cases where type parameters follow integer
+  // parameters.
+  SmallVector<Type *> TypeParams;
+  SmallVector<unsigned> IntParams;
+  bool SeenInt = false;
+  while (Lex.getKind() == lltok::comma) {
+    Lex.Lex(); // Eat the comma.
+
+    if (Lex.getKind() == lltok::APSInt) {
+      SeenInt = true;
+      unsigned IntVal;
+      if (parseUInt32(IntVal))
+        return true;
+      IntParams.push_back(IntVal);
+    } else if (SeenInt) {
+      // The only other kind of parameter we support is type parameters, which
+      // must precede the integer parameters. This is therefore an error.
+      return tokError("expected uint32 param");
+    } else {
+      Type *TypeParam;
+      if (parseType(TypeParam, /*AllowVoid=*/true))
+        return true;
+      TypeParams.push_back(TypeParam);
+    }
+  }
+
+  if (parseToken(lltok::rparen, "expected ')' in target extension type"))
+    return true;
+
+  Result = TargetExtType::get(Context, TypeName, TypeParams, IntParams);
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 // Function Semantic Analysis.
 //===----------------------------------------------------------------------===//
@@ -3301,7 +3386,7 @@ BasicBlock *LLParser::PerFunctionState::defineBB(const std::string &Name,
 
   // Move the block to the end of the function.  Forward ref'd blocks are
   // inserted wherever they happen to be referenced.
-  F.getBasicBlockList().splice(F.end(), F.getBasicBlockList(), BB);
+  F.splice(F.end(), &F, BB->getIterator());
 
   // Remove the block from forward ref sets.
   if (Name.empty()) {
@@ -3855,7 +3940,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
         return true;
     }
 
-    Optional<unsigned> InRangeOp;
+    std::optional<unsigned> InRangeOp;
     if (parseGlobalValueVector(
             Elts, Opc == Instruction::GetElementPtr ? &InRangeOp : nullptr) ||
         parseToken(lltok::rparen, "expected ')' in constantexpr"))
@@ -3998,7 +4083,7 @@ bool LLParser::parseOptionalComdat(StringRef GlobalName, Comdat *&C) {
 ///   ::= /*empty*/
 ///   ::= [inrange] TypeAndValue (',' [inrange] TypeAndValue)*
 bool LLParser::parseGlobalValueVector(SmallVectorImpl<Constant *> &Elts,
-                                      Optional<unsigned> *InRangeOp) {
+                                      std::optional<unsigned> *InRangeOp) {
   // Empty list.
   if (Lex.getKind() == lltok::rbrace ||
       Lex.getKind() == lltok::rsquare ||
@@ -4996,11 +5081,11 @@ bool LLParser::parseDIFile(MDNode *&Result, bool IsDistinct) {
   else if (checksumkind.Seen || checksum.Seen)
     return Lex.Error("'checksumkind' and 'checksum' must be provided together");
 
-  std::optional<MDString *> OptSource;
+  MDString *Source = nullptr;
   if (source.Seen)
-    OptSource = source.Val;
-  Result = GET_OR_DISTINCT(DIFile, (Context, filename.Val, directory.Val,
-                                    OptChecksum, OptSource));
+    Source = source.Val;
+  Result = GET_OR_DISTINCT(
+      DIFile, (Context, filename.Val, directory.Val, OptChecksum, Source));
   return false;
 }
 
@@ -5669,6 +5754,9 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
     // FIXME: LabelTy should not be a first-class type.
     if (!Ty->isFirstClassType() || Ty->isLabelTy())
       return error(ID.Loc, "invalid type for null constant");
+    if (auto *TETy = dyn_cast<TargetExtType>(Ty))
+      if (!TETy->hasProperty(TargetExtType::HasZeroInit))
+        return error(ID.Loc, "invalid type for null constant");
     V = Constant::getNullValue(Ty);
     return false;
   case ValID::t_None:
@@ -6141,7 +6229,7 @@ bool LLParser::parseBasicBlock(PerFunctionState &PFS) {
       llvm_unreachable("Unknown parseInstruction result!");
     case InstError: return true;
     case InstNormal:
-      BB->getInstList().push_back(Inst);
+      Inst->insertInto(BB, BB->end());
 
       // With a normal result, we check to see if the instruction is followed by
       // a comma and metadata.
@@ -6150,7 +6238,7 @@ bool LLParser::parseBasicBlock(PerFunctionState &PFS) {
           return true;
       break;
     case InstExtraComma:
-      BB->getInstList().push_back(Inst);
+      Inst->insertInto(BB, BB->end());
 
       // If the instruction parser ate an extra comma at the end of it, it
       // *must* be followed by metadata.

@@ -280,9 +280,9 @@ bool IsPointerDummy(const Symbol &symbol) {
 
 bool IsBindCProcedure(const Symbol &symbol) {
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (const Symbol * procInterface{procDetails->interface().symbol()}) {
+    if (procDetails->procInterface()) {
       // procedure component with a BIND(C) interface
-      return IsBindCProcedure(*procInterface);
+      return IsBindCProcedure(*procDetails->procInterface());
     }
   }
   return symbol.attrs().test(Attr::BIND_C) && IsProcedure(symbol);
@@ -456,7 +456,9 @@ const Symbol *FindInterface(const Symbol &symbol) {
   return common::visit(
       common::visitors{
           [](const ProcEntityDetails &details) {
-            const Symbol *interface { details.interface().symbol() };
+            const Symbol *interface {
+              details.procInterface()
+            };
             return interface ? FindInterface(*interface) : nullptr;
           },
           [](const ProcBindingDetails &details) {
@@ -482,8 +484,8 @@ const Symbol *FindSubprogram(const Symbol &symbol) {
   return common::visit(
       common::visitors{
           [&](const ProcEntityDetails &details) -> const Symbol * {
-            if (const Symbol * interface{details.interface().symbol()}) {
-              return FindSubprogram(*interface);
+            if (details.procInterface()) {
+              return FindSubprogram(*details.procInterface());
             } else {
               return &symbol;
             }
@@ -806,34 +808,6 @@ bool IsModuleProcedure(const Symbol &symbol) {
   return ClassifyProcedure(symbol) == ProcedureDefinitionClass::Module;
 }
 
-PotentialComponentIterator::const_iterator FindPolymorphicPotentialComponent(
-    const DerivedTypeSpec &derived) {
-  PotentialComponentIterator potentials{derived};
-  return std::find_if(
-      potentials.begin(), potentials.end(), [](const Symbol &component) {
-        if (const auto *details{component.detailsIf<ObjectEntityDetails>()}) {
-          const DeclTypeSpec *type{details->type()};
-          return type && type->IsPolymorphic();
-        }
-        return false;
-      });
-}
-
-bool IsOrContainsPolymorphicComponent(const Symbol &original) {
-  const Symbol &symbol{ResolveAssociations(original)};
-  if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
-    if (const DeclTypeSpec * type{details->type()}) {
-      if (type->IsPolymorphic()) {
-        return true;
-      }
-      if (const DerivedTypeSpec * derived{type->AsDerived()}) {
-        return (bool)FindPolymorphicPotentialComponent(*derived);
-      }
-    }
-  }
-  return false;
-}
-
 class ImageControlStmtHelper {
   using ImageControlStmts =
       std::variant<parser::ChangeTeamConstruct, parser::CriticalConstruct,
@@ -1130,6 +1104,9 @@ ComponentIterator<componentKind>::const_iterator::PlanComponentTraversal(
           traverse = !IsPointer(component);
         } else if constexpr (componentKind == ComponentKind::Scope) {
           traverse = !IsAllocatableOrPointer(component);
+        } else if constexpr (componentKind ==
+            ComponentKind::PotentialAndPointer) {
+          traverse = !IsPointer(component);
         }
         if (traverse) {
           const Symbol &newTypeSymbol{derived->typeSymbol()};
@@ -1165,6 +1142,8 @@ static bool StopAtComponentPre(const Symbol &component) {
             component.get<ObjectEntityDetails>().type()->AsIntrinsic());
   } else if constexpr (componentKind == ComponentKind::Potential) {
     return !IsPointer(component);
+  } else if constexpr (componentKind == ComponentKind::PotentialAndPointer) {
+    return true;
   }
 }
 
@@ -1233,6 +1212,7 @@ template class ComponentIterator<ComponentKind::Direct>;
 template class ComponentIterator<ComponentKind::Ultimate>;
 template class ComponentIterator<ComponentKind::Potential>;
 template class ComponentIterator<ComponentKind::Scope>;
+template class ComponentIterator<ComponentKind::PotentialAndPointer>;
 
 UltimateComponentIterator::const_iterator FindCoarrayUltimateComponent(
     const DerivedTypeSpec &derived) {

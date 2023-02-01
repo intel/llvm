@@ -10,6 +10,7 @@ static_library("Analysis") {
     "//llvm/lib/IR",
     "//llvm/lib/ProfileData",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
   ]
   sources = [
     "AliasAnalysis.cpp",
@@ -26,8 +27,6 @@ static_library("Analysis") {
     "CFG.cpp",
     "CFGPrinter.cpp",
     "CFGSCCPrinter.cpp",
-    "CFLAndersAliasAnalysis.cpp",
-    "CFLSteensAliasAnalysis.cpp",
     "CGSCCPassManager.cpp",
     "CallGraph.cpp",
     "CallGraphSCCPass.cpp",
@@ -121,7 +120,6 @@ static_library("Analysis") {
     "SyncDependenceAnalysis.cpp",
     "SyntheticCountsUtils.cpp",
     "TFLiteUtils.cpp",
-    "TFUtils.cpp",
     "TargetLibraryInfo.cpp",
     "TargetTransformInfo.cpp",
     "TensorSpec.cpp",
@@ -129,6 +127,7 @@ static_library("Analysis") {
     "TrainingLogger.cpp",
     "TypeBasedAliasAnalysis.cpp",
     "TypeMetadataUtils.cpp",
+    "UniformityAnalysis.cpp",
     "VFABIDemangling.cpp",
     "ValueLattice.cpp",
     "ValueLatticeUtils.cpp",

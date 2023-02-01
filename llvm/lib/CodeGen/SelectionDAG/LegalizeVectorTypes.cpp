@@ -1012,6 +1012,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
 
   case ISD::ABS:
   case ISD::BITREVERSE:
+  case ISD::VP_BITREVERSE:
   case ISD::BSWAP:
   case ISD::VP_BSWAP:
   case ISD::CTLZ:
@@ -1019,6 +1020,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTLZ_ZERO_UNDEF:
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::CTPOP:
+  case ISD::VP_CTPOP:
   case ISD::FABS: case ISD::VP_FABS:
   case ISD::FCEIL:
   case ISD::VP_FCEIL:
@@ -1113,7 +1115,9 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
     break;
   case ISD::FMA: case ISD::VP_FMA:
   case ISD::FSHL:
+  case ISD::VP_FSHL:
   case ISD::FSHR:
+  case ISD::VP_FSHR:
     SplitVecRes_TernaryOp(N, Lo, Hi);
     break;
 
@@ -4089,11 +4093,13 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
 
   case ISD::ABS:
   case ISD::BITREVERSE:
+  case ISD::VP_BITREVERSE:
   case ISD::BSWAP:
   case ISD::VP_BSWAP:
   case ISD::CTLZ:
   case ISD::CTLZ_ZERO_UNDEF:
   case ISD::CTPOP:
+  case ISD::VP_CTPOP:
   case ISD::CTTZ:
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::FNEG: case ISD::VP_FNEG:
@@ -4113,7 +4119,9 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
     break;
   case ISD::FMA: case ISD::VP_FMA:
   case ISD::FSHL:
+  case ISD::VP_FSHL:
   case ISD::FSHR:
+  case ISD::VP_FSHR:
     Res = WidenVecRes_Ternary(N);
     break;
   }
@@ -6587,9 +6595,10 @@ SDValue DAGTypeLegalizer::WidenVecOp_VSELECT(SDNode *N) {
 //  Align:     If 0, don't allow use of a wider type
 //  WidenEx:   If Align is not 0, the amount additional we can load/store from.
 
-static Optional<EVT> findMemType(SelectionDAG &DAG, const TargetLowering &TLI,
-                                 unsigned Width, EVT WidenVT,
-                                 unsigned Align = 0, unsigned WidenEx = 0) {
+static std::optional<EVT> findMemType(SelectionDAG &DAG,
+                                      const TargetLowering &TLI, unsigned Width,
+                                      EVT WidenVT, unsigned Align = 0,
+                                      unsigned WidenEx = 0) {
   EVT WidenEltVT = WidenVT.getVectorElementType();
   const bool Scalable = WidenVT.isScalableVector();
   unsigned WidenWidth = WidenVT.getSizeInBits().getKnownMinSize();
@@ -6712,7 +6721,7 @@ SDValue DAGTypeLegalizer::GenWidenVectorLoads(SmallVectorImpl<SDValue> &LdChain,
       (!LD->isSimple() || LdVT.isScalableVector()) ? 0 : LD->getAlign().value();
 
   // Find the vector type that can load from.
-  Optional<EVT> FirstVT =
+  std::optional<EVT> FirstVT =
       findMemType(DAG, TLI, LdWidth.getKnownMinSize(), WidenVT, LdAlign,
                   WidthDiff.getKnownMinSize());
 
@@ -6725,7 +6734,7 @@ SDValue DAGTypeLegalizer::GenWidenVectorLoads(SmallVectorImpl<SDValue> &LdChain,
   // Unless we're able to load in one instruction we must work out how to load
   // the remainder.
   if (!TypeSize::isKnownLE(LdWidth, FirstVTWidth)) {
-    Optional<EVT> NewVT = FirstVT;
+    std::optional<EVT> NewVT = FirstVT;
     TypeSize RemainingWidth = LdWidth;
     TypeSize NewVTWidth = FirstVTWidth;
     do {
@@ -6948,7 +6957,7 @@ bool DAGTypeLegalizer::GenWidenVectorStores(SmallVectorImpl<SDValue> &StChain,
 
   while (StWidth.isNonZero()) {
     // Find the largest vector type we can store with.
-    Optional<EVT> NewVT =
+    std::optional<EVT> NewVT =
         findMemType(DAG, TLI, StWidth.getKnownMinSize(), ValVT);
     if (!NewVT)
       return false;

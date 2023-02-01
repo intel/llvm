@@ -102,6 +102,7 @@
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine InstCombiner
 ; RV64-NEXT:        RISCV sext.w Removal
+; RV64-NEXT:        RISCV Strip W Suffix
 ; CHECK-NEXT:       RISCV Pre-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       RISCV Merge Base Offset
 ; CHECK-NEXT:       RISCV Insert VSETVLI pass
@@ -144,6 +145,7 @@
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       Shrink Wrapping analysis
 ; CHECK-NEXT:       Prologue/Epilogue Insertion & Frame Finalization
+; CHECK-NEXT:       Machine Late Instructions Cleanup Pass
 ; CHECK-NEXT:       Control Flow Optimizer
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Tail Duplication
@@ -164,6 +166,7 @@
 ; CHECK-NEXT:       Contiguously Lay Out Funclets
 ; CHECK-NEXT:       StackMap Liveness Analysis
 ; CHECK-NEXT:       Live DEBUG_VALUE analysis
+; CHECK-NEXT:       Machine Sanitizer Binary Metadata
 ; CHECK-NEXT:     Machine Outliner
 ; CHECK-NEXT:     FunctionPass Manager
 ; CHECK-NEXT:       RISCV pseudo instruction expansion pass

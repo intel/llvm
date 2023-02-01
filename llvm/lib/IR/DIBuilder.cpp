@@ -156,7 +156,7 @@ DICompileUnit *DIBuilder::createCompileUnit(
     DICompileUnit::DebugNameTableKind NameTableKind, bool RangesBaseAddress,
     StringRef SysRoot, StringRef SDK) {
 
-  assert(((Lang <= dwarf::DW_LANG_Fortran08 && Lang >= dwarf::DW_LANG_C89) ||
+  assert(((Lang <= dwarf::DW_LANG_Ada2012 && Lang >= dwarf::DW_LANG_C89) ||
           (Lang <= dwarf::DW_LANG_hi_user && Lang >= dwarf::DW_LANG_lo_user)) &&
          "Invalid Language tag");
 
@@ -474,10 +474,11 @@ DIBuilder::createTemplateValueParameter(DIScope *Context, StringRef Name,
 
 DITemplateValueParameter *
 DIBuilder::createTemplateTemplateParameter(DIScope *Context, StringRef Name,
-                                           DIType *Ty, StringRef Val) {
+                                           DIType *Ty, StringRef Val,
+                                           bool IsDefault) {
   return createTemplateValueParameterHelper(
       VMContext, dwarf::DW_TAG_GNU_template_template_param, Context, Name, Ty,
-      false, MDString::get(VMContext, Val));
+      IsDefault, MDString::get(VMContext, Val));
 }
 
 DITemplateValueParameter *

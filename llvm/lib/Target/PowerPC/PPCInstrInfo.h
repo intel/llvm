@@ -498,7 +498,8 @@ public:
   finalizeInsInstrs(MachineInstr &Root, MachineCombinerPattern &P,
                     SmallVectorImpl<MachineInstr *> &InsInstrs) const override;
 
-  bool isAssociativeAndCommutative(const MachineInstr &Inst) const override;
+  bool isAssociativeAndCommutative(const MachineInstr &Inst,
+                                   bool Invert) const override;
 
   /// On PowerPC, we try to reassociate FMA chain which will increase
   /// instruction size. Set extension resource length limit to 1 for edge case.
@@ -560,10 +561,11 @@ public:
                    bool KillSrc) const override;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MBBI,
-                           Register SrcReg, bool isKill, int FrameIndex,
+                           MachineBasicBlock::iterator MBBI, Register SrcReg,
+                           bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const override;
+                           const TargetRegisterInfo *TRI,
+                           Register VReg) const override;
 
   // Emits a register spill without updating the register class for vector
   // registers. This ensures that when we spill a vector register the
@@ -575,10 +577,10 @@ public:
                                 const TargetRegisterInfo *TRI) const;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI,
-                            Register DestReg, int FrameIndex,
-                            const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const override;
+                            MachineBasicBlock::iterator MBBI, Register DestReg,
+                            int FrameIndex, const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI,
+                            Register VReg) const override;
 
   // Emits a register reload without updating the register class for vector
   // registers. This ensures that when we reload a vector register the

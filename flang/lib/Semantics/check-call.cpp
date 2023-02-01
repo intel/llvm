@@ -417,6 +417,15 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     }
   }
 
+  // technically legal but worth emitting a warning
+  // llvm-project issue #58973: constant actual argument passed in where dummy
+  // argument is marked volatile
+  if (dummyIsVolatile && !IsVariable(actual)) {
+    messages.Say(
+        "actual argument associated with VOLATILE %s is not a variable"_warn_en_US,
+        dummyName);
+  }
+
   // Cases when temporaries might be needed but must not be permitted.
   bool actualIsContiguous{IsSimplyContiguous(actual, context)};
   bool dummyIsAssumedShape{dummy.type.attrs().test(
@@ -882,7 +891,7 @@ static bool CheckElementalConformance(parser::ContextualMessages &messages,
   int index{0};
   bool hasArrayArg{false};
   for (const auto &arg : actuals) {
-    if (arg && arg.value().Rank() > 0) {
+    if (arg && !arg->isAlternateReturn() && arg->Rank() > 0) {
       hasArrayArg = true;
       break;
     }
@@ -929,9 +938,9 @@ static parser::Messages CheckExplicitInterface(
   parser::Messages buffer;
   parser::ContextualMessages messages{context.messages().at(), &buffer};
   RearrangeArguments(proc, actuals, messages);
+  evaluate::FoldingContext localContext{context, messages};
   if (buffer.empty()) {
     int index{0};
-    evaluate::FoldingContext localContext{context, messages};
     for (auto &actual : actuals) {
       const auto &dummy{proc.dummyArguments.at(index++)};
       if (actual) {

@@ -1,13 +1,13 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Check that even when FPGA memory extensions are enabled - yet we have
 ; UserSemantic decoration be generated
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: Name [[#ClassMember:]] "class.Sample"
@@ -23,14 +23,14 @@
 ; CHECK-LLVM-DAG: @[[StrStructB:[0-9_.]+]] = {{.*}}"class_annotation_b\00"
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
 ; CHECK-LLVM: [[#Bitcast1:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Bitcast2:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
 ; CHECK-LLVM: %[[#GEP1:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: %[[#GEP2:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 
 
 source_filename = "llvm-link"

@@ -48,6 +48,7 @@ enum class TensorType {
 #define _TENSOR_TYPE_ENUM_MEMBERS(_, Name) Name,
   SUPPORTED_TENSOR_TYPES(_TENSOR_TYPE_ENUM_MEMBERS)
 #undef _TENSOR_TYPE_ENUM_MEMBERS
+      Total
 };
 
 class TensorSpec final {
@@ -86,6 +87,8 @@ public:
       : TensorSpec(NewName, Other.Port, Other.Type, Other.ElementSize,
                    Other.Shape) {}
 
+  void toJSON(json::OStream &OS) const;
+
 private:
   TensorSpec(const std::string &Name, int Port, TensorType Type,
              size_t ElementSize, const std::vector<int64_t> &Shape);
@@ -107,8 +110,8 @@ private:
 ///   "shape": <array of ints> }
 /// For the "type" field, see the C++ primitive types used in
 /// TFUTILS_SUPPORTED_TYPES.
-Optional<TensorSpec> getTensorSpecFromJSON(LLVMContext &Ctx,
-                                           const json::Value &Value);
+std::optional<TensorSpec> getTensorSpecFromJSON(LLVMContext &Ctx,
+                                                const json::Value &Value);
 
 #define TFUTILS_GETDATATYPE_DEF(T, Name)                                       \
   template <> TensorType TensorSpec::getDataType<T>();

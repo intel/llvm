@@ -83,8 +83,6 @@ bool MachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()))
     return false;
 
-  bool Changed = false;
-
   TRI = MF.getSubtarget().getRegisterInfo();
   TII = MF.getSubtarget().getInstrInfo();
 
@@ -92,6 +90,7 @@ bool MachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
   RegDefs.resize(MF.getNumBlockIDs());
 
   // Visit all MBBs in an order that maximises the reuse from predecessors.
+  bool Changed = false;
   ReversePostOrderTraversal<MachineFunction *> RPOT(&MF);
   for (MachineBasicBlock *MBB : RPOT)
     Changed |= processBlock(MBB);
@@ -109,7 +108,7 @@ static void clearKillsForDef(Register Reg, MachineBasicBlock *MBB,
                              const TargetRegisterInfo *TRI) {
   VisitedPreds.set(MBB->getNumber());
   while (I != MBB->begin()) {
-    I--;
+    --I;
     bool Found = false;
     for (auto &MO : I->operands())
       if (MO.isReg() && TRI->regsOverlap(MO.getReg(), Reg)) {
@@ -173,11 +172,10 @@ static bool isCandidate(const MachineInstr *MI, Register &DefedReg,
 
 bool MachineLateInstrsCleanup::processBlock(MachineBasicBlock *MBB) {
   bool Changed = false;
-
   Reg2DefMap &MBBDefs = RegDefs[MBB->getNumber()];
 
   // Find reusable definitions in the predecessor(s).
-  if (!MBB->pred_empty()) {
+  if (!MBB->pred_empty() && !MBB->isEHPad()) {
     MachineBasicBlock *FirstPred = *MBB->pred_begin();
     for (auto [Reg, DefMI] : RegDefs[FirstPred->getNumber()])
       if (llvm::all_of(
@@ -198,7 +196,8 @@ bool MachineLateInstrsCleanup::processBlock(MachineBasicBlock *MBB) {
   const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
   Register FrameReg = TRI->getFrameRegister(*MF);
   for (MachineInstr &MI : llvm::make_early_inc_range(*MBB)) {
-    // If FrameReg is modified, no previous load-address instructions are valid.
+    // If FrameReg is modified, no previous load-address instructions (using
+    // it) are valid.
     if (MI.modifiesRegister(FrameReg, TRI)) {
       MBBDefs.clear();
       continue;

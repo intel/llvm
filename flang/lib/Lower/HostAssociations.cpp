@@ -13,6 +13,7 @@
 #include "flang/Lower/BoxAnalyzer.h"
 #include "flang/Lower/CallInterface.h"
 #include "flang/Lower/ConvertType.h"
+#include "flang/Lower/ConvertVariable.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/SymbolMap.h"
 #include "flang/Optimizer/Builder/Character.h"
@@ -229,6 +230,32 @@ static bool isDerivedWithLenParameters(const Fortran::semantics::Symbol &sym) {
   return false;
 }
 
+/// Class defining how polymorphic entities are captured in internal procedures.
+/// Polymorphic entities are always boxed as a fir.class box.
+class CapturedPolymorphic : public CapturedSymbols<CapturedPolymorphic> {
+public:
+  static mlir::Type getType(Fortran::lower::AbstractConverter &converter,
+                            const Fortran::semantics::Symbol &sym) {
+    return fir::ClassType::get(converter.genType(sym));
+  }
+  static void instantiateHostTuple(const InstantiateHostTuple &args,
+                                   Fortran::lower::AbstractConverter &converter,
+                                   const Fortran::semantics::Symbol &) {
+    fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+    mlir::Type typeInTuple = fir::dyn_cast_ptrEleTy(args.addrInTuple.getType());
+    assert(typeInTuple && "addrInTuple must be an address");
+    mlir::Value castBox = builder.createConvert(args.loc, typeInTuple,
+                                                fir::getBase(args.hostValue));
+    builder.create<fir::StoreOp>(args.loc, castBox, args.addrInTuple);
+  }
+  static void getFromTuple(const GetFromTuple &args,
+                           Fortran::lower::AbstractConverter &converter,
+                           const Fortran::semantics::Symbol &sym,
+                           const Fortran::lower::BoxAnalyzer &ba) {
+    args.symMap.addSymbol(sym, args.valueInTuple);
+  }
+};
+
 /// Class defining how allocatable and pointers entities are captured in
 /// internal procedures. Allocatable and pointers are simply captured by placing
 /// their !fir.ref<fir.box<>> address in the host tuple.
@@ -423,6 +450,12 @@ walkCaptureCategories(T visitor, Fortran::lower::AbstractConverter &converter,
   ba.analyze(sym);
   if (Fortran::semantics::IsAllocatableOrPointer(sym))
     return CapturedAllocatableAndPointer::visit(visitor, converter, sym, ba);
+  if (Fortran::semantics::IsPolymorphic(sym)) {
+    if (ba.isArray() && !ba.lboundIsAllOnes())
+      TODO(converter.genLocation(sym.name()),
+           "polymorphic array with non default lower bound");
+    return CapturedPolymorphic::visit(visitor, converter, sym, ba);
+  }
   if (ba.isArray())
     return CapturedArrays::visit(visitor, converter, sym, ba);
   if (ba.isChar())
@@ -448,10 +481,25 @@ static mlir::Value genTupleCoor(fir::FirOpBuilder &builder, mlir::Location loc,
   return builder.create<fir::CoordinateOp>(loc, ty, tupleArg, offset);
 }
 
+void Fortran::lower::HostAssociations::addSymbolsToBind(
+    const llvm::SetVector<const Fortran::semantics::Symbol *> &symbols,
+    const Fortran::semantics::Scope &hostScope) {
+  assert(tupleSymbols.empty() && globalSymbols.empty() &&
+         "must be initially empty");
+  this->hostScope = &hostScope;
+  for (const auto *s : symbols)
+    if (Fortran::lower::symbolIsGlobal(*s))
+      // The ultimate symbol is stored here so that global symbols from the
+      // host scope can later be searched in this set.
+      globalSymbols.insert(&s->GetUltimate());
+    else
+      tupleSymbols.insert(s);
+}
+
 void Fortran::lower::HostAssociations::hostProcedureBindings(
     Fortran::lower::AbstractConverter &converter,
     Fortran::lower::SymMap &symMap) {
-  if (symbols.empty())
+  if (tupleSymbols.empty())
     return;
 
   // Create the tuple variable.
@@ -461,8 +509,8 @@ void Fortran::lower::HostAssociations::hostProcedureBindings(
   auto hostTuple = builder.create<fir::AllocaOp>(loc, tupTy);
   mlir::IntegerType offTy = builder.getIntegerType(32);
 
-  // Walk the list of symbols and update the pointers in the tuple.
-  for (auto s : llvm::enumerate(symbols)) {
+  // Walk the list of tupleSymbols and update the pointers in the tuple.
+  for (auto s : llvm::enumerate(tupleSymbols)) {
     auto indexInTuple = s.index();
     mlir::Value off = builder.createIntegerConstant(loc, offTy, indexInTuple);
     mlir::Type varTy = tupTy.getType(indexInTuple);
@@ -478,7 +526,20 @@ void Fortran::lower::HostAssociations::hostProcedureBindings(
 void Fortran::lower::HostAssociations::internalProcedureBindings(
     Fortran::lower::AbstractConverter &converter,
     Fortran::lower::SymMap &symMap) {
-  if (symbols.empty())
+  if (!globalSymbols.empty()) {
+    assert(hostScope && "host scope must have been set");
+    Fortran::lower::AggregateStoreMap storeMap;
+    // The host scope variable list is required to deal with host variables
+    // that are equivalenced and requires instantiating the right global
+    // AggregateStore.
+    for (auto &hostVariable : pft::getScopeVariableList(*hostScope))
+      if ((hostVariable.isAggregateStore() && hostVariable.isGlobal()) ||
+          (hostVariable.hasSymbol() &&
+           globalSymbols.contains(&hostVariable.getSymbol().GetUltimate())))
+        Fortran::lower::instantiateVariable(converter, hostVariable, symMap,
+                                            storeMap);
+  }
+  if (tupleSymbols.empty())
     return;
 
   // Find the argument with the tuple type. The argument ought to be appended.
@@ -502,7 +563,7 @@ void Fortran::lower::HostAssociations::internalProcedureBindings(
   mlir::IntegerType offTy = builder.getIntegerType(32);
 
   // Walk the list and add the bindings to the symbol table.
-  for (auto s : llvm::enumerate(symbols)) {
+  for (auto s : llvm::enumerate(tupleSymbols)) {
     mlir::Value off = builder.createIntegerConstant(loc, offTy, s.index());
     mlir::Type varTy = tupTy.getType(s.index());
     mlir::Value eleOff = genTupleCoor(builder, loc, varTy, tupleArg, off);
@@ -514,7 +575,7 @@ void Fortran::lower::HostAssociations::internalProcedureBindings(
 
 mlir::Type Fortran::lower::HostAssociations::getArgumentType(
     Fortran::lower::AbstractConverter &converter) {
-  if (symbols.empty())
+  if (tupleSymbols.empty())
     return {};
   if (argType)
     return argType;
@@ -523,7 +584,7 @@ mlir::Type Fortran::lower::HostAssociations::getArgumentType(
   // to a tuple.
   mlir::MLIRContext *ctxt = &converter.getMLIRContext();
   llvm::SmallVector<mlir::Type> tupleTys;
-  for (const Fortran::semantics::Symbol *sym : symbols)
+  for (const Fortran::semantics::Symbol *sym : tupleSymbols)
     tupleTys.emplace_back(
         walkCaptureCategories(GetTypeInTuple{}, converter, *sym));
   argType = fir::ReferenceType::get(mlir::TupleType::get(ctxt, tupleTys));

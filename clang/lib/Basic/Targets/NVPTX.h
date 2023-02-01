@@ -59,7 +59,6 @@ static const int NVPTXDWARFAddrSpaceMap[] = {
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {
   static const char *const GCCRegNames[];
-  static const Builtin::Info BuiltinInfo[];
   CudaArch GPU;
   uint32_t PTXVersion;
   std::unique_ptr<TargetInfo> HostTarget;
@@ -165,8 +164,8 @@ public:
   /// space \p AddressSpace to be converted in order to be used, then return the
   /// corresponding target specific DWARF address space.
   ///
-  /// \returns Otherwise return None and no conversion will be emitted in the
-  /// DWARF.
+  /// \returns Otherwise return std::nullopt and no conversion will be emitted
+  /// in the DWARF.
   std::optional<unsigned>
   getDWARFAddressSpace(unsigned AddressSpace) const override {
     if (AddressSpace >= std::size(NVPTXDWARFAddrSpaceMap) ||

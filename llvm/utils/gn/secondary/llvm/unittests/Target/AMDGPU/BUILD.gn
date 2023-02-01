@@ -8,9 +8,11 @@ unittest("AMDGPUTests") {
     "//llvm/lib/Target/AMDGPU/MCTargetDesc",
     "//llvm/lib/Target/AMDGPU/TargetInfo",
     "//llvm/lib/Target/AMDGPU/Utils",
+    "//llvm/lib/TargetParser",
   ]
   include_dirs = [ "//llvm/lib/Target/AMDGPU" ]
   sources = [
+    "AMDGPUUnitTests.cpp",
     "DwarfRegMappings.cpp",
     "ExecMayBeModifiedBeforeAnyUse.cpp",
   ]

@@ -200,7 +200,7 @@ void BreakpointResolverFileLine::DeduceSourceMapping(
   const llvm::StringRef path_separator = llvm::sys::path::get_separator(
       m_location_spec.GetFileSpec().GetPathStyle());
   // Check if "b" is a suffix of "a".
-  // And return llvm::None if not or the new path
+  // And return std::nullopt if not or the new path
   // of "a" after consuming "b" from the back.
   auto check_suffix =
       [path_separator](llvm::StringRef a, llvm::StringRef b,
@@ -210,7 +210,7 @@ void BreakpointResolverFileLine::DeduceSourceMapping(
         return a;
       }
     }
-    return llvm::None;
+    return std::nullopt;
   };
 
   FileSpec request_file = m_location_spec.GetFileSpec();
@@ -241,12 +241,12 @@ void BreakpointResolverFileLine::DeduceSourceMapping(
     // Adding back any potentially reverse mapping stripped prefix.
     // for new_mapping_to.
     if (m_removed_prefix_opt.has_value())
-      llvm::sys::path::append(new_mapping_to, m_removed_prefix_opt.value());
+      llvm::sys::path::append(new_mapping_to, *m_removed_prefix_opt);
 
     llvm::Optional<llvm::StringRef> new_mapping_from_opt =
         check_suffix(sc_file_dir, request_file_dir, case_sensitive);
     if (new_mapping_from_opt) {
-      new_mapping_from = new_mapping_from_opt.value();
+      new_mapping_from = *new_mapping_from_opt;
       if (new_mapping_to.empty())
         new_mapping_to = ".";
     } else {
@@ -254,7 +254,7 @@ void BreakpointResolverFileLine::DeduceSourceMapping(
           check_suffix(request_file_dir, sc_file_dir, case_sensitive);
       if (new_mapping_to_opt) {
         new_mapping_from = ".";
-        llvm::sys::path::append(new_mapping_to, new_mapping_to_opt.value());
+        llvm::sys::path::append(new_mapping_to, *new_mapping_to_opt);
       }
     }
 

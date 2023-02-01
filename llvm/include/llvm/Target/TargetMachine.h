@@ -13,11 +13,11 @@
 #ifndef LLVM_TARGET_TARGETMACHINE_H
 #define LLVM_TARGET_TARGETMACHINE_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PGOOptions.h"
@@ -64,6 +64,7 @@ class PassManagerBase;
 }
 using legacy::PassManagerBase;
 
+struct MachineFunctionInfo;
 namespace yaml {
 struct MachineFunctionInfo;
 }
@@ -111,7 +112,7 @@ protected: // Can only create subclasses.
   unsigned O0WantsFastISel : 1;
 
   // PGO related tunables.
-  Optional<PGOOptions> PGOOption = std::nullopt;
+  std::optional<PGOOptions> PGOOption;
 
 public:
   const TargetOptions DefaultOptions;
@@ -134,6 +135,13 @@ public:
     return nullptr;
   }
   virtual TargetLoweringObjectFile *getObjFileLowering() const {
+    return nullptr;
+  }
+
+  /// Create the target's instance of MachineFunctionInfo
+  virtual MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const {
     return nullptr;
   }
 
@@ -311,8 +319,8 @@ public:
     return false;
   }
 
-  void setPGOOption(Optional<PGOOptions> PGOOpt) { PGOOption = PGOOpt; }
-  const Optional<PGOOptions> &getPGOOption() const { return PGOOption; }
+  void setPGOOption(std::optional<PGOOptions> PGOOpt) { PGOOption = PGOOpt; }
+  const std::optional<PGOOptions> &getPGOOption() const { return PGOOption; }
 
   /// If the specified generic pointer could be assumed as a pointer to a
   /// specific address space, return that address space.

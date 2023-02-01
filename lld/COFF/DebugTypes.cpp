@@ -48,7 +48,7 @@ class TypeServerSource : public TpiSource {
 public:
   explicit TypeServerSource(COFFLinkerContext &ctx, PDBInputFile *f)
       : TpiSource(ctx, PDB, nullptr), pdbInputFile(f) {
-    if (f->loadErr && *f->loadErr)
+    if (f->loadErrorStr)
       return;
     pdb::PDBFile &file = f->session->getPDBFile();
     auto expectedInfo = file.getPDBInfoStream();
@@ -315,7 +315,7 @@ Error TpiSource::mergeDebugT(TypeMerger *m) {
   // When dealing with PCH.OBJ, some indices were already merged.
   unsigned nbHeadIndices = indexMapStorage.size();
 
-  Optional<PCHMergerInfo> pchInfo;
+  std::optional<PCHMergerInfo> pchInfo;
   if (auto err = mergeTypeAndIdRecords(m->idTable, m->typeTable,
                                        indexMapStorage, types, pchInfo))
     fatal("codeview::mergeTypeAndIdRecords failed: " +
@@ -424,8 +424,10 @@ Expected<TypeServerSource *> UseTypeServerSource::getTypeServerSource() {
       return createFileError(tsPath, errorCodeToError(std::error_code(
                                          ENOENT, std::generic_category())));
     // If an error occurred during loading, throw it now
-    if (pdb->loadErr && *pdb->loadErr)
-      return createFileError(tsPath, std::move(*pdb->loadErr));
+    if (pdb->loadErrorStr)
+      return createFileError(
+          tsPath, make_error<StringError>(*pdb->loadErrorStr,
+                                          llvm::inconvertibleErrorCode()));
 
     tsSrc = (TypeServerSource *)pdb->debugTypesObj;
 

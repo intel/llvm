@@ -68,10 +68,12 @@ void registerTestArithEmulateWideIntPass();
 void registerTestAliasAnalysisPass();
 void registerTestBuiltinAttributeInterfaces();
 void registerTestCallGraphPass();
+void registerTestCfAssertPass();
 void registerTestConstantFold();
 void registerTestControlFlowSink();
 void registerTestGpuSerializeToCubinPass();
 void registerTestGpuSerializeToHsacoPass();
+void registerTestDataLayoutPropagation();
 void registerTestDataLayoutQuery();
 void registerTestDeadCodeAnalysisPass();
 void registerTestDecomposeCallGraphTypes();
@@ -119,6 +121,7 @@ void registerTestTilingInterface();
 void registerTestTopologicalSortAnalysisPass();
 void registerTestTransformDialectEraseSchedulePass();
 void registerTestTransformDialectInterpreterPass();
+void registerTestWrittenToPass();
 void registerTestVectorLowerings();
 void registerTestNvgpuLowerings();
 } // namespace test
@@ -170,6 +173,7 @@ void registerTestPasses() {
   mlir::test::registerTestArithEmulateWideIntPass();
   mlir::test::registerTestBuiltinAttributeInterfaces();
   mlir::test::registerTestCallGraphPass();
+  mlir::test::registerTestCfAssertPass();
   mlir::test::registerTestConstantFold();
   mlir::test::registerTestControlFlowSink();
   mlir::test::registerTestDiagnosticsPass();
@@ -181,6 +185,7 @@ void registerTestPasses() {
   mlir::test::registerTestGpuSerializeToHsacoPass();
 #endif
   mlir::test::registerTestDecomposeCallGraphTypes();
+  mlir::test::registerTestDataLayoutPropagation();
   mlir::test::registerTestDataLayoutQuery();
   mlir::test::registerTestDeadCodeAnalysisPass();
   mlir::test::registerTestDominancePass();
@@ -225,6 +230,7 @@ void registerTestPasses() {
   mlir::test::registerTestTransformDialectInterpreterPass();
   mlir::test::registerTestVectorLowerings();
   mlir::test::registerTestNvgpuLowerings();
+  mlir::test::registerTestWrittenToPass();
 }
 #endif
 

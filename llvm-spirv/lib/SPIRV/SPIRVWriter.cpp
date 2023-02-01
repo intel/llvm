@@ -734,6 +734,7 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
     SPIRVType *RT = transType(F->getReturnType());
     std::vector<SPIRVType *> PT;
     for (Argument &Arg : F->args()) {
+      assert(OCLTypeToSPIRVPtr);
       Type *Ty = OCLTypeToSPIRVPtr->getAdaptedArgumentType(F, Arg.getArgNo());
       if (!Ty) {
         Ty = Arg.getType();
@@ -904,6 +905,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
   transFPGAFunctionMetadata(BF, F);
 
+  transFunctionMetadataAsUserSemanticDecoration(BF, F);
+
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
   return BF;
@@ -1046,6 +1049,29 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
   // In addition, process the decorations on the function
   if (auto *FDecoMD = F->getMetadata(SPIRV_MD_DECORATIONS))
     transMetadataDecorations(FDecoMD, BF);
+}
+
+void LLVMToSPIRVBase::transFunctionMetadataAsUserSemanticDecoration(
+    SPIRVFunction *BF, Function *F) {
+  if (auto *RegisterAllocModeMD = F->getMetadata("RegisterAllocMode")) {
+    // TODO: Once the design for per-kernel register size allocation is
+    // finalized, we will need to move away from UserSemantic and introduce an
+    // extension
+    int RegisterAllocNodeMDOp = getMDOperandAsInt(RegisterAllocModeMD, 0);
+    // The current RegisterAllocMode metadata format is as follows
+    // AUTO - 0
+    // SMALL - 1
+    // LARGE - 2
+    // DEFAULT - 3
+    // Currently we only support SMALL and LARGE
+    if (RegisterAllocNodeMDOp == 1 || RegisterAllocNodeMDOp == 2) {
+      // 4 threads per eu means large grf mode, and 8 threads per eu
+      // means small grf mode
+      std::string NumThreads = RegisterAllocNodeMDOp == 2 ? "4" : "8";
+      BF->addDecorate(new SPIRVDecorateUserSemanticAttr(
+          BF, "num-thread-per-eu " + NumThreads));
+    }
+  }
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C) {
@@ -1347,9 +1373,8 @@ class LLVMParallelAccessIndices {
 public:
   LLVMParallelAccessIndices(
       MDNode *Node, LLVMToSPIRVBase::LLVMToSPIRVMetadataMap &IndexGroupArrayMap)
-      : Node(Node), IndexGroupArrayMap(IndexGroupArrayMap) {}
+      : Node(Node), IndexGroupArrayMap(IndexGroupArrayMap) {
 
-  void initialize() {
     assert(isValid() &&
            "LLVMParallelAccessIndices initialized from an invalid MDNode");
 
@@ -1480,7 +1505,6 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
         } else if (S == "llvm.loop.parallel_access_indices") {
           // Intel FPGA IVDep loop attribute
           LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
-          IVDep.initialize();
           // Store IVDep-specific parameters into an intermediate
           // container to address the case when there're multiple
           // IVDep metadata nodes and this condition gets entered multiple
@@ -1531,43 +1555,42 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           LoopCount.Min = getMDOperandAsInt(Node, 1);
-          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+          LoopControl |= spv::LoopControlLoopCountINTELMask;
         } else if (S == "llvm.loop.intel.loopcount_max") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           LoopCount.Max = getMDOperandAsInt(Node, 1);
-          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+          LoopControl |= spv::LoopControlLoopCountINTELMask;
         } else if (S == "llvm.loop.intel.loopcount_avg") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           LoopCount.Avg = getMDOperandAsInt(Node, 1);
-          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+          LoopControl |= spv::LoopControlLoopCountINTELMask;
         } else if (S == "llvm.loop.intel.max_reinvocation_delay.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
           ParametersToSort.emplace_back(
-              spv::internal::LoopControlMaxReinvocationDelayINTELMask, I);
-          LoopControl |=
-              spv::internal::LoopControlMaxReinvocationDelayINTELMask;
+              spv::LoopControlMaxReinvocationDelayINTELMask, I);
+          LoopControl |= spv::LoopControlMaxReinvocationDelayINTELMask;
         }
       }
     }
   }
-  if (LoopControl & spv::internal::LoopControlLoopCountINTELMask) {
+  if (LoopControl & spv::LoopControlLoopCountINTELMask) {
     // LoopCountINTELMask have int64 literal parameters and we need to store
     // int64 into 2 SPIRVWords
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Min));
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Min >> 32));
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Max));
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Max >> 32));
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Avg));
-    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+    ParametersToSort.emplace_back(spv::LoopControlLoopCountINTELMask,
                                   static_cast<SPIRVWord>(LoopCount.Avg >> 32));
   }
   // If any loop control parameters were held back until fully collected,
@@ -2236,14 +2259,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
+    bool SupportedAtomicInst =
+        AtomicRMWInst::isFPOperation(Op)
+            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FSub ||
+               Op == AtomicRMWInst::FMin || Op == AtomicRMWInst::FMax)
+            : Op != AtomicRMWInst::Nand;
     if (!BM->getErrorLog().checkError(
-            !AtomicRMWInst::isFPOperation(Op) && Op != AtomicRMWInst::Nand,
-            SPIRVEC_InvalidInstruction, V,
+            SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
             "Atomic " + AtomicRMWInst::getOperationName(Op).str() +
                 " is not supported in SPIR-V!\n"))
       return nullptr;
 
-    spv::Op OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
     AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
     auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
     std::vector<Value *> Operands(4);
@@ -2257,8 +2283,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     Operands[1] = getUInt32(M, spv::ScopeDevice);
     Operands[2] = getUInt32(M, MemSem);
     Operands[3] = ARMW->getValOperand();
-    std::vector<SPIRVId> Ops = BM->getIds(transValue(Operands, BB));
+    std::vector<SPIRVValue *> OpVals = transValue(Operands, BB);
+    std::vector<SPIRVId> Ops = BM->getIds(OpVals);
     SPIRVType *Ty = transType(ARMW->getType());
+
+    spv::Op OC;
+    if (Op == AtomicRMWInst::FSub) {
+      // Implement FSub through FNegate and AtomicFAddExt
+      Ops[3] = BM->addUnaryInst(OpFNegate, Ty, OpVals[3], BB)->getId();
+      OC = OpAtomicFAddEXT;
+    } else
+      OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
 
     return mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
   }
@@ -2438,9 +2473,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ONE_STRING_DECORATION_CASE(UserSemantic, spv)
       ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv, SPIRVId)
       ONE_INT_DECORATION_CASE(NoAliasINTEL, spv, SPIRVId)
-      ONE_INT_DECORATION_CASE(InitiationIntervalINTEL, spv::internal, SPIRVWord)
-      ONE_INT_DECORATION_CASE(MaxConcurrencyINTEL, spv::internal, SPIRVWord)
-      ONE_INT_DECORATION_CASE(PipelineEnableINTEL, spv::internal, SPIRVWord)
+      ONE_INT_DECORATION_CASE(InitiationIntervalINTEL, spv, SPIRVWord)
+      ONE_INT_DECORATION_CASE(MaxConcurrencyINTEL, spv, SPIRVWord)
+      ONE_INT_DECORATION_CASE(PipelineEnableINTEL, spv, SPIRVWord)
       TWO_INT_DECORATION_CASE(FunctionRoundingModeINTEL, spv, SPIRVWord,
                               FPRoundingMode);
       TWO_INT_DECORATION_CASE(FunctionDenormModeINTEL, spv, SPIRVWord,
@@ -2449,8 +2484,7 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
                               FPOperationMode);
       TWO_INT_DECORATION_CASE(FuseLoopsInFunctionINTEL, spv, SPIRVWord,
                               SPIRVWord);
-      TWO_INT_DECORATION_CASE(MathOpDSPModeINTEL, spv::internal, SPIRVWord,
-                              SPIRVWord);
+      TWO_INT_DECORATION_CASE(MathOpDSPModeINTEL, spv, SPIRVWord, SPIRVWord);
     case DecorationStallEnableINTEL: {
       Target->addDecorate(new SPIRVDecorateStallEnableINTEL(Target));
       break;
@@ -2861,9 +2895,9 @@ struct IntelLSUControlsInfo {
   }
 
   bool BurstCoalesce = false;
-  llvm::Optional<unsigned> CacheSizeInfo;
+  std::optional<unsigned> CacheSizeInfo;
   bool DontStaticallyCoalesce = false;
-  llvm::Optional<unsigned> PrefetchInfo;
+  std::optional<unsigned> PrefetchInfo;
 };
 
 // Handle optional var/ptr/global annotation parameter. It can be for example
@@ -4900,16 +4934,13 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       case spv::ExecutionModeNumSIMDWorkitemsINTEL:
       case spv::ExecutionModeSchedulerTargetFmaxMhzINTEL:
       case spv::ExecutionModeMaxWorkDimINTEL:
-      case spv::internal::ExecutionModeStreamingInterfaceINTEL: {
-        if (BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_kernel_attributes)) {
-          unsigned X;
-          N.get(X);
-          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              BF, static_cast<ExecutionMode>(EMode), X)));
-          BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
-          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
-        }
+      case spv::ExecutionModeStreamingInterfaceINTEL: {
+        if (!BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes))
+          break;
+        AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
+        BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
+        BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
       } break;
       case spv::ExecutionModeSharedLocalMemorySizeINTEL: {
         if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))

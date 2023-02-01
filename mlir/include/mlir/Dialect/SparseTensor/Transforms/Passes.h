@@ -159,6 +159,19 @@ createPostSparsificationRewritePass(bool enableRT, bool enableForeach = true,
                                     bool enableConvert = true);
 
 //===----------------------------------------------------------------------===//
+// The SparseStorageSpecifierToLLVM pass.
+//===----------------------------------------------------------------------===//
+
+class StorageSpecifierToLLVMTypeConverter : public TypeConverter {
+public:
+  StorageSpecifierToLLVMTypeConverter();
+};
+
+void populateStorageSpecifierToLLVMPatterns(TypeConverter &converter,
+                                            RewritePatternSet &patterns);
+std::unique_ptr<Pass> createStorageSpecifierToLLVMPass();
+
+//===----------------------------------------------------------------------===//
 // Other rewriting rules and passes.
 //===----------------------------------------------------------------------===//
 
@@ -166,7 +179,8 @@ std::unique_ptr<Pass> createSparsificationAndBufferizationPass(
     const bufferization::OneShotBufferizationOptions &bufferizationOptions,
     const SparsificationOptions &sparsificationOptions,
     const SparseTensorConversionOptions &sparseTensorConversionOptions,
-    bool enableRuntimeLibrary, bool enableBufferInitialization);
+    bool enableRuntimeLibrary, bool enableBufferInitialization,
+    unsigned vectorLength, bool enableVLAVectorization, bool enableSIMDIndex32);
 
 void populateSparseBufferRewriting(RewritePatternSet &patterns,
                                    bool enableBufferInitialization);

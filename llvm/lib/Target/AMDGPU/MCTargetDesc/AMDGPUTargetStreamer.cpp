@@ -407,7 +407,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   if (IVersion.Major >= 7 && !ReserveFlatScr && !hasArchitectedFlatScratch(STI))
     OS << "\t\t.amdhsa_reserve_flat_scratch " << ReserveFlatScr << '\n';
 
-  if (Optional<uint8_t> HsaAbiVer = getHsaAbiVersion(&STI)) {
+  if (std::optional<uint8_t> HsaAbiVer = getHsaAbiVersion(&STI)) {
     switch (*HsaAbiVer) {
     default:
       break;
@@ -594,7 +594,7 @@ unsigned AMDGPUTargetELFStreamer::getEFlagsUnknownOS() {
 unsigned AMDGPUTargetELFStreamer::getEFlagsAMDHSA() {
   assert(STI.getTargetTriple().getOS() == Triple::AMDHSA);
 
-  if (Optional<uint8_t> HsaAbiVer = getHsaAbiVersion(&STI)) {
+  if (std::optional<uint8_t> HsaAbiVer = getHsaAbiVersion(&STI)) {
     switch (*HsaAbiVer) {
     case ELF::ELFABIVERSION_AMDGPU_HSA_V2:
     case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
@@ -742,7 +742,7 @@ void AMDGPUTargetELFStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
     SymbolELF->setExternal(true);
   }
 
-  if (SymbolELF->declareCommon(Size, Alignment.value(), true)) {
+  if (SymbolELF->declareCommon(Size, Alignment, true)) {
     report_fatal_error("Symbol: " + Symbol->getName() +
                        " redeclared as different type");
   }

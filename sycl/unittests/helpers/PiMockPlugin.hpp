@@ -14,6 +14,7 @@
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
 
 // Helpers for dummy handles
@@ -21,6 +22,7 @@
 struct DummyHandleT {
   DummyHandleT(size_t DataSize = 0)
       : MStorage(DataSize), MData(MStorage.data()) {}
+  DummyHandleT(unsigned char *Data) : MData(Data) {}
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
@@ -33,6 +35,13 @@ using DummyHandlePtrT = DummyHandleT *;
 // memory. The handle has to be deallocated using 'releaseDummyHandle'.
 template <class T> inline T createDummyHandle(size_t Size = 0) {
   DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Size);
+  return reinterpret_cast<T>(DummyHandlePtr);
+}
+
+// Allocates a dummy handle of type T with support of reference counting
+// and associates it with the provided Data.
+template <class T> inline T createDummyHandleWithData(unsigned char *Data) {
+  DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Data);
   return reinterpret_cast<T>(DummyHandlePtr);
 }
 
@@ -385,7 +394,11 @@ inline pi_result
 mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                        void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
-  *ret_mem = createDummyHandle<pi_mem>(size);
+  if (host_ptr && flags & PI_MEM_FLAGS_HOST_PTR_USE)
+    *ret_mem = createDummyHandleWithData<pi_mem>(
+        reinterpret_cast<unsigned char *>(host_ptr));
+  else
+    *ret_mem = createDummyHandle<pi_mem>(size);
   return PI_SUCCESS;
 }
 
@@ -1072,6 +1085,23 @@ mock_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking, void *dst_ptr,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
                                                void **opaque_data_return) {
   return PI_SUCCESS;
@@ -1080,5 +1110,23 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
+  return PI_SUCCESS;
+}
+
+// Returns the wall-clock timestamp of host for deviceTime and hostTime
+inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
+                                              uint64_t *deviceTime,
+                                              uint64_t *hostTime) {
+
+  using namespace std::chrono;
+  auto timeNanoseconds =
+      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+          .count();
+  if (deviceTime) {
+    *deviceTime = timeNanoseconds;
+  }
+  if (hostTime) {
+    *hostTime = timeNanoseconds;
+  }
   return PI_SUCCESS;
 }

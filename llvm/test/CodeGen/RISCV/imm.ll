@@ -1034,7 +1034,7 @@ define i64 @imm_2reg_1() nounwind {
 }
 
 ; FIXME: This should use a single ADDI for the immediate.
-define void @imm_store_i16_neg1(i16* %p) nounwind {
+define void @imm_store_i16_neg1(ptr %p) nounwind {
 ; RV32I-LABEL: imm_store_i16_neg1:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    li a1, -1
@@ -1064,12 +1064,12 @@ define void @imm_store_i16_neg1(i16* %p) nounwind {
 ; RV64IZBS-NEXT:    li a1, -1
 ; RV64IZBS-NEXT:    sh a1, 0(a0)
 ; RV64IZBS-NEXT:    ret
-  store i16 -1, i16* %p
+  store i16 -1, ptr %p
   ret void
 }
 
 ; FIXME: This should use a single ADDI for the immediate.
-define void @imm_store_i32_neg1(i32* %p) nounwind {
+define void @imm_store_i32_neg1(ptr %p) nounwind {
 ; RV32I-LABEL: imm_store_i32_neg1:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    li a1, -1
@@ -1099,7 +1099,7 @@ define void @imm_store_i32_neg1(i32* %p) nounwind {
 ; RV64IZBS-NEXT:    li a1, -1
 ; RV64IZBS-NEXT:    sw a1, 0(a0)
 ; RV64IZBS-NEXT:    ret
-  store i32 -1, i32* %p
+  store i32 -1, ptr %p
   ret void
 }
 
@@ -2422,3 +2422,36 @@ define i64 @PR54812() {
 ; RV64IZBS-NEXT:    ret
   ret i64 -2158497792;
 }
+
+define signext i32 @pos_2048() nounwind {
+; RV32I-LABEL: pos_2048:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    li a0, 1
+; RV32I-NEXT:    slli a0, a0, 11
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: pos_2048:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    li a0, 1
+; RV64I-NEXT:    slli a0, a0, 11
+; RV64I-NEXT:    ret
+;
+; RV64IZBA-LABEL: pos_2048:
+; RV64IZBA:       # %bb.0:
+; RV64IZBA-NEXT:    li a0, 1
+; RV64IZBA-NEXT:    slli a0, a0, 11
+; RV64IZBA-NEXT:    ret
+;
+; RV64IZBB-LABEL: pos_2048:
+; RV64IZBB:       # %bb.0:
+; RV64IZBB-NEXT:    li a0, 1
+; RV64IZBB-NEXT:    slli a0, a0, 11
+; RV64IZBB-NEXT:    ret
+;
+; RV64IZBS-LABEL: pos_2048:
+; RV64IZBS:       # %bb.0:
+; RV64IZBS-NEXT:    bseti a0, zero, 11
+; RV64IZBS-NEXT:    ret
+  ret i32 2048
+}
+

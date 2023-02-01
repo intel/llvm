@@ -41,7 +41,9 @@ void expectDumpResult(const dwarf::CIE &TestCIE, bool IsEH,
                       StringRef ExpectedFirstLine) {
   std::string Output;
   raw_string_ostream OS(Output);
-  TestCIE.dump(OS, DIDumpOptions(), /*MRI=*/nullptr, IsEH);
+  auto DumpOpts = DIDumpOptions();
+  DumpOpts.IsEH = IsEH;
+  TestCIE.dump(OS, DumpOpts);
   OS.flush();
   StringRef FirstLine = StringRef(Output).split('\n').first;
   EXPECT_EQ(FirstLine, ExpectedFirstLine);
@@ -51,7 +53,9 @@ void expectDumpResult(const dwarf::FDE &TestFDE, bool IsEH,
                       StringRef ExpectedFirstLine) {
   std::string Output;
   raw_string_ostream OS(Output);
-  TestFDE.dump(OS, DIDumpOptions(), /*MRI=*/nullptr, IsEH);
+  auto DumpOpts = DIDumpOptions();
+  DumpOpts.IsEH = IsEH;
+  TestFDE.dump(OS, DumpOpts);
   OS.flush();
   StringRef FirstLine = StringRef(Output).split('\n').first;
   EXPECT_EQ(FirstLine, ExpectedFirstLine);
@@ -124,7 +128,7 @@ TEST(DWARFDebugFrame, DumpEH64FDE) {
 }
 
 static Error parseCFI(dwarf::CIE &C, ArrayRef<uint8_t> Instructions,
-                      Optional<uint64_t> Size = std::nullopt) {
+                      std::optional<uint64_t> Size = std::nullopt) {
   DWARFDataExtractor Data(Instructions, /*IsLittleEndian=*/true,
                           /*AddressSize=*/8);
   uint64_t Offset = 0;
@@ -422,7 +426,7 @@ TEST(DWARFDebugFrame, RegisterLocations) {
   expectDumpResult(Locs, "reg12=[CFA+4], reg13=[CFA+8], reg14=same");
 
   // Verify RegisterLocations::getRegisterLocation() works as expected.
-  Optional<dwarf::UnwindLocation> OptionalLoc;
+  std::optional<dwarf::UnwindLocation> OptionalLoc;
   OptionalLoc = Locs.getRegisterLocation(0);
   EXPECT_FALSE(OptionalLoc.has_value());
 

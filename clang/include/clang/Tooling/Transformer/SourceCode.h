@@ -16,6 +16,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TokenKinds.h"
+#include <optional>
 
 namespace clang {
 namespace tooling {
@@ -91,16 +92,25 @@ llvm::Error validateEditRange(const CharSourceRange &Range,
                               const SourceManager &SM);
 
 /// Attempts to resolve the given range to one that can be edited by a rewrite;
-/// generally, one that starts and ends within a particular file. It supports a
-/// limited set of cases involving source locations in macro expansions. If a
-/// value is returned, it satisfies \c validateEditRange.
-llvm::Optional<CharSourceRange>
+/// generally, one that starts and ends within a particular file. If a value is
+/// returned, it satisfies \c validateEditRange.
+///
+/// If \c IncludeMacroExpansion is true, a limited set of cases involving source
+/// locations in macro expansions is supported. For example, if we're looking to
+/// rewrite the int literal 3 to 6, and we have the following definition:
+///    #define DO_NOTHING(x) x
+/// then
+///    foo(DO_NOTHING(3))
+/// will be rewritten to
+///    foo(6)
+std::optional<CharSourceRange>
 getRangeForEdit(const CharSourceRange &EditRange, const SourceManager &SM,
-                const LangOptions &LangOpts);
-inline llvm::Optional<CharSourceRange>
-getRangeForEdit(const CharSourceRange &EditRange, const ASTContext &Context) {
+                const LangOptions &LangOpts, bool IncludeMacroExpansion = true);
+inline std::optional<CharSourceRange>
+getRangeForEdit(const CharSourceRange &EditRange, const ASTContext &Context,
+                bool IncludeMacroExpansion = true) {
   return getRangeForEdit(EditRange, Context.getSourceManager(),
-                         Context.getLangOpts());
+                         Context.getLangOpts(), IncludeMacroExpansion);
 }
 } // namespace tooling
 } // namespace clang

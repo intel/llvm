@@ -72,7 +72,7 @@ void LoongArchInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 void LoongArchInstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register SrcReg,
     bool IsKill, int FI, const TargetRegisterClass *RC,
-    const TargetRegisterInfo *TRI) const {
+    const TargetRegisterInfo *TRI, Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -104,10 +104,12 @@ void LoongArchInstrInfo::storeRegToStackSlot(
       .addMemOperand(MMO);
 }
 
-void LoongArchInstrInfo::loadRegFromStackSlot(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DstReg,
-    int FI, const TargetRegisterClass *RC,
-    const TargetRegisterInfo *TRI) const {
+void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                              MachineBasicBlock::iterator I,
+                                              Register DstReg, int FI,
+                                              const TargetRegisterClass *RC,
+                                              const TargetRegisterInfo *TRI,
+                                              Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -176,7 +178,10 @@ void LoongArchInstrInfo::movImm(MachineBasicBlock &MBB,
 }
 
 unsigned LoongArchInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
-  if (MI.getOpcode() == TargetOpcode::INLINEASM) {
+  unsigned Opcode = MI.getOpcode();
+
+  if (Opcode == TargetOpcode::INLINEASM ||
+      Opcode == TargetOpcode::INLINEASM_BR) {
     const MachineFunction *MF = MI.getParent()->getParent();
     const MCAsmInfo *MAI = MF->getTarget().getMCAsmInfo();
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(), *MAI);
@@ -409,13 +414,13 @@ void LoongArchInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
     if (FrameIndex == -1)
       report_fatal_error("The function size is incorrectly estimated.");
     storeRegToStackSlot(MBB, PCALAU12I, Scav, /*IsKill=*/true, FrameIndex,
-                        &LoongArch::GPRRegClass, TRI);
+                        &LoongArch::GPRRegClass, TRI, Register());
     TRI->eliminateFrameIndex(std::prev(PCALAU12I.getIterator()),
                              /*SpAdj=*/0, /*FIOperandNum=*/1);
     PCALAU12I.getOperand(1).setMBB(&RestoreBB);
     ADDI.getOperand(2).setMBB(&RestoreBB);
     loadRegFromStackSlot(RestoreBB, RestoreBB.end(), Scav, FrameIndex,
-                         &LoongArch::GPRRegClass, TRI);
+                         &LoongArch::GPRRegClass, TRI, Register());
     TRI->eliminateFrameIndex(RestoreBB.back(),
                              /*SpAdj=*/0, /*FIOperandNum=*/1);
   }

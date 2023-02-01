@@ -367,7 +367,8 @@ static ParseResult parseAllReduceOperation(AsmParser &parser,
                                            AllReduceOperationAttr &attr) {
   StringRef enumStr;
   if (!parser.parseOptionalKeyword(&enumStr)) {
-    Optional<AllReduceOperation> op = gpu::symbolizeAllReduceOperation(enumStr);
+    std::optional<AllReduceOperation> op =
+        gpu::symbolizeAllReduceOperation(enumStr);
     if (!op)
       return parser.emitError(parser.getCurrentLocation(), "invalid op kind");
     attr = AllReduceOperationAttr::get(parser.getContext(), *op);
@@ -859,7 +860,8 @@ void GPUFuncOp::build(OpBuilder &builder, OperationState &result,
                       ArrayRef<NamedAttribute> attrs) {
   result.addAttribute(SymbolTable::getSymbolAttrName(),
                       builder.getStringAttr(name));
-  result.addAttribute(getTypeAttrName(), TypeAttr::get(type));
+  result.addAttribute(getFunctionTypeAttrName(result.name),
+                      TypeAttr::get(type));
   result.addAttribute(getNumWorkgroupAttributionsAttrName(),
                       builder.getI64IntegerAttr(workgroupAttributions.size()));
   result.addAttributes(attrs);
@@ -930,10 +932,12 @@ ParseResult GPUFuncOp::parse(OpAsmParser &parser, OperationState &result) {
   for (auto &arg : entryArgs)
     argTypes.push_back(arg.type);
   auto type = builder.getFunctionType(argTypes, resultTypes);
-  result.addAttribute(GPUFuncOp::getTypeAttrName(), TypeAttr::get(type));
+  result.addAttribute(getFunctionTypeAttrName(result.name),
+                      TypeAttr::get(type));
 
-  function_interface_impl::addArgAndResultAttrs(builder, result, entryArgs,
-                                                resultAttrs);
+  function_interface_impl::addArgAndResultAttrs(
+      builder, result, entryArgs, resultAttrs, getArgAttrsAttrName(result.name),
+      getResAttrsAttrName(result.name));
 
   // Parse workgroup memory attributions.
   if (failed(parseAttributions(parser, GPUFuncOp::getWorkgroupKeyword(),
@@ -992,19 +996,15 @@ void GPUFuncOp::print(OpAsmPrinter &p) {
     p << ' ' << getKernelKeyword();
 
   function_interface_impl::printFunctionAttributes(
-      p, *this, type.getNumInputs(), type.getNumResults(),
+      p, *this,
       {getNumWorkgroupAttributionsAttrName(),
-       GPUDialect::getKernelFuncAttrName()});
+       GPUDialect::getKernelFuncAttrName(), getFunctionTypeAttrName(),
+       getArgAttrsAttrName(), getResAttrsAttrName()});
   p << ' ';
   p.printRegion(getBody(), /*printEntryBlockArgs=*/false);
 }
 
 LogicalResult GPUFuncOp::verifyType() {
-  Type type = getFunctionTypeAttr().getValue();
-  if (!type.isa<FunctionType>())
-    return emitOpError("requires '" + getTypeAttrName() +
-                       "' attribute of function type");
-
   if (isKernel() && getFunctionType().getNumResults() != 0)
     return emitOpError() << "expected void return type for kernel function";
 

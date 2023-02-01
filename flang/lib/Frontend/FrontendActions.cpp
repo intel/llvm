@@ -552,7 +552,7 @@ void CodeGenAction::generateLLVMIR() {
   }
 
   // Translate to LLVM IR
-  llvm::Optional<llvm::StringRef> moduleName = mlirModule->getName();
+  std::optional<llvm::StringRef> moduleName = mlirModule->getName();
   llvmModule = mlir::translateModuleToLLVMIR(
       *mlirModule, *llvmCtx, moduleName ? *moduleName : "FIRModule");
 
@@ -696,7 +696,7 @@ void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {
   // Create the pass manager builder.
   llvm::PassInstrumentationCallbacks pic;
   llvm::PipelineTuningOptions pto;
-  llvm::Optional<llvm::PGOOptions> pgoOpt;
+  std::optional<llvm::PGOOptions> pgoOpt;
   llvm::StandardInstrumentations si(
       llvmModule->getContext(), opts.DebugPassManager);
   si.registerCallbacks(pic, &fam);

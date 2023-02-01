@@ -99,7 +99,7 @@ public:
 
     /// Returns the mapped key, or the appropriate Minimum / MaximumValue if
     /// they key is outside of the mapping bounds. If they key isn't mapped, but
-    /// within the minimum and maximum bounds, None is returned.
+    /// within the minimum and maximum bounds, std::nullopt is returned.
     std::optional<VersionTuple>
     map(const VersionTuple &Key, const VersionTuple &MinimumValue,
         std::optional<VersionTuple> MaximumValue) const;
@@ -160,8 +160,8 @@ private:
 
 /// Parse the SDK information from the SDKSettings.json file.
 ///
-/// \returns an error if the SDKSettings.json file is invalid, None if the
-/// SDK has no SDKSettings.json, or a valid \c DarwinSDKInfo otherwise.
+/// \returns an error if the SDKSettings.json file is invalid, std::nullopt if
+/// the SDK has no SDKSettings.json, or a valid \c DarwinSDKInfo otherwise.
 Expected<std::optional<DarwinSDKInfo>>
 parseDarwinSDKInfo(llvm::vfs::FileSystem &VFS, StringRef SDKRootPath);
 

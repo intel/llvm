@@ -622,7 +622,10 @@ public:
   AccessAnalysis(Loop *TheLoop, AAResults *AA, LoopInfo *LI,
                  MemoryDepChecker::DepCandidates &DA,
                  PredicatedScalarEvolution &PSE)
-      : TheLoop(TheLoop), AST(*AA), LI(LI), DepCands(DA), PSE(PSE) {}
+      : TheLoop(TheLoop), BAA(*AA), AST(BAA), LI(LI), DepCands(DA), PSE(PSE) {
+    // We're analyzing dependences across loop iterations.
+    BAA.enableCrossIterationMode();
+  }
 
   /// Register a load  and whether it is only read from.
   void addLoad(MemoryLocation &Loc, Type *AccessTy, bool IsReadOnly) {
@@ -703,6 +706,9 @@ private:
 
   /// Set of pointers that are read only.
   SmallPtrSet<Value*, 16> ReadOnlyPtr;
+
+  /// Batched alias analysis results.
+  BatchAAResults BAA;
 
   /// An alias set tracker to partition the access set by underlying object and
   //intrinsic property (such as TBAA metadata).
@@ -1360,11 +1366,11 @@ static bool isNoWrapAddRec(Value *Ptr, const SCEVAddRecExpr *AR,
 }
 
 /// Check whether the access through \p Ptr has a constant stride.
-Optional<int64_t>
-llvm::getPtrStride(PredicatedScalarEvolution &PSE, Type *AccessTy,
-                   Value *Ptr, const Loop *Lp,
-                   const ValueToValueMap &StridesMap, bool Assume,
-                   bool ShouldCheckWrap) {
+std::optional<int64_t> llvm::getPtrStride(PredicatedScalarEvolution &PSE,
+                                          Type *AccessTy, Value *Ptr,
+                                          const Loop *Lp,
+                                          const ValueToValueMap &StridesMap,
+                                          bool Assume, bool ShouldCheckWrap) {
   Type *Ty = Ptr->getType();
   assert(Ty->isPointerTy() && "Unexpected non-ptr");
 
@@ -1471,10 +1477,11 @@ llvm::getPtrStride(PredicatedScalarEvolution &PSE, Type *AccessTy,
   return Stride;
 }
 
-Optional<int> llvm::getPointersDiff(Type *ElemTyA, Value *PtrA, Type *ElemTyB,
-                                    Value *PtrB, const DataLayout &DL,
-                                    ScalarEvolution &SE, bool StrictCheck,
-                                    bool CheckType) {
+std::optional<int> llvm::getPointersDiff(Type *ElemTyA, Value *PtrA,
+                                         Type *ElemTyB, Value *PtrB,
+                                         const DataLayout &DL,
+                                         ScalarEvolution &SE, bool StrictCheck,
+                                         bool CheckType) {
   assert(PtrA && PtrB && "Expected non-nullptr pointers.");
   assert(cast<PointerType>(PtrA->getType())
              ->isOpaqueOrPointeeTypeMatches(ElemTyA) && "Wrong PtrA type");
@@ -1554,8 +1561,8 @@ bool llvm::sortPtrAccesses(ArrayRef<Value *> VL, Type *ElemTy,
   int Cnt = 1;
   bool IsConsecutive = true;
   for (auto *Ptr : VL.drop_front()) {
-    Optional<int> Diff = getPointersDiff(ElemTy, Ptr0, ElemTy, Ptr, DL, SE,
-                                         /*StrictCheck=*/true);
+    std::optional<int> Diff = getPointersDiff(ElemTy, Ptr0, ElemTy, Ptr, DL, SE,
+                                              /*StrictCheck=*/true);
     if (!Diff)
       return false;
 
@@ -1590,8 +1597,9 @@ bool llvm::isConsecutiveAccess(Value *A, Value *B, const DataLayout &DL,
     return false;
   Type *ElemTyA = getLoadStoreType(A);
   Type *ElemTyB = getLoadStoreType(B);
-  Optional<int> Diff = getPointersDiff(ElemTyA, PtrA, ElemTyB, PtrB, DL, SE,
-                                       /*StrictCheck=*/true, CheckType);
+  std::optional<int> Diff =
+      getPointersDiff(ElemTyA, PtrA, ElemTyB, PtrB, DL, SE,
+                      /*StrictCheck=*/true, CheckType);
   return Diff && *Diff == 1;
 }
 

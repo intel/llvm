@@ -43,7 +43,7 @@ Error objdump::getXCOFFRelocationValueString(const XCOFFObjectFile &Obj,
   return Error::success();
 }
 
-Optional<XCOFF::StorageMappingClass>
+std::optional<XCOFF::StorageMappingClass>
 objdump::getXCOFFSymbolCsectSMC(const XCOFFObjectFile &Obj,
                                 const SymbolRef &Sym) {
   const XCOFFSymbolRef SymRef = Obj.toSymbolRef(Sym.getRawDataRefImpl());
@@ -58,7 +58,7 @@ objdump::getXCOFFSymbolCsectSMC(const XCOFFObjectFile &Obj,
   return CsectAuxEntOrErr.get().getStorageMappingClass();
 }
 
-Optional<object::SymbolRef>
+std::optional<object::SymbolRef>
 objdump::getXCOFFSymbolContainingSymbolRef(const XCOFFObjectFile &Obj,
                                            const SymbolRef &Sym) {
   const XCOFFSymbolRef SymRef = Obj.toSymbolRef(Sym.getRawDataRefImpl());
@@ -94,9 +94,9 @@ std::string objdump::getXCOFFSymbolDescription(const SymbolInfoTy &SymbolInfo,
   std::string Result;
   // Dummy symbols have no symbol index.
   if (SymbolInfo.XCOFFSymInfo.Index)
-    Result = ("(idx: " + Twine(SymbolInfo.XCOFFSymInfo.Index.value()) + ") " +
-              SymbolName)
-                 .str();
+    Result =
+        ("(idx: " + Twine(*SymbolInfo.XCOFFSymInfo.Index) + ") " + SymbolName)
+            .str();
   else
     Result.append(SymbolName.begin(), SymbolName.end());
 

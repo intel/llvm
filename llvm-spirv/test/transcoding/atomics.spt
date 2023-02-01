@@ -54,7 +54,7 @@
 ; RUN: llvm-spirv %s -to-binary -o %t1.spv
 ; RUN: spirv-val %t1.spv
 ; RUN: llvm-spirv -r %t1.spv -o %t1.bc --spirv-target-env="CL1.2"
-; RUN: llvm-dis < %t1.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
+; RUN: llvm-dis -opaque-pointers=0 < %t1.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
 
 ; CHECK-LLVM-12: call spir_func i32 @_Z10atomic_incPU3AS1Vi(i32 addrspace(1)* %dst) [[attr:#[0-9]+]]
 ; CHECK-LLVM-12: call spir_func i32 @_Z10atomic_decPU3AS1Vi(i32 addrspace(1)* %dst) [[attr]]
@@ -76,7 +76,7 @@
 ; CHECK-LLVM-12: call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %object, i32 0) [[attr]]
 
 ; RUN: llvm-spirv -r %t1.spv -o %t2.bc --spirv-target-env="CL2.0"
-; RUN: llvm-dis < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-20
+; RUN: llvm-dis -opaque-pointers=0 < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-20
 
 ; CHECK-LLVM-20: call spir_func i32 @_Z25atomic_fetch_add_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(i32 addrspace(4)* %dst.as, i32 1, i32 5, i32 2) [[attr:#[0-9]+]]
 ; CHECK-LLVM-20: call spir_func i32 @_Z25atomic_fetch_sub_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(i32 addrspace(4)* %dst.as1, i32 1, i32 5, i32 2) [[attr]]
@@ -98,7 +98,7 @@
 ; CHECK-LLVM-20: call spir_func void @_Z26atomic_flag_clear_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %object.as18, i32 5, i32 2) [[attr]]
 
 ; RUN: llvm-spirv -r %t1.spv -o %t2.bc --spirv-target-env="SPV-IR"
-; RUN: llvm-dis < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPV-IR
+; RUN: llvm-dis -opaque-pointers=0 < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPV-IR
 
 ; CHECK-LLVM-SPV-IR: call spir_func i32 @_Z24__spirv_AtomicIIncrementPU3AS1iii(i32 addrspace(1)* %dst, i32 1, i32 16) #[[#attr:]]
 ; CHECK-LLVM-SPV-IR: call spir_func i32 @_Z24__spirv_AtomicIDecrementPU3AS1iii(i32 addrspace(1)* %dst, i32 1, i32 16) #[[#attr:]]

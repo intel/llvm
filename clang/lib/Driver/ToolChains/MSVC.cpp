@@ -97,7 +97,7 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
   SmallString<128> ExecPath(getToolChain().GetProgramPath("lib.exe"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF16(), Exec, CmdArgs, None));
+      JA, *this, ResponseFileSupport::AtFileUTF16(), Exec, CmdArgs, std::nullopt));
 }
 
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,

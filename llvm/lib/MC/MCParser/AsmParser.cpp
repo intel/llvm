@@ -13,7 +13,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -3183,7 +3182,7 @@ bool AsmParser::parseDirectiveReloc(SMLoc DirectiveLoc) {
 
   const MCTargetAsmParser &MCT = getTargetParser();
   const MCSubtargetInfo &STI = MCT.getSTI();
-  if (Optional<std::pair<bool, std::string>> Err =
+  if (std::optional<std::pair<bool, std::string>> Err =
           getStreamer().emitRelocDirective(*Offset, Name, Expr, DirectiveLoc,
                                            STI))
     return Error(Err->first ? NameLoc : OffsetLoc, Err->second);
@@ -3583,7 +3582,7 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
       Ctx.setGenDwarfForAssembly(false);
     }
 
-    Optional<MD5::MD5Result> CKMem;
+    std::optional<MD5::MD5Result> CKMem;
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
@@ -4226,10 +4225,10 @@ bool AsmParser::parseDirectiveCFIEndProc() {
 /// parse register name or number.
 bool AsmParser::parseRegisterOrRegisterNumber(int64_t &Register,
                                               SMLoc DirectiveLoc) {
-  unsigned RegNo;
+  MCRegister RegNo;
 
   if (getLexer().isNot(AsmToken::Integer)) {
-    if (getTargetParser().ParseRegister(RegNo, DirectiveLoc, DirectiveLoc))
+    if (getTargetParser().parseRegister(RegNo, DirectiveLoc, DirectiveLoc))
       return true;
     Register = getContext().getRegisterInfo()->getDwarfRegNum(RegNo, true);
   } else
@@ -5059,11 +5058,12 @@ bool AsmParser::parseDirectiveComm(bool IsLocal) {
 
   // Create the Symbol as a common or local common with Size and Pow2Alignment
   if (IsLocal) {
-    getStreamer().emitLocalCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+    getStreamer().emitLocalCommonSymbol(Sym, Size,
+                                        Align(1ULL << Pow2Alignment));
     return false;
   }
 
-  getStreamer().emitCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+  getStreamer().emitCommonSymbol(Sym, Size, Align(1ULL << Pow2Alignment));
   return false;
 }
 

@@ -35,6 +35,8 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
+enum class aspect;
+
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
@@ -239,8 +241,9 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
+  friend
+      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
+      detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

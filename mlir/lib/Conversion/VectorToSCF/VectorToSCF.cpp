@@ -52,7 +52,7 @@ struct VectorToSCFPattern : public OpRewritePattern<OpTy> {
 
 /// Given a vector transfer op, calculate which dimension of the `source`
 /// memref should be unpacked in the next application of TransferOpConversion.
-/// A return value of None indicates a broadcast.
+/// A return value of std::nullopt indicates a broadcast.
 template <typename OpTy>
 static Optional<int64_t> unpackedDim(OpTy xferOp) {
   // TODO: support 0-d corner case.
@@ -98,9 +98,8 @@ static void getXferIndices(OpBuilder &b, OpTy xferOp, Value iv,
   if (!isBroadcast) {
     AffineExpr d0, d1;
     bindDims(xferOp.getContext(), d0, d1);
-    Value offset = adaptor.getIndices()[dim.value()];
-    indices[dim.value()] =
-        makeComposedAffineApply(b, loc, d0 + d1, {offset, iv});
+    Value offset = adaptor.getIndices()[*dim];
+    indices[*dim] = makeComposedAffineApply(b, loc, d0 + d1, {offset, iv});
   }
 }
 
@@ -1090,7 +1089,8 @@ namespace lowering_1_d {
 
 /// Compute the indices into the memref for the LoadOp/StoreOp generated as
 /// part of TransferOp1dConversion. Return the memref dimension on which
-/// the transfer is operating. A return value of None indicates a broadcast.
+/// the transfer is operating. A return value of std::nullopt indicates a
+/// broadcast.
 template <typename OpTy>
 static Optional<int64_t>
 get1dMemrefIndices(OpBuilder &b, OpTy xferOp, Value iv,

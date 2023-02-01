@@ -321,6 +321,8 @@ private:
     } else if (isLambdaParameterList(&OpeningParen)) {
       // This is a parameter list of a lambda expression.
       Contexts.back().IsExpression = false;
+    } else if (OpeningParen.is(TT_RequiresExpressionLParen)) {
+      Contexts.back().IsExpression = false;
     } else if (Line.InPPDirective &&
                (!OpeningParen.Previous ||
                 !OpeningParen.Previous->is(tok::identifier))) {
@@ -1804,21 +1806,8 @@ private:
         FormatToken *LeadingIdentifier =
             Current.Previous->MatchingParen->Previous;
 
-        // Differentiate a deduction guide by seeing the
-        // > of the template prior to the leading identifier.
-        if (LeadingIdentifier) {
-          FormatToken *PriorLeadingIdentifier = LeadingIdentifier->Previous;
-          // Skip back past explicit decoration
-          if (PriorLeadingIdentifier &&
-              PriorLeadingIdentifier->is(tok::kw_explicit)) {
-            PriorLeadingIdentifier = PriorLeadingIdentifier->Previous;
-          }
-
-          return PriorLeadingIdentifier &&
-                 (PriorLeadingIdentifier->is(TT_TemplateCloser) ||
-                  PriorLeadingIdentifier->ClosesRequiresClause) &&
-                 LeadingIdentifier->TokenText == Current.Next->TokenText;
-        }
+        return LeadingIdentifier &&
+               LeadingIdentifier->TokenText == Current.Next->TokenText;
       }
     }
     return false;
@@ -5016,6 +5005,11 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
         !Right.MatchingParen) {
       return false;
     }
+    auto Next = Right.Next;
+    if (Next && Next->is(tok::r_paren))
+      Next = Next->Next;
+    if (Next && Next->is(tok::l_paren))
+      return false;
     const FormatToken *Previous = Right.MatchingParen->Previous;
     return !(Previous && (Previous->is(tok::kw_for) || Previous->isIf()));
   }

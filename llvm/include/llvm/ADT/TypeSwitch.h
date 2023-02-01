@@ -15,7 +15,6 @@
 #ifndef LLVM_ADT_TYPESWITCH_H
 #define LLVM_ADT_TYPESWITCH_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 #include <optional>
@@ -120,7 +119,7 @@ public:
 
     // Check to see if CaseT applies to 'value'.
     if (auto caseValue = BaseT::template castValue<CaseT>(this->value))
-      result = caseFn(caseValue);
+      result.emplace(caseFn(caseValue));
     return *this;
   }
 

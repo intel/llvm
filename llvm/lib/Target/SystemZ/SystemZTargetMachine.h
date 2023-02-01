@@ -15,7 +15,6 @@
 #define LLVM_LIB_TARGET_SYSTEMZ_SYSTEMZTARGETMACHINE_H
 
 #include "SystemZSubtarget.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Support/CodeGen.h"
@@ -51,6 +50,10 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
 
   bool targetSchedulesPostRAScheduling() const override { return true; };
 };

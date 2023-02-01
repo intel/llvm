@@ -69,11 +69,13 @@ cl::opt<bool> Insert{
     "insert",
     cl::desc("Allow header insertions"),
     cl::init(true),
+    cl::cat(IncludeCleaner),
 };
 cl::opt<bool> Remove{
     "remove",
     cl::desc("Allow header removals"),
     cl::init(true),
+    cl::cat(IncludeCleaner),
 };
 
 std::atomic<unsigned> Errors = ATOMIC_VAR_INIT(0);
@@ -128,7 +130,7 @@ class Action : public clang::ASTFrontendAction {
       switch (Print) {
       case PrintStyle::Changes:
         for (const Include *I : Results.Unused)
-          llvm::outs() << "- " << I->quote() << "\n";
+          llvm::outs() << "- " << I->quote() << " @Line:" << I->Line << "\n";
         for (const auto &I : Results.Missing)
           llvm::outs() << "+ " << I << "\n";
         break;

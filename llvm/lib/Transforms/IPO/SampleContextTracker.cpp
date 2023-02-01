@@ -124,13 +124,15 @@ void ContextTrieNode::setFunctionSamples(FunctionSamples *FSamples) {
   FuncSamples = FSamples;
 }
 
-Optional<uint32_t> ContextTrieNode::getFunctionSize() const { return FuncSize; }
+std::optional<uint32_t> ContextTrieNode::getFunctionSize() const {
+  return FuncSize;
+}
 
 void ContextTrieNode::addFunctionSize(uint32_t FSize) {
   if (!FuncSize)
     FuncSize = 0;
 
-  FuncSize = FuncSize.value() + FSize;
+  FuncSize = *FuncSize + FSize;
 }
 
 LineLocation ContextTrieNode::getCallSiteLoc() const { return CallSiteLoc; }

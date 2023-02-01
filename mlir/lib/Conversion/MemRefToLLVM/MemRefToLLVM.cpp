@@ -22,6 +22,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include <optional>
 
 namespace mlir {
 #define GEN_PASS_DEF_MEMREFTOLLVMCONVERSIONPASS
@@ -441,8 +442,8 @@ private:
     return rewriter.create<LLVM::LoadOp>(loc, sizePtr);
   }
 
-  Optional<int64_t> getConstantDimIndex(memref::DimOp dimOp) const {
-    if (Optional<int64_t> idx = dimOp.getConstantIndex())
+  std::optional<int64_t> getConstantDimIndex(memref::DimOp dimOp) const {
+    if (auto idx = dimOp.getConstantIndex())
       return idx;
 
     if (auto constantOp = dimOp.getIndex().getDefiningOp<LLVM::ConstantOp>())
@@ -461,7 +462,7 @@ private:
 
     // Take advantage if index is constant.
     MemRefType memRefType = operandType.cast<MemRefType>();
-    if (Optional<int64_t> index = getConstantDimIndex(dimOp)) {
+    if (std::optional<int64_t> index = getConstantDimIndex(dimOp)) {
       int64_t i = *index;
       if (memRefType.isDynamicDim(i)) {
         // extract dynamic size from the memref descriptor.
@@ -1876,7 +1877,7 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
 
 /// Try to match the kind of a memref.atomic_rmw to determine whether to use a
 /// lowering to llvm.atomicrmw or fallback to llvm.cmpxchg.
-static Optional<LLVM::AtomicBinOp>
+static std::optional<LLVM::AtomicBinOp>
 matchSimpleAtomicOp(memref::AtomicRMWOp atomicOp) {
   switch (atomicOp.getKind()) {
   case arith::AtomicRMWKind::addf:

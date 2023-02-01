@@ -14,7 +14,6 @@
 #define LLVM_LIB_TARGET_X86_X86TARGETMACHINE_H
 
 #include "X86Subtarget.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Target/TargetMachine.h"
@@ -54,6 +53,10 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
 
   bool isJIT() const { return IsJIT; }
 

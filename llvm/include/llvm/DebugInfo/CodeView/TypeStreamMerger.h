@@ -14,7 +14,6 @@
 #include "llvm/Support/Error.h"
 
 namespace llvm {
-template <typename T> class Optional;
 template <typename T> class SmallVectorImpl;
 namespace codeview {
 
@@ -91,20 +90,20 @@ Error mergeTypeAndIdRecords(MergingTypeTableBuilder &DestIds,
                             MergingTypeTableBuilder &DestTypes,
                             SmallVectorImpl<TypeIndex> &SourceToDest,
                             const CVTypeArray &IdsAndTypes,
-                            Optional<PCHMergerInfo> &PCHInfo);
+                            std::optional<PCHMergerInfo> &PCHInfo);
 
 Error mergeTypeAndIdRecords(GlobalTypeTableBuilder &DestIds,
                             GlobalTypeTableBuilder &DestTypes,
                             SmallVectorImpl<TypeIndex> &SourceToDest,
                             const CVTypeArray &IdsAndTypes,
                             ArrayRef<GloballyHashedType> Hashes,
-                            Optional<PCHMergerInfo> &PCHInfo);
+                            std::optional<PCHMergerInfo> &PCHInfo);
 
 Error mergeTypeRecords(GlobalTypeTableBuilder &Dest,
                        SmallVectorImpl<TypeIndex> &SourceToDest,
                        const CVTypeArray &Types,
                        ArrayRef<GloballyHashedType> Hashes,
-                       Optional<PCHMergerInfo> &PCHInfo);
+                       std::optional<PCHMergerInfo> &PCHInfo);
 
 Error mergeIdRecords(GlobalTypeTableBuilder &Dest, ArrayRef<TypeIndex> Types,
                      SmallVectorImpl<TypeIndex> &SourceToDest,

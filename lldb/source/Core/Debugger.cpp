@@ -59,7 +59,6 @@
 #include "lldb/Host/windows/windows.h"
 #endif
 
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
@@ -1732,7 +1731,7 @@ lldb::thread_result_t Debugger::DefaultEventHandler() {
   bool done = false;
   while (!done) {
     EventSP event_sp;
-    if (listener_sp->GetEvent(event_sp, llvm::None)) {
+    if (listener_sp->GetEvent(event_sp, std::nullopt)) {
       if (event_sp) {
         Broadcaster *broadcaster = event_sp->GetBroadcaster();
         if (broadcaster) {
@@ -1827,7 +1826,7 @@ bool Debugger::StartEventHandlerThread() {
     // event, we just need to wait an infinite amount of time for it (nullptr
     // timeout as the first parameter)
     lldb::EventSP event_sp;
-    listener_sp->GetEvent(event_sp, llvm::None);
+    listener_sp->GetEvent(event_sp, std::nullopt);
   }
   return m_event_handler_thread.IsJoinable();
 }

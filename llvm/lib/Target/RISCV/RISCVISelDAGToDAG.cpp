@@ -27,6 +27,7 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "riscv-isel"
+#define PASS_NAME "RISCV DAG->DAG Pattern Instruction Selection"
 
 namespace llvm::RISCV {
 #define GET_RISCVVSSEGTable_IMPL
@@ -177,20 +178,20 @@ static SDNode *selectImmSeq(SelectionDAG *CurDAG, const SDLoc &DL, const MVT VT,
   SDNode *Result = nullptr;
   SDValue SrcReg = CurDAG->getRegister(RISCV::X0, VT);
   for (RISCVMatInt::Inst &Inst : Seq) {
-    SDValue SDImm = CurDAG->getTargetConstant(Inst.Imm, DL, VT);
+    SDValue SDImm = CurDAG->getTargetConstant(Inst.getImm(), DL, VT);
     switch (Inst.getOpndKind()) {
     case RISCVMatInt::Imm:
-      Result = CurDAG->getMachineNode(Inst.Opc, DL, VT, SDImm);
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SDImm);
       break;
     case RISCVMatInt::RegX0:
-      Result = CurDAG->getMachineNode(Inst.Opc, DL, VT, SrcReg,
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg,
                                       CurDAG->getRegister(RISCV::X0, VT));
       break;
     case RISCVMatInt::RegReg:
-      Result = CurDAG->getMachineNode(Inst.Opc, DL, VT, SrcReg, SrcReg);
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg, SrcReg);
       break;
     case RISCVMatInt::RegImm:
-      Result = CurDAG->getMachineNode(Inst.Opc, DL, VT, SrcReg, SDImm);
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg, SDImm);
       break;
     }
 
@@ -1935,9 +1936,9 @@ static bool selectConstantAddr(SelectionDAG *CurDAG, const SDLoc &DL,
 
   // If the last instruction would be an ADDI, we can fold its immediate and
   // emit the rest of the sequence as the base.
-  if (Seq.back().Opc != RISCV::ADDI)
+  if (Seq.back().getOpcode() != RISCV::ADDI)
     return false;
-  Lo12 = Seq.back().Imm;
+  Lo12 = Seq.back().getImm();
 
   // Drop the last instruction.
   Seq.pop_back();
@@ -2283,16 +2284,18 @@ bool RISCVDAGToDAGISel::selectSHXADD_UWOp(SDValue N, unsigned ShAmt,
 // may be able to use a W instruction and CSE with the other instruction if
 // this has happened. We could try to detect that the CSE opportunity exists
 // before doing this, but that would be more complicated.
-// TODO: Does this need to look through AND/OR/XOR to their users to find more
-// opportunities.
-bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits) const {
+bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits,
+                                        const unsigned Depth) const {
   assert((Node->getOpcode() == ISD::ADD || Node->getOpcode() == ISD::SUB ||
           Node->getOpcode() == ISD::MUL || Node->getOpcode() == ISD::SHL ||
           Node->getOpcode() == ISD::SRL || Node->getOpcode() == ISD::AND ||
           Node->getOpcode() == ISD::OR || Node->getOpcode() == ISD::XOR ||
           Node->getOpcode() == ISD::SIGN_EXTEND_INREG ||
-          isa<ConstantSDNode>(Node)) &&
+          isa<ConstantSDNode>(Node) || Depth != 0) &&
          "Unexpected opcode");
+
+  if (Depth >= SelectionDAG::MaxRecursionDepth)
+    return false;
 
   for (auto UI = Node->use_begin(), UE = Node->use_end(); UI != UE; ++UI) {
     SDNode *User = *UI;
@@ -2353,15 +2356,25 @@ bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits) const {
         return false;
       break;
     case RISCV::ANDI:
-      if (Bits < (64 - countLeadingZeros(User->getConstantOperandVal(1))))
-        return false;
-      break;
+      if (Bits >= (64 - countLeadingZeros(User->getConstantOperandVal(1))))
+        break;
+      goto RecCheck;
     case RISCV::ORI: {
       uint64_t Imm = cast<ConstantSDNode>(User->getOperand(1))->getSExtValue();
-      if (Bits < (64 - countLeadingOnes(Imm)))
+      if (Bits >= (64 - countLeadingOnes(Imm)))
+        break;
+      [[fallthrough]];
+    }
+    case RISCV::AND:
+    case RISCV::OR:
+    case RISCV::XOR:
+    case RISCV::ANDN:
+    case RISCV::ORN:
+    case RISCV::XNOR:
+    RecCheck:
+      if (!hasAllNBitUsers(User, Bits, Depth + 1))
         return false;
       break;
-    }
     case RISCV::SEXT_B:
     case RISCV::PACKH:
       if (Bits < 8)
@@ -2895,3 +2908,7 @@ FunctionPass *llvm::createRISCVISelDag(RISCVTargetMachine &TM,
                                        CodeGenOpt::Level OptLevel) {
   return new RISCVDAGToDAGISel(TM, OptLevel);
 }
+
+char RISCVDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(RISCVDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)

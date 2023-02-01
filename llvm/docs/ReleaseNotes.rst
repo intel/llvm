@@ -47,8 +47,6 @@ Non-comprehensive list of changes in this release
    is not a constant in coroutines. This decision may cause unnecessary
    performance regressions and we plan to fix it in later versions.
 
-* The LoopFlatten pass is now enabled by default.
-
 * ...
 
 Update on required toolchains to build LLVM
@@ -65,6 +63,17 @@ and there is no way to suppress this error.
 * Clang >= 5.0
 * Apple Clang >= 10.0
 * Visual Studio 2019 >= 16.7
+
+With LLVM 16.x we will raise the version requirement of CMake used to build
+LLVM. The new requirements are as follows:
+
+* CMake >= 3.20.0
+
+In LLVM 16.x this requirement will be "soft", there will only be a diagnostic.
+
+With the release of LLVM 17.x this requirement will be hard and LLVM developers
+can start using CMake 3.20.0 features, making it impossible to build with older
+versions of CMake.
 
 Changes to the LLVM IR
 ----------------------
@@ -94,6 +103,10 @@ Changes to the LLVM IR
   removed:
 
   * ``fneg``
+
+* Target extension types have been added, which allow targets to have
+  types that need to be preserved through the optimizer, but otherwise are not
+  introspectable by target-independent optimizations.
 
 Changes to building LLVM
 ------------------------
@@ -189,6 +202,22 @@ Changes to the C API
   constant fold the operands if possible and create an instruction otherwise:
 
   * ``LLVMConstFNeg``
+
+
+* The following deprecated functions have been removed, because they are
+  incompatible with opaque pointers. Use the new functions accepting a separate
+  function/element type instead.
+
+  * ``LLVMBuildLoad`` -> ``LLVMBuildLoad2``
+  * ``LLVMBuildCall`` -> ``LLVMBuildCall2``
+  * ``LLVMBuildInvoke`` -> ``LLVMBuildInvoke2``
+  * ``LLVMBuildGEP`` -> ``LLVMBuildGEP2``
+  * ``LLVMBuildInBoundsGEP`` -> ``LLVMBuildInBoundsGEP2``
+  * ``LLVMBuildStructGEP`` -> ``LLVMBuildStructGEP2``
+  * ``LLVMBuildPtrDiff`` -> ``LLVMBuildPtrDiff2``
+  * ``LLVMConstGEP`` -> ``LLVMConstGEP2``
+  * ``LLVMConstInBoundsGEP`` -> ``LLVMConstInBoundsGEP2``
+  * ``LLVMAddAlias`` -> ``LLVMAddAlias2``
 
 Changes to the Go bindings
 --------------------------

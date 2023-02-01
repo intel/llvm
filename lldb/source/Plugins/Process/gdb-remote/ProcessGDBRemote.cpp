@@ -3448,7 +3448,7 @@ thread_result_t ProcessGDBRemote::AsyncThread() {
               ") listener.WaitForEvent (NULL, event_sp)...",
               __FUNCTION__, GetID());
 
-    if (m_async_listener_sp->GetEvent(event_sp, llvm::None)) {
+    if (m_async_listener_sp->GetEvent(event_sp, std::nullopt)) {
       const uint32_t event_type = event_sp->GetType();
       if (event_sp->BroadcasterIs(&m_async_broadcaster)) {
         LLDB_LOGF(log,
@@ -3815,6 +3815,29 @@ ProcessGDBRemote::GetLoadedDynamicLibrariesInfos_sender(
     StringExtractorGDBRemote response;
     response.SetResponseValidatorToJSON();
     if (m_gdb_comm.SendPacketAndWaitForResponse(packet.GetString(), response) ==
+        GDBRemoteCommunication::PacketResult::Success) {
+      StringExtractorGDBRemote::ResponseType response_type =
+          response.GetResponseType();
+      if (response_type == StringExtractorGDBRemote::eResponse) {
+        if (!response.Empty()) {
+          object_sp =
+              StructuredData::ParseJSON(std::string(response.GetStringRef()));
+        }
+      }
+    }
+  }
+  return object_sp;
+}
+
+StructuredData::ObjectSP ProcessGDBRemote::GetDynamicLoaderProcessState() {
+  StructuredData::ObjectSP object_sp;
+  StructuredData::ObjectSP args_dict(new StructuredData::Dictionary());
+
+  if (m_gdb_comm.GetDynamicLoaderProcessStateSupported()) {
+    StringExtractorGDBRemote response;
+    response.SetResponseValidatorToJSON();
+    if (m_gdb_comm.SendPacketAndWaitForResponse("jGetDyldProcessState",
+                                                response) ==
         GDBRemoteCommunication::PacketResult::Success) {
       StringExtractorGDBRemote::ResponseType response_type =
           response.GetResponseType();

@@ -18,7 +18,6 @@
 #include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/Operator.h"
 #include "mlir/TableGen/Trait.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
@@ -56,7 +55,8 @@ filterForDialect(ArrayRef<llvm::Record *> records, Dialect &dialect) {
           DialectFilterIterator(records.end(), records.end(), filterFn)};
 }
 
-Optional<Dialect> tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
+std::optional<Dialect>
+tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
   if (dialects.empty()) {
     llvm::errs() << "no dialect was found\n";
     return std::nullopt;
@@ -216,8 +216,7 @@ static void emitDialectDecl(Dialect &dialect, raw_ostream &os) {
       os << regionResultAttrVerifierDecl;
     if (dialect.hasOperationInterfaceFallback())
       os << operationInterfaceFallbackDecl;
-    if (llvm::Optional<StringRef> extraDecl =
-            dialect.getExtraClassDeclaration())
+    if (std::optional<StringRef> extraDecl = dialect.getExtraClassDeclaration())
       os << *extraDecl;
 
     // End the dialect decl.
@@ -237,7 +236,7 @@ static bool emitDialectDecls(const llvm::RecordKeeper &recordKeeper,
     return false;
 
   SmallVector<Dialect> dialects(dialectDefs.begin(), dialectDefs.end());
-  Optional<Dialect> dialect = findDialectToGenerate(dialects);
+  std::optional<Dialect> dialect = findDialectToGenerate(dialects);
   if (!dialect)
     return true;
   emitDialectDecl(*dialect, os);
@@ -255,7 +254,7 @@ static bool emitDialectDecls(const llvm::RecordKeeper &recordKeeper,
 ///      initialize().
 /// {2}: The dialect parent class.
 static const char *const dialectConstructorStr = R"(
-{0}::{0}(::mlir::MLIRContext *context) 
+{0}::{0}(::mlir::MLIRContext *context)
     : ::mlir::{2}(getDialectNamespace(), context, ::mlir::TypeID::get<{0}>()) {{
   {1}
   initialize();
@@ -308,7 +307,7 @@ static bool emitDialectDefs(const llvm::RecordKeeper &recordKeeper,
     return false;
 
   SmallVector<Dialect> dialects(dialectDefs.begin(), dialectDefs.end());
-  Optional<Dialect> dialect = findDialectToGenerate(dialects);
+  std::optional<Dialect> dialect = findDialectToGenerate(dialects);
   if (!dialect)
     return true;
   emitDialectDef(*dialect, os);

@@ -16,6 +16,7 @@ set(LLVM_LINK_COMPONENTS
   Remarks
   Support
   Target
+  TargetParser
   )
 
 add_llvm_tool(dsymutil
@@ -33,7 +34,6 @@ add_llvm_tool(dsymutil
   intrinsics_gen
   ${tablegen_deps}
   DsymutilTableGen
-  GENERATE_DRIVER
   )
 
 if(APPLE)

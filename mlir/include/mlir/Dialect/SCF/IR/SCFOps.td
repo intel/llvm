@@ -222,7 +222,7 @@ def ForOp : SCF_Op<"for",
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "Value":$lowerBound, "Value":$upperBound, "Value":$step,
-      CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"ValueRange", "std::nullopt">:$iterArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -273,13 +273,13 @@ def ForOp : SCF_Op<"for",
       return getOperation()->getNumOperands() - getNumControlOperands();
     }
     /// Get the iter arg number for an operand. If it isnt an iter arg
-    /// operand return llvm::None.
-    Optional<unsigned> getIterArgNumberForOpOperand(OpOperand &opOperand) {
+    /// operand return std::nullopt.
+    std::optional<unsigned> getIterArgNumberForOpOperand(OpOperand &opOperand) {
       if (opOperand.getOwner() != getOperation())
-        return llvm::None;
+        return std::nullopt;
       unsigned operandNumber = opOperand.getOperandNumber();
       if (operandNumber < getNumControlOperands())
-        return llvm::None;
+        return std::nullopt;
       return operandNumber - getNumControlOperands();
     }
 
@@ -331,10 +331,10 @@ def ForOp : SCF_Op<"for",
     /// correspond to the loop iterator operands, i.e., those exclusing the
     /// induction variable. LoopOp only has one region, so 0 is the only valid
     /// value for `index`.
-    OperandRange getSuccessorEntryOperands(Optional<unsigned> index);
+    OperandRange getSuccessorEntryOperands(std::optional<unsigned> index);
 
     /// Returns the step as an `APInt` if it is constant.
-    Optional<APInt> getConstantStep();
+    std::optional<APInt> getConstantStep();
 
     /// Interface method for ConditionallySpeculatable.
     Speculation::Speculatability getSpeculatability();
@@ -496,7 +496,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
   let builders = [
     // Bodyless builder, outputs must be specified.
     OpBuilder<(ins "ValueRange":$outputs, "ValueRange":$num_threads,
-                   "Optional<ArrayAttr>":$mapping)>,
+                   "std::optional<ArrayAttr>":$mapping)>,
     // Builder that takes a bodyBuilder lambda.
     OpBuilder<(ins "ValueRange":$outputs, "ValueRange":$num_threads,
                    "ArrayRef<Attribute>":$mapping,
@@ -1003,7 +1003,7 @@ def WhileOp : SCF_Op<"while",
     using BodyBuilderFn =
         function_ref<void(OpBuilder &, Location, ValueRange)>;
 
-    OperandRange getSuccessorEntryOperands(Optional<unsigned> index);
+    OperandRange getSuccessorEntryOperands(std::optional<unsigned> index);
     ConditionOp getConditionOp();
     YieldOp getYieldOp();
     Block::BlockArgListType getBeforeArguments();

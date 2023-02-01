@@ -19,8 +19,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -624,6 +622,17 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
        << TPTy->getAddressSpace() << ")";
     return;
   }
+  case Type::TargetExtTyID:
+    TargetExtType *TETy = cast<TargetExtType>(Ty);
+    OS << "target(\"";
+    printEscapedString(Ty->getTargetExtName(), OS);
+    OS << "\"";
+    for (Type *Inner : TETy->type_params())
+      OS << ", " << *Inner;
+    for (unsigned IntParam : TETy->int_params())
+      OS << ", " << IntParam;
+    OS << ")";
+    return;
   }
   llvm_unreachable("Invalid TypeID");
 }
@@ -1440,7 +1449,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
-  if (isa<ConstantAggregateZero>(CV)) {
+  if (isa<ConstantAggregateZero>(CV) || isa<ConstantTargetNone>(CV)) {
     Out << "zeroinitializer";
     return;
   }
@@ -1580,7 +1589,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                         static_cast<CmpInst::Predicate>(CE->getPredicate()));
     Out << " (";
 
-    Optional<unsigned> InRangeOp;
+    std::optional<unsigned> InRangeOp;
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(CE)) {
       WriterCtx.TypePrinter->print(GEP->getSourceElementType(), Out);
       Out << ", ";
@@ -1676,7 +1685,7 @@ struct MDFieldPrinter {
   void printAPInt(StringRef Name, const APInt &Int, bool IsUnsigned,
                   bool ShouldSkipZero);
   void printBool(StringRef Name, bool Value,
-                 Optional<bool> Default = std::nullopt);
+                 std::optional<bool> Default = std::nullopt);
   void printDIFlags(StringRef Name, DINode::DIFlags Flags);
   void printDISPFlags(StringRef Name, DISubprogram::DISPFlags Flags);
   template <class IntTy, class Stringifier>
@@ -1760,7 +1769,7 @@ void MDFieldPrinter::printAPInt(StringRef Name, const APInt &Int,
 }
 
 void MDFieldPrinter::printBool(StringRef Name, bool Value,
-                               Optional<bool> Default) {
+                               std::optional<bool> Default) {
   if (Default && Value == *Default)
     return;
   Out << FS << Name << ": " << (Value ? "true" : "false");
@@ -4385,9 +4394,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     bool PrintAllTypes = false;
     Type *TheType = Operand->getType();
 
-    // Select, Store, ShuffleVector and CmpXchg always print all types.
+    // Select, Store, ShuffleVector, CmpXchg and AtomicRMW always print all
+    // types.
     if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I) ||
-        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I)) {
+        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I) ||
+        isa<AtomicRMWInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {

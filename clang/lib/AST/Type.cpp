@@ -42,7 +42,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -523,6 +522,10 @@ template<typename T> static const T *getAsSugar(const Type *Cur) {
 
 template <> const TypedefType *Type::getAs() const {
   return getAsSugar<TypedefType>(this);
+}
+
+template <> const UsingType *Type::getAs() const {
+  return getAsSugar<UsingType>(this);
 }
 
 template <> const TemplateSpecializationType *Type::getAs() const {
@@ -4148,8 +4151,7 @@ LinkageInfo Type::getLinkageAndVisibility() const {
   return LinkageComputer{}.getTypeLinkageAndVisibility(this);
 }
 
-Optional<NullabilityKind>
-Type::getNullability(const ASTContext &Context) const {
+Optional<NullabilityKind> Type::getNullability() const {
   QualType Type(this, 0);
   while (const auto *AT = Type->getAs<AttributedType>()) {
     // Check whether this is an attributed type with nullability

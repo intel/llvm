@@ -109,6 +109,21 @@ Type mlir::memref::getTensorTypeFromMemRefType(Type type) {
   return NoneType::get(type.getContext());
 }
 
+SmallVector<OpFoldResult> memref::getMixedSizes(OpBuilder &builder,
+                                                Location loc, Value value) {
+  auto memrefType = value.getType().cast<MemRefType>();
+  SmallVector<OpFoldResult> result;
+  for (int64_t i = 0; i < memrefType.getRank(); ++i) {
+    if (memrefType.isDynamicDim(i)) {
+      Value size = builder.create<memref::DimOp>(loc, value, i);
+      result.push_back(size);
+    } else {
+      result.push_back(builder.getIndexAttr(memrefType.getDimSize(i)));
+    }
+  }
+  return result;
+}
+
 //===----------------------------------------------------------------------===//
 // Utility functions for propagating static information
 //===----------------------------------------------------------------------===//
@@ -169,7 +184,8 @@ static void constifyIndexValues(
           ofr.get<Attribute>().cast<IntegerAttr>().getInt());
       continue;
     }
-    Optional<int64_t> maybeConstant = getConstantIntValue(ofr.get<Value>());
+    std::optional<int64_t> maybeConstant =
+        getConstantIntValue(ofr.get<Value>());
     if (maybeConstant)
       ofr = builder.getIndexAttr(*maybeConstant);
   }
@@ -443,7 +459,7 @@ ParseResult AllocaScopeOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void AllocaScopeOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   if (index) {
     regions.push_back(RegionSuccessor(getResults()));
@@ -907,7 +923,7 @@ void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
   build(builder, result, source, indexValue);
 }
 
-Optional<int64_t> DimOp::getConstantIndex() {
+std::optional<int64_t> DimOp::getConstantIndex() {
   return getConstantIntValue(getIndex());
 }
 
@@ -927,7 +943,7 @@ Speculation::Speculatability DimOp::getSpeculatability() {
 
 LogicalResult DimOp::verify() {
   // Assume unknown index to be in range.
-  Optional<int64_t> index = getConstantIndex();
+  std::optional<int64_t> index = getConstantIndex();
   if (!index)
     return success();
 
@@ -962,7 +978,7 @@ static std::map<int64_t, unsigned> getNumOccurences(ArrayRef<int64_t> vals) {
 /// This accounts for cases where there are multiple unit-dims, but only a
 /// subset of those are dropped. For MemRefTypes these can be disambiguated
 /// using the strides. If a dimension is dropped the stride must be dropped too.
-static llvm::Optional<llvm::SmallBitVector>
+static std::optional<llvm::SmallBitVector>
 computeMemRefRankReductionMask(MemRefType originalType, MemRefType reducedType,
                                ArrayRef<OpFoldResult> sizes) {
   llvm::SmallBitVector unusedDims(originalType.getRank());
@@ -1034,7 +1050,7 @@ computeMemRefRankReductionMask(MemRefType originalType, MemRefType reducedType,
 llvm::SmallBitVector SubViewOp::getDroppedDims() {
   MemRefType sourceType = getSourceType();
   MemRefType resultType = getType();
-  llvm::Optional<llvm::SmallBitVector> unusedDims =
+  std::optional<llvm::SmallBitVector> unusedDims =
       computeMemRefRankReductionMask(sourceType, resultType, getMixedSizes());
   assert(unusedDims && "unable to find unused dims of subview");
   return *unusedDims;
@@ -1349,7 +1365,7 @@ void ExtractAlignedPointerAsIndexOp::getAsmResultNames(
 /// The number and type of the results are inferred from the
 /// shape of the source.
 LogicalResult ExtractStridedMetadataOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   ExtractStridedMetadataOpAdaptor extractAdaptor(operands, attributes, regions);
@@ -1610,7 +1626,7 @@ LogicalResult GlobalOp::verify() {
     }
   }
 
-  if (Optional<uint64_t> alignAttr = getAlignment()) {
+  if (std::optional<uint64_t> alignAttr = getAlignment()) {
     uint64_t alignment = *alignAttr;
 
     if (!llvm::isPowerOf2_64(alignment))
@@ -1769,12 +1785,9 @@ void ReinterpretCastOp::build(OpBuilder &b, OperationState &result,
                               ArrayRef<NamedAttribute> attrs) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offset, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamic);
+  dispatchIndexOpFoldResults(offset, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   build(b, result, resultType, source, dynamicOffsets, dynamicSizes,
         dynamicStrides, b.getDenseI64ArrayAttr(staticOffsets),
         b.getDenseI64ArrayAttr(staticSizes),
@@ -2538,11 +2551,7 @@ Type SubViewOp::inferResultType(MemRefType sourceMemRefType,
   assert(staticStrides.size() == rank && "staticStrides length mismatch");
 
   // Extract source offset and strides.
-  int64_t sourceOffset;
-  SmallVector<int64_t, 4> sourceStrides;
-  auto res = getStridesAndOffset(sourceMemRefType, sourceStrides, sourceOffset);
-  assert(succeeded(res) && "SubViewOp expected strided memref type");
-  (void)res;
+  auto [sourceStrides, sourceOffset] = getStridesAndOffset(sourceMemRefType);
 
   // Compute target offset whose value is:
   //   `sourceOffset + sum_i(staticOffset_i * sourceStrides_i)`.
@@ -2581,12 +2590,9 @@ Type SubViewOp::inferResultType(MemRefType sourceMemRefType,
                                 ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamic);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   return SubViewOp::inferResultType(sourceMemRefType, staticOffsets,
                                     staticSizes, staticStrides);
 }
@@ -2605,7 +2611,7 @@ Type SubViewOp::inferRankReducedResultType(ArrayRef<int64_t> resultShape,
     return inferredType;
 
   // Compute which dimensions are dropped.
-  Optional<llvm::SmallDenseSet<unsigned>> dimsToProject =
+  std::optional<llvm::SmallDenseSet<unsigned>> dimsToProject =
       computeRankReductionMask(inferredType.getShape(), resultShape);
   assert(dimsToProject.has_value() && "invalid rank reduction");
 
@@ -2631,12 +2637,9 @@ Type SubViewOp::inferRankReducedResultType(ArrayRef<int64_t> resultShape,
                                            ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamic);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   return SubViewOp::inferRankReducedResultType(
       resultShape, sourceRankedTensorType, staticOffsets, staticSizes,
       staticStrides);
@@ -2652,12 +2655,9 @@ void SubViewOp::build(OpBuilder &b, OperationState &result,
                       ArrayRef<NamedAttribute> attrs) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamic);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamic);
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides);
   auto sourceMemRefType = source.getType().cast<MemRefType>();
   // Structuring implementation this way avoids duplication between builders.
   if (!resultType) {
@@ -2888,7 +2888,7 @@ static MemRefType getCanonicalSubViewResultType(
   auto nonRankReducedType = SubViewOp::inferResultType(sourceType, mixedOffsets,
                                                        mixedSizes, mixedStrides)
                                 .cast<MemRefType>();
-  llvm::Optional<llvm::SmallBitVector> unusedDims =
+  std::optional<llvm::SmallBitVector> unusedDims =
       computeMemRefRankReductionMask(currentSourceType, currentResultType,
                                      mixedSizes);
   // Return nullptr as failure mode.
@@ -2928,6 +2928,35 @@ static MemRefType getCanonicalSubViewResultType(
                                        mixedStrides);
 }
 
+Value mlir::memref::createCanonicalRankReducingSubViewOp(
+    OpBuilder &b, Location loc, Value memref, ArrayRef<int64_t> targetShape) {
+  auto memrefType = memref.getType().cast<MemRefType>();
+  unsigned rank = memrefType.getRank();
+  SmallVector<OpFoldResult> offsets(rank, b.getIndexAttr(0));
+  SmallVector<OpFoldResult> sizes = getMixedSizes(b, loc, memref);
+  SmallVector<OpFoldResult> strides(rank, b.getIndexAttr(1));
+  auto targetType = SubViewOp::inferRankReducedResultType(
+                        targetShape, memrefType, offsets, sizes, strides)
+                        .cast<MemRefType>();
+  return b.createOrFold<memref::SubViewOp>(loc, targetType, memref, offsets,
+                                           sizes, strides);
+}
+
+FailureOr<Value> SubViewOp::rankReduceIfNeeded(OpBuilder &b, Location loc,
+                                               Value value,
+                                               ArrayRef<int64_t> desiredShape) {
+  auto sourceMemrefType = value.getType().dyn_cast<MemRefType>();
+  assert(sourceMemrefType && "not a ranked memref type");
+  auto sourceShape = sourceMemrefType.getShape();
+  if (sourceShape.equals(desiredShape))
+    return value;
+  auto maybeRankReductionMask =
+      mlir::computeRankReductionMask(sourceShape, desiredShape);
+  if (!maybeRankReductionMask)
+    return failure();
+  return createCanonicalRankReducingSubViewOp(b, loc, value, desiredShape);
+}
+
 /// Helper method to check if a `subview` operation is trivially a no-op. This
 /// is the case if the all offsets are zero, all strides are 1, and the source
 /// shape is same as the size of the subview. In such cases, the subview can
@@ -2942,14 +2971,14 @@ static bool isTrivialSubViewOp(SubViewOp subViewOp) {
 
   // Check offsets are zero.
   if (llvm::any_of(mixedOffsets, [](OpFoldResult ofr) {
-        Optional<int64_t> intValue = getConstantIntValue(ofr);
+        std::optional<int64_t> intValue = getConstantIntValue(ofr);
         return !intValue || intValue.value() != 0;
       }))
     return false;
 
   // Check strides are one.
   if (llvm::any_of(mixedStrides, [](OpFoldResult ofr) {
-        Optional<int64_t> intValue = getConstantIntValue(ofr);
+        std::optional<int64_t> intValue = getConstantIntValue(ofr);
         return !intValue || intValue.value() != 1;
       }))
     return false;
@@ -2957,7 +2986,7 @@ static bool isTrivialSubViewOp(SubViewOp subViewOp) {
   // Check all size values are static and matches the (static) source shape.
   ArrayRef<int64_t> sourceShape = subViewOp.getSourceType().getShape();
   for (const auto &size : llvm::enumerate(mixedSizes)) {
-    Optional<int64_t> intValue = getConstantIntValue(size.value());
+    std::optional<int64_t> intValue = getConstantIntValue(size.value());
     if (!intValue || *intValue != sourceShape[size.index()])
       return false;
   }
@@ -3081,6 +3110,24 @@ OpFoldResult SubViewOp::fold(ArrayRef<Attribute> operands) {
     return getViewSource();
   }
 
+  // Fold subview(subview(x)), where both subviews have the same size and the
+  // second subview's offsets are all zero. (I.e., the second subview is a
+  // no-op.)
+  if (auto srcSubview = getViewSource().getDefiningOp<SubViewOp>()) {
+    auto srcSizes = srcSubview.getMixedSizes();
+    auto sizes = getMixedSizes();
+    auto offsets = getMixedOffsets();
+    bool allOffsetsZero = llvm::all_of(
+        offsets, [](OpFoldResult ofr) { return isConstantIntValue(ofr, 0); });
+    auto strides = getMixedStrides();
+    bool allStridesOne = llvm::all_of(
+        strides, [](OpFoldResult ofr) { return isConstantIntValue(ofr, 1); });
+    bool allSizesSame = llvm::equal(sizes, srcSizes);
+    if (allOffsetsZero && allStridesOne && allSizesSame &&
+        resultShapedType == sourceShapedType)
+      return getViewSource();
+  }
+
   return {};
 }
 
@@ -3098,12 +3145,8 @@ static MemRefType inferTransposeResultType(MemRefType memRefType,
                                            AffineMap permutationMap) {
   auto rank = memRefType.getRank();
   auto originalSizes = memRefType.getShape();
-  int64_t offset;
-  SmallVector<int64_t, 4> originalStrides;
-  auto res = getStridesAndOffset(memRefType, originalStrides, offset);
-  assert(succeeded(res) &&
-         originalStrides.size() == static_cast<unsigned>(rank));
-  (void)res;
+  auto [originalStrides, offset] = getStridesAndOffset(memRefType);
+  assert(originalStrides.size() == static_cast<unsigned>(rank));
 
   // Compute permuted sizes and strides.
   SmallVector<int64_t> sizes(rank, 0);

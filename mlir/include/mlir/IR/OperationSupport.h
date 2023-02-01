@@ -134,8 +134,8 @@ public:
   /// Return if this operation is registered.
   bool isRegistered() const { return impl->isRegistered(); }
 
-  /// If this operation is registered, returns the registered information, None
-  /// otherwise.
+  /// If this operation is registered, returns the registered information,
+  /// std::nullopt otherwise.
   Optional<RegisteredOperationName> getRegisteredInfo() const;
 
   /// Returns true if the operation was registered with a particular trait, e.g.
@@ -251,7 +251,7 @@ inline llvm::hash_code hash_value(OperationName arg) {
 class RegisteredOperationName : public OperationName {
 public:
   /// Lookup the registered operation information for the given operation.
-  /// Returns None if the operation isn't registered.
+  /// Returns std::nullopt if the operation isn't registered.
   static Optional<RegisteredOperationName> lookup(StringRef name,
                                                   MLIRContext *ctx);
 
@@ -464,8 +464,8 @@ Attribute getAttrFromSortedRange(IteratorT first, IteratorT last, NameT name) {
   return result.second ? result.first->getValue() : Attribute();
 }
 
-/// Get an attribute from a sorted range of named attributes. Returns None if
-/// the attribute was not found.
+/// Get an attribute from a sorted range of named attributes. Returns
+/// std::nullopt if the attribute was not found.
 template <typename IteratorT, typename NameT>
 Optional<NamedAttribute>
 getNamedAttrFromSortedRange(IteratorT first, IteratorT last, NameT name) {
@@ -554,7 +554,7 @@ public:
   void pop_back() { attrs.pop_back(); }
 
   /// Returns an entry with a duplicate name the list, if it exists, else
-  /// returns llvm::None.
+  /// returns std::nullopt.
   Optional<NamedAttribute> findDuplicate() const;
 
   /// Return a dictionary attribute for the underlying dictionary. This will
@@ -568,7 +568,7 @@ public:
   Attribute get(StringAttr name) const;
   Attribute get(StringRef name) const;
 
-  /// Return the specified named attribute if present, None otherwise.
+  /// Return the specified named attribute if present, std::nullopt otherwise.
   Optional<NamedAttribute> getNamed(StringRef name) const;
   Optional<NamedAttribute> getNamed(StringAttr name) const;
 

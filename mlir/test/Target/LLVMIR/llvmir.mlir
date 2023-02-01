@@ -996,8 +996,8 @@ llvm.func @gep(%ptr: !llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, %idx: i64,
                %ptr2: !llvm.ptr<struct<(array<10 x f32>)>>) {
   // CHECK: = getelementptr { i32, { i32, float } }, ptr %{{.*}}, i64 %{{.*}}, i32 1, i32 0
   llvm.getelementptr %ptr[%idx, 1, 0] : (!llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, i64) -> !llvm.ptr<i32>
-  // CHECK: = getelementptr { [10 x float] }, ptr %{{.*}}, i64 %{{.*}}, i32 0, i64 %{{.*}}
-  llvm.getelementptr %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
+  // CHECK: = getelementptr inbounds { [10 x float] }, ptr %{{.*}}, i64 %{{.*}}, i32 0, i64 %{{.*}}
+  llvm.getelementptr inbounds %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
   llvm.return
 }
 
@@ -1499,6 +1499,16 @@ llvm.func @callFreezeOp(%x : i32) {
   // CHECK: freeze i32 undef
   %2 = llvm.freeze %1 : i32
   llvm.return
+}
+
+// CHECK-LABEL: @freezeUsed
+llvm.func @freezeUsed(%x : i32) -> i64 {
+  // CHECK: %[[frozen:.*]] = freeze i32
+  %frozen = llvm.freeze %x : i32
+  // CHECK: %[[ext:.*]] = sext i32 %[[frozen]] to i64
+  %ext = llvm.sext %frozen : i32 to i64
+  // CHECK: ret i64 %[[ext]]
+  llvm.return %ext : i64
 }
 
 // CHECK-LABEL: @boolConstArg
@@ -2022,3 +2032,7 @@ llvm.func @vararg_function(%arg0: i32, ...) {
 // CHECK: declare void @readnone_function() #[[ATTR:[0-9]+]]
 // CHECK: attributes #[[ATTR]] = { memory(none) }
 llvm.func @readnone_function() attributes {llvm.readnone}
+
+// -----
+// CHECK: declare void @readonly_function([[PTR:.+]] readonly)
+llvm.func @readonly_function(%arg0: !llvm.ptr<f32> {llvm.readonly})

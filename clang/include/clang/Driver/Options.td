@@ -169,6 +169,8 @@ def m_arm_Features_Group : OptionGroup<"<arm features group>">,
                            Group<m_Group>, DocName<"ARM">;
 def m_hexagon_Features_Group : OptionGroup<"<hexagon features group>">,
                                Group<m_Group>, DocName<"Hexagon">;
+def m_sparc_Features_Group : OptionGroup<"<sparc features group>">,
+                               Group<m_Group>, DocName<"SPARC">;
 // The features added by this group will not be added to target features.
 // These are explicitly handled.
 def m_hexagon_Features_HVX_Group : OptionGroup<"<hexagon features group>">,
@@ -749,7 +751,7 @@ def ObjC : Flag<["-"], "ObjC">, Flags<[NoXarchOption]>,
   HelpText<"Treat source input files as Objective-C inputs">;
 def O : Joined<["-"], "O">, Group<O_Group>, Flags<[CC1Option,FC1Option]>;
 def O_flag : Flag<["-"], "O">, Flags<[CC1Option,FC1Option]>, Alias<O>, AliasArgs<["1"]>;
-def Ofast : Joined<["-"], "Ofast">, Group<O_Group>, Flags<[CC1Option]>;
+def Ofast : Joined<["-"], "Ofast">, Group<O_Group>, Flags<[CC1Option, FlangOption]>;
 def P : Flag<["-"], "P">, Flags<[CC1Option,FlangOption,FC1Option]>, Group<Preprocessor_Group>,
   HelpText<"Disable linemarker output in -E mode">,
   MarshallingInfoNegativeFlag<PreprocessorOutputOpts<"ShowLineMarkers">>;
@@ -870,6 +872,10 @@ def Xoffload_linker : JoinedAndSeparate<["-"], "Xoffload-linker">,
 def Xpreprocessor : Separate<["-"], "Xpreprocessor">, Group<Preprocessor_Group>,
   HelpText<"Pass <arg> to the preprocessor">, MetaVarName<"<arg>">;
 def X_Flag : Flag<["-"], "X">, Group<Link_Group>;
+// Used by some macOS projects. IgnoredGCCCompat is a misnomer since GCC doesn't allow it.
+def : Flag<["-"], "Xparser">, IgnoredGCCCompat;
+// FIXME -Xcompiler is misused by some ChromeOS packages. Remove it after a while.
+def : Flag<["-"], "Xcompiler">, IgnoredGCCCompat;
 def Z_Flag : Flag<["-"], "Z">, Group<Link_Group>;
 def all__load : Flag<["-"], "all_load">;
 def allowable__client : Separate<["-"], "allowable_client">;
@@ -1641,7 +1647,7 @@ def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<
   MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Default">;
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option, CoreOption], "Allow aggressive, lossy floating-point optimizations",
+  PosFlag<SetTrue, [CC1Option, CoreOption, FC1Option, FlangOption], "Allow aggressive, lossy floating-point optimizations",
           [cl_fast_relaxed_math.KeyPath]>,
   NegFlag<SetFalse>>;
 defm math_errno : BoolFOption<"math-errno",
@@ -2082,8 +2088,6 @@ def fcf_protection_EQ : Joined<["-"], "fcf-protection=">, Flags<[CoreOption, CC1
 def fcf_protection : Flag<["-"], "fcf-protection">, Group<f_Group>, Flags<[CoreOption, CC1Option]>,
   Alias<fcf_protection_EQ>, AliasArgs<["full"]>,
   HelpText<"Enable cf-protection in 'full' mode">;
-def mibt_seal : Flag<["-"], "mibt-seal">, Group<m_Group>, Flags<[CoreOption, CC1Option]>,
-  HelpText<"Optimize fcf-protection=branch/full (requires LTO).">;
 def mfunction_return_EQ : Joined<["-"], "mfunction-return=">,
   Group<m_Group>, Flags<[CoreOption, CC1Option]>,
   HelpText<"Replace returns with jumps to ``__x86_return_thunk`` (x86 only, error otherwise)">,
@@ -2998,8 +3002,8 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   HelpText<"Experimental feature: Controls the maximum parallelism of actions performed "
   "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
   "or AOT compilation of each device image.">;
-def : Flag<["-"], "fsycl-rdc">, Alias<fgpu_rdc>;
-def : Flag<["-"], "fno-sycl-rdc">, Alias<fno_gpu_rdc>;
+def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
+def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
   HelpText<"Run the preprocessor, parser and semantic analysis stages">;
@@ -3699,10 +3703,10 @@ def msave_restore : Flag<["-"], "msave-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Enable using library calls for save and restore">;
 def mno_save_restore : Flag<["-"], "mno-save-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Disable using library calls for save and restore">;
-def mcmodel_EQ_medlow : Flag<["-"], "mcmodel=medlow">, Group<m_riscv_Features_Group>,
+def mcmodel_EQ_medlow : Flag<["-"], "mcmodel=medlow">, Group<m_Group>,
   Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["small"]>,
   HelpText<"Equivalent to -mcmodel=small, compatible with RISC-V gcc.">;
-def mcmodel_EQ_medany : Flag<["-"], "mcmodel=medany">, Group<m_riscv_Features_Group>,
+def mcmodel_EQ_medany : Flag<["-"], "mcmodel=medany">, Group<m_Group>,
   Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["medium"]>,
   HelpText<"Equivalent to -mcmodel=medium, compatible with RISC-V gcc.">;
 def menable_experimental_extensions : Flag<["-"], "menable-experimental-extensions">, Group<m_Group>,
@@ -4013,6 +4017,8 @@ def msmall_data_threshold_EQ : Joined <["-"], "msmall-data-threshold=">,
 def msoft_float : Flag<["-"], "msoft-float">, Group<m_Group>, Flags<[CC1Option]>,
   HelpText<"Use software floating point">,
   MarshallingInfoFlag<CodeGenOpts<"SoftFloat">>;
+def mno_fmv : Flag<["-"], "mno-fmv">, Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Disable function multiversioning">;
 def moutline_atomics : Flag<["-"], "moutline-atomics">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Generate local calls to out-of-line atomic operations">;
 def mno_outline_atomics : Flag<["-"], "mno-outline-atomics">, Group<f_clang_Group>, Flags<[CC1Option]>,
@@ -4685,6 +4691,22 @@ def mnvs : Flag<["-"], "mnvs">, Group<m_hexagon_Features_Group>,
 def mno_nvs : Flag<["-"], "mno-nvs">, Group<m_hexagon_Features_Group>,
   Flags<[CC1Option]>, HelpText<"Disable generation of new-value stores">;
 
+// SPARC feature flags
+def mfpu : Flag<["-"], "mfpu">, Group<m_sparc_Features_Group>;
+def mno_fpu : Flag<["-"], "mno-fpu">, Group<m_sparc_Features_Group>;
+def mfsmuld : Flag<["-"], "mfsmuld">, Group<m_sparc_Features_Group>;
+def mno_fsmuld : Flag<["-"], "mno-fsmuld">, Group<m_sparc_Features_Group>;
+def mpopc : Flag<["-"], "mpopc">, Group<m_sparc_Features_Group>;
+def mno_popc : Flag<["-"], "mno-popc">, Group<m_sparc_Features_Group>;
+def mvis : Flag<["-"], "mvis">, Group<m_sparc_Features_Group>;
+def mno_vis : Flag<["-"], "mno-vis">, Group<m_sparc_Features_Group>;
+def mvis2 : Flag<["-"], "mvis2">, Group<m_sparc_Features_Group>;
+def mno_vis2 : Flag<["-"], "mno-vis2">, Group<m_sparc_Features_Group>;
+def mvis3 : Flag<["-"], "mvis3">, Group<m_sparc_Features_Group>;
+def mno_vis3 : Flag<["-"], "mno-vis3">, Group<m_sparc_Features_Group>;
+def mhard_quad_float : Flag<["-"], "mhard-quad-float">, Group<m_sparc_Features_Group>;
+def msoft_quad_float : Flag<["-"], "msoft-quad-float">, Group<m_sparc_Features_Group>;
+
 // M68k features flags
 def m68000 : Flag<["-"], "m68000">, Group<m_m68k_Features_Group>;
 def m68010 : Flag<["-"], "m68010">, Group<m_m68k_Features_Group>;
@@ -5110,7 +5132,8 @@ def : Flag<["-"], "fno-sycl-explicit-simd">,
   Flags<[CoreOption, Deprecated]>,
   Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
-defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
+defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>,
+  MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
   "elimination of DPC++ dead kernel arguments">;
@@ -5777,6 +5800,10 @@ def fexperimental_sanitize_metadata_EQ_atomics
     : Flag<["-"], "fexperimental-sanitize-metadata=atomics">,
       HelpText<"Emit PCs for atomic operations used by binary analysis sanitizers">,
       MarshallingInfoFlag<CodeGenOpts<"SanitizeBinaryMetadataAtomics">>;
+def fexperimental_sanitize_metadata_EQ_uar
+    : Flag<["-"], "fexperimental-sanitize-metadata=uar">,
+      HelpText<"Emit PCs for start of functions that are subject for use-after-return checking.">,
+      MarshallingInfoFlag<CodeGenOpts<"SanitizeBinaryMetadataUAR">>;
 def fpatchable_function_entry_offset_EQ
     : Joined<["-"], "fpatchable-function-entry-offset=">, MetaVarName<"<M>">,
       HelpText<"Generate M NOPs before function entry">,
@@ -5866,6 +5893,14 @@ def module_file_deps : Flag<["-"], "module-file-deps">,
 def header_include_file : Separate<["-"], "header-include-file">,
   HelpText<"Filename (or -) to write header include output to">,
   MarshallingInfoString<DependencyOutputOpts<"HeaderIncludeOutputFile">>;
+def header_include_format_EQ : Joined<["-"], "header-include-format=">,
+  HelpText<"set format in which header info is emitted">,
+  Values<"textual,json">, NormalizedValues<["HIFMT_Textual", "HIFMT_JSON"]>,
+  MarshallingInfoEnum<DependencyOutputOpts<"HeaderIncludeFormat">, "HIFMT_Textual">;
+def header_include_filtering_EQ : Joined<["-"], "header-include-filtering=">,
+  HelpText<"set the flag that enables filtering header information">,
+  Values<"none,only-direct-system">, NormalizedValues<["HIFIL_None", "HIFIL_Only_Direct_System"]>,
+  MarshallingInfoEnum<DependencyOutputOpts<"HeaderIncludeFiltering">, "HIFIL_None">;
 def show_includes : Flag<["--"], "show-includes">,
   HelpText<"Print cl.exe style /showIncludes to stdout">;
 def dependency_filter : Separate<["-"], "dependency-filter">,

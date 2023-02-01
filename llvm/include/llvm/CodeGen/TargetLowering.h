@@ -803,6 +803,9 @@ public:
     return true;
   }
 
+  // Return true if the target wants to transform Op(Splat(X)) -> Splat(Op(X))
+  virtual bool preferScalarizeSplat(unsigned Opc) const { return true; }
+
   /// Return true if the target wants to use the optimization that
   /// turns ext(promotableInst1(...(promotableInstN(load)))) into
   /// promotedInst1(...(promotedInstN(ext(load)))).
@@ -4915,6 +4918,10 @@ public:
   /// \returns The expansion result or SDValue() if it fails.
   SDValue expandCTPOP(SDNode *N, SelectionDAG &DAG) const;
 
+  /// Expand VP_CTPOP nodes.
+  /// \returns The expansion result or SDValue() if it fails.
+  SDValue expandVPCTPOP(SDNode *N, SelectionDAG &DAG) const;
+
   /// Expand CTLZ/CTLZ_ZERO_UNDEF nodes. Expands vector/scalar CTLZ nodes,
   /// vector nodes can only succeed if all operations are legal/custom.
   /// \param N Node to expand
@@ -4958,6 +4965,11 @@ public:
   /// \param N Node to expand
   /// \returns The expansion result or SDValue() if it fails.
   SDValue expandBITREVERSE(SDNode *N, SelectionDAG &DAG) const;
+
+  /// Expand VP_BITREVERSE nodes. Expands VP_BITREVERSE nodes with
+  /// i8/i16/i32/i64 scalar types. \param N Node to expand \returns The
+  /// expansion result or SDValue() if it fails.
+  SDValue expandVPBITREVERSE(SDNode *N, SelectionDAG &DAG) const;
 
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand

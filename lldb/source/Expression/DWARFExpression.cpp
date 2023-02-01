@@ -69,9 +69,21 @@ void DWARFExpression::UpdateValue(uint64_t const_value,
 
 void DWARFExpression::DumpLocation(Stream *s, lldb::DescriptionLevel level,
                                    ABI *abi) const {
+  auto *MCRegInfo = abi ? &abi->GetMCRegisterInfo() : nullptr;
+  auto GetRegName = [&MCRegInfo](uint64_t DwarfRegNum,
+                                 bool IsEH) -> llvm::StringRef {
+    if (!MCRegInfo)
+      return {};
+    if (std::optional<unsigned> LLVMRegNum =
+            MCRegInfo->getLLVMRegNum(DwarfRegNum, IsEH))
+      if (const char *RegName = MCRegInfo->getName(*LLVMRegNum))
+        return llvm::StringRef(RegName);
+    return {};
+  };
+  llvm::DIDumpOptions DumpOpts;
+  DumpOpts.GetNameForDWARFReg = GetRegName;
   llvm::DWARFExpression(m_data.GetAsLLVM(), m_data.GetAddressByteSize())
-      .print(s->AsRawOstream(), llvm::DIDumpOptions(),
-             abi ? &abi->GetMCRegisterInfo() : nullptr, nullptr);
+      .print(s->AsRawOstream(), DumpOpts, nullptr);
 }
 
 RegisterKind DWARFExpression::GetRegisterKind() const { return m_reg_kind; }
@@ -2613,10 +2625,10 @@ bool DWARFExpression::ParseDWARFLocationList(
       dwarf_cu->GetLocationTable(data);
   Log *log = GetLog(LLDBLog::Expressions);
   auto lookup_addr =
-      [&](uint32_t index) -> llvm::Optional<llvm::object::SectionedAddress> {
+      [&](uint32_t index) -> std::optional<llvm::object::SectionedAddress> {
     addr_t address = dwarf_cu->ReadAddressFromDebugAddrSection(index);
     if (address == LLDB_INVALID_ADDRESS)
-      return llvm::None;
+      return std::nullopt;
     return llvm::object::SectionedAddress{address};
   };
   auto process_list = [&](llvm::Expected<llvm::DWARFLocationExpression> loc) {

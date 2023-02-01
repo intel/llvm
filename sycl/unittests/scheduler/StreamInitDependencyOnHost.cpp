@@ -11,7 +11,6 @@
 
 #include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
-#include <detail/scheduler/scheduler_helpers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
 using namespace sycl;
@@ -113,7 +112,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 
-  initStream(Streams[0], HQueueImpl);
+  Streams[0]->initStreamHost(HQueueImpl);
 
   MockScheduler MS;
   std::vector<detail::Command *> AuxCmds;

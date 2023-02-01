@@ -370,6 +370,7 @@ def SYCL : LangOpt<"SYCL">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 1>;
+def NotSYCL : LangOpt<"", "!LangOpts.SYCLIsDevice && !LangOpts.SYCLIsHost">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -662,6 +663,27 @@ class TargetSpecificAttr<TargetSpec target> {
   // spellings match exactly between the attributes, and if the arguments or
   // subjects differ, should specify HasCustomParsing = 1 and implement their
   // own parsing and semantic handling requirements as-needed.
+  string ParseKind;
+}
+
+/// A language-option-specific attribute.  This class is meant to be used as a
+/// mixin with InheritableAttr or Attr depending on the attribute's needs.
+class LanguageOptionsSpecificAttr {
+  // Attributes are generally required to have unique spellings for their names
+  // so that the parser can determine what kind of attribute it has parsed.
+  // However, language-option-specific attributes are special as they have
+  // different semantics based on the language options specified.  To support
+  // this, a Kind can be explicitly specified for a language-option-specific
+  // attribute. This corresponds to the ParsedAttr::AT_* enum that is generated
+  // and it should contain a shared value between the attributes.
+  // The language options these attributes are unique for are specified in the
+  // LangOpts member of Attr.
+  //
+  // Language-option-specific attributes which use this feature should ensure
+  // that the spellings match exactly between the attributes, and if the
+  // arguments or subjects differ, should specify HasCustomParsing = 1 and
+  // implement their own parsing and semantic handling requirements as-needed.
+  // Additionally, they should ensure that the language options do not overlap.
   string ParseKind;
 }
 
@@ -1303,7 +1325,7 @@ def SYCLSpecialClass: InheritableAttr {
 def SYCLType: InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "sycl_type">];
   let Subjects = SubjectList<[CXXRecord, Enum], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Args = [EnumArgument<"Type", "SYCLType",
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
@@ -1497,17 +1519,17 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
     Optional<llvm::APSInt> getXDimVal() const {
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getYDimVal() const {
       if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getZDimVal() const {
       if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
@@ -1575,14 +1597,14 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
 
     const auto *NameCE = dyn_cast<ConstantExpr>(NameE);
     if (!NameCE)
-      return None;
+      return std::nullopt;
 
     APValue NameLValue;
     if (!NameCE->isCXX11ConstantExpr(Context, &NameLValue))
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
-      return None;
+      return std::nullopt;
 
     if (const auto *NameValExpr =
             NameLValue.getLValueBase().dyn_cast<const Expr *>())
@@ -1594,7 +1616,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
         return getValidAttributeNameAsString(NameVarDecl->getInit(), Context);
       }
     }
-    return None;
+    return std::nullopt;
   }
 
   static Optional<std::string>
@@ -1625,7 +1647,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       }
       return std::string(StrBuffer);
     }
-    return None;
+    return std::nullopt;
   }
 
   static Optional<std::string>
@@ -1667,7 +1689,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
               dyn_cast<IntegerLiteral>(InitNoImpCastE))
           C = static_cast<char>(IntegerVal->getValue().getSExtValue());
         else
-          return None;
+          return std::nullopt;
 
         // Null terminator will end the string reading.
         if (C == 0)
@@ -1680,7 +1702,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
 
     const auto *ValueCE = dyn_cast<ConstantExpr>(ValueE);
     if (!ValueCE)
-      return None;
+      return std::nullopt;
 
     APValue ValueAPV;
     if (!ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
@@ -1703,17 +1725,17 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
         return getValidAttributeValueAsString(ValueVarDecl->getInit(), Context);
       }
     }
-    return None;
+    return std::nullopt;
   }
 
   static Optional<llvm::SmallSet<StringRef, 4>> getAttributeFilterFromExprs(
       Expr **AttributeExprs, size_t AttributeExprsSize) {
     if (!AttributeExprsSize)
-      return None;
+      return std::nullopt;
 
     const auto *FilterListE = dyn_cast<InitListExpr>(AttributeExprs[0]);
     if (!FilterListE)
-      return None;
+      return std::nullopt;
 
     llvm::SmallSet<StringRef, 4> Filter;
     for (const Expr *FilterE : FilterListE->inits()) {
@@ -1774,7 +1796,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
 
   SmallVector<std::pair<std::string, std::string>, 4>
   getAttributeNameValuePairs(const ASTContext &Context) const {
-    return getFilteredAttributeNameValuePairs(None, Context);
+    return getFilteredAttributeNameValuePairs(std::nullopt, Context);
   }
 }]>;
 
@@ -3426,7 +3448,21 @@ def NoDeref : TypeAttr {
 
 // Default arguments can only be used with the sycl::reqd_work_group_size
 // spelling.
-def ReqdWorkGroupSize : InheritableAttr {
+def ReqdWorkGroupSize : InheritableAttr, LanguageOptionsSpecificAttr {
+  let Spellings = [GNU<"reqd_work_group_size">,
+                   CXX11<"cl", "reqd_work_group_size">,
+                   CXX11<"sycl", "reqd_work_group_size">];
+  let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
+              UnsignedArgument<"ZDim">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [NotSYCL];
+  let Documentation = [ReqdWorkGroupSizeAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let ParseKind = "ReqdWorkGroupSize";
+  let HasCustomParsing = 1;
+}
+
+def SYCLReqdWorkGroupSize : InheritableAttr, LanguageOptionsSpecificAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
                    CXX11<"cl", "reqd_work_group_size">,
                    CXX11<"sycl", "reqd_work_group_size">];
@@ -3434,28 +3470,48 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
+      // X-dimension is not optional.
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getYDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+      // Y-dimension is optional so a nullptr value is allowed.
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getYDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getZDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+      // Z-dimension is optional so a nullptr value is allowed.
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getZDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+  let ParseKind = "ReqdWorkGroupSize";
+  let HasCustomParsing = 1;
 }
 
-def WorkGroupSizeHint :  InheritableAttr {
+def WorkGroupSizeHint :  InheritableAttr, LanguageOptionsSpecificAttr {
+  let Spellings = [GNU<"work_group_size_hint">,
+                   CXX11<"sycl", "work_group_size_hint">];
+  let Args = [UnsignedArgument<"XDim">,
+              UnsignedArgument<"YDim">,
+              UnsignedArgument<"ZDim">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [WorkGroupSizeHintAttrDocs];
+  let LangOpts = [NotSYCL];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let ParseKind = "WorkGroupSizeHint";
+  let HasCustomParsing = 1;
+}
+
+def SYCLWorkGroupSizeHint :  InheritableAttr, LanguageOptionsSpecificAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
   let Args = [ExprArgument<"XDim">,
@@ -3463,27 +3519,33 @@ def WorkGroupSizeHint :  InheritableAttr {
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   // In OpenCL C this attribute takes no default values whereas in SYCL it does. 
-  // To avoid confusing diagnostics, the checks are deferred to "handleWorkGroupSizeHint". 
+  // To avoid confusing diagnostics, the checks are deferred to
+  // "handleWorkGroupSizeHint". 
   let HasCustomParsing = 1;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
+      // X-dimension is not optional.
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getYDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+      // Y-dimension is optional so a nullptr value is allowed.
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getYDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
     Optional<llvm::APSInt> getZDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+      // Z-dimension is optional so a nullptr value is allowed.
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getZDim()))
         return CE->getResultAsAPSInt();
-      return None;
+      return std::nullopt;
     }
   }];
   let Documentation = [WorkGroupSizeHintAttrDocs];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
+  let ParseKind = "WorkGroupSizeHint";
 }
 
 def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
@@ -3731,6 +3793,31 @@ def Target : InheritableAttr {
   }];
 }
 
+def TargetVersion : InheritableAttr {
+  let Spellings = [GCC<"target_version">];
+  let Args = [StringArgument<"NamesStr">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [TargetVersionDocs];
+  let AdditionalMembers = [{
+    StringRef getName() const { return getNamesStr().trim(); }
+    bool isDefaultVersion() const {
+      return getName() == "default";
+    }
+    void getFeatures(llvm::SmallVectorImpl<StringRef> &Out) const {
+      if (isDefaultVersion()) return;
+      StringRef Features = getName();
+
+      SmallVector<StringRef, 8> AttrFeatures;
+      Features.split(AttrFeatures, "+");
+
+      for (auto &Feature : AttrFeatures) {
+        Feature = Feature.trim();
+        Out.push_back(Feature);
+      }
+    }
+  }];
+}
+
 def TargetClones : InheritableAttr {
   let Spellings = [GCC<"target_clones">];
   let Args = [VariadicStringArgument<"featuresStrs">];
@@ -3764,11 +3851,12 @@ def TargetClones : InheritableAttr {
       return 0 == std::count_if(
                       featuresStrs_begin(), featuresStrs_begin() + Index,
                       [FeatureStr](StringRef S) { return S == FeatureStr; });
+
     }
   }];
 }
 
-def : MutualExclusions<[TargetClones, Target, CPUDispatch, CPUSpecific]>;
+def : MutualExclusions<[TargetClones, TargetVersion, Target, CPUDispatch, CPUSpecific]>;
 
 def MinVectorWidth : InheritableAttr {
   let Spellings = [Clang<"min_vector_width">];
@@ -5085,4 +5173,9 @@ def FunctionReturnThunks : InheritableAttr,
   >];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [FunctionReturnThunksDocs];
+}
+def ReadOnlyPlacement : InheritableAttr {
+  let Spellings = [Clang<"enforce_read_only_placement">];
+  let Subjects = SubjectList<[Record]>;
+  let Documentation = [ReadOnlyPlacementDocs];
 }

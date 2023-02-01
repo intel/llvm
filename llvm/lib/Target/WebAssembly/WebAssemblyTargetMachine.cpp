@@ -80,6 +80,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyDebugFixupPass(PR);
   initializeWebAssemblyPeepholePass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
+  initializeWebAssemblyLowerRefTypesIntPtrConvPass(PR);
+  initializeWebAssemblyFixBrTableDefaultsPass(PR);
+  initializeWebAssemblyDAGToDAGISelPass(PR);
 }
 
 //===----------------------------------------------------------------------===//
@@ -338,6 +341,13 @@ public:
 };
 } // end anonymous namespace
 
+MachineFunctionInfo *WebAssemblyTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return WebAssemblyFunctionInfo::create<WebAssemblyFunctionInfo>(Allocator, F,
+                                                                  STI);
+}
+
 TargetTransformInfo
 WebAssemblyTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(WebAssemblyTTIImpl(this, F));
@@ -414,7 +424,7 @@ void WebAssemblyPassConfig::addIRPasses() {
   // Add signatures to prototype-less function declarations
   addPass(createWebAssemblyAddMissingPrototypes());
 
-  // Lower .llvm.global_dtors into .llvm_global_ctors with __cxa_atexit calls.
+  // Lower .llvm.global_dtors into .llvm.global_ctors with __cxa_atexit calls.
   addPass(createLowerGlobalDtorsLegacyPass());
 
   // Fix function bitcasts, as WebAssembly requires caller and callee signatures

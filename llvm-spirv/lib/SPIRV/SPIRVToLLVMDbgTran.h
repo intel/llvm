@@ -85,8 +85,9 @@ public:
 
 private:
   DIFile *getFile(const SPIRVId SourceId);
-  DIFile *getDIFile(const std::string &FileName,
-                    std::optional<DIFile::ChecksumInfo<StringRef>> CS = None);
+  DIFile *
+  getDIFile(const std::string &FileName,
+            std::optional<DIFile::ChecksumInfo<StringRef>> CS = std::nullopt);
   DIFile *getDIFile(const SPIRVEntry *E);
   unsigned getLineNo(const SPIRVEntry *E);
 
@@ -151,7 +152,6 @@ private:
   Module *M;
   DIBuilder Builder;
   SPIRVToLLVM *SPIRVReader;
-  DICompileUnit *CU;
   bool Enable;
   std::unordered_map<std::string, DIFile *> FileMap;
   std::unordered_map<SPIRVId, DISubprogram *> FuncMap;

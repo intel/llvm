@@ -14,7 +14,6 @@
 #define LLVM_LIB_TARGET_ARM_ARMTARGETMACHINE_H
 
 #include "ARMSubtarget.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -74,6 +73,10 @@ public:
   }
 
   bool targetSchedulesPostRAScheduling() const override { return true; };
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
 
   /// Returns true if a cast between SrcAS and DestAS is a noop.
   bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {

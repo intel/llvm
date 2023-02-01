@@ -880,7 +880,7 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     using ShapedType::Trait<UnrankedMemRefType>::getDimSize;
     using ShapedType::Trait<UnrankedMemRefType>::getDynamicDimIndex;
 
-    ArrayRef<int64_t> getShape() const { return llvm::None; }
+    ArrayRef<int64_t> getShape() const { return std::nullopt; }
 
     /// [deprecated] Returns the memory space in old raw integer representation.
     /// New `Attribute getMemorySpace()` method should be used instead.
@@ -933,7 +933,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
     using ShapedType::Trait<UnrankedTensorType>::getDimSize;
     using ShapedType::Trait<UnrankedTensorType>::getDynamicDimIndex;
 
-    ArrayRef<int64_t> getShape() const { return llvm::None; }
+    ArrayRef<int64_t> getShape() const { return std::nullopt; }
   }];
   let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
@@ -1031,7 +1031,7 @@ def Builtin_Vector : Builtin_Type<"Vector", [
 
     /// Clone this vector type with the given shape and element type. If the
     /// provided shape is `None`, the current shape of the type is used.
-    VectorType cloneWith(Optional<ArrayRef<int64_t>> shape,
+    VectorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                          Type elementType) const;
   }];
   let skipDefaultBuilders = 1;

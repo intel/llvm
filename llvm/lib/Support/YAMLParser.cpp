@@ -13,7 +13,6 @@
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/ADT/AllocatorList.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -761,7 +760,7 @@ std::string yaml::escape(StringRef Input, bool EscapePrintable) {
   return EscapedInput;
 }
 
-llvm::Optional<bool> yaml::parseBool(StringRef S) {
+std::optional<bool> yaml::parseBool(StringRef S) {
   switch (S.size()) {
   case 1:
     switch (S.front()) {

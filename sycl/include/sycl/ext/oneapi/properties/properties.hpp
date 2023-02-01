@@ -77,10 +77,11 @@ template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
 };
 template <typename T, typename... Ts>
 struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : std::conditional_t<IsRuntimeProperty<T>::value,
-                         PrependTuple<T, typename RuntimePropertyStorage<
-                                             std::tuple<Ts...>>::type>,
-                         RuntimePropertyStorage<std::tuple<Ts...>>> {};
+    : sycl::detail::conditional_t<
+          IsRuntimeProperty<T>::value,
+          PrependTuple<
+              T, typename RuntimePropertyStorage<std::tuple<Ts...>>::type>,
+          RuntimePropertyStorage<std::tuple<Ts...>>> {};
 
 // Helper class to extract a subset of elements from a tuple.
 // NOTES: This assumes no duplicate properties and that all properties in the

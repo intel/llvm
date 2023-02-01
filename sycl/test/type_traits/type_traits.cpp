@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 //==-------------- type_traits.cpp - SYCL type_traits test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -187,7 +187,6 @@ int main() {
   test_nan_types<s::ushort2, s::ushort2>();
   test_nan_types<s::uint2, s::uint2>();
   test_nan_types<s::ulong2, s::ulong2>();
-  test_nan_types<s::ulonglong2, s::ulonglong2>();
 
   test_make_signed_t<int, int>();
   test_make_signed_t<const int, const int>();

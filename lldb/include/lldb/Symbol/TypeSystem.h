@@ -357,6 +357,8 @@ public:
                                 const char *name, bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) = 0;
 
+  virtual bool IsTemplateType(lldb::opaque_compiler_type_t type);
+
   virtual size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
                                          bool expand_pack);
 
@@ -572,7 +574,7 @@ private:
   /// \return The found type system or an error.
   llvm::Expected<lldb::TypeSystemSP> GetTypeSystemForLanguage(
       lldb::LanguageType language,
-      llvm::Optional<CreateCallback> create_callback = llvm::None);
+      llvm::Optional<CreateCallback> create_callback = std::nullopt);
   };
 
 } // namespace lldb_private

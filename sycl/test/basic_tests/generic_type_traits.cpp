@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <cassert>
 #include <iostream>
@@ -98,42 +98,6 @@ int main() {
   is_intn
   is_genint
   */
-
-  // is_ulongn
-  static_assert(d::is_ulongn<s::uchar>::value == false, "");
-  static_assert(d::is_ulongn<s::ulong>::value == false, "");
-  static_assert(d::is_ulongn<s::ulong2>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong3>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong4>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong8>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong16>::value == true, "");
-
-  // is_ugenlong
-  static_assert(d::is_ugenlong<s::uchar>::value == false, "");
-  static_assert(d::is_ugenlong<s::ulong>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong2>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong3>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong4>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong8>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong16>::value == true, "");
-
-  // is_longn
-  static_assert(d::is_longn<char>::value == false, "");
-  static_assert(d::is_longn<long>::value == false, "");
-  static_assert(d::is_longn<s::long2>::value == true, "");
-  static_assert(d::is_longn<s::long3>::value == true, "");
-  static_assert(d::is_longn<s::long4>::value == true, "");
-  static_assert(d::is_longn<s::long8>::value == true, "");
-  static_assert(d::is_longn<s::long16>::value == true, "");
-
-  // is_genlong
-  static_assert(d::is_genlong<char>::value == false, "");
-  static_assert(d::is_genlong<long>::value == true, "");
-  static_assert(d::is_genlong<s::long2>::value == true, "");
-  static_assert(d::is_genlong<s::long3>::value == true, "");
-  static_assert(d::is_genlong<s::long4>::value == true, "");
-  static_assert(d::is_genlong<s::long8>::value == true, "");
-  static_assert(d::is_genlong<s::long16>::value == true, "");
 
   /*
   is_ulonglongn

@@ -1433,7 +1433,7 @@ bool matchIncrement(const Instruction *IVInc, Instruction *&LHS,
 
 /// If given \p PN is an inductive variable with value IVInc coming from the
 /// backedge, and on each iteration it gets increased by Step, return pair
-/// <IVInc, Step>. Otherwise, return None.
+/// <IVInc, Step>. Otherwise, return std::nullopt.
 static std::optional<std::pair<Instruction *, Constant *>>
 getIVIncrement(const PHINode *PN, const LoopInfo *LI) {
   const Loop *L = LI->getLoopFor(PN->getParent());
@@ -4024,11 +4024,11 @@ bool AddressingModeMatcher::matchScaledValue(Value *ScaleReg, int64_t Scale,
     auto IVInc = getIVIncrement(PN, &LI);
     if (!IVInc)
       return std::nullopt;
-    // TODO: The result of the intrinsics above is two-compliment. However when
+    // TODO: The result of the intrinsics above is two-complement. However when
     // IV inc is expressed as add or sub, iv.next is potentially a poison value.
     // If it has nuw or nsw flags, we need to make sure that these flags are
     // inferrable at the point of memory instruction. Otherwise we are replacing
-    // well-defined two-compliment computation with poison. Currently, to avoid
+    // well-defined two-complement computation with poison. Currently, to avoid
     // potentially complex analysis needed to prove this, we reject such cases.
     if (auto *OIVInc = dyn_cast<OverflowingBinaryOperator>(IVInc->first))
       if (OIVInc->hasNoSignedWrap() || OIVInc->hasNoUnsignedWrap())

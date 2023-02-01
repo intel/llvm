@@ -112,13 +112,12 @@ entry:
 }
 
 ; CHECK-LABEL: setcc_resultty
-; CHECK-DAG:       mov 0, %o0
+; CHECK-DAG:       mov %g0, %o0
 ; CHECK-DAG:       mov %i0, %o1
-; CHECK-DAG:       mov %o0, %o2
+; CHECK-DAG:       mov %g0, %o2
 ; CHECK-DAG:       mov 32, %o3
 ; CHECK-DAG:       call __multi3
-; CHECK:       cmp
-; CHECK:       movne %xcc, 1, [[R:%[gilo][0-7]]]
+; CHECK:       movrnz %o0, 1, [[R:%[gilo][0-7]]]
 ; CHECK:       or [[R]], %i1, %i0
 
 define i1 @setcc_resultty(i64 %a, i1 %b) {

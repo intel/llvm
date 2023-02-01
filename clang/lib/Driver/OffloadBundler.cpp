@@ -217,8 +217,8 @@ public:
   virtual Error ReadHeader(MemoryBuffer &Input) = 0;
 
   /// Read the marker of the next bundled to be read in the file. The bundle
-  /// name is returned if there is one in the file, or `None` if there are no
-  /// more bundles to be read.
+  /// name is returned if there is one in the file, or `std::nullopt` if there
+  /// are no more bundles to be read.
   virtual Expected<std::optional<StringRef>>
   ReadBundleStart(MemoryBuffer &Input) = 0;
 
@@ -1688,7 +1688,7 @@ Error OffloadBundler::UnbundleArchive() {
     assert(FileHandler &&
            "FileHandle creation failed for file in the archive!");
 
-    if (Error ReadErr = FileHandler.get()->ReadHeader(*CodeObjectBuffer))
+    if (Error ReadErr = FileHandler->ReadHeader(*CodeObjectBuffer))
       return ReadErr;
 
     Expected<std::optional<StringRef>> CurBundleIDOrErr =
@@ -1713,8 +1713,7 @@ Error OffloadBundler::UnbundleArchive() {
                                              BundlerConfig)) {
         std::string BundleData;
         raw_string_ostream DataStream(BundleData);
-        if (Error Err =
-                FileHandler.get()->ReadBundle(DataStream, *CodeObjectBuffer))
+        if (Error Err = FileHandler->ReadBundle(DataStream, *CodeObjectBuffer))
           return Err;
 
         for (auto &CompatibleTarget : CompatibleTargets) {
@@ -1753,7 +1752,7 @@ Error OffloadBundler::UnbundleArchive() {
         }
       }
 
-      if (Error Err = FileHandler.get()->ReadBundleEnd(*CodeObjectBuffer))
+      if (Error Err = FileHandler->ReadBundleEnd(*CodeObjectBuffer))
         return Err;
 
       Expected<std::optional<StringRef>> NextTripleOrErr =

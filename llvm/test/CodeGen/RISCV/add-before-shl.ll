@@ -7,6 +7,10 @@
 ; RUN:   < %s | FileCheck -check-prefixes=RV32C %s
 ; RUN: llc -mtriple=riscv64 -mattr=+c -verify-machineinstrs --riscv-no-aliases \
 ; RUN:   < %s | FileCheck -check-prefixes=RV64C %s
+; RUN: llc -mtriple=riscv32 -mattr=+experimental-zca -verify-machineinstrs --riscv-no-aliases \
+; RUN:   < %s | FileCheck -check-prefixes=RV32C %s
+; RUN: llc -mtriple=riscv64 -mattr=+experimental-zca -verify-machineinstrs --riscv-no-aliases \
+; RUN:   < %s | FileCheck -check-prefixes=RV64C %s
 
 ; These test that constant adds are not moved after shifts by DAGCombine,
 ; if the constant is cheaper to materialise before it has been shifted.
@@ -75,7 +79,7 @@ define signext i32 @add_large_const(i32 signext %a) nounwind {
 ; RV64C:       # %bb.0:
 ; RV64C-NEXT:    c.lui a1, 1
 ; RV64C-NEXT:    c.addiw a1, -1
-; RV64C-NEXT:    c.addw a0, a1
+; RV64C-NEXT:    c.add a0, a1
 ; RV64C-NEXT:    c.slli a0, 48
 ; RV64C-NEXT:    c.srai a0, 48
 ; RV64C-NEXT:    c.jr ra
@@ -115,7 +119,7 @@ define signext i32 @add_huge_const(i32 signext %a) nounwind {
 ; RV64C:       # %bb.0:
 ; RV64C-NEXT:    c.lui a1, 8
 ; RV64C-NEXT:    c.addiw a1, -1
-; RV64C-NEXT:    c.addw a0, a1
+; RV64C-NEXT:    c.add a0, a1
 ; RV64C-NEXT:    c.slli a0, 48
 ; RV64C-NEXT:    c.srai a0, 48
 ; RV64C-NEXT:    c.jr ra

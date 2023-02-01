@@ -30,7 +30,6 @@
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
@@ -52,7 +51,7 @@ public:
     assert(BlockIt != CFCtx.getStmtToBlock().end());
     const auto &State = BlockToState[BlockIt->getSecond()->getBlockID()];
     assert(State);
-    return &State.value().Env;
+    return &State->Env;
   }
 
 private:
@@ -210,7 +209,7 @@ struct AnalysisContext {
 ///
 ///   All predecessors of `Block` except those with loop back edges must have
 ///   already been transferred. States in `AC.BlockStates` that are set to
-///   `llvm::None` represent basic blocks that are not evaluated yet.
+///   `std::nullopt` represent basic blocks that are not evaluated yet.
 static TypeErasedDataflowAnalysisState
 computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
   llvm::DenseSet<const CFGBlock *> Preds;
@@ -263,7 +262,7 @@ computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
     if (!MaybePredState)
       continue;
 
-    TypeErasedDataflowAnalysisState PredState = MaybePredState.value();
+    TypeErasedDataflowAnalysisState PredState = *MaybePredState;
     if (BuiltinTransferOpts) {
       if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
         const StmtToEnvMapImpl StmtToEnv(AC.CFCtx, AC.BlockStates);
@@ -346,14 +345,12 @@ void builtinTransfer(const CFGElement &Elt,
                      TypeErasedDataflowAnalysisState &State,
                      AnalysisContext &AC) {
   switch (Elt.getKind()) {
-  case CFGElement::Statement: {
+  case CFGElement::Statement:
     builtinTransferStatement(Elt.castAs<CFGStmt>(), State, AC);
     break;
-  }
-  case CFGElement::Initializer: {
+  case CFGElement::Initializer:
     builtinTransferInitializer(Elt.castAs<CFGInitializer>(), State);
     break;
-  }
   default:
     // FIXME: Evaluate other kinds of `CFGElement`.
     break;
@@ -453,7 +450,7 @@ runTypeErasedDataflowAnalysis(
     if (OldBlockState) {
       if (isLoopHead(*Block)) {
         LatticeJoinEffect Effect1 = Analysis.widenTypeErased(
-            NewBlockState.Lattice, OldBlockState.value().Lattice);
+            NewBlockState.Lattice, OldBlockState->Lattice);
         LatticeJoinEffect Effect2 =
             NewBlockState.Env.widen(OldBlockState->Env, Analysis);
         if (Effect1 == LatticeJoinEffect::Unchanged &&
@@ -461,7 +458,7 @@ runTypeErasedDataflowAnalysis(
           // The state of `Block` didn't change from widening so there's no need
           // to revisit its successors.
           continue;
-      } else if (Analysis.isEqualTypeErased(OldBlockState.value().Lattice,
+      } else if (Analysis.isEqualTypeErased(OldBlockState->Lattice,
                                             NewBlockState.Lattice) &&
                  OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
         // The state of `Block` didn't change after transfer so there's no need
@@ -479,7 +476,7 @@ runTypeErasedDataflowAnalysis(
     Worklist.enqueueSuccessors(Block);
   }
   // FIXME: Consider evaluating unreachable basic blocks (those that have a
-  // state set to `llvm::None` at this point) to also analyze dead code.
+  // state set to `std::nullopt` at this point) to also analyze dead code.
 
   if (PostVisitCFG) {
     for (const CFGBlock *Block : CFCtx.getCFG()) {

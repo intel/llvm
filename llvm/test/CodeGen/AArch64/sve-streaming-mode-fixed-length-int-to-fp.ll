@@ -19,7 +19,7 @@ define <4 x half> @ucvtf_v4i16_v4f16(<4 x i16> %op1) #0 {
   ret <4 x half> %res
 }
 
-define void @ucvtf_v8i16_v8f16(<8 x i16>* %a, <8 x half>* %b) #0 {
+define void @ucvtf_v8i16_v8f16(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i16_v8f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -27,13 +27,13 @@ define void @ucvtf_v8i16_v8f16(<8 x i16>* %a, <8 x half>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.h, p0/m, z0.h
 ; CHECK-NEXT:    str q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = uitofp <8 x i16> %op1 to <8 x half>
-  store <8 x half> %res, <8 x half>* %b
+  store <8 x half> %res, ptr %b
   ret void
 }
 
-define void @ucvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
+define void @ucvtf_v16i16_v16f16(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v16i16_v16f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -42,9 +42,9 @@ define void @ucvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z1.h, p0/m, z1.h
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = uitofp <16 x i16> %op1 to <16 x half>
-  store <16 x half> %res, <16 x half>* %b
+  store <16 x half> %res, ptr %b
   ret void
 }
 
@@ -55,11 +55,9 @@ define void @ucvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
 define <2 x float> @ucvtf_v2i16_v2f32(<2 x i16> %op1) #0 {
 ; CHECK-LABEL: ucvtf_v2i16_v2f32:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, .LCPI3_0
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.s, vl2
-; CHECK-NEXT:    ldr d1, [x8, :lo12:.LCPI3_0]
-; CHECK-NEXT:    and z0.d, z0.d, z1.d
+; CHECK-NEXT:    and z0.s, z0.s, #0xffff
 ; CHECK-NEXT:    ucvtf z0.s, p0/m, z0.s
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $z0
 ; CHECK-NEXT:    ret
@@ -80,7 +78,7 @@ define <4 x float> @ucvtf_v4i16_v4f32(<4 x i16> %op1) #0 {
   ret <4 x float> %res
 }
 
-define void @ucvtf_v8i16_v8f32(<8 x i16>* %a, <8 x float>* %b) #0 {
+define void @ucvtf_v8i16_v8f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i16_v8f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -92,13 +90,13 @@ define void @ucvtf_v8i16_v8f32(<8 x i16>* %a, <8 x float>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.s, p0/m, z0.s
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = uitofp <8 x i16> %op1 to <8 x float>
-  store <8 x float> %res, <8 x float>* %b
+  store <8 x float> %res, ptr %b
   ret void
 }
 
-define void @ucvtf_v16i16_v16f32(<16 x i16>* %a, <16 x float>* %b) #0 {
+define void @ucvtf_v16i16_v16f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v16i16_v16f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -117,9 +115,9 @@ define void @ucvtf_v16i16_v16f32(<16 x i16>* %a, <16 x float>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z1.s, p0/m, z2.s
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = uitofp <16 x i16> %op1 to <16 x float>
-  store <16 x float> %res, <16 x float>* %b
+  store <16 x float> %res, ptr %b
   ret void
 }
 
@@ -142,11 +140,9 @@ define <1 x double> @ucvtf_v1i16_v1f64(<1 x i16> %op1) #0 {
 define <2 x double> @ucvtf_v2i16_v2f64(<2 x i16> %op1) #0 {
 ; CHECK-LABEL: ucvtf_v2i16_v2f64:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, .LCPI8_0
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr d1, [x8, :lo12:.LCPI8_0]
-; CHECK-NEXT:    and z0.d, z0.d, z1.d
+; CHECK-NEXT:    and z0.s, z0.s, #0xffff
 ; CHECK-NEXT:    uunpklo z0.d, z0.s
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
@@ -155,7 +151,7 @@ define <2 x double> @ucvtf_v2i16_v2f64(<2 x i16> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @ucvtf_v4i16_v4f64(<4 x i16>* %a, <4 x double>* %b) #0 {
+define void @ucvtf_v4i16_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v4i16_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
@@ -168,13 +164,13 @@ define void @ucvtf_v4i16_v4f64(<4 x i16>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i16>, <4 x i16>* %a
+  %op1 = load <4 x i16>, ptr %a
   %res = uitofp <4 x i16> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 
-define void @ucvtf_v8i16_v8f64(<8 x i16>* %a, <8 x double>* %b) #0 {
+define void @ucvtf_v8i16_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i16_v8f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -196,13 +192,13 @@ define void @ucvtf_v8i16_v8f64(<8 x i16>* %a, <8 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z1.d
 ; CHECK-NEXT:    stp q2, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = uitofp <8 x i16> %op1 to <8 x double>
-  store <8 x double> %res, <8 x double>* %b
+  store <8 x double> %res, ptr %b
   ret void
 }
 
-define void @ucvtf_v16i16_v16f64(<16 x i16>* %a, <16 x double>* %b) #0 {
+define void @ucvtf_v16i16_v16f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v16i16_v16f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -242,9 +238,9 @@ define void @ucvtf_v16i16_v16f64(<16 x i16>* %a, <16 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z2.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = uitofp <16 x i16> %op1 to <16 x double>
-  store <16 x double> %res, <16 x double>* %b
+  store <16 x double> %res, ptr %b
   ret void
 }
 
@@ -278,7 +274,7 @@ define <4 x half> @ucvtf_v4i32_v4f16(<4 x i32> %op1) #0 {
   ret <4 x half> %res
 }
 
-define <8 x half> @ucvtf_v8i32_v8f16(<8 x i32>* %a) #0 {
+define <8 x half> @ucvtf_v8i32_v8f16(ptr %a) #0 {
 ; CHECK-LABEL: ucvtf_v8i32_v8f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -291,12 +287,12 @@ define <8 x half> @ucvtf_v8i32_v8f16(<8 x i32>* %a) #0 {
 ; CHECK-NEXT:    splice z0.h, p0, z0.h, z2.h
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = uitofp <8 x i32> %op1 to <8 x half>
   ret <8 x half> %res
 }
 
-define void @ucvtf_v16i32_v16f16(<16 x i32>* %a, <16 x half>* %b) #0 {
+define void @ucvtf_v16i32_v16f16(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v16i32_v16f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -315,9 +311,9 @@ define void @ucvtf_v16i32_v16f16(<16 x i32>* %a, <16 x half>* %b) #0 {
 ; CHECK-NEXT:    splice z3.h, p1, z3.h, z2.h
 ; CHECK-NEXT:    stp q0, q3, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i32>, <16 x i32>* %a
+  %op1 = load <16 x i32>, ptr %a
   %res = uitofp <16 x i32> %op1 to <16 x half>
-  store <16 x half> %res, <16 x half>* %b
+  store <16 x half> %res, ptr %b
   ret void
 }
 
@@ -349,7 +345,7 @@ define <4 x float> @ucvtf_v4i32_v4f32(<4 x i32> %op1) #0 {
   ret <4 x float> %res
 }
 
-define void @ucvtf_v8i32_v8f32(<8 x i32>* %a, <8 x float>* %b) #0 {
+define void @ucvtf_v8i32_v8f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i32_v8f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -358,9 +354,9 @@ define void @ucvtf_v8i32_v8f32(<8 x i32>* %a, <8 x float>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z1.s, p0/m, z1.s
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = uitofp <8 x i32> %op1 to <8 x float>
-  store <8 x float> %res, <8 x float>* %b
+  store <8 x float> %res, ptr %b
   ret void
 }
 
@@ -381,7 +377,7 @@ define <2 x double> @ucvtf_v2i32_v2f64(<2 x i32> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @ucvtf_v4i32_v4f64(<4 x i32>* %a, <4 x double>* %b) #0 {
+define void @ucvtf_v4i32_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v4i32_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -393,13 +389,13 @@ define void @ucvtf_v4i32_v4f64(<4 x i32>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i32>, <4 x i32>* %a
+  %op1 = load <4 x i32>, ptr %a
   %res = uitofp <4 x i32> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 
-define void @ucvtf_v8i32_v8f64(<8 x i32>* %a, <8 x double>* %b) #0 {
+define void @ucvtf_v8i32_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i32_v8f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -418,9 +414,9 @@ define void @ucvtf_v8i32_v8f64(<8 x i32>* %a, <8 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z1.d, p0/m, z2.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = uitofp <8 x i32> %op1 to <8 x double>
-  store <8 x double> %res, <8 x double>* %b
+  store <8 x double> %res, ptr %b
   ret void
 }
 
@@ -448,7 +444,7 @@ define <2 x half> @ucvtf_v2i64_v2f16(<2 x i64> %op1) #0 {
   ret <2 x half> %res
 }
 
-define <4 x half> @ucvtf_v4i64_v4f16(<4 x i64>* %a) #0 {
+define <4 x half> @ucvtf_v4i64_v4f16(ptr %a) #0 {
 ; CHECK-LABEL: ucvtf_v4i64_v4f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -465,12 +461,12 @@ define <4 x half> @ucvtf_v4i64_v4f16(<4 x i64>* %a) #0 {
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = uitofp <4 x i64> %op1 to <4 x half>
   ret <4 x half> %res
 }
 
-define <8 x half> @ucvtf_v8i64_v8f16(<8 x i64>* %a) #0 {
+define <8 x half> @ucvtf_v8i64_v8f16(ptr %a) #0 {
 ; CHECK-LABEL: ucvtf_v8i64_v8f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0, #32]
@@ -497,7 +493,7 @@ define <8 x half> @ucvtf_v8i64_v8f16(<8 x i64>* %a) #0 {
 ; CHECK-NEXT:    splice z0.h, p0, z0.h, z2.h
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i64>, <8 x i64>* %a
+  %op1 = load <8 x i64>, ptr %a
   %res = uitofp <8 x i64> %op1 to <8 x half>
   ret <8 x half> %res
 }
@@ -519,7 +515,7 @@ define <2 x float> @ucvtf_v2i64_v2f32(<2 x i64> %op1) #0 {
   ret <2 x float> %res
 }
 
-define <4 x float> @ucvtf_v4i64_v4f32(<4 x i64>* %a) #0 {
+define <4 x float> @ucvtf_v4i64_v4f32(ptr %a) #0 {
 ; CHECK-LABEL: ucvtf_v4i64_v4f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -532,12 +528,12 @@ define <4 x float> @ucvtf_v4i64_v4f32(<4 x i64>* %a) #0 {
 ; CHECK-NEXT:    splice z0.s, p0, z0.s, z2.s
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = uitofp <4 x i64> %op1 to <4 x float>
   ret <4 x float> %res
 }
 
-define void @ucvtf_v8i64_v8f32(<8 x i64>* %a, <8 x float>* %b) #0 {
+define void @ucvtf_v8i64_v8f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v8i64_v8f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -556,9 +552,9 @@ define void @ucvtf_v8i64_v8f32(<8 x i64>* %a, <8 x float>* %b) #0 {
 ; CHECK-NEXT:    splice z3.s, p1, z3.s, z2.s
 ; CHECK-NEXT:    stp q0, q3, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i64>, <8 x i64>* %a
+  %op1 = load <8 x i64>, ptr %a
   %res = uitofp <8 x i64> %op1 to <8 x float>
-  store <8 x float> %res, <8 x float>* %b
+  store <8 x float> %res, ptr %b
   ret void
 }
 
@@ -578,7 +574,7 @@ define <2 x double> @ucvtf_v2i64_v2f64(<2 x i64> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @ucvtf_v4i64_v4f64(<4 x i64>* %a, <4 x double>* %b) #0 {
+define void @ucvtf_v4i64_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: ucvtf_v4i64_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -587,9 +583,9 @@ define void @ucvtf_v4i64_v4f64(<4 x i64>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    ucvtf z1.d, p0/m, z1.d
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = uitofp <4 x i64> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 
@@ -609,7 +605,7 @@ define <4 x half> @scvtf_v4i16_v4f16(<4 x i16> %op1) #0 {
   ret <4 x half> %res
 }
 
-define void @scvtf_v8i16_v8f16(<8 x i16>* %a, <8 x half>* %b) #0 {
+define void @scvtf_v8i16_v8f16(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v8i16_v8f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -617,13 +613,13 @@ define void @scvtf_v8i16_v8f16(<8 x i16>* %a, <8 x half>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.h, p0/m, z0.h
 ; CHECK-NEXT:    str q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = sitofp <8 x i16> %op1 to <8 x half>
-  store <8 x half> %res, <8 x half>* %b
+  store <8 x half> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
+define void @scvtf_v16i16_v16f16(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v16i16_v16f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -632,9 +628,9 @@ define void @scvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
 ; CHECK-NEXT:    scvtf z1.h, p0/m, z1.h
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = sitofp <16 x i16> %op1 to <16 x half>
-  store <16 x half> %res, <16 x half>* %b
+  store <16 x half> %res, ptr %b
   ret void
 }
 
@@ -644,12 +640,10 @@ define void @scvtf_v16i16_v16f16(<16 x i16>* %a, <16 x half>* %b) #0 {
 define <2 x float> @scvtf_v2i16_v2f32(<2 x i16> %op1) #0 {
 ; CHECK-LABEL: scvtf_v2i16_v2f32:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, .LCPI33_0
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.s, vl2
-; CHECK-NEXT:    ldr d1, [x8, :lo12:.LCPI33_0]
-; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, z1.s
-; CHECK-NEXT:    asr z0.s, p0/m, z0.s, z1.s
+; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, #16
+; CHECK-NEXT:    asr z0.s, p0/m, z0.s, #16
 ; CHECK-NEXT:    scvtf z0.s, p0/m, z0.s
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $z0
 ; CHECK-NEXT:    ret
@@ -670,7 +664,7 @@ define <4 x float> @scvtf_v4i16_v4f32(<4 x i16> %op1) #0 {
   ret <4 x float> %res
 }
 
-define void @scvtf_v8i16_v8f32(<8 x i16>* %a, <8 x float>* %b) #0 {
+define void @scvtf_v8i16_v8f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v8i16_v8f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -682,13 +676,13 @@ define void @scvtf_v8i16_v8f32(<8 x i16>* %a, <8 x float>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.s, p0/m, z0.s
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = sitofp <8 x i16> %op1 to <8 x float>
-  store <8 x float> %res, <8 x float>* %b
+  store <8 x float> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v16i16_v16f32(<16 x i16>* %a, <16 x float>* %b) #0 {
+define void @scvtf_v16i16_v16f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v16i16_v16f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -707,9 +701,9 @@ define void @scvtf_v16i16_v16f32(<16 x i16>* %a, <16 x float>* %b) #0 {
 ; CHECK-NEXT:    scvtf z1.s, p0/m, z2.s
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = sitofp <16 x i16> %op1 to <16 x float>
-  store <16 x float> %res, <16 x float>* %b
+  store <16 x float> %res, ptr %b
   ret void
 }
 
@@ -720,12 +714,10 @@ define void @scvtf_v16i16_v16f32(<16 x i16>* %a, <16 x float>* %b) #0 {
 define <2 x double> @scvtf_v2i16_v2f64(<2 x i16> %op1) #0 {
 ; CHECK-LABEL: scvtf_v2i16_v2f64:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, .LCPI37_0
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.s, vl2
-; CHECK-NEXT:    ldr d1, [x8, :lo12:.LCPI37_0]
-; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, z1.s
-; CHECK-NEXT:    asr z0.s, p0/m, z0.s, z1.s
+; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, #16
+; CHECK-NEXT:    asr z0.s, p0/m, z0.s, #16
 ; CHECK-NEXT:    ptrue p0.d, vl2
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z0.d
@@ -735,7 +727,7 @@ define <2 x double> @scvtf_v2i16_v2f64(<2 x i16> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @scvtf_v4i16_v4f64(<4 x i16>* %a, <4 x double>* %b) #0 {
+define void @scvtf_v4i16_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v4i16_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
@@ -748,13 +740,13 @@ define void @scvtf_v4i16_v4f64(<4 x i16>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i16>, <4 x i16>* %a
+  %op1 = load <4 x i16>, ptr %a
   %res = sitofp <4 x i16> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v8i16_v8f64(<8 x i16>* %a, <8 x double>* %b) #0 {
+define void @scvtf_v8i16_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v8i16_v8f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -776,13 +768,13 @@ define void @scvtf_v8i16_v8f64(<8 x i16>* %a, <8 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z1.d
 ; CHECK-NEXT:    stp q2, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i16>, <8 x i16>* %a
+  %op1 = load <8 x i16>, ptr %a
   %res = sitofp <8 x i16> %op1 to <8 x double>
-  store <8 x double> %res, <8 x double>* %b
+  store <8 x double> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v16i16_v16f64(<16 x i16>* %a, <16 x double>* %b) #0 {
+define void @scvtf_v16i16_v16f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v16i16_v16f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -822,9 +814,9 @@ define void @scvtf_v16i16_v16f64(<16 x i16>* %a, <16 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z2.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i16>, <16 x i16>* %a
+  %op1 = load <16 x i16>, ptr %a
   %res = sitofp <16 x i16> %op1 to <16 x double>
-  store <16 x double> %res, <16 x double>* %b
+  store <16 x double> %res, ptr %b
   ret void
 }
 
@@ -858,7 +850,7 @@ define <4 x half> @scvtf_v4i32_v4f16(<4 x i32> %op1) #0 {
   ret <4 x half> %res
 }
 
-define <8 x half> @scvtf_v8i32_v8f16(<8 x i32>* %a) #0 {
+define <8 x half> @scvtf_v8i32_v8f16(ptr %a) #0 {
 ; CHECK-LABEL: scvtf_v8i32_v8f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -871,7 +863,7 @@ define <8 x half> @scvtf_v8i32_v8f16(<8 x i32>* %a) #0 {
 ; CHECK-NEXT:    splice z0.h, p0, z0.h, z2.h
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = sitofp <8 x i32> %op1 to <8 x half>
   ret <8 x half> %res
 }
@@ -904,7 +896,7 @@ define <4 x float> @scvtf_v4i32_v4f32(<4 x i32> %op1) #0 {
   ret <4 x float> %res
 }
 
-define void @scvtf_v8i32_v8f32(<8 x i32>* %a, <8 x float>* %b) #0 {
+define void @scvtf_v8i32_v8f32(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v8i32_v8f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -913,9 +905,9 @@ define void @scvtf_v8i32_v8f32(<8 x i32>* %a, <8 x float>* %b) #0 {
 ; CHECK-NEXT:    scvtf z1.s, p0/m, z1.s
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = sitofp <8 x i32> %op1 to <8 x float>
-  store <8 x float> %res, <8 x float>* %b
+  store <8 x float> %res, ptr %b
   ret void
 }
 
@@ -936,7 +928,7 @@ define <2 x double> @scvtf_v2i32_v2f64(<2 x i32> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @scvtf_v4i32_v4f64(<4 x i32>* %a, <4 x double>* %b) #0 {
+define void @scvtf_v4i32_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v4i32_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
@@ -948,13 +940,13 @@ define void @scvtf_v4i32_v4f64(<4 x i32>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i32>, <4 x i32>* %a
+  %op1 = load <4 x i32>, ptr %a
   %res = sitofp <4 x i32> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v8i32_v8f64(<8 x i32>* %a, <8 x double>* %b) #0 {
+define void @scvtf_v8i32_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v8i32_v8f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -973,13 +965,13 @@ define void @scvtf_v8i32_v8f64(<8 x i32>* %a, <8 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z1.d, p0/m, z2.d
 ; CHECK-NEXT:    stp q1, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <8 x i32>, <8 x i32>* %a
+  %op1 = load <8 x i32>, ptr %a
   %res = sitofp <8 x i32> %op1 to <8 x double>
-  store <8 x double> %res, <8 x double>* %b
+  store <8 x double> %res, ptr %b
   ret void
 }
 
-define void @scvtf_v16i32_v16f64(<16 x i32>* %a, <16 x double>* %b) #0 {
+define void @scvtf_v16i32_v16f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v16i32_v16f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q2, q3, [x0, #32]
@@ -1015,9 +1007,9 @@ define void @scvtf_v16i32_v16f64(<16 x i32>* %a, <16 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z2.d, p0/m, z4.d
 ; CHECK-NEXT:    stp q2, q0, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <16 x i32>, <16 x i32>* %a
+  %op1 = load <16 x i32>, ptr %a
   %res = sitofp <16 x i32> %op1 to <16 x double>
-  store <16 x double> %res, <16 x double>* %b
+  store <16 x double> %res, ptr %b
   ret void
 }
 
@@ -1045,7 +1037,7 @@ define <2 x half> @scvtf_v2i64_v2f16(<2 x i64> %op1) #0 {
   ret <2 x half> %res
 }
 
-define <4 x half> @scvtf_v4i64_v4f16(<4 x i64>* %a) #0 {
+define <4 x half> @scvtf_v4i64_v4f16(ptr %a) #0 {
 ; CHECK-LABEL: scvtf_v4i64_v4f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -1062,7 +1054,7 @@ define <4 x half> @scvtf_v4i64_v4f16(<4 x i64>* %a) #0 {
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = sitofp <4 x i64> %op1 to <4 x half>
   ret <4 x half> %res
 }
@@ -1084,7 +1076,7 @@ define <2 x float> @scvtf_v2i64_v2f32(<2 x i64> %op1) #0 {
   ret <2 x float> %res
 }
 
-define <4 x float> @scvtf_v4i64_v4f32(<4 x i64>* %a) #0 {
+define <4 x float> @scvtf_v4i64_v4f32(ptr %a) #0 {
 ; CHECK-LABEL: scvtf_v4i64_v4f32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q1, q0, [x0]
@@ -1097,7 +1089,7 @@ define <4 x float> @scvtf_v4i64_v4f32(<4 x i64>* %a) #0 {
 ; CHECK-NEXT:    splice z0.s, p0, z0.s, z2.s
 ; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = sitofp <4 x i64> %op1 to <4 x float>
   ret <4 x float> %res
 }
@@ -1118,7 +1110,7 @@ define <2 x double> @scvtf_v2i64_v2f64(<2 x i64> %op1) #0 {
   ret <2 x double> %res
 }
 
-define void @scvtf_v4i64_v4f64(<4 x i64>* %a, <4 x double>* %b) #0 {
+define void @scvtf_v4i64_v4f64(ptr %a, ptr %b) #0 {
 ; CHECK-LABEL: scvtf_v4i64_v4f64:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldp q0, q1, [x0]
@@ -1127,9 +1119,9 @@ define void @scvtf_v4i64_v4f64(<4 x i64>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    scvtf z1.d, p0/m, z1.d
 ; CHECK-NEXT:    stp q0, q1, [x1]
 ; CHECK-NEXT:    ret
-  %op1 = load <4 x i64>, <4 x i64>* %a
+  %op1 = load <4 x i64>, ptr %a
   %res = sitofp <4 x i64> %op1 to <4 x double>
-  store <4 x double> %res, <4 x double>* %b
+  store <4 x double> %res, ptr %b
   ret void
 }
 

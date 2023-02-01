@@ -56,7 +56,10 @@ void mlir::sparse_tensor::buildSparseCompiler(
   pm.addPass(createSparsificationAndBufferizationPass(
       getBufferizationOptions(options.testBufferizationAnalysisOnly),
       options.sparsificationOptions(), options.sparseTensorConversionOptions(),
-      options.enableRuntimeLibrary, options.enableBufferInitialization));
+      options.enableRuntimeLibrary, options.enableBufferInitialization,
+      options.vectorLength,
+      /*enableVLAVectorization=*/options.armSVE,
+      /*enableSIMDIndex32=*/options.force32BitVectorIndices));
   if (options.testBufferizationAnalysisOnly)
     return;
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
@@ -76,7 +79,10 @@ void mlir::sparse_tensor::buildSparseCompiler(
   pm.addNestedPass<func::FuncOp>(createConvertMathToLLVMPass());
   pm.addPass(createConvertMathToLibmPass());
   pm.addPass(createConvertComplexToLibmPass());
+  // Repeat convert-vector-to-llvm.
+  pm.addPass(createConvertVectorToLLVMPass(options.lowerVectorToLLVMOptions()));
   pm.addPass(createConvertComplexToLLVMPass());
+  pm.addPass(createConvertVectorToLLVMPass(options.lowerVectorToLLVMOptions()));
   pm.addPass(createConvertFuncToLLVMPass());
   pm.addPass(createReconcileUnrealizedCastsPass());
 }

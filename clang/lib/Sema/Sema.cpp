@@ -592,12 +592,12 @@ void Sema::PrintStats() const {
 void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
                                                QualType SrcType,
                                                SourceLocation Loc) {
-  Optional<NullabilityKind> ExprNullability = SrcType->getNullability(Context);
+  Optional<NullabilityKind> ExprNullability = SrcType->getNullability();
   if (!ExprNullability || (*ExprNullability != NullabilityKind::Nullable &&
                            *ExprNullability != NullabilityKind::NullableResult))
     return;
 
-  Optional<NullabilityKind> TypeNullability = DstType->getNullability(Context);
+  Optional<NullabilityKind> TypeNullability = DstType->getNullability();
   if (!TypeNullability || *TypeNullability != NullabilityKind::NonNull)
     return;
 
@@ -1968,12 +1968,13 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
   if (LangOpts.OpenMP)
     return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
                                    : diagIfOpenMPHostCode(Loc, DiagID, FD);
-  if (getLangOpts().CUDA)
-    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
-                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   if (getLangOpts().SYCLIsDevice)
     return SYCLDiagIfDeviceCode(Loc, DiagID);
+
+  if (getLangOpts().CUDA)
+    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
+                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
                                FD, *this, DeviceDiagnosticReason::All);
@@ -2072,6 +2073,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
         (Ty->isIbm128Type() && !Context.getTargetInfo().hasIbm128Type()) ||
         (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
          !Context.getTargetInfo().hasInt128Type()) ||
+        (Ty->isBFloat16Type() && !Context.getTargetInfo().hasBFloat16Type() &&
+         !LangOpts.CUDAIsDevice) ||
         LongDoubleMismatched) {
       PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
       if (D)
@@ -2636,6 +2639,9 @@ static void noteOverloads(Sema &S, const UnresolvedSetImpl &Overloads,
     if (const auto *FD = Fn->getAsFunction()) {
       if (FD->isMultiVersion() && FD->hasAttr<TargetAttr>() &&
           !FD->getAttr<TargetAttr>()->isDefaultVersion())
+        continue;
+      if (FD->isMultiVersion() && FD->hasAttr<TargetVersionAttr>() &&
+          !FD->getAttr<TargetVersionAttr>()->isDefaultVersion())
         continue;
     }
     S.Diag(Fn->getLocation(), diag::note_possible_target_of_call);

@@ -121,11 +121,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "LinkerWrapperOpts.inc"
 #undef PREFIX
 
-static const OptTable::Info InfoTable[] = {
+static constexpr OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {PREFIX, NAME,  HELPTEXT,    METAVAR,     OPT_##ID,  Option::KIND##Class,    \
@@ -876,7 +879,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     if (BitcodeOutput.size() != 1 || !SingleOutput)
       return createStringError(inconvertibleErrorCode(),
                                "Cannot embed bitcode with multiple files.");
-    OutputFiles.push_back(static_cast<std::string>(BitcodeOutput.front()));
+    OutputFiles.push_back(Args.MakeArgString(BitcodeOutput.front()));
     return Error::success();
   }
 
@@ -1187,7 +1190,8 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
         return createFileError(*OutputOrErr, EC);
 
       OffloadingImage TheImage{};
-      TheImage.TheImageKind = IMG_Object;
+      TheImage.TheImageKind =
+          Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
       TheImage.TheOffloadKind = Kind;
       TheImage.StringData = {
           {"triple",

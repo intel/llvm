@@ -40,13 +40,13 @@ using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
-    std::bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                       Space == access::address_space::global_space>;
+    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                  Space == access::address_space::global_space>;
 
 template <typename T, access::address_space Space>
 using AcceptableForLocalLoadStore =
-    std::bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                       Space == access::address_space::local_space>;
+    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                  Space == access::address_space::local_space>;
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, access::address_space Space,
