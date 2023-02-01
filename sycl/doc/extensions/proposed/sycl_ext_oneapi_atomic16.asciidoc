@@ -113,7 +113,7 @@ This extension permits the following types to be used to create atomic
 references:
 
 - `short` when `sizeof(short) == 2`
-- `unsigned short` when sizeof(unsigned short) == 2`
+- `unsigned short` when `sizeof(unsigned short) == 2`
 - `sycl::half`
 - `sycl::ext::oneapi::bfloat16`
 
