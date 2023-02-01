@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = sycl::cl_float;
+using dataType = sycl::opencl::cl_float;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {

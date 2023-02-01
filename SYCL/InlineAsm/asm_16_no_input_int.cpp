@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = sycl::cl_int;
+using dataType = sycl::opencl::cl_int;
 
 template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
   KernelFunctor(size_t problem_size) : WithOutputBuffer<T>(problem_size) {}

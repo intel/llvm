@@ -12,7 +12,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = sycl::cl_int;
+using dataType = sycl::opencl::cl_int;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 3>, WithOutputBuffer<T> {

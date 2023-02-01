@@ -9,7 +9,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = sycl::cl_double;
+using dataType = sycl::opencl::cl_double;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {

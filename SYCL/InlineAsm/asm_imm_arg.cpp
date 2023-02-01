@@ -9,7 +9,7 @@
 #include <vector>
 
 constexpr int CONST_ARGUMENT = 0xabc;
-using dataType = sycl::cl_int;
+using dataType = sycl::opencl::cl_int;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {

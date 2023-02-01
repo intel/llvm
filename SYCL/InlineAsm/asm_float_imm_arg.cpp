@@ -10,7 +10,7 @@
 #include <vector>
 
 constexpr double IMM_ARGUMENT = 0.5;
-using dataType = sycl::cl_double;
+using dataType = sycl::opencl::cl_double;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {

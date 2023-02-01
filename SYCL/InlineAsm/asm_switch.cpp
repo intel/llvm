@@ -6,7 +6,7 @@
 #include "include/asmhelper.h"
 #include <sycl/sycl.hpp>
 
-using DataType = sycl::cl_int;
+using DataType = sycl::opencl::cl_int;
 
 template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
   KernelFunctor(size_t ProblemSize) : WithOutputBuffer<T>(ProblemSize) {}
