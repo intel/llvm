@@ -18,6 +18,7 @@
 #include "lib/Error.h"
 #include "lib/LlvmState.h"
 #include "lib/PerfHelper.h"
+#include "lib/ProgressMeter.h"
 #include "lib/SnippetFile.h"
 #include "lib/SnippetRepetitor.h"
 #include "lib/Target.h"
@@ -45,10 +46,6 @@
 
 namespace llvm {
 namespace exegesis {
-
-static cl::OptionCategory Options("llvm-exegesis options");
-static cl::OptionCategory BenchmarkOptions("llvm-exegesis benchmark options");
-static cl::OptionCategory AnalysisOptions("llvm-exegesis analysis options");
 
 static cl::opt<int> OpcodeIndex(
     "opcode-index",
@@ -113,6 +110,11 @@ static cl::opt<exegesis::InstructionBenchmark::RepetitionModeE> RepetitionMode(
         clEnumValN(exegesis::InstructionBenchmark::AggregateMin, "min",
                    "All of the above and take the minimum of measurements")),
     cl::init(exegesis::InstructionBenchmark::Duplicate));
+
+static cl::opt<bool> BenchmarkMeasurementsPrintProgress(
+    "measurements-print-progress",
+    cl::desc("Produce progress indicator when performing measurements"),
+    cl::cat(BenchmarkOptions), cl::init(false));
 
 static cl::opt<bool> BenchmarkSkipMeasurements(
     "skip-measurements",
@@ -234,7 +236,7 @@ T ExitOnFileError(const Twine &FileName, Expected<T> &&E) {
 // Checks that only one of OpcodeNames, OpcodeIndex or SnippetsFile is provided,
 // and returns the opcode indices or {} if snippets should be read from
 // `SnippetsFile`.
-static std::vector<unsigned> getOpcodesOrDie(const MCInstrInfo &MCInstrInfo) {
+static std::vector<unsigned> getOpcodesOrDie(const LLVMState &State) {
   const size_t NumSetFlags = (OpcodeNames.empty() ? 0 : 1) +
                              (OpcodeIndex == 0 ? 0 : 1) +
                              (SnippetsFile.empty() ? 0 : 1);
@@ -249,21 +251,25 @@ static std::vector<unsigned> getOpcodesOrDie(const MCInstrInfo &MCInstrInfo) {
     return {static_cast<unsigned>(OpcodeIndex)};
   if (OpcodeIndex < 0) {
     std::vector<unsigned> Result;
-    for (unsigned I = 1, E = MCInstrInfo.getNumOpcodes(); I < E; ++I)
+    unsigned NumOpcodes = State.getInstrInfo().getNumOpcodes();
+    Result.reserve(NumOpcodes);
+    for (unsigned I = 0, E = NumOpcodes; I < E; ++I)
       Result.push_back(I);
     return Result;
   }
   // Resolve opcode name -> opcode.
-  const auto ResolveName = [&MCInstrInfo](StringRef OpcodeName) -> unsigned {
-    for (unsigned I = 1, E = MCInstrInfo.getNumOpcodes(); I < E; ++I)
-      if (MCInstrInfo.getName(I) == OpcodeName)
-        return I;
+  const auto ResolveName = [&State](StringRef OpcodeName) -> unsigned {
+    const auto &Map = State.getOpcodeNameToOpcodeIdxMapping();
+    auto I = Map.find(OpcodeName);
+    if (I != Map.end())
+      return I->getSecond();
     return 0u;
   };
   SmallVector<StringRef, 2> Pieces;
   StringRef(OpcodeNames.getValue())
       .split(Pieces, ",", /* MaxSplit */ -1, /* KeepEmpty */ false);
   std::vector<unsigned> Result;
+  Result.reserve(Pieces.size());
   for (const StringRef &OpcodeName : Pieces) {
     if (unsigned Opcode = ResolveName(OpcodeName))
       Result.push_back(Opcode);
@@ -311,6 +317,74 @@ generateSnippets(const LLVMState &State, unsigned Opcode,
   return Benchmarks;
 }
 
+static void runBenchmarkConfigurations(
+    const LLVMState &State, ArrayRef<BenchmarkCode> Configurations,
+    ArrayRef<std::unique_ptr<const SnippetRepetitor>> Repetitors,
+    const BenchmarkRunner &Runner) {
+  assert(!Configurations.empty() && "Don't have any configurations to run.");
+  std::optional<raw_fd_ostream> FileOstr;
+  if (BenchmarkFile != "-") {
+    int ResultFD = 0;
+    // Create output file or open existing file and truncate it, once.
+    ExitOnErr(errorCodeToError(openFileForWrite(BenchmarkFile, ResultFD,
+                                                sys::fs::CD_CreateAlways,
+                                                sys::fs::OF_TextWithCRLF)));
+    FileOstr.emplace(ResultFD, true /*shouldClose*/);
+  }
+  raw_ostream &Ostr = FileOstr ? *FileOstr : outs();
+
+  std::optional<ProgressMeter<>> Meter;
+  if (BenchmarkMeasurementsPrintProgress)
+    Meter.emplace(Configurations.size());
+  for (const BenchmarkCode &Conf : Configurations) {
+    ProgressMeter<>::ProgressMeterStep MeterStep(Meter ? &*Meter : nullptr);
+    SmallVector<InstructionBenchmark, 2> AllResults;
+
+    for (const std::unique_ptr<const SnippetRepetitor> &Repetitor :
+         Repetitors) {
+      auto RC = ExitOnErr(Runner.getRunnableConfiguration(
+          Conf, NumRepetitions, LoopBodySize, *Repetitor));
+      AllResults.emplace_back(
+          ExitOnErr(Runner.runConfiguration(std::move(RC), DumpObjectToDisk)));
+    }
+    InstructionBenchmark &Result = AllResults.front();
+
+    // If any of our measurements failed, pretend they all have failed.
+    if (AllResults.size() > 1 &&
+        any_of(AllResults, [](const InstructionBenchmark &R) {
+          return R.Measurements.empty();
+        }))
+      Result.Measurements.clear();
+
+    if (RepetitionMode == InstructionBenchmark::RepetitionModeE::AggregateMin) {
+      for (const InstructionBenchmark &OtherResult :
+           ArrayRef<InstructionBenchmark>(AllResults).drop_front()) {
+        llvm::append_range(Result.AssembledSnippet,
+                           OtherResult.AssembledSnippet);
+        // Aggregate measurements, but only iff all measurements succeeded.
+        if (Result.Measurements.empty())
+          continue;
+        assert(OtherResult.Measurements.size() == Result.Measurements.size() &&
+               "Expected to have identical number of measurements.");
+        for (auto I : zip(Result.Measurements, OtherResult.Measurements)) {
+          BenchmarkMeasure &Measurement = std::get<0>(I);
+          const BenchmarkMeasure &NewMeasurement = std::get<1>(I);
+          assert(Measurement.Key == NewMeasurement.Key &&
+                 "Expected measurements to be symmetric");
+
+          Measurement.PerInstructionValue =
+              std::min(Measurement.PerInstructionValue,
+                       NewMeasurement.PerInstructionValue);
+          Measurement.PerSnippetValue = std::min(
+              Measurement.PerSnippetValue, NewMeasurement.PerSnippetValue);
+        }
+      }
+    }
+
+    ExitOnFileError(BenchmarkFile, Result.writeYamlTo(State, Ostr));
+  }
+}
+
 void benchmarkMain() {
   if (!BenchmarkSkipMeasurements) {
 #ifndef HAVE_LIBPFM
@@ -341,7 +415,7 @@ void benchmarkMain() {
     ExitWithError("cannot create benchmark runner");
   }
 
-  const auto Opcodes = getOpcodesOrDie(State.getInstrInfo());
+  const auto Opcodes = getOpcodesOrDie(State);
 
   SmallVector<std::unique_ptr<const SnippetRepetitor>, 2> Repetitors;
   if (RepetitionMode != InstructionBenchmark::RepetitionModeE::AggregateMin)
@@ -395,11 +469,9 @@ void benchmarkMain() {
   if (BenchmarkFile.empty())
     BenchmarkFile = "-";
 
-  for (const BenchmarkCode &Conf : Configurations) {
-    InstructionBenchmark Result = ExitOnErr(Runner->runConfiguration(
-        Conf, NumRepetitions, LoopBodySize, Repetitors, DumpObjectToDisk));
-    ExitOnFileError(BenchmarkFile, Result.writeYaml(State, BenchmarkFile));
-  }
+  if (!Configurations.empty())
+    runBenchmarkConfigurations(State, Configurations, Repetitors, *Runner);
+
   exegesis::pfm::pfmTerminate();
 }
 
@@ -505,6 +577,9 @@ int main(int Argc, char **Argv) {
   InitializeAllTargetInfos();
   InitializeAllTargets();
   InitializeAllTargetMCs();
+
+  // Register the Target and CPU printer for --version.
+  cl::AddExtraVersionPrinter(sys::printDefaultTargetAndDetectedCPU);
 
   // Enable printing of available targets when flag --version is specified.
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);

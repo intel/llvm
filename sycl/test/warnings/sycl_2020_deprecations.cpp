@@ -1,4 +1,4 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
@@ -64,6 +64,17 @@ int main() {
   size_t BufferSize = Buffer.size();
   // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
   size_t BufferGetSize = Buffer.get_size();
+  {
+    // expected-warning@+2 {{'get_access' is deprecated: get_access for host_accessor is deprecated, please use get_host_access instead}}
+    // expected-warning@+1 {{'get_access<sycl::access::mode::read_write>' is deprecated: get_access for host_accessor is deprecated, please use get_host_access instead}}
+    auto acc = Buffer.get_access<sycl::access_mode::read_write>();
+  }
+  {
+    // expected-warning@+3 {{'get_access' is deprecated: get_access for host_accessor is deprecated, please use get_host_access instead}}
+    // expected-warning@+2 {{'get_access<sycl::access::mode::read_write>' is deprecated: get_access for host_accessor is deprecated, please use get_host_access instead}}
+    auto acc =
+        Buffer.get_access<sycl::access_mode::read_write>(sycl::range<1>(0));
+  }
 
   sycl::vec<int, 2> Vec(1, 2);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}

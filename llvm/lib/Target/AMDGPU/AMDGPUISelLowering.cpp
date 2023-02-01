@@ -163,6 +163,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
                        Expand);
 
   setLoadExtAction(ISD::EXTLOAD, MVT::f32, MVT::f16, Expand);
+  setLoadExtAction(ISD::EXTLOAD, MVT::f32, MVT::bf16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v2f32, MVT::v2f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v3f32, MVT::v3f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v4f32, MVT::v4f16, Expand);
@@ -178,6 +179,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setLoadExtAction(ISD::EXTLOAD, MVT::v16f64, MVT::v16f32, Expand);
 
   setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f16, Expand);
+  setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::bf16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v2f64, MVT::v2f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v3f64, MVT::v3f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v4f64, MVT::v4f16, Expand);
@@ -272,6 +274,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setTruncStoreAction(MVT::v2i64, MVT::v2i16, Expand);
   setTruncStoreAction(MVT::v2i64, MVT::v2i32, Expand);
 
+  setTruncStoreAction(MVT::f32, MVT::bf16, Expand);
   setTruncStoreAction(MVT::f32, MVT::f16, Expand);
   setTruncStoreAction(MVT::v2f32, MVT::v2f16, Expand);
   setTruncStoreAction(MVT::v3f32, MVT::v3f16, Expand);
@@ -280,6 +283,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setTruncStoreAction(MVT::v16f32, MVT::v16f16, Expand);
   setTruncStoreAction(MVT::v32f32, MVT::v32f16, Expand);
 
+  setTruncStoreAction(MVT::f64, MVT::bf16, Expand);
   setTruncStoreAction(MVT::f64, MVT::f16, Expand);
   setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 
@@ -327,6 +331,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction({ISD::FLOG, ISD::FLOG10, ISD::FEXP}, MVT::f32, Custom);
 
   setOperationAction(ISD::FNEARBYINT, {MVT::f16, MVT::f32, MVT::f64}, Custom);
+
+  setOperationAction(ISD::FROUNDEVEN, {MVT::f16, MVT::f32, MVT::f64}, Custom);
 
   setOperationAction(ISD::FREM, {MVT::f16, MVT::f32, MVT::f64}, Custom);
 
@@ -1248,6 +1254,8 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::FTRUNC: return LowerFTRUNC(Op, DAG);
   case ISD::FRINT: return LowerFRINT(Op, DAG);
   case ISD::FNEARBYINT: return LowerFNEARBYINT(Op, DAG);
+  case ISD::FROUNDEVEN:
+    return LowerFROUNDEVEN(Op, DAG);
   case ISD::FROUND: return LowerFROUND(Op, DAG);
   case ISD::FFLOOR: return LowerFFLOOR(Op, DAG);
   case ISD::FLOG:
@@ -1469,7 +1477,7 @@ AMDGPUTargetLowering::split64BitValue(SDValue Op, SelectionDAG &DAG) const {
   SDValue Lo = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, MVT::i32, Vec, Zero);
   SDValue Hi = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, MVT::i32, Vec, One);
 
-  return std::make_pair(Lo, Hi);
+  return std::pair(Lo, Hi);
 }
 
 SDValue AMDGPUTargetLowering::getLoHalf64(SDValue Op, SelectionDAG &DAG) const {
@@ -1501,7 +1509,7 @@ AMDGPUTargetLowering::getSplitDestVTs(const EVT &VT, SelectionDAG &DAG) const {
   HiVT = NumElts - LoNumElts == 1
              ? EltVT
              : EVT::getVectorVT(*DAG.getContext(), EltVT, NumElts - LoNumElts);
-  return std::make_pair(LoVT, HiVT);
+  return std::pair(LoVT, HiVT);
 }
 
 // Split a vector value into two parts of types LoVT and HiVT. HiVT could be
@@ -1519,7 +1527,7 @@ AMDGPUTargetLowering::splitVector(const SDValue &N, const SDLoc &DL,
   SDValue Hi = DAG.getNode(
       HiVT.isVector() ? ISD::EXTRACT_SUBVECTOR : ISD::EXTRACT_VECTOR_ELT, DL,
       HiVT, N, DAG.getVectorIdxConstant(LoVT.getVectorNumElements(), DL));
-  return std::make_pair(Lo, Hi);
+  return std::pair(Lo, Hi);
 }
 
 SDValue AMDGPUTargetLowering::SplitVectorLoad(const SDValue Op,
@@ -2238,6 +2246,13 @@ SDValue AMDGPUTargetLowering::LowerFNEARBYINT(SDValue Op, SelectionDAG &DAG) con
   // exceptions. Those aren't really meaningful for us, and OpenCL only has
   // rint, so just treat them as equivalent.
   return DAG.getNode(ISD::FRINT, SDLoc(Op), Op.getValueType(), Op.getOperand(0));
+}
+
+SDValue AMDGPUTargetLowering::LowerFROUNDEVEN(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  auto VT = Op.getValueType();
+  auto Arg = Op.getOperand(0u);
+  return DAG.getNode(ISD::FRINT, SDLoc(Op), VT, Arg);
 }
 
 // XXX - May require not supporting f32 denormals?

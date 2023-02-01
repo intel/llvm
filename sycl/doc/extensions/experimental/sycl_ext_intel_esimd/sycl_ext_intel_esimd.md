@@ -471,6 +471,210 @@ ESIMD supports the following non-standard math functions implemented in hardware
 See more details in the API documentation
 [page TODO](https://intel.github.io/llvm-docs/doxygen).
 
+### Dot Product Accumulate Systolic - `DPAS` API
+
+DPAS is the matrix multiply-add-and-accumulate operation performed on limited size matrices/tiles.
+
+The input and output matrix/tile dimensions are parametrizable to certain extent and depend on the element types of operands and the target device.   
+The operands and returns of DPAS API may require vertical or horizontal packing or unpacking. Please see [more details](#input-and-output-matrices-representation-as-simd-vectors) below.
+
+#### DPAS API definition
+
+As a member XMX (Xe Matrix eXtension) family of GPU operations it is included into `sycl::ext::intel::esimd::xmx` namespace:
+
+```cpp
+/// Describes the element types in the input matrices.
+/// Used as template parameter to dpas() and may be omitted when
+/// it is deducible from the element types of input matrices.
+enum class dpas_argument_type {
+  Invalid = 0,
+  u1 = 1, // unsigned 1 bit
+  s1 = 2, // signed 1 bit
+  u2 = 3, // unsigned 2 bits
+  s2 = 4, // signed 2 bits
+  u4 = 5, // unsigned 4 bits
+  s4 = 6, // signed 4 bits
+  u8 = 7, // unsigned 8 bits
+  s8 = 8, // signed 8 bits
+  bf16 = 9, // bfloat 16
+  fp16 = 10, // half float
+  tf32 = 12, // tensor float 32
+};
+
+/// Computes the result of matrix operations: Result = A x B + C;
+template <
+    int SystolicDepth, int RepeatCount,
+    typename T, typename CT, typename CT, typename BT, typename AT,
+    dpas_argument_type BPrecision = detail::dpas_precision_from_type<BT>(),
+    dpas_argument_type APrecision = detail::dpas_precision_from_type<AT>(),
+    int N, int BN, int AN>
+simd<T, N> dpas(simd<CT, N> C, simd<BT, BN> B, simd<AT, AN> A);
+
+/// Computes the result of matrix operations: Result = A x B;
+template <
+    int SystolicDepth, int RepeatCount, typename T, typename BT, typename AT,
+    dpas_argument_type BPrecision = detail::dpas_precision_from_type<BT>(),
+    dpas_argument_type APrecision = detail::dpas_precision_from_type<AT>(),
+    int BN, int AN>
+auto dpas(simd<BT, BN> B, simd<AT, AN> A);
+```
+
+#### Example of DPAS usage
+
+Such `xmx::dpas()` call may be translated into such matrix operations:
+```cpp
+constexpr int M = 4; // aka RepeatCount. It is in range 1 to 8.
+constexpr int N = 8; // aka ExecutionSize, It must be 8 for ATS and 16 for PVC.
+constexpr int K = 8; // K is computed as (SystolicDepth * OperationsPerChannel), gets values from {8,16,32,64}
+                     // where:
+                     //     SystolicDepth is 8 for all known target devices.
+                     //     OperationsPerChannel is min(32 / MaxBitSizeOfElement(A, B), 8), and gets values from {1,2,4,8}.
+                     // Examples for K:
+                     //     A - tf32, B - tf32 ==> K = 8
+                     //     A - fp16, B - fp16  ==> K = 16
+                     //     A - s8, B - s8      ==> K = 32
+                     //     A - u4, B - u2      ==> K = 64
+                     //     A - s2, B - s2      ==> K = 64
+simd<ext::intel::experimental::esimd::tfloat32, M*K> A = initA();
+simd<ext::intel::experimental::esimd::tfloat32, K*N> B = initB();
+simd<float, M*N> C = initC();
+
+simd<float, M*N> Result = xmx::dpas<8,4>(C, B, A); // Result = AxB + C
+```
+<table><tr>
+<td><table>A (MxK)
+<tr><td>1</td><td>2</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>3</td><td>4</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table></td>
+<td>*</td>
+<td><table>B (KxN)
+<tr><td>2</td><td>5</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>6</td><td>7</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>8</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table></td>
+<td>+</td>
+<td><table>C (MxN)
+<tr><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>2</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</table></td>
+<td>=</td>
+<td><table>R (MxN)
+<tr><td>21</td><td>32</td><td>9</td><td>9</td><td>9</td><td>9</td><td>9</td><td>9</td></tr>
+<tr><td>11</td><td>12</td><td>6</td><td>6</td><td>6</td><td>6</td><td>6</td><td>6</td></tr>
+<tr><td>32</td><td>68</td><td>14</td><td>14</td><td>14</td><td>14</td><td>14</td><td>14</td></tr>
+<tr><td>14</td><td>25</td><td>8</td><td>8</td><td>8</td><td>8</td><td>8</td><td>8</td></tr>
+</table></td>
+</tr></table>
+
+#### Possible type combinations for `xmx::dpas()`
+
+The element types of input `C`, `A`, `B` matrices and the type of `Result` matrix can
+vary but only certain combinations are permitted
+
+If the target device is DG2 (`N` aka `execution size` must be 8):
+
+| Result | C | B | A |
+|--------|---|---|---|
+| float | float | half | half |
+| float | float | bfloat16 | bfloat16 |
+| unsigned int, int | unsigned int, int | u8,s8,u4,s4,u2,s2 | u8,s8,u4,s4,u2,s2 |
+
+
+If the target device is PVC (`N` aka `execution size` must be 16):
+
+| Result | C | B | A |
+|--------|---|---|---|
+| float | float | half | half
+| float, half | float, half | half | half
+|
+| float | float | bfloat16 | bfloat16
+| float | bfloat16 | bfloat16 | bfloat16
+| bfloat16 | float | bfloat16 | bfloat16
+| bfloat16 | bfloat16 | bfloat16 | bfloat16
+|
+| float | float | tfloat32 | tfloat32
+| unsigned int, int | unsigned int, int | u8,s8,u4,s4,u2,s2 | u8,s8,u4,s4,u2,s2 |
+
+#### Input and output matrices representation as simd vectors
+
+The input operands and return of `xmx::dpas()` are represented as `simd` vectors
+containing elements of linearized packed 2 dimensional matrix.
+They also may require horizontal packing or unpacking for `A`, `C`, `Result` before/after usage in `xmx::dpas()` or vertical packing for `B` before passing to `xmx::dpas()`.
+
+#### Horizontal packing for `A`, `C`, and `Result`
+
+The operands `A`, `C` and the `result` of `xmx::dpas()` are horizontally packed into 32-bit elements.
+For input elements with bit-size 8-bit or more, the packing is automatic and any explicit actions on it may be omitted. So, if the matrix `A` has `sycl::half` elements and is interpreted as a 4x8 matrix:
+|||||||||
+|--- |--- |--- |--- |--- |--- |--- |--- |
+| a0 | a1	| a2 | a3 | a4 | a5	| a6 | a7 |
+| b0 | b1	| b2 | b3 | b4 | b5	| b6 | b7 |
+| c0 | c1	| c2 | c3 | c4 | c5	| c6 | c7 |
+| d0 | d1	| d2 | d3 | d4 | d5	| d6 | d7 |
+
+Then the corresponding input `simd` operand (or output `simd` result) looks as simple as {a0, a1, a2, a3, a4, a5, a6, a7, a8, b0, b1, ..., b7, c0, c1, ..., c7, d0, ..., d7}.  
+Matrices with elements smaller than 8-bit they are packed to 1-,2-,or 4-byte elements. So, the operand `A` representing the 4x64 `unpacked` matrix of 4-bit unsigned integers:
+|||||||
+|--- |--- |--- |--- |---  |--- |
+| a0 | a1	| a2 | a3 | ... | a63 |
+| b0 | b1	| b2 | b3 | ... | b63 |
+| c0 | c1	| c2 | c3 | ... | c63 |
+| d0 | d1	| d2 | d3 | ... | d63 |
+
+actually stored as 4x32 matrix of `uint8_t` packed elements (1 uint8_t fits 2 4-bit uinteger ints):
+
+|||||
+|--- |--- |--- |--- |
+| (a1<<4) \| a0 | (a3<<4) \| a2 | ... | (a63<<4) \| a62 |
+| (b1<<4) \| b0 | (b3<<4) \| b2 | ... | (b63<<4) \| b62 |
+| (c1<<4) \| c0 | (c3<<4) \| c2 | ... | (c63<<4) \| c62 |
+| (d1<<4) \| d0 | (d3<<4) \| d2 | ... | (d63<<4) \| d62 |
+
+which then linearized to `simd<uint8_t, 4*32>` as {((a1<<4) | a0), ((a3<<4) | a2), ..., ((a63<<4) | a62), ((b1<<4) | b0), ..., ..., ((d63<<4) | d62)}
+
+The same matrix of 4-bit unsigned elements can be passed to `xmx::dpas` as uint32_t elements. In this case the packed 4x16 matrix of uint32_t elements can be shown as:
+|||||
+|--- |--- |--- |--- |
+| (a7<<28) \| (a6<<24 \| (a5<<20) \| ... \| a0), | ..., | (a63<<28) \| (a62<<24 \| (a61<<20) \| ... \| a55), |
+| (b7<<28) \| (b6<<24 \| (b5<<20) \| ... \| b0), | ..., | (b63<<28) \| (b62<<24 \| (b61<<20) \| ... \| b55), |
+| (c7<<28) \| (c6<<24 \| (c5<<20) \| ... \| a0), | ..., | (c63<<28) \| (c62<<24 \| (c61<<20) \| ... \| c55), |
+| (d7<<28) \| (d6<<24 \| (d5<<20) \| ... \| d0), | ..., | (d63<<28) \| (d62<<24 \| (d61<<20) \| ... \| d55) |
+
+
+#### Vertical packing
+
+The operand `B` is vertically packed into 32-bit elements. This packing is also known as *VNNI*.
+The unpacked 16x8 matrix with `sycl::half` elements:
+|||||||||
+|--- |--- |--- |--- |--- |--- |--- |--- |
+| a0 | a1	| a2 | a3 | a4 | a5	| a6 | a7 |
+| b0 | b1	| b2 | b3 | b4 | b5	| b6 | b7 |
+| c0 | c1	| c2 | c3 | c4 | c5	| c6 | c7 |
+| d0 | d1	| d2 | d3 | d4 | d5	| d6 | d7 |
+| ... | ...	| ... | ... | ... | ...	| ... | ... // 10 rows hidden here
+| o0 | o1	| o2 | o3 | o4 | o5	| o6 | o7 |
+| p0 | p1	| p2 | p3 | p4 | p5	| p6 | p7 |
+
+looks as below if packed as 8x8 matrix with `uint32_t` elements:
+|||||||||
+|--- |--- |--- |--- |--- |--- |--- |--- |
+| (b0<<16)\|a0, | (b1<<16)\|a1, | (b2<<16)\|a2, | (b3<<16)\|a3, | (b4<<16)\|a4, | (b5<<16)\|a5,	| (b6<<16)\|a6, | (b7<<16)\|a7 |
+| (d0<<16)\|c0, | (d1<<16)\|c1, | (d2<<16)\|c2, | (d3<<16)\|c3, | (d4<<16)\|c4, | (d5<<16)\|c5,	| (d6<<16)\|c6, | (d7<<16)\|c7 |
+| ... | ...	| ... | ... | ... | ...	| ... | ... // 5 rows hidden here
+| p0<<16\|o0, | p1<<16\|o1, | p2<<16\|o2, | p3<<16\|o3, | p4<<16\|o4, | p5<<16\|o5,	| p6<<16\|o6, | p7<<16\|o7 |
+
+and is passed to `xmx::dpas()` as simd<uint32_t, 8*8> {(b0<<16)|a0, | (b1<<16)|a1, ..., (b7<<16)|a7, (d0<<16)|c0, ..., ..., p7<<16\|o7}.
+
+Some more examples can be found in test for `xmx::dpas()` in [LIT tests](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD/dpas).
 
 ### Other APIs
 
