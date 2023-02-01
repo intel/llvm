@@ -9,7 +9,6 @@ Release notes for commit range [`0f579bae..6977f1ac`](https://github.com/intel/l
 `-fno-sycl-rdc`. This improves compiler performance and reduces memory usage,
 but can only be used if there are no cross-object dependencies. [f884993d]
 - Added support for per-aspect device code split mode. [9a2c4fe5]
-- Added GPU specific device targets for ahead-of-time compilation. [5bd5c871]
 - Extended support for the large GRF mode to non-ESIMD kernels. [9994934b]
 [ab2a42c6]
 - Implemented the [`sycl_ext_intel_device_architecture`](doc/extensions/supported/sycl_ext_oneapi_device_architecture.asciidoc)
