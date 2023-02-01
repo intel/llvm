@@ -44,6 +44,11 @@ etors:
     - name: FILTER_MODE
       desc: "Sampler filter mode"
 --- #--------------------------------------------------------------------------
+type: typedef
+desc: "Sampler Properties type"
+name: $x_sampler_property_t
+value: intptr_t
+--- #--------------------------------------------------------------------------
 type: enum
 desc: "Sampler addressing mode"
 class: $xSampler
@@ -60,18 +65,6 @@ etors:
     - name: NONE
       desc: "None"
 --- #--------------------------------------------------------------------------
-type: struct
-desc: "Sampler properties <name, value> pair"
-class: $xSampler
-name: $x_sampler_property_value_t
-members:
-    - type: $x_sampler_properties_t
-      name: propName
-      desc: "[in] Sampler property"
-    - type: uint32_t
-      name: propValue
-      desc: "[in] Sampler property value"
---- #--------------------------------------------------------------------------
 type: function
 desc: "Create a sampler object in a context"
 class: $xSampler
@@ -86,7 +79,7 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: "const $x_sampler_property_value_t*"
+    - type: "const $x_sampler_property_t*"
       name: pProps
       desc: |
             [in] specifies a list of sampler property names and their corresponding values.
