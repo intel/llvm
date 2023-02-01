@@ -29,7 +29,7 @@ namespace detail {
 
 template <typename T>
 using IsValidCoordType = typename is_contained<
-    T, type_list<opencl::cl_int, opencl::cl_float, float>>::type;
+    T, type_list<opencl::cl_int, opencl::cl_float, std::int32_t, float>>::type;
 
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]
@@ -102,17 +102,16 @@ getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
 
 // Process float4 Coordinates and return the appropriate Pixel
 // Coordinates to read from based on Addressing Mode for Nearest filter mode.
-__SYCL_EXPORT vec<opencl::cl_int, 4>
-getPixelCoordNearestFiltMode(float4, const addressing_mode, const range<3>);
+__SYCL_EXPORT int4 getPixelCoordNearestFiltMode(float4, const addressing_mode,
+                                                const range<3>);
 
 // Process float4 Coordinates and return the appropriate Pixel
 // Coordinates to read from based on Addressing Mode for Linear filter mode.
-__SYCL_EXPORT vec<opencl::cl_int, 8>
-getPixelCoordLinearFiltMode(float4, const addressing_mode, const range<3>,
-                            float4 &);
+__SYCL_EXPORT int8 getPixelCoordLinearFiltMode(float4, const addressing_mode,
+                                               const range<3>, float4 &);
 
 // Check if PixelCoord are out of range for Sampler with clamp adressing mode.
-__SYCL_EXPORT bool isOutOfRange(const vec<opencl::cl_int, 4> PixelCoord,
+__SYCL_EXPORT bool isOutOfRange(const int4 PixelCoord,
                                 const addressing_mode SmplAddrMode,
                                 const range<3> ImgRange);
 
@@ -282,20 +281,20 @@ void writePixel(const vec<T, 4> Pixel, T *Ptr,
 template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
                      const image_channel_type ImageChannelType,
-                     vec<cl_uint, 4> &RetData) {
+                     uint4 &RetData) {
 
   switch (ImageChannelType) {
   case image_channel_type::unsigned_int8:
   case image_channel_type::unsigned_int16:
   case image_channel_type::unsigned_int32:
-    RetData = PixelData.template convert<cl_uint>();
+    RetData = PixelData.template convert<std::uint32_t>();
     break;
   default:
     // OpenCL Spec section 6.12.14.2 does not allow reading uint4 data from an
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - cl_uint4 is incompatible with the "
+        "Datatype of read data - std::uint32_t4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -303,21 +302,20 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 
 template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
-                     const image_channel_type ImageChannelType,
-                     vec<opencl::cl_int, 4> &RetData) {
+                     const image_channel_type ImageChannelType, int4 &RetData) {
 
   switch (ImageChannelType) {
   case image_channel_type::signed_int8:
   case image_channel_type::signed_int16:
   case image_channel_type::signed_int32:
-    RetData = PixelData.template convert<cl_int>();
+    RetData = PixelData.template convert<std::int32_t>();
     break;
   default:
     // OpenCL Spec section 6.12.14.2 does not allow reading int4 data from an
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of read data - vec<opencl::cl_int, 4> is incompatible with "
+        "Datatype of read data - int4 is incompatible with "
         "the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -353,12 +351,11 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // correct after the spec is updated.
     // Assuming: (float)c / 31.0f; c represents the 5-bit integer.
     //           (float)c / 63.0f; c represents the 6-bit integer.
-    // PixelData.x will be of type cl_ushort.
-    vec<opencl::cl_ushort, 4> Temp(PixelData.x());
-    vec<opencl::cl_ushort, 4> MaskBits(0xF800 /*r:bits 11-15*/,
-                                       0x07E0 /*g:bits 5-10*/,
-                                       0x001F /*b:bits 0-4*/, 0x0000);
-    vec<opencl::cl_ushort, 4> ShiftBits(11, 5, 0, 0);
+    // PixelData.x will be of type std::uint16_t.
+    ushort4 Temp(PixelData.x());
+    ushort4 MaskBits(0xF800 /*r:bits 11-15*/, 0x07E0 /*g:bits 5-10*/,
+                     0x001F /*b:bits 0-4*/, 0x0000);
+    ushort4 ShiftBits(11, 5, 0, 0);
     float4 DivisorToNormalise(31.0f, 63.0f, 31.0f, 1);
     Temp = (Temp & MaskBits) >> ShiftBits;
     RetData = (Temp.template convert<float>()) / DivisorToNormalise;
@@ -370,23 +367,23 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // Assuming: (float)c / 31.0f; c represents the 5-bit integer.
 
     // Extracting each 5-bit channel data.
-    // PixelData.x will be of type cl_ushort.
-    vec<cl_ushort, 4> Temp(PixelData.x());
-    vec<cl_ushort, 4> MaskBits(0x7C00 /*r:bits 10-14*/, 0x03E0 /*g:bits 5-9*/,
-                               0x001F /*b:bits 0-4*/, 0x0000);
-    vec<cl_ushort, 4> ShiftBits(10, 5, 0, 0);
+    // PixelData.x will be of type std::uint16_t.
+    vec<std::uint16_t, 4> Temp(PixelData.x());
+    vec<std::uint16_t, 4> MaskBits(0x7C00 /*r:bits 10-14*/,
+                                   0x03E0 /*g:bits 5-9*/, 0x001F /*b:bits 0-4*/,
+                                   0x0000);
+    vec<std::uint16_t, 4> ShiftBits(10, 5, 0, 0);
     Temp = (Temp & MaskBits) >> ShiftBits;
     RetData = (Temp.template convert<float>()) / 31.0f;
     break;
   }
   case image_channel_type::unorm_int_101010: {
     // Extracting each 10-bit channel data.
-    // PixelData.x will be of type cl_uint.
-    vec<opencl::cl_uint, 4> Temp(PixelData.x());
-    vec<opencl::cl_uint, 4> MaskBits(0x3FF00000 /*r:bits 20-29*/,
-                                     0x000FFC00 /*g:bits 10-19*/,
-                                     0x000003FF /*b:bits 0-9*/, 0x00000000);
-    vec<opencl::cl_uint, 4> ShiftBits(20, 10, 0, 0);
+    // PixelData.x will be of type std::uint32_t.
+    uint4 Temp(PixelData.x());
+    uint4 MaskBits(0x3FF00000 /*r:bits 20-29*/, 0x000FFC00 /*g:bits 10-19*/,
+                   0x000003FF /*b:bits 0-9*/, 0x00000000);
+    uint4 ShiftBits(20, 10, 0, 0);
     Temp = (Temp & MaskBits) >> ShiftBits;
     RetData = (Temp.template convert<float>()) / 1023.0f;
     break;
@@ -481,21 +478,21 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 // appropriate conversion rules.
 template <typename ChannelType>
 vec<ChannelType, 4>
-convertWriteData(const vec<cl_uint, 4> WriteData,
+convertWriteData(const vec<std::uint32_t, 4> WriteData,
                  const image_channel_type ImageChannelType) {
   switch (ImageChannelType) {
   case image_channel_type::unsigned_int8: {
     // convert_uchar_sat(Data)
-    cl_uint MinVal = min_v<cl_uchar>();
-    cl_uint MaxVal = max_v<cl_uchar>();
-    vec<cl_uint, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    std::uint32_t MinVal = min_v<std::uint8_t>();
+    std::uint32_t MaxVal = max_v<std::uint8_t>();
+    vec<std::uint32_t, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int16: {
     // convert_ushort_sat(Data)
-    cl_uint MinVal = min_v<cl_ushort>();
-    cl_uint MaxVal = max_v<cl_ushort>();
-    vec<cl_uint, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    std::uint32_t MinVal = min_v<std::uint16_t>();
+    std::uint32_t MaxVal = max_v<std::uint16_t>();
+    vec<std::uint32_t, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int32:
@@ -506,7 +503,7 @@ convertWriteData(const vec<cl_uint, 4> WriteData,
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - cl_uint4 is incompatible with the "
+        "Datatype of data to write - std::uint32_t4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
@@ -514,22 +511,22 @@ convertWriteData(const vec<cl_uint, 4> WriteData,
 
 template <typename ChannelType>
 vec<ChannelType, 4>
-convertWriteData(const vec<opencl::cl_int, 4> WriteData,
+convertWriteData(const int4 WriteData,
                  const image_channel_type ImageChannelType) {
 
   switch (ImageChannelType) {
   case image_channel_type::signed_int8: {
     // convert_char_sat(Data)
-    cl_int MinVal = min_v<cl_char>();
-    cl_int MaxVal = max_v<cl_char>();
-    vec<opencl::cl_int, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    std::int32_t MinVal = min_v<std::int8_t>();
+    std::int32_t MaxVal = max_v<std::int8_t>();
+    int4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int16: {
     // convert_short_sat(Data)
-    cl_int MinVal = min_v<cl_short>();
-    cl_int MaxVal = max_v<cl_short>();
-    vec<opencl::cl_int, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
+    std::int32_t MinVal = min_v<std::int16_t>();
+    std::int32_t MaxVal = max_v<std::int16_t>();
+    int4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int32:
@@ -539,7 +536,7 @@ convertWriteData(const vec<opencl::cl_int, 4> WriteData,
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
     throw sycl::invalid_parameter_error(
-        "Datatype of data to write - vec<opencl::cl_int, 4> is incompatible "
+        "Datatype of data to write - int4 is incompatible "
         "with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -549,8 +546,8 @@ convertWriteData(const vec<opencl::cl_int, 4> WriteData,
 template <typename ChannelType>
 vec<ChannelType, 4> processFloatDataToPixel(float4 WriteData, float MulFactor) {
   float4 Temp = WriteData * MulFactor;
-  vec<opencl::cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
-  vec<opencl::cl_int, 4> TempInIntSaturated =
+  int4 TempInInt = Temp.convert<int, rounding_mode::rte>();
+  int4 TempInIntSaturated =
       sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
   return TempInIntSaturated.convert<ChannelType>();
 }
@@ -587,8 +584,8 @@ convertWriteData(const float4 WriteData,
     // Assuming: min(convert_ushort_sat_rte(f * 32.0f), 0x1f)
     // bits 9:5 and B in bits 4:0.
     {
-      vec<opencl::cl_ushort, 4> PixelData =
-          processFloatDataToPixel<cl_ushort>(WriteData, 32.0f);
+      ushort4 PixelData =
+          processFloatDataToPixel<std::uint16_t>(WriteData, 32.0f);
       PixelData = sycl::min(PixelData, static_cast<ChannelType>(0x1f));
       // Compressing the data into the first element of PixelData.
       // This is needed so that the data can be directly stored into the pixel
@@ -604,8 +601,8 @@ convertWriteData(const float4 WriteData,
     // For CL_UNORM_INT_101010, bits 31:30 are undefined, R is in bits 29:20, G
     // in bits 19:10 and B in bits 9:0
     {
-      vec<opencl::cl_uint, 4> PixelData =
-          processFloatDataToPixel<cl_uint>(WriteData, 1023.0f);
+      uint4 PixelData =
+          processFloatDataToPixel<std::uint32_t>(WriteData, 1023.0f);
       PixelData = sycl::min(PixelData, static_cast<ChannelType>(0x3ff));
       PixelData.x() =
           (PixelData.x() << 20) | (PixelData.y() << 10) | PixelData.z();
@@ -710,23 +707,23 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 
   switch (ImgChannelType) {
   case image_channel_type::snorm_int8:
-    writePixel(convertWriteData<opencl::cl_char>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_char *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::int8_t>(Color, ImgChannelType),
+               reinterpret_cast<std::int8_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::snorm_int16:
-    writePixel(convertWriteData<opencl::cl_short>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_short *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::int16_t>(Color, ImgChannelType),
+               reinterpret_cast<std::int16_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unorm_int8:
-    writePixel(convertWriteData<opencl::cl_uchar>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_uchar *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint8_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint8_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unorm_int16:
-    writePixel(convertWriteData<opencl::cl_ushort>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_ushort *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint16_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint16_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unorm_short_565:
@@ -738,38 +735,38 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                reinterpret_cast<short *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::unorm_int_101010:
-    writePixel(convertWriteData<opencl::cl_uint>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_uint *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint32_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint32_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::signed_int8:
-    writePixel(convertWriteData<opencl::cl_char>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_char *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::int8_t>(Color, ImgChannelType),
+               reinterpret_cast<std::int8_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::signed_int16:
-    writePixel(convertWriteData<opencl::cl_short>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_short *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::int16_t>(Color, ImgChannelType),
+               reinterpret_cast<std::int16_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::signed_int32:
-    writePixel(convertWriteData<opencl::cl_int>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_int *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::int32_t>(Color, ImgChannelType),
+               reinterpret_cast<std::int32_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unsigned_int8:
-    writePixel(convertWriteData<opencl::cl_uchar>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_uchar *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint8_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint8_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unsigned_int16:
-    writePixel(convertWriteData<opencl::cl_ushort>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_ushort *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint16_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint16_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::unsigned_int32:
-    writePixel(convertWriteData<opencl::cl_uint>(Color, ImgChannelType),
-               reinterpret_cast<opencl::cl_uint *>(Ptr), ImgChannelOrder,
+    writePixel(convertWriteData<std::uint32_t>(Color, ImgChannelType),
+               reinterpret_cast<std::uint32_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
     break;
   case image_channel_type::fp16:
@@ -777,20 +774,18 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
         // convertWriteDataToHalf<typename
         // TryToGetElementType<WriteDataT>::type>(
         convertWriteData<half>(Color, ImgChannelType),
-        reinterpret_cast<half *>(Ptr), ImgChannelOrder,
-        ImgChannelType);
+        reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::fp32:
     writePixel(convertWriteData<float>(Color, ImgChannelType),
-               reinterpret_cast<float *>(Ptr), ImgChannelOrder,
-               ImgChannelType);
+               reinterpret_cast<float *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   }
 }
 
 // Method called to read a Coord by getColor function when the Coord is
 // in-range. This method takes Unnormalized Coords - 'PixelCoord' as
-// vec<opencl::cl_int, 4>. Invalid Coord are denoted by 0. Steps:
+// int4. Invalid Coord are denoted by 0. Steps:
 // 1. Compute Offset for given Unnormalised Coordinates using ImagePitch and
 // ElementSize.(getImageOffset)
 // 2. Add this Offset to BasePtr to compute the location of the Image.
@@ -801,11 +796,10 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 // variable.(readPixel)
 // 5. Convert the Read Data into Return DataT based on conversion rules in
 // the Spec.(convertReadData)
-// Possible DataT are vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+// Possible DataT are int4, uint4,
 // float4, half4;
 template <typename DataT>
-DataT ReadPixelData(const vec<opencl::cl_int, 4> PixelCoord,
-                    const id<3> ImgPitch,
+DataT ReadPixelData(const int4 PixelCoord, const id<3> ImgPitch,
                     const image_channel_type ImageChannelType,
                     const image_channel_order ImageChannelOrder, void *BasePtr,
                     const uint8_t ElementSize) {
@@ -819,94 +813,90 @@ DataT ReadPixelData(const vec<opencl::cl_int, 4> PixelCoord,
     // TODO: Pass either ImageChannelType or the exact channel type to the
     // readPixel Function.
   case image_channel_type::snorm_int8:
-    convertReadData<opencl::cl_char>(
-        readPixel(reinterpret_cast<opencl::cl_char *>(Ptr), ImageChannelOrder,
-                  ImageChannelType),
-        image_channel_type::snorm_int8, Color);
+    convertReadData<std::int8_t>(readPixel(reinterpret_cast<std::int8_t *>(Ptr),
+                                           ImageChannelOrder, ImageChannelType),
+                                 image_channel_type::snorm_int8, Color);
     break;
   case image_channel_type::snorm_int16:
-    convertReadData<opencl::cl_short>(
-        readPixel(reinterpret_cast<opencl::cl_short *>(Ptr), ImageChannelOrder,
+    convertReadData<std::int16_t>(
+        readPixel(reinterpret_cast<std::int16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::snorm_int16, Color);
     break;
   case image_channel_type::unorm_int8:
-    convertReadData<opencl::cl_uchar>(
-        readPixel(reinterpret_cast<opencl::cl_uchar *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint8_t>(
+        readPixel(reinterpret_cast<std::uint8_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unorm_int8, Color);
     break;
   case image_channel_type::unorm_int16:
-    convertReadData<opencl::cl_ushort>(
-        readPixel(reinterpret_cast<opencl::cl_ushort *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint16_t>(
+        readPixel(reinterpret_cast<std::uint16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unorm_int16, Color);
     break;
   case image_channel_type::unorm_short_565:
-    convertReadData<opencl::cl_ushort>(
-        readPixel(reinterpret_cast<opencl::cl_ushort *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint16_t>(
+        readPixel(reinterpret_cast<std::uint16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unorm_short_565, Color);
     break;
   case image_channel_type::unorm_short_555:
-    convertReadData<opencl::cl_ushort>(
-        readPixel(reinterpret_cast<opencl::cl_ushort *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint16_t>(
+        readPixel(reinterpret_cast<std::uint16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unorm_short_555, Color);
     break;
   case image_channel_type::unorm_int_101010:
-    convertReadData<opencl::cl_uint>(
-        readPixel(reinterpret_cast<opencl::cl_uint *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint32_t>(
+        readPixel(reinterpret_cast<std::uint32_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unorm_int_101010, Color);
     break;
   case image_channel_type::signed_int8:
-    convertReadData<opencl::cl_char>(
-        readPixel(reinterpret_cast<opencl::cl_char *>(Ptr), ImageChannelOrder,
-                  ImageChannelType),
-        image_channel_type::signed_int8, Color);
+    convertReadData<std::int8_t>(readPixel(reinterpret_cast<std::int8_t *>(Ptr),
+                                           ImageChannelOrder, ImageChannelType),
+                                 image_channel_type::signed_int8, Color);
     break;
   case image_channel_type::signed_int16:
-    convertReadData<opencl::cl_short>(
-        readPixel(reinterpret_cast<opencl::cl_short *>(Ptr), ImageChannelOrder,
+    convertReadData<std::int16_t>(
+        readPixel(reinterpret_cast<std::int16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::signed_int16, Color);
     break;
   case image_channel_type::signed_int32:
-    convertReadData<opencl::cl_int>(
-        readPixel(reinterpret_cast<opencl::cl_int *>(Ptr), ImageChannelOrder,
+    convertReadData<std::int32_t>(
+        readPixel(reinterpret_cast<std::int32_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::signed_int32, Color);
     break;
   case image_channel_type::unsigned_int8:
-    convertReadData<opencl::cl_uchar>(
-        readPixel(reinterpret_cast<opencl::cl_uchar *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint8_t>(
+        readPixel(reinterpret_cast<std::uint8_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unsigned_int8, Color);
     break;
   case image_channel_type::unsigned_int16:
-    convertReadData<opencl::cl_ushort>(
-        readPixel(reinterpret_cast<opencl::cl_ushort *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint16_t>(
+        readPixel(reinterpret_cast<std::uint16_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unsigned_int16, Color);
     break;
   case image_channel_type::unsigned_int32:
-    convertReadData<opencl::cl_uint>(
-        readPixel(reinterpret_cast<opencl::cl_uint *>(Ptr), ImageChannelOrder,
+    convertReadData<std::uint32_t>(
+        readPixel(reinterpret_cast<std::uint32_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),
         image_channel_type::unsigned_int32, Color);
     break;
   case image_channel_type::fp16:
-    convertReadData<half>(
-        readPixel(reinterpret_cast<half *>(Ptr), ImageChannelOrder,
-                  ImageChannelType),
-        image_channel_type::fp16, Color);
+    convertReadData<half>(readPixel(reinterpret_cast<half *>(Ptr),
+                                    ImageChannelOrder, ImageChannelType),
+                          image_channel_type::fp16, Color);
     break;
   case image_channel_type::fp32:
-    convertReadData<float>(
-        readPixel(reinterpret_cast<float *>(Ptr), ImageChannelOrder,
-                  ImageChannelType),
-        image_channel_type::fp32, Color);
+    convertReadData<float>(readPixel(reinterpret_cast<float *>(Ptr),
+                                     ImageChannelOrder, ImageChannelType),
+                           image_channel_type::fp32, Color);
     break;
   }
 
@@ -916,9 +906,9 @@ DataT ReadPixelData(const vec<opencl::cl_int, 4> PixelCoord,
 // Checks if the PixelCoord is out-of-range, and returns appropriate border or
 // color value at the PixelCoord.
 template <typename DataT>
-DataT getColor(const vec<opencl::cl_int, 4> PixelCoord,
-               const addressing_mode SmplAddrMode, const range<3> ImgRange,
-               const id<3> ImgPitch, const image_channel_type ImgChannelType,
+DataT getColor(const int4 PixelCoord, const addressing_mode SmplAddrMode,
+               const range<3> ImgRange, const id<3> ImgPitch,
+               const image_channel_type ImgChannelType,
                const image_channel_order ImgChannelOrder, void *BasePtr,
                const uint8_t ElementSize) {
   DataT RetData;
@@ -938,18 +928,17 @@ DataT getColor(const vec<opencl::cl_int, 4> PixelCoord,
 // 2. Calls getColor() on each Coordinate.(Ci*j*k*)
 // 3. Computes the return Color Value using a,b,c and the Color values.
 template <typename DataT>
-DataT ReadPixelDataLinearFiltMode(const vec<opencl::cl_int, 8> CoordValues,
-                                  const float4 abc,
+DataT ReadPixelDataLinearFiltMode(const int8 CoordValues, const float4 abc,
                                   const addressing_mode SmplAddrMode,
                                   const range<3> ImgRange, id<3> ImgPitch,
                                   const image_channel_type ImgChannelType,
                                   const image_channel_order ImgChannelOrder,
                                   void *BasePtr, const uint8_t ElementSize) {
-  opencl::cl_int i0 = CoordValues.s0(), j0 = CoordValues.s1(),
-                 k0 = CoordValues.s2(), i1 = CoordValues.s4(),
-                 j1 = CoordValues.s5(), k1 = CoordValues.s6();
+  std::int32_t i0 = CoordValues.s0(), j0 = CoordValues.s1(),
+               k0 = CoordValues.s2(), i1 = CoordValues.s4(),
+               j1 = CoordValues.s5(), k1 = CoordValues.s6();
 
-  auto getColorInFloat = [&](vec<opencl::cl_int, 4> V) {
+  auto getColorInFloat = [&](int4 V) {
     DataT Res =
         getColor<DataT>(V, SmplAddrMode, ImgRange, ImgPitch, ImgChannelType,
                         ImgChannelOrder, BasePtr, ElementSize);
@@ -957,21 +946,21 @@ DataT ReadPixelDataLinearFiltMode(const vec<opencl::cl_int, 8> CoordValues,
   };
 
   // Get Color Values at each Coordinate.
-  float4 Ci0j0k0 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k0, 0});
+  float4 Ci0j0k0 = getColorInFloat(int4{i0, j0, k0, 0});
 
-  float4 Ci1j0k0 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k0, 0});
+  float4 Ci1j0k0 = getColorInFloat(int4{i1, j0, k0, 0});
 
-  float4 Ci0j1k0 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k0, 0});
+  float4 Ci0j1k0 = getColorInFloat(int4{i0, j1, k0, 0});
 
-  float4 Ci1j1k0 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k0, 0});
+  float4 Ci1j1k0 = getColorInFloat(int4{i1, j1, k0, 0});
 
-  float4 Ci0j0k1 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j0, k1, 0});
+  float4 Ci0j0k1 = getColorInFloat(int4{i0, j0, k1, 0});
 
-  float4 Ci1j0k1 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j0, k1, 0});
+  float4 Ci1j0k1 = getColorInFloat(int4{i1, j0, k1, 0});
 
-  float4 Ci0j1k1 = getColorInFloat(vec<opencl::cl_int, 4>{i0, j1, k1, 0});
+  float4 Ci0j1k1 = getColorInFloat(int4{i0, j1, k1, 0});
 
-  float4 Ci1j1k1 = getColorInFloat(vec<opencl::cl_int, 4>{i1, j1, k1, 0});
+  float4 Ci1j1k1 = getColorInFloat(int4{i1, j1, k1, 0});
 
   float a = abc.x();
   float b = abc.y();
@@ -1098,8 +1087,8 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
 
   // Step 2 & Step 3:
 
-  // converToFloat4 converts CoordT of any kind - opencl::cl_int,
-  // vec<opencl::cl_int, 2>, vec<opencl::cl_int, 4>, float,
+  // converToFloat4 converts CoordT of any kind - std::int32_t,
+  // int2, int4, float,
   // vec<float, 2> and float4 into Coordinates of
   // kind float4 with no loss of precision. For
   // pixel_coordinates already in float4 format, the function
@@ -1110,7 +1099,7 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   switch (SmplFiltMode) {
   case filtering_mode::nearest: {
     // Get Pixel Coordinates in integers that will be read from in the Image.
-    vec<opencl::cl_int, 4> PixelCoord =
+    int4 PixelCoord =
         getPixelCoordNearestFiltMode(FloatCoorduvw, SmplAddrMode, ImgRange);
 
     // Return Border Color for out-of-range coordinates when Sampler has
@@ -1126,8 +1115,8 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
     // Get Pixel Coordinates in integers that will be read from in the Image.
     // Return i0,j0,k0,0,i1,j1,k1,0 to form 8 coordinates in a 3D image and
     // multiplication factors a,b,c
-    vec<opencl::cl_int, 8> CoordValues = getPixelCoordLinearFiltMode(
-        FloatCoorduvw, SmplAddrMode, ImgRange, Retabc);
+    int8 CoordValues = getPixelCoordLinearFiltMode(FloatCoorduvw, SmplAddrMode,
+                                                   ImgRange, Retabc);
 
     // Find the 8 coordinates with the values in CoordValues.
     // Computes the Color Value to return.
