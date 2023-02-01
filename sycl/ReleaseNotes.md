@@ -5,7 +5,6 @@ Release notes for commit range [`0f579bae..6977f1ac`](https://github.com/intel/l
 ## New features
 
 ### SYCL Compiler
-
 - Added support for per-object device code compilation under the option
 `-fno-sycl-rdc`. This improves compiler performance and reduces memory usage,
 but can only be used if there are no cross-object dependencies. [f884993d]
@@ -13,15 +12,14 @@ but can only be used if there are no cross-object dependencies. [f884993d]
 - Added GPU specific device targets for ahead-of-time compilation. [5bd5c871]
 - Extended support for the large GRF mode to non-ESIMD kernels. [9994934b]
 [ab2a42c6]
-- Added support for the `sycl_ext_oneapi_kernel_properties` experimental
-extension. [332e4ee0] [27454de6] [70ee3d56] [430c7221]
-- Added support for AMD and NVIDIA architectures as arguments for
-`-fsycl-targets`. [e5de913f]
+- Implemented the [`sycl_ext_intel_device_architecture`](doc/extensions/supported/sycl_ext_oneapi_device_architecture.asciidoc)
+extension. [0e32a28d] [b59d93cc] [5bd5c871] [e5de913f]
+- Implemented the [`sycl_ext_oneapi_kernel_properties`](doc/extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc)
+experimental extension. [332e4ee0] [27454de6] [70ee3d56] [430c7221]
 - Added support for generic address space atomic built-ins to CUDA libclc.
 [d6a8fd1f]
 
 ### SYCL Library
-
 - Implemented accessor member functions `swap`, `byte_size`, `max_size` and
 `empty`. [f1f907a2]
 - Implemented SYCL 2020 default accessor constructor. [04928f9f]
@@ -40,8 +38,6 @@ SYCL 2020. [227614ca]
 passed context's members. [a7827795]
 - Implemented non-blocking destruction and deferred release of memory objects
 without attached host memory. [894ce256]
-- Implemented the [`sycl_ext_intel_device_architecture`](doc/extensions/supported/sycl_ext_oneapi_device_architecture.asciidoc)
-extension. [0e32a28d] [b59d93cc]
 - Implemented the [`sycl_ext_oneapi_queue_priority`](doc/extensions/supported/sycl_ext_oneapi_queue_priority.asciidoc)
 extension. [cdb09dca]
 - Implemented the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/proposed/sycl_ext_oneapi_user_defined_reductions.asciidoc)
@@ -51,7 +47,10 @@ extension proposal. [c4932957]
 - Implemented the [`sycl_ext_oneapi_weak_object`](doc/extensions/supported/sycl_ext_oneapi_weak_object.asciidoc)
 extension. [d9484274] [9297f63e]
 - Implemented the [`sycl_ext_intel_cslice`](doc/extensions/supported/sycl_ext_intel_cslice.asciidoc)
-extension. [5995c618]
+extension. The old behavior that exposed compute slices as sub-sub-devices is
+now deprecated. For compatibility purposes, it can be brought back via the
+`SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING` environment
+varible. [5995c618]
 - Implemented the [`sycl_ext_intel_queue_index`](doc/extensions/proposed/sycl_ext_intel_queue_index.asciidoc)
 extension. [d2ec9645] [7179e830]
 - Implemented the [`sycl_ext_oneapi_memcpy2d`](doc/extensions/supported/sycl_ext_oneapi_memcpy2d.asciidoc)
@@ -154,8 +153,6 @@ such devices are found. [6b83ad7c]
 - Added Level Zero plugin support for global work sizes greater than
 `UINT32_MAX` as long as they are divisible by some legal work-group size and
 the resulting quotient does not exceed `UINT32_MAX`. [62dd13dd]
-- Multiple CCS are now reported as sub-devices with Level Zero on single tile
-GPUs. [9cf74516]
 - Improved native Level Zero event handling in the immediate command list mode
 by removing excessive status queries. [179ffa16]
 - Removed an uninitialized buffer migration copy in the Level Zero plugin
@@ -222,7 +219,6 @@ targets. [41898580]
 linked library. [72d9b052]
 
 ### SYCL Library
-
 - Fixed an issue where the in-order queue property was not respected when
 submitting USM commands and host tasks. [067d3b39]
 - Fixed a memory leak when enqueueing a barrier to a `discard_events` queue.
@@ -322,7 +318,6 @@ memory read/write operations due to functional regressions. [44aa363a]
 missing. [cd832bff]
 
 ## Known issues
-
 - Having MESA OpenCL implementation which provides no devices on a
   system may cause incorrect device discovery. As a workaround such an OpenCL
   implementation can be disabled by removing `/etc/OpenCL/vendor/mesa.icd`.
