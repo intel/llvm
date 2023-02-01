@@ -770,17 +770,21 @@ pi_device _pi_context::getRootDevice() const {
 pi_result _pi_context::initialize() {
 
   // Helper lambda to create various USM allocators for a device.
+  // Note that the CCS devices and their respective subdevices share a
+  // common ze_device_handle and therefore, also share USM allocators.
   auto createUSMAllocators = [this](pi_device Device) {
     SharedMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(std::unique_ptr<SystemMemory>(
             new USMSharedMemoryAlloc(this, Device))));
+
     SharedReadOnlyMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(std::unique_ptr<SystemMemory>(
             new USMSharedReadOnlyMemoryAlloc(this, Device))));
+
     DeviceMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(std::unique_ptr<SystemMemory>(
             new USMDeviceMemoryAlloc(this, Device))));
   };
@@ -807,8 +811,9 @@ pi_result _pi_context::initialize() {
       std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
 
   // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
-                              DeviceMemAllocContexts.end()) {
+  if (SingleRootDevice &&
+      DeviceMemAllocContexts.find(SingleRootDevice->ZeDevice) ==
+          DeviceMemAllocContexts.end()) {
     createUSMAllocators(SingleRootDevice);
   }
 
@@ -1968,19 +1973,19 @@ pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
     return CommandListMap.end();
   }
 
-  const auto &ComputeEventList =
-      ComputeCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{false}) &&
-      std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
-          ComputeEventList.end()) {
-    return ComputeCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{false})) {
+    const auto &ComputeEventList =
+        ComputeCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
+        ComputeEventList.end())
+      return ComputeCommandBatch.OpenCommandList;
   }
-  const auto &CopyEventList =
-      CopyCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{true}) &&
-      std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
-          CopyEventList.end()) {
-    return CopyCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{true})) {
+    const auto &CopyEventList =
+        CopyCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
+        CopyEventList.end())
+      return CopyCommandBatch.OpenCommandList;
   }
   return CommandListMap.end();
 }
@@ -2012,7 +2017,8 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     return Res;
 
   // We can now replace active barriers with the ones in the wait list.
-  ActiveBarriers.clear();
+  if (auto Res = ActiveBarriers.clear())
+    return Res;
 
   if (ActiveBarriersWaitList.Length == 0) {
     return PI_SUCCESS;
@@ -2226,7 +2232,7 @@ static void printZeEventList(const _pi_ze_event_list_t &PiZeEventList) {
   zePrint("  NumEventsInWaitList %d:", PiZeEventList.Length);
 
   for (pi_uint32 I = 0; I < PiZeEventList.Length; I++) {
-    zePrint(" %#lx", pi_cast<std::uintptr_t>(PiZeEventList.ZeEventList[I]));
+    zePrint(" %#llx", pi_cast<std::uintptr_t>(PiZeEventList.ZeEventList[I]));
   }
 
   zePrint("\n");
@@ -5629,7 +5635,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   }
 
   zePrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
@@ -6138,7 +6144,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+          zePrint("ZeEvent = %#llx\n", pi_cast<std::uintptr_t>(ZeEvent));
           ZE_CALL(zeHostSynchronize, (ZeEvent));
           EventList[I]->Completed = true;
         }
@@ -6210,10 +6216,11 @@ void _pi_queue::active_barriers::add(pi_event &Event) {
   Events.push_back(Event);
 }
 
-void _pi_queue::active_barriers::clear() {
+pi_result _pi_queue::active_barriers::clear() {
   for (const auto &Event : Events)
-    piEventReleaseInternal(Event);
+    PI_CALL(piEventReleaseInternal(Event));
   Events.clear();
+  return PI_SUCCESS;
 }
 
 static pi_result piEventReleaseInternal(pi_event Event) {
@@ -6746,7 +6753,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-  Queue->ActiveBarriers.clear();
+  if (auto Res = Queue->ActiveBarriers.clear())
+    return Res;
   Queue->ActiveBarriers.add(*Event);
   return PI_SUCCESS;
 }
@@ -6854,7 +6862,9 @@ pi_result _pi_queue::synchronize() {
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
-  ActiveBarriers.clear();
+  if (auto Res = ActiveBarriers.clear())
+    return Res;
+
   return PI_SUCCESS;
 }
 
@@ -6900,7 +6910,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   const auto &WaitList = (*Event)->WaitList;
 
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -6959,7 +6969,7 @@ static pi_result enqueueMemCopyRectHelper(
   const auto &WaitList = (*Event)->WaitList;
 
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -7003,7 +7013,7 @@ static pi_result enqueueMemCopyRectHelper(
 
   ZE_CALL(zeCommandListAppendBarrier, (ZeCommandList, ZeEvent, 0, nullptr));
 
-  zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+  zePrint("calling zeCommandListAppendBarrier() with Event %#llx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
 
   if (auto Res = Queue->executeCommandList(CommandList, Blocking, OkToBatch))
@@ -7216,7 +7226,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
            WaitList.Length, WaitList.ZeEventList));
 
   zePrint("calling zeCommandListAppendMemoryFill() with\n"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -8191,7 +8201,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->DeviceMemAllocContexts.find(Device);
+    auto It = Context->DeviceMemAllocContexts.find(Device->ZeDevice);
     if (It == Context->DeviceMemAllocContexts.end())
       return PI_ERROR_INVALID_VALUE;
 
@@ -8269,7 +8279,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   try {
     auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemAllocContexts
                                       : Context->SharedMemAllocContexts);
-    auto It = Allocator.find(Device);
+    auto It = Allocator.find(Device->ZeDevice);
     if (It == Allocator.end())
       return PI_ERROR_INVALID_VALUE;
 
@@ -8432,10 +8442,11 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
     auto DeallocationHelper =
-        [Context, Device, Ptr, OwnZeMemHandle](
-            std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+        [Context, Device, Ptr,
+         OwnZeMemHandle](std::unordered_map<ze_device_handle_t, USMAllocContext>
+                             &AllocContextMap) {
           try {
-            auto It = AllocContextMap.find(Device);
+            auto It = AllocContextMap.find(Device->ZeDevice);
             if (It == AllocContextMap.end())
               return PI_ERROR_INVALID_VALUE;
 

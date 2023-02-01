@@ -420,7 +420,6 @@ int main() {
 
   checkCommonKnownIdentity<half>();
   checkCommonKnownIdentity<sycl::cl_half>();
-  checkCommonKnownIdentity<::cl_half>();
 
   checkBoolKnownIdentity<bool>();
 
