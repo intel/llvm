@@ -79,6 +79,7 @@ supports.
 |===
 |Value |Description
 |1     |Initial extension version.  Base features are supported.
+|2     |`sub_group_mask` is user-constructible.
 |===
 
 
@@ -111,6 +112,37 @@ different work-items in the same group.  An instance of a group class (e.g.
 The mask is defined such that the least significant bit (LSB) corresponds to
 the work-item with id 0, and the most significant bit (MSB) corresponds to the
 work-item with the id `max_local_range()-1`.
+
+|===
+|Constructor|Description
+
+|`sub_group_mask()`
+|Constructs a group mask with all bits set to 0. Size of a group mask
+corresponds to max local range of a sub-group which work-item belongs to.
+
+|`sub_group_mask(unsigned long long val)`
+|Constructs a group mask with the first `N` bit positions to the
+corresponding bit values in _val_. `N` is a size of a group mask and it
+corresponds to max local range of a sub-group which work-item belongs to. If
+size of a group mask is bigger than number of bits in the value representation
+of `unsigned long long`, the remaining positions are initialized to zero.
+
+|`template <typename T> sub_group_mask(const T& &val)`
+|Constructs a group mask with the first `N` bit positions to the
+corresponding bit values in _val_. `T` must be a SYCL `marray` of integral
+types. `N` is a size of a group mask and it corresponds to max local range of a
+sub-group which work-item belongs to. If size of a group mask is bigger than
+number of bits in the value representation of `T`, the remaining positions are
+initialized to zero.
+
+|`sub_group_mask(const sub_group_mask &other) = default`
+|Constructs a group mask as a copy of _other_.
+
+|`sub_group_mask& operator=(const sub_group_mask &other) = default`
+|Assigns this instance of `sub_group_mask` with a copy of _other_. Size of both
+group masks must be the same or otherwise behavior is undefined.
+|===
+
 
 |===
 |Member Function|Description
