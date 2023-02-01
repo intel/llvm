@@ -12,6 +12,7 @@
 
 #include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -59,22 +60,12 @@ Value getDimension(OpBuilder &builder, Location loc, StringRef opName,
   return op->getResult(0);
 }
 
-/// Replace \p op with a single operation with name \p opName from the GPU
-/// dialect thanks to the known constant index \p index.
-void convertWithConstIndex(ConversionPatternRewriter &rewriter,
-                           StringRef opName, StringRef dimensionAttrname,
-                           Operation *op, arith::ConstantOp index) {
-  const auto i = static_cast<arith::ConstantIntOp>(index).value();
-  rewriter.replaceOp(
-      op, getDimension(rewriter, op->getLoc(), opName, dimensionAttrname, i));
-}
-
 /// Replace \p op with a sequence of operations that:
 /// 1. Allocate a new array of the result type in the stack
 /// 2. Initialize the dimensions of the array with the expected results using
 /// the operation with name \p opName from the GPU dialect
 /// 3. Load the value in position \p index (assumed to be inbounds)
-void convertWithVarIndex(ConversionPatternRewriter &rewriter, StringRef opName,
+void convertWithIndexArg(ConversionPatternRewriter &rewriter, StringRef opName,
                          StringRef dimensionAttrname, Operation *op,
                          int64_t dimensions, Value index) {
   assert(dimensions <= gpu::GPUDialect::getNumWorkgroupDimensions() &&
@@ -87,10 +78,10 @@ void convertWithVarIndex(ConversionPatternRewriter &rewriter, StringRef opName,
     const auto c =
         static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, i));
     const auto val = getDimension(rewriter, loc, opName, dimensionAttrname, i);
-    rewriter.create<memref::StoreOp>(loc, val, alloca, c);
+    rewriter.create<AffineStoreOp>(loc, val, alloca, c);
   }
   index = rewriter.create<arith::IndexCastOp>(loc, indexTy, index);
-  rewriter.replaceOpWithNewOp<memref::LoadOp>(op, alloca, index);
+  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, index);
 }
 
 /// Replace \p op with a sequence of operations that:
@@ -117,7 +108,7 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
   const auto zero =
       static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, 0));
   const auto res = static_cast<Value>(
-      rewriter.replaceOpWithNewOp<memref::LoadOp>(op, alloca, zero));
+      rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, zero));
   const auto argumentTypes =
       rewriter.getTypeArrayAttr({MemRefType::get(1, resTy, {}, 4), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
@@ -130,17 +121,16 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
         getDimension(rewriter, loc, opName, dimensionAttrname, i)));
     const auto ptr = createGetOp(rewriter, loc, underlyingArrTy, res, index,
                                  argumentTypes, functionName);
-    rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
+    rewriter.create<AffineStoreOp>(loc, val, ptr, zero);
   }
 }
 
 /// Converts n-dimensional operations to operations of name \p opName, from the
 /// GPU dialect.
 ///
-/// There are three possible cases here:
+/// There are two possible cases here:
 /// 1. No argument is passed (see convertToFullObject())
-/// 2. A constant argument is passed (see converWithConstIndex())
-/// 3. A non-constant argument is passed (see convertWithVarIndex())
+/// 2. A non-constant argument is passed (see convertWithIndexArg())
 void rewrite(StringRef opName, StringRef dimensionAttrName, Operation *op,
              ValueRange operands, ConversionPatternRewriter &rewriter) {
   switch (op->getNumOperands()) {
@@ -151,17 +141,9 @@ void rewrite(StringRef opName, StringRef dimensionAttrName, Operation *op,
   }
   case 1: {
     const auto dimension = operands[0];
-    if (const auto definingOp = dimension.getDefiningOp<arith::ConstantOp>()) {
-      convertWithConstIndex(rewriter, opName, dimensionAttrName, op,
-                            definingOp);
-    } else {
-      // TODO: Do not rely in a default number of dimensions; take into
-      // account kernel dimensionality. This should be available in the parent
-      // function.
-      constexpr int64_t defaultDimensions{3};
-      convertWithVarIndex(rewriter, opName, dimensionAttrName, op,
-                          defaultDimensions, dimension);
-    }
+    constexpr int64_t defaultDimensions{3};
+    convertWithIndexArg(rewriter, opName, dimensionAttrName, op,
+                        defaultDimensions, dimension);
     break;
   }
   default:

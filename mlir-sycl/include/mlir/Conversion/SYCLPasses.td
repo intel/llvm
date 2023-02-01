@@ -36,6 +36,7 @@ def ConvertSYCLToGPU : Pass<"convert-sycl-to-gpu", "ModuleOp"> {
   }];
   let constructor = "mlir::sycl::createConvertSYCLToGPUPass()";
   let dependentDialects = [
+      "AffineDialect",
       "arith::ArithDialect",
       "gpu::GPUDialect",
       "memref::MemRefDialect",
