@@ -118,7 +118,7 @@ control flow, to simplify the description of the behavior for new group types.
 Two or more work-items are considered to have _simultaneous_ execution at a
 given point if they execute statements at the same time. A common example of
 simultaneous execution is when work-items are mapped to different lanes of the
-same SIMD instruction(s). The amount of and granularity of simultaneous
+same SIMD instruction(s). The amount of granularity of simultaneous
 execution is implementation-defined.
 
 A _tangle_ is a collection of work-items from the same group executing under
