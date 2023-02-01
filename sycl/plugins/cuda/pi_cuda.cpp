@@ -1183,8 +1183,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
   assert(device != nullptr);
 
-  ScopedContext active(device);
-
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1963,6 +1961,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    ScopedContext active(device);
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
     sycl::detail::pi::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
