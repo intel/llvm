@@ -3791,13 +3791,10 @@ urProgramCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1 < platform_flags`
 ///         + `0x1 < device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urInit(
-    ur_platform_init_flags_t platform_flags,        ///< [in] platform initialization flags.
-                                                    ///< must be 0 (default) or a combination of ::ur_platform_init_flag_t.
     ur_device_init_flags_t device_flags             ///< [in] device initialization flags.
                                                     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
     )

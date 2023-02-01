@@ -4455,16 +4455,6 @@ urProgramCreateWithNativeHandle(
 #pragma region runtime
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Supported platform initialization flags
-typedef uint32_t ur_platform_init_flags_t;
-typedef enum ur_platform_init_flag_t
-{
-    UR_PLATFORM_INIT_FLAG_LEVEL_ZERO = UR_BIT(0),   ///< initialize Unified Runtime platform drivers
-    UR_PLATFORM_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
-
-} ur_platform_init_flag_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device initialization flags
 typedef uint32_t ur_device_init_flags_t;
 typedef enum ur_device_init_flag_t
@@ -4496,13 +4486,10 @@ typedef enum ur_device_init_flag_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1 < platform_flags`
 ///         + `0x1 < device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urInit(
-    ur_platform_init_flags_t platform_flags,        ///< [in] platform initialization flags.
-                                                    ///< must be 0 (default) or a combination of ::ur_platform_init_flag_t.
     ur_device_init_flags_t device_flags             ///< [in] device initialization flags.
                                                     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
     );
@@ -7114,7 +7101,6 @@ typedef void (UR_APICALL *ur_pfnGetLastResultCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_init_params_t
 {
-    ur_platform_init_flags_t* pplatform_flags;
     ur_device_init_flags_t* pdevice_flags;
 } ur_init_params_t;
 

@@ -30,8 +30,7 @@ class context_t {
 
     std::once_flag initOnce;
 
-    ur_result_t Init(ur_platform_init_flags_t pflags,
-                     ur_device_init_flags_t dflags);
+    ur_result_t Init(ur_device_init_flags_t dflags);
 
     ur_result_t urInit();
     ur_dditable_t urDdiTable = {};

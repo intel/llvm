@@ -1051,16 +1051,6 @@ class ur_program_build_info_t(c_int):
 
 
 ###############################################################################
-## @brief Supported platform initialization flags
-class ur_platform_init_flags_v(IntEnum):
-    LEVEL_ZERO = UR_BIT(0)                          ## initialize Unified Runtime platform drivers
-
-class ur_platform_init_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
 ## @brief Supported device initialization flags
 class ur_device_init_flags_v(IntEnum):
     GPU = UR_BIT(0)                                 ## initialize GPU device drivers
@@ -1904,9 +1894,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_platform_init_flags_t, ur_device_init_flags_t )
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
 else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_platform_init_flags_t, ur_device_init_flags_t )
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
 
 
 ###############################################################################
