@@ -317,6 +317,8 @@ static cl_device_id getClDevice(pi_device device) {
 static bool isRootDevice(pi_device device) {
   if (!device)
     return false;
+  if (isCCS(device))
+    return false;
   cl_device_id parentId = nullptr;
   clGetDeviceInfo(getClDevice(device), CL_DEVICE_PARENT_DEVICE,
                   sizeof(cl_device_id), &parentId, NULL);
@@ -569,6 +571,8 @@ pi_result piDevicePartition(pi_device device,
       info.family = family;
       info.index = i;
       cslice_devices.insert({out_devices[i], info});
+      if (result = clRetainDevice(info.cl_dev))
+        return cast<pi_result>(result);
     }
     return PI_SUCCESS;
   }
@@ -806,8 +810,8 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
       if (param_value_size_ret)
         *param_value_size_ret = sizeof(pi_device);
       return PI_SUCCESS;
-    }
-    [[fallthrough]];
+    } else
+      return PI_ERROR_INVALID_VALUE;
   }
   default:
     cl_int CLErr = clGetCommandQueueInfo(
@@ -2112,8 +2116,20 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
+// We clear all the 'map' variables here.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  for (auto &entry : cslice_devices)
+    if (entry.first)
+      delete entry.first;
+  cslice_devices.clear();
+  queue2dev.clear();
+  for (auto &entry : context2devlist)
+    entry.second.clear();
+  context2devlist.clear();
+  for (auto &entry : program2devlist)
+    entry.second.clear();
+  program2devlist.clear();
   return PI_SUCCESS;
 }
 
