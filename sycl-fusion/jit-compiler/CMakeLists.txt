@@ -5,6 +5,7 @@ add_llvm_library(sycl-fusion
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
+   lib/fusion/NDRangesHelper.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
 

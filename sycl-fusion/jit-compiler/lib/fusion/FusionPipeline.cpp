@@ -16,6 +16,7 @@
 #include "syclcp/SYCLCP.h"
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
@@ -92,6 +93,7 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   MPM.addPass(SYCLInternalizer{});
   MPM.addPass(SYCLCP{});
   // Run additional optimization passes after completing fusion.
+  MPM.addPass(AlwaysInlinerPass{});
   {
     FunctionPassManager FPM;
     FPM.addPass(SROAPass{SROAOptions::ModifyCFG});

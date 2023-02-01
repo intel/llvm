@@ -29,7 +29,8 @@ namespace jit_compiler {
 
 using CacheKeyT =
     std::tuple<std::vector<std::string>, ParamIdentList, int,
-               std::vector<ParameterInternalization>, std::vector<JITConstant>>;
+               std::vector<ParameterInternalization>, std::vector<JITConstant>,
+               std::optional<std::vector<NDRange>>>;
 
 ///
 /// Wrapper around a SPIR-V binary.
