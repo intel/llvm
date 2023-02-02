@@ -2813,9 +2813,9 @@ namespace loader
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urMemFree
+    /// @brief Intercept function for urUSMFree
     __urdlllocal ur_result_t UR_APICALL
-    urMemFree(
+    urUSMFree(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         void* pMem                                      ///< [in] pointer to USM memory object
         )
@@ -2824,7 +2824,7 @@ namespace loader
 
         // extract platform's function pointer table
         auto dditable = reinterpret_cast<ur_context_object_t*>( hContext )->dditable;
-        auto pfnFree = dditable->ur.Mem.pfnFree;
+        auto pfnFree = dditable->ur.USM.pfnFree;
         if( nullptr == pfnFree )
             return UR_RESULT_ERROR_UNINITIALIZED;
 
@@ -2838,9 +2838,9 @@ namespace loader
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urMemGetMemAllocInfo
+    /// @brief Intercept function for urUSMGetMemAllocInfo
     __urdlllocal ur_result_t UR_APICALL
-    urMemGetMemAllocInfo(
+    urUSMGetMemAllocInfo(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         const void* pMem,                               ///< [in] pointer to USM memory object
         ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
@@ -2853,7 +2853,7 @@ namespace loader
 
         // extract platform's function pointer table
         auto dditable = reinterpret_cast<ur_context_object_t*>( hContext )->dditable;
-        auto pfnGetMemAllocInfo = dditable->ur.Mem.pfnGetMemAllocInfo;
+        auto pfnGetMemAllocInfo = dditable->ur.USM.pfnGetMemAllocInfo;
         if( nullptr == pfnGetMemAllocInfo )
             return UR_RESULT_ERROR_UNINITIALIZED;
 
@@ -4835,8 +4835,6 @@ urGetMemProcAddrTable(
             pDdiTable->pfnCreateWithNativeHandle                   = loader::urMemCreateWithNativeHandle;
             pDdiTable->pfnGetInfo                                  = loader::urMemGetInfo;
             pDdiTable->pfnImageGetInfo                             = loader::urMemImageGetInfo;
-            pDdiTable->pfnFree                                     = loader::urMemFree;
-            pDdiTable->pfnGetMemAllocInfo                          = loader::urMemGetMemAllocInfo;
         }
         else
         {
@@ -5258,6 +5256,8 @@ urGetUSMProcAddrTable(
             pDdiTable->pfnHostAlloc                                = loader::urUSMHostAlloc;
             pDdiTable->pfnDeviceAlloc                              = loader::urUSMDeviceAlloc;
             pDdiTable->pfnSharedAlloc                              = loader::urUSMSharedAlloc;
+            pDdiTable->pfnFree                                     = loader::urUSMFree;
+            pDdiTable->pfnGetMemAllocInfo                          = loader::urUSMGetMemAllocInfo;
         }
         else
         {

@@ -17,7 +17,7 @@ TEST_P(urUSMSharedAllocTest, Success) {
         urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
-    ASSERT_SUCCESS(urMemFree(context, ptr));
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
     EXPECT_SUCCESS(urEventRelease(event));
 }
 

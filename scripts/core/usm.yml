@@ -139,7 +139,7 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Free the USM memory object"
-class: $xMem # move to $xUSM - #201
+class: $xUSM
 name: Free
 ordinal: "0"
 params:
@@ -155,7 +155,7 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get USM memory object allocation information"
-class: $xMem # move to $xUSM - #201
+class: $xUSM
 name: GetMemAllocInfo
 ordinal: "0"
 params:

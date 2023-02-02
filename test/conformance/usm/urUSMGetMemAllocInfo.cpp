@@ -17,36 +17,36 @@ TEST_P(urUSMAllocInfoTest, Success) {
     size_t size = 0;
     auto alloc_info = getParam();
     ASSERT_SUCCESS(
-        urMemGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size));
+        urUSMGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size));
     ASSERT_NE(size, 0);
     std::vector<uint8_t> info_data(size);
-    ASSERT_SUCCESS(urMemGetMemAllocInfo(context, ptr, alloc_info, size,
+    ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, alloc_info, size,
                                         info_data.data(), nullptr));
 }
 
-using urMemGetMemAllocInfoTest = uur::urUSMDeviceAllocTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetMemAllocInfoTest);
+using urUSMGetMemAllocInfoTest = uur::urUSMDeviceAllocTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMGetMemAllocInfoTest);
 
-TEST_P(urMemGetMemAllocInfoTest, InvalidNullHandleContext) {
+TEST_P(urUSMGetMemAllocInfoTest, InvalidNullHandleContext) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urMemGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
+        urUSMGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
 
-TEST_P(urMemGetMemAllocInfoTest, InvalidNullPointerMem) {
+TEST_P(urUSMGetMemAllocInfoTest, InvalidNullPointerMem) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urMemGetMemAllocInfo(context, nullptr, UR_USM_ALLOC_INFO_TYPE,
+        urUSMGetMemAllocInfo(context, nullptr, UR_USM_ALLOC_INFO_TYPE,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
 
-TEST_P(urMemGetMemAllocInfoTest, InvalidEnumeration) {
+TEST_P(urUSMGetMemAllocInfoTest, InvalidEnumeration) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_ENUMERATION,
-        urMemGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
+        urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }

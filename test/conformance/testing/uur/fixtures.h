@@ -339,7 +339,7 @@ struct urUSMDeviceAllocTest : urQueueTest {
     }
 
     void TearDown() override {
-        ASSERT_SUCCESS(urMemFree(context, ptr));
+        ASSERT_SUCCESS(urUSMFree(context, ptr));
         uur::urQueueTest::TearDown();
     }
 
@@ -362,7 +362,7 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
     }
 
     void TearDown() override {
-        ASSERT_SUCCESS(urMemFree(this->context, ptr));
+        ASSERT_SUCCESS(urUSMFree(this->context, ptr));
         uur::urQueueTestWithParam<T>::TearDown();
     }
 

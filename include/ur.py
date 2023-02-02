@@ -1656,20 +1656,6 @@ if __use_win_types:
 else:
     _urMemImageGetInfo_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_image_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
-###############################################################################
-## @brief Function-pointer for urMemFree
-if __use_win_types:
-    _urMemFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
-else:
-    _urMemFree_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
-
-###############################################################################
-## @brief Function-pointer for urMemGetMemAllocInfo
-if __use_win_types:
-    _urMemGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-else:
-    _urMemGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-
 
 ###############################################################################
 ## @brief Table of Mem functions pointers
@@ -1683,9 +1669,7 @@ class ur_mem_dditable_t(Structure):
         ("pfnGetNativeHandle", c_void_p),                               ## _urMemGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urMemCreateWithNativeHandle_t
         ("pfnGetInfo", c_void_p),                                       ## _urMemGetInfo_t
-        ("pfnImageGetInfo", c_void_p),                                  ## _urMemImageGetInfo_t
-        ("pfnFree", c_void_p),                                          ## _urMemFree_t
-        ("pfnGetMemAllocInfo", c_void_p)                                ## _urMemGetMemAllocInfo_t
+        ("pfnImageGetInfo", c_void_p)                                   ## _urMemImageGetInfo_t
     ]
 
 ###############################################################################
@@ -1908,6 +1892,20 @@ if __use_win_types:
 else:
     _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
 
+###############################################################################
+## @brief Function-pointer for urUSMFree
+if __use_win_types:
+    _urUSMFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+else:
+    _urUSMFree_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+
+###############################################################################
+## @brief Function-pointer for urUSMGetMemAllocInfo
+if __use_win_types:
+    _urUSMGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urUSMGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
 
 ###############################################################################
 ## @brief Table of USM functions pointers
@@ -1915,7 +1913,9 @@ class ur_usm_dditable_t(Structure):
     _fields_ = [
         ("pfnHostAlloc", c_void_p),                                     ## _urUSMHostAlloc_t
         ("pfnDeviceAlloc", c_void_p),                                   ## _urUSMDeviceAlloc_t
-        ("pfnSharedAlloc", c_void_p)                                    ## _urUSMSharedAlloc_t
+        ("pfnSharedAlloc", c_void_p),                                   ## _urUSMSharedAlloc_t
+        ("pfnFree", c_void_p),                                          ## _urUSMFree_t
+        ("pfnGetMemAllocInfo", c_void_p)                                ## _urUSMGetMemAllocInfo_t
     ]
 
 ###############################################################################
@@ -2268,8 +2268,6 @@ class UR_DDI:
         self.urMemCreateWithNativeHandle = _urMemCreateWithNativeHandle_t(self.__dditable.Mem.pfnCreateWithNativeHandle)
         self.urMemGetInfo = _urMemGetInfo_t(self.__dditable.Mem.pfnGetInfo)
         self.urMemImageGetInfo = _urMemImageGetInfo_t(self.__dditable.Mem.pfnImageGetInfo)
-        self.urMemFree = _urMemFree_t(self.__dditable.Mem.pfnFree)
-        self.urMemGetMemAllocInfo = _urMemGetMemAllocInfo_t(self.__dditable.Mem.pfnGetMemAllocInfo)
 
         # call driver to get function pointers
         Enqueue = ur_enqueue_dditable_t()
@@ -2315,6 +2313,8 @@ class UR_DDI:
         self.urUSMHostAlloc = _urUSMHostAlloc_t(self.__dditable.USM.pfnHostAlloc)
         self.urUSMDeviceAlloc = _urUSMDeviceAlloc_t(self.__dditable.USM.pfnDeviceAlloc)
         self.urUSMSharedAlloc = _urUSMSharedAlloc_t(self.__dditable.USM.pfnSharedAlloc)
+        self.urUSMFree = _urUSMFree_t(self.__dditable.USM.pfnFree)
+        self.urUSMGetMemAllocInfo = _urUSMGetMemAllocInfo_t(self.__dditable.USM.pfnGetMemAllocInfo)
 
         # call driver to get function pointers
         Global = ur_global_dditable_t()
