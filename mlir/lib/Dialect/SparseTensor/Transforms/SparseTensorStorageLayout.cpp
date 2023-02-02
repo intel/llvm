@@ -5,15 +5,22 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "SparseTensorStorageLayout.h"
 #include "CodegenUtils.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
+#include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
 using namespace sparse_tensor;
+
+//===----------------------------------------------------------------------===//
+// Private helper methods.
+//===----------------------------------------------------------------------===//
 
 static Value createIndexCast(OpBuilder &builder, Location loc, Value value,
                              Type to) {
@@ -47,6 +54,10 @@ convertSparseTensorType(RankedTensorType rtp, SmallVectorImpl<Type> &fields) {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// The sparse tensor type converter (defined in Passes.h).
+//===----------------------------------------------------------------------===//
+
 SparseTensorTypeToBufferConverter::SparseTensorTypeToBufferConverter() {
   addConversion([](Type type) { return type; });
   addConversion([&](RankedTensorType rtp, SmallVectorImpl<Type> &fields) {
@@ -65,29 +76,9 @@ SparseTensorTypeToBufferConverter::SparseTensorTypeToBufferConverter() {
   });
 }
 
-unsigned StorageLayout::getMemRefFieldIndex(SparseTensorFieldKind kind,
-                                            std::optional<unsigned> dim) const {
-  unsigned fieldIdx = -1u;
-  foreachFieldInSparseTensor(
-      enc,
-      [dim, kind, &fieldIdx](unsigned fIdx, SparseTensorFieldKind fKind,
-                             unsigned fDim, DimLevelType dlt) -> bool {
-        if ((dim && fDim == dim.value() && kind == fKind) ||
-            (kind == fKind && fKind == SparseTensorFieldKind::ValMemRef)) {
-          fieldIdx = fIdx;
-          // Returns false to break the iteration.
-          return false;
-        }
-        return true;
-      });
-  assert(fieldIdx != -1u);
-  return fieldIdx;
-}
-
-unsigned StorageLayout::getMemRefFieldIndex(StorageSpecifierKind kind,
-                                            std::optional<unsigned> dim) const {
-  return getMemRefFieldIndex(toFieldKind(kind), dim);
-}
+//===----------------------------------------------------------------------===//
+// StorageTensorSpecifier methods.
+//===----------------------------------------------------------------------===//
 
 Value SparseTensorSpecifier::getInitValue(OpBuilder &builder, Location loc,
                                           RankedTensorType rtp) {
@@ -114,6 +105,34 @@ void SparseTensorSpecifier::setSpecifierField(OpBuilder &builder, Location loc,
       createIndexCast(builder, loc, v, getFieldType(kind, dim)));
 }
 
+//===----------------------------------------------------------------------===//
+// SparseTensorDescriptor methods.
+//===----------------------------------------------------------------------===//
+
+Value sparse_tensor::SparseTensorDescriptor::getIdxMemRefOrView(
+    OpBuilder &builder, Location loc, unsigned idxDim) const {
+  auto enc = getSparseTensorEncoding(rType);
+  unsigned cooStart = getCOOStart(enc);
+  unsigned idx = idxDim >= cooStart ? cooStart : idxDim;
+  Value buffer = getMemRefField(SparseTensorFieldKind::IdxMemRef, idx);
+  if (idxDim >= cooStart) {
+    unsigned rank = enc.getDimLevelType().size();
+    Value stride = constantIndex(builder, loc, rank - cooStart);
+    Value size = getIdxMemSize(builder, loc, cooStart);
+    size = builder.create<arith::DivUIOp>(loc, size, stride);
+    buffer = builder.create<memref::SubViewOp>(
+        loc, buffer,
+        /*offset=*/ValueRange{constantIndex(builder, loc, idxDim - cooStart)},
+        /*size=*/ValueRange{size},
+        /*step=*/ValueRange{stride});
+  }
+  return buffer;
+}
+
+//===----------------------------------------------------------------------===//
+// Public methods.
+//===----------------------------------------------------------------------===//
+
 constexpr uint64_t kDataFieldStartingIdx = 0;
 
 void sparse_tensor::foreachFieldInSparseTensor(
@@ -127,10 +146,14 @@ void sparse_tensor::foreachFieldInSparseTensor(
   if (!(callback(idx, kind, dim, dlt)))                                        \
     return;
 
+  unsigned rank = enc.getDimLevelType().size();
+  unsigned end = getCOOStart(enc);
+  if (end != rank)
+    end += 1;
   static_assert(kDataFieldStartingIdx == 0);
   unsigned fieldIdx = kDataFieldStartingIdx;
   // Per-dimension storage.
-  for (unsigned r = 0, rank = enc.getDimLevelType().size(); r < rank; r++) {
+  for (unsigned r = 0; r < end; r++) {
     // Dimension level types apply in order to the reordered dimension.
     // As a result, the compound type can be constructed directly in the given
     // order.
