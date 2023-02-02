@@ -4061,6 +4061,12 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
     return ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt1Ty(*Context), Literals[0]));
   });
+  // Generate metadata for spirv.ParameterDecorations
+  addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
+                            [=](SPIRVFunctionParameter *Arg) {
+                              return transDecorationsToMetadataList(
+                                  Context, Arg->getDecorations());
+                            });
   return true;
 }
 
