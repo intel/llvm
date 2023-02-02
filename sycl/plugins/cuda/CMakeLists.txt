@@ -48,6 +48,16 @@ endif()
 
 add_sycl_plugin(cuda
   SOURCES
+    # Some code is shared with the UR adapter
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/usm_allocator.cpp"
+    "../unified_runtime/ur/usm_allocator.hpp"
+    "../unified_runtime/ur/adapters/cuda/ur_cuda.cpp"
+    "../unified_runtime/ur/adapters/cuda/ur_cuda.hpp"
+    # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
@@ -57,7 +67,9 @@ add_sycl_plugin(cuda
   INCLUDE_DIRS
     ${sycl_inc_dir}
     ${XPTI_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
+    UnifiedRuntime-Headers
     cudadrv
     ${XPTI_LIBS}
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"

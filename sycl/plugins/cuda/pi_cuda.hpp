@@ -42,6 +42,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <ur/adapters/cuda/ur_cuda.hpp>
+
 extern "C" {
 
 /// \cond IGNORE_BLOCK_IN_DOXYGEN
@@ -71,8 +73,8 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  available devices since initialization is done
 ///  when devices are used.
 ///
-struct _pi_platform {
-  std::vector<std::unique_ptr<_pi_device>> devices_;
+struct _pi_platform : ur_platform_handle_t_ {
+  using ur_platform_handle_t_::ur_platform_handle_t_;
 };
 
 /// PI device mapping to a CUdevice.
@@ -80,53 +82,8 @@ struct _pi_platform {
 /// and implements the reference counting semantics since
 /// CUDA objects are not refcounted.
 ///
-struct _pi_device {
-private:
-  using native_type = CUdevice;
-
-  native_type cuDevice_;
-  CUcontext cuContext_;
-  CUevent evBase_; // CUDA event used as base counter
-  std::atomic_uint32_t refCount_;
-  pi_platform platform_;
-
-  static constexpr pi_uint32 max_work_item_dimensions = 3u;
-  size_t max_work_item_sizes[max_work_item_dimensions];
-  int max_work_group_size;
-
-public:
-  _pi_device(native_type cuDevice, CUcontext cuContext, CUevent evBase,
-             pi_platform platform)
-      : cuDevice_(cuDevice), cuContext_(cuContext),
-        evBase_(evBase), refCount_{1}, platform_(platform) {}
-
-  ~_pi_device() { cuDevicePrimaryCtxRelease(cuDevice_); }
-
-  native_type get() const noexcept { return cuDevice_; };
-
-  CUcontext get_context() const noexcept { return cuContext_; };
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  pi_platform get_platform() const noexcept { return platform_; };
-
-  pi_uint64 get_elapsed_time(CUevent) const;
-
-  void save_max_work_item_sizes(size_t size,
-                                size_t *save_max_work_item_sizes) noexcept {
-    memcpy(max_work_item_sizes, save_max_work_item_sizes, size);
-  };
-
-  void save_max_work_group_size(int value) noexcept {
-    max_work_group_size = value;
-  };
-
-  void get_max_work_item_sizes(size_t ret_size,
-                               size_t *ret_max_work_item_sizes) const noexcept {
-    memcpy(ret_max_work_item_sizes, max_work_item_sizes, ret_size);
-  };
-
-  int get_max_work_group_size() const noexcept { return max_work_group_size; };
+struct _pi_device : ur_device_handle_t_ {
+  using ur_device_handle_t_::ur_device_handle_t_;
 };
 
 /// PI context mapping to a CUDA context object.
