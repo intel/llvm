@@ -63,11 +63,11 @@ class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    ->backend_return_t<BackendName, SyclObjectT>;
+    -> backend_return_t<BackendName, SyclObjectT>;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native2(const SyclObjectT &Obj)
-    ->backend_return_t2<BackendName, SyclObjectT>;
+    -> backend_return_t2<BackendName, SyclObjectT>;
 
 namespace detail {
 class queue_impl;
