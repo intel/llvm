@@ -1,6 +1,4 @@
-; RUN: sycl-post-link --host-pipes -S %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
-; RUN: sycl-post-link --host-pipes --ir-output-only %s -S -o - | FileCheck %s --check-prefix CHECK-IR
+; RUN: opt -passes=compile-time-properties %s -S | FileCheck %s --check-prefix CHECK-IR
 
 ; This test is intended to check that CompileTimePropertiesPass adds all the required
 ; metadata nodes to host pipe vars decorated with the "sycl-host-pipe" attribute

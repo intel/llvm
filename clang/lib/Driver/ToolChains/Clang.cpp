@@ -9702,9 +9702,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Process device-globals.
   addArgs(CmdArgs, TCArgs, {"-device-globals"});
 
-  // Process host pipes.
-  addArgs(CmdArgs, TCArgs, {"-host-pipes"});
-
   // Make ESIMD accessors use stateless memory accesses.
   if (TCArgs.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
