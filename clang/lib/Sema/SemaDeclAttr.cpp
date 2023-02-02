@@ -8007,8 +8007,21 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
 
 void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
-  if (!AddIRFuncAttr || AddIRFuncAttr->args_size() == 0 ||
+  if (!AddIRFuncAttr ||
       hasDependentExpr(AddIRFuncAttr->args_begin(), AddIRFuncAttr->args_size()))
+    return;
+
+  size_t NumArgsWithoutFilter =
+      AddIRFuncAttr->args_size() - (AddIRFuncAttr->hasFilterList() ? 1 : 0);
+  if (NumArgsWithoutFilter == 0)
+    return;
+
+  // "sycl-single-task" is an implicitly used name which is present on all
+  // single_task invocations. It can only conflict with max_global_work_dim, but
+  // the value will be the same so there is no need for a warning.
+  if (NumArgsWithoutFilter == 2 &&
+      AddIRFuncAttr->getFilteredAttributeNameValuePairs(Context)[0].first ==
+          "sycl-single-task")
     return;
 
   // If there are potentially conflicting attributes, we issue a warning.
