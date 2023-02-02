@@ -563,6 +563,31 @@ template <typename Type, int NumElements> class vec {
   using DataType =
       typename detail::BaseCLTypeConverter<DataT, NumElements>::DataType;
 
+  // Before C++20, it is necessary for constexpr constructor to have all
+  // non-static class members initializers, which means that 'DataT m_Data' will
+  // be initialized by a default constexpr constructor in thi case.
+  //
+  // Unfortunately, we don't have constexpr default constructor for sycl::half.
+  // It is not possible to have both trivial and constexpr default constructor
+  // before C++20 and we decided that it is better to have trivial default
+  // constructor for sycl::half. See intel/llvm#4631. SYCL spec is of no help
+  // here, because half is underspecified there, see KhronosGroup/SYCL-Docs#350.
+  //
+  // To not require default constexpr constructor from underlying DataType we
+  // instead do the following trick in "affected" constructors:
+  // vec(...) : m_Data{ static_cast<MDataInitializerType>(0) } { ... }
+  // i.e. we rely on non-default constexpr constructor of DataType.
+  //
+  // Since amount of types, which can be used as underlying type of vec is
+  // limited, we consider it safe to assume that they have the required
+  // non-default constexpr constructor.
+  //
+  // Strictly speaking, DataType is not the same as DataT and if we can't use
+  // ext_vector_type attribute, then it could be some SSE/AVX extension type.
+  // FIXME: Are we sure that they all can be constructed in a way we want?
+  using MDataInitializerType =
+      std::conditional_t<detail::is_floating_point<DataT>::value, float, int>;
+
   static constexpr int getNumElements() { return NumElements; }
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
@@ -712,7 +737,8 @@ public:
       T>;
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg) {
+  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
+      : m_Data{static_cast<MDataInitializerType>(0)} {
     m_Data = (DataType)vec_data<Ty>::get(arg);
   }
 
@@ -727,7 +753,8 @@ public:
   }
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg) {
+  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg)
+      : m_Data{static_cast<MDataInitializerType>(0)} {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -745,7 +772,8 @@ public:
     return *this;
   }
 #else
-  explicit constexpr vec(const DataT &arg) {
+  explicit constexpr vec(const DataT &arg)
+      : m_Data{static_cast<MDataInitializerType>(0)} {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -819,7 +847,8 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args) {
+  constexpr vec(const argTN &...args)
+      : m_Data{static_cast<MDataInitializerType>(0)} {
     vaargCtorHelper(0, args...);
   }
 
