@@ -26,10 +26,8 @@
       _Z21__spirv_AtomicF##OPNAME##EXTP##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(     \
           volatile AS TYPE *p, enum Scope scope,                                                                                                \
           enum MemorySemanticsMask semantics, TYPE val) {                                                                                       \
-    if (CHECK) {                                                                                                                                \
-      TYPE ret = NEW_BUILTIN(p, val);                                                                                                           \
-      return *(TYPE *)&ret;                                                                                                                     \
-    }                                                                                                                                           \
+    if (CHECK)                                                                                                                                  \
+      return NEW_BUILTIN(p, val);                                                                                                               \
     int atomic_scope = 0, memory_order = 0;                                                                                                     \
     volatile AS STORAGE_TYPE *int_pointer = (volatile AS STORAGE_TYPE *)p;                                                                      \
     STORAGE_TYPE old_int_val = 0, new_int_val = 0;                                                                                              \
@@ -49,4 +47,3 @@
                                                                                                                                                 \
     return old_val;                                                                                                                             \
   }
-

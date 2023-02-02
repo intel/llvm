@@ -22,14 +22,11 @@ AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, __hip_atomic_fetch_add)
       _Z21__spirv_AtomicFAddEXTP##AS_MANGLED##fN5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagEf( \
           volatile AS float *p, enum Scope scope,                                                          \
           enum MemorySemanticsMask semantics, float val) {                                                 \
-    if (CHECK) {                                                                                           \
-      float ret = NEW_BUILTIN(p, val);                                                                     \
-      return *(float *)&ret;                                                                               \
-    }                                                                                                      \
+    if (CHECK)                                                                                             \
+      return NEW_BUILTIN(p, val);                                                                          \
     int atomic_scope = 0, memory_order = 0;                                                                \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                               \
-    float ret = __hip_atomic_fetch_add(p, val, memory_order, atomic_scope);                                \
-    return *(float *)&ret;                                                                                 \
+    return __hip_atomic_fetch_add(p, val, memory_order, atomic_scope);                                     \
   }
 
 AMDGPU_ATOMIC_FP32_ADD_IMPL(global, U3AS1, 1,
@@ -56,10 +53,8 @@ AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0,
       _Z21__spirv_AtomicFAddEXTP##AS_MANGLED##dN5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagEd(                      \
           volatile AS double *p, enum Scope scope,                                                                              \
           enum MemorySemanticsMask semantics, double val) {                                                                     \
-    if (CHECK) {                                                                                                                \
-      double ret = NEW_BUILTIN(p, val);                                                                                         \
-      return *(double *)&ret;                                                                                                   \
-    }                                                                                                                           \
+    if (CHECK)                                                                                                                  \
+      return NEW_BUILTIN(p, val);                                                                                               \
     int atomic_scope = 0, memory_order = 0;                                                                                     \
     volatile AS long *int_pointer = (volatile AS long *)p;                                                                      \
     long old_int_val = 0, new_int_val = 0;                                                                                      \
