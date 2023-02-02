@@ -57,11 +57,7 @@ int main() {
                                           [=](id<1> i) { accTmp[i] *= 2; });
     });
 
-    // KernelThree specifies a requirement on KernelOne. To avoid circular
-    // dependencies between two fusions, the fusion for q1 needs to cancelled.
-    assert(!fw1.is_in_fusion_mode() &&
-           "Queue should not be in fusion mode anymore");
-
+    assert(fw1.is_in_fusion_mode() && "Queue should be in fusion mode");
     assert(fw2.is_in_fusion_mode() && "Queue should be in fusion mode");
 
     q1.submit([&](handler &cgh) {
@@ -72,12 +68,16 @@ int main() {
           dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
     });
 
-    // KernelTwo specifies a requirement on KernelThree, which leads to
-    // cancellation of the fusion for q2.
+    // KernelTwo specifies a requirement on KernelThree, which had already
+    // specified a requirement on KernelOne. Therefore, a cyclic dependency
+    // between the kernel fused from (KernelOne, KernelTwo) and KernelThree
+    // would arise, so fusion needs to be cancelled for q1/fw1.
+    fw1.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
+
+    // As KernelTwo has been enqueued for execution, it's synchronization with
+    // KernelThree leads to the fusion for q2/fw2 to also be cancelled.
     assert(!fw2.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");
-
-    fw1.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
 
     fw2.cancel_fusion();
   }
@@ -90,5 +90,5 @@ int main() {
   return 0;
 }
 
-// CHECK: WARNING: Aborting fusion because of requirement from a different fusion
+// CHECK: WARNING: Aborting fusion because it would create a circular dependency
 // CHECK-NEXT: WARNING: Aborting fusion because synchronization with one of the kernels in the fusion list was requested
