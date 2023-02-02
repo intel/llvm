@@ -15,13 +15,10 @@
 #include "llvm/ADT/MapVector.h"
 
 #include <cstdint>
-#include <vector>
 
 namespace llvm {
 
 class GlobalVariable;
-class Module;
-class StringRef;
 
 /// Return \c true if the variable @GV is a host pipe variable.
 ///
