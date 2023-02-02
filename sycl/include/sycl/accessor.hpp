@@ -3118,7 +3118,8 @@ public:
   template <int Dims = Dimensions,
             typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
                                            !IsAccessReadOnly && Dims == 0>>
-  const host_accessor &operator=(const typename AccessorT::value_type &Other) const {
+  const host_accessor &
+  operator=(const typename AccessorT::value_type &Other) const {
     *AccessorT::getQualifiedPtr() = Other;
     return *this;
   }
