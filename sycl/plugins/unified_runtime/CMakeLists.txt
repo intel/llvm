@@ -77,8 +77,13 @@ add_sycl_plugin(unified_runtime
     "pi2ur.cpp"
     "ur/ur.hpp"
     "ur/ur.cpp"
-    "ur/adapters/level_zero/ur_level_zero.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
+
+    # TODO: Hard-code the adapter to use until the UR Loader is integrated
+    # "ur/adapters/level_zero/ur_level_zero.hpp"
+    # "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/adapters/cuda/ur_cuda.hpp"
+    "ur/adapters/cuda/ur_cuda.cpp"
+
     "ur/usm_allocator.hpp"
     "ur/usm_allocator.cpp"
     # These below belong to Unified Runtime PI Plugin only
@@ -91,6 +96,7 @@ add_sycl_plugin(unified_runtime
     UnifiedRuntimeLoader
     LevelZeroLoader-Headers
     LevelZeroLoader
+    cudadrv
 )
 
 if (TARGET loader)
