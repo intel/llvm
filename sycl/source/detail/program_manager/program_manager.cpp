@@ -1858,7 +1858,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   // Set all specialization IDs from descriptors in the input device image.
-  for (const auto &[_, SpecConstDescs] : SpecConstData) {
+  for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
+    std::ignore = SpecConstNames;
     for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
       if (SpecIDDesc.IsSet) {
         Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
