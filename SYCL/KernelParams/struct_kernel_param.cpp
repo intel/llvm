@@ -23,32 +23,32 @@ struct MyNestedStruct {
   bool operator==(const MyNestedStruct &Rhs) {
     return (FldArr[0] == Rhs.FldArr[0] && FldFloat == Rhs.FldFloat);
   }
-  sycl::cl_char FldArr[1];
-  sycl::cl_float FldFloat;
+  char FldArr[1];
+  float FldFloat;
 };
 
 struct MyStruct {
   bool operator==(const MyStruct &Rhs) {
-    return (FldChar == Rhs.FldChar && FldLong == Rhs.FldLong &&
+    return (FldChar == Rhs.FldChar && FldLongLong == Rhs.FldLongLong &&
             FldShort == Rhs.FldShort && FldUint == Rhs.FldUint &&
             FldStruct == Rhs.FldStruct &&
             std::equal(std::begin(FldArr), std::end(FldArr),
                        std::begin(Rhs.FldArr)) &&
             FldInt == Rhs.FldInt);
   }
-  sycl::cl_char FldChar;
-  sycl::cl_long FldLong;
-  sycl::cl_short FldShort;
-  sycl::cl_uint FldUint;
+  char FldChar;
+  long long FldLongLong;
+  short FldShort;
+  unsigned int FldUint;
   MyNestedStruct FldStruct;
-  sycl::cl_short FldArr[3];
-  sycl::cl_int FldInt;
+  short FldArr[3];
+  int FldInt;
 };
 
 MyStruct GlobS;
 
 static void printStruct(const MyStruct &S0) {
-  std::cout << "{ " << (int)S0.FldChar << ", " << S0.FldLong << ", "
+  std::cout << "{ " << (int)S0.FldChar << ", " << S0.FldLongLong << ", "
             << S0.FldShort << ", " << S0.FldUint << " { { "
             << (int)S0.FldStruct.FldArr[0] << " }, " << S0.FldStruct.FldFloat
             << " }, { " << S0.FldArr[0] << ", " << S0.FldArr[1] << ", "
@@ -114,15 +114,15 @@ bool test1() {
 }
 
 int main(int argc, char **argv) {
-  sycl::cl_char PartChar = argc;
-  sycl::cl_short PartShort = argc << 8;
-  sycl::cl_int PartInt = argc << 16;
-  sycl::cl_uint PartUint = argc << 16;
-  sycl::cl_long PartLong = ((sycl::cl_long)argc) << 32;
-  sycl::cl_float PartFloat = argc;
+  char PartChar = argc;
+  short PartShort = argc << 8;
+  int PartInt = argc << 16;
+  unsigned int PartUint = argc << 16;
+  long long PartLongLong = ((long long)argc) << 32;
+  float PartFloat = argc;
 
   GlobS = {PartChar,
-           PartLong,
+           PartLongLong,
            PartShort,
            PartUint,
            {{PartChar}, PartFloat},

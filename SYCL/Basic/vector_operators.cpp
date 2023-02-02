@@ -43,7 +43,7 @@ int main() {
   /* Separate checks for NumElements=1 edge case */
 
   {
-    using vec_type = s::vec<s::cl_char, 1>;
+    using vec_type = s::vec<char, 1>;
     vec_type res;
     {
       s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
@@ -63,7 +63,7 @@ int main() {
   }
 
   {
-    using vec_type = s::vec<s::cl_char, 1>;
+    using vec_type = s::vec<char, 1>;
     vec_type res;
     {
       s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
@@ -71,7 +71,7 @@ int main() {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isequal_vec_op_1_elem_scalar>([=]() {
           vec_type vec(2);
-          s::cl_char rhs_scalar = 2;
+          char rhs_scalar = 2;
           Acc[0] = vec == rhs_scalar;
         });
       });
@@ -87,17 +87,17 @@ int main() {
 
   // SYCL vec<>, SYCL vec<>
 
-  // Operator ==, cl_uint
+  // Operator ==, unsigned int
   {
-    using res_vec_type = s::vec<s::cl_int, 4>;
+    using res_vec_type = s::int4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isequal_vec_op>([=]() {
-          s::vec<s::cl_uint, 4> vec1(42, 42, 42, 0);
-          s::vec<s::cl_uint, 4> vec2(0, 42, 42, 0);
+          s::uint4 vec1(42, 42, 42, 0);
+          s::uint4 vec2(0, 42, 42, 0);
           Acc[0] = vec1 == vec2;
         });
       });
@@ -106,17 +106,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator <, cl_double
+  // Operator <, double
   if (Queue.get_device().has(sycl::aspect::fp64)) {
-    using res_vec_type = s::vec<s::cl_long, 4>;
+    using res_vec_type = s::long4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isless_vec_op>([=]() {
-          s::vec<s::cl_double, 4> vec1(0.5, 10.1, 10.2, 10.3);
-          s::vec<s::cl_double, 4> vec2(10.5, 0.1, 0.2, 0.3);
+          s::double4 vec1(0.5, 10.1, 10.2, 10.3);
+          s::double4 vec2(10.5, 0.1, 0.2, 0.3);
           Acc[0] = vec1 < vec2;
         });
       });
@@ -125,17 +125,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator >, cl_char
+  // Operator >, char
   {
-    using res_vec_type = s::vec<s::cl_char, 4>;
+    using res_vec_type = s::char4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isgreater_vec_op>([=]() {
-          s::vec<s::cl_char, 4> vec1(0, 0, 42, 42);
-          s::vec<s::cl_char, 4> vec2(42, 0, 0, -42);
+          s::char4 vec1(0, 0, 42, 42);
+          s::char4 vec2(42, 0, 0, -42);
           Acc[0] = vec1 > vec2;
         });
       });
@@ -144,17 +144,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator <=, cl_half
+  // Operator <=, half
   if (Queue.get_device().has(sycl::aspect::fp16)) {
-    using res_vec_type = s::vec<s::cl_short, 4>;
+    using res_vec_type = s::short4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnotgreater_vec_op>([=]() {
-          s::vec<s::cl_half, 4> vec1(0, 0, 42, 42);
-          s::vec<s::cl_half, 4> vec2(42, 0, 0, -42);
+          s::half4 vec1(0, 0, 42, 42);
+          s::half4 vec2(42, 0, 0, -42);
           Acc[0] = vec1 <= vec2;
         });
       });
@@ -165,17 +165,17 @@ int main() {
 
   // SYCL vec<>, OpenCL built-in
 
-  // Operator >=, cl_ulong
+  // Operator >=, unsigned long
   {
-    using res_vec_type = s::vec<s::cl_long, 4>;
+    using res_vec_type = s::long4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnotless_vec_op>([=]() {
-          s::vec<s::cl_ulong, 4> vec1(0, 0, 42, 42);
-          s::cl_ulong4 vec2{42, 0, 0, 0};
+          s::ulong4 vec1(0, 0, 42, 42);
+          s::ulong4 vec2{42, 0, 0, 0};
           Acc[0] = vec1 >= vec2;
         });
       });
@@ -184,17 +184,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator !=, cl_ushort
+  // Operator !=, unsigned short
   {
-    using res_vec_type = s::vec<s::cl_short, 4>;
+    using res_vec_type = s::short4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isnotequal_vec_op>([=]() {
-          s::vec<s::cl_ushort, 4> vec1(0, 0, 42, 42);
-          s::cl_ushort4 vec2{42, 0, 0, 42};
+          s::ushort4 vec1(0, 0, 42, 42);
+          s::ushort4 vec2{42, 0, 0, 42};
           Acc[0] = vec1 != vec2;
         });
       });
@@ -203,17 +203,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator &&, cl_int
+  // Operator &&, int
   {
-    using res_vec_type = s::vec<s::cl_int, 4>;
+    using res_vec_type = s::int4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class logical_and_vec_op>([=]() {
-          s::vec<s::cl_int, 4> vec1(0, 0, 42, 42);
-          s::cl_int4 vec2{42, 0, 0, 42};
+          s::int4 vec1(0, 0, 42, 42);
+          s::int4 vec2{42, 0, 0, 42};
           Acc[0] = vec1 && vec2;
         });
       });
@@ -222,17 +222,17 @@ int main() {
     check_result_length_4<res_vec_type>(res, expected);
   }
 
-  // Operator ||, cl_int
+  // Operator ||, int
   {
-    using res_vec_type = s::vec<s::cl_int, 4>;
+    using res_vec_type = s::int4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class logical_or_vec_op>([=]() {
-          s::vec<s::cl_int, 4> vec1(0, 0, 42, 42);
-          s::cl_int4 vec2{42, 0, 0, 42};
+          s::int4 vec1(0, 0, 42, 42);
+          s::int4 vec2{42, 0, 0, 42};
           Acc[0] = vec1 || vec2;
         });
       });
@@ -244,14 +244,14 @@ int main() {
   // as() function.
   // reinterprets each element as a different datatype.
   {
-    using res_vec_type = s::vec<s::cl_int, 4>;
+    using res_vec_type = s::int4;
     res_vec_type res;
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class as_op>([=]() {
-          s::vec<s::cl_float, 4> vec1(4.5f, 0, 3.5f, -10.0f);
+          s::float4 vec1(4.5f, 0, 3.5f, -10.0f);
           Acc[0] = vec1.template as<res_vec_type>();
         });
       });

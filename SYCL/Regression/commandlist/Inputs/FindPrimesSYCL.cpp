@@ -25,7 +25,7 @@ float find_prime_s(work *w) {
   auto nitems = w->nitems;
 
   sycl::range<1> numOfItems{nitems};
-  sycl::buffer<sycl::cl_short, 1> bufferR(VRI.data(), N);
+  sycl::buffer<sycl::opencl::cl_short, 1> bufferR(VRI.data(), N);
 
   auto start = std::chrono::high_resolution_clock::now();
 

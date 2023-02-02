@@ -14,7 +14,7 @@ struct work {
   size_t niter;
   size_t nitems;
 
-  std::vector<sycl::cl_short> VRI;
+  std::vector<sycl::opencl::cl_short> VRI;
 
   size_t result;
 

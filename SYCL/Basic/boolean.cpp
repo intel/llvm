@@ -17,9 +17,9 @@ d::Boolean<3> foo() {
 
 int main() {
   {
-    s::cl_long4 r{0};
+    s::long4 r{0};
     {
-      buffer<s::cl_long4, 1> BufR(&r, range<1>(1));
+      buffer<s::long4, 1> BufR(&r, range<1>(1));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto AccR = BufR.get_access<access::mode::write>(cgh);
@@ -29,10 +29,10 @@ int main() {
         });
       });
     }
-    s::cl_long r1 = r.s0();
-    s::cl_long r2 = r.s1();
-    s::cl_long r3 = r.s2();
-    s::cl_long r4 = r.s3();
+    long long r1 = r.s0();
+    long long r2 = r.s1();
+    long long r3 = r.s2();
+    long long r4 = r.s3();
 
     std::cout << "r1 " << r1 << " r2 " << r2 << " r3 " << r3 << " r4 " << r4
               << std::endl;
@@ -44,18 +44,18 @@ int main() {
   }
 
   {
-    s::cl_short3 r{0};
+    s::short3 r{0};
     {
-      buffer<s::cl_short3, 1> BufR(&r, range<1>(1));
+      buffer<s::short3, 1> BufR(&r, range<1>(1));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto AccR = BufR.get_access<access::mode::write>(cgh);
         cgh.single_task<class b3_sh3>([=]() { AccR[0] = foo(); });
       });
     }
-    s::cl_short r1 = r.s0();
-    s::cl_short r2 = r.s1();
-    s::cl_short r3 = r.s2();
+    short r1 = r.s0();
+    short r2 = r.s1();
+    short r3 = r.s2();
 
     std::cout << "r1 " << r1 << " r2 " << r2 << " r3 " << r3 << std::endl;
 
@@ -65,11 +65,11 @@ int main() {
   }
 
   {
-    s::cl_int r1[6];
-    s::cl_int r2[6];
+    int r1[6];
+    int r2[6];
     {
-      buffer<s::cl_int, 1> BufR1(r1, range<1>(6));
-      buffer<s::cl_int, 1> BufR2(r2, range<1>(6));
+      buffer<int, 1> BufR1(r1, range<1>(6));
+      buffer<int, 1> BufR2(r2, range<1>(6));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto AccR1 = BufR1.get_access<access::mode::write>(cgh);
@@ -117,14 +117,14 @@ int main() {
   }
 
   {
-    s::cl_int4 i4 = {1, -2, 0, -3};
+    s::int4 i4 = {1, -2, 0, -3};
     d::Boolean<4> b4(i4);
     i4 = b4;
 
-    s::cl_int r1 = i4.s0();
-    s::cl_int r2 = i4.s1();
-    s::cl_int r3 = i4.s2();
-    s::cl_int r4 = i4.s3();
+    int r1 = i4.s0();
+    int r2 = i4.s1();
+    int r3 = i4.s2();
+    int r4 = i4.s3();
 
     std::cout << "r1 " << r1 << " r2 " << r2 << " r3 " << r3 << " r4 " << r4
               << std::endl;
@@ -135,9 +135,9 @@ int main() {
   }
 
   {
-    s::cl_int r1 = d::Boolean<1>(s::cl_int{-1});
-    s::cl_int r2 = d::Boolean<1>(s::cl_int{0});
-    s::cl_int r3 = d::Boolean<1>(s::cl_int{1});
+    int r1 = d::Boolean<1>(int{-1});
+    int r2 = d::Boolean<1>(int{0});
+    int r3 = d::Boolean<1>(int{1});
     std::cout << "r1 " << r1 << " r2 " << r2 << " r3 " << r3 << std::endl;
     assert(r1 == 1);
     assert(r2 == 0);

@@ -161,7 +161,7 @@ int main() {
       return 1;
     if (test<vec<bool, 4>>(Stride))
       return 1;
-    if (test<sycl::cl_bool>(Stride))
+    if (test<sycl::opencl::cl_bool>(Stride))
       return 1;
     if (test<std::byte>(Stride))
       return 1;
