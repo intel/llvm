@@ -4,14 +4,14 @@
 #include <uur/fixtures.h>
 
 using urUSMAllocInfoTest =
-    uur::urUSMDeviceAllocTestWithParam<ur_mem_alloc_info_t>;
+    uur::urUSMDeviceAllocTestWithParam<ur_usm_alloc_info_t>;
 
 UUR_TEST_SUITE_P(urUSMAllocInfoTest,
-                 ::testing::Values(UR_MEM_ALLOC_INFO_ALLOC_TYPE,
-                                   UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR,
-                                   UR_MEM_ALLOC_INFO_ALLOC_SIZE,
-                                   UR_MEM_ALLOC_INFO_ALLOC_DEVICE),
-                 uur::deviceTestWithParamPrinter<ur_mem_alloc_info_t>);
+                 ::testing::Values(UR_USM_ALLOC_INFO_TYPE,
+                                   UR_USM_ALLOC_INFO_BASE_PTR,
+                                   UR_USM_ALLOC_INFO_SIZE,
+                                   UR_USM_ALLOC_INFO_DEVICE),
+                 uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
 
 TEST_P(urUSMAllocInfoTest, Success) {
     size_t size = 0;
@@ -31,7 +31,7 @@ TEST_P(urMemGetMemAllocInfoTest, InvalidNullHandleContext) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urMemGetMemAllocInfo(nullptr, ptr, UR_MEM_ALLOC_INFO_ALLOC_TYPE,
+        urMemGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
 
@@ -39,7 +39,7 @@ TEST_P(urMemGetMemAllocInfoTest, InvalidNullPointerMem) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urMemGetMemAllocInfo(context, nullptr, UR_MEM_ALLOC_INFO_ALLOC_TYPE,
+        urMemGetMemAllocInfo(context, nullptr, UR_USM_ALLOC_INFO_TYPE,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
 
@@ -47,6 +47,6 @@ TEST_P(urMemGetMemAllocInfoTest, InvalidEnumeration) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_ENUMERATION,
-        urMemGetMemAllocInfo(context, ptr, UR_MEM_ALLOC_INFO_FORCE_UINT32,
+        urMemGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
