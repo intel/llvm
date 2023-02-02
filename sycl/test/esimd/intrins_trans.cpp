@@ -86,11 +86,13 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   using PH = sycl::access::placeholder;
 
-  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::read,
-                 sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::read, sycl::access::target::image,
+                 PH::false_t>
       pA;
-  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::write,
-                 sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::write, sycl::access::target::image,
+                 PH::false_t>
       pB;
 
   auto d = __esimd_wrregion<float, 16 /*ret size*/, 8 /*write size*/,

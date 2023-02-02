@@ -1,8 +1,8 @@
-// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify-ignore-unexpected=error,note,warning -Xclang -verify=expected,cxx14 %s -c -o %t.out
-// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify-ignore-unexpected=error,note,warning -Xclang -verify=cxx14,warning_extension,expected  %s -c -o %t.out
-// RUN: %clangxx -std=c++17 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
-// RUN: %clangxx -std=c++20 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
-// RUN: %clangxx            -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
+// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify-ignore-unexpected=error,note,warning -Xclang -verify=expected,cxx14 %s
+// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify-ignore-unexpected=error,note,warning -Xclang -verify=cxx14,warning_extension,expected  %s
+// RUN: %clangxx -std=c++17 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -std=c++20 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx            -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s
 
 // The test checks SYCL headers C++ compiance and that a warning is emitted
 // when compiling in < C++17 mode.
