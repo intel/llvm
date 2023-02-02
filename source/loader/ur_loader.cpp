@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: MIT
  *
  */
-#include "ur_loader.h"
-#include "platform_discovery.h"
+#include "ur_loader.hpp"
+#include "platform_discovery.hpp"
 
 namespace loader {
 ///////////////////////////////////////////////////////////////////////////////

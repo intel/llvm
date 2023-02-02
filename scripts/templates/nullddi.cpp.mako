@@ -16,7 +16,7 @@ from templates import helper as th
  * @file ${name}.cpp
  *
  */
-#include "${x}_null.h"
+#include "${x}_null.hpp"
 
 namespace driver
 {

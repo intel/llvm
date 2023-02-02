@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * @file ur_lib.h
+ * @file ur_lib.hpp
  *
  */
 
@@ -13,7 +13,7 @@
 
 #include "ur_api.h"
 #include "ur_ddi.h"
-#include "ur_util.h"
+#include "ur_util.hpp"
 #include <mutex>
 #include <vector>
 

@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * @file ur_ldrddi.h
+ * @file ur_ldrddi.hpp
  *
  */
 #ifndef UR_LOADER_LDRDDI_H

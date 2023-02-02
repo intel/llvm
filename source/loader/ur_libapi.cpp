@@ -9,7 +9,7 @@
  * @brief C++ library for ur
  *
  */
-#include "ur_lib.h"
+#include "ur_lib.hpp"
 
 extern "C" {
 

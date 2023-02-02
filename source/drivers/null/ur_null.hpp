@@ -4,14 +4,14 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * @file ur_null.h
+ * @file ur_null.hpp
  *
  */
 #ifndef UR_ADAPTER_NULL_H
 #define UR_ADAPTER_NULL_H 1
 
 #include "ur_ddi.h"
-#include "ur_util.h"
+#include "ur_util.hpp"
 #include <stdlib.h>
 #include <vector>
 
