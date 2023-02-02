@@ -181,6 +181,7 @@ int main(void) {
       }
     }
   }
+  free(arr, ctxt);
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
   return err_cnt ? 1 : 0;
 }
