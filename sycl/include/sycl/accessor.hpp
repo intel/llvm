@@ -2975,14 +2975,6 @@ protected:
   }
 
 public:
-  using value_type = DataT;
-
-  using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
-  using const_iterator =
-      typename detail::accessor_iterator<const value_type, Dimensions>;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-
   host_accessor() : AccessorT() {}
 
   // The list of host_accessor constructors with their arguments
@@ -3126,7 +3118,7 @@ public:
   template <int Dims = Dimensions,
             typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
                                            !IsAccessReadOnly && Dims == 0>>
-  const host_accessor &operator=(const value_type &Other) const {
+  const host_accessor &operator=(const typename AccessorT::value_type &Other) const {
     *AccessorT::getQualifiedPtr() = Other;
     return *this;
   }
@@ -3134,7 +3126,7 @@ public:
   template <int Dims = Dimensions,
             typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
                                            !IsAccessReadOnly && Dims == 0>>
-  const host_accessor &operator=(value_type &&Other) const {
+  const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
