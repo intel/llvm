@@ -160,6 +160,7 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
     return;
   }
 
+  auto TotalMemory = Dev.get_info<info::device::global_mem_size>();
   auto FreeMemory = Dev.get_info<ext::intel::info::device::free_memory>();
 
   EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
@@ -168,6 +169,9 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
 
   EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
       << "Expect free_memory to be of uint64_t size";
+
+  EXPECT_GE(TotalMemory, FreeMemory)
+      << "Expect total_memory >= free_memory";
 }
 
 TEST_F(DeviceInfoTest, GetDeviceMemoryClockRate) {
