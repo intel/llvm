@@ -76,23 +76,22 @@ this extension enables such applications.
 
 === Feature test macro
 
-This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
-*Shipping software products should not rely on APIs defined in this
-specification.*
-
+This extension provides a feature-test macro as described in the core SYCL
+ specification.  An implementation supporting this extension must predefine the
+ macro `SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE` to one of the values defined in the
+ table below.  Applications can test for the existence of this macro to
+ determine if the implementation supports this feature, or applications can test
+ the macro's value to determine which of the extension's features the
+ implementation supports.
+ 
 [%header,cols="1,5"]
 |===
 |Value
 |Description
 
 |1
-|Initial version of this extension.
-
-|2
-|NVIDIA and AMD architectures are added.
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 === New enumeration of architectures
