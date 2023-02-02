@@ -36,16 +36,16 @@ etors:
 type: enum
 desc: "USM memory allocation information type"
 class: $xUSM
-name: $x_mem_alloc_info_t
+name: $x_usm_alloc_info_t
 etors:
-    - name: ALLOC_TYPE
-      desc: "[$x_usm_type_t]: Memory allocation type info"
-    - name: ALLOC_BASE_PTR
-      desc: "[void *]: Memory allocation base pointer info"
-    - name: ALLOC_SIZE
-      desc: "[size_t]: Memory allocation size info"
-    - name: ALLOC_DEVICE
-      desc: "[$x_device_handle_t]: Memory allocation device info"
+    - name: TYPE
+      desc: "Memory allocation type info"
+    - name: BASE_PTR
+      desc: "Memory allocation base pointer info"
+    - name: SIZE
+      desc: "Memory allocation size info"
+    - name: DEVICE
+      desc: "Memory allocation device info"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate host memory"
@@ -165,7 +165,7 @@ params:
     - type: "const void*"
       name: pMem
       desc: "[in] pointer to USM memory object"
-    - type: $x_mem_alloc_info_t
+    - type: $x_usm_alloc_info_t
       name: propName
       desc: "[in] the name of the USM allocation property to query"
     - type: size_t

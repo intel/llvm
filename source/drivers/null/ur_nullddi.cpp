@@ -2046,7 +2046,7 @@ namespace driver
     urMemGetMemAllocInfo(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         const void* pMem,                               ///< [in] pointer to USM memory object
-        ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
+        ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
         size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
         void* pPropValue,                               ///< [out][optional] value of the USM allocation property
         size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
