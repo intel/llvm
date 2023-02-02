@@ -2831,7 +2831,7 @@ urUSMSharedAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
-urMemFree(
+urUSMFree(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     void* pMem                                      ///< [in] pointer to USM memory object
     );
@@ -2854,7 +2854,7 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
-urMemGetMemAllocInfo(
+urUSMGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     const void* pMem,                               ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
@@ -6173,56 +6173,6 @@ typedef void (UR_APICALL *ur_pfnMemImageGetInfoCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urMemFree 
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_mem_free_params_t
-{
-    ur_context_handle_t* phContext;
-    void** ppMem;
-} ur_mem_free_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urMemFree 
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnMemFreeCb_t)(
-    ur_mem_free_params_t* params,
-    ur_result_t result,
-    void* pTracerUserData,
-    void** ppTracerInstanceUserData
-    );
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urMemGetMemAllocInfo 
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_mem_get_mem_alloc_info_params_t
-{
-    ur_context_handle_t* phContext;
-    const void** ppMem;
-    ur_usm_alloc_info_t* ppropName;
-    size_t* ppropValueSize;
-    void** ppPropValue;
-    size_t** ppPropValueSizeRet;
-} ur_mem_get_mem_alloc_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urMemGetMemAllocInfo 
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnMemGetMemAllocInfoCb_t)(
-    ur_mem_get_mem_alloc_info_params_t* params,
-    ur_result_t result,
-    void* pTracerUserData,
-    void** ppTracerInstanceUserData
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Mem callback functions pointers
 typedef struct ur_mem_callbacks_t
 {
@@ -6235,8 +6185,6 @@ typedef struct ur_mem_callbacks_t
     ur_pfnMemCreateWithNativeHandleCb_t                             pfnCreateWithNativeHandleCb;
     ur_pfnMemGetInfoCb_t                                            pfnGetInfoCb;
     ur_pfnMemImageGetInfoCb_t                                       pfnImageGetInfoCb;
-    ur_pfnMemFreeCb_t                                               pfnFreeCb;
-    ur_pfnMemGetMemAllocInfoCb_t                                    pfnGetMemAllocInfoCb;
 } ur_mem_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7072,12 +7020,64 @@ typedef void (UR_APICALL *ur_pfnUSMSharedAllocCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urUSMFree 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_free_params_t
+{
+    ur_context_handle_t* phContext;
+    void** ppMem;
+} ur_usm_free_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urUSMFree 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnUSMFreeCb_t)(
+    ur_usm_free_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urUSMGetMemAllocInfo 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_get_mem_alloc_info_params_t
+{
+    ur_context_handle_t* phContext;
+    const void** ppMem;
+    ur_usm_alloc_info_t* ppropName;
+    size_t* ppropValueSize;
+    void** ppPropValue;
+    size_t** ppPropValueSizeRet;
+} ur_usm_get_mem_alloc_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urUSMGetMemAllocInfo 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnUSMGetMemAllocInfoCb_t)(
+    ur_usm_get_mem_alloc_info_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM callback functions pointers
 typedef struct ur_usm_callbacks_t
 {
     ur_pfnUSMHostAllocCb_t                                          pfnHostAllocCb;
     ur_pfnUSMDeviceAllocCb_t                                        pfnDeviceAllocCb;
     ur_pfnUSMSharedAllocCb_t                                        pfnSharedAllocCb;
+    ur_pfnUSMFreeCb_t                                               pfnFreeCb;
+    ur_pfnUSMGetMemAllocInfoCb_t                                    pfnGetMemAllocInfoCb;
 } ur_usm_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
