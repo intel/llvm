@@ -6,8 +6,8 @@
  *
  */
 
-#include "ur_lib.h"
-#include "ur_loader.h"
+#include "ur_lib.hpp"
+#include "ur_loader.hpp"
 
 namespace ur_lib {
 

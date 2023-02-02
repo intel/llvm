@@ -4,15 +4,15 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * @file ur_object.h
+ * @file ur_object.hpp
  *
  */
 
 #ifndef UR_OBJECT_H
 #define UR_OBJECT_H 1
 
-#include "ur_singleton.h"
-#include "ur_util.h"
+#include "ur_singleton.hpp"
+#include "ur_util.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 struct dditable_t {

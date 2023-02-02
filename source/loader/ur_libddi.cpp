@@ -7,7 +7,7 @@
  * @file ur_libddi.cpp
  *
  */
-#include "ur_lib.h"
+#include "ur_lib.hpp"
 #ifndef DYNAMIC_LOAD_LOADER
 #include "ur_ddi.h"
 #endif

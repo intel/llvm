@@ -6,9 +6,9 @@
  *
  */
 
-#include "platform_discovery.h"
+#include "platform_discovery.hpp"
 
-#include "ur_util.h"
+#include "ur_util.hpp"
 #include <iostream>
 #include <sstream>
 #include <string>
