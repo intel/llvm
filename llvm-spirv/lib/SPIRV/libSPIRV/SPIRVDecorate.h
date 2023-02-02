@@ -179,6 +179,16 @@ public:
     case internal::DecorationInitModeINTEL:
     case internal::DecorationImplementInCSRINTEL:
       return ExtensionID::SPV_INTEL_global_variable_decorations;
+    case DecorationConduitKernelArgumentINTEL:
+    case DecorationRegisterMapKernelArgumentINTEL:
+    case DecorationStableKernelArgumentINTEL:
+    case DecorationMMHostInterfaceReadWriteModeINTEL:
+    case DecorationMMHostInterfaceAddressWidthINTEL:
+    case DecorationMMHostInterfaceDataWidthINTEL:
+    case DecorationMMHostInterfaceLatencyINTEL:
+    case DecorationMMHostInterfaceMaxBurstINTEL:
+    case DecorationMMHostInterfaceWaitRequestINTEL:
+      return ExtensionID::SPV_INTEL_fpga_argument_interfaces;
     default:
       return {};
     }
