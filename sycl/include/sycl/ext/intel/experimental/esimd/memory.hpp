@@ -1332,9 +1332,12 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
               T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
-           unsigned SurfacePitch, int X, int Y) {
+__SYCL_DEPRECATED("use lsc_load_2d()")
+__ESIMD_API __ESIMD_NS::simd<T, N> lsc_load2d(const T *Ptr,
+                                              unsigned SurfaceWidth,
+                                              unsigned SurfaceHeight,
+                                              unsigned SurfacePitch, int X,
+                                              int Y) {
   return lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks, Transposed,
                      Transformed, L1H, L3H>(Ptr, SurfaceWidth, SurfaceHeight,
                                             SurfacePitch, X, Y);
@@ -1387,6 +1390,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
               T, NBlocks, BlockHeight, BlockWidth, false, false>()>
+__SYCL_DEPRECATED("use lsc_prefetch_2d()")
 __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
@@ -1443,6 +1447,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
               T, 1u, BlockHeight, BlockWidth, false, false>()>
+__SYCL_DEPRECATED("use lsc_store_2d()")
 __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
