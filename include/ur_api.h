@@ -2997,9 +2997,12 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 94,       ///< uint32_t: return max memory bandwidth in Mb/s
     UR_DEVICE_INFO_IMAGE_SRGB = 95,                 ///< bool: image is SRGB
     UR_DEVICE_INFO_ATOMIC_64 = 96,                  ///< bool: support 64 bit atomics
-    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,   ///< uint32_t: atomics memory order capabilities
-    UR_DEVICE_INFO_BFLOAT16 = 98,                   ///< bool: support for bfloat16
-    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 99,  ///< uint32_t: Returns 1 if the device doesn't have a notion of a 
+    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,   ///< ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+                                                    ///< memory order capabilities
+    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98,   ///< ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+                                                    ///< memory scope capabilities
+    UR_DEVICE_INFO_BFLOAT16 = 99,                   ///< bool: support for bfloat16
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 100, ///< uint32_t: Returns 1 if the device doesn't have a notion of a 
                                                     ///< queue index. Otherwise, returns the number of queue indices that are
                                                     ///< available for this device.
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
@@ -3313,6 +3316,34 @@ urDeviceGetGlobalTimestamps(
     uint64_t* pHostTimestamp                        ///< [out][optional] pointer to the Host's global timestamp that 
                                                     ///< correlates with the Device's global timestamp value
     );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Memory order capabilities
+typedef uint32_t ur_memory_order_capability_flags_t;
+typedef enum ur_memory_order_capability_flag_t
+{
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED = UR_BIT(0),///< Relaxed memory ordering
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE = UR_BIT(1),///< Acquire memory ordering
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE = UR_BIT(2),///< Release memory ordering
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL = UR_BIT(3),///< Acquire/release memory ordering
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST = UR_BIT(4),///< Sequentially consistent memory ordering
+    UR_MEMORY_ORDER_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+
+} ur_memory_order_capability_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Memory scope capabilities
+typedef uint32_t ur_memory_scope_capability_flags_t;
+typedef enum ur_memory_scope_capability_flag_t
+{
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM = UR_BIT(0),  ///< Work item scope
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP = UR_BIT(1),  ///< Sub group scope
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP = UR_BIT(2), ///< Work group scope
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE = UR_BIT(3), ///< Device scope
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM = UR_BIT(4), ///< System scope
+    UR_MEMORY_SCOPE_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+
+} ur_memory_scope_capability_flag_t;
 
 #if !defined(__GNUC__)
 #pragma endregion

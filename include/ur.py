@@ -751,9 +751,12 @@ class ur_device_info_v(IntEnum):
     MAX_MEMORY_BANDWIDTH = 94                       ## uint32_t: return max memory bandwidth in Mb/s
     IMAGE_SRGB = 95                                 ## bool: image is SRGB
     ATOMIC_64 = 96                                  ## bool: support 64 bit atomics
-    ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## uint32_t: atomics memory order capabilities
-    BFLOAT16 = 98                                   ## bool: support for bfloat16
-    MAX_COMPUTE_QUEUE_INDICES = 99                  ## uint32_t: Returns 1 if the device doesn't have a notion of a 
+    ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+                                                    ## memory order capabilities
+    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98           ## ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+                                                    ## memory scope capabilities
+    BFLOAT16 = 99                                   ## bool: support for bfloat16
+    MAX_COMPUTE_QUEUE_INDICES = 100                 ## uint32_t: Returns 1 if the device doesn't have a notion of a 
                                                     ## queue index. Otherwise, returns the number of queue indices that are
                                                     ## available for this device.
 
@@ -839,6 +842,34 @@ class ur_device_affinity_domain_flags_v(IntEnum):
     NEXT_PARTITIONABLE = UR_BIT(1)                  ## BY next partitionable
 
 class ur_device_affinity_domain_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Memory order capabilities
+class ur_memory_order_capability_flags_v(IntEnum):
+    RELAXED = UR_BIT(0)                             ## Relaxed memory ordering
+    ACQUIRE = UR_BIT(1)                             ## Acquire memory ordering
+    RELEASE = UR_BIT(2)                             ## Release memory ordering
+    ACQ_REL = UR_BIT(3)                             ## Acquire/release memory ordering
+    SEQ_CST = UR_BIT(4)                             ## Sequentially consistent memory ordering
+
+class ur_memory_order_capability_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Memory scope capabilities
+class ur_memory_scope_capability_flags_v(IntEnum):
+    WORK_ITEM = UR_BIT(0)                           ## Work item scope
+    SUB_GROUP = UR_BIT(1)                           ## Sub group scope
+    WORK_GROUP = UR_BIT(2)                          ## Work group scope
+    DEVICE = UR_BIT(3)                              ## Device scope
+    SYSTEM = UR_BIT(4)                              ## System scope
+
+class ur_memory_scope_capability_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
