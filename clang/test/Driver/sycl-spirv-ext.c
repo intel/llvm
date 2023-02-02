@@ -45,8 +45,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_buffer_location
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_argument_interfaces
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_buffer_location
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_argument_interfaces
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
