@@ -523,7 +523,7 @@ inline PiProperty makeReqdSubGroupSizeProp(const int &ReqdSubGroupSize) {
 inline void
 addDeviceRequirementsProps(PiPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
-                           const std::vector<int> &ReqdWGSize = {}, const int& ReqdSubGroupSize = 0) {
+                           const std::vector<int> &ReqdWGSize = {}, int ReqdSubGroupSize = 0) {
   PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
