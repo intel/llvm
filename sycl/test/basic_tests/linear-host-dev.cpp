@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
+// UNSUPPORTED: host
 // RUN: %RUN_ON_HOST %t.out | FileCheck %s
 
 #include <algorithm>
