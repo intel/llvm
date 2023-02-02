@@ -205,6 +205,8 @@ event handler::finalize() {
         NewEvent->setStateIncomplete();
         OutEvent = &NewEvent->getHandleRef();
 
+        NewEvent->setSubmissionTime();
+
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);

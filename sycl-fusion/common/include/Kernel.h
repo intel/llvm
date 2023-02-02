@@ -15,13 +15,13 @@
 
 namespace jit_compiler {
 
-using BinaryAddress = const unsigned char *;
+using BinaryAddress = const uint8_t *;
 
 ///
 /// Enumerate possible kinds of parameters.
 /// 1:1 correspondence with the definition in kernel_desc.hpp in the DPC++ SYCL
 /// runtime.
-enum class ParameterKind : unsigned {
+enum class ParameterKind : uint32_t {
   Accessor = 0,
   StdLayout = 1,
   Sampler = 2,
@@ -32,7 +32,7 @@ enum class ParameterKind : unsigned {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat { INVALID, LLVM, SPIRV };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
@@ -40,11 +40,11 @@ struct SYCLKernelBinaryInfo {
 
   BinaryFormat Format = BinaryFormat::INVALID;
 
-  size_t AddressBits = 0;
+  uint64_t AddressBits = 0;
 
   BinaryAddress BinaryStart = nullptr;
 
-  size_t BinarySize = 0;
+  uint64_t BinarySize = 0;
 };
 
 ///
@@ -61,7 +61,7 @@ struct SYCLKernelAttribute {
   AttributeValueList Values;
 };
 
-enum ArgUsage : unsigned char {
+enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
   // Used to indicate that an argument is used by the kernel

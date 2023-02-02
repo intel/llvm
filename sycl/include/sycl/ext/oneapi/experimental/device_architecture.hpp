@@ -505,16 +505,16 @@ namespace ext::oneapi::experimental {
 
 template <architecture... Archs, typename T, typename... Args>
 constexpr static auto if_architecture_is(T fnTrue, Args... args) {
-  static_assert(detail::allowable_aot_mode<Archs...>(),
+  static_assert(sycl::detail::allowable_aot_mode<Archs...>(),
                 "The if_architecture_is function may only be used when AOT "
                 "compiling with '-fsycl-targets=spir64_x86_64' or "
                 "'-fsycl-targets=*_gpu_*'");
-  if constexpr (detail::device_architecture_is<Archs...>()) {
+  if constexpr (sycl::detail::device_architecture_is<Archs...>()) {
     fnTrue(args...);
-    return detail::if_architecture_helper<false>{};
+    return sycl::detail::if_architecture_helper<false>{};
   } else {
     (void)fnTrue;
-    return detail::if_architecture_helper<true>{};
+    return sycl::detail::if_architecture_helper<true>{};
   }
 }
 

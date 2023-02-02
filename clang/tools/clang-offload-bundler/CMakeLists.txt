@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   IRReader
   Object
   Support
+  TargetParser
   )
 
 add_clang_tool(clang-offload-bundler

@@ -75,6 +75,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 
 #define DEBUG_TYPE "spirv"
@@ -190,6 +191,8 @@ static cl::opt<std::string> SpecConst(
              "SPIR-V module.\n"
              "The list of valid ids is available via -spec-const-info option.\n"
              "For duplicate ids the later one takes precedence.\n"
+             "Float values may be represented in decimal or hexadecimal, hex "
+             "values must be preceded by 0x.\n"
              "Supported types are: i1, i8, i16, i32, i64, f16, f32, f64.\n"),
     cl::value_desc("id1:type1:value1 id2:type2:value2 ..."));
 
@@ -559,9 +562,9 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
              << "\" must be a 32-bit unsigned integer\n";
       return true;
     }
-    auto It = std::find_if(
-        SpecConstInfo.begin(), SpecConstInfo.end(),
-        [=](SpecConstInfoTy Info) { return Info.first == SpecId; });
+    auto It =
+        std::find_if(SpecConstInfo.begin(), SpecConstInfo.end(),
+                     [=](SpecConstInfoTy Info) { return Info.ID == SpecId; });
     if (It == SpecConstInfo.end()) {
       errs() << "Error: CL_INVALID_SPEC_ID. \"" << Option << "\": There is no "
              << "specialization constant with id = " << SpecId
@@ -579,11 +582,11 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
         return true;
       }
       size_t Size = Width < 8 ? 1 : Width / 8;
-      if (Size != It->second) {
+      if (Size != It->Size) {
         errs() << "Error: CL_INVALID_VALUE. In \"" << Option << "\": Size of "
                << "type i" << Width << " (" << Size << " bytes) "
                << "does not match the size of the specialization constant "
-               << "in the module (" << It->second << " bytes)\n";
+               << "in the module (" << It->Size << " bytes)\n";
         return true;
       }
       APInt Value;
@@ -618,21 +621,29 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
         return true;
       }
       APFloat Value(*FS);
-      Expected<APFloat::opStatus> StatusOrErr =
-          Value.convertFromString(Params[2], APFloat::rmNearestTiesToEven);
-      if (!StatusOrErr) {
-        return true;
+      if (Params[2].find("0x") != StringRef::npos) {
+        std::stringstream paramStream;
+        paramStream << std::hex << Params[2].data();
+        uint64_t specVal = 0;
+        paramStream >> specVal;
+        Opts.setSpecConst(SpecId, specVal);
+      } else {
+        Expected<APFloat::opStatus> StatusOrErr =
+            Value.convertFromString(Params[2], APFloat::rmNearestTiesToEven);
+        if (!StatusOrErr) {
+          return true;
+        }
+        // It's ok to have inexact conversion from decimal representation.
+        APFloat::opStatus Status = *StatusOrErr;
+        if (Status & ~APFloat::opInexact) {
+          errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
+                 << "' option! In \"" << Option << "\": can't convert \""
+                 << Params[2] << "\" to " << Width
+                 << "-bit floating point number\n";
+          return true;
+        }
+        Opts.setSpecConst(SpecId, Value.bitcastToAPInt().getZExtValue());
       }
-      // It's ok to have inexact conversion from decimal representation.
-      APFloat::opStatus Status = *StatusOrErr;
-      if (Status & ~APFloat::opInexact) {
-        errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
-               << "' option! In \"" << Option << "\": can't convert \""
-               << Params[2] << "\" to " << Width
-               << "-bit floating point number\n";
-        return true;
-      }
-      Opts.setSpecConst(SpecId, Value.bitcastToAPInt().getZExtValue());
     } else {
       errs() << "Error: Invalid type for '-" << SpecConst.ArgStr
              << "' option! In \"" << Option << "\": \"" << Params[1]
@@ -766,8 +777,9 @@ int main(int Ac, char **Av) {
     std::cout << "Number of scalar specialization constants in the module = "
               << SpecConstInfo.size() << "\n";
     for (auto &SpecConst : SpecConstInfo)
-      std::cout << "Spec const id = " << SpecConst.first
-                << ", size in bytes = " << SpecConst.second << "\n";
+      std::cout << "Spec const id = " << SpecConst.ID
+                << ", size in bytes = " << SpecConst.Size
+                << ", type = " << SpecConst.Type << "\n";
   }
   return 0;
 }

@@ -454,7 +454,7 @@ std::string getEnvWin(const wchar_t *Var) {
 // RAII helper to set and restore an environment variable.
 class WithEnv {
   const char *Var;
-  llvm::Optional<std::string> OriginalValue;
+  std::optional<std::string> OriginalValue;
 
 public:
   WithEnv(const char *Var, const char *Value) : Var(Var) {
@@ -1767,7 +1767,7 @@ static void verifyFileContents(const Twine &Path, StringRef Contents) {
 
 TEST_F(FileSystemTest, CreateNew) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1791,7 +1791,7 @@ TEST_F(FileSystemTest, CreateNew) {
 
 TEST_F(FileSystemTest, CreateAlways) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1869,7 +1869,7 @@ TEST_F(FileSystemTest, AppendSetsCorrectFileOffset) {
   // the specified disposition.
   for (fs::CreationDisposition Disp : Disps) {
     int FD;
-    Optional<FileDescriptorCloser> Closer;
+    std::optional<FileDescriptorCloser> Closer;
 
     createFileWithData(NonExistantFile, false, fs::CD_CreateNew, "Fizz");
 
@@ -1960,7 +1960,7 @@ TEST_F(FileSystemTest, readNativeFile) {
       return FD.takeError();
     auto Close = make_scope_exit([&] { fs::closeFile(*FD); });
     if (Expected<size_t> BytesRead = fs::readNativeFile(
-            *FD, makeMutableArrayRef(&*Buf.begin(), Buf.size())))
+            *FD, MutableArrayRef(&*Buf.begin(), Buf.size())))
       return Buf.substr(0, *BytesRead);
     else
       return BytesRead.takeError();
@@ -1975,7 +1975,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
   createFileWithData(NonExistantFile, false, fs::CD_CreateNew, Content);
   FileRemover Cleanup(NonExistantFile);
   const auto &Read = [&](SmallVectorImpl<char> &V,
-                         Optional<ssize_t> ChunkSize) {
+                         std::optional<ssize_t> ChunkSize) {
     Expected<fs::file_t> FD = fs::openNativeFileForRead(NonExistantFile);
     if (!FD)
       return FD.takeError();
@@ -2027,7 +2027,7 @@ TEST_F(FileSystemTest, readNativeFileSlice) {
                          size_t ToRead) -> Expected<std::string> {
     std::string Buf(ToRead, '?');
     if (Expected<size_t> BytesRead = fs::readNativeFileSlice(
-            *FD, makeMutableArrayRef(&*Buf.begin(), Buf.size()), Offset))
+            *FD, MutableArrayRef(&*Buf.begin(), Buf.size()), Offset))
       return Buf.substr(0, *BytesRead);
     else
       return BytesRead.takeError();

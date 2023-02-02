@@ -65,8 +65,15 @@ class half;
 
 // FIXME: OpenCL vector aliases are not defined by SYCL 2020 spec and should be
 //        removed from here. See intel/llvm#7888
+// FIXME: schar, longlong and ulonglong aliases are not defined by SYCL 2020
+//        spec, but they are preserved in SYCL 2020 mode, because SYCL-CTS is
+//        still using them.
+//        See KhronosGroup/SYCL-CTS#446 and KhronosGroup/SYCL-Docs#335
 #define __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                   \
   __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
+  __SYCL_MAKE_VECTOR_ALIAS(schar, std::int8_t, N)                              \
+  __SYCL_MAKE_VECTOR_ALIAS(longlong, std::int64_t, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(ulonglong, std::uint64_t, N)                        \
   __SYCL_MAKE_VECTOR_ALIAS(char, std::int8_t, N)                               \
   __SYCL_MAKE_VECTOR_ALIAS(uchar, std::uint8_t, N)                             \
   __SYCL_MAKE_VECTOR_ALIAS(short, std::int16_t, N)                             \
@@ -105,6 +112,23 @@ using cl_ulong = std::uint64_t;
 using cl_half = half;
 using cl_float = float;
 using cl_double = double;
+
+namespace opencl {
+// Strictly speaking, cl_* aliases should not be defined in opencl namespace in
+// SYCL 1.2.1 mode, but we do so to simplify our implementation
+using cl_bool = bool;
+using cl_char = std::int8_t;
+using cl_uchar = std::uint8_t;
+using cl_short = std::int16_t;
+using cl_ushort = std::uint16_t;
+using cl_int = std::int32_t;
+using cl_uint = std::uint32_t;
+using cl_long = std::int64_t;
+using cl_ulong = std::uint64_t;
+using cl_half = half;
+using cl_float = float;
+using cl_double = double;
+} // namespace opencl
 
 // Vector aliases are different between SYCL 1.2.1 and SYCL 2020
 #if SYCL_LANGUAGE_VERSION >= 202001

@@ -15,7 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
@@ -881,7 +880,7 @@ void Mapper::flush() {
       AppendingInits.resize(PrefixSize);
       mapAppendingVariable(*E.Data.AppendingGV.GV,
                            E.Data.AppendingGV.InitPrefix,
-                           E.AppendingGVIsOldCtorDtor, makeArrayRef(NewInits));
+                           E.AppendingGVIsOldCtorDtor, ArrayRef(NewInits));
       break;
     }
     case WorklistEntry::MapAliasOrIFunc: {

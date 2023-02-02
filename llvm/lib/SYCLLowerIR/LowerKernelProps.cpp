@@ -48,6 +48,15 @@ void processSetKernelPropertiesCall(CallInst &CI) {
     // over same function.
     llvm::sycl::utils::traverseCallgraphUp(F, [](Function *GraphNode) {
       GraphNode->addFnAttr(::sycl::kernel_props::ATTR_LARGE_GRF);
+      // Add RegisterAllocMode metadata with arg 2 to the kernel to tell
+      // IGC to compile this kernel in large GRF mode. 2 means large.
+      if (GraphNode->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        auto &Ctx = GraphNode->getContext();
+        Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
+            Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, 2)))};
+        GraphNode->setMetadata("RegisterAllocMode",
+                               MDNode::get(Ctx, AttrMDArgs));
+      }
     });
     break;
   default:

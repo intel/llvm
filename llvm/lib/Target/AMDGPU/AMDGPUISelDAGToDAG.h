@@ -91,8 +91,11 @@ class AMDGPUDAGToDAGISel : public SelectionDAGISel {
   bool fp16SrcZerosHighBits(unsigned Opc) const;
 
 public:
-  explicit AMDGPUDAGToDAGISel(TargetMachine *TM = nullptr,
-                              CodeGenOpt::Level OptLevel = CodeGenOpt::Default);
+  static char ID;
+
+  AMDGPUDAGToDAGISel() = delete;
+
+  explicit AMDGPUDAGToDAGISel(TargetMachine &TM, CodeGenOpt::Level OptLevel);
   ~AMDGPUDAGToDAGISel() override = default;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;

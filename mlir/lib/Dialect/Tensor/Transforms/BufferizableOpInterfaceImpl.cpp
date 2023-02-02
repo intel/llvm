@@ -205,7 +205,8 @@ struct DimOpInterface
                                                     tensor::DimOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    return true;
+    // The op reads the tensor's metadata but not its contents.
+    return false;
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
@@ -645,10 +646,8 @@ static bool matchesInsertDestination(const AnalysisState &state, Value value,
         return true;
     return false;
   };
-  if (llvm::all_of(state.findValueInReverseUseDefChain(value, matchesSlice),
-                   matchesSlice))
-    return true;
-  return false;
+  return static_cast<bool>(llvm::all_of(
+      state.findValueInReverseUseDefChain(value, matchesSlice), matchesSlice));
 }
 
 template <typename OpTy>
@@ -927,7 +926,8 @@ struct RankOpInterface
                                                     tensor::RankOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    return true;
+    // The op reads the tensor's metadata but not its contents.
+    return false;
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
