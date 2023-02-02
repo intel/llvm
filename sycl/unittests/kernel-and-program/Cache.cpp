@@ -195,8 +195,8 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
 
 // Check that kernel_bundles with object_state are not cached.
 TEST_F(KernelAndProgramCacheTest, KernelBundleObjectState) {
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Ctx(Devices);
+  std::vector<sycl::device> Devices = Plt.get_devices();
+  sycl::context Ctx(Devices[0]);
 
   auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
   sycl::kernel_bundle KernelBundle1 =
@@ -212,8 +212,8 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleObjectState) {
 
 // Check that kernel_bundles with executable_state are cached.
 TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Ctx(Devices);
+  std::vector<sycl::device> Devices = Plt.get_devices();
+  sycl::context Ctx(Devices[0]);
 
   auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
   auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
@@ -232,8 +232,8 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
 
 // Check that kernel_bundle built with specialization constants are cached.
 TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Ctx(Devices);
+  std::vector<sycl::device> Devices = Plt.get_devices();
+  sycl::context Ctx(Devices[0]);
 
   auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
   auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
@@ -261,8 +261,8 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
 
 // Check that kernel_bundle created through join() is not cached.
 TEST_F(KernelAndProgramCacheTest, KernelBundleJoin) {
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Ctx(Devices);
+  std::vector<sycl::device> Devices = Plt.get_devices();
+  sycl::context Ctx(Devices[0]);
 
   auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
   auto KernelID2 = sycl::get_kernel_id<CacheTestKernel2>();
