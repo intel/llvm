@@ -1,4 +1,4 @@
-; RUN: opt -passes=instcombine -S %s -o - -experimental-assignment-tracking \
+; RUN: opt -passes=instcombine -S %s -o - \
 ; RUN: | FileCheck %s
 
 ;; NOTE: This test uses typed pointers because it is testing a code path that
