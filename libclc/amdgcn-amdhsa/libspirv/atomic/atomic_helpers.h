@@ -9,6 +9,10 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
+#define AMDGPU_ARCH_GEQ(LOWER) __oclc_ISA_version >= LOWER
+#define AMDGPU_ARCH_BETWEEN(LOWER, UPPER)                                      \
+  __oclc_ISA_version >= LOWER &&__oclc_ISA_version < UPPER
+
 #define GET_ATOMIC_SCOPE_AND_ORDER(IN_SCOPE, OUT_SCOPE, IN_SEMANTICS,          \
                                    OUT_ORDER)                                  \
   {                                                                            \
