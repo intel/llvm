@@ -205,7 +205,16 @@ public:
       return EmitFinalDestCopy(E->getType(), LV);
     }
 
-    CGF.EmitPseudoObjectRValue(E, EnsureSlot(E->getType()));
+    AggValueSlot Slot = EnsureSlot(E->getType());
+    bool NeedsDestruction =
+        !Slot.isExternallyDestructed() &&
+        E->getType().isDestructedType() == QualType::DK_nontrivial_c_struct;
+    if (NeedsDestruction)
+      Slot.setExternallyDestructed();
+    CGF.EmitPseudoObjectRValue(E, Slot);
+    if (NeedsDestruction)
+      CGF.pushDestroy(QualType::DK_nontrivial_c_struct, Slot.getAddress(),
+                      E->getType());
   }
 
   void VisitVAArgExpr(VAArgExpr *E);
@@ -1601,20 +1610,8 @@ void AggExprEmitter::EmitNullInitializationToLValue(LValue lv) {
 }
 
 void AggExprEmitter::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
-  ArrayRef<Expr *> InitExprs = E->getInitExprs();
-  FieldDecl *InitializedFieldInUnion = nullptr;
-  if (E->getType()->isUnionType()) {
-    auto *RD =
-        dyn_cast<CXXRecordDecl>(E->getType()->castAs<RecordType>()->getDecl());
-    for (FieldDecl *FD : RD->fields()) {
-      if (FD->isUnnamedBitfield())
-        continue;
-      InitializedFieldInUnion = FD;
-      break;
-    }
-  }
-
-  VisitCXXParenListOrInitListExpr(E, InitExprs, InitializedFieldInUnion,
+  VisitCXXParenListOrInitListExpr(E, E->getInitExprs(),
+                                  E->getInitializedFieldInUnion(),
                                   E->getArrayFiller());
 }
 

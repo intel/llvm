@@ -93,8 +93,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if(SYCL_ENABLE_KERNEL_FUSION)
     target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)
     target_link_libraries(${LIB_OBJ_NAME} PRIVATE sycl-fusion)
-    set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-      sycl-fusion)
+    if (BUILD_SHARED_LIBS)
+     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+       sycl-fusion)
+    endif (BUILD_SHARED_LIBS)
   endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)

@@ -434,6 +434,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
       Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
+      Ty->isSpecificBuiltinType(BuiltinType::BFloat16) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
        !S.Context.getTargetInfo().hasFloat128Type())) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
@@ -1972,6 +1973,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
         SourceLocation(), getModifiedName(RD->getIdentifier()));
     ModifiedRD->startDefinition();
+    if (RD->hasAttrs())
+      ModifiedRD->setAttrs(RD->getAttrs());
     ModifiedRecords.push_back(ModifiedRD);
   }
 
@@ -1986,6 +1989,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         Ctx.getTrivialTypeSourceInfo(FieldTy, SourceLocation()), /*BW=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(FD->getAccess());
+    if (FD->hasAttrs())
+      Field->setAttrs(FD->getAttrs());
     // Add generated field to generated record.
     ModifiedRecords.back()->addDecl(Field);
   }

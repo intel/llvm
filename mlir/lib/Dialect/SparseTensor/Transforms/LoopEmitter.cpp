@@ -124,27 +124,19 @@ void LoopEmitter::initializeLoopEmit(OpBuilder &builder, Location loc,
     auto rank = rtp.getRank();
     auto shape = rtp.getShape();
     auto enc = getSparseTensorEncoding(rtp);
-    auto dynShape = {ShapedType::kDynamic};
+    uint64_t cooStart = enc ? getCOOStart(enc) : rank;
     // Scan all dimensions of current tensor.
     for (int64_t d = 0; d < rank; d++) {
       // This should be called only once at beginning.
       assert(!ptrBuffer[t][d] && !idxBuffer[t][d] && !highs[t][d]);
       // Handle sparse storage schemes.
       if (isCompressedDLT(dimTypes[t][d])) {
-        auto ptrTp =
-            MemRefType::get(dynShape, getPointerOverheadType(builder, enc));
-        auto indTp =
-            MemRefType::get(dynShape, getIndexOverheadType(builder, enc));
-        auto dim = builder.getIndexAttr(d);
         // Generate sparse primitives to obtains pointer and indices.
-        ptrBuffer[t][d] = builder.create<ToPointersOp>(loc, ptrTp, tensor, dim);
-        idxBuffer[t][d] = builder.create<ToIndicesOp>(loc, indTp, tensor, dim);
+        ptrBuffer[t][d] = genToPointers(builder, loc, tensor, d);
+        idxBuffer[t][d] = genToIndices(builder, loc, tensor, d, cooStart);
       } else if (isSingletonDLT(dimTypes[t][d])) {
         // Singleton dimension, fetch indices.
-        auto indTp =
-            MemRefType::get(dynShape, getIndexOverheadType(builder, enc));
-        auto dim = builder.getIndexAttr(d);
-        idxBuffer[t][d] = builder.create<ToIndicesOp>(loc, indTp, tensor, dim);
+        idxBuffer[t][d] = genToIndices(builder, loc, tensor, d, cooStart);
       } else {
         // Dense dimension, nothing to fetch.
         assert(isDenseDLT(dimTypes[t][d]));
@@ -175,9 +167,7 @@ void LoopEmitter::initializeLoopEmit(OpBuilder &builder, Location loc,
     } else {
       // Annotated sparse tensors.
       // We also need the value buffer for annotated all dense `sparse` tensor.
-      auto dynShape = {ShapedType::kDynamic};
-      auto sparseTp = MemRefType::get(dynShape, elementType);
-      valBuffer[t] = builder.create<ToValuesOp>(loc, sparseTp, tensor);
+      valBuffer[t] = genToValues(builder, loc, tensor);
     }
     // NOTE: we can also prepare for 0 dim here in advance, this will hosit
     // some loop preparation from tensor iteration, but will also (undesirably)
@@ -188,9 +178,8 @@ void LoopEmitter::initializeLoopEmit(OpBuilder &builder, Location loc,
 void LoopEmitter::enterNewLoopSeq(OpBuilder &builder, Location loc,
                                   ArrayRef<size_t> tids,
                                   ArrayRef<size_t> dims) {
-  // Universal Index start from 0
   assert(loopSeqStack.size() == loopStack.size());
-  // Universal index starts from 0
+  // Universal Index starts from 0.
   loopSeqStack.emplace_back(constantIndex(builder, loc, 0));
   // Prepares for all the tensors used in the current loop sequence.
   for (auto [tid, dim] : llvm::zip(tids, dims))

@@ -179,46 +179,48 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+                  is_geninteger<_T>::value,
+              Reducer &>
   operator++() {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+                  is_geninteger<_T>::value,
+              Reducer &>
   operator++(int) {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value, Reducer &>
   operator+=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value, Reducer &>
   operator*=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value, Reducer &>
   operator|=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value, Reducer &>
   operator^=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value, Reducer &>
   operator&=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
 private:
@@ -339,7 +341,10 @@ public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
+  reducer &combine(const T &Partial) {
+    MValue = MBinaryOp(MValue, Partial);
+    return *this;
+  }
 
   T getIdentity() const { return MIdentity; }
 
@@ -371,9 +376,10 @@ public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
 
-  void combine(const T &Partial) {
+  reducer &combine(const T &Partial) {
     BinaryOperation BOp;
     MValue = BOp(MValue, Partial);
+    return *this;
   }
 
   static T getIdentity() {
@@ -396,7 +402,10 @@ class reducer<T, BinaryOperation, Dims, Extent, View,
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MElement = MBinaryOp(MElement, Partial); }
+  reducer &combine(const T &Partial) {
+    MElement = MBinaryOp(MElement, Partial);
+    return *this;
+  }
 
 private:
   T &MElement;
@@ -527,6 +536,19 @@ struct get_red_t<
   using type = T;
 };
 
+namespace reduction {
+// Kernel name wrapper for initializing reduction-related memory through
+// reduction_impl_algo::withInitializedMem.
+template <typename KernelName> struct InitMemKrn;
+} // namespace reduction
+
+/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
+/// must do that to avoid name collisions.
+template <class KernelName>
+using __sycl_init_mem_for =
+    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+                       reduction::InitMemKrn<KernelName>>;
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo : public reduction_impl_common<T, BinaryOperation> {
@@ -642,7 +664,7 @@ public:
           // between host/device in lambda captures.
           size_t NElements = num_elements;
 
-          CopyHandler.single_task<KernelName>([=] {
+          CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
             for (int i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
@@ -845,14 +867,13 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_atomic_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       local_accessor<typename Reduction::result_type, 1> GroupSum{NElements,
                                                                   CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_atomic_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -1111,12 +1132,11 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::group_reduce_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::group_reduce_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's function. Reducer.MValue gets initialized there.
@@ -1144,7 +1164,10 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       size_t WGSize = NDRange.get_local_range().size();
       bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
@@ -1157,10 +1180,6 @@ struct NDRangeReduction<
       size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
       local_accessor<typename Reduction::result_type, 1> LocalReds{
           NLocalElements, CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -2328,9 +2347,7 @@ template <
     typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
 detail::reduction_impl<
     T, BinaryOperation, 0, 1,
-    accessor<T, 1, access::mode::read_write, access::target::device,
-             access::placeholder::true_t,
-             ext::oneapi::accessor_property_list<>>>
+    accessor<T, 1, access::mode::read_write, access::target::device>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
