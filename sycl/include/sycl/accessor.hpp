@@ -365,6 +365,13 @@ protected:
   };
 };
 
+template <typename DataT> constexpr access::mode accessModeFromConstness() {
+  if constexpr (std::is_const<DataT>::value)
+    return access::mode::read;
+  else
+    return access::mode::read_write;
+}
+
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
@@ -2645,20 +2652,13 @@ private:
 #endif
 };
 
-template <typename DataT> constexpr access::mode accessMode() {
-  if constexpr (std::is_const<DataT>::value)
-    return access::mode::read;
-  else
-    return access::mode::read_write;
-}
-
 template <typename DataT, int Dimensions = 1>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
-    : public local_accessor_base<DataT, Dimensions, accessMode<DataT>(),
+    : public local_accessor_base<DataT, Dimensions, detail::accessModeFromConstness<DataT>(),
                                  access::placeholder::false_t>,
       public detail::OwnerLessBase<local_accessor<DataT, Dimensions>> {
 
-  using local_acc = local_accessor_base<DataT, Dimensions, accessMode<DataT>(),
+  using local_acc = local_accessor_base<DataT, Dimensions, detail::accessModeFromConstness<DataT>(),
                                         access::placeholder::false_t>;
 
   // Use base classes constructors
