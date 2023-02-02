@@ -61,12 +61,17 @@ int main() {
   // The execution of the fused kennel does not depend on any events.
   assert(complete.get_wait_list().size() == 0);
 
+  // Need to wait for the event 'kernel1' here, as it is the event associated
+  // with the placeholder, which depends on 'complete', but is a separate event.
+  kernel1.wait();
   assert(isEventComplete(kernel1) && "Event should be complete");
   // The event returned for submissions while in fusion mode depends on three
   // events, for the two original kernels (which do not execute) and the fused
   // kernel to be executed.
   assert(kernel1.get_wait_list().size() == 3);
 
+  // 'kernel2' is the same event (associated with the placeholder) as 'kernel1',
+  // so no need to wait again.
   assert(isEventComplete(kernel2) && "Event should be complete");
   // The event returned for submissions while in fusion mode depends on three
   // events, for the two original kernels (which do not execute) and the fused

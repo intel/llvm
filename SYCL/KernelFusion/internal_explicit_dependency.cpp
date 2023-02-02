@@ -61,8 +61,13 @@ int main() {
   complete.wait();
   assert(isEventComplete(complete) && "Event should be complete");
 
+  // Need to wait for the event 'kernel1' here, as it is the event associated
+  // with the placeholder, which depends on 'complete', but is a separate event.
+  kernel1.wait();
   assert(isEventComplete(kernel1) && "Event should be complete");
 
+  // 'kernel2' is the same event (associated with the placeholder) as 'kernel1',
+  // so no need to wait again.
   assert(isEventComplete(kernel2) && "Event should be complete");
 
   // Check the results
