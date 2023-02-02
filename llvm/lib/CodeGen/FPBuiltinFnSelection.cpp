@@ -97,7 +97,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     report_fatal_error(
         Twine(BuiltinCall.getCalledFunction()->getName()) +
             Twine(" was called with required accuracy = ") +
-            Twine(RequiredAccuracy) + 
+            Twine(RequiredAccuracy) +
             Twine(" but no suitable implementation was found.\n"),
         false);
     return false;
