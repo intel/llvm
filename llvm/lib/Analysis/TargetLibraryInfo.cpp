@@ -1165,8 +1165,7 @@ static bool compareAltMathDescs(const AltMathDesc &LHS,
     if (LHS.VectorizationFactor.isScalable() !=
         RHS.VectorizationFactor.isScalable())
       return LHS.VectorizationFactor.isScalable() >
-             RHS.VectorizationFactor
-                 .isScalable();
+             RHS.VectorizationFactor.isScalable();
     // For non-scaleable vectors, this will be the fixed size
     // For scaleable vectors, it's the size that's multiplied by the vscale
     return LHS.VectorizationFactor.getKnownMinValue() <
@@ -1186,8 +1185,8 @@ void TargetLibraryInfoImpl::addAltMathFunctionsFromLib(
   switch (AltLib) {
   case TestAltMathLibrary: {
     const AltMathDesc AltMathFuncs[] = {
-    #define TLI_DEFINE_TEST_ALTMATHFUNCS
-    #include "llvm/Analysis/AltMathLibFuncs.def"
+#define TLI_DEFINE_TEST_ALTMATHFUNCS
+#include "llvm/Analysis/AltMathLibFuncs.def"
     };
     addAltMathFunctions(AltMathFuncs);
     break;
@@ -1204,14 +1203,13 @@ StringRef TargetLibraryInfoImpl::selectFPBuiltinImplementation(
   // TODO: Handle the case of no specified accuracy.
   if (Builtin->getRequiredAccuracy() == std::nullopt)
     return StringRef();
-  AltMathDesc RequiredDesc = {Builtin->getIntrinsicID(),
-                              Builtin->getBaseTypeID(),
-                              Builtin->getElementCount(),
-                              "", Builtin->getRequiredAccuracy().value()};
+  AltMathDesc RequiredDesc = {
+      Builtin->getIntrinsicID(), Builtin->getBaseTypeID(),
+      Builtin->getElementCount(), "", Builtin->getRequiredAccuracy().value()};
   std::vector<AltMathDesc>::const_iterator I =
       llvm::lower_bound(AltMathFuncDescs, RequiredDesc, compareAltMathDescs);
   if (I == AltMathFuncDescs.end())
-      return StringRef(); // TODO: Report fatal error?
+    return StringRef(); // TODO: Report fatal error?
   // No match found
   if (I->IntrinID != Builtin->getIntrinsicID() ||
       I->BaseFPType != Builtin->getBaseTypeID() ||

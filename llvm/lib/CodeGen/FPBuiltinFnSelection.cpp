@@ -74,7 +74,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       dbgs() << BuiltinCall.getRequiredAccuracy().value() << "\n";
   });
 
-  StringSet RecognizedAttrs = { FPBuiltinIntrinsic::FP_MAX_ERROR };
+  StringSet RecognizedAttrs = {FPBuiltinIntrinsic::FP_MAX_ERROR};
   if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
     report_fatal_error(
         Twine(BuiltinCall.getCalledFunction()->getName()) +
@@ -94,11 +94,12 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       RequiredAccuracy =
           formatv("{0}", BuiltinCall.getRequiredAccuracy().value());
 
-    report_fatal_error(Twine(BuiltinCall.getCalledFunction()->getName()) +
-                       Twine(" was called with required accuracy = ") +
-                       Twine(RequiredAccuracy) + 
-                       Twine(" but no suitable implementation was found.\n"),
-                       false);
+    report_fatal_error(
+        Twine(BuiltinCall.getCalledFunction()->getName()) +
+            Twine(" was called with required accuracy = ") +
+            Twine(RequiredAccuracy) + 
+            Twine(" but no suitable implementation was found.\n"),
+        false);
     return false;
   }
 

@@ -617,7 +617,7 @@ public:
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
-  static bool classof(const IntrinsicInst *I);    
+  static bool classof(const IntrinsicInst *I);
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }

@@ -19,8 +19,7 @@ namespace llvm {
 
 class Module;
 
-struct FPBuiltinFnSelectionPass
-    : PassInfoMixin<FPBuiltinFnSelectionPass> {
+struct FPBuiltinFnSelectionPass : PassInfoMixin<FPBuiltinFnSelectionPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

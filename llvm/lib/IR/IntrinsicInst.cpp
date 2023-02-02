@@ -295,7 +295,7 @@ Type::TypeID FPBuiltinIntrinsic::getBaseTypeID() const {
   assert((OperandTy->isFloatingPointTy() ||
           (OperandTy->isVectorTy() &&
            OperandTy->getScalarType()->isFloatingPointTy())) &&
-             "Unexpected type for floating point builtin intrinsic!");
+         "Unexpected type for floating point builtin intrinsic!");
   return OperandTy->getScalarType()->getTypeID();
 }
 
@@ -304,7 +304,7 @@ ElementCount FPBuiltinIntrinsic::getElementCount() const {
   assert((OperandTy->isFloatingPointTy() ||
           (OperandTy->isVectorTy() &&
            OperandTy->getScalarType()->isFloatingPointTy())) &&
-             "Unexpected type for floating point builtin intrinsic!");
+         "Unexpected type for floating point builtin intrinsic!");
   if (auto *VecTy = dyn_cast<VectorType>(OperandTy))
     return VecTy->getElementCount();
   return ElementCount::getFixed(1);
@@ -345,8 +345,7 @@ bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
 
 bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
   switch (I->getIntrinsicID()) {
-#define OPERATION(NAME, INTRINSIC)                        \
-  case Intrinsic::INTRINSIC:
+#define OPERATION(NAME, INTRINSIC) case Intrinsic::INTRINSIC:
 #include "llvm/IR/FPBuiltinOps.def"
     return true;
   default:
