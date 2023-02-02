@@ -69,8 +69,6 @@ public:
   /// Checks if this event is a SYCL host event.
   ///
   /// \return true if this event is a SYCL host event.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Return the list of events that this event waits for.

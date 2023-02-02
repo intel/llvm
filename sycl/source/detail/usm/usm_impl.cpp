@@ -61,9 +61,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
-
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  if (CtxImpl->is_host()) {
+  if (Ctxt.is_host()) {
     if (!Alignment) {
       // worst case default
       Alignment = 128;
@@ -77,6 +75,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       RetVal = nullptr;
     }
   } else {
+    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
@@ -568,12 +567,11 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-
   // Everything on a host device is just system malloc so call it host
-  if (CtxImpl->is_host())
+  if (Ctxt.is_host())
     return alloc::host;
 
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
   pi_usm_type AllocTy;
 
@@ -621,11 +619,11 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     throw runtime_error("Ptr not a valid USM allocation!",
                         PI_ERROR_INVALID_VALUE);
 
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-
   // Just return the host device in the host context
-  if (CtxImpl->is_host())
+  if (Ctxt.is_host())
     return Ctxt.get_devices()[0];
+
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {

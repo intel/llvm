@@ -56,6 +56,19 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
+  bool includeHost = false;
+  // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
+  // We will check if host devices are specified in the filter below.
+  if (FilterList) {
+    if (deviceType != info::device_type::host &&
+        deviceType != info::device_type::all)
+      includeHost = false;
+    else
+      includeHost = FilterList->containsHost();
+  } else {
+    // TODO(Pietro): removed with 1ee35aa2868af04825059f887b436cbe58dbd69e
+    // includeHost = detail::match_types(deviceType, info::device_type::host);
+  }
   auto thePlatforms = platform::get_platforms();
   for (const auto &plt : thePlatforms) {
     // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
@@ -69,6 +82,17 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
     std::vector<device> found_devices(plt.get_devices(deviceType));
     if (!found_devices.empty())
       devices.insert(devices.end(), found_devices.begin(), found_devices.end());
+    if (includeHost && plt.is_host()) {
+      std::vector<device> host_device(
+          plt.get_devices(info::device_type::host));
+      if (!host_device.empty())
+        devices.insert(devices.end(), host_device.begin(), host_device.end());
+    } else {
+      std::vector<device> found_devices(plt.get_devices(deviceType));
+      if (!found_devices.empty())
+        devices.insert(devices.end(), found_devices.begin(),
+                       found_devices.end());
+    }
   }
 
   return devices;
@@ -76,11 +100,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 
 cl_device_id device::get() const { return impl->get(); }
 
-bool device::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost && "device::is_host should not be called in implementation.");
-  return IsHost;
-}
+bool device::is_host() const { return impl->is_host(); }
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 

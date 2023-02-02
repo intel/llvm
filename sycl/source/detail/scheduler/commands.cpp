@@ -72,7 +72,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
-  if (getSyclObjImpl(Device)->is_host())
+  if (Device.is_host())
     return "HOST";
   else if (Device.is_cpu())
     return "CPU";
@@ -121,7 +121,7 @@ static void applyFuncOnFilteredArgs(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
-  if (getSyclObjImpl(Device)->is_host())
+  if (Device.is_host())
     return 0;
   else
     return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
@@ -2562,7 +2562,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    if (MQueue->getDeviceImplPtr()->is_host()) {
+    if (MQueue->get_device().is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
     }
@@ -2576,7 +2576,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
-    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
+    if (MQueue->get_device().is_host() || PiEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;

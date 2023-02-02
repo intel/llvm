@@ -840,11 +840,10 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent *OutEvent) {
-  assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
+  sycl::context Context = SrcQueue->get_context();
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
-    if (!DepEvents.empty()) {
+    if (!Context.is_host() && !DepEvents.empty()) {
       SrcQueue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
           OutEvent);
@@ -856,21 +855,24 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  const detail::plugin &Plugin = SrcQueue->getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
-                                                /* blocking */ PI_FALSE, DstMem,
-                                                SrcMem, Len, DepEvents.size(),
-                                                DepEvents.data(), OutEvent);
+  if (Context.is_host()) {
+    std::memcpy(DstMem, SrcMem, Len);
+  } else {
+    const detail::plugin &Plugin = SrcQueue->getPlugin();
+    Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
+                                                  /* blocking */ false, DstMem,
+                                                  SrcMem, Len, DepEvents.size(),
+                                                  DepEvents.data(), OutEvent);
+  }
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent *OutEvent) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
+  sycl::context Context = Queue->get_context();
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
-    if (!DepEvents.empty()) {
+    if (!Context.is_host() && !DepEvents.empty()) {
       Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -881,34 +883,42 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  if (Context.is_host()) {
+    std::memset(Mem, Pattern, Length);
+  } else {
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
+        Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
+        DepEvents.data(), OutEvent);
+  }
 }
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<RT::PiEvent> DepEvents,
                                  RT::PiEvent *OutEvent) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in prefetch_usm.");
+  sycl::context Context = Queue->get_context();
 
-  const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
-      Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
-      DepEvents.size(), DepEvents.data(), OutEvent);
+  if (Context.is_host()) {
+    // TODO: Potentially implement prefetch on the host.
+  } else {
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
+        Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
+        DepEvents.size(), DepEvents.data(), OutEvent);
+  }
 }
 
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<RT::PiEvent> /*DepEvents*/,
                                RT::PiEvent *OutEvent) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in advise_usm.");
+  sycl::context Context = Queue->get_context();
 
-  const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                   Length, Advice, OutEvent);
+  if (!Context.is_host()) {
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
+                                                     Length, Advice, OutEvent);
+  }
 }
 
 void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,

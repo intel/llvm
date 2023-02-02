@@ -16,15 +16,18 @@ using namespace sycl;
 
 class ContextTest : public ::testing::Test {
 public:
-  // NOTE: Devices must be initialized as part of the constructor to prevent
-  //       default initialization, in case no devices are available before mock
-  //       has been initialized.
-  ContextTest()
-      : mock{}, deviceA{mock.getPlatform().get_devices().front()},
-        deviceB{mock.getPlatform().get_devices().back()} {}
+  ContextTest() {}
 
 protected:
-  unittest::PiMock mock;
+  void SetUp() override {
+    unittest::PiMock::EnsureMockPluginInitialized();
+
+    auto devices = device::get_devices();
+    deviceA = devices[0];
+    deviceB = devices[(devices.size() > 1 ? 1 : 0)];
+  }
+
+protected:
   device deviceA, deviceB;
 };
 

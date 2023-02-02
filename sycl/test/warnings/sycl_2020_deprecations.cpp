@@ -215,7 +215,7 @@ int main() {
   sycl::gpu_selector gs;
   // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
   sycl::accelerator_selector as;
-  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
+  // expected-warning@+1{{'host_selector' is deprecated: Use a callable function instead.}}
   sycl::host_selector hs;
 
   // expected-warning@+1{{Use SYCL 2020 callable device selectors instead.}}

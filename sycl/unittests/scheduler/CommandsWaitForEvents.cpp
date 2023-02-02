@@ -223,8 +223,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   std::shared_ptr<detail::event_impl> E2(
       new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
 
-  device HostDevice = detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl());
+  sycl::device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));

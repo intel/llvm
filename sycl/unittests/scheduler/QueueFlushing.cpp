@@ -122,8 +122,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 
-    device HostDevice = detail::createSyclObjFromImpl<device>(
-        detail::device_impl::getHostDeviceImpl());
+    device HostDevice{host_selector{}};
     detail::QueueImplPtr DefaultHostQueue{
         new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
     detail::AllocaCommand HostAllocaCmd =

@@ -157,7 +157,12 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 }
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (MIsHostDevice)
+    // TODO: implement host device partitioning
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw sycl::feature_not_supported(
@@ -181,7 +186,12 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (MIsHostDevice)
+    // TODO: implement host device partitioning
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw sycl::feature_not_supported(
@@ -224,7 +234,12 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
 
 std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (MIsHostDevice)
+    // TODO: implement host device partitioning
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
