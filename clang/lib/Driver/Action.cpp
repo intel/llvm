@@ -68,6 +68,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "foreach";
   case SpirvToIrWrapperJobClass:
     return "spirv-to-ir-wrapper";
+  case BinaryAnalyzeJobClass:
+    return "binary-analyzer";
   }
 
   llvm_unreachable("invalid class");
@@ -608,3 +610,7 @@ JobAction *ForEachWrappingAction::getTFormInput() const {
 JobAction *ForEachWrappingAction::getJobAction() const {
   return llvm::cast<JobAction>(getInputs()[1]);
 }
+void BinaryAnalyzeJobAction::anchor() {}
+
+BinaryAnalyzeJobAction::BinaryAnalyzeJobAction(Action *Input, types::ID Type)
+    : JobAction(BinaryAnalyzeJobClass, Input, Type) {}
