@@ -13,8 +13,19 @@ typedef _Float16 _iml_half_internal;
 typedef uint16_t _iml_half_internal;
 #endif
 
+template <class Ty> class imf_utils_default_equ {
+public:
+  bool operator()(Ty x, Ty y) {
+    if constexpr (std::is_same_v<Ty, sycl::half2>) {
+      return (x.s0() == y.s0()) && (x.s1() == y.s1());
+    } else
+      return x == y;
+  };
+};
+
 // Used to test half precision utils
-template <class InputTy, class OutputTy, class FuncTy>
+template <class InputTy, class OutputTy, class FuncTy,
+          class EquTy = imf_utils_default_equ<OutputTy>>
 void test_host(std::initializer_list<InputTy> Input,
                std::initializer_list<OutputTy> RefOutput, FuncTy Func,
                int Line = __builtin_LINE()) {
@@ -24,7 +35,7 @@ void test_host(std::initializer_list<InputTy> Input,
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
     auto Res = Func(*(std::begin(Input) + i));
-    if (Expected == Res)
+    if (EquTy()(Expected, Res))
       continue;
 
     std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Res
@@ -33,7 +44,8 @@ void test_host(std::initializer_list<InputTy> Input,
   }
 }
 
-template <class InputTy, class OutputTy, class FuncTy>
+template <class InputTy, class OutputTy, class FuncTy,
+          class EquTy = imf_utils_default_equ<OutputTy>>
 void test(sycl::queue &q, std::initializer_list<InputTy> Input,
           std::initializer_list<OutputTy> RefOutput, FuncTy Func,
           int Line = __builtin_LINE()) {
@@ -60,7 +72,7 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
     if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
-      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
                 << Acc[i].s0() << ", " << Acc[i].s1() << ")"
@@ -68,7 +80,7 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
                 << ", input was (" << (*(std::begin(Input) + i)).s0() << ", "
                 << (*(std::begin(Input) + i)).s1() << ")" << std::endl;
     } else {
-      if (Expected == Acc[i])
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
                 << " != " << Expected << ", input was "
@@ -78,7 +90,8 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
   }
 }
 
-template <class InputTy, class OutputTy, class FuncTy>
+template <class InputTy, class OutputTy, class FuncTy,
+          class EquTy = imf_utils_default_equ<OutputTy>>
 void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
            std::initializer_list<InputTy> Input2,
            std::initializer_list<OutputTy> RefOutput, FuncTy Func,
@@ -112,14 +125,14 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
     if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
-      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
                 << Acc[i].s0() << ", " << Acc[i].s1() << ")"
                 << " != (" << Expected.s0() << ", " << Expected.s1()
                 << "), input idx was " << i << std::endl;
     } else {
-      if (Expected == Acc[i])
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
                 << " != " << Expected << ", input idx was " << i << std::endl;
@@ -129,7 +142,7 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
 }
 
 template <class InputTy1, class InputTy2, class InputTy3, class OutputTy,
-          class FuncTy>
+          class FuncTy, class EquTy = imf_utils_default_equ<OutputTy>>
 void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
            std::initializer_list<InputTy2> Input2,
            std::initializer_list<InputTy3> Input3,
@@ -168,14 +181,14 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
     if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
-      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
                 << Acc[i].s0() << ", " << Acc[i].s1() << ")"
                 << " != (" << Expected.s0() << ", " << Expected.s1()
                 << "), input idx was " << i << std::endl;
     } else {
-      if (Expected == Acc[i])
+      if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
                 << " != " << Expected << ", input was "
