@@ -163,8 +163,6 @@ pi_result check_error(CUresult result, const char *function, int line,
 
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
-// Use (void) to silence unused warnings.
-#define assertm(exp, msg) assert(((void)msg, exp))
 
 /// ScopedContext is used across all PI CUDA plugin implementation to ensure
 /// that the proper CUDA context is active for the given PI context.
@@ -5436,7 +5434,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     CUresult ret = cuPointerGetAttribute(
         &src_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)src_ptr);
     assertm(
-        (src_type != CU_MEMORYTYPE_ARRAY && src_type != CU_MEMORYTYPE_UNIFIED),
+        (src_type != CU_MEMORYTYPE_ARRAY && src_type != CU_MEMORYTYPE_UNIFIED) &&
         "ARRAY, UNIFIED types are not supported!");
 
     // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
@@ -5459,7 +5457,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     ret = cuPointerGetAttribute(&dst_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                 (CUdeviceptr)dst_ptr);
     assertm(
-        (dst_type != CU_MEMORYTYPE_ARRAY && dst_type != CU_MEMORYTYPE_UNIFIED),
+        (dst_type != CU_MEMORYTYPE_ARRAY && dst_type != CU_MEMORYTYPE_UNIFIED) &&
         "ARRAY, UNIFIED types are not supported!");
 
     // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
