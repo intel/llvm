@@ -131,6 +131,8 @@ def loongarch_iocsrwr_w : SDNode<"LoongArchISD::IOCSRWR_W",
 def loongarch_iocsrwr_d : SDNode<"LoongArchISD::IOCSRWR_D",
                                   SDT_LoongArchIocsrwr,
                                   [SDNPHasChain, SDNPSideEffect]>;
+def loongarch_cpucfg : SDNode<"LoongArchISD::CPUCFG", SDTUnaryOp,
+                               [SDNPHasChain, SDNPSideEffect]>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -149,6 +151,20 @@ class SImmAsmOperand<int width, string suffix = "">
 
 class UImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"U", width, suffix> {
+}
+
+// A parse method for "$r*" or "$r*, 0", where the 0 is be silently ignored.
+// Only used for "AM*" instructions, in order to be compatible with GAS.
+def AtomicMemAsmOperand : AsmOperandClass {
+  let Name = "AtomicMemAsmOperand";
+  let RenderMethod = "addRegOperands";
+  let PredicateMethod = "isGPR";
+  let ParserMethod = "parseAtomicMemOp";
+}
+
+def GPRMemAtomic : RegisterOperand<GPR> {
+  let ParserMatchClass = AtomicMemAsmOperand;
+  let PrintMethod = "printAtomicMemOp";
 }
 
 // A parameterized register class alternative to i32imm/i64imm from Target.td.
@@ -180,7 +196,7 @@ def uimm6 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<6>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<6>;
 }
 
-def uimm8 : Operand<GRLenVT> {
+def uimm8 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<8>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<8>;
 }
 
@@ -434,7 +450,8 @@ class STORE_2RI14<bits<8> op, string opstr>
 
 let mayLoad = 1, mayStore = 1, Constraints = "@earlyclobber $rd" in
 class AM_3R<bits<17> op, string opstr>
-    : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rk, GPR:$rj), opstr, "$rd, $rk, $rj">;
+    : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rk, GPRMemAtomic:$rj), opstr,
+            "$rd, $rk, $rj">;
 
 let mayLoad = 1 in
 class LLBase<bits<8> op, string opstr>
@@ -1312,17 +1329,17 @@ defm : AtomicStPat<atomic_store_16, ST_H, GPR, GRLenVT>;
 defm : AtomicStPat<atomic_store_unordered_monotonic_32, ST_W, GPR, i32>,
                    Requires<[IsLA32]>;
 
-def PseudoAtomicStoreW : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
-                                 PseudoInstExpansion<(AMSWAP_DB_W R0,
-                                                      GPR:$rk, GPR:$rj)>;
+def PseudoAtomicStoreW
+  : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
+           PseudoInstExpansion<(AMSWAP_DB_W R0, GPR:$rk, GPRMemAtomic:$rj)>;
 
 def : Pat<(atomic_store_release_seqcst_32 GPR:$rj, GPR:$rk),
           (PseudoAtomicStoreW GPR:$rj, GPR:$rk)>;
 
 let Predicates = [IsLA64] in {
-def PseudoAtomicStoreD : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
-                                 PseudoInstExpansion<(AMSWAP_DB_D R0,
-                                                      GPR:$rk, GPR:$rj)>;
+def PseudoAtomicStoreD
+  : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
+           PseudoInstExpansion<(AMSWAP_DB_D R0, GPR:$rk, GPRMemAtomic:$rj)>;
 
 def : Pat<(atomic_store_release_seqcst_64 GPR:$rj, GPR:$rk),
           (PseudoAtomicStoreD GPR:$rj, GPR:$rk)>;
@@ -1685,7 +1702,17 @@ def : Pat<(loongarch_iocsrwr_b GPR:$rd, GPR:$rj), (IOCSRWR_B GPR:$rd, GPR:$rj)>;
 def : Pat<(loongarch_iocsrwr_h GPR:$rd, GPR:$rj), (IOCSRWR_H GPR:$rd, GPR:$rj)>;
 def : Pat<(loongarch_iocsrwr_w GPR:$rd, GPR:$rj), (IOCSRWR_W GPR:$rd, GPR:$rj)>;
 
+def : Pat<(loongarch_cpucfg GPR:$rj), (CPUCFG GPR:$rj)>;
+
 let Predicates = [IsLA64] in {
 def : Pat<(loongarch_iocsrrd_d GPR:$rj), (IOCSRRD_D GPR:$rj)>;
 def : Pat<(loongarch_iocsrwr_d GPR:$rd, GPR:$rj), (IOCSRWR_D GPR:$rd, GPR:$rj)>;
+def : Pat<(int_loongarch_asrtle_d GPR:$rj, GPR:$rk),
+          (ASRTLE_D GPR:$rj, GPR:$rk)>;
+def : Pat<(int_loongarch_asrtgt_d GPR:$rj, GPR:$rk),
+          (ASRTGT_D GPR:$rj, GPR:$rk)>;
+def : Pat<(int_loongarch_lddir_d GPR:$rj, timm:$imm8),
+          (LDDIR GPR:$rj, uimm8:$imm8)>;
+def : Pat<(int_loongarch_ldpte_d GPR:$rj, timm:$imm8),
+          (LDPTE GPR:$rj, uimm8:$imm8)>;
 } // Predicates = [IsLA64]

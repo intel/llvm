@@ -63,7 +63,10 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
@@ -485,12 +488,13 @@ static bool verifyOutput(StringRef OutputFile, StringRef Arch, bool Verbose) {
 
 namespace {
 struct OutputLocation {
-  OutputLocation(std::string DWARFFile, Optional<std::string> ResourceDir = {})
+  OutputLocation(std::string DWARFFile,
+                 std::optional<std::string> ResourceDir = {})
       : DWARFFile(DWARFFile), ResourceDir(ResourceDir) {}
   /// This method is a workaround for older compilers.
-  Optional<std::string> getResourceDir() const { return ResourceDir; }
+  std::optional<std::string> getResourceDir() const { return ResourceDir; }
   std::string DWARFFile;
-  Optional<std::string> ResourceDir;
+  std::optional<std::string> ResourceDir;
 };
 } // namespace
 

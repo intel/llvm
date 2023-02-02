@@ -65,6 +65,10 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
+template <backend BackendName, class SyclObjectT>
+auto get_native2(const SyclObjectT &Obj)
+    ->backend_return_t2<BackendName, SyclObjectT>;
+
 namespace detail {
 class queue_impl;
 
@@ -554,8 +558,9 @@ public:
   event memset(void *Ptr, int Value, size_t Count,
                const std::vector<event> &DepEvents);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -566,8 +571,9 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -579,8 +585,9 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -594,8 +601,9 @@ public:
   event memcpy(void *Dest, const void *Src, size_t Count,
                const std::vector<event> &DepEvents);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -612,8 +620,9 @@ public:
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -632,8 +641,9 @@ public:
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on the device
+  /// associated with this queue.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -1612,6 +1622,7 @@ public:
 
 private:
   pi_native_handle getNative() const;
+  pi_native_handle2 getNative2() const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
@@ -1624,6 +1635,9 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native2(const SyclObjectT& Obj)
+    ->backend_return_t2<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,

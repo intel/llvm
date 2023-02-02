@@ -566,6 +566,7 @@ public:
   ///
   /// \return a native handle.
   pi_native_handle getNative() const;
+  pi_native_handle2 getNative2() const;
 
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;

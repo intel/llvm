@@ -73,21 +73,25 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS 1
 #define SYCL_EXT_ONEAPI_WEAK_OBJECT 1
 #define SYCL_EXT_ONEAPI_MEMCPY2D 1
-#cmakedefine01 SYCL_BUILD_PI_CUDA
-#if SYCL_BUILD_PI_CUDA
-#define SYCL_EXT_ONEAPI_BACKEND_CUDA 1
-#endif
-#cmakedefine01 SYCL_BUILD_PI_ESIMD_EMULATOR
-#if SYCL_BUILD_PI_ESIMD_EMULATOR
-#define SYCL_EXT_INTEL_BACKEND_ESIMD_EMULATOR 1
-#endif
-#cmakedefine01 SYCL_BUILD_PI_HIP
-#if SYCL_BUILD_PI_HIP
-#define SYCL_EXT_ONEAPI_BACKEND_HIP 1
-#endif
 #cmakedefine01 SYCL_ENABLE_KERNEL_FUSION
 #if SYCL_ENABLE_KERNEL_FUSION
 #define SYCL_EXT_CODEPLAY_KERNEL_FUSION 1
+#endif
+
+#ifndef __has_include
+#define __has_include(x) 0
+#endif
+
+#if __has_include("detail/plugins/cuda/features.hpp")
+#include "detail/plugins/cuda/features.hpp"
+#endif
+
+#if __has_include("detail/plugins/hip/features.hpp")
+#include "detail/plugins/hip/features.hpp"
+#endif
+
+#if __has_include("detail/plugins/esimd_emulator/features.hpp")
+#include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

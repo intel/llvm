@@ -16,11 +16,6 @@ namespace clang {
 namespace tidy {
 namespace misc {
 namespace {
-AST_POLYMORPHIC_MATCHER(isStatic, AST_POLYMORPHIC_SUPPORTED_TYPES(FunctionDecl,
-                                                                  VarDecl)) {
-  return Node.getStorageClass() == SC_Static;
-}
-
 AST_POLYMORPHIC_MATCHER_P(isInHeaderFile,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(FunctionDecl,
                                                           VarDecl),
@@ -34,10 +29,6 @@ AST_MATCHER(FunctionDecl, isMemberFunction) {
   return llvm::isa<CXXMethodDecl>(&Node);
 }
 AST_MATCHER(VarDecl, isStaticDataMember) { return Node.isStaticDataMember(); }
-
-AST_MATCHER(Decl, isInAnonymousNamespace) {
-  return Node.isInAnonymousNamespace();
-}
 } // namespace
 
 UseAnonymousNamespaceCheck::UseAnonymousNamespaceCheck(
@@ -60,13 +51,13 @@ void UseAnonymousNamespaceCheck::storeOptions(
 
 void UseAnonymousNamespaceCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      functionDecl(isStatic(),
+      functionDecl(isStaticStorageClass(),
                    unless(anyOf(isInHeaderFile(HeaderFileExtensions),
                                 isInAnonymousNamespace(), isMemberFunction())))
           .bind("x"),
       this);
   Finder->addMatcher(
-      varDecl(isStatic(),
+      varDecl(isStaticStorageClass(),
               unless(anyOf(isInHeaderFile(HeaderFileExtensions),
                            isInAnonymousNamespace(), isStaticLocal(),
                            isStaticDataMember(), hasType(isConstQualified()))))

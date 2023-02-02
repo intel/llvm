@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   Support
+  TargetParser
   )
 
 add_llvm_unittest(SupportTests
@@ -25,10 +26,10 @@ add_llvm_unittest(SupportTests
   ConvertUTFTest.cpp
   CRCTest.cpp
   CSKYAttributeParserTest.cpp
-  CSKYTargetParserTest.cpp
   DataExtractorTest.cpp
-  DebugTest.cpp
   DebugCounterTest.cpp
+  DebugTest.cpp
+  DivisionByConstantTest.cpp
   DJBTest.cpp
   EndianStreamTest.cpp
   EndianTest.cpp
@@ -44,7 +45,6 @@ add_llvm_unittest(SupportTests
   FSUniqueIDTest.cpp
   GlobPatternTest.cpp
   HashBuilderTest.cpp
-  Host.cpp
   IndexedAccessorTest.cpp
   InstructionCostTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
@@ -82,7 +82,6 @@ add_llvm_unittest(SupportTests
   SwapByteOrderTest.cpp
   SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp
-  TargetParserTest.cpp
   TaskQueueTest.cpp
   ThreadLocalTest.cpp
   ThreadPool.cpp
@@ -91,6 +90,7 @@ add_llvm_unittest(SupportTests
   TimeProfilerTest.cpp
   ToolOutputFileTest.cpp
   TypeNameTest.cpp
+  TypeSizeTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
   TrigramIndexTest.cpp

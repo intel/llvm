@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "JITContext.h"
+#include "llvm/IR/LLVMContext.h"
 
 using namespace jit_compiler;
 

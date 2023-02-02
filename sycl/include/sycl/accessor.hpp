@@ -344,8 +344,9 @@ protected:
     }
 
     template <int CurDims = SubDims,
-              typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
-    RefType operator[](size_t Index) const {
+              typename = detail::enable_if_t<
+                  CurDims == 1 && (IsAccessReadOnly || IsAccessAnyWrite)>>
+    typename AccType::reference operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -355,13 +356,6 @@ protected:
                                  atomic<DataT, AS>>
     operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
-      return MAccessor[MIDs];
-    }
-
-    template <int CurDims = SubDims,
-              typename = detail::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
-    ConstRefType operator[](size_t Index) const {
-      MIDs[Dims - SubDims] = Index;
       return MAccessor[MIDs];
     }
   };
@@ -1213,12 +1207,14 @@ public:
   // otherwise
   using value_type = typename std::conditional<AccessMode == access_mode::read,
                                                const DataT, DataT>::type;
-  using reference = DataT &;
+  using reference = value_type &;
   using const_reference = const DataT &;
 
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
       typename detail::accessor_iterator<const value_type, Dimensions>;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -1971,30 +1967,17 @@ public:
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
-                                           !std::is_const<RefT>::value>>
-  operator RefType() const {
+            typename = detail::enable_if_t<Dims == 0 && (IsAccessAnyWrite ||
+                                                         IsAccessReadOnly)>>
+  operator reference() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
-  operator ConstRefType() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return *(getQualifiedPtr() + LinearIndex);
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
-  RefType operator[](id<Dimensions> Index) const {
-    const size_t LinearIndex = getLinearIndex(Index);
-    return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions>
-  typename detail::enable_if_t<(Dims > 0) && IsAccessReadOnly, ConstRefType>
-  operator[](id<Dimensions> Index) const {
+            typename = detail::enable_if_t<(Dims > 0) && (IsAccessAnyWrite ||
+                                                          IsAccessReadOnly)>>
+  reference operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
@@ -2127,6 +2110,16 @@ public:
         get_pointer(),
         detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
         get_offset());
+  }
+
+  reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+  reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(cend());
+  }
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(cbegin());
   }
 
 private:
@@ -2962,7 +2955,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
+      buffer<T, Dims, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, PropertyList, CodeLoc) {}
@@ -2978,35 +2971,32 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      handler &CommandGroupHandler, mode_tag_t<AccessMode>,
-      const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      mode_tag_t<AccessMode>, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      range<Dimensions> AccessRange, const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
-      const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      mode_tag_t<AccessMode>, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      handler &CommandGroupHandler, range<Dimensions> AccessRange,
-      const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                   CodeLoc) {}
@@ -3014,9 +3004,9 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      handler &CommandGroupHandler, range<Dimensions> AccessRange,
-      mode_tag_t<AccessMode>, const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
+      const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                       PropertyList, CodeLoc) {}
@@ -3024,9 +3014,8 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
-      const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      id<Dimensions> AccessOffset, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
   }
@@ -3034,9 +3023,9 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
-      mode_tag_t<AccessMode>, const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      id<Dimensions> AccessOffset, mode_tag_t<AccessMode>,
+      const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, AccessRange, AccessOffset, PropertyList,
                       CodeLoc) {}
@@ -3044,9 +3033,9 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      handler &CommandGroupHandler, range<Dimensions> AccessRange,
-      id<Dimensions> AccessOffset, const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+      const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                   PropertyList, CodeLoc) {}
@@ -3054,10 +3043,9 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
-      buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-      handler &CommandGroupHandler, range<Dimensions> AccessRange,
-      id<Dimensions> AccessOffset, mode_tag_t<AccessMode>,
-      const property_list &PropertyList = {},
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+      mode_tag_t<AccessMode>, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                       PropertyList, CodeLoc) {}

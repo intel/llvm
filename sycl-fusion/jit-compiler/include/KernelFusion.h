@@ -13,7 +13,9 @@
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
+#include <cassert>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace jit_compiler {

@@ -34,15 +34,15 @@
 ; RUN: spirv-as < %s --target-env spv1.0 -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL1.2 -o %t.bc
-; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: llvm-dis -opaque-pointers=0 %t.bc -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-CL,CHECK-CL12
 
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL2.0 -o %t.bc
-; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: llvm-dis -opaque-pointers=0 %t.bc -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-CL,CHECK-CL20
 
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.bc
-; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: llvm-dis -opaque-pointers=0 %t.bc -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+all -o %t.rev.spv

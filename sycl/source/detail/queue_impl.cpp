@@ -428,8 +428,22 @@ pi_native_handle queue_impl::getNative() const {
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
-  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle);
+  bool IsImmCmdList;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
+                                                    &IsImmCmdList);
   return Handle;
+}
+
+pi_native_handle2 queue_impl::getNative2() const {
+  const detail::plugin &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+  pi_native_handle Handle{};
+  bool IsImmCmdList;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
+                                                    &IsImmCmdList);
+  pi_native_handle2 Handle2{Handle, IsImmCmdList};
+  return Handle2;
 }
 
 bool queue_impl::ext_oneapi_empty() const {

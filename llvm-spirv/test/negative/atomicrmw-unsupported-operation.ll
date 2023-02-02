@@ -1,5 +1,5 @@
-; RUN: llvm-as < %s -o %t.bc
-; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
+; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: not llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK: Atomic nand is not supported in SPIR-V!

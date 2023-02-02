@@ -39,6 +39,7 @@ constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
 enum class DecorValueTy {
   uint32,
   boolean,
+  none,
 };
 
 struct Decor {

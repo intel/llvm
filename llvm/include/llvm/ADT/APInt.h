@@ -955,9 +955,7 @@ public:
   ///
   /// Perform an unsigned remainder operation on this APInt with RHS being the
   /// divisor. Both this and RHS are treated as unsigned quantities for purposes
-  /// of this operation. Note that this is a true remainder operation and not a
-  /// modulo operation because the sign follows the sign of the dividend which
-  /// is *this.
+  /// of this operation.
   ///
   /// \returns a new APInt value containing the remainder result
   APInt urem(const APInt &RHS) const;
@@ -966,6 +964,9 @@ public:
   /// Function for signed remainder operation.
   ///
   /// Signed remainder operation on APInt.
+  ///
+  /// Note that this is a true remainder operation and not a modulo operation
+  /// because the sign follows the sign of the dividend which is *this.
   APInt srem(const APInt &RHS) const;
   int64_t srem(int64_t RHS) const;
 
@@ -1490,6 +1491,16 @@ public:
     return U.pVal[0];
   }
 
+  /// Get zero extended value if possible
+  ///
+  /// This method attempts to return the value of this APInt as a zero extended
+  /// uint64_t. The bitwidth must be <= 64 or the value must fit within a
+  /// uint64_t. Otherwise no value is returned.
+  std::optional<uint64_t> tryZExtValue() const {
+    return (getActiveBits() <= 64) ? std::optional<uint64_t>(getZExtValue())
+                                   : std::nullopt;
+  };
+
   /// Get sign extended value
   ///
   /// This method attempts to return the value of this APInt as a sign extended
@@ -1501,6 +1512,16 @@ public:
     assert(getSignificantBits() <= 64 && "Too many bits for int64_t");
     return int64_t(U.pVal[0]);
   }
+
+  /// Get sign extended value if possible
+  ///
+  /// This method attempts to return the value of this APInt as a sign extended
+  /// int64_t. The bitwidth must be <= 64 or the value must fit within an
+  /// int64_t. Otherwise no value is returned.
+  std::optional<int64_t> trySExtValue() const {
+    return (getSignificantBits() <= 64) ? std::optional<int64_t>(getSExtValue())
+                                        : std::nullopt;
+  };
 
   /// Get bits required for string value.
   ///

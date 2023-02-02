@@ -10,12 +10,12 @@ int main() {
     Cgh.parallel_for<KernelA>(
         sycl::nd_range<1>(sycl::range<1>(1), sycl::range<1>(1)),
         [=](sycl::nd_item<1> Item) {
-          // expected-warning@+3 {{'group_local_memory<int, sycl::group<1>, int>' is deprecated: use sycl::ext::oneapi::group_local_memory instead}}
+          // expected-warning@+3 {{'group_local_memory<int, sycl::group<>, int>' is deprecated: use sycl::ext::oneapi::group_local_memory instead}}
           sycl::multi_ptr<int, sycl::access::address_space::local_space,
                           sycl::access::decorated::legacy>
               GlmA = sycl::group_local_memory<int>(Item.get_group(), 1);
 
-          // expected-warning@+4 {{'group_local_memory_for_overwrite<int, sycl::group<1>>' is deprecated: use sycl::ext::oneapi::group_local_memory_for_overwrite instead}}
+          // expected-warning@+4 {{'group_local_memory_for_overwrite<int, sycl::group<>>' is deprecated: use sycl::ext::oneapi::group_local_memory_for_overwrite instead}}
           sycl::multi_ptr<int, sycl::access::address_space::local_space,
                           sycl::access::decorated::legacy>
               GlmB =

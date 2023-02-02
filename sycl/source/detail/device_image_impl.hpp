@@ -82,9 +82,17 @@ public:
 
   bool has_kernel(const kernel_id &KernelIDCand,
                   const device &DeviceCand) const noexcept {
+    // If the device is in the device list and the kernel ID is in the kernel
+    // bundle, return true.
     for (const device &Device : MDevices)
       if (Device == DeviceCand)
         return has_kernel(KernelIDCand);
+
+    // Otherwise, if the device candidate is a sub-device it is also valid if
+    // its parent is valid.
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
+      return has_kernel(KernelIDCand,
+                        DeviceCand.get_info<info::device::parent_device>());
 
     return false;
   }

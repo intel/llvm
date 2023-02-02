@@ -2154,6 +2154,24 @@ pi_int32 enqueueImpKernel(
             OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
   }
 
+  // We may need more events for the launch, so we make another reference.
+  std::vector<RT::PiEvent> &EventsWaitList = RawEvents;
+
+  // Initialize device globals associated with this.
+  std::vector<RT::PiEvent> DeviceGlobalInitEvents =
+      ContextImpl->initializeDeviceGlobals(Program, Queue);
+  std::vector<RT::PiEvent> EventsWithDeviceGlobalInits;
+  if (!DeviceGlobalInitEvents.empty()) {
+    EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
+                                        DeviceGlobalInitEvents.size());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       RawEvents.begin(), RawEvents.end());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       DeviceGlobalInitEvents.begin(),
+                                       DeviceGlobalInitEvents.end());
+    EventsWaitList = EventsWithDeviceGlobalInits;
+  }
+
   pi_result Error = PI_SUCCESS;
   ProgramManager::KernelArgMask EliminatedArgMask;
   if (nullptr == MSyclKernel || !MSyclKernel->isCreatedFromSource()) {
@@ -2165,11 +2183,11 @@ pi_int32 enqueueImpKernel(
     // For cacheable kernels, we use per-kernel mutex
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
+                                     NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   } else {
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
+                                     NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   }
 

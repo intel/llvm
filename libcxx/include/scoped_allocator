@@ -118,6 +118,7 @@ template <class OuterA1, class OuterA2, class... InnerAllocs>
 #include <__type_traits/integral_constant.h>
 #include <__type_traits/is_constructible.h>
 #include <__type_traits/remove_reference.h>
+#include <__utility/declval.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/pair.h>
@@ -373,7 +374,7 @@ template <class _Alloc>
 struct __has_outer_allocator
     : public common_type
              <
-                 decltype(__has_outer_allocator_test(declval<_Alloc&>()))
+                 decltype(std::__has_outer_allocator_test(declval<_Alloc&>()))
              >::type
 {
 };
@@ -725,6 +726,7 @@ _LIBCPP_END_NAMESPACE_STD
 #  include <memory>
 #  include <ratio>
 #  include <stdexcept>
+#  include <type_traits>
 #  include <variant>
 #endif
 

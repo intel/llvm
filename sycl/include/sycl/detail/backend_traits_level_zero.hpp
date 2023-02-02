@@ -26,14 +26,8 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
 
-struct _ze_queue_handle_t {};
-struct _ze_command_queue_handle_t : _ze_queue_handle_t {};
-struct _ze_command_list_handle_t : _ze_queue_handle_t {};
-
-// This declares a pointer to an L0 object, which is either a command list or
-// command queue. The interface remains a single pointer to an L0 opaque object.
-typedef struct _ze_queue_handle_t *ze_queue_handle_t;
-
+typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
+typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;
 typedef struct _ze_device_handle_t *ze_device_handle_t;
 typedef struct _ze_driver_handle_t *ze_driver_handle_t;
@@ -41,6 +35,15 @@ typedef struct _ze_event_handle_t *ze_event_handle_t;
 typedef struct _ze_image_handle_t *ze_image_handle_t;
 typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
+
+typedef struct _ze_queue_or_cmdlist {
+  // union {
+  //  ze_command_queue_handle_t Q;
+  //  ze_command_list_handle_t L;
+  //};
+  void *ze_handle;
+  bool IsImmCmdList;
+} * ze_queue_or_cmdlist_handle_t;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -67,7 +70,8 @@ template <> struct interop<backend::ext_oneapi_level_zero, event> {
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_queue_handle_t;
+  using type = ze_command_queue_handle_t;
+  using type2 = ze_queue_or_cmdlist_handle_t;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
@@ -138,17 +142,26 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
-    bool UseImmCmdList;
     ext::oneapi::level_zero::ownership Ownership;
 
     device Device;
 
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
-         device dev, bool useimmcmdlist,
+         device dev,
          ext::oneapi::level_zero::ownership ownership =
              ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), UseImmCmdList(useimmcmdlist),
-          Ownership(ownership), Device(dev) {}
+        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
+  };
+  struct type2 {
+    ze_queue_or_cmdlist_handle_t NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership;
+
+    device Device;
+
+    type2(ze_queue_or_cmdlist_handle_t nativeHandle, device dev,
+          ext::oneapi::level_zero::ownership ownership =
+              ext::oneapi::level_zero::ownership::transfer)
+        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
   };
 };
 
@@ -169,7 +182,8 @@ struct BackendReturn<backend::ext_oneapi_level_zero,
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_queue_handle_t;
+  using type = ze_command_queue_handle_t;
+  using type2 = struct _ze_queue_or_cmdlist;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, platform> {

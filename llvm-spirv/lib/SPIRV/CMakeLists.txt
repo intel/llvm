@@ -52,6 +52,7 @@ if(LLVM_LINK_LLVM_DYLIB)
       LLVMLinker
       LLVMPasses
       LLVMSupport
+      LLVMTargetParser
       LLVMTransformUtils
   )
 else()
@@ -67,6 +68,7 @@ else()
       Linker
       Passes
       Support
+      TargetParser
       TransformUtils
   DEPENDS
     intrinsics_gen

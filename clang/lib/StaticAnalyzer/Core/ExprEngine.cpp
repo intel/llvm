@@ -481,7 +481,7 @@ Optional<unsigned> ExprEngine::getPendingInitLoop(ProgramStateRef State,
                                                   const CXXConstructExpr *E,
                                                   const LocationContext *LCtx) {
   const unsigned *V = State->get<PendingInitLoop>({E, LCtx->getStackFrame()});
-  return V ? Optional(*V) : std::nullopt;
+  return V ? std::make_optional(*V) : std::nullopt;
 }
 
 ProgramStateRef ExprEngine::removePendingInitLoop(ProgramStateRef State,
@@ -510,7 +510,7 @@ ExprEngine::getIndexOfElementToConstruct(ProgramStateRef State,
                                          const LocationContext *LCtx) {
   const unsigned *V =
       State->get<IndexOfElementToConstruct>({E, LCtx->getStackFrame()});
-  return V ? Optional(*V) : std::nullopt;
+  return V ? std::make_optional(*V) : std::nullopt;
 }
 
 ProgramStateRef
@@ -530,7 +530,7 @@ ExprEngine::getPendingArrayDestruction(ProgramStateRef State,
 
   const unsigned *V =
       State->get<PendingArrayDestruction>(LCtx->getStackFrame());
-  return V ? Optional(*V) : std::nullopt;
+  return V ? std::make_optional(*V) : std::nullopt;
 }
 
 ProgramStateRef ExprEngine::setPendingArrayDestruction(
@@ -600,7 +600,7 @@ ExprEngine::getObjectUnderConstruction(ProgramStateRef State,
                                        const LocationContext *LC) {
   ConstructedObjectKey Key(Item, LC->getStackFrame());
   const SVal *V = State->get<ObjectsUnderConstruction>(Key);
-  return V ? Optional(*V) : std::nullopt;
+  return V ? std::make_optional(*V) : std::nullopt;
 }
 
 ProgramStateRef
@@ -1901,6 +1901,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::ConceptSpecializationExprClass:
     case Stmt::CXXRewrittenBinaryOperatorClass:
     case Stmt::RequiresExprClass:
+    case Expr::CXXParenListInitExprClass:
     case Stmt::SYCLBuiltinNumFieldsExprClass:
     case Stmt::SYCLBuiltinFieldTypeExprClass:
     case Stmt::SYCLBuiltinNumBasesExprClass:

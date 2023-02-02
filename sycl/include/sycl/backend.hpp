@@ -56,9 +56,13 @@ template <backend Backend> class backend_traits {
 public:
   template <class T>
   using input_type = typename detail::BackendInput<Backend, T>::type;
+  template <class T>
+  using input_type2 = typename detail::BackendInput<Backend, T>::type2;
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
+  template <class T>
+  using return_type2 = typename detail::BackendReturn<Backend, T>::type2;
 
   using errc = detail::backend_errc;
 };
@@ -66,10 +70,16 @@ public:
 template <backend Backend, typename SyclType>
 using backend_input_t =
     typename backend_traits<Backend>::template input_type<SyclType>;
+template <backend Backend, typename SyclType>
+using backend_input_t2 =
+    typename backend_traits<Backend>::template input_type2<SyclType>;
 
 template <backend Backend, typename SyclType>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SyclType>;
+template <backend Backend, typename SyclType>
+using backend_return_t2 =
+    typename backend_traits<Backend>::template return_type2<SyclType>;
 
 namespace detail {
 template <backend Backend, typename DataT, int Dimensions, typename AllocatorT>
@@ -129,6 +139,19 @@ auto get_native(const SyclObjectT &Obj)
   }
   return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
       Obj.getNative());
+}
+
+template <backend BackendName, class SyclObjectT>
+auto get_native2(const SyclObjectT &Obj)
+    ->backend_return_t2<BackendName, SyclObjectT> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != BackendName) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  return backend_return_t2<BackendName, SyclObjectT>{
+      reinterpret_cast<ze_command_queue_handle_t>(Obj.getNative2().handle),
+      Obj.getNative2().IsImmCmdList};
 }
 
 template <backend BackendName, bundle_state State>
@@ -208,9 +231,12 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
-                               const device *TargetDevice, bool UseImmCmdList,
-                               bool KeepOwnership, const async_handler &Handler,
-                               backend Backend);
+                               const device *TargetDevice, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend);
+__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
+                                const context &TargetContext,
+                                const device *TargetDevice, bool KeepOwnership,
+                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -271,8 +297,17 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, false, Handler,
-                            Backend);
+                            TargetContext, nullptr, false, Handler, Backend);
+}
+
+template <backend Backend>
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
+make_queue2(const typename backend_traits<Backend>::template input_type2<queue>
+                &BackendObject,
+            const context &TargetContext, const async_handler Handler = {}) {
+  return detail::make_queue2(detail::pi::cast<pi_native_handle>(BackendObject),
+                             TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>

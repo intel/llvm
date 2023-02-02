@@ -1,10 +1,10 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -s %t.bc -o %t.regulzarized.bc
-; RUN: llvm-dis %t.regulzarized.bc -o %t.regulzarized.ll
-; RUN: FileCheck < %t.regulzarized.ll %s
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regularized.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
+; RUN: FileCheck < %t.regularized.ll %s
 
-; Translation cycle should be successfull:
-; RUN: llvm-spirv %t.regulzarized.bc -o %t.spv
+; Translation cycle should be successful:
+; RUN: llvm-spirv %t.regularized.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 
 ; CHECK: %[[#Base:]] = load i1, i1 addrspace(4)*{{.*}}, align 1
