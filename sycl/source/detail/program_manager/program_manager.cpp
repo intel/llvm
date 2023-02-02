@@ -2199,9 +2199,6 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
   auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
-  if (!AspectsPropIt && !ReqdWGSizePropIt && !ReqdSubGroupSizePropIt)
-    return true;
-
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
     ByteArray Aspects =
