@@ -61,6 +61,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -867,7 +868,7 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
         } else
           E = Record.readExpr();
 
-        llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
+        std::optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
         ConceptSpecializationExpr *SubstitutedConstraintExpr = nullptr;
         SourceLocation NoexceptLoc;
         if (RK == concepts::Requirement::RK_Simple) {
@@ -1864,13 +1865,19 @@ void ASTStmtReader::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
   E->Param = readDeclAs<ParmVarDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultArgExprBits.Loc = readSourceLocation();
+  E->CXXDefaultArgExprBits.HasRewrittenInit = Record.readInt();
+  if (E->CXXDefaultArgExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
   VisitExpr(E);
+  E->CXXDefaultInitExprBits.HasRewrittenInit = Record.readInt();
   E->Field = readDeclAs<FieldDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultInitExprBits.Loc = readSourceLocation();
+  if (E->CXXDefaultInitExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
@@ -2220,9 +2227,14 @@ void ASTStmtReader::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
   for (unsigned I = 0; I < ExpectedNumExprs; I++)
     E->getTrailingObjects<Expr *>()[I] = Record.readSubExpr();
 
-  bool HasArrayFiller = Record.readBool();
-  if (HasArrayFiller) {
-    E->setArrayFiller(Record.readSubExpr());
+  bool HasArrayFillerOrUnionDecl = Record.readBool();
+  if (HasArrayFillerOrUnionDecl) {
+    bool HasArrayFiller = Record.readBool();
+    if (HasArrayFiller) {
+      E->setArrayFiller(Record.readSubExpr());
+    } else {
+      E->setInitializedFieldInUnion(readDeclAs<FieldDecl>());
+    }
   }
   E->updateDependence();
 }
@@ -3909,11 +3921,13 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CXX_DEFAULT_ARG:
-      S = new (Context) CXXDefaultArgExpr(Empty);
+      S = CXXDefaultArgExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_DEFAULT_INIT:
-      S = new (Context) CXXDefaultInitExpr(Empty);
+      S = CXXDefaultInitExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_BIND_TEMPORARY:

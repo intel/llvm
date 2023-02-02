@@ -41,6 +41,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <bitset>
+#include <optional>
 
 using namespace clang;
 
@@ -1102,11 +1103,10 @@ TypeResult Sema::actOnObjCProtocolQualifierType(
              SourceLocation rAngleLoc) {
   // Form id<protocol-list>.
   QualType Result = Context.getObjCObjectType(
-                      Context.ObjCBuiltinIdTy, { },
-                      llvm::makeArrayRef(
-                        (ObjCProtocolDecl * const *)protocols.data(),
-                        protocols.size()),
-                      false);
+      Context.ObjCBuiltinIdTy, {},
+      llvm::ArrayRef((ObjCProtocolDecl *const *)protocols.data(),
+                     protocols.size()),
+      false);
   Result = Context.getObjCObjectPointerType(Result);
 
   TypeSourceInfo *ResultTInfo = Context.CreateTypeSourceInfo(Result);
@@ -1173,8 +1173,8 @@ TypeResult Sema::actOnObjCTypeArgsAndProtocolQualifiers(
       T, BaseTypeInfo->getTypeLoc().getSourceRange().getBegin(),
       TypeArgsLAngleLoc, ActualTypeArgInfos, TypeArgsRAngleLoc,
       ProtocolLAngleLoc,
-      llvm::makeArrayRef((ObjCProtocolDecl *const *)Protocols.data(),
-                         Protocols.size()),
+      llvm::ArrayRef((ObjCProtocolDecl *const *)Protocols.data(),
+                     Protocols.size()),
       ProtocolLocs, ProtocolRAngleLoc,
       /*FailOnError=*/false,
       /*Rebuilding=*/false);
@@ -2698,7 +2698,8 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
     return Context.getDependentVectorType(CurType, SizeExpr, AttrLoc,
                                                VectorType::GenericVector);
 
-  Optional<llvm::APSInt> VecSize = SizeExpr->getIntegerConstantExpr(Context);
+  std::optional<llvm::APSInt> VecSize =
+      SizeExpr->getIntegerConstantExpr(Context);
   if (!VecSize) {
     Diag(AttrLoc, diag::err_attribute_argument_type)
         << "vector_size" << AANT_ArgumentIntegerConstant
@@ -2775,7 +2776,8 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   }
 
   if (!ArraySize->isTypeDependent() && !ArraySize->isValueDependent()) {
-    Optional<llvm::APSInt> vecSize = ArraySize->getIntegerConstantExpr(Context);
+    std::optional<llvm::APSInt> vecSize =
+        ArraySize->getIntegerConstantExpr(Context);
     if (!vecSize) {
       Diag(AttrLoc, diag::err_attribute_argument_type)
         << "ext_vector_type" << AANT_ArgumentIntegerConstant
@@ -2821,8 +2823,9 @@ QualType Sema::BuildMatrixType(QualType ElementTy, Expr *NumRows, Expr *NumCols,
     return Context.getDependentSizedMatrixType(ElementTy, NumRows, NumCols,
                                                AttrLoc);
 
-  Optional<llvm::APSInt> ValueRows = NumRows->getIntegerConstantExpr(Context);
-  Optional<llvm::APSInt> ValueColumns =
+  std::optional<llvm::APSInt> ValueRows =
+      NumRows->getIntegerConstantExpr(Context);
+  std::optional<llvm::APSInt> ValueColumns =
       NumCols->getIntegerConstantExpr(Context);
 
   auto const RowRange = NumRows->getSourceRange();
@@ -4685,7 +4688,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   }
 
   // Determine whether we should infer _Nonnull on pointer types.
-  Optional<NullabilityKind> inferNullability;
+  std::optional<NullabilityKind> inferNullability;
   bool inferNullabilityCS = false;
   bool inferNullabilityInnerOnly = false;
   bool inferNullabilityInnerOnlyComplete = false;
@@ -6078,6 +6081,21 @@ static void fillAttributedTypeLoc(AttributedTypeLoc TL,
   TL.setAttr(State.takeAttrForAttributedType(TL.getTypePtr()));
 }
 
+static void fillMatrixTypeLoc(MatrixTypeLoc MTL,
+                              const ParsedAttributesView &Attrs) {
+  for (const ParsedAttr &AL : Attrs) {
+    if (AL.getKind() == ParsedAttr::AT_MatrixType) {
+      MTL.setAttrNameLoc(AL.getLoc());
+      MTL.setAttrRowOperand(AL.getArgAsExpr(0));
+      MTL.setAttrColumnOperand(AL.getArgAsExpr(1));
+      MTL.setAttrOperandParensRange(SourceRange());
+      return;
+    }
+  }
+
+  llvm_unreachable("no matrix_type attribute found at the expected location!");
+}
+
 namespace {
   class TypeSpecLocFiller : public TypeLocVisitor<TypeSpecLocFiller> {
     Sema &SemaRef;
@@ -6444,6 +6462,9 @@ namespace {
     VisitDependentSizedExtVectorTypeLoc(DependentSizedExtVectorTypeLoc TL) {
       TL.setNameLoc(Chunk.Loc);
     }
+    void VisitMatrixTypeLoc(MatrixTypeLoc TL) {
+      fillMatrixTypeLoc(TL, Chunk.getAttrs());
+    }
 
     void VisitTypeLoc(TypeLoc TL) {
       llvm_unreachable("unsupported TypeLoc kind in declarator!");
@@ -6491,21 +6512,6 @@ fillDependentAddressSpaceTypeLoc(DependentAddressSpaceTypeLoc DASTL,
       "no address_space attribute found at the expected location!");
 }
 
-static void fillMatrixTypeLoc(MatrixTypeLoc MTL,
-                              const ParsedAttributesView &Attrs) {
-  for (const ParsedAttr &AL : Attrs) {
-    if (AL.getKind() == ParsedAttr::AT_MatrixType) {
-      MTL.setAttrNameLoc(AL.getLoc());
-      MTL.setAttrRowOperand(AL.getArgAsExpr(0));
-      MTL.setAttrColumnOperand(AL.getArgAsExpr(1));
-      MTL.setAttrOperandParensRange(SourceRange());
-      return;
-    }
-  }
-
-  llvm_unreachable("no matrix_type attribute found at the expected location!");
-}
-
 /// Create and instantiate a TypeSourceInfo with type source information.
 ///
 /// \param T QualType referring to the type as written in source code.
@@ -6537,32 +6543,42 @@ GetTypeSourceInfoForDeclarator(TypeProcessingState &State,
       CurrTL = ATL.getValueLoc().getUnqualifiedLoc();
     }
 
-    while (MacroQualifiedTypeLoc TL = CurrTL.getAs<MacroQualifiedTypeLoc>()) {
-      TL.setExpansionLoc(
-          State.getExpansionLocForMacroQualifiedType(TL.getTypePtr()));
-      CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
+    bool HasDesugaredTypeLoc = true;
+    while (HasDesugaredTypeLoc) {
+      switch (CurrTL.getTypeLocClass()) {
+      case TypeLoc::MacroQualified: {
+        auto TL = CurrTL.castAs<MacroQualifiedTypeLoc>();
+        TL.setExpansionLoc(
+            State.getExpansionLocForMacroQualifiedType(TL.getTypePtr()));
+        CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
+        break;
+      }
+
+      case TypeLoc::Attributed: {
+        auto TL = CurrTL.castAs<AttributedTypeLoc>();
+        fillAttributedTypeLoc(TL, State);
+        CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
+        break;
+      }
+
+      case TypeLoc::Adjusted:
+      case TypeLoc::BTFTagAttributed: {
+        CurrTL = CurrTL.getNextTypeLoc().getUnqualifiedLoc();
+        break;
+      }
+
+      case TypeLoc::DependentAddressSpace: {
+        auto TL = CurrTL.castAs<DependentAddressSpaceTypeLoc>();
+        fillDependentAddressSpaceTypeLoc(TL, D.getTypeObject(i).getAttrs());
+        CurrTL = TL.getPointeeTypeLoc().getUnqualifiedLoc();
+        break;
+      }
+
+      default:
+        HasDesugaredTypeLoc = false;
+        break;
+      }
     }
-
-    while (AttributedTypeLoc TL = CurrTL.getAs<AttributedTypeLoc>()) {
-      fillAttributedTypeLoc(TL, State);
-      CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
-    }
-
-    while (BTFTagAttributedTypeLoc TL = CurrTL.getAs<BTFTagAttributedTypeLoc>())
-      CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
-
-    while (DependentAddressSpaceTypeLoc TL =
-               CurrTL.getAs<DependentAddressSpaceTypeLoc>()) {
-      fillDependentAddressSpaceTypeLoc(TL, D.getTypeObject(i).getAttrs());
-      CurrTL = TL.getPointeeTypeLoc().getUnqualifiedLoc();
-    }
-
-    if (MatrixTypeLoc TL = CurrTL.getAs<MatrixTypeLoc>())
-      fillMatrixTypeLoc(TL, D.getTypeObject(i).getAttrs());
-
-    // FIXME: Ordering here?
-    while (AdjustedTypeLoc TL = CurrTL.getAs<AdjustedTypeLoc>())
-      CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
 
     DeclaratorLocFiller(S.Context, State, D.getTypeObject(i)).Visit(CurrTL);
     CurrTL = CurrTL.getNextTypeLoc().getUnqualifiedLoc();
@@ -6647,7 +6663,7 @@ static bool BuildAddressSpaceIndex(Sema &S, LangAS &ASIdx,
                                    const Expr *AddrSpace,
                                    SourceLocation AttrLoc) {
   if (!AddrSpace->isValueDependent()) {
-    Optional<llvm::APSInt> OptAddrSpace =
+    std::optional<llvm::APSInt> OptAddrSpace =
         AddrSpace->getIntegerConstantExpr(S.Context);
     if (!OptAddrSpace) {
       S.Diag(AttrLoc, diag::err_attribute_argument_type)
@@ -8137,7 +8153,7 @@ static bool verifyValidIntegerConstantExpr(Sema &S, const ParsedAttr &Attr,
                                            llvm::APSInt &Result) {
   const auto *AttrExpr = Attr.getArgAsExpr(0);
   if (!AttrExpr->isTypeDependent()) {
-    if (Optional<llvm::APSInt> Res =
+    if (std::optional<llvm::APSInt> Res =
             AttrExpr->getIntegerConstantExpr(S.Context)) {
       Result = *Res;
       return true;
