@@ -37,13 +37,9 @@ typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 typedef struct _ze_queue_or_cmdlist {
-  // union {
-  //  ze_command_queue_handle_t Q;
-  //  ze_command_list_handle_t L;
-  //};
   void *ze_handle;
   bool IsImmCmdList;
-} * ze_queue_or_cmdlist_handle_t;
+} *ze_queue_or_cmdlist_handle_t;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

@@ -45,7 +45,7 @@ using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 template <backend Backend, typename SYCLObjectT>
 using backend_return_t2 =
-typename backend_traits<Backend>::template return_type2<SYCLObjectT>;
+    typename backend_traits<Backend>::template return_type2<SYCLObjectT>;
 
 inline std::ostream &operator<<(std::ostream &Out, backend be) {
   switch (be) {

@@ -63,7 +63,7 @@ class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    -> backend_return_t<BackendName, SyclObjectT>;
+    ->backend_return_t<BackendName, SyclObjectT>;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native2(const SyclObjectT &Obj)
@@ -1636,8 +1636,8 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
   template <backend BackendName, class SyclObjectT>
-  friend auto get_native2(const SyclObjectT& Obj)
-    ->backend_return_t2<BackendName, SyclObjectT>;
+  friend auto get_native2(const SyclObjectT &Obj)
+      -> backend_return_t2<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,

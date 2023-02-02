@@ -128,16 +128,18 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
+
 template <>
 inline queue make_queue2<backend::ext_oneapi_level_zero>(
-  const backend_input_t2<backend::ext_oneapi_level_zero, queue>& BackendObject,
-  const context& TargetContext, const async_handler Handler) {
+    const backend_input_t2<backend::ext_oneapi_level_zero, queue>
+        &BackendObject,
+    const context &TargetContext, const async_handler Handler) {
   (void)Handler;
-  const device Device = device{ BackendObject.Device };
+  const device Device = device{BackendObject.Device};
   return ext::oneapi::level_zero::make_queue2(
-    TargetContext, Device,
-    detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-    BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+      TargetContext, Device,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.
