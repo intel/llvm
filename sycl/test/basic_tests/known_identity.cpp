@@ -1,5 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17 %sycl_lib -L%sycl_libs_dir
 // RUN: %t.out
+// RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17
+// RUN: %RUN_ON_HOST %t.out
 // expected-no-diagnostics
 
 // This test performs basic checks of has_known_identity and known_identity

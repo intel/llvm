@@ -8,6 +8,7 @@
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
+// RUN: %RUN_ON_HOST %t.out
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 

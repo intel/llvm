@@ -1,4 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // This test performs basic check of supporting user defined class that are
 // implicitly converted from sycl::item/sycl::nd_item in parallel_for.
