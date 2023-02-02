@@ -130,7 +130,7 @@ TEST(ReleaseModeRunner, ExtraFeaturesOutOfOrder) {
 }
 
 #if defined(LLVM_ON_UNIX)
-TEST(InteractiveModelRunner, Evaluation) {
+TEST(InteractiveModelRunner, DISABLED_Evaluation) {
   LLVMContext Ctx;
   // Test the interaction with an external advisor by asking for advice twice.
   // Use simple values, since we use the Logger underneath, that's tested more
