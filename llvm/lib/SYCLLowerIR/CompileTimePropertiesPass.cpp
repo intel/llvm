@@ -107,7 +107,7 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
 /// @returns a \c StringRef with the string contained in \c StringV and \c None
 ///          if \c StringV is not a \c GlobalVariable or does not contain string
 ///          data.
-Optional<StringRef> getGlobalVariableString(const Value *StringV) {
+std::optional<StringRef> getGlobalVariableString(const Value *StringV) {
   if (const auto *StringGV = dyn_cast<GlobalVariable>(StringV))
     if (const auto *StringData =
             dyn_cast<ConstantDataSequential>(StringGV->getInitializer()))
@@ -154,7 +154,7 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
 /// @returns a pair with the name of the resulting metadata and a pointer to
 ///          the metadata node with its values if the attribute has a
 ///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
-Optional<std::pair<std::string, MDNode *>>
+std::optional<std::pair<std::string, MDNode *>>
 attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
   LLVMContext &Ctx = M.getContext();
   const DataLayout &DLayout = M.getDataLayout();
@@ -370,7 +370,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   // We only need to consider annotations with "sycl-properties" annotation
   // string.
-  Optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
+  std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr || AnnotStr->str() != "sycl-properties")
     return false;
 
@@ -389,9 +389,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
         // Iterate over the pairs of property meta-names and meta-values.
         for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
-          Optional<StringRef> PropMetaName =
+          std::optional<StringRef> PropMetaName =
               getGlobalVariableString(AnnotValsAggr->getOperand(I));
-          Optional<StringRef> PropMetaValue =
+          std::optional<StringRef> PropMetaValue =
               getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
 
           assert(PropMetaName &&

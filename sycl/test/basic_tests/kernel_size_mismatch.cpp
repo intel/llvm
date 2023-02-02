@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning -o - %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 // Tests for static assertion failure when kernel lambda mismatches between host
 // and device.
