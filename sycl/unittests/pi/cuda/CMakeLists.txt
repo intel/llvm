@@ -22,9 +22,11 @@ target_include_directories(PiCudaTests
     "${sycl_inc_dir}/sycl/detail/"
     "${sycl_inc_dir}"
     "${sycl_plugin_dir}/cuda/"
+    "${sycl_plugin_dir}/unified_runtime/"
 )
 
 target_link_libraries(PiCudaTests
   PRIVATE
     cudadrv
+    UnifiedRuntime-Headers
 )

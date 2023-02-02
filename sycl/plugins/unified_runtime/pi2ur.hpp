@@ -392,7 +392,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       {PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE,
        UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE},
       {PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE,
-       (ur_device_info_t)UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE},
+       UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE},
       {PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR,
        UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR},
       {PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR,
@@ -458,11 +458,11 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       {PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY,
        (ur_device_info_t)UR_EXT_DEVICE_INFO_FREE_MEMORY},
       {PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE,
-       (ur_device_info_t)UR_DEVICE_INFO_MEMORY_CLOCK_RATE},
+       UR_DEVICE_INFO_MEMORY_CLOCK_RATE},
       {PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH,
        (ur_device_info_t)UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH},
       {PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES,
-       (ur_device_info_t)UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES},
+       UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES},
       {PI_DEVICE_INFO_GPU_SLICES,
        (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_SLICES},
       {PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
@@ -472,9 +472,15 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       {PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
        (ur_device_info_t)UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH},
       {PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS,
-       (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16},
+       UR_DEVICE_INFO_BFLOAT16},
       {PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
-       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+       UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+       UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES},
+      {PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER,
+       (ur_device_info_t)UR_EXT_DEVICE_INFO_CUDA_ASYNC_BARRIER},
+      {PI_DEVICE_INFO_BACKEND_VERSION,
+       (ur_device_info_t)UR_EXT_DEVICE_INFO_BACKEND_VERSION},
   };
 
   auto InfoType = InfoMapping.find(ParamName);
@@ -545,8 +551,8 @@ inline pi_result piDevicePartition(
 
   auto hDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto phSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries, phSubDevices,
-                                  NumSubDevices));
+  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries,
+                                  phSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
 } // namespace pi2ur
