@@ -178,8 +178,8 @@ TEST_F(KernelAndProgramCacheTest,
 
 // Check that kernel_bundles with input_state are not cached.
 TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Ctx(Devices);
+  std::vector<sycl::device> Devices = Plt.get_devices();
+  sycl::context Ctx(Devices[0]);
 
   auto KernelID1 = sycl::get_kernel_id<CacheTestKernel>();
   sycl::kernel_bundle KernelBundle1 =
