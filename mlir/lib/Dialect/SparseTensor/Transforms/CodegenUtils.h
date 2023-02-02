@@ -128,9 +128,10 @@ Type getOpaquePointerType(OpBuilder &builder);
 Value genAlloca(OpBuilder &builder, Location loc, Value sz, Type tp);
 
 /// Generates an uninitialized temporary buffer of the given size and
-/// type, but returns it as type `memref<? x $tp>` (rather than as type
-/// `memref<$sz x $tp>`).
-Value genAlloca(OpBuilder &builder, Location loc, unsigned sz, Type tp);
+/// type, and returns it as type `memref<? x $tp>` (staticShape=false) or
+/// `memref<$sz x $tp>` (staticShape=true).
+Value genAlloca(OpBuilder &builder, Location loc, unsigned sz, Type tp,
+                bool staticShape = false);
 
 /// Generates an uninitialized temporary buffer with room for one value
 /// of the given type, and returns the `memref<$tp>`.
@@ -183,6 +184,17 @@ void genDenseTensorOrSparseConstantIterLoop(
 void sizesFromSrc(OpBuilder &builder, SmallVectorImpl<Value> &sizes,
                   Location loc, Value src);
 
+/// Generates a 1D MemRefType with a dynamic size. When withLayout is set, the
+/// returned memref has a layout has unknown strides and offsets. Otherwise,
+/// a memref with a standard unit stride zero offset layout is returned.
+inline MemRefType get1DMemRefType(Type etp, bool withLayout) {
+  auto layout = withLayout ? StridedLayoutAttr::StridedLayoutAttr::get(
+                                 etp.getContext(), ShapedType::kDynamic,
+                                 {ShapedType::kDynamic})
+                           : StridedLayoutAttr();
+  return MemRefType::get(ShapedType::kDynamic, etp, layout);
+}
+
 /// Scans to top of generated loop.
 Operation *getTop(Operation *op);
 
@@ -205,6 +217,20 @@ Operation *getTop(Operation *op);
 void foreachInSparseConstant(
     Location loc, RewriterBase &rewriter, SparseElementsAttr attr,
     function_ref<void(ArrayRef<Value>, Value)> callback);
+
+/// Converts the vector indices and store it into the memory pointed by
+/// `ind`, apply (optional) `offset` on `offsetDim`.
+void storeIndices(OpBuilder &builder, Location loc, unsigned rank, Value ind,
+                  ValueRange ivs, unsigned offsetDim = 0,
+                  Value offset = Value());
+
+/// Reshapes the linear values buffer for an annotated all dense sparse tensor
+/// to match the shape of the corresponding dense tensor to support direct
+/// access of the buffer through indices.
+Value reshapeValuesToLevels(OpBuilder &builder, Location loc,
+                            SparseTensorEncodingAttr enc,
+                            const SmallVectorImpl<Value> &dimSizes,
+                            Value valuesBuffer, Value idxBuffer);
 
 //===----------------------------------------------------------------------===//
 // Inlined constant generators.
@@ -312,6 +338,21 @@ inline bool isZeroRankedTensorOrScalar(Type type) {
   auto rtp = type.dyn_cast<RankedTensorType>();
   return !rtp || rtp.getRank() == 0;
 }
+
+/// Infers the result type and generates ToPointersOp.
+Value genToPointers(OpBuilder &builder, Location loc, Value tensor, uint64_t d);
+
+/// Infers the result type and generates ToIndicesOp. If the dim is within a COO
+/// region, the result type is a memref with unknown stride and offset.
+/// Otherwise, the result type is a memref without any specified layout.
+Value genToIndices(OpBuilder &builder, Location loc, Value tensor, uint64_t d,
+                   uint64_t cooStart);
+
+/// Infers the result type and generates ToValuesOp.
+Value genToValues(OpBuilder &builder, Location loc, Value tensor);
+
+/// Generates code to retrieve the values size for the sparse tensor.
+Value genValMemSize(OpBuilder &builder, Location loc, Value tensor);
 
 } // namespace sparse_tensor
 } // namespace mlir

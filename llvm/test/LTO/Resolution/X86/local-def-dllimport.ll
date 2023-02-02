@@ -1,5 +1,5 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t0.bc %s
-; RUN: llvm-lto2 run -r %t0.bc,__imp_f,l \
+; RUN: llvm-lto2 run -lto-opaque-pointers -r %t0.bc,__imp_f,l \
 ; RUN:               -r %t0.bc,g,p \
 ; RUN:               -r %t0.bc,g,l \
 ; RUN:               -r %t0.bc,e,l \

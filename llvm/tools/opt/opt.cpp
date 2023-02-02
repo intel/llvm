@@ -314,10 +314,6 @@ static TargetMachine* GetTargetMachine(Triple TheTriple, StringRef CPUStr,
       codegen::getExplicitCodeModel(), GetCodeGenOptLevel());
 }
 
-#ifdef BUILD_EXAMPLES
-void initializeExampleIRTransforms(llvm::PassRegistry &Registry);
-#endif
-
 struct TimeTracerRAII {
   TimeTracerRAII(StringRef ProgramName) {
     if (TimeTrace)
@@ -375,7 +371,6 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "atomic-expand",
       "expandvp",
       "hardware-loops",
-      "type-promotion",
       "mve-tail-predication",
       "interleaved-access",
       "global-merge",
@@ -401,7 +396,8 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "structurizecfg",
       "fix-irreducible",
       "expand-large-fp-convert",
-      "fpbuiltin-fn-selection"};
+      "fpbuiltin-fn-selection"
+  };
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -470,7 +466,6 @@ int main(int argc, char **argv) {
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
   initializeHardwareLoopsPass(Registry);
-  initializeTypePromotionPass(Registry);
   initializeReplaceWithVeclibLegacyPass(Registry);
   initializeJMCInstrumenterPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
@@ -483,10 +478,6 @@ int main(int argc, char **argv) {
   initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
   initializeSYCLMutatePrintfAddrspaceLegacyPassPass(Registry);
   initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
-
-#ifdef BUILD_EXAMPLES
-  initializeExampleIRTransforms(Registry);
-#endif
 
   SmallVector<PassPlugin, 1> PluginList;
   PassPlugins.setCallback([&](const std::string &PluginPath) {
@@ -556,7 +547,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<ToolOutputFile> RemarksFile = std::move(*RemarksFileOrErr);
 
   // Load the input module...
-  auto SetDataLayout = [](StringRef) -> std::optional<std::string> {
+  auto SetDataLayout = [](StringRef, StringRef) -> std::optional<std::string> {
     if (ClDataLayout.empty())
       return std::nullopt;
     return ClDataLayout;
@@ -567,7 +558,8 @@ int main(int argc, char **argv) {
             InputFilename, Err, Context, nullptr, SetDataLayout)
             .Mod;
   else
-    M = parseIRFile(InputFilename, Err, Context, SetDataLayout);
+    M = parseIRFile(InputFilename, Err, Context,
+                    ParserCallbacks(SetDataLayout));
 
   if (!M) {
     Err.print(argv[0], errs());

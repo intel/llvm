@@ -24,6 +24,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
+#include "llvm/Support/Error.h"
 
 namespace llvm {
 namespace omp {
@@ -278,6 +279,14 @@ struct CUDADeviceTy : public GenericDeviceTy {
                                  GridValues.GV_Warp_Size))
       return Err;
 
+    if (auto Err = getDeviceAttr(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                                 ComputeCapability.Major))
+      return Err;
+
+    if (auto Err = getDeviceAttr(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                                 ComputeCapability.Minor))
+      return Err;
+
     return Plugin::success();
   }
 
@@ -340,33 +349,14 @@ struct CUDADeviceTy : public GenericDeviceTy {
     DP("Entry point " DPxMOD " maps to %s (" DPxMOD ")\n", DPxPTR(&KernelEntry),
        KernelEntry.name, DPxPTR(Func));
 
-    // Create a metadata object for the exec mode global (auto-generated).
-    StaticGlobalTy<llvm::omp::OMPTgtExecModeFlags> ExecModeGlobal(
-        KernelEntry.name, "_exec_mode");
-
-    // Retrieve execution mode for the kernel. This may fail since some kernels
-    // may not have a execution mode.
-    GenericGlobalHandlerTy &GHandler = Plugin::get().getGlobalHandler();
-    if (auto Err = GHandler.readGlobalFromImage(*this, Image, ExecModeGlobal)) {
-      // In some cases the execution mode is not included, so use the default.
-      ExecModeGlobal.setValue(llvm::omp::OMP_TGT_EXEC_MODE_GENERIC);
-      // Consume the error since it is acceptable to fail.
-      [[maybe_unused]] std::string ErrStr = toString(std::move(Err));
-
-      DP("Failed to read execution mode for '%s': %s\n"
-         "Using default GENERIC (1) execution mode\n",
-         KernelEntry.name, ErrStr.data());
-    }
-
-    // Check that the retrieved execution mode is valid.
-    if (!GenericKernelTy::isValidExecutionMode(ExecModeGlobal.getValue()))
-      return Plugin::error("Invalid execution mode %d for '%s'",
-                           ExecModeGlobal.getValue(), KernelEntry.name);
+    Expected<OMPTgtExecModeFlags> ExecModeOrErr =
+        getExecutionModeForKernel(KernelEntry.name, Image);
+    if (!ExecModeOrErr)
+      return ExecModeOrErr.takeError();
 
     // Allocate and initialize the CUDA kernel.
     CUDAKernelTy *CUDAKernel = Plugin::get().allocate<CUDAKernelTy>();
-    new (CUDAKernel)
-        CUDAKernelTy(KernelEntry.name, ExecModeGlobal.getValue(), Func);
+    new (CUDAKernel) CUDAKernelTy(KernelEntry.name, ExecModeOrErr.get(), Func);
 
     return CUDAKernel;
   }
@@ -794,6 +784,11 @@ struct CUDADeviceTy : public GenericDeviceTy {
     return Plugin::check(Res, "Error in cuDeviceGetAttribute: %s");
   }
 
+  /// See GenericDeviceTy::getComputeUnitKind().
+  std::string getComputeUnitKind() const override {
+    return ComputeCapability.str();
+  }
+
 private:
   using CUDAStreamManagerTy = GenericDeviceResourceManagerTy<CUDAStreamRef>;
   using CUDAEventManagerTy = GenericDeviceResourceManagerTy<CUDAEventRef>;
@@ -810,6 +805,15 @@ private:
 
   /// The CUDA device handler.
   CUdevice Device = CU_DEVICE_INVALID;
+
+  /// The compute capability of the corresponding CUDA device.
+  struct ComputeCapabilityTy {
+    uint32_t Major;
+    uint32_t Minor;
+    std::string str() const {
+      return "sm_" + std::to_string(Major * 10 + Minor);
+    }
+  } ComputeCapability;
 };
 
 Error CUDAKernelTy::launchImpl(GenericDeviceTy &GenericDevice,
@@ -865,7 +869,7 @@ public:
 /// Class implementing the CUDA-specific functionalities of the plugin.
 struct CUDAPluginTy final : public GenericPluginTy {
   /// Create a CUDA plugin.
-  CUDAPluginTy() : GenericPluginTy() {}
+  CUDAPluginTy() : GenericPluginTy(getTripleArch()) {}
 
   /// This class should not be copied.
   CUDAPluginTy(const CUDAPluginTy &) = delete;
@@ -907,6 +911,11 @@ struct CUDAPluginTy final : public GenericPluginTy {
 
   /// Get the ELF code for recognizing the compatible image binary.
   uint16_t getMagicElfBits() const override { return ELF::EM_CUDA; }
+
+  Triple::ArchType getTripleArch() const override {
+    // TODO: I think we can drop the support for 32-bit NVPTX devices.
+    return Triple::nvptx64;
+  }
 
   /// Check whether the image is compatible with the available CUDA devices.
   Expected<bool> isImageCompatible(__tgt_image_info *Info) const override {

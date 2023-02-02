@@ -20,6 +20,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SourceMgr.h"
+#include <optional>
 #include <system_error>
 
 namespace llvm {
@@ -1221,6 +1222,36 @@ struct FormatStyle {
   /// \version 3.8
   BraceWrappingFlags BraceWrapping;
 
+  /// Different ways to break after attributes.
+  enum AttributeBreakingStyle : int8_t {
+    /// Always break after attributes.
+    /// \code
+    ///   [[nodiscard]]
+    ///   inline int f();
+    ///   [[gnu::const]] [[nodiscard]]
+    ///   int g();
+    /// \endcode
+    ABS_Always,
+    /// Leave the line breaking after attributes as is.
+    /// \code
+    ///   [[nodiscard]] inline int f();
+    ///   [[gnu::const]] [[nodiscard]]
+    ///   int g();
+    /// \endcode
+    ABS_Leave,
+    /// Never break after attributes.
+    /// \code
+    ///   [[nodiscard]] inline int f();
+    ///   [[gnu::const]] [[nodiscard]] int g();
+    /// \endcode
+    ABS_Never,
+  };
+
+  /// Break after a group of C++11 attributes before a function
+  /// declaration/definition name.
+  /// \version 16
+  AttributeBreakingStyle BreakAfterAttributes;
+
   /// If ``true``, clang-format will always break after a Json array `[`
   /// otherwise it will scan until the closing `]` to determine if it should add
   /// newlines between elements (prettier compatible).
@@ -1976,10 +2007,10 @@ struct FormatStyle {
   /// \version 3.4
   bool Cpp11BracedListStyle;
 
-  /// \brief Analyze the formatted file for the most used line ending (``\r\n``
-  /// or ``\n``). ``UseCRLF`` is only used as a fallback if none can be derived.
+  /// This option is **deprecated**. See ``DeriveLF`` and ``DeriveCRLF`` of
+  /// ``LineEnding``.
   /// \version 10
-  bool DeriveLineEnding;
+  // bool DeriveLineEnding;
 
   /// If ``true``, analyze the formatted file for the most common
   /// alignment of ``&`` and ``*``.
@@ -2420,6 +2451,10 @@ struct FormatStyle {
   /// \version 15
   bool InsertBraces;
 
+  /// Insert a newline at end of file if missing.
+  /// \version 16
+  bool InsertNewlineAtEOF;
+
   /// The style of inserting trailing commas into container literals.
   enum TrailingCommaStyle : int8_t {
     /// Do not insert trailing commas.
@@ -2449,6 +2484,51 @@ struct FormatStyle {
   /// \endcode
   /// \version 11
   TrailingCommaStyle InsertTrailingCommas;
+
+  /// Separator format of integer literals of different bases.
+  ///
+  /// If negative, remove separators. If  ``0``, leave the literal as is. If
+  /// positive, insert separators between digits starting from the rightmost
+  /// digit.
+  ///
+  /// For example, the config below will leave separators in binary literals
+  /// alone, insert separators in decimal literals to separate the digits into
+  /// groups of 3, and remove separators in hexadecimal literals.
+  /// \code
+  ///   IntegerLiteralSeparator:
+  ///     Binary: 0
+  ///     Decimal: 3
+  ///     Hex: -1
+  /// \endcode
+  struct IntegerLiteralSeparatorStyle {
+    /// Format separators in binary literals.
+    /// \code{.text}
+    ///   /* -1: */ b = 0b100111101101;
+    ///   /*  0: */ b = 0b10011'11'0110'1;
+    ///   /*  3: */ b = 0b100'111'101'101;
+    ///   /*  4: */ b = 0b1001'1110'1101;
+    /// \endcode
+    int8_t Binary;
+    /// Format separators in decimal literals.
+    /// \code{.text}
+    ///   /* -1: */ d = 18446744073709550592ull;
+    ///   /*  0: */ d = 184467'440737'0'95505'92ull;
+    ///   /*  3: */ d = 18'446'744'073'709'550'592ull;
+    /// \endcode
+    int8_t Decimal;
+    /// Format separators in hexadecimal literals.
+    /// \code{.text}
+    ///   /* -1: */ h = 0xDEADBEEFDEADBEEFuz;
+    ///   /*  0: */ h = 0xDEAD'BEEF'DE'AD'BEE'Fuz;
+    ///   /*  2: */ h = 0xDE'AD'BE'EF'DE'AD'BE'EFuz;
+    /// \endcode
+    int8_t Hex;
+  };
+
+  /// Format integer literal separators (``'`` for C++ and ``_`` for C#, Java,
+  /// and JavaScript).
+  /// \version 16
+  IntegerLiteralSeparatorStyle IntegerLiteralSeparator;
 
   /// A vector of prefixes ordered by the desired groups for Java imports.
   ///
@@ -2615,6 +2695,22 @@ struct FormatStyle {
   /// Language, this format style is targeted at.
   /// \version 3.5
   LanguageKind Language;
+
+  /// Line ending style.
+  enum LineEndingStyle : int8_t {
+    /// Use ``\n``.
+    LE_LF,
+    /// Use ``\r\n``.
+    LE_CRLF,
+    /// Use ``\n`` unless the input has more lines ending in ``\r\n``.
+    LE_DeriveLF,
+    /// Use ``\r\n`` unless the input has more lines ending in ``\n``.
+    LE_DeriveCRLF,
+  };
+
+  /// Line ending style (``\n`` or ``\r\n``) to use.
+  /// \version 16
+  LineEndingStyle LineEnding;
 
   /// A regular expression matching macros that start a block.
   /// \code
@@ -2836,7 +2932,7 @@ struct FormatStyle {
   };
 
   /// The pack constructor initializers style to use.
-  /// \version 14;
+  /// \version 14
   PackConstructorInitializersStyle PackConstructorInitializers;
 
   /// The penalty for breaking around an assignment operator.
@@ -3972,10 +4068,9 @@ struct FormatStyle {
   /// \version 9
   std::vector<std::string> TypenameMacros;
 
-  /// \brief Use ``\r\n`` instead of ``\n`` for line breaks.
-  /// Also used as fallback if ``DeriveLineEnding`` is true.
+  /// This option is **deprecated**. See ``LF`` and ``CRLF`` of ``LineEnding``.
   /// \version 10
-  bool UseCRLF;
+  // bool UseCRLF;
 
   /// Different ways to use tab in formatting.
   enum UseTabStyle : int8_t {
@@ -4048,6 +4143,7 @@ struct FormatStyle {
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BitFieldColonSpacing == R.BitFieldColonSpacing &&
+           BreakAfterAttributes == R.BreakAfterAttributes &&
            BreakAfterJavaFieldAnnotations == R.BreakAfterJavaFieldAnnotations &&
            BreakArrays == R.BreakArrays &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&
@@ -4064,7 +4160,6 @@ struct FormatStyle {
                R.ConstructorInitializerIndentWidth &&
            ContinuationIndentWidth == R.ContinuationIndentWidth &&
            Cpp11BracedListStyle == R.Cpp11BracedListStyle &&
-           DeriveLineEnding == R.DeriveLineEnding &&
            DerivePointerAlignment == R.DerivePointerAlignment &&
            DisableFormat == R.DisableFormat &&
            EmptyLineAfterAccessModifier == R.EmptyLineAfterAccessModifier &&
@@ -4089,6 +4184,11 @@ struct FormatStyle {
            IndentWidth == R.IndentWidth &&
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
            InsertBraces == R.InsertBraces &&
+           InsertNewlineAtEOF == R.InsertNewlineAtEOF &&
+           IntegerLiteralSeparator.Binary == R.IntegerLiteralSeparator.Binary &&
+           IntegerLiteralSeparator.Decimal ==
+               R.IntegerLiteralSeparator.Decimal &&
+           IntegerLiteralSeparator.Hex == R.IntegerLiteralSeparator.Hex &&
            JavaImportGroups == R.JavaImportGroups &&
            JavaScriptQuotes == R.JavaScriptQuotes &&
            JavaScriptWrapImports == R.JavaScriptWrapImports &&
@@ -4096,7 +4196,7 @@ struct FormatStyle {
                R.KeepEmptyLinesAtTheStartOfBlocks &&
            Language == R.Language &&
            LambdaBodyIndentation == R.LambdaBodyIndentation &&
-           MacroBlockBegin == R.MacroBlockBegin &&
+           LineEnding == R.LineEnding && MacroBlockBegin == R.MacroBlockBegin &&
            MacroBlockEnd == R.MacroBlockEnd &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
            NamespaceIndentation == R.NamespaceIndentation &&
@@ -4163,12 +4263,11 @@ struct FormatStyle {
            Standard == R.Standard &&
            StatementAttributeLikeMacros == R.StatementAttributeLikeMacros &&
            StatementMacros == R.StatementMacros && TabWidth == R.TabWidth &&
-           TypenameMacros == R.TypenameMacros && UseCRLF == R.UseCRLF &&
-           UseTab == R.UseTab &&
+           TypenameMacros == R.TypenameMacros && UseTab == R.UseTab &&
            WhitespaceSensitiveMacros == R.WhitespaceSensitiveMacros;
   }
 
-  llvm::Optional<FormatStyle> GetLanguageStyle(LanguageKind Language) const;
+  std::optional<FormatStyle> GetLanguageStyle(LanguageKind Language) const;
 
   // Stores per-language styles. A FormatStyle instance inside has an empty
   // StyleSet. A FormatStyle instance returned by the Get method has its
@@ -4180,7 +4279,7 @@ struct FormatStyle {
   struct FormatStyleSet {
     typedef std::map<FormatStyle::LanguageKind, FormatStyle> MapType;
 
-    llvm::Optional<FormatStyle> Get(FormatStyle::LanguageKind Language) const;
+    std::optional<FormatStyle> Get(FormatStyle::LanguageKind Language) const;
 
     // Adds \p Style to this FormatStyleSet. Style must not have an associated
     // FormatStyleSet.

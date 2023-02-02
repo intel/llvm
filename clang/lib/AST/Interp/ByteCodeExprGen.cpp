@@ -802,7 +802,11 @@ unsigned ByteCodeExprGen<Emitter>::allocateLocalPrimitive(DeclTy &&Src,
                                                           PrimType Ty,
                                                           bool IsConst,
                                                           bool IsExtended) {
-  Descriptor *D = P.createDescriptor(Src, Ty, IsConst, Src.is<const Expr *>());
+  // FIXME: There are cases where Src.is<Expr*>() is wrong, e.g.
+  //   (int){12} in C. Consider using Expr::isTemporaryObject() instead
+  //   or isa<MaterializeTemporaryExpr>().
+  Descriptor *D = P.createDescriptor(Src, Ty, Descriptor::InlineDescMD, IsConst,
+                                     Src.is<const Expr *>());
   Scope::Local Local = this->createLocal(D);
   if (auto *VD = dyn_cast_or_null<ValueDecl>(Src.dyn_cast<const Decl *>()))
     Locals.insert({VD, Local});
@@ -831,7 +835,8 @@ ByteCodeExprGen<Emitter>::allocateLocal(DeclTy &&Src, bool IsExtended) {
   }
 
   Descriptor *D = P.createDescriptor(
-      Src, Ty.getTypePtr(), Ty.isConstQualified(), IsTemporary, false, Init);
+      Src, Ty.getTypePtr(), Descriptor::InlineDescMD, Ty.isConstQualified(),
+      IsTemporary, /*IsMutable=*/false, Init);
   if (!D)
     return {};
 
@@ -1041,20 +1046,12 @@ bool ByteCodeExprGen<Emitter>::visitRecordInitializer(const Expr *Initializer) {
 
     return true;
   } else if (const CallExpr *CE = dyn_cast<CallExpr>(Initializer)) {
-    const Decl *Callee = CE->getCalleeDecl();
-    const Function *Func = getFunction(dyn_cast<FunctionDecl>(Callee));
-
-    if (!Func)
+    // RVO functions expect a pointer to initialize on the stack.
+    // Dup our existing pointer so it has its own copy to use.
+    if (!this->emitDupPtr(Initializer))
       return false;
 
-    if (Func->hasRVO()) {
-      // RVO functions expect a pointer to initialize on the stack.
-      // Dup our existing pointer so it has its own copy to use.
-      if (!this->emitDupPtr(Initializer))
-        return false;
-
-      return this->visit(CE);
-    }
+    return this->VisitCallExpr(CE);
   } else if (const auto *DIE = dyn_cast<CXXDefaultInitExpr>(Initializer)) {
     return this->visitInitializer(DIE->getExpr());
   }

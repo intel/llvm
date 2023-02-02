@@ -1306,18 +1306,13 @@ bool IRTranslator::translateLoad(const User &U, MachineIRBuilder &MIRBuilder) {
   }
 
   auto &TLI = *MF->getSubtarget().getTargetLowering();
-  MachineMemOperand::Flags Flags = TLI.getLoadMemOperandFlags(LI, *DL);
+  MachineMemOperand::Flags Flags =
+      TLI.getLoadMemOperandFlags(LI, *DL, AC, LibInfo);
   if (AA && !(Flags & MachineMemOperand::MOInvariant)) {
     if (AA->pointsToConstantMemory(
             MemoryLocation(Ptr, LocationSize::precise(StoreSize), AAInfo))) {
       Flags |= MachineMemOperand::MOInvariant;
     }
-  }
-
-  if (!(Flags & MachineMemOperand::MODereferenceable)) {
-    if (isDereferenceableAndAlignedPointer(Ptr, LI.getType(), LI.getAlign(),
-                                           *DL, &LI, AC, nullptr, LibInfo))
-      Flags |= MachineMemOperand::MODereferenceable;
   }
 
   const MDNode *Ranges =
@@ -2367,7 +2362,7 @@ bool IRTranslator::translateCallBase(const CallBase &CB,
       SwiftInVReg = MRI->createGenericVirtualRegister(Ty);
       MIRBuilder.buildCopy(SwiftInVReg, SwiftError.getOrCreateVRegUseAt(
                                             &CB, &MIRBuilder.getMBB(), Arg));
-      Args.emplace_back(makeArrayRef(SwiftInVReg));
+      Args.emplace_back(ArrayRef(SwiftInVReg));
       SwiftErrorVReg =
           SwiftError.getOrCreateVRegDefAt(&CB, &MIRBuilder.getMBB(), Arg);
       continue;
@@ -2591,9 +2586,6 @@ bool IRTranslator::translateInvoke(const User &U,
 
   bool LowerInlineAsm = I.isInlineAsm();
   bool NeedEHLabel = true;
-  // If it can't throw then use a fast-path without emitting EH labels.
-  if (LowerInlineAsm)
-    NeedEHLabel = (cast<InlineAsm>(I.getCalledOperand()))->canThrow();
 
   // Emit the actual call, bracketed by EH_LABELs so that the MF knows about
   // the region covered by the try.

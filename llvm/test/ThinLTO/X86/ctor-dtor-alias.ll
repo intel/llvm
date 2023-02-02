@@ -9,7 +9,7 @@
 
 ; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
 ; RUN: cp %t1.bc %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -r=%t1.bc,_ZTV1A,pl -r=%t1.bc,_ZN1AD0Ev,pl -r=%t1.bc,_ZN1AD1Ev,pl -r=%t1.bc,_ZN1AD2Ev,pl -r=%t1.bc,D1_a,pl -r=%t1.bc,D1_a_a,pl \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -r=%t1.bc,_ZTV1A,pl -r=%t1.bc,_ZN1AD0Ev,pl -r=%t1.bc,_ZN1AD1Ev,pl -r=%t1.bc,_ZN1AD2Ev,pl -r=%t1.bc,D1_a,pl -r=%t1.bc,D1_a_a,pl \
 ; RUN:    -r=%t2.bc,_ZTV1A,l -r=%t2.bc,_ZN1AD0Ev,l -r=%t2.bc,_ZN1AD1Ev,l -r=%t2.bc,_ZN1AD2Ev,l -r=%t2.bc,D1_a,l -r=%t2.bc,D1_a_a,l -o %t3 --save-temps
 ; RUN: llvm-dis -opaque-pointers < %t3.2.1.promote.bc | FileCheck %s
 

@@ -10,7 +10,7 @@
 ; RUN: opt -thinlto-bc -o %t2.o %s
 
 ; Check first in trapping mode.
-; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -opaque-pointers \
 ; RUN:	 -wholeprogramdevirt-check=trap \
 ; RUN:   -o %t3 \
@@ -21,7 +21,7 @@
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK --check-prefix=TRAP
 
 ; Check next in fallback mode.
-; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -opaque-pointers \
 ; RUN:	 -wholeprogramdevirt-check=fallback \
 ; RUN:   -o %t3 \

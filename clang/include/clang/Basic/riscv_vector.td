@@ -137,8 +137,6 @@ class PolicyScheme<int val>{
 def NonePolicy : PolicyScheme<0>;
 def HasPassthruOperand : PolicyScheme<1>;
 def HasPolicyOperand : PolicyScheme<2>;
-// Specail case for passthru operand which is not a first opeand.
-def HasPassthruOperandAtIdx1 : PolicyScheme<3>;
 
 class RVVBuiltin<string suffix, string prototype, string type_range,
                  string overloaded_suffix = ""> {
@@ -812,6 +810,80 @@ multiclass RVVIndexedStore<string op> {
 }
 
 defvar NFList = [2, 3, 4, 5, 6, 7, 8];
+/*
+A segment load builtin has different variants.
+
+Therefore a segment unit-stride load builtin can have 4 variants,
+1. When unmasked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Ptr, VL)
+2. When masked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Mask, Ptr, VL)
+3. When unmasked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, VL)
+4. When masked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Mask, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, VL)
+
+Other variants of segment load builtin share the same structure, but they
+have their own extra parameter.
+
+The segment unit-stride fault-only-first load builtin has a 'NewVL'
+operand after the 'Ptr' operand.
+1. When unmasked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Ptr, NewVL, VL)
+2. When masked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Mask, Ptr, NewVL, VL)
+3. When unmasked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, NewVL, VL)
+4. When masked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Mask, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, NewVL, VL)
+
+The segment strided load builtin has a 'Stride' operand after the 'Ptr'
+operand.
+1. When unmasked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Ptr, Stride, VL)
+2. When masked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Mask, Ptr, Stride, VL)
+3. When unmasked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, Stride, VL)
+4. When masked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Mask, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, Stride, VL)
+
+The segment indexed load builtin has a 'Idx' operand after the 'Ptr' operand.
+1. When unmasked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Ptr, Idx, VL)
+2. When masked and the policies are all specified as agnostic:
+(Address0, ..., Address{NF - 1}, Mask, Ptr, Idx, VL)
+3. When unmasked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, Idx, VL)
+4. When masked and one of the policies is specified as undisturbed:
+(Address0, ..., Address{NF - 1}, Mask, Maskedoff0, ..., Maskedoff{NF - 1},
+  Ptr, Idx, VL)
+
+Segment load intrinsics has different variants similar to their builtins.
+
+Segment unit-stride load intrinsic,
+  Masked: (Vector0, ..., Vector{NF - 1}, Ptr, Mask, VL, Policy)
+  Unmasked: (Vector0, ..., Vector{NF - 1}, Ptr, VL)
+Segment unit-stride fault-only-first load intrinsic,
+  Masked: (Vector0, ..., Vector{NF - 1}, Ptr, Mask, VL, Policy)
+  Unmasked: (Vector0, ..., Vector{NF - 1}, Ptr, VL)
+Segment strided load intrinsic,
+  Masked: (Vector0, ..., Vector{NF - 1}, Ptr, Stride, Mask, VL, Policy)
+  Unmasked: (Vector0, ..., Vector{NF - 1}, Ptr, Stride, VL)
+Segment indexed load intrinsic,
+  Masked: (Vector0, ..., Vector{NF - 1}, Ptr, Index, Mask, VL, Policy)
+  Unmasked: (Vector0, ..., Vector{NF - 1}, Ptr, Index, VL)
+
+The Vector(s) is poison when the policy behavior allows us to not care
+about any masked-off elements.
+*/
 
 class PVString<int nf, bit signed> {
   string S =
@@ -842,36 +914,30 @@ multiclass RVVUnitStridedSegLoad<string op> {
     {
       ResultType = ConvertType(E->getArg(0)->getType()->getPointeeType());
       IntrinsicTypes = {ResultType, Ops.back()->getType()};
-      SmallVector<llvm::Value*, 10> Operands;
-      if (IsMasked) {
-        // TAMA builtin: (val0 address, ..., mask, ptr, vl)
-        // builtin: (val0 address, ..., mask, maskedoff0, ..., ptr, vl)
-        // intrinsic: (maskedoff0, ..., ptr, mask, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 2]);
-        } else {
+      SmallVector<llvm::Value*, 12> Operands;
+
+      // Please refer to comment under 'defvar NFList' in this file
+      if ((IsMasked && PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ||
+          (!IsMasked && PolicyAttrs == TAIL_AGNOSTIC))
+        Operands.append(NF, llvm::PoisonValue::get(ResultType));
+      else {
+        if (IsMasked)
           Operands.append(Ops.begin() + NF + 1, Ops.begin() + 2 * NF + 1);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[2 * NF + 2]);
-        }
-        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
-        assert(Operands.size() == NF + 4);
-      } else {
-        // TA builtin: (val0 address, val1 address, ..., ptr, vl)
-        // TU builtin: (val0 address, ..., passthru0, ..., ptr, vl)
-        // intrinsic: (passthru0, passthru1, ..., ptr, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 1]);
-        } else {
-          Operands.append(Ops.begin() + NF, Ops.begin() + 2 * NF + 2);
-        }
+        else // Unmasked
+          Operands.append(Ops.begin() + NF, Ops.begin() + 2 * NF);
       }
+      unsigned PtrOperandIdx = IsMasked ?
+        (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ? NF + 1 : 2 * NF + 1 :
+        (PolicyAttrs == TAIL_AGNOSTIC) ? NF : 2 * NF;
+      Value *PtrOperand = Ops[PtrOperandIdx];
+      Value *VLOperand = Ops[PtrOperandIdx + 1];
+      Operands.push_back(PtrOperand);
+      if (IsMasked)
+        Operands.push_back(Ops[NF]);
+      Operands.push_back(VLOperand);
+      if (IsMasked)
+        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
+
       llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
       llvm::Value *LoadValue = Builder.CreateCall(F, Operands, "");
       clang::CharUnits Align =
@@ -914,43 +980,30 @@ multiclass RVVUnitStridedSegLoadFF<string op> {
       ResultType = ConvertType(E->getArg(0)->getType()->getPointeeType());
       IntrinsicTypes = {ResultType, Ops.back()->getType()};
       SmallVector<llvm::Value*, 12> Operands;
-      Value *NewVL;
 
-      if (IsMasked) {
-        // TAMA builtin: (val0 address, ..., mask, ptr, new_vl, vl)
-        // builtin: (val0 address, ..., mask, maskedoff0, ..., ptr, new_vl, vl)
-        // intrinsic: (maskedoff0, ..., ptr, mask, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 3]);
-          NewVL = Ops[NF + 2];
-        } else {
+      // Please refer to comment under 'defvar NFList' in this file
+      if ((IsMasked && PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ||
+          (!IsMasked && PolicyAttrs == TAIL_AGNOSTIC))
+        Operands.append(NF, llvm::PoisonValue::get(ResultType));
+      else {
+        if (IsMasked)
           Operands.append(Ops.begin() + NF + 1, Ops.begin() + 2 * NF + 1);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[2 * NF + 3]);
-          NewVL = Ops[2 * NF + 2];
-        }
-        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
-        assert(Operands.size() == NF + 4);
-      } else {
-        // TA builtin: (val0 address, val1 address, ..., ptr, new_vl, vl)
-        // TU builtin: (val0 address, ..., passthru0, ..., ptr, new_vl, vl)
-        // intrinsic: (passthru0, passthru1, ..., ptr, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 2]);
-          NewVL = Ops[NF + 1];
-        } else {
+        else // Unmasked
           Operands.append(Ops.begin() + NF, Ops.begin() + 2 * NF);
-          Operands.push_back(Ops[2 * NF]);
-          Operands.push_back(Ops[2 * NF + 2]);
-          NewVL = Ops[2 * NF + 1];
-        }
       }
+      unsigned PtrOperandIdx = IsMasked ?
+        (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ? NF + 1 : 2 * NF + 1 :
+        (PolicyAttrs == TAIL_AGNOSTIC) ? NF : 2 * NF;
+      Value *PtrOperand = Ops[PtrOperandIdx];
+      Value *NewVLOperand = Ops[PtrOperandIdx + 1];
+      Value *VLOperand = Ops[PtrOperandIdx + 2];
+      Operands.push_back(PtrOperand);
+      if (IsMasked)
+        Operands.push_back(Ops[NF]);
+      Operands.push_back(VLOperand);
+      if (IsMasked)
+        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
+
       llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
       llvm::Value *LoadValue = Builder.CreateCall(F, Operands, "");
       clang::CharUnits Align =
@@ -961,7 +1014,7 @@ multiclass RVVUnitStridedSegLoadFF<string op> {
       }
       // Store new_vl.
       llvm::Value *Val = Builder.CreateExtractValue(LoadValue, {NF});
-      return Builder.CreateStore(Val, Address(NewVL, Val->getType(), Align));
+      return Builder.CreateStore(Val, Address(NewVLOperand, Val->getType(), Align));
     }
     }] in {
           defvar PV = PVString<nf, /*signed=*/true>.S;
@@ -995,41 +1048,30 @@ multiclass RVVStridedSegLoad<string op> {
       IntrinsicTypes = {ResultType, Ops.back()->getType()};
       SmallVector<llvm::Value*, 12> Operands;
 
-      if (IsMasked) {
-        // TAMA builtin: (val0 address, ..., mask, ptr, stride, vl)
-        // builtin: (val0 address, ..., mask, maskedoff0, ..., ptr, stride, vl)
-        // intrinsic: (maskedoff0, ..., ptr, stride, mask, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF + 2]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 3]);
-        } else {
+      // Please refer to comment under 'defvar NFList' in this file
+      if ((IsMasked && PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ||
+          (!IsMasked && PolicyAttrs == TAIL_AGNOSTIC))
+        Operands.append(NF, llvm::PoisonValue::get(ResultType));
+      else {
+        if (IsMasked)
           Operands.append(Ops.begin() + NF + 1, Ops.begin() + 2 * NF + 1);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[2 * NF + 2]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[2 * NF + 3]);
-        }
-        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
-        assert(Operands.size() == NF + 5);
-      } else {
-        // TA builtin: (val0 address, val1 address, ..., ptr, stride, vl)
-        // TU builtin: (val0 address, ..., passthru0, ..., ptr, stride, vl)
-        // intrinsic: (passthru0, passthru1, ..., ptr, stride, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF + 2]);
-        } else {
+        else // Unmasked
           Operands.append(Ops.begin() + NF, Ops.begin() + 2 * NF);
-          Operands.push_back(Ops[2 * NF]);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[2 * NF + 2]);
-        }
       }
+      unsigned PtrOperandIdx = IsMasked ?
+        (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ? NF + 1 : 2 * NF + 1 :
+        (PolicyAttrs == TAIL_AGNOSTIC) ? NF : 2 * NF;
+      Value *PtrOperand = Ops[PtrOperandIdx];
+      Value *StrideOperand = Ops[PtrOperandIdx + 1];
+      Value *VLOperand = Ops[PtrOperandIdx + 2];
+      Operands.push_back(PtrOperand);
+      Operands.push_back(StrideOperand);
+      if (IsMasked)
+        Operands.push_back(Ops[NF]);
+      Operands.push_back(VLOperand);
+      if (IsMasked)
+        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
+
       llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
       llvm::Value *LoadValue = Builder.CreateCall(F, Operands, "");
       clang::CharUnits Align =
@@ -1067,45 +1109,32 @@ multiclass RVVIndexedSegLoad<string op> {
     {
       ResultType = ConvertType(E->getArg(0)->getType()->getPointeeType());
       SmallVector<llvm::Value*, 12> Operands;
-      if (IsMasked) {
-        // TAMA builtin: (val0 address, ..., mask, ptr, index, vl)
-        // builtin: (val0 address, ..., mask, maskedoff0, ..., ptr, index, vl)
-        // intrinsic: (maskedoff0, ..., ptr, index, mask, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF + 2]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 3]);
-          IntrinsicTypes = {ResultType, Ops[NF + 2]->getType(), Ops.back()->getType()};
-        } else {
+
+      // Please refer to comment under 'defvar NFList' in this file
+      if ((IsMasked && PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ||
+          (!IsMasked && PolicyAttrs == TAIL_AGNOSTIC))
+        Operands.append(NF, llvm::PoisonValue::get(ResultType));
+      else {
+        if (IsMasked)
           Operands.append(Ops.begin() + NF + 1, Ops.begin() + 2 * NF + 1);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[2 * NF + 2]);
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[2 * NF + 3]);
-          IntrinsicTypes = {ResultType, Ops[2 * NF + 2]->getType(), Ops.back()->getType()};
-        }
-        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
-        assert(Operands.size() == NF + 5);
-      } else {
-        // TA builtin: (val0 address, val1 address, ..., ptr, index, vl)
-        // TU builtin: (val0 address, ..., passthru0, ..., ptr, index, vl)
-        // intrinsic: (passthru0, passthru1, ..., ptr, index, vl)
-        if (PolicyAttrs == TAIL_AGNOSTIC) {
-          Operands.append(NF, llvm::PoisonValue::get(ResultType));
-          Operands.push_back(Ops[NF]);
-          Operands.push_back(Ops[NF + 1]);
-          Operands.push_back(Ops[NF + 2]);
-          IntrinsicTypes = {ResultType, Ops[NF + 1]->getType(), Ops.back()->getType()};
-        } else {
+        else // Unmasked
           Operands.append(Ops.begin() + NF, Ops.begin() + 2 * NF);
-          Operands.push_back(Ops[2 * NF]);
-          Operands.push_back(Ops[2 * NF + 1]);
-          Operands.push_back(Ops[2 * NF + 2]);
-          IntrinsicTypes = {ResultType, Ops[2 * NF + 1]->getType(), Ops.back()->getType()};
-        }
       }
+      unsigned PtrOperandIdx = IsMasked ?
+        (PolicyAttrs == TAIL_AGNOSTIC_MASK_AGNOSTIC) ? NF + 1 : 2 * NF + 1 :
+        (PolicyAttrs == TAIL_AGNOSTIC) ? NF : 2 * NF;
+      Value *PtrOperand = Ops[PtrOperandIdx];
+      Value *IndexOperand = Ops[PtrOperandIdx + 1];
+      Value *VLOperand = Ops[PtrOperandIdx + 2];
+      Operands.push_back(PtrOperand);
+      Operands.push_back(IndexOperand);
+      if (IsMasked)
+        Operands.push_back(Ops[NF]);
+      Operands.push_back(VLOperand);
+      if (IsMasked)
+        Operands.push_back(ConstantInt::get(Ops.back()->getType(), PolicyAttrs));
+      IntrinsicTypes = {ResultType, IndexOperand->getType(), Ops.back()->getType()};
+
       llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
       llvm::Value *LoadValue = Builder.CreateCall(F, Operands, "");
       clang::CharUnits Align =
@@ -1527,6 +1556,32 @@ void vwrite_csr(enum RVV_CSR __csr, unsigned long __value) {
 }] in
 def vread_vwrite_csr: RVVHeader;
 
+let HeaderCode =
+[{
+#define vlenb() __builtin_rvv_vlenb()
+}] in
+def vlenb_macro: RVVHeader;
+
+let HasBuiltinAlias = false, HasVL = false, HasMasked = false,
+    UnMaskedPolicyScheme = NonePolicy, MaskedPolicyScheme = NonePolicy,
+    Log2LMUL = [0], IRName = "",
+    ManualCodegen = [{
+    {
+      LLVMContext &Context = CGM.getLLVMContext();
+      llvm::MDBuilder MDHelper(Context);
+
+      llvm::Metadata *Ops[] = {llvm::MDString::get(Context, "vlenb")};
+      llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
+      llvm::Value *Metadata = llvm::MetadataAsValue::get(Context, RegName);
+      llvm::Function *F =
+        CGM.getIntrinsic(llvm::Intrinsic::read_register, {SizeTy});
+      return Builder.CreateCall(F, Metadata);
+    }
+    }] in
+{
+  def vlenb : RVVBuiltin<"", "u", "i">;
+}
+
 // 6. Configuration-Setting Instructions
 // 6.1. vsetvli/vsetvl instructions
 
@@ -1821,20 +1876,19 @@ defm vwmaccus : RVVOutOp1Op2BuiltinSet<"vwmaccus", "csi",
 // 12.15. Vector Integer Merge Instructions
 // C/C++ Operand: (mask, op1, op2, vl), Intrinsic: (passthru, op1, op2, mask, vl)
 let HasMasked = false,
-    UnMaskedPolicyScheme = HasPassthruOperandAtIdx1,
+    UnMaskedPolicyScheme = HasPassthruOperand,
     MaskedPolicyScheme = NonePolicy,
     ManualCodegen = [{
-      std::rotate(Ops.begin(), Ops.begin() + 1, Ops.end() - 1);
       // insert poison passthru
       if (PolicyAttrs == TAIL_AGNOSTIC)
         Ops.insert(Ops.begin(), llvm::PoisonValue::get(ResultType));
       IntrinsicTypes = {ResultType, Ops[2]->getType(), Ops.back()->getType()};
     }] in {
   defm vmerge : RVVOutOp1BuiltinSet<"vmerge", "csil",
-                                    [["vvm", "v", "vmvv"],
-                                     ["vxm", "v", "vmve"],
-                                     ["vvm", "Uv", "UvmUvUv"],
-                                     ["vxm", "Uv", "UvmUvUe"]]>;
+                                    [["vvm", "v", "vvvm"],
+                                     ["vxm", "v", "vvem"],
+                                     ["vvm", "Uv", "UvUvUvm"],
+                                     ["vxm", "Uv", "UvUvUem"]]>;
 }
 
 // 12.16. Vector Integer Move Instructions
@@ -1965,19 +2019,18 @@ let Name = "vfclass_v", UnMaskedPolicyScheme = HasPassthruOperand in
 // 14.15. Vector Floating-Point Merge Instructio
 // C/C++ Operand: (mask, op1, op2, vl), Builtin: (op1, op2, mask, vl)
 let HasMasked = false,
-    UnMaskedPolicyScheme = HasPassthruOperandAtIdx1,
+    UnMaskedPolicyScheme = HasPassthruOperand,
     MaskedPolicyScheme = NonePolicy,
     ManualCodegen = [{
-      std::rotate(Ops.begin(), Ops.begin() + 1, Ops.end() - 1);
       // insert poison passthru
       if (PolicyAttrs == TAIL_AGNOSTIC)
         Ops.insert(Ops.begin(), llvm::PoisonValue::get(ResultType));
       IntrinsicTypes = {ResultType, Ops[2]->getType(), Ops.back()->getType()};
     }] in {
   defm vmerge : RVVOutOp1BuiltinSet<"vmerge", "xfd",
-                                    [["vvm", "v", "vmvv"]]>;
+                                    [["vvm", "v", "vvvm"]]>;
   defm vfmerge : RVVOutOp1BuiltinSet<"vfmerge", "xfd",
-                                    [["vfm", "v", "vmve"]]>;
+                                     [["vfm", "v", "vvem"]]>;
 }
 
 // 14.16. Vector Floating-Point Move Instruction
@@ -2165,10 +2218,9 @@ defm vrgatherei16 : RVVOutBuiltinSet<"vrgatherei16_vv", "csil",
 // 17.5. Vector Compress Instruction
 let IsPrototypeDefaultTU = true,
     HasMasked = false,
-    UnMaskedPolicyScheme = HasPassthruOperandAtIdx1,
+    UnMaskedPolicyScheme = HasPassthruOperand,
     MaskedPolicyScheme = NonePolicy,
     ManualCodegen = [{
-      std::rotate(Ops.begin(), Ops.begin() + 1, Ops.end() - 1);
       // insert poison passthru
       if (PolicyAttrs == TAIL_AGNOSTIC)
         Ops.insert(Ops.begin(), llvm::PoisonValue::get(ResultType));
@@ -2176,10 +2228,10 @@ let IsPrototypeDefaultTU = true,
     }] in {
   // signed and floating type
   defm vcompress : RVVOutBuiltinSet<"vcompress", "csilxfd",
-                                    [["vm", "v", "vmvv"]]>;
+                                    [["vm", "v", "vvvm"]]>;
   // unsigned type
   defm vcompress : RVVOutBuiltinSet<"vcompress", "csil",
-                                    [["vm", "Uv", "UvmUvUv"]]>;
+                                    [["vm", "Uv", "UvUvUvm"]]>;
 }
 
 // Miscellaneous

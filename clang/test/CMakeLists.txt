@@ -17,6 +17,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_THREADS
   LLVM_WITH_Z3
   PPC_LINUX_DEFAULT_IEEELONGDOUBLE
+  LLVM_TOOL_LLVM_DRIVER_BUILD
   )
 
 configure_lit_site_cfg(
@@ -73,6 +74,7 @@ list(APPEND CLANG_TEST_DEPS
   clang-refactor
   clang-diff
   clang-scan-deps
+  clang-stat-cache
   diagtool
   hmaptool
   )

@@ -11,10 +11,10 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "PybindUtils.h"
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 
@@ -83,12 +83,12 @@ public:
 
   /// Looks up a registered dialect class by namespace. Note that this may
   /// trigger loading of the defining module and can arbitrarily re-enter.
-  llvm::Optional<pybind11::object>
+  std::optional<pybind11::object>
   lookupDialectClass(const std::string &dialectNamespace);
 
   /// Looks up a registered raw OpView class by operation name. Note that this
   /// may trigger a load of the dialect, which can arbitrarily re-enter.
-  llvm::Optional<pybind11::object>
+  std::optional<pybind11::object>
   lookupRawOpViewClass(llvm::StringRef operationName);
 
 private:
@@ -103,7 +103,7 @@ private:
   /// the OpView base class (bypassing the user class constructor).
   llvm::StringMap<pybind11::object> rawOpViewClassMap;
   /// Map of attribute ODS name to custom builder.
-  llvm::StringMap<pybind11::function> attributeBuilderMap;
+  llvm::StringMap<pybind11::object> attributeBuilderMap;
 
   /// Set of dialect namespaces that we have attempted to import implementation
   /// modules for.

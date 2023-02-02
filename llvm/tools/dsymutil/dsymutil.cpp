@@ -82,9 +82,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class DsymutilOptTable : public opt::OptTable {
+class DsymutilOptTable : public opt::GenericOptTable {
 public:
-  DsymutilOptTable() : OptTable(InfoTable) {}
+  DsymutilOptTable() : opt::GenericOptTable(InfoTable) {}
 };
 } // namespace
 
@@ -557,7 +557,7 @@ int main(int argc, char **argv) {
   DsymutilOptTable T;
   unsigned MAI;
   unsigned MAC;
-  ArrayRef<const char *> ArgsArr = makeArrayRef(argv + 1, argc - 1);
+  ArrayRef<const char *> ArgsArr = ArrayRef(argv + 1, argc - 1);
   opt::InputArgList Args = T.ParseArgs(ArgsArr, MAI, MAC);
 
   void *P = (void *)(intptr_t)getOutputFileName;

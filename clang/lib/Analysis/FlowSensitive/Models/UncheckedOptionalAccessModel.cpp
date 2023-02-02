@@ -22,12 +22,15 @@
 #include "clang/Analysis/FlowSensitive/CFGMatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/NoopLattice.h"
+#include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -56,7 +59,7 @@ auto hasOptionalType() { return hasType(optionalOrAliasType()); }
 
 auto isOptionalMemberCallWithName(
     llvm::StringRef MemberName,
-    const llvm::Optional<StatementMatcher> &Ignorable = std::nullopt) {
+    const std::optional<StatementMatcher> &Ignorable = std::nullopt) {
   auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
                                     : cxxThisExpr());
   return cxxMemberCallExpr(
@@ -66,7 +69,7 @@ auto isOptionalMemberCallWithName(
 
 auto isOptionalOperatorCallWithName(
     llvm::StringRef operator_name,
-    const llvm::Optional<StatementMatcher> &Ignorable = std::nullopt) {
+    const std::optional<StatementMatcher> &Ignorable = std::nullopt) {
   return cxxOperatorCallExpr(
       hasOverloadedOperatorName(operator_name),
       callee(cxxMethodDecl(ofClass(optionalClass()))),
@@ -100,8 +103,10 @@ auto inPlaceClass() {
 }
 
 auto isOptionalNulloptConstructor() {
-  return cxxConstructExpr(hasOptionalType(), argumentCountIs(1),
-                          hasArgument(0, hasNulloptType()));
+  return cxxConstructExpr(
+      hasOptionalType(),
+      hasDeclaration(cxxConstructorDecl(parameterCountIs(1),
+                                        hasParameter(0, hasNulloptType()))));
 }
 
 auto isOptionalInPlaceConstructor() {
@@ -452,6 +457,7 @@ void assignOptionalValue(const Expr &E, Environment &Env,
 BoolValue &valueOrConversionHasValue(const FunctionDecl &F, const Expr &E,
                                      const MatchFinder::MatchResult &MatchRes,
                                      LatticeTransferState &State) {
+  assert(F.getTemplateSpecializationArgs() != nullptr);
   assert(F.getTemplateSpecializationArgs()->size() > 0);
 
   const int TemplateParamOptionalWrappersCount = countOptionalWrappers(
@@ -609,7 +615,7 @@ void transferOptionalAndValueCmp(const clang::CXXOperatorCallExpr *CmpExpr,
   }
 }
 
-llvm::Optional<StatementMatcher>
+std::optional<StatementMatcher>
 ignorableOptional(const UncheckedOptionalAccessModelOptions &Options) {
   if (Options.IgnoreSmartPointerDereference) {
     auto SmartPtrUse = expr(ignoringParenImpCasts(cxxOperatorCallExpr(
@@ -622,12 +628,12 @@ ignorableOptional(const UncheckedOptionalAccessModelOptions &Options) {
 }
 
 StatementMatcher
-valueCall(const llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueCall(const std::optional<StatementMatcher> &IgnorableOptional) {
   return isOptionalMemberCallWithName("value", IgnorableOptional);
 }
 
 StatementMatcher
-valueOperatorCall(const llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueOperatorCall(const std::optional<StatementMatcher> &IgnorableOptional) {
   return expr(anyOf(isOptionalOperatorCallWithName("*", IgnorableOptional),
                     isOptionalOperatorCallWithName("->", IgnorableOptional)));
 }
@@ -831,7 +837,14 @@ ComparisonResult UncheckedOptionalAccessModel::compare(
     const Value &Val2, const Environment &Env2) {
   if (!isOptionalType(Type))
     return ComparisonResult::Unknown;
-  return isNonEmptyOptional(Val1, Env1) == isNonEmptyOptional(Val2, Env2)
+  bool MustNonEmpty1 = isNonEmptyOptional(Val1, Env1);
+  bool MustNonEmpty2 = isNonEmptyOptional(Val2, Env2);
+  if (MustNonEmpty1 && MustNonEmpty2) return ComparisonResult::Same;
+  // If exactly one is true, then they're different, no reason to check whether
+  // they're definitely empty.
+  if (MustNonEmpty1 || MustNonEmpty2) return ComparisonResult::Different;
+  // Check if they're both definitely empty.
+  return (isEmptyOptional(Val1, Env1) && isEmptyOptional(Val2, Env2))
              ? ComparisonResult::Same
              : ComparisonResult::Different;
 }
@@ -844,14 +857,46 @@ bool UncheckedOptionalAccessModel::merge(QualType Type, const Value &Val1,
                                          Environment &MergedEnv) {
   if (!isOptionalType(Type))
     return true;
-
+  // FIXME: uses same approach as join for `BoolValues`. Requires non-const
+  // values, though, so will require updating the interface.
   auto &HasValueVal = MergedEnv.makeAtomicBoolValue();
-  if (isNonEmptyOptional(Val1, Env1) && isNonEmptyOptional(Val2, Env2))
+  bool MustNonEmpty1 = isNonEmptyOptional(Val1, Env1);
+  bool MustNonEmpty2 = isNonEmptyOptional(Val2, Env2);
+  if (MustNonEmpty1 && MustNonEmpty2)
     MergedEnv.addToFlowCondition(HasValueVal);
-  else if (isEmptyOptional(Val1, Env1) && isEmptyOptional(Val2, Env2))
+  else if (
+      // Only make the costly calls to `isEmptyOptional` if we got "unknown"
+      // (false) for both calls to `isNonEmptyOptional`.
+      !MustNonEmpty1 && !MustNonEmpty2 && isEmptyOptional(Val1, Env1) &&
+      isEmptyOptional(Val2, Env2))
     MergedEnv.addToFlowCondition(MergedEnv.makeNot(HasValueVal));
   setHasValue(MergedVal, HasValueVal);
   return true;
+}
+
+Value *UncheckedOptionalAccessModel::widen(QualType Type, Value &Prev,
+                                           const Environment &PrevEnv,
+                                           Value &Current,
+                                           Environment &CurrentEnv) {
+  switch (compare(Type, Prev, PrevEnv, Current, CurrentEnv)) {
+  case ComparisonResult::Same:
+    return &Prev;
+  case ComparisonResult::Different:
+    if (auto *PrevHasVal =
+            cast_or_null<BoolValue>(Prev.getProperty("has_value"))) {
+      if (isa<TopBoolValue>(PrevHasVal))
+        return &Prev;
+    }
+    if (auto *CurrentHasVal =
+            cast_or_null<BoolValue>(Current.getProperty("has_value"))) {
+      if (isa<TopBoolValue>(CurrentHasVal))
+        return &Current;
+    }
+    return &createOptionalValue(CurrentEnv, CurrentEnv.makeTopBoolValue());
+  case ComparisonResult::Unknown:
+    return nullptr;
+  }
+  llvm_unreachable("all cases covered in switch");
 }
 
 UncheckedOptionalAccessDiagnoser::UncheckedOptionalAccessDiagnoser(
