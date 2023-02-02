@@ -147,7 +147,7 @@ auto APtr9 = malloc_host_annotated<int>(N, q, P5);
 ----
 
 The following example uses the compile-time-constant property `alignment`, defined in the link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr] extension.
-When `alignment` is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr` since it is a compile-time constant property.
+When the `alignment` property is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr` since it is a compile-time constant property.
 It also informs the runtime to allocate the memory with this alignment.
  
 [source,c++]
@@ -175,6 +175,7 @@ This extension also introduces USM memory allocation functions with `properties`
 If the parameter of type `size_t` has value `A` and the compile-time constant `alignment` property has value `B`, the resulting pointer will be both `A`-byte aligned and `B`-byte aligned, as well as `C`-byte aligned,
 where `C` is the least common multiple of `A` and `B`.
 
+Note that the `alignment` property will not be on the returned `annotated_ptr` (unless it is passed to the function), because the alignment is only known at runtime and not at compile-time.
 [source,c++]
 ----
 using namespace sycl::ext::oneapi::experimental;
@@ -184,14 +185,17 @@ properties P11{alignment<8>};
 
 // APtr13 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
 // The raw pointer of APtr13 is 64-byte aligned
+// Note: APtr13 does not have the alignment property. The alignment is runtime information.
 auto APtr13 = aligned_alloc_device_annotated<int>(N, q, 64 /* alignment */);
 
 // APtr14 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
 // The raw pointer of APtr14 is 64-byte aligned
+// Note: APtr14 has the alignment property because P10 contains the alignment property
 auto APtr14 = aligned_alloc_device_annotated<int>(N, q, 64, P10);
 
 // APtr15 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
 // The raw pointer of APtr15 is 128-byte aligned
+// Note: APtr15 has the alignment property with value 64, because this is the alignment known at compile-time
 auto APtr15 = aligned_alloc_device_annotated<int>(N, q, 128, P10);
 
 // APtr16 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
@@ -260,7 +264,7 @@ The functions in <<table.usm.device.allocs>> allocate device USM.  On success,
 these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
 eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
 leak.  If there are not enough resources to allocate the requested memory,
-these functions return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+these functions return an `annotated_ptr` containing a null raw pointer.
 
 
 [[table.usm.device.allocs]]
@@ -477,7 +481,7 @@ The functions in <<table.usm.host.allocs>> allocate host USM.  On success,
 these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
 eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
 leak.  If there are not enough resources to allocate the requested memory,
-these functions return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+these functions return an `annotated_ptr` containing a null raw pointer.
 
 
 [[table.usm.host.allocs]]
@@ -663,7 +667,7 @@ The functions in <<table.usm.shared.allocs>> allocate shared USM.  On success,
 these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
 eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
 leak.  If there are not enough resources to allocate the requested memory,
-these functions return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+these functions return an `annotated_ptr` containing a null raw pointer.
 
 [[table.usm.shared.allocs]]
 .Shared USM Allocation Functions with properties Support
@@ -885,7 +889,7 @@ the `errc::feature_not_supported` error code.
 On success, these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory,
 which must eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid
 a memory leak.  If there are not enough resources to allocate the requested
-memory, these functions return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+memory, these functions return an `annotated_ptr` containing a null raw pointer.
 
 
 [[table.usm.param.allocs]]
@@ -1113,7 +1117,7 @@ the `errc::feature_not_supported` error code.
 On success, these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory,
 which must eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid
 a memory leak.  If there are not enough resources to allocate the requested
-memory, these functions return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+memory, these functions return an `annotated_ptr` containing a null raw pointer.
 
 
 [[table.usm.additional.allocs]]
@@ -1237,7 +1241,7 @@ a|
 sycl::ext::oneapi::experimental::alignment
 | 	
 If this property is passed to a USM memory allocation function with `properties` support, it instructs the runtime to allocate memory with this alignment in bytes.
-The set of allowed alignments is implementation defined. Specifying an alignment that is not supported causes the allocation function to return an `annotated_ptr` containing a raw pointer that is `nullptr`.
+The set of allowed alignments is implementation defined. Specifying an alignment that is not supported causes the allocation function to return an `annotated_ptr` containing a null raw pointer.
 |
 link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 |====
