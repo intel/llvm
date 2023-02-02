@@ -8,8 +8,8 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "DeviceGlobals.h"
-#include "CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
