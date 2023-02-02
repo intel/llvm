@@ -5433,7 +5433,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     // checks with PI_CHECK_ERROR are not suggested
     CUresult ret = cuPointerGetAttribute(
         &src_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)src_ptr);
-    assertm(
+    assert(
         (src_type != CU_MEMORYTYPE_ARRAY && src_type != CU_MEMORYTYPE_UNIFIED) &&
         "ARRAY, UNIFIED types are not supported!");
 
@@ -5456,7 +5456,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     // checks with PI_CHECK_ERROR are not suggested
     ret = cuPointerGetAttribute(&dst_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                 (CUdeviceptr)dst_ptr);
-    assertm(
+    assert(
         (dst_type != CU_MEMORYTYPE_ARRAY && dst_type != CU_MEMORYTYPE_UNIFIED) &&
         "ARRAY, UNIFIED types are not supported!");
 
