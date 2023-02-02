@@ -7,9 +7,7 @@ traits `any_device_has` and `all_devices_have` as described in the
 In summary, `any_device_has<aspect>` and `all_devices_have<aspect>` must inherit
 from either `std::true_t` or `std::false_t` depending on whether the
 corresponding compilation environment can guarantee that any and all the
-supported devices support the `aspect`. Since DPC++ allows for compiling for
-multiple targets, these traits can be different when compiling for the
-individual targets and on host.
+supported devices support the `aspect`.
 
 The design of these traits is inspired by the implementation of the
 [sycl\_ext\_oneapi\_device\_if][2] and
@@ -28,22 +26,35 @@ specified in the device headers rather than by the names specified in the
 
 For each target $t$ in `-fsycl-targets`, let $A^{any}_t$ be the set of aspects
 supported by any device supporting $t$ and let $A^{all}_t$ be the set of aspects
-supported by all devices supporting $t$. If $t$ has an entry in the
-configuration file, these sets are defined by the `aspects` list in that entry
-and $A^{any}_t = A^{all}_t$. If there is no entry for $t$ in the configuration
-file, then $A^{any}_t$ is the set of all aspects and $A^{all}_t = \emptyset$.
-
-In the device-side compilation of a SYCL program for $t$ the driver defines the
-following macros:
-* `__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `1` for all $i$ in $A^{all}_t$.
-* `__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` as `1` if $A^{any}_t$ is the set of all
+supported by all devices supporting $t$. These sets are defined as follows:
+* If $t$ has an entry in the configuration file, $A^{all}_t$ is the same as the
+`aspects` list in that entry.
+* If $t$ does not have an entry in the configuration file, $A^{all}_t$ is empty.
+* If $t$ has an entry in the configuration file and the entry has a value
+`may_support_other_aspects` set to `false`, $A^{any}_t$ is the same as the
+`aspects` list in that entry.
+* If $t$ does not have an entry the configuration file or the entry has a value
+`may_support_other_aspects` set to `true`, $A^{any}_t$ is the set of all
 aspects.
-* `__SYCL_ANY_DEVICE_HAS_`$j$`__` as `1` for all $j$ in $A^{any}_t$ if
-`__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` was not defined.
 
-In the host-side compilation of a SYCL program, where $[t1, t2, \ldots, tn]$ are
-the $n$ targets specified in `-fsycl-targets`, the driver defines the following
-macros:
+For example, the target `intel_gpu_dg1` is supported by a specific device (DG1)
+and as such would have an entry in the configuration file with `aspects` being
+the set of aspects that device supports. Likewise it would have
+`may_support_other_aspects` set to `false` as there will be no other devices
+supporting this target, meaning there will never be any devices supporting
+the target and supporting anything not in `aspects`.  In contrast, the target
+`nvidia_gpu_sm_80` is supported by CUDA devices with `sm_80` architecture or
+newer, so its entry in the configuration file would have
+`may_support_other_aspects` set to `true` to indicate that there could be future
+devices that support aspects not in `aspects`, while it is known that all
+current and future devices must support the aspects in `aspects`.  Lastly, the
+default JIT SPIR-V target (`spir64`) should not have an entry in the
+configuration file as it cannot guarantee anything about the devices supporting
+the target.
+
+When compiling a SYCL program, where $[t1, t2, \ldots, tn]$ are the $n$ targets
+specified in `-fsycl-targets` including any targets implicitly added by the
+driver, the driver defines the following macros:
 * `__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `1` for all $i$ in
 ${\bigcap}^n_{k=1} A^{all}_{tk}$.
 * `__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` as `1` if

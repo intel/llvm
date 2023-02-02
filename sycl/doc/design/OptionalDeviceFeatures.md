@@ -905,12 +905,15 @@ the supported aspects and sub-group sizes.  For example:
 ```
 intel_gpu_12_0_0:
   aspects: [1, 2, 3]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 16]
 intel_gpu_icl:
   aspects: [2, 3]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 16]
 x86_64_avx512:
   aspects: [1, 2, 3, 9, 11]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 32]
 ```
 
