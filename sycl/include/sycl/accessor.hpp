@@ -2000,13 +2000,6 @@ public:
   }
 
   template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
-  operator ConstRefType() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return *(getQualifiedPtr() + LinearIndex);
-  }
-
-  template <int Dims = Dimensions,
             typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
                                            !IsAccessReadOnly && Dims == 0>>
   const accessor &operator=(const value_type &Other) const {
@@ -2020,13 +2013,6 @@ public:
   const accessor &operator=(value_type &&Other) const {
     *getQualifiedPtr() = std::move(Other);
     return *this;
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
-  RefType operator[](id<Dimensions> Index) const {
-    const size_t LinearIndex = getLinearIndex(Index);
-    return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
