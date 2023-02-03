@@ -9,13 +9,13 @@
 
 ; RUN: rm -Rf %t.cache && mkdir %t.cache
 
-; RUN: llvm-lto2 run -opaque-pointers -o %t-no.o %t.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers -o %t-no.o %t.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f,
 
 ; RUN: llvm-readelf -s %t-no.o.* | FileCheck %s --check-prefix=SYMBOLS-NO
 
-; RUN: llvm-lto2 run -opaque-pointers -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f, \
 ; RUN:   -r=%t2.bc,f,p

@@ -32,6 +32,10 @@ set(compile_opts
   -sycl-std=2020
   )
 
+if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
+  list(APPEND compile_opts "-Xclang" "-no-opaque-pointers")
+endif()
+
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
