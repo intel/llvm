@@ -238,7 +238,7 @@ private:
       auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
                                         getMemoryScope<Space>(), Space>(
           address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
-      Functor(AtomicRef, reducer->getElement(E));
+      Functor(std::move(AtomicRef), reducer->getElement(E));
     }
   }
 
@@ -258,7 +258,7 @@ public:
               IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
@@ -269,7 +269,7 @@ public:
               IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
@@ -280,7 +280,7 @@ public:
               IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
@@ -293,7 +293,7 @@ public:
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
   /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
@@ -305,7 +305,7 @@ public:
               IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
   /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
@@ -317,7 +317,7 @@ public:
               IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };
 } // namespace detail
