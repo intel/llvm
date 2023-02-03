@@ -1,5 +1,4 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only \
-// RUN: %s -I %sycl_include 2>&1 | FileCheck %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
 
@@ -14,6 +13,7 @@ int main() {
     auto defaultQueue = queue{};
     auto bufA = buffer<const int, 1>{a, range{dataSize}};
     defaultQueue.submit([&](handler &cgh) {
+      // expected-error@sycl/accessor.hpp:* {{A const qualified DataT is only allowed for a read-only accessor}}
       accessor accA{bufA, cgh, read_write};
     });
 
@@ -23,5 +23,3 @@ int main() {
   }
   return 0;
 }
-
-// CHECK: static assertion failed due to requirement '!isConst || IsAccessReadOnly': A const qualified DataT is only allowed for a read-only accessor
