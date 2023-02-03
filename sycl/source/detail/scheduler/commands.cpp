@@ -1979,8 +1979,7 @@ static pi_result SetKernelParamsAndLaunch(
   const detail::plugin &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                  &Queue, &EliminatedArgMask](detail::ArgDesc &Arg,
-                                              size_t NextTrueIndex) {
+                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
