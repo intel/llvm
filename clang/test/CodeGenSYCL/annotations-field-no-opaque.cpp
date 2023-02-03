@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm -no-opaque-pointers -o - %s | FileCheck %s
 
+// This test checks that clang emits @llvm.ptr.annotation intrinsic correctly
+// when attribute annotate is applied to a struct field of integer type.
+
 // CHECK: private unnamed_addr addrspace(1) constant [8 x i8] c"v_ann_{{.}}\00", section "llvm.metadata"
 // CHECK: private unnamed_addr addrspace(1) constant [8 x i8] c"v_ann_{{.}}\00", section "llvm.metadata"
 // CHECK: private unnamed_addr addrspace(1) constant [8 x i8] c"w_ann_{{.}}\00", section "llvm.metadata"
