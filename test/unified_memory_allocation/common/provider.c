@@ -33,13 +33,20 @@ enum uma_result_t nullFree(void *provider, void *ptr, size_t size) {
     return UMA_RESULT_SUCCESS;
 }
 
+enum uma_result_t nullGetLastResult(void *provider, const char** ppMsg) {
+    (void) provider;
+    (void) ppMsg;
+    return UMA_RESULT_SUCCESS;
+}
+
 uma_memory_provider_handle_t nullProviderCreate() {
     struct uma_memory_provider_ops_t ops = {
         .version = UMA_VERSION_CURRENT,
         .initialize = nullInitialize,
         .finalize = nullFinalize,
         .alloc = nullAlloc,
-        .free = nullFree
+        .free = nullFree,
+        .get_last_result = nullGetLastResult
     };
 
     uma_memory_provider_handle_t hProvider;
@@ -81,13 +88,21 @@ enum uma_result_t traceFree(void *provider, void *ptr, size_t size) {
     return umaMemoryProviderFree(traceProvider->hUpstreamProvider, ptr, size);
 }
 
+enum uma_result_t traceGetLastResult(void *provider, const char** ppMsg) {
+    struct traceParams* traceProvider = (struct traceParams*) provider;
+
+    traceProvider->trace("get_last_result");
+    return umaMemoryProviderGetLastResult(traceProvider->hUpstreamProvider, ppMsg);
+}
+
 uma_memory_provider_handle_t traceProviderCreate(uma_memory_provider_handle_t hUpstreamProvider,  void (*trace)(const char*)) {
     struct uma_memory_provider_ops_t ops = {
         .version = UMA_VERSION_CURRENT,
         .initialize = traceInitialize,
         .finalize = traceFinalize,
         .alloc = traceAlloc,
-        .free = traceFree
+        .free = traceFree,
+        .get_last_result = traceGetLastResult
     };
 
     struct traceParams params = {
