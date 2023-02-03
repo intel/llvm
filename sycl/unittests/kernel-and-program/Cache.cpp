@@ -186,7 +186,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID1});
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 0U)
@@ -223,7 +223,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID2});
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U)
@@ -253,7 +253,7 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
       << "Wrong specialization constant";
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache";
@@ -276,7 +276,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleJoin) {
   sycl::kernel_bundle KernelBundle3 = sycl::join(KernelBundles);
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U)
