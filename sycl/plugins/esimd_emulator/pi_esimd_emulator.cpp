@@ -1007,7 +1007,7 @@ pi_result piQueueFlush(pi_queue) {
   CONTINUE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
+pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *, bool *) {
   DIE_NO_IMPLEMENTATION;
 }
 
