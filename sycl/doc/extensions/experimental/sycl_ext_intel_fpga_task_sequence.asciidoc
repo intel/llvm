@@ -388,7 +388,7 @@ number of outstanding `async` invocations is reduced to `Size`.
 === Compatibility with FPGA Kernel Interface Properties
 
 The `task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
-property described in link:..sycl_ext_oneapi_kernel_properties.asciidoc[
+property described in link:sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties].
 Normally the `pipelined` property is applicable only on kernels however this
 extension supports applying the property on task sequences.
