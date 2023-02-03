@@ -22,13 +22,52 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
-struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
+class AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
+public:
   void runOnOperation() override;
 };
 
-struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
+/// Represent a pair of affine load and store operations that satisfy all
+/// requirements for a reduction.
+class ReductionOp {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
+                                       const ReductionOp &);
+
+public:
+  ReductionOp(AffineLoadOp &Load, AffineStoreOp &Store,
+              SmallVector<AffineLoadOp> &OtherLoads)
+      : Load(Load), Store(Store), OtherLoads(OtherLoads) {}
+
+  AffineLoadOp getLoad() const { return Load; }
+  AffineStoreOp getStore() const { return Store; }
+  const SmallVector<AffineLoadOp> &getOtherLoads() const { return OtherLoads; }
+
+private:
+  /// The reduction load in the loop nest.
+  AffineLoadOp Load;
+  /// The reduction store in the same loop nest.
+  AffineStoreOp Store;
+  /// Compatible loads in the same loop nest.
+  SmallVector<AffineLoadOp> OtherLoads;
+};
+
+[[maybe_unused]] inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                                                      const ReductionOp &CR) {
+  OS.indent(2) << "Load: ";
+  CR.getLoad()->dump();
+  OS.indent(2) << "Store: ";
+  CR.getStore()->dump();
+  OS.indent(2) << "Other Loads: ";
+  for (const AffineLoadOp &Op : CR.getOtherLoads())
+    Op->dump();
+
+  return OS;
+}
+
+class AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   using OpRewritePattern<AffineForOp>::OpRewritePattern;
 
+public:
   /// Returns true if the given operation \p Op is immediately contained in the
   /// \p ForOp loop, and false otherwise.
   bool isInAffineFor(Operation *Op, const AffineForOp ForOp) const {
@@ -105,50 +144,36 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
                          [IndVar](Value Index) { return Index == IndVar; });
   }
 
-  /// Represent a pair of affine load and store operations that satisfy all
-  /// requirements for a reduction.
-  struct CandidateReductionOp {
-    CandidateReductionOp(AffineLoadOp &Load, AffineStoreOp &Store,
-                         SmallVector<AffineLoadOp> &OtherLoads)
-        : Load(Load), Store(Store), OtherLoads(OtherLoads) {
-      // TODO: add safety checks here ?
-    }
-
-    AffineLoadOp getLoad() const { return Load; }
-    AffineStoreOp getStore() const { return Store; }
-    const SmallVector<AffineLoadOp> &getOtherLoads() const {
-      return OtherLoads;
-    }
-
-  private:
-    /// The reduction load in the loop nest.
-    AffineLoadOp Load;
-    /// The reduction store in the same loop nest.
-    AffineStoreOp Store;
-    /// Compatible loads in the same loop nest.
-    SmallVector<AffineLoadOp> OtherLoads;
-  };
-
   /// Collect candidate reduction operations in the given loop \p ForOp.
   /// Candidate reductions are stored into \p CandidateOps, and affine load
   /// operations with the same base operand and subscript indices as the
   /// candidate load are stored into \p LoadsInLoops.
   WalkResult
   collectCandidates(AffineForOp ForOp,
-                    SmallVectorImpl<CandidateReductionOp> &CandidateOps) const {
+                    SmallVectorImpl<ReductionOp> &CandidateOps) const {
     assert(CandidateOps.empty() && "Expecting an empty vector");
+
+    LLVM_DEBUG({
+      llvm::dbgs() << "\n---------- Affine Reduction Detection ----------\n";
+      ForOp.dump();
+      llvm::dbgs() << "\n";
+    });
 
     WalkResult Result = ForOp.getBody()->walk([&](Operation *Op) {
       // We are only interested in affine load operations.
       if (!isa<AffineLoadOp>(Op))
         return WalkResult::advance();
 
+      auto Load = cast<AffineLoadOp>(Op);
+      LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
+
       // Skip the load if any of its subscript indices are the loop induction
       // variable (i.e. the load is not loop invariant).
-      auto Load = cast<AffineLoadOp>(Op);
       SmallVector<Value, 4> Indices(Load.getIndices());
-      if (!hasAllDimsReduced(Indices, ForOp.getInductionVar()))
+      if (!hasAllDimsReduced(Indices, ForOp.getInductionVar())) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "Skip - not loop invariant\n");
         return WalkResult::advance();
+      }
 
       // Locate possible compatible stores (stores that have the same base
       // operand and subscript indices as the load), and collect all other loads
@@ -167,8 +192,12 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
               if (areCompatible(Load, Store)) {
                 if (areInSameAffineFor(Load, Store, ForOp))
                   CandidateStores.push_back(Store);
-                else if (isNestedInForOp(Store, ForOp))
+                else if (isNestedInForOp(Store, ForOp)) {
+                  LLVM_DEBUG(llvm::dbgs().indent(2)
+                             << "Interrupting - found incompatible store: "
+                             << Store << "\n");
                   InterruptWalk = true;
+                }
               }
             });
 
@@ -176,14 +205,31 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
           return WalkResult::interrupt();
       }
 
-      // Require a single store within the current loop. The load must dominate
-      // the single store.
-      if (CandidateStores.size() != 1 ||
-          !properlyDominates(Load, CandidateStores[0]))
-        return WalkResult::interrupt();
+      if (CandidateStores.empty()) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Skip - no compatible store found\n");
+        return WalkResult::advance();
+      }
 
-      CandidateOps.push_back(
-          CandidateReductionOp(Load, CandidateStores[0], OtherLoads));
+      // Require a single store within the current loop.
+      if (CandidateStores.size() != 1) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Interrupting - more than one compatible store found\n");
+        return WalkResult::interrupt();
+      }
+
+      // The load must dominate the single store.
+      if (!properlyDominates(Load, CandidateStores[0])) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Interrupting - store doesn't dominate load: "
+                   << CandidateStores[0] << "\n");
+        return WalkResult::interrupt();
+      }
+
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Found compatible store: " << CandidateStores[0] << "\n");
+
+      CandidateOps.push_back(ReductionOp(Load, CandidateStores[0], OtherLoads));
 
       return WalkResult::advance();
     });
@@ -193,35 +239,31 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 
   LogicalResult matchAndRewrite(AffineForOp ForOp,
                                 PatternRewriter &Rewriter) const override {
-    SmallVector<CandidateReductionOp> CandidateOps;
-    WalkResult Result = collectCandidates(ForOp, CandidateOps);
-    if (Result.wasInterrupted() || CandidateOps.empty())
+    SmallVector<ReductionOp> ReductionOps;
+    WalkResult Result = collectCandidates(ForOp, ReductionOps);
+    if (Result.wasInterrupted() || ReductionOps.empty()) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "No reduction found\n";
+        llvm::dbgs() << "------------------------------------------------\n";
+      });
       return failure();
+    }
 
     LLVM_DEBUG({
-      llvm::dbgs() << "------------\n";
-      llvm::dbgs() << "Found " << CandidateOps.size()
-                   << " candidate reduction operations in loop:\n";
-      for (CandidateReductionOp &CandidateOp : CandidateOps) {
-        llvm::dbgs().indent(2) << "Load: ";
-        CandidateOp.getLoad()->dump();
-        llvm::dbgs().indent(2) << "Store: ";
-        CandidateOp.getStore()->dump();
-      }
-
-      llvm::dbgs() << "Loop:\n";
-      ForOp.dump();
-      llvm::dbgs() << "------------\n";
+      llvm::dbgs() << "\nFound " << ReductionOps.size() << " reduction(s):\n";
+      for (ReductionOp &Op : ReductionOps)
+        llvm::dbgs() << Op << "\n";
+      llvm::dbgs() << "\n";
     });
 
-    // Move the load outside the loop(recall that the load indexes are not used
-    // in the current for (see hasAllDimReduced)). The load result is passed to
-    // the new forOp as iter args.
+    // Move the load outside the loop (recall that the load is loop invariant).
+    // The load result is passed to the new 'forOp' as iter args.
     SmallVector<Value, 4> NewIterArgs;
     llvm::append_range(NewIterArgs, ForOp.getRegionIterArgs());
     Rewriter.setInsertionPoint(ForOp);
-    for (CandidateReductionOp &Op : CandidateOps) {
+    for (ReductionOp &Op : ReductionOps) {
       Operation *MovedLoad = Rewriter.clone(*Op.getLoad());
+      LLVM_DEBUG(llvm::dbgs() << "New Loop:\n" << *MovedLoad << "\n");
       NewIterArgs.push_back(MovedLoad->getResult(0));
     }
 
@@ -231,9 +273,9 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         ForOp.getUpperBoundOperands(), ForOp.getUpperBoundMap(),
         ForOp.getStep(), NewIterArgs);
 
-    // Remove the load operation inside the new for loop.
+    // Remove the load operation inside the new loop.
     size_t ArgNo = 0, OrigNumRegionArgs = ForOp.getNumRegionIterArgs();
-    for (CandidateReductionOp &Op : CandidateOps) {
+    for (ReductionOp &Op : ReductionOps) {
       Op.getLoad()->getResult(0).replaceAllUsesWith(
           NewForOp.getBody()->getArguments()[ArgNo + OrigNumRegionArgs + 1]);
       Rewriter.eraseOp(Op.getLoad());
@@ -250,11 +292,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     Rewriter.mergeBlocks(OldBlock, NewBlock, NewBlockTransferArgs);
 
     auto CloneFilteredTerminator =
-        [CandidateOps](AffineYieldOp MergedTerminator) {
+        [ReductionOps](AffineYieldOp MergedTerminator) {
           SmallVector<Value, 4> NewOperands;
           llvm::append_range(NewOperands, MergedTerminator.getOperands());
           // store operands are now returned.
-          for (const CandidateReductionOp &Op : CandidateOps)
+          for (const ReductionOp &Op : ReductionOps)
             NewOperands.push_back(Op.getStore()->getOperand(0));
           MergedTerminator.getOperandsMutable().assign(NewOperands);
         };
@@ -275,7 +317,9 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       DominanceInfo DT;
       PostDominanceInfo PDT;
       size_t ArgNo = 0;
-      for (CandidateReductionOp &Op : CandidateOps) {
+      [[maybe_unused]] SmallVector<AffineStoreOp> NewStores;
+
+      for (ReductionOp &Op : ReductionOps) {
         for (Operation *Load : Op.getOtherLoads()) {
           if (PDT.postDominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(
@@ -288,14 +332,22 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         }
 
         Rewriter.setInsertionPointAfter(NewForOp);
-        Rewriter.create<AffineStoreOp>(
+        auto Store = Rewriter.create<AffineStoreOp>(
             NewForOp.getLoc(),
             NewForOp.getResults()[ForOp.getResults().size() + ArgNo],
             Op.getStore().getMemRef(), Op.getStore().getAffineMap(),
             Op.getStore().getIndices());
+        NewStores.push_back(Store);
         Rewriter.eraseOp(Op.getStore());
         ++ArgNo;
       }
+
+      LLVM_DEBUG({
+        NewForOp.dump();
+        for (AffineStoreOp &Store : NewStores)
+          Store.dump();
+        llvm::dbgs() << "------------------------------------------------\n";
+      });
     }
 
     Rewriter.replaceOp(ForOp, NewYieldedRes);
