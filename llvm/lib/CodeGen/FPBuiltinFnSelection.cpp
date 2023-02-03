@@ -74,7 +74,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       dbgs() << BuiltinCall.getRequiredAccuracy().value() << "\n";
   });
 
-  StringSet RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
+  StringSet<> RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
   if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
     report_fatal_error(
         Twine(BuiltinCall.getCalledFunction()->getName()) +
@@ -142,7 +142,7 @@ public:
     return runImpl(*TLI, F);
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addPreserved<TargetLibraryInfoWrapperPass>();
