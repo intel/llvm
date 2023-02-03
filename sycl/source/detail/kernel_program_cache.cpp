@@ -14,7 +14,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
-  for (auto &ProgIt : MCachedPrograms.Cache) {
+  for (auto &ProgIt : MCachedPrograms) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
     PiProgramT *ToBeDeleted = ProgWithState.Ptr.load();
 
