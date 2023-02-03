@@ -1188,8 +1188,15 @@ __SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 ///
 /// \param queue is the PI queue to get the native handle of.
 /// \param nativeHandle is the native handle of queue or commandlist.
+__SYCL_EXPORT pi_result
+piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
+
+/// Gets the native handle of a PI queue object.
+///
+/// \param queue is the PI queue to get the native handle of.
+/// \param nativeHandle is the native handle of queue or commandlist.
 /// \param IsImmCmdList indicates what the native handle is.
-__SYCL_EXPORT pi_result piextQueueGetNativeHandle(
+__SYCL_EXPORT pi_result piextQueueGetNativeHandle2(
     pi_queue queue, pi_native_handle *nativeHandle, bool *IsImmCmdList);
 
 /// Creates PI queue object from a native handle.
@@ -1200,14 +1207,29 @@ __SYCL_EXPORT pi_result piextQueueGetNativeHandle(
 /// \param device is the PI device associated with the native device used when
 ///   creating the native queue. This parameter is optional but some backends
 ///   may fail to create the right PI queue if omitted.
-/// \param UseImmCmdList indicates whether the created queue should use a
-///        level_zero immediate commandlist.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool UseImmCmdList, bool pluginOwnsNativeHandle, pi_queue *queue);
+    bool pluginOwnsNativeHandle, pi_queue *queue);
+
+/// Creates PI queue object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI queue from.
+/// \param context is the PI context of the queue.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
+/// \param IsImmCmdList indicates whether the created queue should use a
+///        level_zero immediate commandlist.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
+/// \param queue is the PI queue created from the native handle.
+__SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
+    bool IsImmCmdList, bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
 // Memory

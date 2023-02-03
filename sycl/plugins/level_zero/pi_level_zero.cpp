@@ -3933,8 +3933,30 @@ pi_result piQueueFlush(pi_queue Queue) {
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
-                                    pi_native_handle *NativeHandle,
-                                    bool *IsImmCmdList) {
+                                    pi_native_handle *NativeHandle) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  // Lock automatically releases when this goes out of scope.
+  std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+
+  // Extract a Level Zero compute queue handle from the given PI queue
+  uint32_t QueueGroupOrdinalUnused;
+  auto TID = std::this_thread::get_id();
+  auto &InitialGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
+  const auto &Result =
+      Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
+  auto &ComputeQueueGroupRef = Result.first->second;
+
+  *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
+  return PI_SUCCESS;
+}
+
+pi_result piextQueueGetNativeHandle2(pi_queue Queue,
+                                     pi_native_handle *NativeHandle,
+                                     bool *IsImmCmdList) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(IsImmCmdList, PI_ERROR_INVALID_VALUE);
@@ -3969,6 +3991,28 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context, pi_device Device,
+                                           bool OwnNativeHandle,
+                                           pi_queue *Queue) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  // Assume this is the "0" index queue in the compute command-group.
+  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+
+  // TODO: see what we can do to correctly initialize PI queue for
+  // compute vs. copy Level-Zero queue. Currently we will send
+  // all commands to the "ZeQueue".
+  std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
+  *Queue =
+      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
+  return PI_SUCCESS;
+}
+
 void _pi_queue::pi_queue_group_t::setImmCmdList(
     ze_command_list_handle_t ZeCommandList) {
   ImmCmdLists = std::vector<pi_command_list_ptr_t>(
@@ -3979,11 +4023,11 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
           .first);
 }
 
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context, pi_device Device,
-                                           bool UseImmCmdList,
-                                           bool OwnNativeHandle,
-                                           pi_queue *Queue) {
+pi_result piextQueueCreateWithNativeHandle2(pi_native_handle NativeHandle,
+                                            pi_context Context, pi_device Device,
+                                            bool UseImmCmdList,
+                                            bool OwnNativeHandle,
+                                            pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);

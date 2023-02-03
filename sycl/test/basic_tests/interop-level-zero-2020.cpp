@@ -108,7 +108,7 @@ int main() {
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
 
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInput{
-      ZeQueue, InteropDevice, false, ext::oneapi::level_zero::ownership::keep};
+      ZeQueue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
   queue InteropQueue =
       make_queue<backend::ext_oneapi_level_zero>(InteropQueueInput, Context);
   event InteropEvent = make_event<backend::ext_oneapi_level_zero>(

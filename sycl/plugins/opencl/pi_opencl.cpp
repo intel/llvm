@@ -555,10 +555,8 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                            pi_context, pi_device,
-                                           bool UseImmCmdList,
                                            bool ownNativeHandle,
                                            pi_queue *piQueue) {
-  (void)UseImmCmdList;
   (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
@@ -1728,8 +1726,7 @@ pi_result piextContextGetNativeHandle(pi_context context,
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue queue,
-                                    pi_native_handle *nativeHandle,
-                                    bool *IsImmCmdList) {
+                                    pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(queue, nativeHandle);
 }
 

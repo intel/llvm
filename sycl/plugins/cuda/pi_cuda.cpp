@@ -2726,15 +2726,15 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// \param[out] queue Set to the PI queue object created from native handle.
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
-/// \param UseImmCmdList is for the level_zero plugin only.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool UseImmCmdList, bool ownNativeHandle, pi_queue *queue) {
+pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                pi_device device,
+                                                bool ownNativeHandle,
+                                                pi_queue *queue) {
 
   (void)device;
-  (void)UseImmCmdList;
   (void)ownNativeHandle;
   assert(ownNativeHandle == false);
 

@@ -2569,14 +2569,15 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
 ///
 ///
 /// \return TBD
-pi_result hip_piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool UseImmCmdList, bool ownNativeHandle, pi_queue *queue) {
+pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                               pi_context context,
+                                               pi_device device,
+                                               bool ownNativeHandle,
+                                               pi_queue *queue) {
   (void)nativeHandle;
   (void)context;
   (void)device;
   (void)queue;
-  (void)UseImmCmdList;
   (void)ownNativeHandle;
   sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
