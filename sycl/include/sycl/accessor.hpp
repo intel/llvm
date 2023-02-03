@@ -304,10 +304,7 @@ protected:
       AccessMode == access::mode::discard_read_write;
 
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
-  static constexpr bool isConst = std::is_const<DataT>::value;
-  static_assert(
-      !isConst || IsAccessReadOnly,
-      "A const qualified DataT is only allowed for a read-only accessor");
+  static constexpr bool IsConst = std::is_const<DataT>::value;
 
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
@@ -1014,9 +1011,14 @@ protected:
   static constexpr bool IsGlobalBuf = AccessorCommonT::IsGlobalBuf;
   static constexpr bool IsHostBuf = AccessorCommonT::IsHostBuf;
   static constexpr bool IsPlaceH = AccessorCommonT::IsPlaceH;
+  static constexpr bool IsConst = AccessorCommonT::IsConst;
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
+
+  static_assert(
+      !IsConst || IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
@@ -2383,7 +2385,13 @@ protected:
                               access::target::local, IsPlaceholder>;
 
   using AccessorCommonT::AS;
-  using AccessorCommonT::IsAccessAnyWrite;
+
+  // Cannot do "using AccessorCommonT::Flag" as it doesn't work with g++ as host
+  // compiler, for some reason.
+  static constexpr bool IsAccessAnyWrite = AccessorCommonT::IsAccessAnyWrite;
+  static constexpr bool IsAccessReadOnly = AccessorCommonT::IsAccessReadOnly;
+  static constexpr bool IsConst = AccessorCommonT::IsConst;
+
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<
@@ -2625,6 +2633,10 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
   using local_acc =
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
 
+  static_assert(
+      !local_acc::IsConst || local_acc::IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
+
   // Use base classes constructors
   using local_acc::local_acc;
 
@@ -2660,6 +2672,10 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
 
   using local_acc = local_accessor_base<DataT, Dimensions, detail::accessModeFromConstness<DataT>(),
                                         access::placeholder::false_t>;
+
+  static_assert(
+      !local_acc::IsConst || local_acc::IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
 
   // Use base classes constructors
   using local_acc::local_acc;
