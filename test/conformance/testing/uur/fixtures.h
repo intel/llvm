@@ -325,6 +325,50 @@ struct urMemBufferQueueTest : urQueueTest {
     ur_mem_handle_t buffer = nullptr;
 };
 
+struct urUSMDeviceAllocTest : urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+        ur_usm_mem_flags_t flags;
+        ASSERT_SUCCESS(
+            urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, &ptr));
+        ur_event_handle_t event = nullptr;
+        ASSERT_SUCCESS(
+            urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        ASSERT_SUCCESS(urEventWait(1, &event));
+        EXPECT_SUCCESS(urEventRelease(event));
+    }
+
+    void TearDown() override {
+        ASSERT_SUCCESS(urMemFree(context, ptr));
+        uur::urQueueTest::TearDown();
+    }
+
+    void *ptr = nullptr;
+};
+
+template <class T>
+struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+        ur_usm_mem_flags_t flags;
+        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, &flags,
+                                        sizeof(int), 0, &ptr));
+        ur_event_handle_t event = nullptr;
+        ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0,
+                                          nullptr, &event));
+        ASSERT_SUCCESS(urEventWait(1, &event));
+        EXPECT_SUCCESS(urEventRelease(event));
+    }
+
+    void TearDown() override {
+        ASSERT_SUCCESS(urMemFree(this->context, ptr));
+        uur::urQueueTestWithParam<T>::TearDown();
+    }
+
+    void *ptr = nullptr;
+};
+
 /// @brief
 /// @tparam T
 /// @param info
