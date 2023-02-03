@@ -8,6 +8,11 @@
  *
  */
 #include "ur_null.hpp"
+#include "logger/ur_logger.hpp"
+
+namespace logger {
+Logger logger = create_logger("null");
+}
 
 namespace driver {
 //////////////////////////////////////////////////////////////////////////

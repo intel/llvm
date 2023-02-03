@@ -8,6 +8,7 @@
  *
  */
 #include "ur_lib.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_loader.hpp"
 #include "ur_proxy_layer.hpp"
 #include "validation/ur_validation_layer.hpp"
@@ -15,6 +16,10 @@
 #if UR_ENABLE_TRACING
 #include "tracing/ur_tracing_layer.hpp"
 #endif
+
+namespace logger {
+Logger logger = create_logger("loader");
+}
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////

@@ -195,10 +195,57 @@ Unified Runtime loader implements tracing support through the `XPTI framework <h
        | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value.
      - None
 
+Logging
+---------------------
+
+Logging in UR is handled by loggers which can be set for each library separately. There are several levels of logging: *debug*, *info*, *warning*, and *error*.
+The level of logging determines what messages will be printed, ie. the level set to *warning* means all messages at levels *warning* and *error* will be printed.
+By default, no messages are printed.
+
+By default, there is a guarantee that *error* messages are flushed immediately. One can change this behavior to flush on lower-level messages.
+
+Loggers redirect messages to *stdout*, *stderr*, or a file (default: *stderr*).
+
+All of these logging options can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
+Both of these environment variables have the same syntax for setting logger options::
+
+  "[level:debug|info|warning|error];[flush:<debug|info|warning|error>];[output:stdout|stderr|file,<path>]"
+  
+  * level - a log level, meaning that only messages from this level and above are printed,
+            possible values, from the lowest level to the highest one: *debug*, *info*, *warning*, *error*,
+  * flush - a flush level, meaning that messages at this level and above are guaranteed to be flushed immediately,
+            possible values are the same as above,
+  * output - indicates where messages should be printed,
+             possible values are: *stdout*, *stderr* and *file*,
+             when providing a *file* output option, a *<path>* is required
+
+  .. note::
+    For output to file, a path to the file have to be provided after a comma, like in the example above. The path has to exist, file will be created if not existing. 
+    All these three logger options are optional. The defaults are set when options are not provided in the environment variable.
+    Options have to be separated with `;`, option names, and their values with `:`. Additionally, when providing *file* output, the keyword *file* and a path to a file
+    have to be separated by `,`.
+
+An example of an environment variable for setting up the loader library logger with logging level set to *info*, flush level set to *warning*, and output set to
+the `out.log` file::
+
+  UR_LOG_LOADER="level:info;flush:warning;output:file,out.log"
+
+An example of an environment variable for setting up the null adapter library with logging level set to *warning* and output set to stdout::
+
+  UR_LOG_NULL="level:warning;output:stdout"
+
 Environment Variables
 ---------------------
 
 Specific environment variables can be set to control the behavior of unified runtime or enable certain features.
+
+.. envvar:: UR_LOG_LOADER
+
+   Holds parameters for setting Unified Runtime loader logging. The syntax is described in the **Logging** section above.
+
+.. envvar:: UR_LOG_NULL
+
+   Holds parameters for setting Unified Runtime null adapter logging. The syntax is described in the **Logging** section above.
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 
