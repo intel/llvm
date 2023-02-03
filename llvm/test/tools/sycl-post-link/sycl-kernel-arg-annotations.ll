@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --device-globals --ir-output-only -S %s -o %t.ll
+; RUN: opt -passes="compile-time-properties" -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll
 ;
 ; TODO: Remove --device-globals once other features start using compile-time
