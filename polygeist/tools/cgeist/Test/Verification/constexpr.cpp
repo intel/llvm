@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 constexpr int num = 10 + 4;
 
 int sum(int*);

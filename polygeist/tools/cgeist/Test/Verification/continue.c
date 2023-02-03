@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 int get();
 void other();
