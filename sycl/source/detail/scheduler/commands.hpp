@@ -570,8 +570,7 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<std::optional<void *>(Requirement *Req)>
-        &getMemAllocationFunc);
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
 class KernelFusionCommand;
 
@@ -611,6 +610,7 @@ private:
   pi_int32 enqueueImp() final;
 
   std::optional<AllocaCommandBase *> getAllocaForReq(Requirement *Req);
+  AllocaCommandBase *getAllocaForReqOrThrow(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 
