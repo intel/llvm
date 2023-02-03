@@ -1199,7 +1199,8 @@ a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.
 
 a@
-[source]
+[----
+source]
 ----
 template <typename T,
           typename propertyListA,
@@ -1252,16 +1253,23 @@ Table <<table.usm.malloc.devhostsh>> lists the new properties introduced by this
 .New compile-time constant properties introduced by this extension
 [options="header"]
 |====
-|Property|Values|Description|Supported By
+|Property|Description|Supported By
 a|
-sycl::ext::oneapi::experimental::usm_kind
-| 	
-sycl::usm::alloc::host
-sycl::usm::alloc::device
-sycl::usm::alloc::shared
+`sycl::ext::oneapi::experimental::usm_kind<kind>`
 |
 Indicates the kind of USM memory accessed by dereferencing this pointer and pointers derived from this pointer.
 Instructs the runtime to allocate USM memory of this kind.
+
+`kind` can be one of:
+
+`sycl::usm::alloc::host` +
+`sycl::usm::alloc::device` +
+`sycl::usm::alloc::shared` +
+
+For convenience, the following variables are provided:
+`sycl::ext::oneapi::experimental::usm_kind_host` +
+`sycl::ext::oneapi::experimental::usm_kind_device` +
+`sycl::ext::oneapi::experimental::usm_kind_shared`
 |
 `annotated_ptr`, +
 and the USM memory allocation functions with `properties` support defined in this extension.
@@ -1270,6 +1278,25 @@ and the USM memory allocation functions with `properties` support defined in thi
 
 The `sycl::ext::oneapi::experimental::usm_kind` property is a compile-time constant property with a single non-type parameter. This parameter is a value belonging to the enumeration `sycl::usm::alloc`.
 The `sycl::ext::oneapi::experimental::usm_kind` property is supported by `annotated_ptr` and the USM memory allocation functions defined in this extension.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+struct usm_kind_key {
+  template<sycl::usm::alloc kind>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    usm_kind_key, std::integral_constant<sycl::usm::alloc, kind>>;
+};
+
+template<sycl::usm::alloc kind>
+inline constexpr usm_kind_key::value_t<kind> usm_kind;
+
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::host> usm_kind_host;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device> usm_kind_device;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared> usm_kind_shared;
+
+}
+----
 
 === Deallocation
 
