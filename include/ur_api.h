@@ -2712,13 +2712,25 @@ typedef enum ur_usm_mem_flag_t
 } ur_usm_mem_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief USM allocation type
+typedef enum ur_usm_type_t
+{
+    UR_USM_TYPE_UNKOWN = 0,                         ///< Unkown USM type
+    UR_USM_TYPE_HOST = 1,                           ///< Host USM type
+    UR_USM_TYPE_DEVICE = 2,                         ///< Device USM type
+    UR_USM_TYPE_SHARED = 3,                         ///< Shared USM type
+    UR_USM_TYPE_FORCE_UINT32 = 0x7fffffff
+
+} ur_usm_type_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
 typedef enum ur_mem_alloc_info_t
 {
-    UR_MEM_ALLOC_INFO_ALLOC_TYPE = 0,               ///< Memory allocation type info
-    UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR = 1,           ///< Memory allocation base pointer info
-    UR_MEM_ALLOC_INFO_ALLOC_SIZE = 2,               ///< Memory allocation size info
-    UR_MEM_ALLOC_INFO_ALLOC_DEVICE = 3,             ///< Memory allocation device info
+    UR_MEM_ALLOC_INFO_ALLOC_TYPE = 0,               ///< [::ur_usm_type_t]: Memory allocation type info
+    UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR = 1,           ///< [void *]: Memory allocation base pointer info
+    UR_MEM_ALLOC_INFO_ALLOC_SIZE = 2,               ///< [size_t]: Memory allocation size info
+    UR_MEM_ALLOC_INFO_ALLOC_DEVICE = 3,             ///< [::ur_device_handle_t]: Memory allocation device info
     UR_MEM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_mem_alloc_info_t;
@@ -2835,8 +2847,6 @@ urMemFree(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
-///         + `NULL == pPropValue`
-///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -2849,8 +2859,8 @@ urMemGetMemAllocInfo(
     const void* pMem,                               ///< [in] pointer to USM memory object
     ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
-    void* pPropValue,                               ///< [out] value of the USM allocation property
-    size_t* pPropValueSizeRet                       ///< [out] bytes returned in USM allocation property
+    void* pPropValue,                               ///< [out][optional] value of the USM allocation property
+    size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
     );
 
 #if !defined(__GNUC__)

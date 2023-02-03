@@ -651,12 +651,25 @@ class ur_usm_mem_flags_t(c_int):
 
 
 ###############################################################################
+## @brief USM allocation type
+class ur_usm_type_v(IntEnum):
+    UNKOWN = 0                                      ## Unkown USM type
+    HOST = 1                                        ## Host USM type
+    DEVICE = 2                                      ## Device USM type
+    SHARED = 3                                      ## Shared USM type
+
+class ur_usm_type_t(c_int):
+    def __str__(self):
+        return str(ur_usm_type_v(self.value))
+
+
+###############################################################################
 ## @brief USM memory allocation information type
 class ur_mem_alloc_info_v(IntEnum):
-    ALLOC_TYPE = 0                                  ## Memory allocation type info
-    ALLOC_BASE_PTR = 1                              ## Memory allocation base pointer info
-    ALLOC_SIZE = 2                                  ## Memory allocation size info
-    ALLOC_DEVICE = 3                                ## Memory allocation device info
+    ALLOC_TYPE = 0                                  ## [::ur_usm_type_t]: Memory allocation type info
+    ALLOC_BASE_PTR = 1                              ## [void *]: Memory allocation base pointer info
+    ALLOC_SIZE = 2                                  ## [size_t]: Memory allocation size info
+    ALLOC_DEVICE = 3                                ## [::ur_device_handle_t]: Memory allocation device info
 
 class ur_mem_alloc_info_t(c_int):
     def __str__(self):
