@@ -79,23 +79,20 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-NEXT:  }
 
 // CHECK-LABEL: func.func @_ZN9structvecC1ESt16initializer_listIcE(%arg0: !llvm.ptr<struct<(vector<2xi8>)>, 4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}, %arg1: !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi8, 4>, i64)>, llvm.noundef})
-// CHECK-DAG:     %c2 = arith.constant 2 : index
-// CHECK-DAG:     %c0 = arith.constant 0 : index
-// CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
-// CHECK-NEXT:    scf.for %arg2 = %c0 to %c2 step %c1 {
-// CHECK-NEXT:      %0 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:      %1 = llvm.addrspacecast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> to !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>
-// CHECK-NEXT:      %2 = func.call @_ZNKSt16initializer_listIcE5beginEv(%1) : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>) -> memref<?xi8, 4>
-// CHECK-NEXT:      %3 = arith.index_castui %0 : i32 to index
-// CHECK-NEXT:      %4 = memref.load %2[%3] : memref<?xi8, 4>
-// CHECK-NEXT:      %5 = arith.cmpi ne, %4, %c0_i8 : i8
-// CHECK-NEXT:      %6 = arith.extui %5 : i1 to i32
-// CHECK-NEXT:      %7 = arith.trunci %6 : i32 to i8
-// CHECK-NEXT:      %8 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
-// CHECK-NEXT:      %9 = llvm.load %8 : !llvm.ptr<vector<2xi8>, 4>
-// CHECK-NEXT:      %10 = vector.insertelement %7, %9[%0 : i32] : vector<2xi8>
-// CHECK-NEXT:      llvm.store %10, %8 : !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:    %c0_i8 = arith.constant 0 : i8
+// CHECK-NEXT:    %0 = llvm.addrspacecast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> to !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>
+// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:    affine.for %arg2 = 0 to 2 {
+// CHECK-NEXT:      %2 = arith.index_cast %arg2 : index to i32
+// CHECK-NEXT:      %3 = func.call @_ZNKSt16initializer_listIcE5beginEv(%0) : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>) -> memref<?xi8, 4>
+// CHECK-NEXT:      %4 = arith.index_castui %2 : i32 to index
+// CHECK-NEXT:      %5 = memref.load %3[%4] : memref<?xi8, 4>
+// CHECK-NEXT:      %6 = arith.cmpi ne, %5, %c0_i8 : i8
+// CHECK-NEXT:      %7 = arith.extui %6 : i1 to i32
+// CHECK-NEXT:      %8 = arith.trunci %7 : i32 to i8
+// CHECK-NEXT:      %9 = llvm.load %1 : !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:      %10 = vector.insertelement %8, %9[%2 : i32] : vector<2xi8>
+// CHECK-NEXT:      llvm.store %10, %1 : !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }

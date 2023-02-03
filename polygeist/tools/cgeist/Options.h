@@ -113,7 +113,7 @@ static llvm::cl::opt<bool> ShowAST("show-ast", llvm::cl::init(false),
                                    llvm::cl::desc("Show AST"));
 
 static llvm::cl::opt<bool> RaiseToAffine("raise-scf-to-affine",
-                                         llvm::cl::init(false),
+                                         llvm::cl::init(true),
                                          llvm::cl::desc("Raise SCF to Affine"));
 
 static llvm::cl::opt<bool>

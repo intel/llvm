@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -fopenmp -S | FileCheck %s
+// RUN: cgeist %s --function=* -fopenmp -S --raise-scf-to-affine=false | FileCheck %s
 
 int get(int);
 void square(double* x, int ss) {
