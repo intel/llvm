@@ -1,27 +1,30 @@
 // This test checks presence of macros for available extensions.
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include <iostream>
 #include <sycl/sycl.hpp>
-int main() {
+
 #if SYCL_BACKEND_OPENCL == 1
-  std::cout << "SYCL_BACKEND_OPENCL=1" << std::endl;
+constexpr bool backend_opencl_macro_defined = true;
 #else
-  std::cerr << "SYCL_BACKEND_OPENCL!=1" << std::endl;
-  exit(1);
+constexpr bool backend_opencl_macro_defined = false;
 #endif
+
 #if SYCL_EXT_ONEAPI_SUB_GROUP_MASK == 1
-  std::cout << "SYCL_EXT_ONEAPI_SUB_GROUP_MASK=1" << std::endl;
+constexpr bool sub_group_mask_macro_defined = true;
 #else
-  std::cerr << "SYCL_EXT_ONEAPI_SUB_GROUP_MASK!=1" << std::endl;
-  exit(1);
+constexpr bool sub_group_mask_macro_defined = false;
 #endif
+
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO == 3
-  std::cout << "SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO=3" << std::endl;
+constexpr bool backend_level_zero_macro_defined = true;
 #else
-  std::cerr << "SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO!=3" << std::endl;
-  exit(1);
+constexpr bool backend_level_zero_macro_defined = false;
 #endif
-  exit(0);
+
+int main() {
+  static_assert(backend_opencl_macro_defined);
+  static_assert(sub_group_mask_macro_defined);
+  static_assert(backend_level_zero_macro_defined);
+
+  return 0;
 }

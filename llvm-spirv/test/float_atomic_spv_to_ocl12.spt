@@ -74,9 +74,9 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env="CL1.2"
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc --spirv-target-env="CL1.2"
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
 
-; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_xchg{{[_A-Za-z0-9]+}}ff(float addrspace({{[0-9]+}})* %{{[0-9]+}}, float %{{[0-9]+}})
-; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_add{{[_A-Za-z0-9]+}}ff(float addrspace({{[0-9]+}})* %{{[0-9]+}}, float 0.000000e+00)
+; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_xchg{{[_A-Za-z0-9]+}}ff(ptr addrspace({{[0-9]+}}) %{{[0-9]+}}, float %{{[0-9]+}})
+; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_add{{[_A-Za-z0-9]+}}ff(ptr addrspace({{[0-9]+}}) %{{[0-9]+}}, float 0.000000e+00)
 
