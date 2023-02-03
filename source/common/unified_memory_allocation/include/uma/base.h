@@ -16,45 +16,31 @@
 extern "C" {
 #endif
 
-/// @brief Generates generic 'UMA' API versions
+/// \brief Generates generic 'UMA' API versions
 #define UMA_MAKE_VERSION(_major, _minor)                                       \
     ((_major << 16) | (_minor & 0x0000ffff))
 
-/// @brief Extracts 'UMA' API major version
+/// \brief Extracts 'UMA' API major version
 #define UMA_MAJOR_VERSION(_ver) (_ver >> 16)
 
-/// @brief Extracts 'UMA' API minor version
+/// \brief Extracts 'UMA' API minor version
 #define UMA_MINOR_VERSION(_ver) (_ver & 0x0000ffff)
 
-/// @brief Current version of the UMA headers
+/// \brief Current version of the UMA headers
 #define UMA_VERSION_CURRENT UMA_MAKE_VERSION(0, 9)
 
-/// \brief Operation statuses
+/// \brief Operation results
 enum uma_result_t {
-    /**
-     * @brief Success.
-     */
-    UMA_RESULT_SUCCESS = 0,
-
-    /**
-     * @brief Error: Operation failed.
-     */
-    UMA_RESULT_OPERATION_FAILED = -1,
-
-    /**
-     * @brief Error: pointer argument may not be nullptr
-     */
-    UMA_RESULT_ERROR_INVALID_NULL_POINTER = -2,
-
-    /**
-     * @brief Error: handle argument is not valid
-     */
-    UMA_RESULT_ERROR_INVALID_NULL_HANDLE = -3,
-
-    /**
-     * @brief Error: Unspecified run-time error.
-     */
-    UMA_RESULT_RUNTIME_ERROR = -255
+    UMA_RESULT_SUCCESS = 0, ///< Success
+    UMA_RESULT_OUT_OF_HOST_MEMORY =
+        1, ///< Insufficient host memory to satisfy call,
+    UMA_RESULT_ERROR_POOL_SPECIFIC =
+        2, ///< A pool specific warning/error has been reported and can be
+           ///< Retrieved via the umaPoolGetLastResult entry point.
+    UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC =
+        3, ///< A provider specific warning/error has been reported and can be
+           ///< Retrieved via the umaMemoryProviderGetLastResult entry point.
+    UMA_RESULT_ERROR_UNKNOWN = 0x7ffffffe ///< Unknown or internal error
 };
 
 #ifdef __cplusplus

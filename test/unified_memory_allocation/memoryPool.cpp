@@ -40,4 +40,9 @@ TEST_F(umaTest, memoryPoolTrace) {
     umaPoolMallocUsableSize(tracingPool.get(), nullptr);
     ASSERT_EQ(calls["malloc_usable_size"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
+
+    enum uma_result_t ret = umaPoolGetLastResult(tracingPool.get(), nullptr);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(calls["get_last_result"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
 }

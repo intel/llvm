@@ -22,7 +22,7 @@ umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params,
   uma_memory_provider_handle_t provider =
       malloc(sizeof(struct uma_memory_provider_t));
   if (!provider) {
-    return UMA_RESULT_RUNTIME_ERROR;
+    return UMA_RESULT_OUT_OF_HOST_MEMORY;
   }
 
   assert(ops->version == UMA_VERSION_CURRENT);
@@ -56,4 +56,9 @@ enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
 enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
                                         void *ptr, size_t size) {
   return hProvider->ops.free(hProvider->provider_priv, ptr, size);
+}
+
+enum uma_result_t
+umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider, const char** ppMessage) {
+  return hProvider->ops.get_last_result(hProvider->provider_priv, ppMessage);
 }
