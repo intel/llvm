@@ -63,31 +63,9 @@ specification.*
 
 == Backend support status
 
-*
-TODO: Should we have this section for task sequences since they are only
-supported on FPGA back ends? Although I am not aware of any 'aspects' being
-defined for it. Rest of the text is from the template.
-*
+TODO: Figure out if we can define an aspect for clearer error messages.
 
-_Sometimes an extension can be used only on certain backends. Your
-extension document should include this section when this is the case._
-
-_Our preference is to tie the extension to a device aspect when it is
-available only on certain backends because it results in a clear error
-if the application mistakenly tries to use it on an unsupported backend.
-When this is the case, include a paragraph like this:_
-
-The APIs in this extension may be used only on a device that has
-`aspect::ext_oneapi_foo`.  The application must check that the device has
-this aspect before submitting a kernel using any of the APIs in this
-extension.  If the application fails to do this, the implementation throws
-a synchronous exception with the `errc::kernel_not_supported` error code
-when the kernel is submitted to the queue.
-
-_Occasionally, an extension is limited to certain backends and there is no
-related device aspect. When this is the case, include a paragraph like:_
-
-This extension is currently implemented in {dpcpp} only for GPU devices and
+This extension is currently implemented in {icpx} only for FPGA devices and
 only when using the Level Zero backend.  Attempting to use this extension in
 kernels that run on other devices or backends may result in undefined
 behavior.  Be aware that the compiler is not able to issue a diagnostic to
@@ -121,10 +99,7 @@ NOTE: In this document, we use `task_sequence` to indicate the proposed
 
 [source,c++,linenums]
 ----
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace sycl::ext::intel::experimental {
 
 template<auto& f, class propertiesT =
    decltype(oneapi::experimental::properties{})>
@@ -176,17 +151,22 @@ ensures that the return type `ReturnT` of `f` and the argument types
 `typename ... ArgsT` of `f` are resolvable and fixed for each definition of
 `task_sequence`. 
 
-The `task_sequence` interface consists of two methods, `async` and `get`. The
-`async` method asynchronously invokes `f`, and stores the return value into a
-FIFO queue upon completion of `f`.  The `async` function call is non-blocking in
-that it returns before the asynchronous `f` invocation completes executing, and
-potentially before `f` even begins executing (return from the `async` provides
-no implicit information on the execution status of `f`). The `get` method
-retrieves the oldest result from this logical FIFO queue, and blocks (waits)
-until a result is available if none are available immediately upon the call to
-`get`. Both methods may only be invoked on the device on which a `task_sequence`
-object has been instantiated. Calling `async` or `get` on a different device
-results in undefined behavior.
+The `task_sequence` interface consists of two member functions, `async` and
+`get`. The `async` function asynchronously invokes `f`, and stores the return
+value into a FIFO queue upon completion of `f`. By calling async on a
+`task_sequence` more than once, the user implies that the invocations of `f` can
+be run in parallel.
+
+The `async` function call is non-blocking in that it returns before the
+asynchronous `f` invocation completes executing, and potentially before `f` even
+begins executing (return from the `async` provides no implicit information on
+the execution status of `f`).
+
+The `get` member function retrieves the oldest result from this logical FIFO
+queue, and blocks (waits) until a result is available if none are available
+immediately upon the call to `get`. Both functions may only be invoked on the
+device on which a `task_sequence` object has been instantiated. Calling `async`
+or `get` on a different device results in undefined behavior.
 
 [frame="topbot",options="header"]
 |===
@@ -235,6 +215,51 @@ Implicitly invokes `get` on all outstanding invocations launched through `async
 unless this `task_sequence` object was instantiated with the `balanced` property
 defined below.
 |===
+
+=== Examples
+
+Here's an example that shows how to define and call two task sequences.
+
+```c++
+int vectorSum(float *v, size_t s, size_t sz) {
+  int result = 0;
+  for (size_t i = s; i < s+sz; i++)
+    result += v[i];
+  return result;
+}
+
+using namespace sycl::ext::intel::experimental;
+
+{
+  sycl::queue q{...};
+
+  constexpr count = ...;
+  std::vector<float> in(count), out(2);
+  ...
+
+  sycl::buffer in_buf(in);
+  sycl::buffer out_buf(out);
+
+  q.submit([&](sycl::handler& h) {
+    sycl::accessor in_acc(in_buf, h, sycl::read_only);
+    sycl::accessor out_acc(out_buf, h, sycl::write_only);
+    h.single_task<ParallelTask>([=]() {
+      task_sequence<vectorSum> firstQuarter;
+      task_sequence<vectorSum> secondQuarter;
+      task_sequence<vectorSum> thirdQuarter;
+      task_sequence<vectorSum> fourthQuarter;
+      int quarterCount = count/4;
+      firstQuarter.async(in_acc.get_pointer(), 0, quarterCount);
+      secondQuarter.async(in_acc.get_pointer(), quarterCount, quarterCount);
+      thirdQuarter.async(in_acc.get_pointer(), 2*quarterCount, quarterCount);
+      fourthQuarter.async(in_acc.get_pointer(), 3*quarterCount, quarterCount);
+      out_acc[1] = firstQuarter.get() + secondQuarter.get() +
+        thirdQuarter.get() + fourthQuarter.get();
+    });
+  }).wait();
+  ...
+}
+```
 
 === `task_sequence` Scoping
 
@@ -362,10 +387,8 @@ number of outstanding `async` invocations is reduced to `Size`.
 
 === Compatibility with FPGA Kernel Interface Properties
 
-The Callable `f` defining the asynchronous task associated with a
-`task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
-property described in
-link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+The `task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
+property described in link:..sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties].
 Normally the `pipelined` property is applicable only on kernels however this
 extension supports applying the property on task sequences.
