@@ -12,8 +12,12 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
+#include <tuple>
 #include <unordered_map>
+#include <vector>
 
+#include "Hashing.h"
 #include "Kernel.h"
 #include "Parameter.h"
 
@@ -22,6 +26,10 @@ class LLVMContext;
 } // namespace llvm
 
 namespace jit_compiler {
+
+using CacheKeyT =
+    std::tuple<std::vector<std::string>, ParamIdentList, int,
+               std::vector<ParameterInternalization>, std::vector<JITConstant>>;
 
 ///
 /// Wrapper around a SPIR-V binary.
@@ -51,6 +59,10 @@ public:
 
   SPIRVBinary &emplaceSPIRVBinary(std::string Binary);
 
+  std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
+
+  void addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel);
+
 private:
   // FIXME: Change this to std::shared_mutex after switching to C++17.
   using MutexT = std::shared_timed_mutex;
@@ -64,6 +76,10 @@ private:
   MutexT BinariesMutex;
 
   std::vector<SPIRVBinary> Binaries;
+
+  mutable MutexT CacheMutex;
+
+  std::unordered_map<CacheKeyT, SYCLKernelInfo> Cache;
 };
 } // namespace jit_compiler
 

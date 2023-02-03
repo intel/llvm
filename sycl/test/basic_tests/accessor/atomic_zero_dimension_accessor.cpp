@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
-// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=spir64_fpga %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=spir64_fpga %s
 
 // When using zero dimension accessors with atomic access we
 // want to make sure they are compiling correctly on all devices,

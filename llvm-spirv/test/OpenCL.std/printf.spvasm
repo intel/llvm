@@ -1,23 +1,23 @@
 ; REQUIRES: spirv-as
 ; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
 ; RUN: llvm-spirv %t.rev.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPV-BACK
-; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -opaque-pointers=0 | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
 
 ; CHECK-LABEL: spir_kernel void @test
 
-; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)* {{.*}})
-; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2) {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(ptr addrspace(2) {{.*}}, i32 1)
 
-; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)*)
-; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)*, i32)
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2))
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(ptr addrspace(2), i32)
 
-; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}})
-; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}}, i32 1) 
+; CHECK-CL20: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) {{.*}})
+; CHECK-CL20: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) {{.*}}, i32 1)
 
-; CHECK-CL20: declare spir_func i32 @printf(i8 addrspace(2)*, ...)
+; CHECK-CL20: declare spir_func i32 @printf(ptr addrspace(2), ...)
 
 ; CHECK-SPV-BACK: ExtInstImport [[Set:[0-9]+]] "OpenCL.std"
 ; CHECK-SPV-BACK: TypeInt [[Int8:[0-9]+]] 8

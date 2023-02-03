@@ -9,7 +9,7 @@
 
 ; First perform the thin link on the normal bitcode file using
 ; -thinlto-distributed-indexes, collecting outputs to be compared with later.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-distributed-indexes \
 ; RUN:     -thinlto-emit-imports \
 ; RUN:     -r=%t1.bc,g, \
@@ -24,7 +24,7 @@
 ; RUN: mv %t2.bc.imports %t2.bc.imports.orig
 
 ; Now use -thinlto-emit-indexes instead.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-emit-indexes \
 ; RUN:     -r=%t1.bc,g, \
 ; RUN:     -r=%t1.bc,analias, \
@@ -49,7 +49,7 @@
 ; RUN: rm -f %t1.bc.thinlto.bc %t2.bc.thinlto.bc %t.out.1 %t.out.2
 
 ; Do the thin link again but also emit imports files now
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-emit-indexes \
 ; RUN:     -thinlto-emit-imports \
 ; RUN:     -r=%t1.bc,g, \

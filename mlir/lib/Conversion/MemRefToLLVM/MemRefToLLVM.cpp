@@ -19,7 +19,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include <optional>
@@ -557,7 +557,7 @@ struct GenericAtomicRMWOpLowering
 
     // Clone the GenericAtomicRMWOp region and extract the result.
     auto loopArgument = loopBlock->getArgument(0);
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     mapping.map(atomicOp.getCurrentValue(), loopArgument);
     Block &entryBlock = atomicOp.body().front();
     for (auto &nestedOp : entryBlock.without_terminator()) {
@@ -599,7 +599,7 @@ private:
   void moveOpsRange(ValueRange oldResult, ValueRange newResult,
                     Block::iterator start, Block::iterator end,
                     ConversionPatternRewriter &rewriter) const {
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     mapping.map(oldResult, newResult);
     SmallVector<Operation *, 2> opsToErase;
     for (auto it = start; it != end; ++it) {
@@ -1534,7 +1534,7 @@ static void fillInStridesForCollapsedMemDescriptor(
   for (auto &en : llvm::enumerate(reassociation)) {
     rewriter.setInsertionPoint(op);
     auto dstIndex = en.index();
-    ArrayRef<int64_t> ref = llvm::makeArrayRef(en.value());
+    ArrayRef<int64_t> ref = llvm::ArrayRef(en.value());
     while (srcShape[ref.back()] == 1 && ref.size() > 1)
       ref = ref.drop_back();
     if (!ShapedType::isDynamic(srcShape[ref.back()]) || ref.size() == 1) {

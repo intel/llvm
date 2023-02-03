@@ -15,6 +15,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -29,6 +30,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
+#include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/MatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h"
@@ -42,7 +44,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 
 namespace clang {
 namespace dataflow {
@@ -98,7 +100,7 @@ struct AnalysisOutputs {
   const Environment &InitEnv;
   // Stores the state of a CFG block if it has been evaluated by the analysis.
   // The indices correspond to the block IDs.
-  llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates;
+  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockStates;
 };
 
 /// Arguments for building the dataflow analysis.
@@ -134,6 +136,11 @@ template <typename AnalysisT> struct AnalysisInputs {
     ASTBuildVirtualMappedFiles = std::move(Arg);
     return std::move(*this);
   }
+  AnalysisInputs<AnalysisT> &&
+  withBuiltinOptions(DataflowAnalysisContext::Options Options) && {
+    BuiltinOptions = std::move(Options);
+    return std::move(*this);
+  }
 
   /// Required. Input code that is analyzed.
   llvm::StringRef Code;
@@ -159,6 +166,8 @@ template <typename AnalysisT> struct AnalysisInputs {
   ArrayRef<std::string> ASTBuildArgs = {};
   /// Optional. Options for building the AST context.
   tooling::FileContentMappings ASTBuildVirtualMappedFiles = {};
+  /// Configuration options for the built-in model.
+  DataflowAnalysisContext::Options BuiltinOptions;
 };
 
 /// Returns assertions based on annotations that are present after statements in
@@ -222,7 +231,8 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
   auto &CFCtx = *MaybeCFCtx;
 
   // Initialize states for running dataflow analysis.
-  DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());
+  DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>(),
+                                {/*Opts=*/AI.BuiltinOptions});
   Environment InitEnv(DACtx, *Target);
   auto Analysis = AI.MakeAnalysis(Context, InitEnv);
   std::function<void(const CFGElement &,
@@ -250,7 +260,7 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
 
   // If successful, the dataflow analysis returns a mapping from block IDs to
   // the post-analysis states for the CFG blocks that have been evaluated.
-  llvm::Expected<std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>>
+  llvm::Expected<std::vector<std::optional<TypeErasedDataflowAnalysisState>>>
       MaybeBlockStates = runTypeErasedDataflowAnalysis(CFCtx, Analysis, InitEnv,
                                                        PostVisitCFGClosure);
   if (!MaybeBlockStates)

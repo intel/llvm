@@ -407,10 +407,10 @@ void SYCLKernelFusion::fuseKernel(
   // multiple times).
   FuncIndex = 0;
   {
-    const auto BarrierCall = BarriersFlags != -1
-                                 ? Optional<FunctionCall>{createBarrierCall(
-                                       Builder, M, BarriersFlags)}
-                                 : Optional<FunctionCall>{};
+    const auto BarrierCall =
+        BarriersFlags != -1 ? std::optional<FunctionCall>{createBarrierCall(
+                                  Builder, M, BarriersFlags)}
+                            : std::optional<FunctionCall>{};
     const auto BarriersEnd = InputFunctions.size() - 1;
 
     for (Function *IF : InputFunctions) {

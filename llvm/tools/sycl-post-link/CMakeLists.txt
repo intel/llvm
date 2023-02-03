@@ -23,8 +23,6 @@ include_directories(
 
 add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
-  CompileTimePropertiesPass.cpp
-  DeviceGlobals.cpp
   ModuleSplitter.cpp
   SpecConstants.cpp
   SYCLDeviceLibReqMask.cpp

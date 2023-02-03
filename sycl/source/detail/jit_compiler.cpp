@@ -751,7 +751,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
-  // TODO: Enable caching in a separate PR.
+  JITConfig.set<::jit_compiler::option::JITEnableCaching>(
+      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
