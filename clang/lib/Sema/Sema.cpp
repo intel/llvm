@@ -2432,8 +2432,7 @@ FunctionScopeInfo *Sema::getEnclosingFunction() const {
 LambdaScopeInfo *Sema::getEnclosingLambda() const {
   for (auto *Scope : llvm::reverse(FunctionScopes)) {
     if (auto *LSI = dyn_cast<sema::LambdaScopeInfo>(Scope)) {
-      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext) &&
-          LSI->AfterParameterList) {
+      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext)) {
         // We have switched contexts due to template instantiation.
         // FIXME: We should swap out the FunctionScopes during code synthesis
         // so that we don't need to check for this.
@@ -2459,8 +2458,8 @@ LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
       return nullptr;
   }
   auto *CurLSI = dyn_cast<LambdaScopeInfo>(*I);
-  if (CurLSI && CurLSI->Lambda && CurLSI->CallOperator &&
-      !CurLSI->Lambda->Encloses(CurContext) && CurLSI->AfterParameterList) {
+  if (CurLSI && CurLSI->Lambda &&
+      !CurLSI->Lambda->Encloses(CurContext)) {
     // We have switched contexts due to template instantiation.
     assert(!CodeSynthesisContexts.empty());
     return nullptr;

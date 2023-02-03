@@ -1141,7 +1141,7 @@ static QualType adjustCVQualifiersForCXXThisWithinLambda(
 
     if (C.isCopyCapture()) {
       ClassType.removeLocalCVRQualifiers(Qualifiers::CVRMask);
-      if (!CurLSI->Mutable)
+      if (CurLSI->CallOperator->isConst())
         ClassType.addConst();
       return ASTCtx.getPointerType(ClassType);
     }
