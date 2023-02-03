@@ -152,6 +152,21 @@ class FileSink : public Sink {
     std::ofstream ofstream;
 };
 
+inline std::unique_ptr<Sink> sink_from_str(std::string name, std::string file_path = "") {
+    if (name == "stdout") {
+        return std::make_unique<logger::StdoutSink>();
+    } else if (name == "stderr") {
+        return std::make_unique<logger::StderrSink>();
+    } else if (name == "file" && !file_path.empty()) {
+        return std::make_unique<logger::FileSink>(file_path.c_str());
+    }
+
+    throw std::invalid_argument(
+        std::string("Parsing error: no valid sink for string '") + name +
+        std::string("' with path '") + file_path + std::string("'.") +
+        std::string("\nValid sink names are: stdout, stderr, file"));
+}
+
 } // namespace logger
 
 #endif /* UR_SINKS_HPP */
