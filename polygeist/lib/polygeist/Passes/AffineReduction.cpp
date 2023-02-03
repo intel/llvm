@@ -41,8 +41,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   /// \p ForOp loop, and false otherwise.
   bool areInSameAffineFor(AffineLoadOp Load, AffineStoreOp Store,
                           const AffineForOp ForOp) const {
-    return isInAffineFor(Load.getOperation(), ForOp) &&
-           isInAffineFor(Store.getOperation(), ForOp);
+    return isInAffineFor(Load, ForOp) && isInAffineFor(Store, ForOp);
   }
 
   /// Returns true if operation \p A is nested within the \p ForOp loop, and
@@ -50,12 +49,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   bool isNestedInForOp(Operation *A, AffineForOp &ForOp) const {
     Operation *CurrOp = A;
     while (Operation *ParentOp = CurrOp->getParentOp()) {
-      if (!isa<AffineForOp>(ParentOp)) {
-        CurrOp = ParentOp;
-        continue;
-      }
-
-      if (ParentOp == ForOp.getOperation())
+      if (ParentOp == ForOp)
         return true;
 
       CurrOp = ParentOp;
@@ -114,17 +108,25 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   /// Represent a pair of affine load and store operations that satisfy all
   /// requirements for a reduction.
   struct CandidateReductionOp {
-    CandidateReductionOp(AffineLoadOp &Load, AffineStoreOp &Store)
-        : Load(Load), Store(Store) {
+    CandidateReductionOp(AffineLoadOp &Load, AffineStoreOp &Store,
+                         SmallVector<AffineLoadOp> &OtherLoads)
+        : Load(Load), Store(Store), OtherLoads(OtherLoads) {
       // TODO: add safety checks here ?
     }
 
     AffineLoadOp getLoad() const { return Load; }
     AffineStoreOp getStore() const { return Store; }
+    const SmallVector<AffineLoadOp> &getOtherLoads() const {
+      return OtherLoads;
+    }
 
   private:
+    /// The reduction load in the loop nest.
     AffineLoadOp Load;
+    /// The reduction store in the same loop nest.
     AffineStoreOp Store;
+    /// Compatible loads in the same loop nest.
+    SmallVector<AffineLoadOp> OtherLoads;
   };
 
   /// Collect candidate reduction operations in the given loop \p ForOp.
@@ -133,10 +135,8 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   /// candidate load are stored into \p LoadsInLoops.
   WalkResult
   collectCandidates(AffineForOp ForOp,
-                    SmallVectorImpl<CandidateReductionOp> &CandidateOps,
-                    SmallVector<Operation *> &LoadsInLoop) const {
+                    SmallVectorImpl<CandidateReductionOp> &CandidateOps) const {
     assert(CandidateOps.empty() && "Expecting an empty vector");
-    assert(LoadsInLoop.empty() && "Expecting an empty vector");
 
     WalkResult Result = ForOp.getBody()->walk([&](Operation *Op) {
       // We are only interested in affine load operations.
@@ -154,32 +154,36 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       // operand and subscript indices as the load), and collect all other loads
       // that have the same subscript and base symbol.
       SmallVector<AffineStoreOp> CandidateStores;
-      SmallVector<Operation *> OtherStores;
+      SmallVector<AffineLoadOp> OtherLoads;
       for (Operation *User : Load.getMemRef().getUsers()) {
+        bool InterruptWalk = false;
         TypeSwitch<Operation *>(User)
             .Case<AffineLoadOp>([&](auto OtherLoad) {
               if (areCompatible(Load, OtherLoad) && Load != OtherLoad &&
-                  isNestedInForOp(OtherLoad.getOperation(), ForOp))
-                LoadsInLoop.push_back(OtherLoad);
+                  isNestedInForOp(OtherLoad, ForOp))
+                OtherLoads.push_back(OtherLoad);
             })
             .Case<AffineStoreOp>([&](auto Store) {
-              if (areInSameAffineFor(Load, Store, ForOp) &&
-                  areCompatible(Load, Store))
-                CandidateStores.push_back(Store);
-              else if (areCompatible(Load, Store) &&
-                       isNestedInForOp(Store.getOperation(), ForOp))
-                OtherStores.push_back(Store);
+              if (areCompatible(Load, Store)) {
+                if (areInSameAffineFor(Load, Store, ForOp))
+                  CandidateStores.push_back(Store);
+                else if (isNestedInForOp(Store, ForOp))
+                  InterruptWalk = true;
+              }
             });
+
+        if (InterruptWalk)
+          return WalkResult::interrupt();
       }
 
       // Require a single store within the current loop. The load must dominate
       // the single store.
-      if (CandidateStores.size() != 1 || OtherStores.size() != 0 ||
-          !properlyDominates(Load.getOperation(),
-                             CandidateStores[0].getOperation()))
+      if (CandidateStores.size() != 1 ||
+          !properlyDominates(Load, CandidateStores[0]))
         return WalkResult::interrupt();
 
-      CandidateOps.push_back(CandidateReductionOp(Load, CandidateStores[0]));
+      CandidateOps.push_back(
+          CandidateReductionOp(Load, CandidateStores[0], OtherLoads));
 
       return WalkResult::advance();
     });
@@ -190,9 +194,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   LogicalResult matchAndRewrite(AffineForOp ForOp,
                                 PatternRewriter &Rewriter) const override {
     SmallVector<CandidateReductionOp> CandidateOps;
-    SmallVector<Operation *> LoadsInLoop;
-
-    WalkResult Result = collectCandidates(ForOp, CandidateOps, LoadsInLoop);
+    WalkResult Result = collectCandidates(ForOp, CandidateOps);
     if (Result.wasInterrupted() || CandidateOps.empty())
       return failure();
 
@@ -219,7 +221,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     llvm::append_range(NewIterArgs, ForOp.getRegionIterArgs());
     Rewriter.setInsertionPoint(ForOp);
     for (CandidateReductionOp &Op : CandidateOps) {
-      auto *MovedLoad = Rewriter.clone(*Op.getLoad());
+      Operation *MovedLoad = Rewriter.clone(*Op.getLoad());
       NewIterArgs.push_back(MovedLoad->getResult(0));
     }
 
@@ -241,7 +243,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     Block *NewBlock = NewForOp.getBody(), *OldBlock = ForOp.getBody();
     SmallVector<Value, 4> NewBlockTransferArgs;
     NewBlockTransferArgs.push_back(NewForOp.getInductionVar());
-    for (size_t ArgNo = 0; ArgNo < OrigNumRegionArgs; ArgNo++)
+    for (size_t ArgNo = 0; ArgNo < OrigNumRegionArgs; ++ArgNo)
       NewBlockTransferArgs.push_back(NewForOp.getRegionIterArgs()[ArgNo]);
     assert(OldBlock->getNumArguments() == NewBlockTransferArgs.size() &&
            "unexpected argument size mismatch");
@@ -274,7 +276,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       PostDominanceInfo PDT;
       size_t ArgNo = 0;
       for (CandidateReductionOp &Op : CandidateOps) {
-        for (Operation *Load : LoadsInLoop) {
+        for (Operation *Load : Op.getOtherLoads()) {
           if (PDT.postDominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(
                 NewForOp.getBody()
