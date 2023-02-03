@@ -167,6 +167,10 @@ inline pi_result ur2piInfoValue(zer_device_info_t ParamName,
     static std::unordered_map<zer_device_partition_property_flag_t,
                               pi_device_partition_property>
         Map = {
+            // The "0" value means device is not partitioned, so pass that
+            // through.
+            {(zer_device_partition_property_flag_t)0,
+             (pi_device_partition_property)0},
             {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
             {(zer_device_partition_property_flag_t)
