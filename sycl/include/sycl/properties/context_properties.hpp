@@ -14,14 +14,11 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext::oneapi::cuda::property {
-namespace __SYCL_DEPRECATED(
-    "the primary contexts are now always used") context {
-class use_primary_context : public ::sycl::detail::DataLessProperty<
-                                ::sycl::detail::UsePrimaryContext> {};
-} // namespace __SYCL_DEPRECATED("the primary contexts are now always
-  // used")context
-} // namespace ext::oneapi::cuda::property
+namespace ext::oneapi::cuda::property::context {
+class __SYCL_DEPRECATED("the primary contexts are now always used")
+    use_primary_context : public ::sycl::detail::DataLessProperty<
+                              ::sycl::detail::UsePrimaryContext> {};
+} // namespace ext::oneapi::cuda::property::context
 
 namespace property::context {
 namespace __SYCL2020_DEPRECATED(
