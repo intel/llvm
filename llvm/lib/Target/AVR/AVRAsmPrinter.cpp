@@ -19,6 +19,7 @@
 #include "MCTargetDesc/AVRMCExpr.h"
 #include "TargetInfo/AVRTargetInfo.h"
 
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -28,11 +29,13 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetLoweringObjectFile.h"
 
 #define DEBUG_TYPE "avr-asm-printer"
 
@@ -125,8 +128,8 @@ bool AVRAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
       assert(BytesPerReg <= 2 && "Only 8 and 16 bit regs are supported.");
 
       unsigned RegIdx = ByteNumber / BytesPerReg;
-      assert(RegIdx < NumOpRegs && "Multibyte index out of range.");
-
+      if (RegIdx >= NumOpRegs)
+        return true;
       Reg = MI->getOperand(OpNum + RegIdx).getReg();
 
       if (BytesPerReg == 2) {
@@ -229,21 +232,51 @@ void AVRAsmPrinter::emitXXStructor(const DataLayout &DL, const Constant *CV) {
 }
 
 bool AVRAsmPrinter::doFinalization(Module &M) {
+  const TargetLoweringObjectFile &TLOF = getObjFileLowering();
+  const AVRTargetMachine &TM = (const AVRTargetMachine &)MMI->getTarget();
+  const AVRSubtarget *SubTM = (const AVRSubtarget *)TM.getSubtargetImpl();
+
+  bool NeedsCopyData = false;
+  bool NeedsClearBSS = false;
+  for (const auto &GO : M.globals()) {
+    if (!GO.hasInitializer() || GO.hasAvailableExternallyLinkage())
+      // These globals aren't defined in the current object file.
+      continue;
+
+    if (GO.hasCommonLinkage()) {
+      // COMMON symbols are put in .bss.
+      NeedsClearBSS = true;
+      continue;
+    }
+
+    auto *Section = cast<MCSectionELF>(TLOF.SectionForGlobal(&GO, TM));
+    if (Section->getName().startswith(".data"))
+      NeedsCopyData = true;
+    else if (Section->getName().startswith(".rodata") && SubTM->hasPROGMEM())
+      // AVRs that have a separate PROGMEM (that's most AVRs) store .rodata
+      // sections in RAM.
+      NeedsCopyData = true;
+    else if (Section->getName().startswith(".bss"))
+      NeedsClearBSS = true;
+  }
+
   MCSymbol *DoCopyData = OutContext.getOrCreateSymbol("__do_copy_data");
   MCSymbol *DoClearBss = OutContext.getOrCreateSymbol("__do_clear_bss");
 
-  // FIXME: We can disable __do_copy_data if there are no static RAM variables.
+  if (NeedsCopyData) {
+    OutStreamer->emitRawComment(
+        " Declaring this symbol tells the CRT that it should");
+    OutStreamer->emitRawComment(
+        "copy all variables from program memory to RAM on startup");
+    OutStreamer->emitSymbolAttribute(DoCopyData, MCSA_Global);
+  }
 
-  OutStreamer->emitRawComment(
-      " Declaring this symbol tells the CRT that it should");
-  OutStreamer->emitRawComment(
-      "copy all variables from program memory to RAM on startup");
-  OutStreamer->emitSymbolAttribute(DoCopyData, MCSA_Global);
-
-  OutStreamer->emitRawComment(
-      " Declaring this symbol tells the CRT that it should");
-  OutStreamer->emitRawComment("clear the zeroed data section on startup");
-  OutStreamer->emitSymbolAttribute(DoClearBss, MCSA_Global);
+  if (NeedsClearBSS) {
+    OutStreamer->emitRawComment(
+        " Declaring this symbol tells the CRT that it should");
+    OutStreamer->emitRawComment("clear the zeroed data section on startup");
+    OutStreamer->emitSymbolAttribute(DoClearBss, MCSA_Global);
+  }
 
   return AsmPrinter::doFinalization(M);
 }
