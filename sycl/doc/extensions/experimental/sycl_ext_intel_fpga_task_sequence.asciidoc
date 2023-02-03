@@ -93,6 +93,51 @@ spatial hardware instances can be reasoned about when developing applications.
 NOTE: In this document, we use `task_sequence` to indicate the proposed
 `sycl::ext::intel::experimental::task_sequence`
 
+=== Examples
+
+Here's an example that shows how to define and call two task sequences.
+
+```c++
+int vectorSum(float *v, size_t s, size_t sz) {
+  int result = 0;
+  for (size_t i = s; i < s+sz; i++)
+    result += v[i];
+  return result;
+}
+
+using namespace sycl::ext::intel::experimental;
+
+{
+  sycl::queue q{...};
+
+  constexpr count = ...;
+  std::vector<float> in(count), out(2);
+  ...
+
+  sycl::buffer in_buf(in);
+  sycl::buffer out_buf(out);
+
+  q.submit([&](sycl::handler& h) {
+    sycl::accessor in_acc(in_buf, h, sycl::read_only);
+    sycl::accessor out_acc(out_buf, h, sycl::write_only);
+    h.single_task<ParallelTask>([=]() {
+      task_sequence<vectorSum> firstQuarter;
+      task_sequence<vectorSum> secondQuarter;
+      task_sequence<vectorSum> thirdQuarter;
+      task_sequence<vectorSum> fourthQuarter;
+      int quarterCount = count/4;
+      firstQuarter.async(in_acc.get_pointer(), 0, quarterCount);
+      secondQuarter.async(in_acc.get_pointer(), quarterCount, quarterCount);
+      thirdQuarter.async(in_acc.get_pointer(), 2*quarterCount, quarterCount);
+      fourthQuarter.async(in_acc.get_pointer(), 3*quarterCount, quarterCount);
+      out_acc[1] = firstQuarter.get() + secondQuarter.get() +
+        thirdQuarter.get() + fourthQuarter.get();
+    });
+  }).wait();
+  ...
+}
+```
+
 == Definitions
 
 == `task_sequence` class
@@ -215,51 +260,6 @@ Implicitly invokes `get` on all outstanding invocations launched through `async
 unless this `task_sequence` object was instantiated with the `balanced` property
 defined below.
 |===
-
-=== Examples
-
-Here's an example that shows how to define and call two task sequences.
-
-```c++
-int vectorSum(float *v, size_t s, size_t sz) {
-  int result = 0;
-  for (size_t i = s; i < s+sz; i++)
-    result += v[i];
-  return result;
-}
-
-using namespace sycl::ext::intel::experimental;
-
-{
-  sycl::queue q{...};
-
-  constexpr count = ...;
-  std::vector<float> in(count), out(2);
-  ...
-
-  sycl::buffer in_buf(in);
-  sycl::buffer out_buf(out);
-
-  q.submit([&](sycl::handler& h) {
-    sycl::accessor in_acc(in_buf, h, sycl::read_only);
-    sycl::accessor out_acc(out_buf, h, sycl::write_only);
-    h.single_task<ParallelTask>([=]() {
-      task_sequence<vectorSum> firstQuarter;
-      task_sequence<vectorSum> secondQuarter;
-      task_sequence<vectorSum> thirdQuarter;
-      task_sequence<vectorSum> fourthQuarter;
-      int quarterCount = count/4;
-      firstQuarter.async(in_acc.get_pointer(), 0, quarterCount);
-      secondQuarter.async(in_acc.get_pointer(), quarterCount, quarterCount);
-      thirdQuarter.async(in_acc.get_pointer(), 2*quarterCount, quarterCount);
-      fourthQuarter.async(in_acc.get_pointer(), 3*quarterCount, quarterCount);
-      out_acc[1] = firstQuarter.get() + secondQuarter.get() +
-        thirdQuarter.get() + fourthQuarter.get();
-    });
-  }).wait();
-  ...
-}
-```
 
 === `task_sequence` Scoping
 
