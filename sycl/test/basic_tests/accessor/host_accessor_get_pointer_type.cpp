@@ -18,8 +18,10 @@ void CheckHostAccessor() {
 
 template <typename DataT, int Dims> void CheckHostAccessorForModes() {
   CheckHostAccessor<DataT, Dims, sycl::access::mode::read>();
-  CheckHostAccessor<DataT, Dims, sycl::access::mode::read_write>();
-  CheckHostAccessor<DataT, Dims, sycl::access::mode::write>();
+  if constexpr (!std::is_const<DataT>::value) {
+    CheckHostAccessor<DataT, Dims, sycl::access::mode::read_write>();
+    CheckHostAccessor<DataT, Dims, sycl::access::mode::write>();
+  }
 }
 
 template <typename DataT> void CheckHostAccessorForAllDimsAndModes() {
