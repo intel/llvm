@@ -39,13 +39,22 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 == Status
-
 This is an experimental extension specification, intended to provide early
 access to features and gather community feedback.  Interfaces defined in this
 specification are implemented in {dpcpp}, but they are not finalized and may
 change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
+
+_Note The joint_matrix type is an optional kernel feature as defined
+in section 5.7 of the core SYCL specification.  Each device supports
+only certain values for the `Rows` and `Cols` template parameters and
+only certain types for the `T` template parameter.  Applications can
+use the query API `tpu_params` to determine the set of legal
+parameters for each device.  If the application submits a kernel using
+an unsupported `joint_matrix` parameter, the implementation throws a
+synchronous exception with the `errc::kernel_not_supported` error code
+as described in section 5.7. 
 
 == Backend support status
 This extension is currently implemented in {dpcpp} only for devices
