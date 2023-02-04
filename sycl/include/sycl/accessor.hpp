@@ -314,6 +314,7 @@ protected:
       AccessMode == access::mode::discard_read_write;
 
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
+  static constexpr bool IsConst = std::is_const<DataT>::value;
 
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
@@ -370,6 +371,13 @@ protected:
     }
   };
 };
+
+template <typename DataT> constexpr access::mode accessModeFromConstness() {
+  if constexpr (std::is_const<DataT>::value)
+    return access::mode::read;
+  else
+    return access::mode::read_write;
+}
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {
@@ -1020,9 +1028,14 @@ protected:
   static constexpr bool IsGlobalBuf = AccessorCommonT::IsGlobalBuf;
   static constexpr bool IsHostBuf = AccessorCommonT::IsHostBuf;
   static constexpr bool IsPlaceH = AccessorCommonT::IsPlaceH;
+  static constexpr bool IsConst = AccessorCommonT::IsConst;
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
+
+  static_assert(
+      !IsConst || IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
@@ -2392,7 +2405,13 @@ protected:
                               access::target::local, IsPlaceholder>;
 
   using AccessorCommonT::AS;
-  using AccessorCommonT::IsAccessAnyWrite;
+
+  // Cannot do "using AccessorCommonT::Flag" as it doesn't work with g++ as host
+  // compiler, for some reason.
+  static constexpr bool IsAccessAnyWrite = AccessorCommonT::IsAccessAnyWrite;
+  static constexpr bool IsAccessReadOnly = AccessorCommonT::IsAccessReadOnly;
+  static constexpr bool IsConst = AccessorCommonT::IsConst;
+
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<
@@ -2485,7 +2504,8 @@ public:
   local_accessor_base(handler &, const detail::code_location CodeLoc =
                                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(range<AdjustedDim>{1}){}
+      : impl(range<AdjustedDim>{1}) {
+  }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
@@ -2494,11 +2514,10 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions,
-                  typename = detail::enable_if_t<Dims == 0>>
-        local_accessor_base(handler &, const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
+  local_accessor_base(
+      handler &, const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2517,7 +2536,8 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize){}
+      : impl(AllocationSize) {
+  }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2527,12 +2547,11 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions,
-                  typename = detail::enable_if_t<(Dims > 0)>>
-        local_accessor_base(range<Dimensions> AllocationSize, handler &,
-                            const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  local_accessor_base(
+      range<Dimensions> AllocationSize, handler &,
+      const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
@@ -2634,6 +2653,10 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
   using local_acc =
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
 
+  static_assert(
+      !local_acc::IsConst || local_acc::IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
+
   // Use base classes constructors
   using local_acc::local_acc;
 
@@ -2663,13 +2686,19 @@ private:
 
 template <typename DataT, int Dimensions = 1>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
-    : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
+    : public local_accessor_base<DataT, Dimensions,
+                                 detail::accessModeFromConstness<DataT>(),
                                  access::placeholder::false_t>,
       public detail::OwnerLessBase<local_accessor<DataT, Dimensions>> {
 
   using local_acc =
-      local_accessor_base<DataT, Dimensions, access::mode::read_write,
+      local_accessor_base<DataT, Dimensions,
+                          detail::accessModeFromConstness<DataT>(),
                           access::placeholder::false_t>;
+
+  static_assert(
+      !local_acc::IsConst || local_acc::IsAccessReadOnly,
+      "A const qualified DataT is only allowed for a read-only accessor");
 
   // Use base classes constructors
   using local_acc::local_acc;
