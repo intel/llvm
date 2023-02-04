@@ -16,7 +16,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-class TypeConverter;
 namespace sycl {
 
 /// Populates the given list with patterns that convert from SYCL to GPU.
