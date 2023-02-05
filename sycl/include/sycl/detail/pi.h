@@ -1187,7 +1187,7 @@ __SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 /// Gets the native handle of a PI queue object.
 ///
 /// \param queue is the PI queue to get the native handle of.
-/// \param nativeHandle is the native handle of queue or commandlist.
+/// \param nativeHandle is the native handle of queue.
 __SYCL_EXPORT pi_result
 piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 
