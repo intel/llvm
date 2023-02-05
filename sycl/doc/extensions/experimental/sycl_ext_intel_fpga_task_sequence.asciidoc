@@ -202,7 +202,7 @@ value into a FIFO queue upon completion of `f`. By calling async on a
 `task_sequence` more than once, the user implies that the invocations of `f` can
 be run in parallel, although the implementation is by no means obligated to do so.  
 
-The `async` function call is non-blocking in that it returns before the
+The `async` function call is non-blocking in that it may return before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
 begins executing (return from the `async` provides no implicit information on
 the execution status of `f`).
@@ -390,8 +390,8 @@ number of outstanding `async` invocations is reduced to `Size`.
 The `task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
 property described in link:sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties].
-Normally the `pipelined` property is applicable only on kernels however this
-extension supports applying the property on task sequences.
+Normally the `pipelined` property is applicable only to kernels however this
+extension supports applying the property to task sequences.
 
 == Forward Progress Guarantees and Execution Model
 
