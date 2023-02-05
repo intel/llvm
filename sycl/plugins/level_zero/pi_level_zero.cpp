@@ -4029,11 +4029,9 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
           .first);
 }
 
-pi_result piextQueueCreateWithNativeHandle2(pi_native_handle NativeHandle,
-                                            pi_context Context, pi_device Device,
-                                            bool UseImmCmdList,
-                                            bool OwnNativeHandle,
-                                            pi_queue *Queue) {
+pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle NativeHandle, pi_context Context, pi_device Device,
+    bool UseImmCmdList, bool OwnNativeHandle, pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
