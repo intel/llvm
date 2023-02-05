@@ -200,7 +200,7 @@ The `task_sequence` interface consists of two member functions, `async` and
 `get`. The `async` function asynchronously invokes `f`, and stores the return
 value into a FIFO queue upon completion of `f`. By calling async on a
 `task_sequence` more than once, the user implies that the invocations of `f` can
-be run in parallel.
+be run in parallel, although the implementation is by no means obligated to do so.  
 
 The `async` function call is non-blocking in that it returns before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
