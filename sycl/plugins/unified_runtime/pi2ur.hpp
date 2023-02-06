@@ -108,12 +108,12 @@ public:
     while (param_value) {
       ++Count;
 
-      if (auto Res = convert(Map))
-        return Res;
-
       auto pValueUR = static_cast<TypeUR *>(param_value);
       if (*pValueUR == 0)
         break;
+
+      if (auto Res = convert(Map))
+        return Res;
 
       param_value = ++pValueUR; // advance to next element
     }
