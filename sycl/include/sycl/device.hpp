@@ -89,6 +89,8 @@ public:
 
   device &operator=(device &&rhs) = default;
 
+bool ext_oneapi_enable_peer_access(const device &peer);
+
   /// Get instance of device
   ///
   /// \return a valid cl_device_id instance in accordance with the requirements

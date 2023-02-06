@@ -200,5 +200,13 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+bool device::ext_oneapi_enable_peer_access(const device &peer) {
+  const RT::PiDevice Device = impl->getHandleRef();
+  const detail::plugin &Plugin = impl->getPlugin();
+  const RT::PiDevice PeerPi = peer.impl->getHandleRef();
+  Plugin.call<detail::PiApiKind::piextEnablePeer>(Device, PeerPi );
+  return true;
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

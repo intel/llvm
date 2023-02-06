@@ -141,6 +141,7 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
+_PI_API(piextEnablePeer)
 
 _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)

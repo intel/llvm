@@ -9443,4 +9443,11 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   }
   return PI_SUCCESS;
 }
+
+pi_result piextEnablePeer(pi_device command_device, pi_device peer_device){
+
+die("piextEnablePeer not "
+        "implemented \n");
+}
+
 } // extern "C"

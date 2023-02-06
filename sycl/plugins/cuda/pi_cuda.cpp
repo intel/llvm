@@ -5617,6 +5617,19 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextEnablePeer(pi_device command_device, pi_device peer_device){
+
+ pi_result result = PI_SUCCESS;
+try {
+    ScopedContext active(command_device->get_context());
+result = PI_CHECK_ERROR(cuCtxEnablePeerAccess(peer_device->get_context(), 0));
+
+  } catch (pi_result err) {
+    result = err;
+  }
+return result;
+}
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5771,6 +5784,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+  _PI_CL(piextEnablePeer, cuda_piextEnablePeer)
 
 #undef _PI_CL
 
