@@ -17,9 +17,12 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Build Options
-option(DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
-option(BUILD_TESTS "Build unit tests." ON)
-option(FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
+option(UR_DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
+option(UR_BUILD_TESTS "Build unit tests." ON)
+option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
+option(UR_USE_ASAN "enable AddressSanitizer" OFF)
+option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
+option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -41,7 +44,8 @@ endif()
 # CXX flags setup
 if(NOT MSVC)
     add_compile_options(-fPIC -Wall)
-    if(DEVELOPER_MODE)
+    if(UR_DEVELOPER_MODE)
+        add_compile_options(-fno-omit-frame-pointer)
         add_compile_options(-Werror)
     endif()
 elseif(MSVC)
@@ -51,9 +55,25 @@ elseif(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     add_compile_options(/MP /W3)
 
-    if(DEVELOPER_MODE)
+    if(UR_DEVELOPER_MODE)
         add_compile_options(/WX)
     endif()
+endif()
+
+if(UR_USE_ASAN)
+    add_sanitizer_flag(address)
+endif()
+
+if(UR_USE_UBSAN)
+    add_sanitizer_flag(undefined)
+endif()
+
+if(UR_USE_MSAN)
+    message(WARNING "MemorySanitizer requires that all code is built with
+        its instrumentation, otherwise false positives are possible.
+        See https://github.com/google/sanitizers/wiki/MemorySanitizerLibcxxHowTo#instrumented-libc
+        for details")
+    add_sanitizer_flag(memory)
 endif()
 
 # Allow custom third_party folder
@@ -71,7 +91,7 @@ if(CLANG_FORMAT)
 endif()
 
 # Check if the correct version of clang-format is available
-if(FORMAT_CPP_STYLE)
+if(UR_FORMAT_CPP_STYLE)
     if(CLANG_FORMAT)
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
@@ -118,7 +138,7 @@ install(
 
 add_subdirectory(source)
 add_subdirectory(examples)
-if(BUILD_TESTS)
+if(UR_BUILD_TESTS)
     add_subdirectory(test)
 endif()
 

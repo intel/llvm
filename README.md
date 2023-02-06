@@ -83,9 +83,12 @@ List of options provided by CMake:
 
 | Name | Description | Values | Default |
 | - | - | - | - |
-| BUILD_TESTS | Build the tests | ON/OFF | ON |
-| FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
-| DEVELOPER_MODE | Treats warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_BUILD_TESTS | Build the tests | ON/OFF | ON |
+| UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
+| UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
+| UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
+| UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
 
 **General**:
 
