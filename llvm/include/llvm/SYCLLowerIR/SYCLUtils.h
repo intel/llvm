@@ -28,7 +28,6 @@ using CallGraphNodeAction = ::std::function<void(Function *)>;
 using CallGraphFunctionFilter =
     std::function<bool(const Instruction *, const Function *)>;
 
-
 // Traverses call graph starting from given function up the call chain applying
 // given action to each function met on the way. If \c ErrorOnNonCallUse
 // parameter is true, then no functions' uses are allowed except calls.
