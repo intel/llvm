@@ -43,5 +43,3 @@ context_t::~context_t() {
 };
 
 } // namespace loader
-
-ur_result_t urLoaderInit() { return loader::context->init(); }

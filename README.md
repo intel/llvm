@@ -85,6 +85,7 @@ List of options provided by CMake:
 | - | - | - | - |
 | BUILD_TESTS | Build the tests | ON/OFF | ON |
 | FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
+| DEVELOPER_MODE | Treats warnings as errors and enables additional checks | ON/OFF | OFF |
 
 **General**:
 
