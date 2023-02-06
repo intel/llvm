@@ -90,6 +90,39 @@ public:
     return PI_SUCCESS;
   }
 
+  // Convert the array (0-terminated) using a conversion map
+  template <typename TypeUR, typename TypePI>
+  pi_result convertArray(const std::unordered_map<TypeUR, TypePI> &Map) {
+    // There is no value to convert.
+    if (!param_value)
+      return PI_SUCCESS;
+
+    // Save the original value as we are going to change it while iterating
+    // over elements.
+    auto param_value_orig = param_value;
+
+    // Cannot convert to a smaller element storage type
+    PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+
+    size_t Count = 0;
+    while (param_value) {
+      ++Count;
+
+      if (auto Res = convert(Map))
+        return Res;
+
+      auto pValueUR = static_cast<TypeUR *>(param_value);
+      if (*pValueUR == 0)
+        break;
+
+      param_value = ++pValueUR; // advance to next element
+    }
+
+    param_value = param_value_orig;
+    *param_value_size_ret = sizeof(TypePI) * Count;
+    return PI_SUCCESS;
+  }
+
   // Convert the bitset using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convertBitSet(const std::unordered_map<TypeUR, TypePI> &Map) {
@@ -167,17 +200,13 @@ inline pi_result ur2piInfoValue(zer_device_info_t ParamName,
     static std::unordered_map<zer_device_partition_property_flag_t,
                               pi_device_partition_property>
         Map = {
-            // The "0" value means device is not partitioned, so pass that
-            // through.
-            {(zer_device_partition_property_flag_t)0,
-             (pi_device_partition_property)0},
             {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
             {(zer_device_partition_property_flag_t)
                  ZER_EXT_DEVICE_PARTITION_BY_CSLICE,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
-    return Value.convertBitSet(Map);
+    return Value.convertArray(Map);
   }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
