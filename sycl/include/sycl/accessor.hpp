@@ -554,18 +554,18 @@ protected:
 
 template <int Dim, typename T> struct IsValidCoordDataT;
 template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value =
-      detail::is_contained<T, detail::type_list<cl_int, cl_float>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
 };
 template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value =
-      detail::is_contained<T,
-                           detail::type_list<cl_int2, cl_float2>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<vec<opencl::cl_int, 2>,
+                           vec<opencl::cl_float, 2>>>::type::value;
 };
 template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value =
-      detail::is_contained<T,
-                           detail::type_list<cl_int4, cl_float4>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<vec<opencl::cl_int, 4>,
+                           vec<opencl::cl_float, 4>>>::type::value;
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -620,10 +620,10 @@ private:
   constexpr static bool IsImageAccessAnyRead =
       (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
-  static_assert(std::is_same<DataT, cl_int4>::value ||
-                    std::is_same<DataT, cl_uint4>::value ||
-                    std::is_same<DataT, cl_float4>::value ||
-                    std::is_same<DataT, cl_half4>::value,
+  static_assert(std::is_same<DataT, vec<opencl::cl_int, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_uint, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_float, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_half, 4>>::value,
                 "The data type of an image accessor must be only cl_int4, "
                 "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
 
