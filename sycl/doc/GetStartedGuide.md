@@ -694,7 +694,7 @@ more. To find available options, execute:
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
-of accelerators available in the system.
+of accelerators available in the system or SYCL host device.
 In this case, the behavior of the `default_selector` can be altered
 using the `ONEAPI_DEVICE_SELECTOR` environment variable, setting `cuda:*` forces
 the usage of the CUDA backend (if available), `hip:*` forces
@@ -706,6 +706,9 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
+If there are no OpenCL or CUDA devices available, the SYCL host device is used.
+The SYCL host device executes the SYCL application directly in the host,
+without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
@@ -845,6 +848,7 @@ which contains all the symbols required.
 
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
+* SYCL host device is not fully supported.
 * SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order
