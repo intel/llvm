@@ -11,6 +11,7 @@
 #include <detail/device_impl.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
+#include <detail/force_device.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -67,7 +68,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
       includeHost = FilterList->containsHost();
   } else {
     // TODO(Pietro): removed with 1ee35aa2868af04825059f887b436cbe58dbd69e
-    // includeHost = detail::match_types(deviceType, info::device_type::host);
+    includeHost = detail::match_types(deviceType, info::device_type::host);
   }
   auto thePlatforms = platform::get_platforms();
   for (const auto &plt : thePlatforms) {

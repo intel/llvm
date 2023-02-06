@@ -14,6 +14,7 @@ add_sycl_unittest(SchedulerTests OBJECT
     AllocaLinking.cpp
     RequiredWGSize.cpp
     QueueFlushing.cpp
+    PostEnqueueCleanup.cpp
     GraphCleanup.cpp
     Regression.cpp
     utils.cpp
