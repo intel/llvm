@@ -22,4 +22,6 @@ AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, float, f, __hip_atomic_exchange)
 
 #undef AMDGPU_ATOMIC
 #undef AMDGPU_ATOMIC_IMPL
+#undef AMDGPU_ARCH_GEQ
+#undef AMDGPU_ARCH_BETWEEN
 #undef GET_ATOMIC_SCOPE_AND_ORDER
