@@ -26,7 +26,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PGOOptions.h"
@@ -2000,7 +1999,6 @@ void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
     ModulePassManager &MPM) {
   MPM.addPass(
       buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
-  MPM.addPass(sycl::AddDebugFuncAttrs());
 }
 
 AAManager PassBuilder::buildDefaultAAPipeline() {
