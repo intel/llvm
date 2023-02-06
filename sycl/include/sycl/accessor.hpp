@@ -241,16 +241,6 @@ struct AccHostDataT {
   void *Reserved = nullptr;
 };
 
-// To ensure loop unrolling is done when processing dimensions.
-template <size_t... Inds, class F>
-void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(Inds), ...);
-}
-
-template <size_t count, class F> void dim_loop(F &&f) {
-  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
-}
-
 void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
