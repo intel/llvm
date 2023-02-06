@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --ir-output-only --device-globals %s -S -o - | FileCheck %s --check-prefix CHECK-IR
+; RUN: opt -passes=compile-time-properties %s -S | FileCheck %s --check-prefix CHECK-IR
 
 ; CHECK-IR-DAG: @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel0"() #0 {{.*}}!intel_reqd_sub_group_size ![[SGSizeMD0:[0-9]+]] {{.*}}!reqd_work_group_size ![[WGSizeMD0:[0-9]+]]{{.*}}!work_group_size_hint ![[WGSizeHintMD0:[0-9]+]]
 ; Function Attrs: convergent norecurse
