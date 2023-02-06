@@ -478,5 +478,13 @@ add_custom_target(deploy-sycl-toolchain
   DEPENDS sycl-toolchain ${manifest_list}
 )
 
+if (SYCL_ENALBE_OPENCL_CPU_RT_BUILD)
+  add_dependencies(deploy-sycl-toolchain deploy-ocl-cpu)
+endif(SYCL_ENALBE_OPENCL_CPU_RT_BUILD)
+
+if (SYCL_ENALBE_FPGA_EMU_RT_BUILD)
+  add_dependencies(deploy-sycl-toolchain deploy-fpga-emu)
+endif(SYCL_ENALBE_FPGA_EMU_RT_BUILD)
+
 # SYCL Runtime documentation
 add_subdirectory(doc)

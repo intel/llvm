@@ -13,7 +13,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl-cpu;opencl;xpti;xptifw'
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
@@ -51,6 +51,8 @@ def do_configure(args):
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
     sycl_enabled_plugins = ["opencl"]
+    sycl_enable_opencl_cpu_rt_build = 'OFF'
+    sycl_enable_fpga_emu_build = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
@@ -64,6 +66,12 @@ def do_configure(args):
 
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
+
+    if args.bldocl:
+        sycl_enable_opencl_cpu_rt_build = 'ON'
+
+    if args.bldfpgaemu:
+        sycl_enable_fpga_emu_build = 'ON'
 
     if args.cuda or args.hip:
         llvm_enable_projects += ';libclc'
@@ -156,6 +164,10 @@ def do_configure(args):
         "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
+        "-DOPENCL_INTREE_BUILD=ON",
+        "-DSYCL_ENALBE_OPENCL_CPU_RT_BUILD={}".format(sycl_enable_opencl_cpu_rt_build),
+        "-DSYCL_ENALBE_FPGA_EMU_RT_BUILD={}".format(sycl_enable_fpga_emu_build),
+        "-DCOMMON_CLANG_LIBRARY_NAME=common_clang",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
@@ -232,6 +244,8 @@ def main():
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
+    parser.add_argument("-bldocl", "--bldocl", action='store_true', help="build OpenCL CPU RT")
+    parser.add_argument("-bldfpgaemu", "--bldfpgaemu", action='store_true', help="build FPGA EMU RT")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
