@@ -72,7 +72,8 @@ uma_memory_pool_handle_t nullPoolCreate() {
     uma_memory_pool_handle_t hPool;
     enum uma_result_t ret = umaPoolCreate(&ops, NULL,
                                      &hPool);
-    
+
+    (void) ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
     return hPool;
 }
@@ -133,7 +134,7 @@ void traceFree(void *pool, void *ptr) {
     struct traceParams* tracePool = (struct traceParams*) pool;
 
     tracePool->trace("free");
-    return umaPoolFree(tracePool->hUpstreamPool, ptr);
+    umaPoolFree(tracePool->hUpstreamPool, ptr);
 }
 
 uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,  void (*trace)(const char*)) {
@@ -157,7 +158,8 @@ uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
     uma_memory_pool_handle_t hPool;
     enum uma_result_t ret = umaPoolCreate(&ops, &params,
                                      &hPool);
-    
+
+    (void) ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
     return hPool;
 }
