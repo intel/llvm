@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm -Xclang -opaque-pointers %s -o - | FileCheck %s
 
 // This test checks the codegen for the following ESIMD APIs:
 // sin, cos, exp, log.

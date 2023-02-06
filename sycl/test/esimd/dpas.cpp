@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl -c -Xclang -emit-llvm %s -o %t
-// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm -Xclang -opaque-pointers %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
