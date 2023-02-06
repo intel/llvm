@@ -67,7 +67,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
     else
       includeHost = FilterList->containsHost();
   } else {
-    // TODO(Pietro): removed with 1ee35aa2868af04825059f887b436cbe58dbd69e
     includeHost = detail::match_types(deviceType, info::device_type::host);
   }
   auto thePlatforms = platform::get_platforms();
