@@ -18,8 +18,7 @@
           enum MemorySemanticsMask semantics, TYPE val) {                                                                     \
     int atomic_scope = 0, memory_order = 0;                                                                                   \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                                  \
-    TYPE ret = BUILTIN(p, val, memory_order);                                                                                 \
-    return *(TYPE *)&ret;                                                                                                     \
+    return BUILTIN(p, val, memory_order);                                                                                 \
   }
 
 #define AMDGPU_ATOMIC_SUB(FUNC_NAME, TYPE, TYPE_MANGLED, BUILTIN)              \
@@ -39,4 +38,6 @@ AMDGPU_ATOMIC_SUB(_Z21__spirv_AtomicFSubEXT, float, f, __atomic_fetch_sub)
 #undef AMDGPU_ATOMIC_IMPL
 #undef AMDGPU_ATOMIC_SUB
 #undef AMDGPU_ATOMIC_SUB_IMPL
+#undef AMDGPU_ARCH_GEQ
+#undef AMDGPU_ARCH_BETWEEN
 #undef GET_ATOMIC_SCOPE_AND_ORDER
