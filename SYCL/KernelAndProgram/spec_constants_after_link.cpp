@@ -3,6 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // FIXME: ACC devices use emulation path, which is not yet supported
 
+// HIP backend does not currently implement linking.
+// XFAIL: hip
+
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 
