@@ -25,7 +25,7 @@ class Function;
 class Module;
 class Triple;
 
-/// Describes a possible implementation of a floating point builtin operation
+/// Describes a possible implementation of a floating point builtin operation.
 struct AltMathDesc {
   Intrinsic::ID IntrinID;
   Type::TypeID BaseFPType;
@@ -80,7 +80,7 @@ class TargetLibraryInfoImpl {
   }
 
   /// Alternate math library functions - sorted by intrinsic ID, then type,
-  ///   then vector size, then accuracy
+  /// then vector size, then accuracy
   std::vector<AltMathDesc> AltMathFuncDescs;
 
   /// Vectorization descriptors - sorted by ScalarFnName.

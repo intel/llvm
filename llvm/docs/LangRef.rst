@@ -23151,7 +23151,7 @@ intrinsic has any callsite attributes begining with "fpbuiltin-" that the code
 performing the transformation does not recognize.
 
 Unless otherwise specified using callsite attributes, the fpbuiltin intrinsics
-do not set ``errno`` or and are not guaranteed to maintain correct
+do not set ``errno`` and are not guaranteed to maintain correct
 floating-point exception state.
 
 All fpbuiltin intrinsics are overloaded intrinsics which may operate on any

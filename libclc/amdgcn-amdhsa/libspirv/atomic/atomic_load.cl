@@ -17,8 +17,7 @@
           enum MemorySemanticsMask semantics) {                                                              \
     int atomic_scope = 0, memory_order = 0;                                                                  \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                 \
-    TYPE res = __hip_atomic_load(p, memory_order, atomic_scope);                                             \
-    return *(TYPE *)&res;                                                                                    \
+    return __hip_atomic_load(p, memory_order, atomic_scope);                                                 \
   }
 
 #define AMDGPU_ATOMIC_LOAD(TYPE, TYPE_MANGLED)                                 \
@@ -38,4 +37,6 @@ AMDGPU_ATOMIC_LOAD(float, Kf)
 #undef AMDGPU_ATOMIC_IMPL
 #undef AMDGPU_ATOMIC_LOAD
 #undef AMDGPU_ATOMIC_LOAD_IMPL
+#undef AMDGPU_ARCH_GEQ
+#undef AMDGPU_ARCH_BETWEEN
 #undef GET_ATOMIC_SCOPE_AND_ORDER
