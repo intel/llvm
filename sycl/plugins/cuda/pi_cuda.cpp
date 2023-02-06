@@ -1997,8 +1997,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_DEVICE_ID: {
     int value = 0;
     sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&value,
-                             CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID,
+        cuDeviceGetAttribute(&value, CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID,
                              device->get()) == CUDA_SUCCESS);
     sycl::detail::pi::assertion(value >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
@@ -2011,16 +2010,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int minor = driver_version % 1000 / 10;
     CUuuid uuid;
     if ((major > 11) || (major == 11 && minor >= 4)) {
-      sycl::detail::pi::assertion(
-          cuDeviceGetUuid_v2(&uuid, device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(cuDeviceGetUuid_v2(&uuid, device->get()) ==
+                                  CUDA_SUCCESS);
     } else {
-      sycl::detail::pi::assertion(
-          cuDeviceGetUuid(&uuid, device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(cuDeviceGetUuid(&uuid, device->get()) ==
+                                  CUDA_SUCCESS);
     }
     std::array<unsigned char, 16> name;
     std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
-    return getInfoArray(16, param_value_size, param_value,
-                        param_value_size_ret, name.data());
+    return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
+                        name.data());
   }
 
     // TODO: Investigate if this information is available on CUDA.
