@@ -21,3 +21,5 @@ kernel_bundle
 specialization_constants
 device_selector
 math_builtin_api
+stream
+marray

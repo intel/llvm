@@ -22,7 +22,6 @@
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
@@ -34,6 +33,7 @@
 #include "gtest/gtest.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -54,7 +54,7 @@ using ::testing::UnorderedElementsAre;
 
 template <typename AnalysisT>
 llvm::Expected<std::vector<
-    llvm::Optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>>
+    std::optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>>
 runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
   std::unique_ptr<ASTUnit> AST =
       tooling::buildASTFromCodeWithArgs(Code, {"-std=c++11"});
@@ -68,7 +68,7 @@ runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
   assert(Body != nullptr);
 
   auto CFCtx = llvm::cantFail(
-      ControlFlowContext::build(nullptr, Body, &AST->getASTContext()));
+      ControlFlowContext::build(nullptr, *Body, AST->getASTContext()));
 
   AnalysisT Analysis = MakeAnalysis(AST->getASTContext());
   DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());

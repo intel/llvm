@@ -79,7 +79,7 @@ public:
     std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
     std::multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
 
-    size_t size() { return Cache.size(); }
+    size_t size() const noexcept { return Cache.size(); }
   };
 
   using ContextPtr = context_impl *;
