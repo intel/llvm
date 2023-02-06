@@ -13,6 +13,28 @@
 #include <string.h>
 #include <string>
 
+/* for compatibility with non-clang compilers */
+#if defined(__has_feature)
+#define CLANG_HAS_FEATURE(x) __has_feature(x)
+#else
+#define CLANG_HAS_FEATURE(x) 0
+#endif
+
+/* define for running with address sanitizer */
+#if CLANG_HAS_FEATURE(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+#define SANITIZER_ADDRESS
+#endif
+
+/* define for running with memory sanitizer */
+#if CLANG_HAS_FEATURE(memory_sanitizer)
+#define SANITIZER_MEMORY
+#endif
+
+/* define for running with any sanitizer runtime */
+#if defined(SANITIZER_MEMORY) || defined(SANITIZER_ADDRESS)
+#define SANITIZER_ANY
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 #if defined(_WIN32)
 #include <Windows.h>
@@ -30,8 +52,13 @@
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
 #define MAKE_LAYER_NAME(NAME)                                                  \
     "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
+#if defined(SANITIZER_ANY)
+#define LOAD_DRIVER_LIBRARY(NAME)                                              \
+    dlopen(NAME, RTLD_LAZY | RTLD_LOCAL)
+#else
 #define LOAD_DRIVER_LIBRARY(NAME)                                              \
     dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
+#endif
 #define FREE_DRIVER_LIBRARY(LIB)                                               \
     if (LIB)                                                                   \
     dlclose(LIB)
