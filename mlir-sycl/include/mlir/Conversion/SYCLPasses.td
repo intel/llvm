@@ -23,6 +23,10 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
   }];
   let constructor = "mlir::sycl::createConvertSYCLToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [Option<"useBarePtrCallConv", "use-bare-ptr-call-conv", "bool",
+                        /*default=*/"false",
+			"Replace MemRef values with bare pointers to the MemRef "
+			"element types">];
 }
 
 #endif // MLIR_CONVERSION_SYCLPASSES
