@@ -980,7 +980,10 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     debugPrintBinaryImages();
   }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
+  auto It = m_DeviceImages.find(KSId);
+  assert(It != m_DeviceImages.end() &&
+         "No device image found for the given kernel set id");
+  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *It->second;
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
@@ -1843,6 +1846,30 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
+static void
+setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
+                           RT::PiProgram Prog, const plugin &Plugin) {
+  // Set ITT annotation specialization constant if needed.
+  enableITTAnnotationsIfNeeded(Prog, Plugin);
+
+  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+  const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
+      &SpecConstData = InputImpl->get_spec_const_data_ref();
+  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
+
+  // Set all specialization IDs from descriptors in the input device image.
+  for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
+    std::ignore = SpecConstNames;
+    for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
+      if (SpecIDDesc.IsSet) {
+        Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
+            SpecConsts.data() + SpecIDDesc.BlobOffset);
+      }
+    }
+  }
+}
+
 device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
@@ -1873,7 +1900,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                                        InputImpl->get_context(), Devs[0]);
 
   if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
-    enableITTAnnotationsIfNeeded(Prog, Plugin);
+    setSpecializationConstants(InputImpl, Prog, Plugin);
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -1885,8 +1912,6 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   PIDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
-  // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
@@ -1954,12 +1979,48 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   }
 
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
+  std::vector<unsigned char> NewSpecConstBlob;
+  device_image_impl::SpecConstMapT NewSpecConstMap;
   for (const device_image_plain &DeviceImage : DeviceImages) {
+    std::shared_ptr<device_image_impl> DeviceImageImpl =
+        getSyclObjImpl(DeviceImage);
+
     // Duplicates are not expected here, otherwise piProgramLink should fail
-    KernelIDs->insert(
-        KernelIDs->end(),
-        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->begin(),
-        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->end());
+    KernelIDs->insert(KernelIDs->end(),
+                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                      DeviceImageImpl->get_kernel_ids_ptr()->end());
+
+    // To be able to answer queries about specialziation constants, the new
+    // device image should have the specialization constants from all the linked
+    // images.
+    {
+      const std::lock_guard<std::mutex> SpecConstLock(
+          DeviceImageImpl->get_spec_const_data_lock());
+
+      // Copy all map entries to the new map. Since the blob will be copied to
+      // the end of the new blob we need to move the blob offset of each entry.
+      for (const auto &SpecConstIt :
+           DeviceImageImpl->get_spec_const_data_ref()) {
+        std::vector<device_image_impl::SpecConstDescT> &NewDescEntries =
+            NewSpecConstMap[SpecConstIt.first];
+        assert(NewDescEntries.empty() &&
+               "Specialization constant already exists in the map.");
+        NewDescEntries.reserve(SpecConstIt.second.size());
+        for (const device_image_impl::SpecConstDescT &SpecConstDesc :
+             SpecConstIt.second) {
+          device_image_impl::SpecConstDescT NewSpecConstDesc = SpecConstDesc;
+          NewSpecConstDesc.BlobOffset += NewSpecConstBlob.size();
+          NewDescEntries.push_back(std::move(NewSpecConstDesc));
+        }
+      }
+
+      // Copy the blob from the device image into the new blob. This moves the
+      // offsets of the following blobs.
+      NewSpecConstBlob.insert(
+          NewSpecConstBlob.end(),
+          DeviceImageImpl->get_spec_const_blob_ref().begin(),
+          DeviceImageImpl->get_spec_const_blob_ref().end());
+    }
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
@@ -1967,7 +2028,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
-          std::move(KernelIDs), LinkedProg);
+          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
+          std::move(NewSpecConstBlob));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -2033,25 +2095,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         Img, Context, Devs[0], CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache &&
-        InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
-      enableITTAnnotationsIfNeeded(NativePrg, Plugin);
-
-      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
-      const std::map<std::string,
-                     std::vector<device_image_impl::SpecConstDescT>>
-          &SpecConstData = InputImpl->get_spec_const_data_ref();
-
-      for (const auto &DescPair : SpecConstData) {
-        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-             DescPair.second) {
-          if (SpecIDDesc.IsSet) {
-            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
-                SpecConsts.data() + SpecIDDesc.BlobOffset);
-          }
-        }
-      }
-    }
+        InputImpl->get_bin_image_ref()->supportsSpecConstants())
+      setSpecializationConstants(InputImpl, NativePrg, Plugin);
 
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);

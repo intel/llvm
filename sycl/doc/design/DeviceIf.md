@@ -108,6 +108,7 @@ recognizes:
 * `amd_gpu_gfx1030`
 * `amd_gpu_gfx1031`
 * `amd_gpu_gfx1032`
+* `amd_gpu_gfx1034`
 
 The above listed device names may not be mixed with the existing target name
 `spir64_gen` on the same command line.  In addition, the user must not pass the
@@ -190,6 +191,7 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX1030__`
 * `__SYCL_TARGET_AMD_GPU_GFX1031__`
 * `__SYCL_TARGET_AMD_GPU_GFX1032__`
+* `__SYCL_TARGET_AMD_GPU_GFX1034__`
 
 If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
 the compiler driver must predefine the following C++ macro name:
