@@ -45,7 +45,8 @@ uma_memory_provider_handle_t nullProviderCreate() {
     uma_memory_provider_handle_t hProvider;
     enum uma_result_t ret = umaMemoryProviderCreate(&ops, NULL,
                                      &hProvider);
-    
+
+    (void) ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
     return hProvider;
 }
@@ -98,7 +99,8 @@ uma_memory_provider_handle_t traceProviderCreate(uma_memory_provider_handle_t hU
     uma_memory_provider_handle_t hProvider;
     enum uma_result_t ret = umaMemoryProviderCreate(&ops, &params,
                                      &hProvider);
-    
+
+    (void) ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
     return hProvider;
 }

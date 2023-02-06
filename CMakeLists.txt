@@ -13,6 +13,14 @@ include(helpers)
 
 find_package(Python3 COMPONENTS Interpreter)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Build Options
+option(DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
+option(BUILD_TESTS "Build unit tests." ON)
+option(FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -30,43 +38,28 @@ if(MSVC)
     set(CUSTOM_COMMAND_BINARY_DIR ${CUSTOM_COMMAND_BINARY_DIR}/$<CONFIG>)
 endif()
 
-# CXX compiler support
+# CXX flags setup
 if(NOT MSVC)
-    include(CheckCXXCompilerFlag)
-    CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
-    CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-    if(COMPILER_SUPPORTS_CXX14)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
-    elseif(COMPILER_SUPPORTS_CXX0X)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-    else()
-        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.  Please use a different C++ compiler.")
+    add_compile_options(-fPIC -Wall)
+    if(DEVELOPER_MODE)
+        add_compile_options(-Werror)
     endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fPIC")
-endif()
-
-# MSVC compile flags
-if(MSVC)
+elseif(MSVC)
     string(REPLACE "/MDd" "/MTd" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
     string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 
-    # Treat warnings as errors
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX /W3 /wd4996")
-
-    # Enable multi-process compilation
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+    add_compile_options(/MP /W3)
+
+    if(DEVELOPER_MODE)
+        add_compile_options(/WX)
+    endif()
 endif()
 
 # Allow custom third_party folder
 if(NOT DEFINED THIRD_PARTY_DIR)
     set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 endif()
-
-# Option to disable tests
-option(${PROJECT_NAME}_BUILD_TESTS "Build unit tests." ON)
-
-# Option to run a code formatter
-option(${PROJECT_NAME}_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
 
 find_program(CLANG_FORMAT NAMES clang-format-10 clang-format-10.0 clang-format)
 
@@ -125,7 +118,7 @@ install(
 
 add_subdirectory(source)
 add_subdirectory(examples)
-if(UR_ENABLE_TESTS)
+if(BUILD_TESTS)
     add_subdirectory(test)
 endif()
 

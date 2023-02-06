@@ -16,9 +16,6 @@
 int main(int argc, char *argv[]) {
     ur_result_t status;
 
-    ur_platform_handle_t platform = nullptr;
-    ur_device_handle_t pDevice = nullptr;
-
     // Initialize the platform
     status = urInit(0);
     if (status != UR_RESULT_SUCCESS) {
@@ -47,7 +44,7 @@ int main(int argc, char *argv[]) {
 
     for (auto p : platforms) {
         ur_api_version_t api_version = {};
-        status = urPlatformGetApiVersion(platform, &api_version);
+        status = urPlatformGetApiVersion(p, &api_version);
         if (status != UR_RESULT_SUCCESS) {
             std::cout << "urPlatformGetApiVersion failed with return code: "
                       << status << std::endl;
