@@ -671,7 +671,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   // At present even PVC doesn't automatically use immediate commandlists.
   // Change this after more testing.
   ImmCommandListsPreferred =
-      false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
+      true; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
   return PI_SUCCESS;
 }
