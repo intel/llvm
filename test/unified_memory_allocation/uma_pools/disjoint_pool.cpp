@@ -14,8 +14,8 @@
 #include "provider.h"
 #include "provider.hpp"
 
-static DisjointPool::Config poolConfig() {
-    DisjointPool::Config config{};
+static usm::DisjointPool::Config poolConfig() {
+    usm::DisjointPool::Config config{};
     config.SlabMinSize = 4096;
     config.MaxPoolableSize = 4096;
     config.Capacity = 4;
@@ -24,11 +24,13 @@ static DisjointPool::Config poolConfig() {
 }
 
 static auto makePool() {
-    auto providerUnique =
-        uma::memoryProviderMakeUnique<uma_test::provider_malloc>().second;
+    auto [ret, providerUnique] =
+        uma::memoryProviderMakeUnique<uma_test::provider_malloc>();
+    EXPECT_EQ(ret, UMA_RESULT_SUCCESS);
     auto provider = providerUnique.release();
-    auto pool =
-        uma::poolMakeUnique<DisjointPool>(&provider, 1, poolConfig()).second;
+    auto [retp, pool] =
+        uma::poolMakeUnique<usm::DisjointPool>(&provider, 1, poolConfig());
+    EXPECT_EQ(retp, UMA_RESULT_SUCCESS);
     auto dtor = [provider = provider](uma_memory_pool_handle_t hPool) {
         umaPoolDestroy(hPool);
         umaMemoryProviderDestroy(provider);
