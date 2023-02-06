@@ -231,6 +231,8 @@
 #include "llvm/Transforms/Scalar/TLSVariableHoist.h"
 #include "llvm/Transforms/Scalar/TailRecursionElimination.h"
 #include "llvm/Transforms/Scalar/WarnMissedTransforms.h"
+// SYCL Kernel CPU Transformation passes
+#include "llvm/Transforms/SYCLTransforms/Passes.h"
 #include "llvm/Transforms/Utils/AddDiscriminators.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/BreakCriticalEdges.h"
