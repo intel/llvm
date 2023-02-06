@@ -123,10 +123,10 @@ static bool doOpenCLClassification(CGFunctionInfo &FI, ASTContext &Context) {
   if (!Context.getLangOpts().OpenCLForceVectorABI)
     return false;
 
-  // Use OpenCL classify to prevent coercing
-  // Vector ABI must be enforced by enabling the corresponding option
-  // Otherwise, vector types will be coerced to a matching integer
-  // type to conform with ABI, e.g.: <8 x i8> will be coerced to i64
+  // Use OpenCL classify to prevent coercing.
+  // Vector ABI must be enforced by enabling the corresponding option.
+  // Otherwise, vector types will be coerced to a matching integer.
+  // type to conform with ABI, e.g.: <8 x i8> will be coerced to i64.
   FI.getReturnInfo() = classifyOpenCL(FI.getReturnType(), Context);
 
   for (auto &Arg : FI.arguments())
