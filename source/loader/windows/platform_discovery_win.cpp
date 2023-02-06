@@ -29,7 +29,8 @@ std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
 
     // UR_ADAPTERS_FORCE_LOAD  is for development/debug only
-    const char *altPlatforms = getenv("UR_ADAPTERS_FORCE_LOAD");
+    char* altPlatforms = nullptr;
+    _dupenv_s(&altPlatforms, NULL, "UR_ADAPTERS_FORCE_LOAD");
 
     if (altPlatforms == nullptr) {
         for (auto libName : knownAdaptersNames) {
@@ -42,6 +43,7 @@ std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
             getline(ss, substr, ',');
             enabledPlatforms.emplace_back(substr);
         }
+        free(altPlatforms);
     }
     return enabledPlatforms;
 }
