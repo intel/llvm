@@ -962,7 +962,6 @@ public:
       std::array<trace_point_type_t, 14> AllowedTypes = {
           trace_point_type_t::function_begin,
           trace_point_type_t::function_end,
-          trace_point_type_t::diagnostics,
           trace_point_type_t::function_with_args_begin,
           trace_point_type_t::function_with_args_end,
           trace_point_type_t::mem_alloc_begin,
@@ -973,7 +972,8 @@ public:
           trace_point_type_t::offload_alloc_associate,
           trace_point_type_t::offload_alloc_release,
           trace_point_type_t::offload_alloc_destruct,
-          trace_point_type_t::offload_alloc_accessor};
+          trace_point_type_t::offload_alloc_accessor,
+          trace_point_type_t::diagnostics};
       const auto Predicate = [TraceType](trace_point_type_t RHS) {
         return TraceType == static_cast<uint16_t>(RHS);
       };
