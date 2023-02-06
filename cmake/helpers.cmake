@@ -36,3 +36,20 @@ function(add_cppformat name)
 
     add_dependencies(cppformat cppformat-${name})
 endfunction()
+
+include(CheckCXXCompilerFlag)
+
+macro(add_sanitizer_flag flag)
+    set(SAVED_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+    set(CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES} -fsanitize=${flag}")
+
+    check_cxx_compiler_flag("-fsanitize=${flag}" CXX_HAS_SANITIZER)
+    if(CXX_HAS_SANITIZER)
+        add_compile_options(-fsanitize=${flag})
+        add_link_options(-fsanitize=${flag})
+    else()
+        message("${flag} sanitizer not supported")
+    endif()
+
+    set(CMAKE_REQUIRED_LIBRARIES ${SAVED_CMAKE_REQUIRED_LIBRARIES})
+endmacro()
