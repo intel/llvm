@@ -118,7 +118,7 @@ def generate_api(incpath, srcpath, namespace, tags, version, revision, specs, me
     loc += _generate_api_py(incpath, namespace, tags, version, revision, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
-loader_templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates")
+templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates")
 
 """
     generates c/c++ files from the specification documents
@@ -126,7 +126,7 @@ loader_templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
     loc = 0
     template = "libapi.cpp.mako"
-    fin = os.path.join(loader_templates_dir, template)
+    fin = os.path.join(templates_dir, template)
 
     name = "%s_libapi"%(namespace)
     filename = "%s.cpp"%(name)
@@ -143,7 +143,7 @@ def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
         meta = meta)
 
     template = "libddi.cpp.mako"
-    fin = os.path.join(loader_templates_dir, template)
+    fin = os.path.join(templates_dir, template)
 
     name = "%s_libddi"%(namespace)
     filename = "%s.cpp"%(name)
@@ -167,7 +167,7 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
     print("make_loader_cpp path %s namespace %s version %s\n" %(path, namespace, version))
     loc = 0
     template = "ldrddi.hpp.mako"
-    fin = os.path.join(loader_templates_dir, template)
+    fin = os.path.join(templates_dir, template)
 
     name = "%s_ldrddi"%(namespace)
     filename = "%s.hpp"%(name)
@@ -184,7 +184,7 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
         meta=meta)
 
     template = "ldrddi.cpp.mako"
-    fin = os.path.join(loader_templates_dir, template)
+    fin = os.path.join(templates_dir, template)
 
     name = "%s_ldrddi"%(namespace)
     filename = "%s.cpp"%(name)
@@ -209,9 +209,33 @@ def _mako_null_driver_cpp(path, namespace, tags, version, specs, meta):
     os.makedirs(dstpath, exist_ok=True)
 
     template = "nullddi.cpp.mako"
-    fin = os.path.join(loader_templates_dir, template)
+    fin = os.path.join(templates_dir, template)
 
     name = "%s_nullddi"%(namespace)
+    filename = "%s.cpp"%(name)
+    fout = os.path.join(dstpath, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
+    generates c/c++ files from the specification documents
+"""
+def _mako_validation_layer_cpp(path, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, "validation")
+    os.makedirs(dstpath, exist_ok=True)
+
+    template = "valddi.cpp.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_valddi"%(namespace)
     filename = "%s.cpp"%(name)
     fout = os.path.join(dstpath, filename)
 
@@ -261,3 +285,18 @@ def generate_drivers(path, section, namespace, tags, version, specs, meta):
     loc += _mako_null_driver_cpp(dstpath, namespace, tags, version, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
+"""
+Entry-point:
+    generates layers for unified_runtime driver
+"""
+def generate_layers(path, section, namespace, tags, version, specs, meta):
+    print("GL section %s\n"%section)
+    print("GL namespace %s\n"%namespace)
+    layer_dstpath = os.path.join(path, "loader", "layers")
+    include_dstpath = os.path.join(path, "../include")
+    os.makedirs(layer_dstpath, exist_ok=True)
+    os.makedirs(include_dstpath, exist_ok=True)
+
+    loc = 0
+    loc += _mako_validation_layer_cpp(layer_dstpath, namespace, tags, version, specs, meta)
+    print("VALIDATION Generated %s lines of code.\n"%loc)
