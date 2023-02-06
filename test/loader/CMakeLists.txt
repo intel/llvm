@@ -2,3 +2,4 @@
 # SPDX-License-Identifier: MIT
 
 add_test(NAME example-hello-world COMMAND hello_world)
+set_tests_properties(${example-hello-world} PROPERTIES LABELS "loader")
