@@ -9,6 +9,8 @@
  */
 #include "ur_lib.hpp"
 #include "ur_loader.hpp"
+#include "ur_proxy_layer.hpp"
+#include "validation/ur_validation_layer.hpp"
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
@@ -25,8 +27,17 @@ __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
     ur_result_t result;
     result = loader::context->init();
 
-    if (UR_RESULT_SUCCESS == result) {
+    if( UR_RESULT_SUCCESS == result )
+    {
         result = urInit();
+    }
+
+    proxy_layer_context_t *layers[] = { &validation_layer::context };
+
+    for ( proxy_layer_context_t *l : layers ) {
+        if (l->isEnabled()) {
+            l->init(&context->urDdiTable);
+        }
     }
 
     return result;
