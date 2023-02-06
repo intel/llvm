@@ -267,7 +267,7 @@ private:
 template <typename Group>
 detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
                     sub_group_mask>
-group_ballot(Group g, bool predicate) {
+group_ballot(Group g, bool predicate = true) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
