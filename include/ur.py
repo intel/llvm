@@ -11,6 +11,9 @@ import platform
 from ctypes import *
 from enum import *
 
+# ctypes does not define c_intptr_t, so let's define it here manually
+c_intptr_t = c_ssize_t
+
 ###############################################################################
 __version__ = "1.0"
 

@@ -24,6 +24,7 @@ function(add_uma_test name)
     add_test(NAME  uma-${name}
         COMMAND ${TEST_TARGET_NAME}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(uma-${name} PROPERTIES LABELS "uma")
 endfunction()
 
 add_uma_test(memoryProvider memoryProvider.cpp)
