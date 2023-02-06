@@ -1,5 +1,8 @@
 #pragma once
 
+void* operator new  (__SIZE_TYPE__ size, void* ptr) noexcept;
+void* operator new[](__SIZE_TYPE__ size, void* ptr) noexcept;
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
 

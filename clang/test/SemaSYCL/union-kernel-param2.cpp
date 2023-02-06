@@ -65,11 +65,18 @@ int main() {
 // Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyUnion' 'void (const MyUnion &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyUnion'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .union_mem
+// CHECK-NEXT:     DeclRefExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_union_mem'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 20
 
 // Check kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
@@ -82,20 +89,33 @@ int main() {
 // Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'MyStruct'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' 'void (const MyStruct::MyUnion &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStruct::MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyStruct::MyUnion'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .union_mem
+// CHECK-NEXT:     MemberExpr {{.*}} .struct_mem
+// CHECK-NEXT:      DeclRefExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_union_mem'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 12
+// CHECK-NEXT: CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:   ImplicitCastExpr
+// CHECK-NEXT:    UnaryOperator
+// CHECK-NEXT:     MemberExpr {{.*}} .AccField
+// CHECK-NEXT:      MemberExpr {{.*}} .struct_mem
+// CHECK-NEXT:       DeclRefExpr
 
 // Check call to __init to initialize AccField
 // CHECK-NEXT: CXXMemberCallExpr
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .AccField
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .struct_mem
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '' '(lambda at {{.*}}union-kernel-param2.cpp:48:9) &'
 
 // Check kernel_C parameters
 // CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr)'
@@ -104,11 +124,15 @@ int main() {
 // Check kernel_C inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .structWithPtr_mem
+// CHECK-NEXT:     DeclRefExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_structWithPtr_mem'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 24

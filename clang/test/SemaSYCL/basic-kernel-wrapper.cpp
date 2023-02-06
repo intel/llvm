@@ -34,7 +34,13 @@ int main() {
 // Check lambda declaration inside the wrapper
 
 // CHECK: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
+// CHECK: VarDecl {{.*}} '__wrapper_union'
+// CHECK:      CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .readWriteAccessor
+// CHECK-NEXT:      DeclRefExpr
 
 // Check accessor initialization
 

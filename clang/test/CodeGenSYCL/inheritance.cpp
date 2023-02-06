@@ -56,24 +56,24 @@ int main() {
 
 // Check allocas for kernel parameters and local functor object
 // CHECK: %[[ARG_A_ALLOCA:[a-zA-Z0-9_.]+]] = alloca i32, align 4
-// CHECK: %[[LOCAL_OBJECT_ALLOCA:[a-zA-Z0-9_.]+]] = alloca %struct.derived, align 8
+// CHECK: %[[UNIONALLOCA:[a-zA-Z0-9_]+]] = alloca %union.__wrapper_union
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = alloca ptr addrspace(4), align 8
 // CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[ARG_A_ALLOCA]] to ptr addrspace(4)
-// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECT_ALLOCA]] to ptr addrspace(4)
+// CHECK: %[[UNION:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[UNIONALLOCA]] to ptr addrspace(4)
 // CHECK: %[[ARG_BASE:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg__base to ptr addrspace(4)
 // CHECK: %[[ARG_BASE1:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg__base1 to ptr addrspace(4)
 // CHECK: store i32 %_arg_a, ptr addrspace(4) %[[ARG_A]], align 4
 
 // Initialize 'base' subobject
-// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[LOCAL_OBJECT]], ptr addrspace(4) align 4 %[[ARG_BASE]], i64 12, i1 false)
+// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[UNION]], ptr addrspace(4) align 4 %[[ARG_BASE]], i64 12, i1 false)
 
 // Initialize 'second_base' subobject
 // First, derived-to-base cast with offset:
-// CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, ptr addrspace(4) %[[LOCAL_OBJECT]], i64 16
+// CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, ptr addrspace(4) %[[UNION]], i64 16
 // Initialize 'second_base'
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 24, i1 false)
 
 // Initialize field 'a'
-// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
 // CHECK: %[[LOAD_A:[0-9]+]] = load i32, ptr addrspace(4) %[[ARG_A]], align 4
+// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[UNION]], i32 0, i32 3
 // CHECK: store i32 %[[LOAD_A]], ptr addrspace(4) %[[GEP_A]]
-

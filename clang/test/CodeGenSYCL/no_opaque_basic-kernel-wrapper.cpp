@@ -27,12 +27,12 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %class.anon
+// CHECK: [[UNIONALLOCA:%[a-zA-Z0-9_]+]] = alloca %union.__wrapper_union
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
 // CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
 // CHECK: [[OIDA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::id"
-// CHECK: [[ANON:%[a-zA-Z0-9_.]+]] = addrspacecast %class.anon* [[ANONALLOCA]] to %class.anon addrspace(4)*
+// CHECK: [[UNION:%[a-zA-Z0-9_.]+]] = addrspacecast %union.__wrapper_union* [[UNIONALLOCA]] to %union.__wrapper_union addrspace(4)*
 // CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast %"struct.sycl::_V1::range"* [[ARANGEA]] to %"struct.sycl::_V1::range" addrspace(4)*
 // CHECK: [[MRANGET:%agg.tmp.*]] = addrspacecast %"struct.sycl::_V1::range"* [[MRANGEA]] to %"struct.sycl::_V1::range" addrspace(4)*
 // CHECK: [[OIDT:%agg.tmp.*]] = addrspacecast %"struct.sycl::_V1::id"* [[OIDA]] to %"struct.sycl::_V1::id" addrspace(4)*
@@ -44,6 +44,7 @@ int main() {
 // CHECK: call spir_func {{.*}}accessor
 
 // Check accessor GEP
+// CHECK: [[ANON:%[a-zA-Z0-9_]+]] = bitcast %union.__wrapper_union addrspace(4)* [[UNION]] to %class.anon addrspace(4)*
 // CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[ANON]], i32 0, i32 0
 
 // Check load from kernel pointer argument alloca

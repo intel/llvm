@@ -20,5 +20,9 @@ int main() {
 
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ext::oneapi::experimental::spec_constant<int, class MyInt32Const>':'sycl::ext::oneapi::experimental::spec_constant<int, MyInt32Const>' 'void ()'
+// CHECK:      CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, MyInt32Const>' 'void ()'
+// CHECK-NEXT:   ImplicitCastExpr
+// CHECK-NEXT:    UnaryOperator
+// CHECK-NEXT:     MemberExpr {{.*}} .SC
+// CHECK-NEXT:      DeclRefExpr

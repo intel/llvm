@@ -41,8 +41,10 @@ int main() {
 // CHECK: define dso_local spir_kernel void @{{.*}}basic(ptr noundef byval(%struct.__generated_B) align 8 %_arg_Obj)
 //
 // Kernel object clone.
-// CHECK: %[[K:[a-zA-Z0-9_.]+]] = alloca %class.anon
+// CHECK: %[[K:[a-zA-Z0-9_.]+]] = alloca %union.__wrapper_union
+// CHECK: %[[K_PTR_ALLOCA:[a-zA-Z0-9_.]+]] = alloca ptr addrspace(4)
 // CHECK: %[[K_as_cast:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[K]] to ptr addrspace(4)
+// CHECK: %[[K_PTR_ALLOCA_as_cast:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[K_PTR_ALLOCA]] to ptr addrspace(4)
 //
 // Argument reference.
 // CHECK: %[[Arg_ref:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg_Obj to ptr addrspace(4)
@@ -52,20 +54,26 @@ int main() {
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[GEP]], ptr addrspace(4) align 8 %[[Arg_ref]], i64 16, i1 false)
 //
 // Kernel body call.
-// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %[[K_as_cast]])
+// CHECK: store ptr addrspace(4) %[[K_as_cast]], ptr addrspace(4) %[[K_PTR_ALLOCA_as_cast]]
+// CHECK: %[[K_PTR:[a-zA-Z0-9_.]+]] = load ptr addrspace(4), ptr addrspace(4) %[[K_PTR_ALLOCA_as_cast]]
+// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %[[K_PTR]])
 
 // CHECK: define dso_local spir_kernel void @{{.*}}nns(ptr noundef byval(%struct.__generated_B.0) align 8 %_arg_NNSObj)
 //
 // Kernel object clone.
-// CHECK: %[[NNSK:[a-zA-Z0-9_.]+]] = alloca %class.anon.2
+// CHECK: %[[NNSK:[a-zA-Z0-9_.]+]] = alloca %union.__wrapper_union.2
+// CHECK: %[[NNSK_PTR_ALLOCA:[a-zA-Z0-9_.]+]] = alloca ptr addrspace(4)
 // CHECK: %[[NNSK_as_cast:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[NNSK]] to ptr addrspace(4)
+// CHECK: %[[NNSK_PTR_ALLOCA_as_cast:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[NNSK_PTR_ALLOCA]] to ptr addrspace(4)
 //
 // Argument reference.
 // CHECK: %[[NNSArg_ref:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg_NNSObj to ptr addrspace(4)
 //
 // Initialization.
-// CHECK: %[[NNSGEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class.anon.2, ptr addrspace(4) %[[NNSK_as_cast]], i32 0, i32 0
+// CHECK: %[[NNSGEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class.anon.3, ptr addrspace(4) %[[NNSK_as_cast]], i32 0, i32 0
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[NNSGEP]], ptr addrspace(4) align 8 %[[NNSArg_ref]], i64 16, i1 false)
 //
 // Kernel body call.
-// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %[[NNSK_as_cast]])
+// CHECK: store ptr addrspace(4) %[[NNSK_as_cast]], ptr addrspace(4) %[[NNSK_PTR_ALLOCA_as_cast]]
+// CHECK: %[[NNSK_PTR:[a-zA-Z0-9_.]+]] = load ptr addrspace(4), ptr addrspace(4) %[[NNSK_PTR_ALLOCA_as_cast]]
+// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %[[NNSK_PTR]])

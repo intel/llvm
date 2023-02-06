@@ -27,7 +27,10 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca ptr addrspace(1)
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %class.anon
+// CHECK: [[UNIONALLOCA:%[a-zA-Z0-9_]+]] = alloca %union.__wrapper_union
+// CHECK: [[UNION:%[a-zA-Z0-9_.]+]] = addrspacecast %union.__wrapper_union* [[UNIONALLOCA]] to %union.__wrapper_union addrspace(4)*
+// CHECK: [[ANONPTRALLOCA:%[a-zA-Z0-9_.]+]] = alloca %class{{.*}}.anon addrspace(4)*, align 8
+// CHECK: [[ANONPTRALLOCA_PTR:%[a-zA-Z0-9_.]+]] = addrspacecast %class.anon addrspace(4)** [[ANONPTRALLOCA]] to %class.anon addrspace(4)* addrspace(4)*
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
 // CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
@@ -44,7 +47,8 @@ int main() {
 // CHECK: call spir_func {{.*}}accessor
 
 // Check accessor GEP
-// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANON]], i32 0, i32 0
+// CHECK: [[ANON:%[0-9]+]] = load %class.anon addrspace(4)*, %class.anon addrspace(4)* addrspace(4)* [[ANONPTRALLOCA_PTR]]
+// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[ANON]], i32 0, i32 0
 
 // Check load from kernel pointer argument alloca
 // CHECK: [[MEM_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[MEM_ARG]].addr.ascast

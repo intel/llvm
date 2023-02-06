@@ -39,7 +39,7 @@ int main() {
 // CHECK: [[MEM_ARG2:%[a-zA-Z0-9_.]+]] = alloca i32 addrspace(1)*, align 8
 
 // CHECK lambda object alloca
-// CHECK: [[LOCAL_OBJECTA:%__SYCLKernel]] = alloca %class.anon, align 4
+// CHECK: [[LOCAL_OBJECTA:%__wrapper_union]] = alloca %union.__wrapper_union, align 4
 
 // CHECK allocas for ranges
 // CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::range"

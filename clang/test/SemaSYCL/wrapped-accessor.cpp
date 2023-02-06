@@ -35,17 +35,28 @@ int main() {
 
 // Check that wrapper object itself is initialized with corresponding kernel
 // argument
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: VarDecl {{.*}} '__wrapper_union'
+
+// Check that the ref is generated properly
+// CHECK: VarDecl {{.*}} used '(lambda at {{.*}}wrapped-accessor.cpp{{.*}}) &'
+// CHECK-NEXT: MemberExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_union' lvalue Var {{.*}} '__wrapper_union' '__wrapper_union'
+
+// Build accessor
+// CHECK-NEXT: CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .accessor
+// CHECK-NEXT:     MemberExpr {{.*}} .acc_wrapped
+// CHECK-NEXT:      DeclRefExpr
 
 // Check that accessor field of the wrapper object is initialized using __init method
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .accessor {{.*}}
-// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
+// CHECK-NEXT:  MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT:   MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .accessor {{.*}}
+// CHECK-NEXT:    MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>' lvalue .
+// CHECK-NEXT:     DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}}) &'
 
 // Parameters of the _init method
 // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>

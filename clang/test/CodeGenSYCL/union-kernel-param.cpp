@@ -27,10 +27,12 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A(ptr noundef byval(%union.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
 
 // Check lambda object alloca
-// CHECK: [[LOCAL_OBJECT:%__SYCLKernel]] = alloca %class.anon, align 4
+// CHECK: [[LOCAL_OBJECT:%__wrapper_union]] = alloca %union.__wrapper_union, align 4
 
 // CHECK: [[LOCAL_OBJECTAS:%.*]] = addrspacecast ptr [[LOCAL_OBJECT]] to ptr addrspace(4)
 // CHECK: [[MEM_ARGAS:%.*]] = addrspacecast ptr [[MEM_ARG]] to ptr addrspace(4)
 // CHECK: [[L_STRUCT_ADDR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) [[LOCAL_OBJECTAS]], i32 0, i32 0
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[L_STRUCT_ADDR]], ptr addrspace(4) align 4 [[MEM_ARGAS]], i64 12, i1 false)
-// CHECK: call spir_func void @{{.*}}(ptr addrspace(4) {{[^,]*}} [[LOCAL_OBJECTAS]])
+// CHECK: store ptr addrspace(4) [[LOCAL_OBJECTAS]], ptr addrspace(4) [[KERNEL_REF_ADDR:%[A-Za-z0-9]*]]
+// CHECK: [[KERNEL_REF:%[A-Za-z0-9]*]] = load ptr addrspace(4), ptr addrspace(4) [[KERNEL_REF_ADDR]]
+// CHECK: call spir_func void @{{.*}}(ptr addrspace(4) {{[^,]*}} [[KERNEL_REF]])
