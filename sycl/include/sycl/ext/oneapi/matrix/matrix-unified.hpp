@@ -335,9 +335,13 @@ inline __SYCL_ALWAYS_INLINE
 // This function rounds the bottom 13 bits up or down, and then zeros out the
 // bottom bits
 inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
+#else
+  return __spirv_ConvertFToTF32INTEL(a);
+#endif // defined(__NVPTX__)
 #else
   uint32_t tmp_uint = reinterpret_cast<const uint32_t &>(a);
   tmp_uint += 0x1000u;
@@ -345,7 +349,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
   float ret = 0;
   std::memcpy(&ret, &tmp_uint, sizeof(float));
   return ret;
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
 } // namespace matrix
