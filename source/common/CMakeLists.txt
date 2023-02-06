@@ -12,9 +12,8 @@ target_include_directories(ur_common INTERFACE
 )
 
 add_subdirectory(unified_memory_allocation)
-target_link_libraries(ur_common INTERFACE unified_memory_allocation ${CMAKE_DL_LIBS} ${PROJECT_NAME}::headers)
-
-target_sources(ur_common INTERFACE uma_helpers.hpp)
+add_subdirectory(uma_pools)
+target_link_libraries(ur_common INTERFACE unified_memory_allocation disjoint_pool ${CMAKE_DL_LIBS} ${PROJECT_NAME}::headers)
 
 if(WIN32)
     target_sources(ur_common
