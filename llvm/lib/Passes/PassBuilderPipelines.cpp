@@ -1985,12 +1985,8 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
 
-  if (PTO.OptimizeSYCLFramework) {
-    assert(Level == OptimizationLevel::O0 &&
-           "Optimization of sycl framework should be used only with O0 "
-           "optimization level");
+  if (PTO.OptimizeSYCLFramework)
     addDefaultSYCLFrameworkOptimizationPipeline(MPM);
-  }
 
   return MPM;
 }
