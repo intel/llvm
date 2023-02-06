@@ -6,26 +6,17 @@
 
 class SubGroupMask : public testing::TestWithParam<size_t> {
 protected:
-  void SetUp() override {
-    MaskZero = sycl::detail::Builder::createSubGroupMask<
-        sycl::ext::oneapi::sub_group_mask>(0, GetParam());
-    MaskAllOnes = sycl::detail::Builder::createSubGroupMask<
-        sycl::ext::oneapi::sub_group_mask>(
-        static_cast<sycl::ext::oneapi::sub_group_mask::BitsType>(-1),
-        GetParam());
-    MaskOne = sycl::detail::Builder::createSubGroupMask<
-        sycl::ext::oneapi::sub_group_mask>(1, GetParam());
-  }
-
   sycl::ext::oneapi::sub_group_mask MaskZero =
       sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(0, 1);
+          sycl::ext::oneapi::sub_group_mask>(0, GetParam());
   sycl::ext::oneapi::sub_group_mask MaskOne =
       sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(0, 1);
+          sycl::ext::oneapi::sub_group_mask>(
+          static_cast<sycl::ext::oneapi::sub_group_mask::BitsType>(-1),
+          GetParam());
   sycl::ext::oneapi::sub_group_mask MaskAllOnes =
       sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(0, 1);
+          sycl::ext::oneapi::sub_group_mask>(1, GetParam());
 };
 
 TEST_P(SubGroupMask, SubscriptOperatorBool) {
@@ -233,25 +224,33 @@ TEST_P(SubGroupMask, OperationShiftRightEq) {
 
 TEST_P(SubGroupMask, OperatorShiftLeft) {
   size_t Shift = GetParam() / 2;
-  auto Mask = MaskAllOnes << Shift;
-  ASSERT_EQ(Mask.find_low(), Shift);
-  Mask.flip();
-  ASSERT_EQ(Mask.find_high(), Shift - 1);
+  {
+    auto Mask = MaskAllOnes << Shift;
+    ASSERT_EQ(Mask.find_low(), Shift);
+    Mask.flip();
+    ASSERT_EQ(Mask.find_high(), Shift - 1);
+  }
 
-  Mask = MaskOne <<= Shift;
-  ASSERT_EQ(Mask.find_high(), Mask.find_low());
-  ASSERT_TRUE(Mask[Shift]);
+  {
+    auto Mask = MaskOne <<= Shift;
+    ASSERT_EQ(Mask.find_high(), Mask.find_low());
+    ASSERT_TRUE(Mask[Shift]);
+  }
 }
 
 TEST_P(SubGroupMask, OperatorShiftRight) {
   size_t Shift = GetParam() / 2;
-  auto Mask = MaskAllOnes >> Shift;
-  ASSERT_EQ(Mask.find_high(), Shift - 1);
-  Mask.flip();
-  ASSERT_EQ(Mask.find_low(), Shift);
+  {
+    auto Mask = MaskAllOnes >> Shift;
+    ASSERT_EQ(Mask.find_high(), Shift - 1);
+    Mask.flip();
+    ASSERT_EQ(Mask.find_low(), Shift);
+  }
 
-  Mask = MaskOne >> Shift;
-  ASSERT_TRUE(Mask.none());
+  {
+    auto Mask = MaskOne >> Shift;
+    ASSERT_TRUE(Mask.none());
+  }
 }
 
 TEST_P(SubGroupMask, OperatorBitwiseNot) {
@@ -260,26 +259,38 @@ TEST_P(SubGroupMask, OperatorBitwiseNot) {
 }
 
 TEST_P(SubGroupMask, OperatorAnd) {
-  auto Mask = MaskOne & MaskAllOnes;
-  ASSERT_EQ(Mask, MaskOne);
-  Mask = MaskZero & MaskAllOnes;
-  ASSERT_EQ(Mask, MaskZero);
+  {
+    auto Mask = MaskOne & MaskAllOnes;
+    ASSERT_EQ(Mask, MaskOne);
+  }
+  {
+    auto Mask = MaskZero & MaskAllOnes;
+    ASSERT_EQ(Mask, MaskZero);
+  }
 }
 
 TEST_P(SubGroupMask, OperatorOr) {
-  auto Mask = MaskZero | MaskOne;
-  ASSERT_EQ(Mask, MaskOne);
-  Mask = MaskOne | MaskAllOnes;
-  ASSERT_EQ(Mask, MaskAllOnes);
+  {
+    auto Mask = MaskZero | MaskOne;
+    ASSERT_EQ(Mask, MaskOne);
+  }
+  {
+    auto Mask = MaskOne | MaskAllOnes;
+    ASSERT_EQ(Mask, MaskAllOnes);
+  }
 }
 
 TEST_P(SubGroupMask, OperatorXor) {
-  auto Mask = MaskZero ^ MaskOne;
-  ASSERT_EQ(Mask, MaskOne);
-  Mask = MaskOne ^ MaskAllOnes;
-  ASSERT_FALSE(Mask[0]);
-  for (size_t I = 1; I < GetParam(); ++I) {
-    ASSERT_TRUE(Mask[I]);
+  {
+    auto Mask = MaskZero ^ MaskOne;
+    ASSERT_EQ(Mask, MaskOne);
+  }
+  {
+    auto Mask = MaskOne ^ MaskAllOnes;
+    ASSERT_FALSE(Mask[0]);
+    for (size_t I = 1; I < GetParam(); ++I) {
+      ASSERT_TRUE(Mask[I]);
+    }
   }
 }
 
