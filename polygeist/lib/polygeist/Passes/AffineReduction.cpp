@@ -40,7 +40,7 @@ public:
 
   AffineLoadOp getLoad() const { return Load; }
   AffineStoreOp getStore() const { return Store; }
-  const SmallVector<AffineLoadOp> &getOtherLoads() const { return OtherLoads; }
+  ArrayRef<AffineLoadOp> getOtherLoads() const { return OtherLoads; }
 
 private:
   /// The reduction load in the loop nest.
@@ -72,8 +72,7 @@ public:
   /// \p ForOp loop, and false otherwise.
   bool isInAffineFor(Operation *Op, const AffineForOp ForOp) const {
     assert(Op && "Expecting valid operation");
-    auto MaybeParentFor = dyn_cast_or_null<AffineForOp>(Op->getParentOp());
-    return (MaybeParentFor && MaybeParentFor == ForOp);
+    return Op->getParentOp() == ForOp;
   }
 
   /// Returns true if the \p Load and \p Store operations are in the given
@@ -99,24 +98,21 @@ public:
 
   /// Returns true if the given \p Load and \p StoreOrLoad operations have the
   /// same subscript indices, and false otherwise.
-  template <typename T>
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, AffineLoadOp, AffineStoreOp>::value>>
   bool haveSameIndices(AffineLoadOp Load, T StoreOrLoad) const {
-    static_assert(
-        llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
-        "template parameter should be 'AffineLoadOp' or 'AffineStoreOp'");
-    const SmallVector<Value, 4> LoadIndices(Load.getIndices());
-    const SmallVector<Value, 4> StoreOrLoadIndices(StoreOrLoad.getIndices());
+    const Operation::operand_range LoadIndices = Load.getIndices();
+    const Operation::operand_range StoreOrLoadIndices =
+        StoreOrLoad.getIndices();
     return std::equal(LoadIndices.begin(), LoadIndices.end(),
                       StoreOrLoadIndices.begin(), StoreOrLoadIndices.end());
   }
 
   /// Returns true if the given \p Load and \p LoadOrStore operations have the
   /// same base operand and the same subscript indices, and false otherwise.
-  template <typename T>
+  template <typename T, typename = std::enable_if<llvm::is_one_of<
+                            T, AffineLoadOp, AffineStoreOp>::value>>
   bool areCompatible(AffineLoadOp Load, T StoreOrLoad) const {
-    static_assert(
-        llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
-        "template parameter should be 'AffineLoadOp' or 'AffineStoreOp'");
     if (Load.getMemRef() != StoreOrLoad.getMemRef())
       return false;
 
@@ -132,14 +128,14 @@ public:
 
   /// Returns true if all operations in \P Bs properly dominate operation \p A
   /// and false otherwise.
-  bool allProperlyDominate(const ArrayRef<Operation *> Bs, Operation *A) const {
+  bool allProperlyDominate(ArrayRef<Operation *> Bs, Operation *A) const {
     return llvm::all_of(Bs,
                         [&](Operation *B) { return properlyDominates(B, A); });
   }
 
   /// Retuns true if none of the indices in \p Indices are \p IndVar, and false
   /// otherwise.
-  bool hasAllDimsReduced(const ArrayRef<Value> Indices, Value IndVar) const {
+  bool hasAllDimsReduced(ArrayRef<Value> Indices, Value IndVar) const {
     return llvm::none_of(Indices,
                          [IndVar](Value Index) { return Index == IndVar; });
   }
@@ -159,17 +155,12 @@ public:
       llvm::dbgs() << "\n";
     });
 
-    WalkResult Result = ForOp.getBody()->walk([&](Operation *Op) {
-      // We are only interested in affine load operations.
-      if (!isa<AffineLoadOp>(Op))
-        return WalkResult::advance();
-
-      auto Load = cast<AffineLoadOp>(Op);
+    WalkResult Result = ForOp.getBody()->walk([&](AffineLoadOp Load) {
       LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
 
       // Skip the load if any of its subscript indices are the loop induction
       // variable (i.e. the load is not loop invariant).
-      SmallVector<Value, 4> Indices(Load.getIndices());
+      const SmallVector<Value, 4> Indices = Load.getIndices();
       if (!hasAllDimsReduced(Indices, ForOp.getInductionVar())) {
         LLVM_DEBUG(llvm::dbgs().indent(2) << "Skip - not loop invariant\n");
         return WalkResult::advance();
@@ -185,14 +176,14 @@ public:
         TypeSwitch<Operation *>(User)
             .Case<AffineLoadOp>([&](auto OtherLoad) {
               if (areCompatible(Load, OtherLoad) && Load != OtherLoad &&
-                  isNestedInForOp(OtherLoad, ForOp))
+                  ForOp->isProperAncestor(OtherLoad))
                 OtherLoads.push_back(OtherLoad);
             })
             .Case<AffineStoreOp>([&](auto Store) {
               if (areCompatible(Load, Store)) {
                 if (areInSameAffineFor(Load, Store, ForOp))
                   CandidateStores.push_back(Store);
-                else if (isNestedInForOp(Store, ForOp)) {
+                else if (ForOp->isProperAncestor(Store)) {
                   LLVM_DEBUG(llvm::dbgs().indent(2)
                              << "Interrupting - found incompatible store: "
                              << Store << "\n");
@@ -258,24 +249,23 @@ public:
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new 'forOp' as iter args.
-    SmallVector<Value, 4> NewIterArgs;
-    llvm::append_range(NewIterArgs, ForOp.getRegionIterArgs());
+    SmallVector<Value, 4> NewIterArgs(ForOp.getRegionIterArgs());
     Rewriter.setInsertionPoint(ForOp);
-    for (ReductionOp &Op : ReductionOps) {
+    for (const ReductionOp &Op : ReductionOps) {
       Operation *MovedLoad = Rewriter.clone(*Op.getLoad());
       LLVM_DEBUG(llvm::dbgs() << "New Loop:\n" << *MovedLoad << "\n");
       NewIterArgs.push_back(MovedLoad->getResult(0));
     }
 
     // Create the new loop.
-    AffineForOp NewForOp = Rewriter.create<AffineForOp>(
+    auto NewForOp = Rewriter.create<AffineForOp>(
         ForOp.getLoc(), ForOp.getLowerBoundOperands(), ForOp.getLowerBoundMap(),
         ForOp.getUpperBoundOperands(), ForOp.getUpperBoundMap(),
         ForOp.getStep(), NewIterArgs);
 
     // Remove the load operation inside the new loop.
     size_t ArgNo = 0, OrigNumRegionArgs = ForOp.getNumRegionIterArgs();
-    for (ReductionOp &Op : ReductionOps) {
+    for (const ReductionOp &Op : ReductionOps) {
       Op.getLoad()->getResult(0).replaceAllUsesWith(
           NewForOp.getBody()->getArguments()[ArgNo + OrigNumRegionArgs + 1]);
       Rewriter.eraseOp(Op.getLoad());
@@ -285,8 +275,9 @@ public:
     Block *NewBlock = NewForOp.getBody(), *OldBlock = ForOp.getBody();
     SmallVector<Value, 4> NewBlockTransferArgs;
     NewBlockTransferArgs.push_back(NewForOp.getInductionVar());
+    const Block::BlockArgListType &IterArgs = NewForOp.getRegionIterArgs();
     for (size_t ArgNo = 0; ArgNo < OrigNumRegionArgs; ++ArgNo)
-      NewBlockTransferArgs.push_back(NewForOp.getRegionIterArgs()[ArgNo]);
+      NewBlockTransferArgs.push_back(IterArgs[ArgNo]);
     assert(OldBlock->getNumArguments() == NewBlockTransferArgs.size() &&
            "unexpected argument size mismatch");
     Rewriter.mergeBlocks(OldBlock, NewBlock, NewBlockTransferArgs);
@@ -317,10 +308,10 @@ public:
       DominanceInfo DT;
       PostDominanceInfo PDT;
       size_t ArgNo = 0;
-      [[maybe_unused]] SmallVector<AffineStoreOp> NewStores;
+      SmallVector<AffineStoreOp> NewStores;
 
       for (ReductionOp &Op : ReductionOps) {
-        for (Operation *Load : Op.getOtherLoads()) {
+        for (const AffineLoadOp &Load : Op.getOtherLoads()) {
           if (PDT.postDominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(
                 NewForOp.getBody()
@@ -358,10 +349,10 @@ public:
 } // end namespace.
 
 void AffineReductionPass::runOnOperation() {
-  RewritePatternSet Rpl(getOperation()->getContext());
-  Rpl.add<AffineForReductionIter>(getOperation()->getContext());
+  RewritePatternSet RPS(getOperation()->getContext());
+  RPS.add<AffineForReductionIter>(getOperation()->getContext());
   GreedyRewriteConfig Config;
-  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(Rpl), Config);
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(RPS), Config);
 }
 
 namespace mlir {
