@@ -39,8 +39,6 @@ def LLVM_Dialect : Dialect {
     static StringRef getNoAliasScopesAttrName() { return "noalias_scopes"; }
     static StringRef getAliasScopesAttrName() { return "alias_scopes"; }
     static StringRef getLoopAttrName() { return "llvm.loop"; }
-    static StringRef getParallelAccessAttrName() { return "parallel_access"; }
-    static StringRef getLoopOptionsAttrName() { return "options"; }
     static StringRef getAccessGroupsAttrName() { return "access_groups"; }
     static StringRef getStructAttrsAttrName() { return "llvm.struct_attrs"; }
     static StringRef getTBAAAttrName() { return "llvm.tbaa"; }
@@ -312,13 +310,23 @@ class LLVM_EnumAttrCase<string cppSym, string irSym, string llvmSym, int val> :
 //   - `name`: name of the C++ enum class in MLIR API;
 //   - `llvmName`: name of the C++ enum in LLVM API;
 //   - `description`: textual description for documentation purposes;
-//   - `cases`: list of enum cases.
+//   - `cases`: list of enum cases;
+//   - `unsupportedCases`: optional list of unsupported enum cases.
 // For example, `LLVM_EnumAttr<Linkage, "::llvm::GlobalValue::LinkageTypes`
 // produces `mlir::LLVM::Linkage` enum class in MLIR API that corresponds to (a
 // subset of) values in the `llvm::GlobalValue::LinkageTypes` in LLVM API.
+// All unsupported cases are excluded from the MLIR enum and trigger an error
+// during the import from LLVM IR. They are useful to handle sentinel values
+// such as `llvm::AtomicRMWInst::BinOp::BAD_BINOP` that LLVM commonly uses to
+// terminate its enums.
 class LLVM_EnumAttr<string name, string llvmName, string description,
-                    list<LLVM_EnumAttrCase> cases> :
+                    list<LLVM_EnumAttrCase> cases,
+                    list<LLVM_EnumAttrCase> unsupportedCases = []> :
     I64EnumAttr<name, description, cases> {
+
+
+  // List of unsupported cases that have no conversion to an MLIR value.
+  list<LLVM_EnumAttrCase> unsupported = unsupportedCases;
 
   // The equivalent enum class name in LLVM.
   string llvmClassName = llvmName;

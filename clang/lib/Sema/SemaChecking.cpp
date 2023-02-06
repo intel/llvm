@@ -2025,9 +2025,6 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case llvm::Triple::loongarch32:
   case llvm::Triple::loongarch64:
     return CheckLoongArchBuiltinFunctionCall(TI, BuiltinID, TheCall);
-  case llvm::Triple::wasm32:
-  case llvm::Triple::wasm64:
-    return CheckWebAssemblyBuiltinFunctionCall(TI, BuiltinID, TheCall);
   }
 }
 
@@ -2601,6 +2598,12 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
                   ? "__builtin_return_address"
                   : "__builtin_frame_address")
           << TheCall->getSourceRange();
+    break;
+  }
+
+  case Builtin::BI__builtin_nondeterministic_value: {
+    if (SemaBuiltinNonDeterministicValue(TheCall))
+      return ExprError();
     break;
   }
 
@@ -4736,17 +4739,6 @@ bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
   case SystemZ::BI__builtin_s390_vcrnfs: i = 2; l = 0; u = 15; break;
   }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
-}
-
-bool Sema::CheckWebAssemblyBuiltinFunctionCall(const TargetInfo &TI,
-                                               unsigned BuiltinID,
-                                               CallExpr *TheCall) {
-  switch (BuiltinID) {
-  case WebAssembly::BI__builtin_wasm_ref_null_extern:
-    return BuiltinWasmRefNullExtern(TheCall);
-  }
-
-  return false;
 }
 
 /// SemaBuiltinCpuSupports - Handle __builtin_cpu_supports(char *).
@@ -6894,15 +6886,6 @@ static bool checkBuiltinArgument(Sema &S, CallExpr *E, unsigned ArgIndex) {
     return true;
 
   E->setArg(ArgIndex, Arg.get());
-  return false;
-}
-
-bool Sema::BuiltinWasmRefNullExtern(CallExpr *TheCall) {
-  if (TheCall->getNumArgs() != 0)
-    return true;
-
-  TheCall->setType(Context.getWebAssemblyExternrefType());
-
   return false;
 }
 
@@ -15398,6 +15381,23 @@ public:
     Base::VisitStmt(E);
   }
 
+  void VisitCoroutineSuspendExpr(const CoroutineSuspendExpr *CSE) {
+    for (auto *Sub : CSE->children()) {
+      const Expr *ChildExpr = dyn_cast_or_null<Expr>(Sub);
+      if (!ChildExpr)
+        continue;
+
+      if (ChildExpr == CSE->getOperand())
+        // Do not recurse over a CoroutineSuspendExpr's operand.
+        // The operand is also a subexpression of getCommonExpr(), and
+        // recursing into it directly could confuse object management
+        // for the sake of sequence tracking.
+        continue;
+
+      Visit(Sub);
+    }
+  }
+
   void VisitCastExpr(const CastExpr *E) {
     Object O = Object();
     if (E->getCastKind() == CK_LValueToRValue)
@@ -18018,6 +18018,21 @@ bool Sema::PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall) {
     return true;
 
   TheCall->setArg(0, A.get());
+  return false;
+}
+
+bool Sema::SemaBuiltinNonDeterministicValue(CallExpr *TheCall) {
+  if (checkArgCount(*this, TheCall, 1))
+    return true;
+
+  ExprResult Arg = TheCall->getArg(0);
+  QualType TyArg = Arg.get()->getType();
+
+  if (!TyArg->isBuiltinType() && !TyArg->isVectorType())
+    return Diag(TheCall->getArg(0)->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+           << 1 << /*vector, integer or floating point ty*/ 0 << TyArg;
+
+  TheCall->setType(TyArg);
   return false;
 }
 

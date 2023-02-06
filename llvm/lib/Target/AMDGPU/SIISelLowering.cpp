@@ -2084,7 +2084,8 @@ void SITargetLowering::allocateSpecialInputSGPRs(
   if (Info.hasDispatchPtr())
     allocateSGPR64Input(CCInfo, ArgInfo.DispatchPtr);
 
-  if (Info.hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5)
+  const Module *M = MF.getFunction().getParent();
+  if (Info.hasQueuePtr() && AMDGPU::getCodeObjectVersion(*M) < 5)
     allocateSGPR64Input(CCInfo, ArgInfo.QueuePtr);
 
   // Implicit arg ptr takes the place of the kernarg segment pointer. This is a
@@ -2134,7 +2135,8 @@ void SITargetLowering::allocateHSAUserSGPRs(CCState &CCInfo,
     CCInfo.AllocateReg(DispatchPtrReg);
   }
 
-  if (Info.hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5) {
+  const Module *M = MF.getFunction().getParent();
+  if (Info.hasQueuePtr() && AMDGPU::getCodeObjectVersion(*M) < 5) {
     Register QueuePtrReg = Info.addQueuePtr(TRI);
     MF.addLiveIn(QueuePtrReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(QueuePtrReg);
@@ -5433,19 +5435,13 @@ SDValue SITargetLowering::lowerTRAP(SDValue Op, SelectionDAG &DAG) const {
       Subtarget->getTrapHandlerAbi() != GCNSubtarget::TrapHandlerAbi::AMDHSA)
     return lowerTrapEndpgm(Op, DAG);
 
-  if (std::optional<uint8_t> HsaAbiVer = AMDGPU::getHsaAbiVersion(Subtarget)) {
-    switch (*HsaAbiVer) {
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V2:
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
-      return lowerTrapHsaQueuePtr(Op, DAG);
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
-      return Subtarget->supportsGetDoorbellID() ?
-          lowerTrapHsa(Op, DAG) : lowerTrapHsaQueuePtr(Op, DAG);
-    }
-  }
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  unsigned CodeObjectVersion = AMDGPU::getCodeObjectVersion(*M);
+  if (CodeObjectVersion <= 3)
+    return lowerTrapHsaQueuePtr(Op, DAG);
 
-  llvm_unreachable("Unknown trap handler");
+  return Subtarget->supportsGetDoorbellID() ? lowerTrapHsa(Op, DAG) :
+         lowerTrapHsaQueuePtr(Op, DAG);
 }
 
 SDValue SITargetLowering::lowerTrapEndpgm(
@@ -5473,7 +5469,8 @@ SDValue SITargetLowering::lowerTrapHsaQueuePtr(
 
   SDValue QueuePtr;
   // For code object version 5, QueuePtr is passed through implicit kernarg.
-  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  if (AMDGPU::getCodeObjectVersion(*M) >= 5) {
     QueuePtr =
         loadImplicitKernelArgument(DAG, MVT::i64, SL, Align(8), QUEUE_PTR);
   } else {
@@ -5576,7 +5573,8 @@ SDValue SITargetLowering::getSegmentAperture(unsigned AS, const SDLoc &DL,
 
   // For code object version 5, private_base and shared_base are passed through
   // implicit kernargs.
-  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  if (AMDGPU::getCodeObjectVersion(*M) >= 5) {
     ImplicitParameter Param =
         (AS == AMDGPUAS::LOCAL_ADDRESS) ? SHARED_BASE : PRIVATE_BASE;
     return loadImplicitKernelArgument(DAG, MVT::i32, DL, Align(4), Param);
@@ -8691,6 +8689,14 @@ SDValue SITargetLowering::widenLoad(LoadSDNode *Ld, DAGCombinerInfo &DCI) const 
   return DAG.getMergeValues({ Cvt, NewLoad.getValue(1) }, SL);
 }
 
+static bool addressMayBeAccessedAsPrivate(const MachineMemOperand *MMO,
+                                          const SIMachineFunctionInfo &Info) {
+  // TODO: Should check if the address can definitely not access stack.
+  if (Info.isEntryFunction())
+    return Info.hasFlatScratchInit();
+  return true;
+}
+
 SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   LoadSDNode *Load = cast<LoadSDNode>(Op);
@@ -8757,7 +8763,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   // then we need to use the same legalization rules we use for private.
   if (AS == AMDGPUAS::FLAT_ADDRESS &&
       !Subtarget->hasMultiDwordFlatScratchAddressing())
-    AS = MFI->hasFlatScratchInit() ?
+    AS = addressMayBeAccessedAsPrivate(Load->getMemOperand(), *MFI) ?
          AMDGPUAS::PRIVATE_ADDRESS : AMDGPUAS::GLOBAL_ADDRESS;
 
   unsigned NumElements = MemVT.getVectorNumElements();
@@ -9295,7 +9301,7 @@ SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   // then we need to use the same legalization rules we use for private.
   if (AS == AMDGPUAS::FLAT_ADDRESS &&
       !Subtarget->hasMultiDwordFlatScratchAddressing())
-    AS = MFI->hasFlatScratchInit() ?
+    AS = addressMayBeAccessedAsPrivate(Store->getMemOperand(), *MFI) ?
          AMDGPUAS::PRIVATE_ADDRESS : AMDGPUAS::GLOBAL_ADDRESS;
 
   unsigned NumElements = VT.getVectorNumElements();

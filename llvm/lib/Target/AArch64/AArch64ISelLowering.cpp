@@ -1006,9 +1006,9 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   // Set required alignment.
   setMinFunctionAlignment(Align(4));
   // Set preferred alignments.
-  setPrefLoopAlignment(Align(1ULL << STI.getPrefLoopLogAlignment()));
+  setPrefLoopAlignment(STI.getPrefLoopAlignment());
   setMaxBytesForAlignment(STI.getMaxBytesForLoopAlignment());
-  setPrefFunctionAlignment(Align(1ULL << STI.getPrefFunctionLogAlignment()));
+  setPrefFunctionAlignment(STI.getPrefFunctionAlignment());
 
   // Only change the limit for entries in a jump table if specified by
   // the sub target, but not at the command line.
@@ -5261,13 +5261,6 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     unsigned Opcode = IsSignedAdd
                           ? (IsRoundingAdd ? ISD::AVGCEILS : ISD::AVGFLOORS)
                           : (IsRoundingAdd ? ISD::AVGCEILU : ISD::AVGFLOORU);
-    return DAG.getNode(Opcode, dl, Op.getValueType(), Op.getOperand(1),
-                       Op.getOperand(2));
-  }
-  case Intrinsic::aarch64_neon_sabd:
-  case Intrinsic::aarch64_neon_uabd: {
-    unsigned Opcode = IntNo == Intrinsic::aarch64_neon_uabd ? ISD::ABDU
-                                                            : ISD::ABDS;
     return DAG.getNode(Opcode, dl, Op.getValueType(), Op.getOperand(1),
                        Op.getOperand(2));
   }
@@ -18185,6 +18178,12 @@ static SDValue performIntrinsicCombine(SDNode *N,
                     DAG.getConstant(N->getConstantOperandVal(2), DL, VT));
     return DAG.getNode(ISD::TRUNCATE, DL, N->getValueType(0), Sht);
   }
+  case Intrinsic::aarch64_neon_sabd:
+    return DAG.getNode(ISD::ABDS, SDLoc(N), N->getValueType(0),
+                       N->getOperand(1), N->getOperand(2));
+  case Intrinsic::aarch64_neon_uabd:
+    return DAG.getNode(ISD::ABDU, SDLoc(N), N->getValueType(0),
+                       N->getOperand(1), N->getOperand(2));
   case Intrinsic::aarch64_crc32b:
   case Intrinsic::aarch64_crc32cb:
     return tryCombineCRC32(0xff, N, DAG);
