@@ -351,10 +351,10 @@ that the `task_sequence` object will call exactly the same number of `async` s
 and `get` s over the object's lifetime (i.e. before the `task_sequence`
 destructor is invoked). 
 
-| invocation_capacity | Given an invocation capacity of `N`, the user is
-guaranteed that at least `N` invocations of `async()` will be allowed without
-calling `get()` before the `async()` call starts to block. The `N+1th` call may
-block until at least one more `get()` is called.
+| invocation_capacity | This property defines the minimum number of 'async'd
+invocations that may be outstanding at any time without causing `async()` calls
+to block. An outstanding invocation is a call to `async()` whose corresponding
+result has not yet been retrieved by a call to `get()`.
 
 | response_capacity | Given a response capacity of `N`, the user is guaranteed
 that up to `N` outstanding calls can make progress. However, if there are more
