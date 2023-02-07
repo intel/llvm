@@ -2017,9 +2017,9 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urMemFree
+    /// @brief Intercept function for urUSMFree
     __urdlllocal ur_result_t UR_APICALL
-    urMemFree(
+    urUSMFree(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         void* pMem                                      ///< [in] pointer to USM memory object
         )
@@ -2027,7 +2027,7 @@ namespace driver
         ur_result_t result = UR_RESULT_SUCCESS;
 
         // if the driver has created a custom function, then call it instead of using the generic path
-        auto pfnFree = d_context.urDdiTable.Mem.pfnFree;
+        auto pfnFree = d_context.urDdiTable.USM.pfnFree;
         if( nullptr != pfnFree )
         {
             result = pfnFree( hContext, pMem );
@@ -2041,9 +2041,9 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urMemGetMemAllocInfo
+    /// @brief Intercept function for urUSMGetMemAllocInfo
     __urdlllocal ur_result_t UR_APICALL
-    urMemGetMemAllocInfo(
+    urUSMGetMemAllocInfo(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         const void* pMem,                               ///< [in] pointer to USM memory object
         ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
@@ -2055,7 +2055,7 @@ namespace driver
         ur_result_t result = UR_RESULT_SUCCESS;
 
         // if the driver has created a custom function, then call it instead of using the generic path
-        auto pfnGetMemAllocInfo = d_context.urDdiTable.Mem.pfnGetMemAllocInfo;
+        auto pfnGetMemAllocInfo = d_context.urDdiTable.USM.pfnGetMemAllocInfo;
         if( nullptr != pfnGetMemAllocInfo )
         {
             result = pfnGetMemAllocInfo( hContext, pMem, propName, propValueSize, pPropValue, pPropValueSizeRet );
@@ -3571,10 +3571,6 @@ urGetMemProcAddrTable(
 
     pDdiTable->pfnImageGetInfo                           = driver::urMemImageGetInfo;
 
-    pDdiTable->pfnFree                                   = driver::urMemFree;
-
-    pDdiTable->pfnGetMemAllocInfo                        = driver::urMemGetMemAllocInfo;
-
     return result;
 }
 
@@ -3798,6 +3794,10 @@ urGetUSMProcAddrTable(
     pDdiTable->pfnDeviceAlloc                            = driver::urUSMDeviceAlloc;
 
     pDdiTable->pfnSharedAlloc                            = driver::urUSMSharedAlloc;
+
+    pDdiTable->pfnFree                                   = driver::urUSMFree;
+
+    pDdiTable->pfnGetMemAllocInfo                        = driver::urUSMGetMemAllocInfo;
 
     return result;
 }

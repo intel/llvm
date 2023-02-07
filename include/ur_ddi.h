@@ -791,24 +791,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemImageGetInfo_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urMemFree 
-typedef ur_result_t (UR_APICALL *ur_pfnMemFree_t)(
-    ur_context_handle_t,
-    void*
-    );
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urMemGetMemAllocInfo 
-typedef ur_result_t (UR_APICALL *ur_pfnMemGetMemAllocInfo_t)(
-    ur_context_handle_t,
-    const void*,
-    ur_usm_alloc_info_t,
-    size_t,
-    void*,
-    size_t*
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Mem functions pointers
 typedef struct ur_mem_dditable_t
 {
@@ -821,8 +803,6 @@ typedef struct ur_mem_dditable_t
     ur_pfnMemCreateWithNativeHandle_t                           pfnCreateWithNativeHandle;
     ur_pfnMemGetInfo_t                                          pfnGetInfo;
     ur_pfnMemImageGetInfo_t                                     pfnImageGetInfo;
-    ur_pfnMemFree_t                                             pfnFree;
-    ur_pfnMemGetMemAllocInfo_t                                  pfnGetMemAllocInfo;
 } ur_mem_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1270,12 +1250,32 @@ typedef ur_result_t (UR_APICALL *ur_pfnUSMSharedAlloc_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMFree 
+typedef ur_result_t (UR_APICALL *ur_pfnUSMFree_t)(
+    ur_context_handle_t,
+    void*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMGetMemAllocInfo 
+typedef ur_result_t (UR_APICALL *ur_pfnUSMGetMemAllocInfo_t)(
+    ur_context_handle_t,
+    const void*,
+    ur_usm_alloc_info_t,
+    size_t,
+    void*,
+    size_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM functions pointers
 typedef struct ur_usm_dditable_t
 {
     ur_pfnUSMHostAlloc_t                                        pfnHostAlloc;
     ur_pfnUSMDeviceAlloc_t                                      pfnDeviceAlloc;
     ur_pfnUSMSharedAlloc_t                                      pfnSharedAlloc;
+    ur_pfnUSMFree_t                                             pfnFree;
+    ur_pfnUSMGetMemAllocInfo_t                                  pfnGetMemAllocInfo;
 } ur_usm_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

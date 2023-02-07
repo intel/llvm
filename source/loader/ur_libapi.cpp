@@ -2567,12 +2567,12 @@ urUSMSharedAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
-urMemFree(
+urUSMFree(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     void* pMem                                      ///< [in] pointer to USM memory object
     )
 {
-    auto pfnFree = ur_lib::context->urDdiTable.Mem.pfnFree;
+    auto pfnFree = ur_lib::context->urDdiTable.USM.pfnFree;
     if( nullptr == pfnFree )
         return UR_RESULT_ERROR_UNINITIALIZED;
 
@@ -2597,7 +2597,7 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
-urMemGetMemAllocInfo(
+urUSMGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     const void* pMem,                               ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
@@ -2606,7 +2606,7 @@ urMemGetMemAllocInfo(
     size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
     )
 {
-    auto pfnGetMemAllocInfo = ur_lib::context->urDdiTable.Mem.pfnGetMemAllocInfo;
+    auto pfnGetMemAllocInfo = ur_lib::context->urDdiTable.USM.pfnGetMemAllocInfo;
     if( nullptr == pfnGetMemAllocInfo )
         return UR_RESULT_ERROR_UNINITIALIZED;
 

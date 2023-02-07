@@ -3,10 +3,10 @@
 
 #include <uur/fixtures.h>
 
-using urMemFreeTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemFreeTest);
+using urUSMFreeTest = uur::urQueueTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeTest);
 
-TEST_P(urMemFreeTest, Success) {
+TEST_P(urUSMFreeTest, Success) {
     void *ptr = nullptr;
     ur_usm_mem_flags_t flags;
     ASSERT_SUCCESS(
@@ -18,15 +18,15 @@ TEST_P(urMemFreeTest, Success) {
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_NE(ptr, nullptr);
-    ASSERT_SUCCESS(urMemFree(context, ptr));
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 
-TEST_P(urMemFreeTest, InvalidNullContext) {
+TEST_P(urUSMFreeTest, InvalidNullContext) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urMemFree(nullptr, nullptr));
+                     urUSMFree(nullptr, nullptr));
 }
 
-TEST_P(urMemFreeTest, InvalidNullPtrMem) {
+TEST_P(urUSMFreeTest, InvalidNullPtrMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urMemFree(context, nullptr));
+                     urUSMFree(context, nullptr));
 }

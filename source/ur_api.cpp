@@ -2366,7 +2366,7 @@ urUSMSharedAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
-urMemFree(
+urUSMFree(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     void* pMem                                      ///< [in] pointer to USM memory object
     )
@@ -2393,7 +2393,7 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
-urMemGetMemAllocInfo(
+urUSMGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     const void* pMem,                               ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
