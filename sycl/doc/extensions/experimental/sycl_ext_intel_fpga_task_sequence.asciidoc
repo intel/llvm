@@ -66,10 +66,10 @@ specification.*
 TODO: Figure out if we can define an aspect for clearer error messages.
 
 This extension is currently implemented in {icpx} only for FPGA devices and
-only when using the Level Zero backend.  Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined
-behavior.  Be aware that the compiler is not able to issue a diagnostic to
-warn you if this happens.
+only when using either the Level Zero backend or the Intel FPGA OpenCL backend.
+Attempting to use this extension in kernels that run on other devices or
+backends may result in undefined behavior.  Be aware that the compiler is not
+able to issue a diagnostic to warn you if this happens.
 
 == Overview
 
