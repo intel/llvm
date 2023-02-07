@@ -133,13 +133,6 @@ public:
                         [&](Operation *B) { return properlyDominates(B, A); });
   }
 
-  /// Retuns true if none of the indices in \p Indices are \p IndVar, and false
-  /// otherwise.
-  bool hasAllDimsReduced(ArrayRef<Value> Indices, Value IndVar) const {
-    return llvm::none_of(Indices,
-                         [IndVar](Value Index) { return Index == IndVar; });
-  }
-
   /// Collect candidate reduction operations in the given loop \p ForOp.
   /// Candidate reductions are stored into \p CandidateOps, and affine load
   /// operations with the same base operand and subscript indices as the
@@ -160,8 +153,9 @@ public:
 
       // Skip the load if any of its subscript indices are the loop induction
       // variable (i.e. the load is not loop invariant).
-      const SmallVector<Value, 4> Indices = Load.getIndices();
-      if (!hasAllDimsReduced(Indices, ForOp.getInductionVar())) {
+      if (llvm::any_of(Load.getIndices(), [&ForOp](Value Index) {
+            return Index == ForOp.getInductionVar();
+          })) {
         LLVM_DEBUG(llvm::dbgs().indent(2) << "Skip - not loop invariant\n");
         return WalkResult::advance();
       }
