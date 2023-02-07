@@ -18,6 +18,7 @@ function(add_conformance_test name)
     add_test(NAME ${name}
         COMMAND ${TEST_TARGET_NAME}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(${name} PROPERTIES LABELS "conformance")
 endfunction()
 
 function(add_conformance_test_with_devices_environment name)
