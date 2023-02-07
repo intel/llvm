@@ -12,7 +12,6 @@
 
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRVPass.h"
 
-#include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -23,10 +22,6 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
 using namespace mlir::sycl;

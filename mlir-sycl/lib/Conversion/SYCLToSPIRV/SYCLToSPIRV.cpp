@@ -16,27 +16,10 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/OperationSupport.h"
-#include "mlir/Support/LLVM.h"
-#include "mlir/Support/LogicalResult.h"
-#include "mlir/Transforms/DialectConversion.h"
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/ErrorHandling.h"
-
-#include <array>
-#include <cstdint>
-
-#define DEBUG_TYPE "sycl-to-spirv"
 
 using namespace mlir;
 using namespace mlir::sycl;
