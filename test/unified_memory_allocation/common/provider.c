@@ -8,17 +8,17 @@
 #include <assert.h>
 #include <stdlib.h>
 
-enum uma_result_t nullInitialize(void *params, void **pool) {
+static enum uma_result_t nullInitialize(void *params, void **pool) {
     (void) params;
     *pool = NULL;
     return UMA_RESULT_SUCCESS;
 }
 
-void nullFinalize(void *pool) {
+static void nullFinalize(void *pool) {
     (void) pool;
 }
 
-enum uma_result_t nullAlloc(void *provider, size_t size, size_t alignment, void **ptr) {
+static enum uma_result_t nullAlloc(void *provider, size_t size, size_t alignment, void **ptr) {
     (void) provider;
     (void) size;
     (void) alignment;
@@ -26,7 +26,7 @@ enum uma_result_t nullAlloc(void *provider, size_t size, size_t alignment, void 
     return UMA_RESULT_SUCCESS;
 }
 
-enum uma_result_t nullFree(void *provider, void *ptr, size_t size) {
+static enum uma_result_t nullFree(void *provider, void *ptr, size_t size) {
     (void) provider;
     (void) ptr;
     (void) size;
@@ -56,7 +56,7 @@ struct traceParams {
     void (*trace)(const char*);
 };
 
-enum uma_result_t traceInitialize(void *params, void **pool) {
+static enum uma_result_t traceInitialize(void *params, void **pool) {
     struct traceParams* tracePool = (struct traceParams*) malloc(sizeof(struct traceParams));
     *tracePool = *((struct traceParams*) params);
     *pool = tracePool;
@@ -64,18 +64,18 @@ enum uma_result_t traceInitialize(void *params, void **pool) {
     return UMA_RESULT_SUCCESS;
 }
 
-void traceFinalize(void *pool) {
+static void traceFinalize(void *pool) {
     free(pool);
 }
 
-enum uma_result_t traceAlloc(void *provider, size_t size, size_t alignment, void **ptr) {
+static enum uma_result_t traceAlloc(void *provider, size_t size, size_t alignment, void **ptr) {
     struct traceParams* traceProvider = (struct traceParams*) provider;
 
     traceProvider->trace("alloc");
     return umaMemoryProviderAlloc(traceProvider->hUpstreamProvider, size, alignment, ptr);
 }
 
-enum uma_result_t traceFree(void *provider, void *ptr, size_t size) {
+static enum uma_result_t traceFree(void *provider, void *ptr, size_t size) {
     struct traceParams* traceProvider = (struct traceParams*) provider;
 
     traceProvider->trace("free");
