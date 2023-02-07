@@ -328,17 +328,17 @@ inline std::ostream &operator<<(std::ostream &out, const ur_mem_flag_t &flag) {
 }
 
 inline std::ostream &operator<<(std::ostream &out,
-                                const ur_mem_alloc_info_t &info) {
+                                const ur_usm_alloc_info_t &info) {
     switch (info) {
 #define CASE(name)                                                             \
     case name:                                                                 \
         out << #name;                                                          \
         break;
 
-        CASE(UR_MEM_ALLOC_INFO_ALLOC_TYPE);
-        CASE(UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR);
-        CASE(UR_MEM_ALLOC_INFO_ALLOC_SIZE);
-        CASE(UR_MEM_ALLOC_INFO_ALLOC_DEVICE);
+        CASE(UR_USM_ALLOC_INFO_TYPE);
+        CASE(UR_USM_ALLOC_INFO_BASE_PTR);
+        CASE(UR_USM_ALLOC_INFO_SIZE);
+        CASE(UR_USM_ALLOC_INFO_DEVICE);
 
 #undef CASE
 

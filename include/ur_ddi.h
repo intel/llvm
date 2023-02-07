@@ -802,7 +802,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemFree_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnMemGetMemAllocInfo_t)(
     ur_context_handle_t,
     const void*,
-    ur_mem_alloc_info_t,
+    ur_usm_alloc_info_t,
     size_t,
     void*,
     size_t*

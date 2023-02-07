@@ -2725,15 +2725,15 @@ typedef enum ur_usm_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
-typedef enum ur_mem_alloc_info_t
+typedef enum ur_usm_alloc_info_t
 {
-    UR_MEM_ALLOC_INFO_ALLOC_TYPE = 0,               ///< [::ur_usm_type_t]: Memory allocation type info
-    UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR = 1,           ///< [void *]: Memory allocation base pointer info
-    UR_MEM_ALLOC_INFO_ALLOC_SIZE = 2,               ///< [size_t]: Memory allocation size info
-    UR_MEM_ALLOC_INFO_ALLOC_DEVICE = 3,             ///< [::ur_device_handle_t]: Memory allocation device info
-    UR_MEM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
+    UR_USM_ALLOC_INFO_TYPE = 0,                     ///< Memory allocation type info
+    UR_USM_ALLOC_INFO_BASE_PTR = 1,                 ///< Memory allocation base pointer info
+    UR_USM_ALLOC_INFO_SIZE = 2,                     ///< Memory allocation size info
+    UR_USM_ALLOC_INFO_DEVICE = 3,                   ///< Memory allocation device info
+    UR_USM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
 
-} ur_mem_alloc_info_t;
+} ur_usm_alloc_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate host memory
@@ -2848,7 +2848,7 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
+///         + `::UR_USM_ALLOC_INFO_DEVICE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -2857,7 +2857,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     const void* pMem,                               ///< [in] pointer to USM memory object
-    ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
+    ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
     void* pPropValue,                               ///< [out][optional] value of the USM allocation property
     size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
@@ -6172,7 +6172,7 @@ typedef struct ur_mem_get_mem_alloc_info_params_t
 {
     ur_context_handle_t* phContext;
     const void** ppMem;
-    ur_mem_alloc_info_t* ppropName;
+    ur_usm_alloc_info_t* ppropName;
     size_t* ppropValueSize;
     void** ppPropValue;
     size_t** ppPropValueSizeRet;

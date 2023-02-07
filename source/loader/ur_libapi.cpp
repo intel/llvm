@@ -2591,7 +2591,7 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
+///         + `::UR_USM_ALLOC_INFO_DEVICE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -2600,7 +2600,7 @@ ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     const void* pMem,                               ///< [in] pointer to USM memory object
-    ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
+    ur_usm_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
     void* pPropValue,                               ///< [out][optional] value of the USM allocation property
     size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in USM allocation property
