@@ -24,7 +24,6 @@ using namespace llvm;
 
 void llvm::initializeIPO(PassRegistry &Registry) {
   initializeAnnotation2MetadataLegacyPass(Registry);
-  initializeCalledValuePropagationLegacyPassPass(Registry);
   initializeConstantMergeLegacyPassPass(Registry);
   initializeCrossDSOCFIPass(Registry);
   initializeDAEPass(Registry);
@@ -34,16 +33,12 @@ void llvm::initializeIPO(PassRegistry &Registry) {
   initializeGlobalDCELegacyPassPass(Registry);
   initializeGlobalOptLegacyPassPass(Registry);
   initializeGlobalSplitPass(Registry);
-  initializeHotColdSplittingLegacyPassPass(Registry);
-  initializeIROutlinerLegacyPassPass(Registry);
   initializeAlwaysInlinerLegacyPassPass(Registry);
   initializeSimpleInlinerPass(Registry);
   initializeInferFunctionAttrsLegacyPassPass(Registry);
   initializeInternalizeLegacyPassPass(Registry);
   initializeLoopExtractorLegacyPassPass(Registry);
   initializeSingleLoopExtractorPass(Registry);
-  initializeMergeFunctionsLegacyPassPass(Registry);
-  initializePartialInlinerLegacyPassPass(Registry);
   initializeAttributorLegacyPassPass(Registry);
   initializeAttributorCGSCCLegacyPassPass(Registry);
   initializePostOrderFunctionAttrsLegacyPassPass(Registry);
@@ -60,10 +55,6 @@ void llvm::initializeIPO(PassRegistry &Registry) {
 
 void LLVMInitializeIPO(LLVMPassRegistryRef R) {
   initializeIPO(*unwrap(R));
-}
-
-void LLVMAddCalledValuePropagationPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCalledValuePropagationPass());
 }
 
 void LLVMAddConstantMergePass(LLVMPassManagerRef PM) {
@@ -96,10 +87,6 @@ void LLVMAddGlobalOptimizerPass(LLVMPassManagerRef PM) {
 
 void LLVMAddIPSCCPPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createIPSCCPPass());
-}
-
-void LLVMAddMergeFunctionsPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createMergeFunctionsPass());
 }
 
 void LLVMAddInternalizePass(LLVMPassManagerRef PM, unsigned AllButMain) {
