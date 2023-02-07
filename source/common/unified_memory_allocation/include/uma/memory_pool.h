@@ -87,6 +87,29 @@ size_t umaPoolMallocUsableSize(uma_memory_pool_handle_t hPool, void *ptr);
 ///
 void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 
+///
+/// \brief Retrieve string representation of the underlying pool specific
+///        result reported by the last API that returned
+///        UMA_RESULT_ERROR_POOL_SPECIFIC. Allows for a pool independent way to
+///        return a pool specific result.
+///
+/// \details
+///     - The string returned via the ppMessage is a NULL terminated C style
+///       string.
+///     - The string returned via the ppMessage is thread local.
+///     - The memory in the string returned via the ppMessage is owned by the
+///       adapter.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+/// \param hPool specified memory hPool
+/// \param ppMessage [out] pointer to a string containing provider specific
+///                  result in string representation.
+/// \return UMA_RESULT_SUCCESS if the result being
+///         reported is to be considered a warning. Any other result code
+///         returned indicates that the adapter specific result is an error.
+enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
+                                       const char **ppMessage);
+
 #ifdef __cplusplus
 }
 #endif
