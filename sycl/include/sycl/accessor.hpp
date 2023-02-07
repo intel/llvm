@@ -2415,7 +2415,7 @@ class __SYCL_SPECIAL_CLASS local_accessor_base :
                                    access::target::local, IsPlaceholder> {
 protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
-  
+
   using AccessorCommonT =
       detail::accessor_common<DataT, Dimensions, AccessMode,
                               access::target::local, IsPlaceholder>;
