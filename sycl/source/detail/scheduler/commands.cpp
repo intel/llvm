@@ -1397,22 +1397,13 @@ void MemCpyCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-AllocaCommandBase *ExecCGCommand::getAllocaForReqOrThrow(Requirement *Req) {
-  auto allocaCmd = getAllocaForReq(Req);
-  if (allocaCmd.has_value())
-    return allocaCmd.value();
-
-  throw runtime_error("Alloca for command not found",
-                      PI_ERROR_INVALID_OPERATION);
-}
-
-std::optional<AllocaCommandBase *>
-ExecCGCommand::getAllocaForReq(Requirement *Req) {
+AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   for (const DepDesc &Dep : MDeps) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  return {};
+  throw runtime_error("Alloca for command not found",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -1987,6 +1978,8 @@ static pi_result SetKernelParamsAndLaunch(
       Requirement *Req = (Requirement *)(Arg.MPtr);
       if (Req->MAccessRange == range<3>({0, 0, 0}))
         break;
+      assert(getMemAllocationFunc != nullptr &&
+             "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
@@ -2037,22 +2030,6 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
   };
-
-  for (auto &arg : Args) {
-    if (arg.MType == kernel_param_kind_t::kind_accessor) {
-      if (getMemAllocationFunc == nullptr)
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
-
-      Requirement *Req = (Requirement *)(arg.MPtr);
-      void *RawMemArg = getMemAllocationFunc(Req);
-      if (RawMemArg == nullptr)
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
-    }
-  }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
 
@@ -2243,7 +2220,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)Copy->getSrc();
-    AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     MemoryManager::copy(
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
@@ -2258,7 +2235,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Copy->getDst());
-    AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     Scheduler::getInstance().getDefaultHostQueue();
 
@@ -2277,8 +2254,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
     Requirement *ReqDst = (Requirement *)(Copy->getDst());
 
-    AllocaCommandBase *AllocaCmdSrc = getAllocaForReqOrThrow(ReqSrc);
-    AllocaCommandBase *AllocaCmdDst = getAllocaForReqOrThrow(ReqDst);
+    AllocaCommandBase *AllocaCmdSrc = getAllocaForReq(ReqSrc);
+    AllocaCommandBase *AllocaCmdDst = getAllocaForReq(ReqDst);
 
     MemoryManager::copy(
         AllocaCmdSrc->getSYCLMemObj(), AllocaCmdSrc->getMemAllocation(), MQueue,
@@ -2293,7 +2270,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Fill->getReqToFill());
-    AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     MemoryManager::fill(
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
@@ -2334,7 +2311,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
         assert(Arg.MType == kernel_param_kind_t::kind_accessor);
 
         Requirement *Req = (Requirement *)(Arg.MPtr);
-        AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
         *NextArg = AllocaCmd->getMemAllocation();
         NextArg++;
@@ -2360,7 +2337,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
       assert(Arg.MType == kernel_param_kind_t::kind_accessor);
 
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       pi_mem MemArg = (pi_mem)AllocaCmd->getMemAllocation();
 
       Buffers.push_back(MemArg);
@@ -2396,7 +2373,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
-          AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
           Req->MData = AllocaCmd->getMemAllocation();
         }
       if (!RawEvents.empty()) {
@@ -2424,8 +2401,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
       auto AllocaCmd = getAllocaForReq(Req);
-      return AllocaCmd.has_value() ? AllocaCmd.value()->getMemAllocation()
-                                   : nullptr;
+      return AllocaCmd->getMemAllocation();
     };
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
@@ -2514,7 +2490,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     const auto &HandlerReq = ExecInterop->MRequirements;
     std::for_each(
         std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
-          AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
           auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
           interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
           ReqMemObjs.emplace_back(ReqToMem);
@@ -2535,7 +2511,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
-        AllocaCommandBase *AllocaCmd = getAllocaForReqOrThrow(Req);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
         Req->MData = AllocaCmd->getMemAllocation();
         break;

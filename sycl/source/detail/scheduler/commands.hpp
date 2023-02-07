@@ -609,8 +609,7 @@ public:
 private:
   pi_int32 enqueueImp() final;
 
-  std::optional<AllocaCommandBase *> getAllocaForReq(Requirement *Req);
-  AllocaCommandBase *getAllocaForReqOrThrow(Requirement *Req);
+  AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

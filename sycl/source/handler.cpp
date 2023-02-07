@@ -94,6 +94,22 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  {
+    // A counter is not good enough since we can have the same accessor several
+    // times as arg
+    std::unordered_set<void *> accessors;
+    for (const auto &arg : MArgs) {
+      if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
+        continue;
+
+      accessors.insert(arg.MPtr);
+      if (accessors.size() > MRequirements.size())
+        throw sycl::exception(make_error_code(errc::kernel_argument),
+                              "placeholder accessor must be bound by calling "
+                              "handler::require() before it can be used.");
+    }
+  }
+
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
