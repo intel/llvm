@@ -2400,7 +2400,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
-      auto AllocaCmd = getAllocaForReq(Req);
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       return AllocaCmd->getMemAllocation();
     };
 
