@@ -4,6 +4,6 @@
 add_conformance_test_with_devices_environment(usm 
     urUSMHostAlloc.cpp 
     urUSMDeviceAlloc.cpp
-    urMemFree.cpp
-    urMemGetMemAllocInfo.cpp
+    urUSMFree.cpp
+    urUSMGetMemAllocInfo.cpp
     urUSMSharedAlloc.cpp)

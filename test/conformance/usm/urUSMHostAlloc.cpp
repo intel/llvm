@@ -40,7 +40,7 @@ TEST_P(urUSMHostAllocTest, Success) {
     std::memset(&set_data, 1, sizeof(int));
     ASSERT_EQ(*ptr, set_data);
 
-    ASSERT_SUCCESS(urMemFree(context, ptr));
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidNullHandleContext) {
