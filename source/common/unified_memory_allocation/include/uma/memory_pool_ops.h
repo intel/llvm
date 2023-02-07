@@ -43,6 +43,7 @@ struct uma_memory_pool_ops_t {
     void *(*aligned_malloc)(void *pool, size_t size, size_t alignment);
     size_t (*malloc_usable_size)(void *pool, void *ptr);
     void (*free)(void *pool, void *);
+    enum uma_result_t (*get_last_result)(void *pool, const char **ppMessage);
 };
 
 #ifdef __cplusplus
