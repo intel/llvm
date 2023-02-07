@@ -77,7 +77,7 @@ Although SYCL supports task-level parallelism through device kernels, there is
 no specific mechanism to express parallelism at a sub-kernel level or to invoke
 additional kernels without involving the host program. In OpenCL 2.0 and beyond,
 kernel invocations can be initiated without host program interaction through
-device side enqueue. C++11 also introduced `std::async()` for task-level
+the `enqueue_kernel` API. C++11 also introduced `std::async()` for task-level
 parallelism. However, neither of these approaches is a good fit for spatial
 compute platforms, which require a clear mapping of parallel constructs to
 spatial instances in the hardware.
