@@ -59,15 +59,13 @@ struct OperationMemoryEffects {
   bool allocatesMemory() const { return !allocateResources.empty(); }
 
   /// Returns true if the given operation \p other has memory effects that
-  /// conflict this class memory effects, and false otherwise. For example:
-  ///  case 1:
-  ///   - this: read resource
-  ///   - other: allocate or write the same resource
-  ///  case 2:
-  ///   - this: write resource
-  ///   - other: allocate, read or write the same resource
-  bool conflictsWith(Operation &other) {
-    if (other.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+  /// conflict with the memory effects summarized in this class, and false
+  /// otherwise.
+  bool conflictsWith(Operation &other) const {
+    // Check all the nested operations if 'other' has recursive side effects.
+    bool hasRecursiveEffects =
+        other.hasTrait<OpTrait::HasRecursiveMemoryEffects>();
+    if (hasRecursiveEffects) {
       for (Region &region : other.getRegions())
         for (Operation &innerOp : region.getOps())
           if (conflictsWith(innerOp))
@@ -75,47 +73,45 @@ struct OperationMemoryEffects {
       return false;
     }
 
-    if (!other.getName().hasInterface<MemoryEffectOpInterface>())
-      return true;
-
-    // The given operation conflicts with the memory effect of this operation if
-    // it allocates or writes a resource that is read by this operation.
-    for (SideEffects::Resource *res : readResources) {
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
-      for (const MemoryEffects::EffectInstance &effect : effects) {
-        if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
-            isa<MemoryEffects::Write>(effect.getEffect()))
-          return true;
+    // If the given operation has side effects, characterize them and check
+    // whether they might prevent hoisting.
+    if (other.getName().hasInterface<MemoryEffectOpInterface>()) {
+      // Check whether the given operation writes or allocates a resource read
+      // by the operation associated with this class.
+      for (SideEffects::Resource *res : readResources) {
+        SmallVector<MemoryEffects::EffectInstance> effects;
+        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        for (const MemoryEffects::EffectInstance &effect : effects) {
+          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
+              isa<MemoryEffects::Write>(effect.getEffect()))
+            return true;
+        }
       }
-    }
 
-    // The given operation conflicts with the memory effect of this operation if
-    // it allocates or reads a resource that is written by this operation.
-    for (SideEffects::Resource *res : writeResources) {
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
-      for (const MemoryEffects::EffectInstance &effect : effects) {
-        if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
-            isa<MemoryEffects::Read>(effect.getEffect()) ||
-            isa<MemoryEffects::Write>(effect.getEffect()))
-          return true;
+      // Check whether the given operation read. writes or allocates a resources
+      // that is written by the operation associated with this class.
+      for (SideEffects::Resource *res : writeResources) {
+        SmallVector<MemoryEffects::EffectInstance> effects;
+        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        for (const MemoryEffects::EffectInstance &effect : effects) {
+          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
+              isa<MemoryEffects::Read>(effect.getEffect()) ||
+              isa<MemoryEffects::Write>(effect.getEffect()))
+            return true;
+        }
       }
-    }
 
-    // The given operation conflicts with the memory effect of this operation if
-    // it allocates, writes or reads a resource that is written by freed by this
-    // operation.
-    for (SideEffects::Resource *res : freeResources) {
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
-      for (const MemoryEffects::EffectInstance &effect : effects) {
-        if (isa<MemoryEffects::Allocate>(effect.getEffect()))
-          return true;
-        if (isa<MemoryEffects::Write>(effect.getEffect()))
-          return true;
-        if (isa<MemoryEffects::Read>(effect.getEffect()))
-          return true;
+      // Check whether the given operation read, writes or allocates a resources
+      // that is freed by the operation associated with this class.
+      for (SideEffects::Resource *res : freeResources) {
+        SmallVector<MemoryEffects::EffectInstance> effects;
+        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        for (const MemoryEffects::EffectInstance &effect : effects) {
+          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
+              isa<MemoryEffects::Write>(effect.getEffect()) ||
+              isa<MemoryEffects::Read>(effect.getEffect()))
+            return true;
+        }
       }
     }
 
@@ -145,8 +141,12 @@ private:
 /// Returns true if the Operation \p op can be hoisted out of the given loop \p
 /// loop. The \p willBeMoved argument represents operations that are known to be
 /// loop invariant (and therefore will be moved outside of the loop).
-static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
+template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                          T, scf::ParallelOp, AffineParallelOp>::value>>
+static bool canBeHoisted(Operation &op, T loop,
                          const SmallPtrSetImpl<Operation *> &willBeMoved) {
+  LLVM_DEBUG(llvm::dbgs() << "Analyzing: " << op << "\n");
+
   // Returns true if the given value can be moved outside of the loop, and false
   // otherwise. A value can be moved outside of the loop if its operand are
   // defined by operations that can themselves be moved, or are already outside
@@ -162,26 +162,49 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     return false;
   };
 
-  // The operation cannot be hoisted is any of its operands cannot be moved
-  // outside of the loop.
+  // Ensure operands can be hoisted.
   if (llvm::any_of(op.getOperands(),
-                   [&](Value value) { return !canBeMoved(value); }))
+                   [&](Value value) { return !canBeMoved(value); })) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "cannot be hoisted: operand(s) can't be hoisted\n");
     return false;
+  }
 
-  // If the operation allocates memory in the loop it cannot be hoisted.
-  OperationMemoryEffects memoryEffects(op);
-  if (memoryEffects.allocatesMemory())
+  // If the operation has not side effects it can be hoisted.
+  if (isMemoryEffectFree(&op)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "can be hoisted: operation has no side effects\n");
+    return true;
+  }
+
+  // Operations with unknown side effects cannot be hoisted.
+  if (!isa<MemoryEffectOpInterface>(op) &&
+      !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "cannot be hoisted: unknown side effects\n");
     return false;
+  }
 
-  // This lambda function determines whether the given operation has memory
-  // effects that 'conflict' with other operations in the same loop.
+  // Do not hoist operations that allocate memory.
+  const OperationMemoryEffects memoryEffects(op);
+  if (memoryEffects.allocatesMemory()) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "cannot be hoisted: operation allocates memory\n");
+    return false;
+  }
+
+  // Determine whether the given operation has memory effects that 'conflict'
+  // with other operations in the same loop.
   std::function<bool(Operation &, LoopLikeOpInterface)> hasConflictsInLoop =
       [&](Operation &op, LoopLikeOpInterface loop) {
         // Check for conflicts with other previous operations in the same block.
         for (Operation *it = op.getPrevNode();
              it != nullptr && !willBeMoved.count(it); it = it->getPrevNode()) {
-          if (memoryEffects.conflictsWith(op))
+          if (memoryEffects.conflictsWith(*it)) {
+            LLVM_DEBUG(llvm::dbgs().indent(2)
+                       << "conflicting operation: " << *it << "\n");
             return true;
+          }
         }
 
         // Check for conflicts with the parent operation.
@@ -206,10 +229,15 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
         return conflict;
       };
 
+  // If the operation has side effects, check whether other operation in the
+  // loop prevent hosting it.
   if ((memoryEffects.readsFromMemory() || memoryEffects.writesToMemory() ||
        memoryEffects.freesMemory()) &&
-      hasConflictsInLoop(op, loop))
+      hasConflictsInLoop(op, loop)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "cannot be hoisted: found conflicting operation\n");
     return false;
+  }
 
   // Recurse into the regions for this op and check whether the contained ops
   // can be hoisted. We can inductively assume that this op will have its block
@@ -226,154 +254,142 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     }
   }
 
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "can be hoisted: no conflicts found\n");
+
   return true;
 }
 
-void moveParallelLoopInvariantCode(scf::ParallelOp loopLike) {
-  Region &loopBody = loopLike.getLoopBody();
-
-  // We use two collections here as we need to preserve the order for insertion
-  // and this is easiest.
-  SmallPtrSet<Operation *, 8> willBeMovedSet;
-  SmallVector<Operation *, 8> opsToMove;
-
+// Populate \p opsToMove with operations that can be hoisted out of the given
+// loop \p loop.
+template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                          T, scf::ParallelOp, AffineParallelOp>::value>>
+static void collectHoistableOperation(T loop,
+                                      SmallVectorImpl<Operation *> &opsToMove) {
   // Do not use walk here, as we do not want to go into nested regions and hoist
   // operations from there. These regions might have semantics unknown to this
   // rewriting. If the nested regions are loops, they will have been processed.
-  for (Block &block : loopBody) {
+  SmallPtrSet<Operation *, 8> willBeMoved;
+  for (Block &block : loop.getLoopBody()) {
     for (Operation &op : block.without_terminator()) {
-      if (!canBeHoisted(op, loopLike, willBeMovedSet))
+      if (!canBeHoisted(op, loop, willBeMoved))
         continue;
-
-      //      opsToMove.push_back(&op);
-      willBeMovedSet.insert(&op);
+      opsToMove.push_back(&op);
+      willBeMoved.insert(&op);
     }
   }
-
-  // Move all operations we found to be invariant outside of the loop.
-  if (!opsToMove.empty()) {
-    OpBuilder b(loopLike);
-    Value cond = nullptr;
-    for (auto pair : llvm::zip(loopLike.getLowerBound(),
-                               loopLike.getUpperBound(), loopLike.getStep())) {
-      auto val = b.create<arith::CmpIOp>(
-          loopLike.getLoc(), arith::CmpIPredicate::sle,
-          b.create<arith::AddIOp>(loopLike.getLoc(), std::get<0>(pair),
-                                  std::get<2>(pair)),
-          std::get<1>(pair));
-      if (cond == nullptr)
-        cond = val;
-      else
-        cond = b.create<arith::AndIOp>(loopLike.getLoc(), cond, val);
-    }
-
-    auto ifOp = b.create<scf::IfOp>(loopLike.getLoc(), TypeRange(), cond);
-    loopLike->moveBefore(ifOp.thenYield());
-
-    for (auto *op : opsToMove)
-      loopLike.moveOutOfLoop(op);
-  }
-
-  LLVM_DEBUG(loopLike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
-// TODO affine parallel licm
-void moveParallelLoopInvariantCode(AffineParallelOp loopLike) {
-  auto &loopBody = loopLike.getLoopBody();
-
-  // We use two collections here as we need to preserve the order for insertion
-  // and this is easiest.
-  SmallPtrSet<Operation *, 8> willBeMoved;
+void moveParallelLoopInvariantCode(scf::ParallelOp loop) {
   SmallVector<Operation *, 8> opsToMove;
+  collectHoistableOperation(loop, opsToMove);
+  if (opsToMove.empty())
+    return;
 
-  // Do not use walk here, as we do not want to go into nested regions and hoist
-  // operations from there. These regions might have semantics unknown to this
-  // rewriting. If the nested regions are loops, they will have been processed.
-  for (auto &block : loopBody) {
-    for (auto &op : block.without_terminator()) {
-      if (canBeHoisted(op, loopLike, willBeMoved)) {
-        opsToMove.push_back(&op);
-        willBeMoved.insert(&op);
+  // Move all operations we found to be invariant outside of the loop.
+  OpBuilder b(loop);
+  Value cond = nullptr;
+  for (auto pair :
+       llvm::zip(loop.getLowerBound(), loop.getUpperBound(), loop.getStep())) {
+    auto val = b.create<arith::CmpIOp>(
+        loop.getLoc(), arith::CmpIPredicate::sle,
+        b.create<arith::AddIOp>(loop.getLoc(), std::get<0>(pair),
+                                std::get<2>(pair)),
+        std::get<1>(pair));
+    cond =
+        cond ? (Value)b.create<arith::AndIOp>(loop.getLoc(), cond, val) : val;
+  }
+
+  auto ifOp = b.create<scf::IfOp>(loop.getLoc(), TypeRange(), cond);
+  loop->moveBefore(ifOp.thenYield());
+
+  for (Operation *op : opsToMove)
+    loop.moveOutOfLoop(op);
+
+  LLVM_DEBUG({
+    loop.print(llvm::dbgs() << "\nModified loop:\n");
+    llvm::dbgs() << "\n----------------\n";
+  });
+}
+
+void moveParallelLoopInvariantCode(AffineParallelOp loop) {
+  SmallVector<Operation *, 8> opsToMove;
+  collectHoistableOperation(loop, opsToMove);
+  if (opsToMove.empty())
+    return;
+
+  // Move all operations we found to be invariant outside of the loop.
+  OpBuilder b(loop);
+
+  // TODO properly fill exprs and eqflags
+  SmallVector<AffineExpr, 2> exprs;
+  SmallVector<bool, 2> eqflags;
+
+  for (auto step : llvm::enumerate(loop.getSteps())) {
+    for (AffineExpr ub : loop.getUpperBoundMap(step.index()).getResults()) {
+      SmallVector<AffineExpr, 4> symbols;
+      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols();
+           ++idx)
+        symbols.push_back(getAffineSymbolExpr(
+            idx + loop.getLowerBoundsMap().getNumSymbols(), loop.getContext()));
+
+      SmallVector<AffineExpr, 4> dims;
+      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
+        dims.push_back(getAffineDimExpr(
+            idx + loop.getLowerBoundsMap().getNumDims(), loop.getContext()));
+
+      ub = ub.replaceDimsAndSymbols(dims, symbols);
+
+      for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
+        // Bound is whether this expr >= 0, which since we want ub > lb, we
+        // rewrite as follows.
+        exprs.push_back(ub - lb - step.value());
+        eqflags.push_back(false);
       }
     }
   }
 
-  // For all instructions that we found to be invariant, move outside of the
-  // loop.
-  if (opsToMove.size()) {
-    OpBuilder b(loopLike);
+  SmallVector<Value> values;
+  OperandRange lb_ops = loop.getLowerBoundsOperands();
+  OperandRange ub_ops = loop.getUpperBoundsOperands();
+  for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumDims(); ++idx)
+    values.push_back(lb_ops[idx]);
+  for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
+    values.push_back(ub_ops[idx]);
+  for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumSymbols(); ++idx)
+    values.push_back(lb_ops[idx + loop.getLowerBoundsMap().getNumDims()]);
+  for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols(); ++idx)
+    values.push_back(ub_ops[idx + loop.getUpperBoundsMap().getNumDims()]);
 
-    // TODO properly fill exprs and eqflags
-    SmallVector<AffineExpr, 2> exprs;
-    SmallVector<bool, 2> eqflags;
+  auto iset = IntegerSet::get(
+      /*dim*/ loop.getLowerBoundsMap().getNumDims() +
+          loop.getUpperBoundsMap().getNumDims(),
+      /*symbols*/ loop.getLowerBoundsMap().getNumSymbols() +
+          loop.getUpperBoundsMap().getNumSymbols(),
+      exprs, eqflags);
+  auto ifOp = b.create<AffineIfOp>(loop.getLoc(), TypeRange(), iset, values,
+                                   /*else*/ false);
+  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
 
-    for (auto step : llvm::enumerate(loopLike.getSteps())) {
-      for (auto ub : loopLike.getUpperBoundMap(step.index()).getResults()) {
-        SmallVector<AffineExpr, 4> symbols;
-        for (unsigned idx = 0;
-             idx < loopLike.getUpperBoundsMap().getNumSymbols(); ++idx)
-          symbols.push_back(getAffineSymbolExpr(
-              idx + loopLike.getLowerBoundsMap().getNumSymbols(),
-              loopLike.getContext()));
+  for (Operation *op : opsToMove)
+    loop.moveOutOfLoop(op);
 
-        SmallVector<AffineExpr, 4> dims;
-        for (unsigned idx = 0; idx < loopLike.getUpperBoundsMap().getNumDims();
-             ++idx)
-          dims.push_back(
-              getAffineDimExpr(idx + loopLike.getLowerBoundsMap().getNumDims(),
-                               loopLike.getContext()));
-
-        ub = ub.replaceDimsAndSymbols(dims, symbols);
-
-        for (auto lb : loopLike.getLowerBoundMap(step.index()).getResults()) {
-
-          // Bound is whether this expr >= 0, which since we want ub > lb, we
-          // rewrite as follows.
-          exprs.push_back(ub - lb - step.value());
-          eqflags.push_back(false);
-        }
-      }
-    }
-
-    SmallVector<Value> values;
-    auto lb_ops = loopLike.getLowerBoundsOperands();
-    auto ub_ops = loopLike.getUpperBoundsOperands();
-    for (unsigned idx = 0; idx < loopLike.getLowerBoundsMap().getNumDims();
-         ++idx)
-      values.push_back(lb_ops[idx]);
-    for (unsigned idx = 0; idx < loopLike.getUpperBoundsMap().getNumDims();
-         ++idx)
-      values.push_back(ub_ops[idx]);
-    for (unsigned idx = 0; idx < loopLike.getLowerBoundsMap().getNumSymbols();
-         ++idx)
-      values.push_back(lb_ops[idx + loopLike.getLowerBoundsMap().getNumDims()]);
-    for (unsigned idx = 0; idx < loopLike.getUpperBoundsMap().getNumSymbols();
-         ++idx)
-      values.push_back(ub_ops[idx + loopLike.getUpperBoundsMap().getNumDims()]);
-
-    auto iset = IntegerSet::get(
-        /*dim*/ loopLike.getLowerBoundsMap().getNumDims() +
-            loopLike.getUpperBoundsMap().getNumDims(),
-        /*symbols*/ loopLike.getLowerBoundsMap().getNumSymbols() +
-            loopLike.getUpperBoundsMap().getNumSymbols(),
-        exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(loopLike.getLoc(), TypeRange(), iset,
-                                     values, /*else*/ false);
-    loopLike->moveBefore(ifOp.getThenBlock()->getTerminator());
-  }
-  for (auto *op : opsToMove)
-    loopLike.moveOutOfLoop(op);
-  LLVM_DEBUG(loopLike.print(llvm::dbgs() << "\n\nModified loop:\n"));
+  LLVM_DEBUG(loop.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
 void ParallelLICM::runOnOperation() {
-  getOperation()->walk([&](LoopLikeOpInterface loopLike) {
-    LLVM_DEBUG(loopLike.print(llvm::dbgs() << "\nOriginal loop:\n"));
-    moveLoopInvariantCode(loopLike);
-    if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike))
-      moveParallelLoopInvariantCode(par);
-    else if (auto par = dyn_cast<AffineParallelOp>((Operation *)loopLike))
-      moveParallelLoopInvariantCode(par);
+  getOperation()->walk([&](LoopLikeOpInterface loop) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "----------------\n";
+      loop.print(llvm::dbgs() << "Original loop:\n");
+      llvm::dbgs() << "\n";
+    });
+
+    if (auto parLoop = dyn_cast<scf::ParallelOp>((Operation *)loop))
+      moveParallelLoopInvariantCode(parLoop);
+    else if (auto parLoop = dyn_cast<AffineParallelOp>((Operation *)loop))
+      moveParallelLoopInvariantCode(parLoop);
+    else
+      moveLoopInvariantCode(loop);
   });
 }
 
