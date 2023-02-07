@@ -255,7 +255,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
-    shutdown();
+    //shutdown();
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
