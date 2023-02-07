@@ -8,8 +8,9 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "CompileTimePropertiesPass.h"
-#include "DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -264,6 +265,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
                                               HostAccessDecorValue, VarName));
+    }
+
+    if (sycl::utils::isHostPipeVariable(GV)) {
+      auto VarName = getGlobalVariableUniqueId(GV);
+      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              VarName));
     }
 
     // Add the generated metadata to the variable

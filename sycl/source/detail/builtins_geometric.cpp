@@ -16,26 +16,36 @@
 
 namespace s = sycl;
 namespace d = s::detail;
+namespace cl = s::opencl;
 
 namespace __host_std {
 
-__SYCL_EXPORT s::cl_float sycl_host_Dot(s::vec<float, 1>, s::vec<float, 1>);
-__SYCL_EXPORT s::cl_float sycl_host_Dot(s::cl_float2, s::cl_float2);
-__SYCL_EXPORT s::cl_float sycl_host_Dot(s::cl_float3, s::cl_float3);
-__SYCL_EXPORT s::cl_float sycl_host_Dot(s::cl_float4, s::cl_float4);
-__SYCL_EXPORT s::cl_double sycl_host_Dot(s::vec<double, 1>, s::vec<double, 1>);
-__SYCL_EXPORT s::cl_double sycl_host_Dot(s::cl_double2, s::cl_double2);
-__SYCL_EXPORT s::cl_double sycl_host_Dot(s::cl_double3, s::cl_double3);
-__SYCL_EXPORT s::cl_double sycl_host_Dot(s::cl_double4, s::cl_double4);
-__SYCL_EXPORT s::cl_half sycl_host_Dot(s::vec<s::half, 1>, s::vec<s::half, 1>);
-__SYCL_EXPORT s::cl_half sycl_host_Dot(s::cl_half2, s::cl_half2);
-__SYCL_EXPORT s::cl_half sycl_host_Dot(s::cl_half3, s::cl_half3);
-__SYCL_EXPORT s::cl_half sycl_host_Dot(s::cl_half4, s::cl_half4);
+__SYCL_EXPORT cl::cl_float sycl_host_Dot(s::vec<float, 1>, s::vec<float, 1>);
+__SYCL_EXPORT cl::cl_float sycl_host_Dot(s::vec<cl::cl_float, 2>,
+                                         s::vec<cl::cl_float, 2>);
+__SYCL_EXPORT cl::cl_float sycl_host_Dot(s::vec<cl::cl_float, 3>,
+                                         s::vec<cl::cl_float, 3>);
+__SYCL_EXPORT cl::cl_float sycl_host_Dot(s::vec<cl::cl_float, 4>,
+                                         s::vec<cl::cl_float, 4>);
+__SYCL_EXPORT cl::cl_double sycl_host_Dot(s::vec<double, 1>, s::vec<double, 1>);
+__SYCL_EXPORT cl::cl_double sycl_host_Dot(s::vec<cl::cl_double, 2>,
+                                          s::vec<cl::cl_double, 2>);
+__SYCL_EXPORT cl::cl_double sycl_host_Dot(s::vec<cl::cl_double, 3>,
+                                          s::vec<cl::cl_double, 3>);
+__SYCL_EXPORT cl::cl_double sycl_host_Dot(s::vec<cl::cl_double, 4>,
+                                          s::vec<cl::cl_double, 4>);
+__SYCL_EXPORT cl::cl_half sycl_host_Dot(s::vec<s::half, 1>, s::vec<s::half, 1>);
+__SYCL_EXPORT cl::cl_half sycl_host_Dot(s::vec<cl::cl_half, 2>,
+                                        s::vec<cl::cl_half, 2>);
+__SYCL_EXPORT cl::cl_half sycl_host_Dot(s::vec<cl::cl_half, 3>,
+                                        s::vec<cl::cl_half, 3>);
+__SYCL_EXPORT cl::cl_half sycl_host_Dot(s::vec<cl::cl_half, 4>,
+                                        s::vec<cl::cl_half, 4>);
 
-__SYCL_EXPORT s::cl_int sycl_host_All(s::vec<int, 1>);
-__SYCL_EXPORT s::cl_int sycl_host_All(s::cl_int2);
-__SYCL_EXPORT s::cl_int sycl_host_All(s::cl_int3);
-__SYCL_EXPORT s::cl_int sycl_host_All(s::cl_int4);
+__SYCL_EXPORT cl::cl_int sycl_host_All(s::vec<int, 1>);
+__SYCL_EXPORT cl::cl_int sycl_host_All(s::vec<cl::cl_int, 2>);
+__SYCL_EXPORT cl::cl_int sycl_host_All(s::vec<cl::cl_int, 3>);
+__SYCL_EXPORT cl::cl_int sycl_host_All(s::vec<cl::cl_int, 4>);
 
 namespace {
 
@@ -110,39 +120,43 @@ __fast_normalize(T t) {
 
 // --------------- 4.13.6 Geometric functions. Host implementations ------------
 // cross
-__SYCL_EXPORT s::cl_float3 sycl_host_cross(s::cl_float3 p0,
-                                           s::cl_float3 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_float, 3>
+sycl_host_cross(s::vec<cl::cl_float, 3> p0,
+                s::vec<cl::cl_float, 3> p1) __NOEXC {
   return __cross(p0, p1);
 }
-__SYCL_EXPORT s::cl_float4 sycl_host_cross(s::cl_float4 p0,
-                                           s::cl_float4 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_float, 4>
+sycl_host_cross(s::vec<cl::cl_float, 4> p0,
+                s::vec<cl::cl_float, 4> p1) __NOEXC {
   return __cross(p0, p1);
 }
-__SYCL_EXPORT s::cl_double3 sycl_host_cross(s::cl_double3 p0,
-                                            s::cl_double3 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_double, 3>
+sycl_host_cross(s::vec<cl::cl_double, 3> p0,
+                s::vec<cl::cl_double, 3> p1) __NOEXC {
   return __cross(p0, p1);
 }
-__SYCL_EXPORT s::cl_double4 sycl_host_cross(s::cl_double4 p0,
-                                            s::cl_double4 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_double, 4>
+sycl_host_cross(s::vec<cl::cl_double, 4> p0,
+                s::vec<cl::cl_double, 4> p1) __NOEXC {
   return __cross(p0, p1);
 }
-__SYCL_EXPORT s::cl_half3 sycl_host_cross(s::cl_half3 p0,
-                                          s::cl_half3 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_half, 3>
+sycl_host_cross(s::vec<cl::cl_half, 3> p0, s::vec<cl::cl_half, 3> p1) __NOEXC {
   return __cross(p0, p1);
 }
-__SYCL_EXPORT s::cl_half4 sycl_host_cross(s::cl_half4 p0,
-                                          s::cl_half4 p1) __NOEXC {
+__SYCL_EXPORT s::vec<cl::cl_half, 4>
+sycl_host_cross(s::vec<cl::cl_half, 4> p0, s::vec<cl::cl_half, 4> p1) __NOEXC {
   return __cross(p0, p1);
 }
 
 // FMul
-__SYCL_EXPORT s::cl_float sycl_host_FMul(s::cl_float p0, s::cl_float p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_FMul(cl::cl_float p0, cl::cl_float p1) {
   return __FMul(p0, p1);
 }
-__SYCL_EXPORT s::cl_double sycl_host_FMul(s::cl_double p0, s::cl_double p1) {
+__SYCL_EXPORT cl::cl_double sycl_host_FMul(cl::cl_double p0, cl::cl_double p1) {
   return __FMul(p0, p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_FMul(s::cl_half p0, s::cl_half p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_FMul(cl::cl_half p0, cl::cl_half p1) {
   return __FMul(p0, p1);
 }
 
@@ -155,198 +169,225 @@ MAKE_GEO_1V_2V_RS(sycl_host_Dot, __FMul_impl, s::cl_half, s::cl_half,
                   s::cl_half)
 
 // length
-__SYCL_EXPORT s::cl_float sycl_host_length(s::cl_float p) {
+__SYCL_EXPORT cl::cl_float sycl_host_length(cl::cl_float p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_length(s::cl_double p) {
+__SYCL_EXPORT cl::cl_double sycl_host_length(cl::cl_double p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_half sycl_host_length(s::cl_half p) { return __length(p); }
-__SYCL_EXPORT s::cl_float sycl_host_length(s::vec<float, 1> p) {
+__SYCL_EXPORT cl::cl_half sycl_host_length(cl::cl_half p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_length(s::cl_float2 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_length(s::vec<float, 1> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_length(s::cl_float3 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_length(s::vec<cl::cl_float, 2> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_length(s::cl_float4 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_length(s::vec<cl::cl_float, 3> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_length(s::vec<double, 1> p) {
+__SYCL_EXPORT cl::cl_float sycl_host_length(s::vec<cl::cl_float, 4> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_length(s::cl_double2 p) {
+__SYCL_EXPORT cl::cl_double sycl_host_length(s::vec<double, 1> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_length(s::cl_double3 p) {
+__SYCL_EXPORT cl::cl_double sycl_host_length(s::vec<cl::cl_double, 2> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_length(s::cl_double4 p) {
+__SYCL_EXPORT cl::cl_double sycl_host_length(s::vec<cl::cl_double, 3> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_half sycl_host_length(s::vec<s::half, 1> p) {
+__SYCL_EXPORT cl::cl_double sycl_host_length(s::vec<cl::cl_double, 4> p) {
   return __length(p);
 }
-__SYCL_EXPORT s::cl_half sycl_host_length(s::cl_half2 p) { return __length(p); }
-__SYCL_EXPORT s::cl_half sycl_host_length(s::cl_half3 p) { return __length(p); }
-__SYCL_EXPORT s::cl_half sycl_host_length(s::cl_half4 p) { return __length(p); }
+__SYCL_EXPORT cl::cl_half sycl_host_length(s::vec<s::half, 1> p) {
+  return __length(p);
+}
+__SYCL_EXPORT cl::cl_half sycl_host_length(s::vec<cl::cl_half, 2> p) {
+  return __length(p);
+}
+__SYCL_EXPORT cl::cl_half sycl_host_length(s::vec<cl::cl_half, 3> p) {
+  return __length(p);
+}
+__SYCL_EXPORT cl::cl_half sycl_host_length(s::vec<cl::cl_half, 4> p) {
+  return __length(p);
+}
 
 // distance
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::cl_float p0, s::cl_float p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(cl::cl_float p0,
+                                              cl::cl_float p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::vec<float, 1> p0,
-                                             s::vec<float, 1> p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<float, 1> p0,
+                                              s::vec<float, 1> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::cl_float2 p0, s::cl_float2 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<cl::cl_float, 2> p0,
+                                              s::vec<cl::cl_float, 2> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::cl_float3 p0, s::cl_float3 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<cl::cl_float, 3> p0,
+                                              s::vec<cl::cl_float, 3> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::cl_float4 p0, s::cl_float4 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<cl::cl_float, 4> p0,
+                                              s::vec<cl::cl_float, 4> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_double sycl_host_distance(s::cl_double p0,
-                                              s::cl_double p1) {
+__SYCL_EXPORT cl::cl_double sycl_host_distance(cl::cl_double p0,
+                                               cl::cl_double p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::vec<double, 1> p0,
-                                             s::vec<double, 1> p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<double, 1> p0,
+                                              s::vec<double, 1> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_double sycl_host_distance(s::cl_double2 p0,
-                                              s::cl_double2 p1) {
+__SYCL_EXPORT cl::cl_double sycl_host_distance(s::vec<cl::cl_double, 2> p0,
+                                               s::vec<cl::cl_double, 2> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_double sycl_host_distance(s::cl_double3 p0,
-                                              s::cl_double3 p1) {
+__SYCL_EXPORT cl::cl_double sycl_host_distance(s::vec<cl::cl_double, 3> p0,
+                                               s::vec<cl::cl_double, 3> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_double sycl_host_distance(s::cl_double4 p0,
-                                              s::cl_double4 p1) {
+__SYCL_EXPORT cl::cl_double sycl_host_distance(s::vec<cl::cl_double, 4> p0,
+                                               s::vec<cl::cl_double, 4> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_half sycl_host_distance(s::cl_half p0, s::cl_half p1) {
+__SYCL_EXPORT cl::cl_half sycl_host_distance(cl::cl_half p0, cl::cl_half p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_distance(s::vec<s::half, 1> p0,
-                                             s::vec<s::half, 1> p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_distance(s::vec<s::half, 1> p0,
+                                              s::vec<s::half, 1> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_half sycl_host_distance(s::cl_half2 p0, s::cl_half2 p1) {
+__SYCL_EXPORT cl::cl_half sycl_host_distance(s::vec<cl::cl_half, 2> p0,
+                                             s::vec<cl::cl_half, 2> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_half sycl_host_distance(s::cl_half3 p0, s::cl_half3 p1) {
+__SYCL_EXPORT cl::cl_half sycl_host_distance(s::vec<cl::cl_half, 3> p0,
+                                             s::vec<cl::cl_half, 3> p1) {
   return sycl_host_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_half sycl_host_distance(s::cl_half4 p0, s::cl_half4 p1) {
+__SYCL_EXPORT cl::cl_half sycl_host_distance(s::vec<cl::cl_half, 4> p0,
+                                             s::vec<cl::cl_half, 4> p1) {
   return sycl_host_length(p0 - p1);
 }
 
 // normalize
-__SYCL_EXPORT s::cl_float sycl_host_normalize(s::cl_float p) {
+__SYCL_EXPORT cl::cl_float sycl_host_normalize(cl::cl_float p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_normalize(s::vec<float, 1> p) {
+__SYCL_EXPORT cl::cl_float sycl_host_normalize(s::vec<float, 1> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_float2 sycl_host_normalize(s::cl_float2 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 2>
+sycl_host_normalize(s::vec<cl::cl_float, 2> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_float3 sycl_host_normalize(s::cl_float3 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 3>
+sycl_host_normalize(s::vec<cl::cl_float, 3> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_float4 sycl_host_normalize(s::cl_float4 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 4>
+sycl_host_normalize(s::vec<cl::cl_float, 4> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_normalize(s::cl_double p) {
+__SYCL_EXPORT cl::cl_double sycl_host_normalize(cl::cl_double p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_double sycl_host_normalize(s::vec<double, 1> p) {
+__SYCL_EXPORT cl::cl_double sycl_host_normalize(s::vec<double, 1> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_double2 sycl_host_normalize(s::cl_double2 p) {
+__SYCL_EXPORT s::vec<cl::cl_double, 2>
+sycl_host_normalize(s::vec<cl::cl_double, 2> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_double3 sycl_host_normalize(s::cl_double3 p) {
+__SYCL_EXPORT s::vec<cl::cl_double, 3>
+sycl_host_normalize(s::vec<cl::cl_double, 3> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_double4 sycl_host_normalize(s::cl_double4 p) {
+__SYCL_EXPORT s::vec<cl::cl_double, 4>
+sycl_host_normalize(s::vec<cl::cl_double, 4> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_half sycl_host_normalize(s::cl_half p) {
+__SYCL_EXPORT cl::cl_half sycl_host_normalize(cl::cl_half p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_half2 sycl_host_normalize(s::cl_half2 p) {
+__SYCL_EXPORT s::vec<cl::cl_half, 2>
+sycl_host_normalize(s::vec<cl::cl_half, 2> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_half3 sycl_host_normalize(s::cl_half3 p) {
+__SYCL_EXPORT s::vec<cl::cl_half, 3>
+sycl_host_normalize(s::vec<cl::cl_half, 3> p) {
   return __normalize(p);
 }
-__SYCL_EXPORT s::cl_half4 sycl_host_normalize(s::cl_half4 p) {
+__SYCL_EXPORT s::vec<cl::cl_half, 4>
+sycl_host_normalize(s::vec<cl::cl_half, 4> p) {
   return __normalize(p);
 }
 
 // fast_length
-__SYCL_EXPORT s::cl_float sycl_host_fast_length(s::cl_float p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_length(cl::cl_float p) {
   return __fast_length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_length(s::vec<float, 1> p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_length(s::vec<float, 1> p) {
   return __fast_length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_length(s::cl_float2 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_length(s::vec<cl::cl_float, 2> p) {
   return __fast_length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_length(s::cl_float3 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_length(s::vec<cl::cl_float, 3> p) {
   return __fast_length(p);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_length(s::cl_float4 p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_length(s::vec<cl::cl_float, 4> p) {
   return __fast_length(p);
 }
 
 // fast_normalize
-__SYCL_EXPORT s::cl_float sycl_host_fast_normalize(s::cl_float p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_normalize(cl::cl_float p) {
   if (p == 0.0f)
     return p;
-  s::cl_float r = std::sqrt(sycl_host_FMul(p, p));
+  cl::cl_float r = std::sqrt(sycl_host_FMul(p, p));
   return p / r;
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_normalize(s::vec<float, 1> p) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_normalize(s::vec<float, 1> p) {
   return __fast_normalize(p);
 }
-__SYCL_EXPORT s::cl_float2 sycl_host_fast_normalize(s::cl_float2 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 2>
+sycl_host_fast_normalize(s::vec<cl::cl_float, 2> p) {
   return __fast_normalize(p);
 }
-__SYCL_EXPORT s::cl_float3 sycl_host_fast_normalize(s::cl_float3 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 3>
+sycl_host_fast_normalize(s::vec<cl::cl_float, 3> p) {
   return __fast_normalize(p);
 }
-__SYCL_EXPORT s::cl_float4 sycl_host_fast_normalize(s::cl_float4 p) {
+__SYCL_EXPORT s::vec<cl::cl_float, 4>
+sycl_host_fast_normalize(s::vec<cl::cl_float, 4> p) {
   return __fast_normalize(p);
 }
 
 // fast_distance
-__SYCL_EXPORT s::cl_float sycl_host_fast_distance(s::cl_float p0,
-                                                  s::cl_float p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_distance(cl::cl_float p0,
+                                                   cl::cl_float p1) {
   return sycl_host_fast_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_distance(s::vec<float, 1> p0,
-                                                  s::vec<float, 1> p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_distance(s::vec<float, 1> p0,
+                                                   s::vec<float, 1> p1) {
   return sycl_host_fast_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_distance(s::cl_float2 p0,
-                                                  s::cl_float2 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_distance(s::vec<cl::cl_float, 2> p0,
+                                                   s::vec<cl::cl_float, 2> p1) {
   return sycl_host_fast_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_distance(s::cl_float3 p0,
-                                                  s::cl_float3 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_distance(s::vec<cl::cl_float, 3> p0,
+                                                   s::vec<cl::cl_float, 3> p1) {
   return sycl_host_fast_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float sycl_host_fast_distance(s::cl_float4 p0,
-                                                  s::cl_float4 p1) {
+__SYCL_EXPORT cl::cl_float sycl_host_fast_distance(s::vec<cl::cl_float, 4> p0,
+                                                   s::vec<cl::cl_float, 4> p1) {
   return sycl_host_fast_length(p0 - p1);
 }
 
