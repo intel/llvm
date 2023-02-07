@@ -17,8 +17,10 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
@@ -962,6 +964,277 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// ItemGetIDPattern - Converts `sycl.item.get_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+Value getItemID(OpBuilder &builder, Location loc, Value item, Type ty) {
+  assert(ty.isa<IDType>() && "Expecting ID type output");
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 1}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value getItemID(OpBuilder &builder, Location loc, Value item, Value index) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 1, 0, 0, index}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+/// Converts SYCLItemGetIDOp with an id return type to LLVM
+class ItemGetIDPattern : public ConvertOpToLLVMPattern<SYCLItemGetIDOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+
+  void rewrite(SYCLItemGetIDOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, getItemID(rewriter, op.getLoc(), opAdaptor.getItem(),
+                                     op.getType()));
+  }
+};
+
+/// Converts SYCLItemGetIDOp with an index return type to LLVM
+class ItemGetIDDimPattern : public ConvertOpToLLVMPattern<SYCLItemGetIDOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+
+  void rewrite(SYCLItemGetIDOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, getItemID(rewriter, op.getLoc(), opAdaptor.getItem(),
+                                     opAdaptor.getIndex()));
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ItemGetRangePattern - Converts `sycl.item.get_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+Value getItemRange(OpBuilder &builder, Location loc, Value item, Type ty) {
+  assert(ty.isa<RangeType>() && "Expecting range type output");
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value getItemRange(OpBuilder &builder, Location loc, Value item, Value index) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0, 0, 0, index}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+/// Converts SYCLItemGetRangeOp with an range return type to LLVM
+class ItemGetRangePattern : public ConvertOpToLLVMPattern<SYCLItemGetRangeOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetRangeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+
+  void rewrite(SYCLItemGetRangeOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, getItemRange(rewriter, op.getLoc(),
+                                        opAdaptor.getItem(), op.getType()));
+  }
+};
+
+/// Converts SYCLItemGetIDOp with an index return type to LLVM
+class ItemGetRangeDimPattern
+    : public ConvertOpToLLVMPattern<SYCLItemGetRangeOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetRangeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+
+  void rewrite(SYCLItemGetRangeOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op,
+                       getItemRange(rewriter, op.getLoc(), opAdaptor.getItem(),
+                                    opAdaptor.getIndex()));
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ItemGetLinearIDPattern - Converts `sycl.item.get_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+Value getItemID(OpBuilder &builder, Location loc, Value item, int32_t dim) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 1, 0, 0, dim}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value getItemRange(OpBuilder &builder, Location loc, Value item, int32_t dim) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0, 0, 0, dim}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value getItemOffset(OpBuilder &builder, Location loc, Value item, int32_t dim) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      item.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), item,
+      ArrayRef<LLVM::GEPArg>{0, 0, 2, 0, 0, dim}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+/// Converts SYCLItemGetLinearIDOp with no offset item to LLVM
+class ItemNoOffsetGetLinearIDPattern
+    : public ConvertOpToLLVMPattern<SYCLItemGetLinearIDOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetLinearIDOp op) const final {
+    return success(!op.getItem()
+                        .getType()
+                        .getElementType()
+                        .cast<ItemType>()
+                        .getWithOffset());
+  }
+
+  void rewrite(SYCLItemGetLinearIDOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto newValue = [loc = op.getLoc(), item = opAdaptor.getItem(),
+                           dimension = getDimensions(op.getItem().getType()),
+                           &builder = rewriter]() -> Value {
+      switch (dimension) {
+      case 1:
+        // get_id(0)
+        return getItemID(builder, loc, item, 0);
+      case 2: {
+        // get_id(0) * get_range(1) + get_id(1)
+        const auto id0 = getItemID(builder, loc, item, 0);
+        const auto r1 = getItemRange(builder, loc, item, 1);
+        const auto prod =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, id0, r1));
+        const auto id1 = getItemID(builder, loc, item, 1);
+        return builder.create<LLVM::AddOp>(loc, prod, id1);
+      }
+      case 3: {
+        // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
+        // get_id(2)
+        const auto id0 = getItemID(builder, loc, item, 0);
+        const auto r1 = getItemRange(builder, loc, item, 1);
+        const auto prod0 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, id0, r1));
+        const auto r2 = getItemRange(builder, loc, item, 2);
+        const auto prod1 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, prod0, r2));
+        const auto id1 = getItemID(builder, loc, item, 1);
+        const auto prod2 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, id1, r2));
+        const auto add =
+            static_cast<Value>(builder.create<LLVM::AddOp>(loc, prod1, prod2));
+        const auto id2 = getItemID(builder, loc, item, 2);
+        return builder.create<LLVM::AddOp>(loc, add, id2);
+      }
+      default:
+        llvm_unreachable("Invalid number of dimensions");
+      }
+    }();
+    rewriter.replaceOp(op, newValue);
+  }
+};
+
+/// Converts SYCLItemGetLinearIDOp with no offset item to LLVM
+class ItemOffsetGetLinearIDPattern
+    : public ConvertOpToLLVMPattern<SYCLItemGetLinearIDOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLItemGetLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLItemGetLinearIDOp op) const final {
+    return success(op.getItem()
+                       .getType()
+                       .getElementType()
+                       .cast<ItemType>()
+                       .getWithOffset());
+  }
+
+  void rewrite(SYCLItemGetLinearIDOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto newValue = [loc = op.getLoc(), item = opAdaptor.getItem(),
+                           dimension = getDimensions(op.getItem().getType()),
+                           &builder = rewriter]() -> Value {
+      const auto getDim = [loc, item, &builder](int32_t dim) -> Value {
+        const auto id = getItemID(builder, loc, item, dim);
+        const auto off = getItemOffset(builder, loc, item, dim);
+        return builder.create<LLVM::SubOp>(loc, id, off);
+      };
+      switch (dimension) {
+      case 1:
+        // get_id(0) - get_offset(0)
+        return getDim(0);
+      case 2: {
+        // (get_id(0) - get_offset(0)) * get_range(1) + (get_id(1) -
+        // get_offset(1))
+        const auto diff0 = getDim(0);
+        const auto r1 = getItemRange(builder, loc, item, 1);
+        const auto prod =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, diff0, r1));
+        const auto diff1 = getDim(1);
+        return builder.create<LLVM::AddOp>(loc, prod, diff1);
+      }
+      case 3: {
+        // (get_id(0) - get_offset(0)) * get_range(1) * get_range(2) +
+        // (get_id(1) - get_offset(1)) * get_range(2) + (get_id(2) -
+        // get_offset(2))
+        const auto diff0 = getDim(0);
+        const auto r1 = getItemRange(builder, loc, item, 1);
+        const auto prod0 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, diff0, r1));
+        const auto r2 = getItemRange(builder, loc, item, 2);
+        const auto prod1 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, prod0, r2));
+        const auto diff1 = getDim(1);
+        const auto prod2 =
+            static_cast<Value>(builder.create<LLVM::MulOp>(loc, diff1, r2));
+        const auto add =
+            static_cast<Value>(builder.create<LLVM::AddOp>(loc, prod1, prod2));
+        const auto diff2 = getDim(2);
+        return builder.create<LLVM::AddOp>(loc, add, diff2);
+      }
+      default:
+        llvm_unreachable("Invalid number of dimensions");
+      }
+    }();
+    rewriter.replaceOp(op, newValue);
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -1076,9 +1349,11 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<ConstructorPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns.add<AtomicSubscriptIDOffset, AtomicSubscriptScalarOffset,
-                 NDRangeGetGlobalRangePattern, NDRangeGetGroupRangePattern,
-                 NDRangeGetLocalRangePattern, RangeGetPattern,
-                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
-                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
-        typeConverter);
+                 ItemGetIDDimPattern, ItemGetIDPattern, ItemGetRangeDimPattern,
+                 ItemGetRangePattern, ItemNoOffsetGetLinearIDPattern,
+                 ItemOffsetGetLinearIDPattern, NDRangeGetGlobalRangePattern,
+                 NDRangeGetGroupRangePattern, NDRangeGetLocalRangePattern,
+                 RangeGetPattern, RangeGetRefPattern, RangeSizePattern,
+                 SubscriptIDOffset, SubscriptScalarOffset1D,
+                 SubscriptScalarOffsetND>(typeConverter);
 }
