@@ -320,6 +320,14 @@ public:
         ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };
+
+template <typename T, class BinaryOperation, int Dims> class reducer_common {
+public:
+  using value_type = T;
+  using binary_operation = BinaryOperation;
+  static constexpr int dimensions = Dims;
+};
+
 } // namespace detail
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -336,7 +344,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -371,7 +380,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -398,7 +408,8 @@ class reducer<T, BinaryOperation, Dims, Extent, View,
               std::enable_if_t<Dims == 0 && View == true>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && View == true>>> {
+                  std::enable_if_t<Dims == 0 && View == true>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
 
@@ -423,7 +434,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -453,7 +465,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
