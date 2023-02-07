@@ -349,8 +349,8 @@ void moveParallelLoopInvariantCode(AffineParallelOp loop) {
   }
 
   SmallVector<Value> values;
-  OperandRange lb_ops = loop.getLowerBoundsOperands();
-  OperandRange ub_ops = loop.getUpperBoundsOperands();
+  OperandRange lb_ops = loop.getLowerBoundsOperands(),
+               ub_ops = loop.getUpperBoundsOperands();
   for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumDims(); ++idx)
     values.push_back(lb_ops[idx]);
   for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
