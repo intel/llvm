@@ -629,6 +629,65 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class RangeGetPattern : public ConvertOpToLLVMPattern<SYCLRangeGetOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLRangeGetOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLRangeGetOp op) const final {
+    return success(op.getType().isa<IntegerType>());
+  }
+
+  void rewrite(SYCLRangeGetOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto range = opAdaptor.getRange();
+    auto *typeConverter = getTypeConverter();
+    const auto alignment = op.getRange().getType().getDimension() * 8;
+    const auto alloca = static_cast<Value>(rewriter.create<LLVM::AllocaOp>(
+        loc,
+        LLVM::LLVMPointerType::get(typeConverter->convertType(range.getType())),
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1),
+        alignment));
+    rewriter.create<LLVM::StoreOp>(loc, range, alloca);
+    const auto ref = static_cast<Value>(rewriter.create<LLVM::GEPOp>(
+        loc,
+        LLVM::LLVMPointerType::get(typeConverter->convertType(op.getType())),
+        alloca, ArrayRef<LLVM::GEPArg>{0, 0, 0, opAdaptor.getIndex()},
+        /*inbounds*/ true));
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, ref, alignment);
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// SYCLRangeSizePattern - Convert `sycl.range.size` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class RangeSizePattern : public ConvertOpToLLVMPattern<SYCLRangeSizeOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLRangeSizeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLRangeSizeOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    auto size = static_cast<Value>(
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1));
+    const auto range = opAdaptor.getRange();
+    for (unsigned i = 0, dim = op.getRange().getType().getDimension(); i < dim;
+         ++i) {
+      const auto val = static_cast<Value>(rewriter.create<LLVM::ExtractValueOp>(
+          loc, range, ArrayRef<int64_t>{0, 0, i}));
+      size = rewriter.create<LLVM::MulOp>(loc, size, val);
+    }
+    rewriter.replaceOp(op, size);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -742,6 +801,8 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv)
-    patterns.add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
-                 NDRangeGetGroupRangePattern>(typeConverter);
+    patterns
+        .add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
+             NDRangeGetGroupRangePattern, RangeGetPattern, RangeSizePattern>(
+            typeConverter);
 }
