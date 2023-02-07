@@ -371,6 +371,13 @@ public:
     NeedToEmitDeviceGlobalRegistration = true;
   }
 
+  /// Signals that emission of __sycl_host_pipe_registration type and
+  /// declaration of variable __sycl_host_pipe_registrar of this type in
+  /// integration header is required.
+  void addHostPipeRegistration() {
+    NeedToEmitHostPipeRegistration = true;
+  }
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -454,6 +461,10 @@ private:
   /// Keeps track of whether declaration of __sycl_device_global_registration
   /// type and __sycl_device_global_registrar variable are required to emit.
   bool NeedToEmitDeviceGlobalRegistration = false;
+
+  /// Keeps track of whether declaration of __sycl_host_pipe_registration
+  /// type and __sycl_host_pipe_registrar variable are required to emit.
+  bool NeedToEmitHostPipeRegistration = false;
 };
 
 class SYCLIntegrationFooter {
