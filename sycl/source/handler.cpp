@@ -94,6 +94,10 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
+  // to a command without being bound to a command group, an exception should
+  // be thrown. There should be as many requirements as unique accessors,
+  // otherwise some of the accessors are unbound, and thus we throw.
   {
     // A counter is not good enough since we can have the same accessor several
     // times as arg
