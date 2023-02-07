@@ -253,16 +253,11 @@ defined below.
 
 === `task_sequence` Scoping
 
-To allow compilers targeting spatial compute architectures to efficiently reuse
-hardware, `task_sequence` objects must not have their lifetime extended beyond
-the scope in which they are declared, and it is undefined behavior if lifetime
-is otherwise extended. Both move and copy constructors for `task_sequence` are
-therefore deleted. Additionally, `task_sequence` objects should retire all
-outstanding `async` invocations before exiting scope - this is performed by the
-`task_sequence` destructor unless the `balanced` property was specified in which
-case it is the programmer's responsibility to ensure that `get` has been called
-for all invocations launched using `async`, before the lifetime of the
-`task_sequence` object ends.
+`task_sequence` objects should retire all outstanding `async` invocations before
+exiting scope - this is performed by the `task_sequence` destructor unless the
+`balanced` property was specified in which case it is the programmer's
+responsibility to ensure that `get` has been called for all invocations launched
+using `async`, before the lifetime of the `task_sequence` object ends.
 
 In this example implementation below, a count of outstanding `async` invocations
 is kept by incrementing a private counter upon each `async` call, and
