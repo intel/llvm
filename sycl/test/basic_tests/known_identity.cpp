@@ -419,7 +419,7 @@ int main() {
   checkCommonKnownIdentity<cl_double>();
 
   checkCommonKnownIdentity<half>();
-  checkCommonKnownIdentity<sycl::cl_half>();
+  checkCommonKnownIdentity<sycl::opencl::cl_half>();
 
   checkBoolKnownIdentity<bool>();
 
