@@ -184,9 +184,7 @@ that each `f` be statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
 enable the generation of more efficient hardware. Furthermore, the partial
 specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)`
-ensures that the return type `ReturnT` of `f` and the argument types
-`typename ... ArgsT` of `f` are resolvable and fixed for each definition of
-`task_sequence`. 
+helps make it easier to write the class member functions (eg: `get()`).
 
 The `task_sequence` interface consists of two member functions, `async` and
 `get`. The `async` function asynchronously invokes `f`, and stores the return
