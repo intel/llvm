@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceLibReqMask.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/IR/Module.h"
 
 #include <string>
