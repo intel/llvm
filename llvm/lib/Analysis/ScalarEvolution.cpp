@@ -1624,6 +1624,29 @@ static APInt extractConstantWithoutWrapping(ScalarEvolution &SE,
   return APInt(BitWidth, 0);
 }
 
+static void insertFoldCacheEntry(
+    const ScalarEvolution::FoldID &ID, const SCEV *S,
+    DenseMap<ScalarEvolution::FoldID, const SCEV *> &FoldCache,
+    DenseMap<const SCEV *, SmallVector<ScalarEvolution::FoldID, 2>>
+        &FoldCacheUser) {
+  auto I = FoldCache.insert({ID, S});
+  if (!I.second) {
+    // Remove FoldCacheUser entry for ID when replacing an existing FoldCache
+    // entry.
+    auto &UserIDs = FoldCacheUser[I.first->second];
+    assert(count(UserIDs, ID) == 1 && "unexpected duplicates in UserIDs");
+    for (unsigned I = 0; I != UserIDs.size(); ++I)
+      if (UserIDs[I] == ID) {
+        std::swap(UserIDs[I], UserIDs.back());
+        break;
+      }
+    UserIDs.pop_back();
+    I.first->second = S;
+  }
+  auto R = FoldCacheUser.insert({S, {}});
+  R.first->second.push_back(ID);
+}
+
 const SCEV *
 ScalarEvolution::getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
   assert(getTypeSizeInBits(Op->getType()) < getTypeSizeInBits(Ty) &&
@@ -1642,11 +1665,8 @@ ScalarEvolution::getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
     return Iter->second;
 
   const SCEV *S = getZeroExtendExprImpl(Op, Ty, Depth);
-  if (!isa<SCEVZeroExtendExpr>(S)) {
-    FoldCache.insert({ID, S});
-    auto R = FoldCacheUser.insert({S, {}});
-    R.first->second.push_back(ID);
-  }
+  if (!isa<SCEVZeroExtendExpr>(S))
+    insertFoldCacheEntry(ID, S, FoldCache, FoldCacheUser);
   return S;
 }
 
@@ -1968,11 +1988,8 @@ ScalarEvolution::getSignExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
     return Iter->second;
 
   const SCEV *S = getSignExtendExprImpl(Op, Ty, Depth);
-  if (!isa<SCEVSignExtendExpr>(S)) {
-    FoldCache.insert({ID, S});
-    auto R = FoldCacheUser.insert({S, {}});
-    R.first->second.push_back(ID);
-  }
+  if (!isa<SCEVSignExtendExpr>(S))
+    insertFoldCacheEntry(ID, S, FoldCache, FoldCacheUser);
   return S;
 }
 
@@ -6310,14 +6327,6 @@ uint32_t ScalarEvolution::GetMinTrailingZerosImpl(const SCEV *S) {
                : OpRes;
   }
 
-  if (const SCEVAddExpr *A = dyn_cast<SCEVAddExpr>(S)) {
-    // The result is the min of all operands results.
-    uint32_t MinOpRes = GetMinTrailingZeros(A->getOperand(0));
-    for (unsigned i = 1, e = A->getNumOperands(); MinOpRes && i != e; ++i)
-      MinOpRes = std::min(MinOpRes, GetMinTrailingZeros(A->getOperand(i)));
-    return MinOpRes;
-  }
-
   if (const SCEVMulExpr *M = dyn_cast<SCEVMulExpr>(S)) {
     // The result is the sum of all operands results.
     uint32_t SumOpRes = GetMinTrailingZeros(M->getOperand(0));
@@ -6329,27 +6338,13 @@ uint32_t ScalarEvolution::GetMinTrailingZerosImpl(const SCEV *S) {
     return SumOpRes;
   }
 
-  if (const SCEVAddRecExpr *A = dyn_cast<SCEVAddRecExpr>(S)) {
+  if (isa<SCEVAddExpr>(S) || isa<SCEVAddRecExpr>(S) || isa<SCEVMinMaxExpr>(S) ||
+      isa<SCEVSequentialMinMaxExpr>(S)) {
     // The result is the min of all operands results.
-    uint32_t MinOpRes = GetMinTrailingZeros(A->getOperand(0));
-    for (unsigned i = 1, e = A->getNumOperands(); MinOpRes && i != e; ++i)
-      MinOpRes = std::min(MinOpRes, GetMinTrailingZeros(A->getOperand(i)));
-    return MinOpRes;
-  }
-
-  if (const SCEVSMaxExpr *M = dyn_cast<SCEVSMaxExpr>(S)) {
-    // The result is the min of all operands results.
+    const SCEVNAryExpr *M = cast<SCEVNAryExpr>(S);
     uint32_t MinOpRes = GetMinTrailingZeros(M->getOperand(0));
-    for (unsigned i = 1, e = M->getNumOperands(); MinOpRes && i != e; ++i)
-      MinOpRes = std::min(MinOpRes, GetMinTrailingZeros(M->getOperand(i)));
-    return MinOpRes;
-  }
-
-  if (const SCEVUMaxExpr *M = dyn_cast<SCEVUMaxExpr>(S)) {
-    // The result is the min of all operands results.
-    uint32_t MinOpRes = GetMinTrailingZeros(M->getOperand(0));
-    for (unsigned i = 1, e = M->getNumOperands(); MinOpRes && i != e; ++i)
-      MinOpRes = std::min(MinOpRes, GetMinTrailingZeros(M->getOperand(i)));
+    for (unsigned I = 1, E = M->getNumOperands(); MinOpRes && I != E; ++I)
+      MinOpRes = std::min(MinOpRes, GetMinTrailingZeros(M->getOperand(I)));
     return MinOpRes;
   }
 
@@ -15004,7 +14999,7 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
       const SCEV *URemRHS = nullptr;
       if (matchURem(LHS, URemLHS, URemRHS)) {
         if (const SCEVUnknown *LHSUnknown = dyn_cast<SCEVUnknown>(URemLHS)) {
-          auto Multiple = getMulExpr(getUDivExpr(URemLHS, URemRHS), URemRHS);
+          const auto *Multiple = getMulExpr(getUDivExpr(URemLHS, URemRHS), URemRHS);
           RewriteMap[LHSUnknown] = Multiple;
           ExprsToRewrite.push_back(LHSUnknown);
           return;
@@ -15081,24 +15076,34 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
     }
   };
 
+  BasicBlock *Header = L->getHeader();
   SmallVector<PointerIntPair<Value *, 1, bool>> Terms;
   // First, collect information from assumptions dominating the loop.
   for (auto &AssumeVH : AC.assumptions()) {
     if (!AssumeVH)
       continue;
     auto *AssumeI = cast<CallInst>(AssumeVH);
-    if (!DT.dominates(AssumeI, L->getHeader()))
+    if (!DT.dominates(AssumeI, Header))
       continue;
     Terms.emplace_back(AssumeI->getOperand(0), true);
   }
 
-  // Second, collect conditions from dominating branches. Starting at the loop
+  // Second, collect information from llvm.experimental.guards dominating the loop.
+  auto *GuardDecl = F.getParent()->getFunction(
+      Intrinsic::getName(Intrinsic::experimental_guard));
+  if (GuardDecl)
+    for (const auto *GU : GuardDecl->users())
+      if (const auto *Guard = dyn_cast<IntrinsicInst>(GU))
+        if (Guard->getFunction() == Header->getParent() && DT.dominates(Guard, Header))
+          Terms.emplace_back(Guard->getArgOperand(0), true);
+
+  // Third, collect conditions from dominating branches. Starting at the loop
   // predecessor, climb up the predecessor chain, as long as there are
   // predecessors that can be found that have unique successors leading to the
   // original header.
   // TODO: share this logic with isLoopEntryGuardedByCond.
   for (std::pair<const BasicBlock *, const BasicBlock *> Pair(
-           L->getLoopPredecessor(), L->getHeader());
+           L->getLoopPredecessor(), Header);
        Pair.first; Pair = getPredecessorWithUniqueSuccessorForBB(Pair.first)) {
 
     const BranchInst *LoopEntryPredicate =

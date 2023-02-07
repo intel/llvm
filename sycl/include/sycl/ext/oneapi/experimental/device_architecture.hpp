@@ -67,6 +67,7 @@ enum class architecture {
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
   amd_gpu_gfx1032,
+  amd_gpu_gfx1034,
   // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -88,7 +89,7 @@ enum class architecture {
 namespace detail {
 
 static constexpr ext::oneapi::experimental::architecture max_architecture =
-    ext::oneapi::experimental::architecture::amd_gpu_gfx1032;
+    ext::oneapi::experimental::architecture::amd_gpu_gfx1034;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -264,6 +265,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
 #define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1034__
+#define __SYCL_TARGET_AMD_GPU_GFX1034__ 0
+#endif
 
 // This is true when the translation unit is compiled in AOT mode with target
 // names that supports the "if_architecture_is" features.  If an unsupported
@@ -328,7 +332,8 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1013__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1);
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of
@@ -451,6 +456,8 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
         __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1034)] =
+        __SYCL_TARGET_AMD_GPU_GFX1034__ == 1;
   }
 };
 

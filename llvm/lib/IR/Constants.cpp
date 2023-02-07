@@ -1415,11 +1415,11 @@ Constant *ConstantVector::getSplat(ElementCount EC, Constant *V) {
   else if (isa<UndefValue>(V))
     return UndefValue::get(VTy);
 
-  Type *I32Ty = Type::getInt32Ty(VTy->getContext());
+  Type *IdxTy = Type::getInt64Ty(VTy->getContext());
 
   // Move scalar into vector.
   Constant *PoisonV = PoisonValue::get(VTy);
-  V = ConstantExpr::getInsertElement(PoisonV, V, ConstantInt::get(I32Ty, 0));
+  V = ConstantExpr::getInsertElement(PoisonV, V, ConstantInt::get(IdxTy, 0));
   // Build shuffle mask to perform the splat.
   SmallVector<int, 8> Zeros(EC.getKnownMinValue(), 0);
   // Splat.
@@ -2995,7 +2995,7 @@ Constant *ConstantDataArray::getString(LLVMContext &Context,
                                        StringRef Str, bool AddNull) {
   if (!AddNull) {
     const uint8_t *Data = Str.bytes_begin();
-    return get(Context, makeArrayRef(Data, Str.size()));
+    return get(Context, ArrayRef(Data, Str.size()));
   }
 
   SmallVector<uint8_t, 64> ElementVals;

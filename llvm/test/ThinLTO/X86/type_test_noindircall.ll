@@ -6,7 +6,7 @@
 
 ; RUN: opt -opaque-pointers -thinlto-bc -o %t.o %s
 
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t2
@@ -14,7 +14,7 @@
 
 ; Try again without LTO unit splitting.
 ; RUN: opt -opaque-pointers -thinlto-bc -thinlto-split-lto-unit=false -o %t3.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t4

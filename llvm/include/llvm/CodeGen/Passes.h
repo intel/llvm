@@ -450,6 +450,10 @@ namespace llvm {
   /// evaluation.
   ModulePass *createPreISelIntrinsicLoweringPass();
 
+  /// This pass lowers the \@llvm.fpbuiltin.{operation} intrinsics to
+  /// matching library function calls based on call site attributes.
+  FunctionPass *createFPBuiltinFnSelectionPass();
+
   /// GlobalMerge - This pass merges internal (by default) globals into structs
   /// to enable reuse of a base pointer by indexed addressing modes.
   /// It can also be configured to focus on size optimizations only.
@@ -535,7 +539,7 @@ namespace llvm {
   FunctionPass *createPseudoProbeInserter();
 
   /// Create IR Type Promotion pass. \see TypePromotion.cpp
-  FunctionPass *createTypePromotionPass();
+  FunctionPass *createTypePromotionLegacyPass();
 
   /// Add Flow Sensitive Discriminators. PassNum specifies the
   /// sequence number of this pass (starting from 1).
