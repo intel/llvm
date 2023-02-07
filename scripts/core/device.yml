@@ -272,7 +272,9 @@ etors:
     - name: ATOMIC_64
       desc: "bool: support 64 bit atomics"
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
-      desc: "uint32_t: atomics memory order capabilities"
+      desc: "$x_memory_order_capability_flags_t: return a bit-field of atomic memory order capabilities"
+    - name: ATOMIC_MEMORY_SCOPE_CAPABILITIES
+      desc: "$x_memory_scope_capability_flags_t: return a bit-field of atomic memory scope capabilities"
     - name: BFLOAT16
       desc: "bool: support for bfloat16"
     - name: MAX_COMPUTE_QUEUE_INDICES
@@ -597,3 +599,45 @@ params:
       desc: |
             [out][optional] pointer to the Host's global timestamp that 
             correlates with the Device's global timestamp value
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory order capabilities"
+class: $xDevice
+name: $x_memory_order_capability_flags_t
+etors:
+    - name: RELAXED
+      desc: "Relaxed memory ordering"
+      value: "$X_BIT(0)"
+    - name: ACQUIRE
+      desc: "Acquire memory ordering"
+      value: "$X_BIT(1)"
+    - name: RELEASE
+      desc: "Release memory ordering"
+      value: "$X_BIT(2)"
+    - name: ACQ_REL
+      desc: "Acquire/release memory ordering"
+      value: "$X_BIT(3)"
+    - name: SEQ_CST
+      desc: "Sequentially consistent memory ordering"
+      value: "$X_BIT(4)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory scope capabilities"
+class: $xDevice
+name: $x_memory_scope_capability_flags_t
+etors:
+    - name: WORK_ITEM
+      desc: "Work item scope"
+      value: "$X_BIT(0)"
+    - name: SUB_GROUP
+      desc: "Sub group scope"
+      value: "$X_BIT(1)"
+    - name: WORK_GROUP
+      desc: "Work group scope"
+      value: "$X_BIT(2)"
+    - name: DEVICE
+      desc: "Device scope"
+      value: "$X_BIT(3)"
+    - name: SYSTEM
+      desc: "System scope"
+      value: "$X_BIT(4)"
