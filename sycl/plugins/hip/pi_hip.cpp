@@ -1868,26 +1868,23 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int value = 0;
     sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&value, hipDeviceAttributePciDeviceId,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     sycl::detail::pi::assertion(value >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
   case PI_DEVICE_INFO_UUID: {
-    int driver_version = 0;
-    hipDriverGetVersion(&driver_version);
-    int major = driver_version / 1000;
-    int minor = driver_version % 1000 / 10;
+#if ((HIP_VERSION_MAJOR == 5 && HIP_VERSION_MINOR >= 2) ||                     \
+     HIP_VERSION_MAJOR > 5)
     hipUUID uuid = {};
     // Supported since 5.2+
-    if ((major > 5) || (major == 5 && minor >= 2)) {
-      sycl::detail::pi::assertion(hipDeviceGetUuid(&uuid, device->get()) ==
-                                  hipSuccess);
-      std::array<unsigned char, 16> name;
-      std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
-      return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
-			  name.data());
-    }
+    sycl::detail::pi::assertion(hipDeviceGetUuid(&uuid, device->get()) ==
+                                hipSuccess);
+    std::array<unsigned char, 16> name;
+    std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
+    return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
+                        name.data());
+#endif
     return PI_ERROR_INVALID_VALUE;
   }
 
