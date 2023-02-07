@@ -56,7 +56,6 @@ class half;
   __SYCL_MAKE_VECTOR_ALIAS(cl_double, sycl::cl_double, N)                      \
   __SYCL_MAKE_VECTOR_ALIAS(cl_half, sycl::cl_half, N)
 
-
 // FIXME: schar, longlong and ulonglong aliases are not defined by SYCL 2020
 //        spec, but they are preserved in SYCL 2020 mode, because SYCL-CTS is
 //        still using them.

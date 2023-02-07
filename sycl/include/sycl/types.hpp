@@ -564,8 +564,7 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      typename detail::VecStorage<DataT, NumElements>::DataType;
+  using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -2105,23 +2104,22 @@ template <typename T, int N, typename V> struct VecStorage {
 };
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-template<typename T, int N>
-struct VecStorageImpl {
+template <typename T, int N> struct VecStorageImpl {
   using DataType = T __attribute__((ext_vector_type(N)));
 };
 #else
-template<typename T, int N> struct VecStorageImpl;
+template <typename T, int N> struct VecStorageImpl;
 
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = ::cl_##cl_type##num;                                      \
   };
 
-#define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type) \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2) \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 3) \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 4) \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 8) \
+#define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
+  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2)                              \
+  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 3)                              \
+  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 4)                              \
+  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 8)                              \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 16)
 
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::int8_t, char)
