@@ -298,17 +298,12 @@ has not been called.
 
 == `task_sequence` Properties
 
-The following code and table describe the "balanced", "invocation_capacity", and
-"response_capacity" properties that can be provided when declaring a
-`task_sequence`.
+The following code and table describe the properties that can be provided when
+declaring a `task_sequence` object.
 
 [source,c++,linenums]
 ----
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-
+namespace sycl::ext::intel::experimental {
 struct balanced_key {
   using value_t = property_value<balanced_key>;
 };
@@ -371,17 +366,14 @@ that the `task_sequence` object will call exactly the same number of `async` s
 and `get` s over the object's lifetime (i.e. before the `task_sequence`
 destructor is invoked). 
 
-| invocation_capacity | The `invocation_capacity` property defines the minimum
-required number `Size` of `async` invocations that must be invokable without any
-`get` being called on that same set.  This number of `async` invocations without
-a `get` call is the minimum number that will be supported before the `async`
-member function blocks.
+| invocation_capacity | Given an invocation capacity of `N`, the user is
+guaranteed that at least `N` invocations of `async()` will be allowed without
+calling `get()` before the `async()` call starts to block. The `N+1th` call may
+block until at least one more `get()` is called.
 
-| response_capacity | The `response_capacity` property defines the maximum
-number `Size` of outstanding `async` invocations such that all outstanding
-invocations are guaranteed to make forward progress. Further `async` invocations
-beyond `Size` may block until enough `get` calls are invoked such that the
-number of outstanding `async` invocations is reduced to `Size`.
+| response_capacity | Given a response capacity of `N`, the user is guaranteed
+that up to `N` outstanding calls can make progress. However, if there are more
+than `N`, the `N+1th` call may block until at least one more `get()` is called.
 |===
 --
 
