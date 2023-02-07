@@ -129,6 +129,7 @@ public:
     case Type::Index:
       return (idx == o.idx) ? Match::Exact : Match::None;
     }
+    llvm_unreachable("Invalid Offset kind");
   }
   bool operator<(const Offset o) const {
     if (type != o.type) {
@@ -155,6 +156,7 @@ public:
       case Offset::Type::Index:
         return idx < o.idx;
       }
+      llvm_unreachable("Invalid Offset kind");
     }
   }
 };
@@ -168,6 +170,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Offset off) {
   case Offset::Type::Index:
     return o << off.idx;
   }
+  llvm_unreachable("Invalid Offset kind");
 }
 
 namespace {

@@ -27,6 +27,7 @@ llvm::StringRef mlir::sycl::memoryAccessModeAsString(
   case MemoryAccessMode::Atomic:
     return "atomic";
   }
+  llvm_unreachable("Invalid MemoryAccessMode");
 }
 
 mlir::LogicalResult mlir::sycl::parseMemoryAccessMode(
@@ -80,6 +81,7 @@ llvm::StringRef mlir::sycl::memoryTargetModeAsString(
   case MemoryTargetMode::ImageArray:
     return "image_array";
   }
+  llvm_unreachable("Invalid MemoryTargetMode");
 }
 
 mlir::LogicalResult mlir::sycl::parseMemoryTargetMode(

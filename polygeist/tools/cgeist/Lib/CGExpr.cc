@@ -290,27 +290,31 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
         } else {
           auto PT = ToInit.getType().cast<LLVM::LLVMPointerType>();
           auto ET = PT.getElementType();
-          Next = TypeSwitch<mlir::Type, mlir::Value>(ET)
-                     .Case<LLVM::LLVMStructType>([=](auto ST) {
-                       return Builder.create<LLVM::GEPOp>(
-                           Loc,
-                           LLVM::LLVMPointerType::get(ST.getBody()[I],
-                                                      PT.getAddressSpace()),
-                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, I});
-                     })
-                     .Case<LLVM::LLVMArrayType>([=](auto AT) {
-                       return Builder.create<LLVM::GEPOp>(
-                           Loc,
-                           LLVM::LLVMPointerType::get(AT.getElementType(),
-                                                      PT.getAddressSpace()),
-                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, I});
-                     })
-                     .Case<IntegerType>([=](auto IT) {
-                       return Builder.create<LLVM::GEPOp>(
-                           Loc,
-                           LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
-                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{I});
-                     });
+          const auto GEPIndex = static_cast<int32_t>(I);
+          Next =
+              TypeSwitch<mlir::Type, mlir::Value>(ET)
+                  .Case<LLVM::LLVMStructType>([=](auto ST) {
+                    return Builder.create<LLVM::GEPOp>(
+                        Loc,
+                        LLVM::LLVMPointerType::get(ST.getBody()[I],
+                                                   PT.getAddressSpace()),
+                        ToInit,
+                        llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex});
+                  })
+                  .Case<LLVM::LLVMArrayType>([=](auto AT) {
+                    return Builder.create<LLVM::GEPOp>(
+                        Loc,
+                        LLVM::LLVMPointerType::get(AT.getElementType(),
+                                                   PT.getAddressSpace()),
+                        ToInit,
+                        llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex});
+                  })
+                  .Case<IntegerType>([=](auto IT) {
+                    return Builder.create<LLVM::GEPOp>(
+                        Loc,
+                        LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
+                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex});
+                  });
         }
 
         auto Sub =

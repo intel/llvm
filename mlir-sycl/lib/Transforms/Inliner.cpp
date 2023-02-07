@@ -748,6 +748,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
     case sycl::InlineMode::AlwaysInline:
       return isa<sycl::SYCLCallOp>(Call);
     }
+    llvm_unreachable("Invalid InlineMode");
   };
 
   SrcNode.getCallableRegion()->walk([&](Operation *Op) {
@@ -803,6 +804,7 @@ unsigned InlinePass::getMaxIterationCount() const {
   case sycl::InlineMode::AlwaysInline:
     return 2;
   }
+  llvm_unreachable("Invalid InlineMode");
 }
 
 LogicalResult InlinePass::runOnCG(Inliner &Inliner, CGUseList &UseList,
