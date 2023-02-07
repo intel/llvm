@@ -29,6 +29,11 @@ namespace ext::oneapi {
 #define BITS_TYPE uint32_t
 #endif
 
+// defining `group_ballot` here to make predicate default `true`
+template <typename Group>
+detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value, sub_group_mask>
+group_ballot(Group g, bool predicate = true);
+
 struct sub_group_mask {
   friend class detail::Builder;
   using BitsType = BITS_TYPE;
@@ -267,7 +272,7 @@ private:
 template <typename Group>
 detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
                     sub_group_mask>
-group_ballot(Group g, bool predicate = true) {
+group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
