@@ -416,64 +416,6 @@ http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
 with respect to their caller. That is, a `task_sequence`'s tasks are guaranteed
 to make forward progress with respect to their caller (that invoked `async`).
 
-== `task_sequence` Example Implementation 
-
-In this section, we document a possible implementation of `task_sequence` that
-defines underlying intrinsic functions for constructor, destructor, `async`, and
-`get` calls, as well as a functional implementation of the destructor.
-
-[source,c++,linenums]
-----
-template<auto &f, class propertiesT =
-  decltype(oneapi::experimental::properties{})>
-class task_sequence {};
-
-template<typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
-  class propertiesT>
-class task_sequence<f, propertiesT> {
-
-    unsigned outstanding = 0;
-    size_t id;
-
-public:
-    task_sequence(const task_sequence&) =delete;
-    task_sequence& operator=(const task_sequence&) =delete;
-    task_sequence(task_sequence&&) =delete;
-    task_sequence& operator=(task_sequence&&) =delete;
-    task_sequence() {
-      id = __create_task_sequence(this, &f);
-    }
-    task_sequence(const propertiesT &) {
-      task_sequence();
-    }
-    void async(ArgsT... args) {
-      ++outstanding;
-      constexpr auto capacity = propertiesT::get_property<
-        invocation_capacity>().invocation_capacity_v;
-      __async(this, &f, id, capacity, args...);
-    }
-    ReturnT get() {
-      --outstanding;
-      constexpr auto capacity = propertiesT::get_property<
-        response_capacity>().response_capacity_v;
-      return __get(this, id, &f, capacity);
-    }
-    template <typename propertyT>
-    static constexpr bool has_property() {
-      return propertiesT::has_property<propertyT>();
-    }
-    template <typename propertyT>
-    static constexpr auto get_property() {
-      return propertiesT::get_property<propertyT>();
-    }
-
-    ~task_sequence() {
-      for (unsigned i = 0; i < outstanding; ++i) __get(this, &f);
-      __release_task_sequence(this);
-    }
-};
-----
-
 == Revision History
 
 [cols="5,15,15,70"]
@@ -487,7 +429,8 @@ public:
 Added this to all intrinsics.
 |C|2022-06-23|Robert Ho|Added compatibility statement with FPGA Kernel Interface
 Properties
-|D|2023-01-25|Abhishek Tiwari|Format corrections
+|D|2023-01-25|Abhishek Tiwari|Format corrections, add examples, add properties
+type traits.
 |========================================
 
 //************************************************************************
