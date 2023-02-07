@@ -428,9 +428,7 @@ public:
     return *this;
   }
 
-  T identity() const {
-    return getIdentity();
-  }
+  T identity() const { return getIdentity(); }
 
 private:
   template <typename ReducerT> friend class detail::ReducerAccess;
@@ -525,9 +523,7 @@ public:
     return {MValue[Index], BinaryOperation()};
   }
 
-  T identity() const {
-    return getIdentity();
-  }
+  T identity() const { return getIdentity(); }
 
 private:
   template <typename ReducerT> friend class detail::ReducerAccess;
