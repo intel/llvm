@@ -110,29 +110,23 @@ using namespace sycl::ext::intel::experimental;
 {
   sycl::queue q{...};
 
-  constexpr count = ...;
-  std::vector<float> in(count), out(2);
+  constexpr kCount = ...;
+  std::vector<float> in(kCount);
+  float* out = ...;
   ...
 
-  sycl::buffer in_buf(in);
-  sycl::buffer out_buf(out);
-
-  q.submit([&](sycl::handler& h) {
-    sycl::accessor in_acc(in_buf, h, sycl::read_only);
-    sycl::accessor out_acc(out_buf, h, sycl::write_only);
-    h.single_task<ParallelTask>([=]() {
-      task_sequence<vectorSum> firstQuarter;
-      task_sequence<vectorSum> secondQuarter;
-      task_sequence<vectorSum> thirdQuarter;
-      task_sequence<vectorSum> fourthQuarter;
-      int quarterCount = count/4;
-      firstQuarter.async(in_acc.get_pointer(), 0, quarterCount);
-      secondQuarter.async(in_acc.get_pointer(), quarterCount, quarterCount);
-      thirdQuarter.async(in_acc.get_pointer(), 2*quarterCount, quarterCount);
-      fourthQuarter.async(in_acc.get_pointer(), 3*quarterCount, quarterCount);
-      out_acc[1] = firstQuarter.get() + secondQuarter.get() +
-        thirdQuarter.get() + fourthQuarter.get();
-    });
+  q.single_task([=] {
+    task_sequence<vectorSum> firstQuarter;
+    task_sequence<vectorSum> secondQuarter;
+    task_sequence<vectorSum> thirdQuarter;
+    task_sequence<vectorSum> fourthQuarter;
+    int quarterCount = kCount/4;
+    firstQuarter.async(in.data(), 0, quarterCount);
+    secondQuarter.async(in.data(), quarterCount, quarterCount);
+    thirdQuarter.async(in.data(), 2*quarterCount, quarterCount);
+    fourthQuarter.async(in.data(), 3*quarterCount, quarterCount);
+    *out = firstQuarter.get() + secondQuarter.get() +
+      thirdQuarter.get() + fourthQuarter.get();
   }).wait();
   ...
 }
