@@ -744,10 +744,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     if (ExposeCSliceInAffinityPartitioning) {
       if (PartitionedByCSlice)
         return ReturnHelper(
-            (zer_device_partition_property_flag_t)
-                ZER_EXT_DEVICE_PARTITION_BY_CSLICE,
-            (zer_device_partition_property_flag_t)
-                ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
+            ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
+            ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
 
       else
         return ReturnHelper(
@@ -755,10 +753,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     } else {
       return ReturnHelper(
           PartitionedByCSlice
-              ? (zer_device_partition_property_flag_t)
-                    ZER_EXT_DEVICE_PARTITION_BY_CSLICE
-              : (zer_device_partition_property_flag_t)
-                    ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
+              ? ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE
+              : ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
     }
     break;
   }
@@ -1600,7 +1596,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDevicePartition(
              ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
          Properties->value != ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA))
       return ZER_RESULT_INVALID_VALUE;
-  } else if (Properties->property == ZER_EXT_DEVICE_PARTITION_BY_CSLICE) {
+  } else if (Properties->property ==
+             ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
     if (Properties->value != 0)
       return ZER_RESULT_INVALID_VALUE;
   } else {
@@ -1630,7 +1627,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDevicePartition(
       if (Device->isSubDevice())
         return 0;
     }
-    if (Properties->property == ZER_EXT_DEVICE_PARTITION_BY_CSLICE) {
+    if (Properties->property ==
+        ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
       // Not a CSlice-based partitioning.
       if (!Device->SubDevices[0]->isCCS())
         return 0;

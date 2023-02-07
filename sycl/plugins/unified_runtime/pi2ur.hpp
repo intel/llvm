@@ -70,6 +70,8 @@ public:
   // Convert the value using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convert(const std::unordered_map<TypeUR, TypePI> &Map) {
+    *param_value_size_ret = sizeof(TypePI);
+
     // There is no value to convert.
     if (!param_value)
       return PI_SUCCESS;
@@ -86,40 +88,51 @@ public:
     }
 
     *pValuePI = It->second;
-    *param_value_size_ret = sizeof(TypePI);
     return PI_SUCCESS;
   }
 
   // Convert the array (0-terminated) using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convertArray(const std::unordered_map<TypeUR, TypePI> &Map) {
-    // There is no value to convert.
+    // Cannot convert to a smaller element storage type
+    PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+    *param_value_size_ret *= sizeof(TypePI) / sizeof(TypeUR);
+
+    // There is no value to convert. Adjust to a possibly bigger PI storage.
     if (!param_value)
       return PI_SUCCESS;
 
-    // Save the original value as we are going to change it while iterating
-    // over elements.
-    auto param_value_orig = param_value;
+    PI_ASSERT(*param_value_size_ret % sizeof(TypePI) == 0, PI_ERROR_UNKNOWN);
 
-    // Cannot convert to a smaller element storage type
-    PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+    // Make a copy of the input UR array as we may possibly overwrite following
+    // elements while converting previous ones (if extending).
+    auto ValueUR = new char[*param_value_size_ret];
+    auto pValueUR = reinterpret_cast<TypeUR *>(ValueUR);
+    auto pValuePI = static_cast<TypePI *>(param_value);
+    memcpy(pValueUR, param_value, *param_value_size_ret);
 
     size_t Count = 0;
-    while (param_value) {
+    while (pValueUR) {
       ++Count;
-
-      auto pValueUR = static_cast<TypeUR *>(param_value);
-      if (*pValueUR == 0)
+      if (*pValueUR == 0) {
+        *pValuePI = 0;
         break;
+      }
+      printf("[%d]: %d\n", Count, *pValueUR);
 
-      if (auto Res = convert(Map))
-        return Res;
-
-      param_value = ++pValueUR; // advance to next element
+      auto It = Map.find(*pValueUR);
+      if (It == Map.end()) {
+        die("ConvertHelper: unhandled value");
+      }
+      *pValuePI = It->second;
+      ++pValuePI;
+      ++pValueUR;
     }
 
-    param_value = param_value_orig;
-    *param_value_size_ret = sizeof(TypePI) * Count;
+    printf("convertArray[%d]: %d -> %d, param_value_size_ret=%d\n", Count,
+           sizeof(TypeUR), sizeof(TypePI), *param_value_size_ret);
+
+    delete[] ValueUR;
     return PI_SUCCESS;
   }
 
@@ -196,14 +209,27 @@ inline pi_result ur2piInfoValue(zer_device_info_t ParamName,
              PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE},
         };
     return Value.convertBitSet(Map);
+  } else if (ParamName == ZER_DEVICE_INFO_PARTITION_TYPE) {
+    static std::unordered_map<zer_device_partition_property_flag_t,
+                              pi_device_partition_property>
+        Map = {
+            {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
+             PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
+            {ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
+             PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
+            {(zer_device_partition_property_flag_t)
+                 ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
+             (pi_device_partition_property)
+                 PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE},
+        };
+    return Value.convertArray(Map);
   } else if (ParamName == ZER_DEVICE_INFO_PARTITION_PROPERTIES) {
     static std::unordered_map<zer_device_partition_property_flag_t,
                               pi_device_partition_property>
         Map = {
             {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
-            {(zer_device_partition_property_flag_t)
-                 ZER_EXT_DEVICE_PARTITION_BY_CSLICE,
+            {ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
     return Value.convertArray(Map);
