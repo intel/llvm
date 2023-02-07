@@ -79,9 +79,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
     if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
       continue;
 
-    std::vector<device> found_devices(plt.get_devices(deviceType));
-    if (!found_devices.empty())
-      devices.insert(devices.end(), found_devices.begin(), found_devices.end());
     if (includeHost && plt.is_host()) {
       std::vector<device> host_device(
           plt.get_devices(info::device_type::host));
