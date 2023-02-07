@@ -98,14 +98,12 @@ NOTE: In this document, we use `task_sequence` to indicate the proposed
 Here's an example that shows how to define and call two task sequences.
 
 ```c++
-int vectorSum(float *v, size_t s, size_t sz) {
-  int result = 0;
-  for (size_t i = s; i < s+sz; i++)
-    result += v[i];
-  return result;
-}
-
 using namespace sycl::ext::intel::experimental;
+
+// Return the sum of elements in 'v', from index 's' to 's+sz'
+int vectorSum(float *v, size_t s, size_t sz) {
+  ...
+}
 
 {
   sycl::queue q{...};
