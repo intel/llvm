@@ -529,6 +529,106 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// NDRangeGetGlobalRangePattern - Converts `sycl.nd_range.get_global_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Extract the global range out of an ND-range
+Value getGlobalRange(OpBuilder &builder, Location loc, Value nd) {
+  return builder.create<LLVM::ExtractValueOp>(loc, nd, ArrayRef<int64_t>{0});
+}
+
+/// Convert SYCLNdRangeGetGlobalRange to LLVM
+///
+/// For this pattern, we have to load the global range.
+class NDRangeGetGlobalRangePattern
+    : public ConvertOpToLLVMPattern<SYCLNdRangeGetGlobalRange> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLNdRangeGetGlobalRange>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNdRangeGetGlobalRange op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(
+        op, getGlobalRange(rewriter, op.getLoc(), opAdaptor.getND()));
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDRangeGetLocalRangePattern - Converts `sycl.nd_range.get_local_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Extract the local range out of an ND-range
+Value getLocalRange(OpBuilder &builder, Location loc, Value nd) {
+  return builder.create<LLVM::ExtractValueOp>(loc, nd, ArrayRef<int64_t>{1});
+}
+
+/// Convert SYCLNdRangeGetLocalRange to LLVM
+///
+/// For this pattern, we have to load the local range.
+class NDRangeGetLocalRangePattern
+    : public ConvertOpToLLVMPattern<SYCLNdRangeGetLocalRange> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLNdRangeGetLocalRange>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNdRangeGetLocalRange op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op,
+                       getLocalRange(rewriter, op.getLoc(), opAdaptor.getND()));
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDRangeGetGroupRangePattern - Converts `sycl.nd_range.get_group_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Convert SYCLNdRangeGetGroupRange to LLVM
+///
+/// For this pattern, we have to load both the global and local range and
+/// perform an element-wise division.
+class NDRangeGetGroupRangePattern
+    : public ConvertOpToLLVMPattern<SYCLNdRangeGetGroupRange> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLNdRangeGetGroupRange>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNdRangeGetGroupRange op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto nd = opAdaptor.getND();
+    const auto globalRange = getGlobalRange(rewriter, loc, nd);
+    const auto localRange = getLocalRange(rewriter, loc, nd);
+    const auto rangeTy = op.getType();
+    auto result = static_cast<Value>(rewriter.create<LLVM::UndefOp>(
+        loc, getTypeConverter()->convertType(rangeTy)));
+    // We can reuse this array for every call. We just need to set the last
+    // element in each iteration.
+    std::array<int64_t, 3> position{0, 0, -1};
+    for (unsigned i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
+      // Set for current index.
+      position.back() = i;
+      const auto lhs = static_cast<Value>(
+          rewriter.create<LLVM::ExtractValueOp>(loc, globalRange, position));
+      const auto rhs = static_cast<Value>(
+          rewriter.create<LLVM::ExtractValueOp>(loc, localRange, position));
+      const auto val =
+          static_cast<Value>(rewriter.create<LLVM::UDivOp>(loc, lhs, rhs));
+      result = rewriter.create<LLVM::InsertValueOp>(loc, result, val, position);
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -641,4 +741,7 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
+  if (typeConverter.getOptions().useBarePtrCallConv)
+    patterns.add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
+                 NDRangeGetGroupRangePattern>(typeConverter);
 }
