@@ -733,6 +733,211 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// AccessorSubscriptPattern - Convert `sycl.accessor.subscript` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Base class for other patterns converting `sycl.accessor.subscript` to LLVM.
+class AccessorSubscriptPattern
+    : public ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp>::ConvertOpToLLVMPattern;
+
+protected:
+  /// Whether the input accessor has atomic access mode.
+  static bool hasAtomicAccessor(SYCLAccessorSubscriptOp op) {
+    return op.getAcc().getType().getAccessMode() == MemoryAccessMode::Atomic;
+  }
+
+  /// Whether the input accessor is 1-dimensional.
+  static bool has1DAccessor(SYCLAccessorSubscriptOp op) {
+    return op.getAcc().getType().getDimension() == 1;
+  }
+
+  /// Whether the input offset is an id.
+  static bool hasIDOffsetType(SYCLAccessorSubscriptOp op) {
+    return op.getIndex().getType().isa<IDType>();
+  }
+
+  /// Returns the pointer in the accessor.
+  static Value getPointer(OpBuilder &builder, Location loc,
+                          OpAdaptor opAdaptor) {
+    return builder.create<LLVM::ExtractValueOp>(loc, opAdaptor.getAcc(),
+                                                ArrayRef<int64_t>{1, 0});
+  }
+
+  /// Calculates the linear index out of an id.
+  static Value getLinearIndex(OpBuilder &builder, Location loc,
+                              AccessorType accTy, OpAdaptor opAdaptor) {
+    const auto id = opAdaptor.getIndex();
+    const auto mem = opAdaptor.getAcc();
+    // int64_t Res{0};
+    Value res = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(), 0);
+    for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
+      // Res = Res * Mem[I] + Id[I]
+      const Value memI = builder.create<LLVM::ExtractValueOp>(
+          loc, mem, ArrayRef<int64_t>{0, 1, 0, 0, i});
+      const Value idI = builder.create<LLVM::ExtractValueOp>(
+          loc, id, ArrayRef<int64_t>{0, 0, i});
+      res = builder.create<LLVM::AddOp>(
+          loc, builder.create<LLVM::MulOp>(loc, res, memI), idI);
+    }
+    return res;
+  }
+
+  static Value rewriteSubscript(SYCLAccessorSubscriptOp op, Value ptr,
+                                Value offset, Type retTy, OpBuilder &builder) {
+    return builder.create<LLVM::GEPOp>(op.getLoc(), retTy, ptr, offset,
+                                       /*inbounds*/ true);
+  }
+
+  static Value rewriteSubscriptScalarOffset(SYCLAccessorSubscriptOp op,
+                                            OpAdaptor opAdaptor, Type retTy,
+                                            OpBuilder &builder) {
+    return rewriteSubscript(op, getPointer(builder, op.getLoc(), opAdaptor),
+                            opAdaptor.getIndex(), retTy, builder);
+  }
+
+  static Value rewriteSubscriptIDOffset(SYCLAccessorSubscriptOp op,
+                                        OpAdaptor opAdaptor, Type retTy,
+                                        OpBuilder &builder) {
+    const auto loc = op.getLoc();
+    return rewriteSubscript(
+        op, getPointer(builder, loc, opAdaptor),
+        getLinearIndex(builder, loc, op.getAcc().getType(), opAdaptor), retTy,
+        builder);
+  }
+};
+
+/// Conversion pattern with non-atomic access mode and id offset type.
+class SubscriptIDOffset : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   AccessorSubscriptPattern::hasIDOffsetType(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, rewriteSubscriptIDOffset(
+                               op, opAdaptor,
+                               getTypeConverter()->convertType(op.getType()),
+                               rewriter));
+  }
+};
+
+/// Conversion pattern with non-atomic access mode, scalar offset type and
+/// 1-dimensional accessor.
+class SubscriptScalarOffset1D : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   !AccessorSubscriptPattern::hasIDOffsetType(op) &&
+                   AccessorSubscriptPattern::has1DAccessor(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, rewriteSubscriptScalarOffset(
+                               op, opAdaptor,
+                               getTypeConverter()->convertType(op.getType()),
+                               rewriter));
+  }
+};
+
+/// Conversion pattern with non-atomic access mode, scalar offset type and
+/// N-dimensional accessor.
+///
+/// Return type is implementation specific. Handling DPC++ case here: struct
+/// with two fields:
+/// - id<Dim - 1>: Current offset;
+/// - accessor<Dim>: Original accessor.
+class SubscriptScalarOffsetND : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   !AccessorSubscriptPattern::hasIDOffsetType(op) &&
+                   !AccessorSubscriptPattern::has1DAccessor(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    Value subscript = rewriter.create<LLVM::UndefOp>(
+        loc, getTypeConverter()->convertType(op.getType()));
+    // Insert initial offset in the first position
+    subscript = rewriter.create<LLVM::InsertValueOp>(
+        loc, subscript, opAdaptor.getIndex(), ArrayRef<int64_t>{0, 0, 0, 0});
+    // Zero-initialize rest of the offset id<Dim - 1>
+    const Value zero =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 0);
+    for (unsigned i = 1, dim = op.getAcc().getType().getDimension() - 1;
+         i < dim; ++i) {
+      subscript = rewriter.create<LLVM::InsertValueOp>(
+          loc, subscript, zero, ArrayRef<int64_t>{0, 0, 0, i});
+    }
+    // Insert original accessor
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, subscript,
+                                                     opAdaptor.getAcc(), 1);
+  }
+};
+
+/// Conversion pattern with atomic access mode and id offset type.
+class AtomicSubscriptIDOffset : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   AccessorSubscriptPattern::hasIDOffsetType(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto atomicTy = op.getType().cast<AtomicType>();
+    const auto mt =
+        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
+                        static_cast<unsigned>(atomicTy.getAddrSpace()));
+    auto *typeConverter = getTypeConverter();
+    const Value undef = rewriter.create<LLVM::UndefOp>(
+        op.getLoc(), typeConverter->convertType(atomicTy));
+    const Value ptr = rewriteSubscriptIDOffset(
+        op, opAdaptor, typeConverter->convertType(mt), rewriter);
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, undef, ptr, 0);
+  }
+};
+
+/// Conversion pattern with atomic access mode and scalar offset type.
+class AtomicSubscriptScalarOffset : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   !AccessorSubscriptPattern::hasIDOffsetType(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto atomicTy = op.getType().cast<AtomicType>();
+    const auto mt =
+        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
+                        static_cast<unsigned>(atomicTy.getAddrSpace()));
+    auto *typeConverter = getTypeConverter();
+    const Value undef = rewriter.create<LLVM::UndefOp>(
+        op.getLoc(), typeConverter->convertType(atomicTy));
+    const Value ptr = rewriteSubscriptScalarOffset(
+        op, opAdaptor, typeConverter->convertType(mt), rewriter);
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, undef, ptr, 0);
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -846,7 +1051,10 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv)
-    patterns.add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
-                 NDRangeGetGroupRangePattern, RangeGetPattern,
-                 RangeGetRefPattern, RangeSizePattern>(typeConverter);
+    patterns.add<AtomicSubscriptIDOffset, AtomicSubscriptScalarOffset,
+                 NDRangeGetGlobalRangePattern, NDRangeGetGroupRangePattern,
+                 NDRangeGetLocalRangePattern, RangeGetPattern,
+                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
+                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
+        typeConverter);
 }
