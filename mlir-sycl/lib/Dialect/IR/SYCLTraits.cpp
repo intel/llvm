@@ -18,17 +18,6 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-static unsigned getDimensions(mlir::Type Type) {
-  if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>()) {
-    Type = MemRefTy.getElementType();
-  }
-  return llvm::TypeSwitch<mlir::Type, unsigned>(Type)
-      .Case<mlir::sycl::AccessorType, mlir::sycl::ItemType,
-            mlir::sycl::NdRangeType, mlir::sycl::GroupType, mlir::sycl::IDType,
-            mlir::sycl::NdItemType, mlir::sycl::RangeType>(
-          [](auto Ty) { return Ty.getDimension(); });
-}
-
 static mlir::LogicalResult
 verifyEqualDimensions(mlir::sycl::SYCLMethodOpInterface Op) {
   const auto RetTy = Op->getResult(0).getType();

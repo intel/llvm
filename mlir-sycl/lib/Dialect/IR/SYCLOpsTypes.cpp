@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 llvm::StringRef mlir::sycl::memoryAccessModeAsString(
     mlir::sycl::MemoryAccessMode MemAccessMode) {
@@ -26,6 +27,7 @@ llvm::StringRef mlir::sycl::memoryAccessModeAsString(
   case MemoryAccessMode::Atomic:
     return "atomic";
   }
+  llvm_unreachable("Invalid MemoryAccessMode");
 }
 
 mlir::LogicalResult mlir::sycl::parseMemoryAccessMode(
@@ -79,6 +81,7 @@ llvm::StringRef mlir::sycl::memoryTargetModeAsString(
   case MemoryTargetMode::ImageArray:
     return "image_array";
   }
+  llvm_unreachable("Invalid MemoryTargetMode");
 }
 
 mlir::LogicalResult mlir::sycl::parseMemoryTargetMode(
@@ -214,4 +217,12 @@ mlir::sycl::VecType::verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
   }
 
   return success();
+}
+
+unsigned mlir::sycl::getDimensions(mlir::Type Type) {
+  if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>())
+    Type = MemRefTy.getElementType();
+  return TypeSwitch<mlir::Type, unsigned>(Type)
+      .Case<AccessorType, GroupType, IDType, ItemType, NdItemType, NdRangeType,
+            RangeType>([](auto Ty) { return Ty.getDimension(); });
 }

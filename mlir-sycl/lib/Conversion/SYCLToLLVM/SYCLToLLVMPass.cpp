@@ -13,6 +13,7 @@
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVMPass.h"
 
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
+#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -30,6 +31,13 @@ namespace {
 /// A pass converting MLIR SYCL operations into LLVM dialect.
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
+public:
+  ConvertSYCLToLLVMPass() = default;
+
+  explicit ConvertSYCLToLLVMPass(bool useBarePtrCallConv) {
+    this->useBarePtrCallConv = useBarePtrCallConv;
+  }
+
   void runOnOperation() override;
 };
 } // namespace
@@ -37,7 +45,10 @@ class ConvertSYCLToLLVMPass
 void ConvertSYCLToLLVMPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
-  LLVMTypeConverter converter(&getContext());
+
+  LowerToLLVMOptions options(&getContext());
+  options.useBarePtrCallConv = useBarePtrCallConv;
+  LLVMTypeConverter converter(&getContext(), options);
 
   RewritePatternSet patterns(context);
 
@@ -51,6 +62,11 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   target.addLegalOp<ModuleOp>();
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
+}
+
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::sycl::createConvertSYCLToLLVMPass(const LowerToLLVMOptions &options) {
+  return std::make_unique<ConvertSYCLToLLVMPass>(options.useBarePtrCallConv);
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>

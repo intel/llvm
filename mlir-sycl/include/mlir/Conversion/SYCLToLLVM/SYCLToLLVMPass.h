@@ -17,6 +17,7 @@
 #include <memory>
 
 namespace mlir {
+class LowerToLLVMOptions;
 class ModuleOp;
 template <typename T> class OperationPass;
 
@@ -28,6 +29,8 @@ namespace sycl {
 
 /// Creates a pass to convert SYCL operations to the LLVMIR dialect.
 std::unique_ptr<OperationPass<ModuleOp>> createConvertSYCLToLLVMPass();
+std::unique_ptr<OperationPass<ModuleOp>>
+createConvertSYCLToLLVMPass(const LowerToLLVMOptions &options);
 
 } // namespace sycl
 } // namespace mlir

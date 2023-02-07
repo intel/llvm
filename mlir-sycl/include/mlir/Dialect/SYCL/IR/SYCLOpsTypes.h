@@ -86,6 +86,9 @@ public:
 /// Return true if the given \p Ty is a SYCL type.
 inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
 
+/// Return the number of dimensions of type \p Ty.
+unsigned getDimensions(Type Ty);
+
 llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 } // namespace sycl
 } // namespace mlir
