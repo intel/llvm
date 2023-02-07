@@ -541,8 +541,7 @@ bool llvm::RemoveRedundantDbgInstrs(BasicBlock *BB) {
   return MadeChanges;
 }
 
-void llvm::ReplaceInstWithValue(BasicBlock::InstListType &BIL,
-                                BasicBlock::iterator &BI, Value *V) {
+void llvm::ReplaceInstWithValue(BasicBlock::iterator &BI, Value *V) {
   Instruction &I = *BI;
   // Replaces all of the uses of the instruction with uses of the value
   I.replaceAllUsesWith(V);
@@ -552,7 +551,7 @@ void llvm::ReplaceInstWithValue(BasicBlock::InstListType &BIL,
     V->takeName(&I);
 
   // Delete the unnecessary instruction now...
-  BI = BIL.erase(BI);
+  BI = BI->eraseFromParent();
 }
 
 void llvm::ReplaceInstWithInst(BasicBlock *BB, BasicBlock::iterator &BI,
@@ -566,10 +565,10 @@ void llvm::ReplaceInstWithInst(BasicBlock *BB, BasicBlock::iterator &BI,
     I->setDebugLoc(BI->getDebugLoc());
 
   // Insert the new instruction into the basic block...
-  BasicBlock::iterator New = I->insertAt(BB, BI);
+  BasicBlock::iterator New = I->insertInto(BB, BI);
 
   // Replace all uses of the old instruction, and delete it.
-  ReplaceInstWithValue(BB->getInstList(), BI, I);
+  ReplaceInstWithValue(BI, I);
 
   // Move BI back to point to the newly inserted instruction
   BI = New;
@@ -1344,12 +1343,12 @@ static void SplitLandingPadPredecessorsImpl(
   LandingPadInst *LPad = OrigBB->getLandingPadInst();
   Instruction *Clone1 = LPad->clone();
   Clone1->setName(Twine("lpad") + Suffix1);
-  Clone1->insertAt(NewBB1, NewBB1->getFirstInsertionPt());
+  Clone1->insertInto(NewBB1, NewBB1->getFirstInsertionPt());
 
   if (NewBB2) {
     Instruction *Clone2 = LPad->clone();
     Clone2->setName(Twine("lpad") + Suffix2);
-    Clone2->insertAt(NewBB2, NewBB2->getFirstInsertionPt());
+    Clone2->insertInto(NewBB2, NewBB2->getFirstInsertionPt());
 
     // Create a PHI node for the two cloned landingpad instructions only
     // if the original landingpad instruction has some uses.
@@ -1400,7 +1399,7 @@ ReturnInst *llvm::FoldReturnIntoUncondBranch(ReturnInst *RI, BasicBlock *BB,
   Instruction *UncondBranch = Pred->getTerminator();
   // Clone the return and add it to the end of the predecessor.
   Instruction *NewRet = RI->clone();
-  NewRet->insertAt(Pred, Pred->end());
+  NewRet->insertInto(Pred, Pred->end());
 
   // If the return instruction returns a value, and if the value was a
   // PHI node in "BB", propagate the right value into the return.
@@ -1412,7 +1411,7 @@ ReturnInst *llvm::FoldReturnIntoUncondBranch(ReturnInst *RI, BasicBlock *BB,
       // return instruction.
       V = BCI->getOperand(0);
       NewBC = BCI->clone();
-      NewBC->insertAt(Pred, NewRet->getIterator());
+      NewBC->insertInto(Pred, NewRet->getIterator());
       Op = NewBC;
     }
 
@@ -1422,9 +1421,9 @@ ReturnInst *llvm::FoldReturnIntoUncondBranch(ReturnInst *RI, BasicBlock *BB,
       NewEV = EVI->clone();
       if (NewBC) {
         NewBC->setOperand(0, NewEV);
-        NewEV->insertAt(Pred, NewBC->getIterator());
+        NewEV->insertInto(Pred, NewBC->getIterator());
       } else {
-        NewEV->insertAt(Pred, NewRet->getIterator());
+        NewEV->insertInto(Pred, NewRet->getIterator());
         Op = NewEV;
       }
     }

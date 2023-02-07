@@ -33,7 +33,8 @@ define weak_odr dso_local spir_kernel void @__large_grf_kernel1() !sycl_explicit
 
 ; -- This kernel calls the marker function directly
 define weak_odr dso_local spir_kernel void @__large_grf_kernel2() #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
-; CHECK: {{.*}} spir_kernel void @__large_grf_kernel2() #0
+; CHECK: {{.*}} spir_kernel void @__large_grf_kernel2() #0 {{.*}} !RegisterAllocMode ![[MetadataArg:[0-9]+]]
+; CHECK: ![[MetadataArg]] = !{i32 2}
   call spir_func void @_Z28__sycl_set_kernel_propertiesi(i32 noundef 0)
   ret void
 }

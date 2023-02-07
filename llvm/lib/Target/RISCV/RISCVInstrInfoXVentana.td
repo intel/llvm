@@ -27,3 +27,21 @@ def VT_MASKC : VTMaskedMove<0b110, "vt.maskc">,
 
 def VT_MASKCN : VTMaskedMove<0b111, "vt.maskcn">,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
+
+let Predicates = [IsRV64, HasVendorXVentanaCondOps] in {
+// Directly use MASKC/MASKCN in case of any of the operands being 0.
+def : Pat<(select GPR:$rc, GPR:$rs1, (i64 0)),
+          (VT_MASKC $rs1, $rc)>;
+def : Pat<(select GPR:$rc, (i64 0), GPR:$rs1),
+          (VT_MASKCN $rs1, $rc)>;
+
+// Conditional AND operation patterns.
+def : Pat<(i64 (select GPR:$rc, (and GPR:$rs1, GPR:$rs2), GPR:$rs1)),
+          (OR (AND $rs1, $rs2), (VT_MASKCN $rs1, $rc))>;
+def : Pat<(i64 (select GPR:$rc, GPR:$rs1, (and GPR:$rs1, GPR:$rs2))),
+          (OR (AND $rs1, $rs2), (VT_MASKC $rs1, $rc))>;
+
+// Basic select pattern that selects between 2 registers.
+def : Pat<(i64 (select GPR:$rc, GPR:$rs1, GPR:$rs2)),
+          (OR (VT_MASKC $rs1, $rc), (VT_MASKCN $rs2, $rc))>;
+} // Predicates = [IsRV64, HasVendorXVentanaCondOps]

@@ -32,7 +32,7 @@
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s
+; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s
 
 ; CHECK: define spir_func i32 @load(i32 addrspace(4)* %obj, i32 %order, i32 %scope) #0 {
 ; CHECK: entry:

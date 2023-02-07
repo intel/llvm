@@ -268,6 +268,9 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     return Ty;
   }
 
+  assert(!is_contained(VisitStack, V) && "Found cycle in type scavenger");
+  VisitStack.push_back(V);
+
   // There are basically three categories of pointer-typed values:
   // 1. Values that have a well-defined pointee type (e.g., alloca). Return the
   //    known type from this method.
@@ -322,8 +325,22 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   // when we handle uses anyways.
   else if (auto *Select = dyn_cast<SelectInst>(V))
     Ty = PropagateType(Select->getTrueValue());
-  else if (auto *Phi = dyn_cast<PHINode>(V))
-    Ty = PropagateType(Phi->getIncomingValue(0));
+  else if (auto *Phi = dyn_cast<PHINode>(V)) {
+    // If we specifically tried the first argument (or any particular argument),
+    // we could end up in a situation where we get caught in a cycle:
+    // %a = phi(%b, %c)
+    // %b = phi(%a, %d)
+    // So pick the first argument that whose type we are not trying to compute
+    // right now. In the rare case that we have an unreachable block, we could
+    // exhaust all possible options, in which case we'll fall through to having
+    // an unknown type.
+    for (Value *Arg : Phi->incoming_values()) {
+      if (!is_contained(VisitStack, Arg)) {
+        Ty = PropagateType(Arg);
+        break;
+      }
+    }
+  }
 
   else if (auto *Arg = dyn_cast<Argument>(V)) {
     // Check for an sret/byval/etc. attribute on the argument. If it doesn't
@@ -355,6 +372,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     Ty = Deferred;
   }
 
+  VisitStack.pop_back();
   return Ty;
 }
 

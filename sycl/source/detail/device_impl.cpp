@@ -36,7 +36,8 @@ device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
-    : MDevice(Device), MIsHostDevice(false) {
+    : MDevice(Device), MIsHostDevice(false),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
@@ -433,6 +434,59 @@ std::string device_impl::getDeviceName() const {
                  [this]() { MDeviceName = get_info<info::device::name>(); });
 
   return MDeviceName;
+}
+
+/* On first call this function queries for device timestamp
+   along with host synchronized timestamp
+   and stores it in memeber varaible deviceTimePair.
+   Subsequent calls to this function would just retrieve the host timestamp ,
+   compute difference against the host timestamp in deviceTimePair
+   and calculate the device timestamp based on the difference.
+   deviceTimePair is refreshed with new device and host timestamp after a
+   certain interval (determined by timeTillRefresh) to account for clock drift
+   between host and device.
+*/
+
+uint64_t device_impl::getCurrentDeviceTime() {
+  // To account for potential clock drift between host clock and device clock.
+  // The value set is arbitrary: 200 seconds
+  constexpr uint64_t timeTillRefresh = 200e9;
+
+  uint64_t hostTime;
+  if (MIsHostDevice) {
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+        .count();
+  }
+  auto plugin = getPlugin();
+  RT::PiResult result =
+      plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+          MDevice, nullptr, &hostTime);
+  plugin.checkPiResult(result == PI_ERROR_INVALID_OPERATION ? PI_SUCCESS
+                                                            : result);
+
+  if (result == PI_ERROR_INVALID_OPERATION) {
+    std::string errorMsg{};
+    char *p;
+    plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
+    while (*p != '\0') {
+      errorMsg += *p;
+      p++;
+    }
+    throw sycl::feature_not_supported(
+        "Device and/or backend does not support querying timestamp: " +
+            errorMsg,
+        result);
+  }
+  uint64_t diff = hostTime - MDeviceHostBaseTime.second;
+
+  if (diff > timeTillRefresh || diff <= 0) {
+    plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
+        MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+    diff = 0;
+  }
+
+  return MDeviceHostBaseTime.first + diff;
 }
 
 } // namespace detail

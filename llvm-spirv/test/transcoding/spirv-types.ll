@@ -1,21 +1,21 @@
 ;; Test SPIR-V opaque types
 ;;
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -o %t.from-llvm.spv
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.from-llvm.spv
 ; RUN: llvm-spirv -to-binary %t.spv.txt -o %t.from-text.spv
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
 
 ; Check that produced SPIR-V friendly IR is correctly recognized
-; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spv.txt
+; RUN: llvm-spirv %t.rev.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: 2 Capability Float16

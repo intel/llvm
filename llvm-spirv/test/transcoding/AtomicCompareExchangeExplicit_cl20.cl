@@ -4,7 +4,7 @@
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.rev.bc
-// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 __kernel void testAtomicCompareExchangeExplicit_cl20(
     volatile global atomic_int* object,

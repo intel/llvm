@@ -92,19 +92,80 @@ enum class TypeModifier : uint8_t {
   LLVM_MARK_AS_BITMASK_ENUM(LMUL1),
 };
 
-// The Lowerest two bit equal to policy value.
-enum Policy : uint8_t {
-  TU = 0, // For unmasked TU, last two bit is TUMU
-  TA = 1, // // For unmasked TA, last two bit is TAMU
-  TUMA = 2,
-  TAMA = 3,
-  TUMU = 4,
-  TAMU = 5,
-  MU = 6,   // For masked MU, last two bit is TAMU
-  MA = 7,   // For masked MA, last two bit is TAMA
-  TUM = 10, // For masked MA, last two bit is TUMA
-  TAM = 11, // For masked MA, last two bit is TAMA
-  PolicyNone,
+struct Policy {
+  bool PolicyNone = false;
+  enum PolicyType {
+    Undisturbed,
+    Agnostic,
+    Omit, // No policy required.
+  };
+  PolicyType TailPolicy = Omit;
+  PolicyType MaskPolicy = Omit;
+  bool IntrinsicWithoutMU = false;
+  Policy() : PolicyNone(true) {}
+  Policy(PolicyType _TailPolicy, PolicyType _MaskPolicy,
+         bool _IntrinsicWithoutMU = false)
+      : TailPolicy(_TailPolicy), MaskPolicy(_MaskPolicy),
+        IntrinsicWithoutMU(_IntrinsicWithoutMU) {}
+
+  bool isTAMAPolicy() const {
+    return TailPolicy == Agnostic && MaskPolicy == Agnostic;
+  }
+
+  bool isTAMUPolicy() const {
+    return TailPolicy == Agnostic && MaskPolicy == Undisturbed;
+  }
+
+  bool isTUMAPolicy() const {
+    return TailPolicy == Undisturbed && MaskPolicy == Agnostic;
+  }
+
+  bool isTUMUPolicy() const {
+    return TailPolicy == Undisturbed && MaskPolicy == Undisturbed;
+  }
+
+  bool isTUMPolicy() const {
+    return TailPolicy == Undisturbed && MaskPolicy == Agnostic &&
+           IntrinsicWithoutMU;
+  }
+
+  bool isTAMPolicy() const {
+    return TailPolicy == Agnostic && MaskPolicy == Agnostic &&
+           IntrinsicWithoutMU;
+  }
+
+  bool isTAPolicy() const {
+    return TailPolicy == Agnostic && MaskPolicy == Omit;
+  }
+
+  bool isTUPolicy() const {
+    return TailPolicy == Undisturbed && MaskPolicy == Omit;
+  }
+
+  bool isMAPolicy() const {
+    return MaskPolicy == Agnostic && TailPolicy == Omit;
+  }
+
+  bool isMUPolicy() const {
+    return MaskPolicy == Undisturbed && TailPolicy == Omit;
+  }
+
+  bool isPolicyNonePolicy() const { return PolicyNone; }
+
+  bool operator==(const Policy &Other) const {
+    return PolicyNone == Other.PolicyNone && TailPolicy == Other.TailPolicy &&
+           MaskPolicy == Other.MaskPolicy &&
+           IntrinsicWithoutMU == Other.IntrinsicWithoutMU;
+  }
+
+  bool operator!=(const Policy &Other) const { return !(*this == Other); }
+
+  bool operator<(const Policy &Other) const {
+    // Just for maintain the old order for quick test.
+    if (MaskPolicy != Other.MaskPolicy)
+      return Other.MaskPolicy < MaskPolicy;
+    return TailPolicy < Other.TailPolicy;
+  }
 };
 
 // PrototypeDescriptor is used to compute type info of arguments or return
@@ -234,8 +295,8 @@ public:
   }
 
   bool isValid() const { return Valid; }
-  bool isScalar() const { return Scale && Scale.value() == 0; }
-  bool isVector() const { return Scale && Scale.value() != 0; }
+  bool isScalar() const { return Scale && *Scale == 0; }
+  bool isVector() const { return Scale && *Scale != 0; }
   bool isVector(unsigned Width) const {
     return isVector() && ElementBitwidth == Width;
   }
@@ -333,7 +394,7 @@ private:
   // InputTypes. -1 means the return type.
   std::vector<int64_t> IntrinsicTypes;
   unsigned NF = 1;
-  Policy DefaultPolicy = Policy::PolicyNone;
+  Policy PolicyAttrs;
 
 public:
   RVVIntrinsic(llvm::StringRef Name, llvm::StringRef Suffix,
@@ -344,7 +405,7 @@ public:
                const RVVTypes &Types,
                const std::vector<int64_t> &IntrinsicTypes,
                const std::vector<llvm::StringRef> &RequiredFeatures,
-               unsigned NF, Policy DefaultPolicy, bool IsPrototypeDefaultTU);
+               unsigned NF, Policy PolicyAttrs, bool IsPrototypeDefaultTU);
   ~RVVIntrinsic() = default;
 
   RVVTypePtr getOutputType() const { return OutputType; }
@@ -372,13 +433,34 @@ public:
   const std::vector<int64_t> &getIntrinsicTypes() const {
     return IntrinsicTypes;
   }
-  Policy getDefaultPolicy() const {
-    assert(DefaultPolicy != Policy::PolicyNone);
-    return DefaultPolicy;
+  Policy getPolicyAttrs() const {
+    assert(PolicyAttrs.PolicyNone == false);
+    return PolicyAttrs;
   }
-  unsigned getDefaultPolicyBits() const {
-    assert(DefaultPolicy != Policy::PolicyNone);
-    return static_cast<unsigned>(DefaultPolicy) & 3;
+  unsigned getPolicyAttrsBits() const {
+    // Return following value.
+    // constexpr unsigned TAIL_UNDISTURBED = 0;
+    // constexpr unsigned TAIL_AGNOSTIC = 1;
+    // constexpr unsigned TAIL_AGNOSTIC_MASK_AGNOSTIC = 3;
+    // FIXME: how about value 2
+    // int PolicyAttrs = TAIL_UNDISTURBED;
+    assert(PolicyAttrs.PolicyNone == false);
+
+    if (PolicyAttrs.isTUMAPolicy())
+      return 2;
+    if (PolicyAttrs.isTAMAPolicy())
+      return 3;
+    if (PolicyAttrs.isTUMUPolicy())
+      return 0;
+    if (PolicyAttrs.isTAMUPolicy())
+      return 1;
+    if (PolicyAttrs.isTUPolicy())
+      return 0;
+    if (PolicyAttrs.isTAPolicy())
+      return 1;
+
+    llvm_unreachable("unsupport policy");
+    return 0;
   }
 
   // Return the type string for a BUILTIN() macro in Builtins.def.
@@ -389,11 +471,10 @@ public:
                llvm::ArrayRef<PrototypeDescriptor> PrototypeDescriptors);
 
   static llvm::SmallVector<PrototypeDescriptor>
-      computeBuiltinTypes(llvm::ArrayRef<PrototypeDescriptor> Prototype,
-                          bool IsMasked, bool HasMaskedOffOperand, bool HasVL,
-                          unsigned NF, bool IsPrototypeDefaultTU,
-                          PolicyScheme DefaultScheme,
-                          Policy DefaultPolicy = Policy::PolicyNone);
+  computeBuiltinTypes(llvm::ArrayRef<PrototypeDescriptor> Prototype,
+                      bool IsMasked, bool HasMaskedOffOperand, bool HasVL,
+                      unsigned NF, bool IsPrototypeDefaultTU,
+                      PolicyScheme DefaultScheme, Policy PolicyAttrs);
   static llvm::SmallVector<Policy>
       getSupportedMaskedPolicies(bool HasTailPolicy, bool HasMaskPolicy);
 
@@ -401,7 +482,7 @@ public:
                                    bool IsPrototypeDefaultTU, std::string &Name,
                                    std::string &BuiltinName,
                                    std::string &OverloadedName,
-                                   Policy &DefaultPolicy);
+                                   Policy &PolicyAttrs);
 };
 
 // RVVRequire should be sync'ed with target features, but only

@@ -34,6 +34,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
@@ -1046,12 +1047,20 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
           ? GenXIntrinsic::getGenXDeclaration(
                 EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
           : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
+  // llvm::Attribute::ReadNone must not be used for call statements anymore.
+  bool FixReadNone =
+      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
+  if (FixReadNone)
+    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
+
   // Use hardcoded prefix when EEI has no name.
   std::string ResultName =
       ((EEI->hasName() ? Twine(EEI->getName()) : Twine("Res")) + "." +
        FullIntrinName)
           .str();
   Instruction *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, EEI);
+  if (FixReadNone)
+    (cast<CallInst>(Inst))->setMemoryEffects(MemoryEffects::none());
   Inst->setDebugLoc(EEI->getDebugLoc());
 
   if (IsVectorCall) {
@@ -1394,14 +1403,21 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                                  GenXOverloadedTypes);
   }
 
-  Instruction *NewCI = IntrinsicInst::Create(
+  // llvm::Attribute::ReadNone must not be used for call statements anymore.
+  bool FixReadNone =
+      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
+  if (FixReadNone)
+    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
+  CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
-  if (CI.getDebugLoc())
-    NewCI->setDebugLoc(CI.getDebugLoc());
-  NewCI = addCastInstIfNeeded(&CI, NewCI);
-  CI.replaceAllUsesWith(NewCI);
+  if (FixReadNone)
+    NewCI->setMemoryEffects(MemoryEffects::none());
+  NewCI->setDebugLoc(CI.getDebugLoc());
+
+  Instruction *NewInst = addCastInstIfNeeded(&CI, NewCI);
+  CI.replaceAllUsesWith(NewInst);
   CI.eraseFromParent();
 }
 

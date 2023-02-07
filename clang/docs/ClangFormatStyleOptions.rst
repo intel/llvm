@@ -1,7 +1,7 @@
 .. raw:: html
 
       <style type="text/css">
-        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family="Verdana,Geneva,DejaVu Sans,sans-serif" }
+        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family: "Verdana,Geneva,DejaVu Sans,sans-serif"; }
       </style>
 
 .. role:: versionbadge
@@ -1191,14 +1191,14 @@ the configuration (without a prefix: ``Auto``).
       };
 
   * ``SLS_Inline`` (in configuration: ``Inline``)
-    Merge lambda into a single line if argument of a function.
+    Merge lambda into a single line if the lambda is argument of a function.
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {
-          return a;
+      auto lambda = [](int x, int y) {
+          return x < y;
       };
-      sort(a.begin(), a.end(), []() { return x < y; });
+      sort(a.begin(), a.end(), [](int x, int y) { return x < y; });
 
   * ``SLS_All`` (in configuration: ``All``)
     Merge all lambdas fitting on a single line.
@@ -3712,6 +3712,7 @@ the configuration (without a prefix: ``Auto``).
     * const
     * inline
     * static
+    * friend
     * constexpr
     * volatile
     * restrict

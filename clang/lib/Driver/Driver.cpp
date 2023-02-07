@@ -4008,6 +4008,17 @@ class OffloadingActionBuilder final {
           if (A->getOption().matches(options::OPT_no_offload_arch_EQ) &&
               ArchStr == "all") {
             GpuArchs.clear();
+          } else if (ArchStr == "native" &&
+                     ToolChains.front()->getTriple().isAMDGPU()) {
+            auto *TC = static_cast<const toolchains::HIPAMDToolChain *>(
+                ToolChains.front());
+            SmallVector<std::string, 1> GPUs;
+            auto Err = TC->detectSystemGPUs(Args, GPUs);
+            if (!Err) {
+              for (auto GPU : GPUs)
+                GpuArchs.insert(Args.MakeArgString(GPU));
+            } else
+              llvm::consumeError(std::move(Err));
           } else {
             ArchStr = getCanonicalOffloadArch(ArchStr);
             if (ArchStr.empty()) {
@@ -4363,7 +4374,7 @@ class OffloadingActionBuilder final {
                                                AssociatedOffloadKind);
 
       if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
-          BundleOutput.value()) {
+          *BundleOutput) {
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           OffloadAction::DeviceDependences DDep;
           DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
@@ -5093,8 +5104,10 @@ class OffloadingActionBuilder final {
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
           // spir64 target is actually JIT compilation, so we defer selection of
-          // bfloat16 libraries to runtime. For AOT we need libraries.
-          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          // bfloat16 libraries to runtime. For AOT we need libraries, but skip
+          // for Nvidia.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch &&
+                     !TC->getTriple().isNVPTX();
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
@@ -5156,9 +5169,9 @@ class OffloadingActionBuilder final {
       // Currently, all SYCL device libraries will be linked by default. Linkage
       // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
       llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true},        {"libm-fp32", true},   {"libm-fp64", true},
-          {"libimf-fp32", true}, {"libimf-fp64", true}, {"libimf-bf16", true},
-          {"internal", true}};
+          {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
+          {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
+          {"libm-bfloat16", true}, {"internal", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -9015,7 +9028,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (isSaveTempsEnabled()) {
     // If we're saving temps and the temp file conflicts with any
     // input/resulting file, then avoid overwriting.
-    if (!AtTopLevel) {
+    if (!AtTopLevel && NamedOutput == BaseName) {
       bool SameFile = false;
       SmallString<256> Result;
       llvm::sys::fs::current_path(Result);

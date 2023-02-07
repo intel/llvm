@@ -386,7 +386,7 @@ private:
     /// emitting a debug value.
     SmallVector<unsigned, 8> OrigLocMap;
 
-    VarLoc(const MachineInstr &MI, LexicalScopes &LS)
+    VarLoc(const MachineInstr &MI)
         : Var(MI.getDebugVariable(), MI.getDebugExpression(),
               MI.getDebugLoc()->getInlinedAt()),
           Expr(MI.getDebugExpression()), MI(MI) {
@@ -436,9 +436,9 @@ private:
 
     /// Take the variable and machine-location in DBG_VALUE MI, and build an
     /// entry location using the given expression.
-    static VarLoc CreateEntryLoc(const MachineInstr &MI, LexicalScopes &LS,
+    static VarLoc CreateEntryLoc(const MachineInstr &MI,
                                  const DIExpression *EntryExpr, Register Reg) {
-      VarLoc VL(MI, LS);
+      VarLoc VL(MI);
       assert(VL.Locs.size() == 1 &&
              VL.Locs[0].Kind == MachineLocKind::RegisterKind);
       VL.EVKind = EntryValueLocKind::EntryValueKind;
@@ -452,9 +452,8 @@ private:
     /// location will turn into the normal location if the backup is valid at
     /// the time of the primary location clobbering.
     static VarLoc CreateEntryBackupLoc(const MachineInstr &MI,
-                                       LexicalScopes &LS,
                                        const DIExpression *EntryExpr) {
-      VarLoc VL(MI, LS);
+      VarLoc VL(MI);
       assert(VL.Locs.size() == 1 &&
              VL.Locs[0].Kind == MachineLocKind::RegisterKind);
       VL.EVKind = EntryValueLocKind::EntryValueBackupKind;
@@ -466,10 +465,9 @@ private:
     /// function entry), and build a copy of an entry value backup location by
     /// setting the register location to NewReg.
     static VarLoc CreateEntryCopyBackupLoc(const MachineInstr &MI,
-                                           LexicalScopes &LS,
                                            const DIExpression *EntryExpr,
                                            Register NewReg) {
-      VarLoc VL(MI, LS);
+      VarLoc VL(MI);
       assert(VL.Locs.size() == 1 &&
              VL.Locs[0].Kind == MachineLocKind::RegisterKind);
       VL.EVKind = EntryValueLocKind::EntryValueCopyBackupKind;
@@ -859,7 +857,7 @@ private:
     /// Insert a set of ranges.
     void insertFromLocSet(const VarLocSet &ToLoad, const VarLocMap &Map);
 
-    llvm::Optional<LocIndices> getEntryValueBackup(DebugVariable Var);
+    std::optional<LocIndices> getEntryValueBackup(DebugVariable Var);
 
     /// Empty the set.
     void clear() {
@@ -946,9 +944,9 @@ private:
 
   /// If a given instruction is identified as a spill, return the spill location
   /// and set \p Reg to the spilled register.
-  Optional<VarLoc::SpillLoc> isRestoreInstruction(const MachineInstr &MI,
-                                                  MachineFunction *MF,
-                                                  Register &Reg);
+  std::optional<VarLoc::SpillLoc> isRestoreInstruction(const MachineInstr &MI,
+                                                       MachineFunction *MF,
+                                                       Register &Reg);
   /// Given a spill instruction, extract the register and offset used to
   /// address the spill location in a target independent way.
   VarLoc::SpillLoc extractSpillBaseRegAndOffset(const MachineInstr &MI);
@@ -1110,7 +1108,7 @@ void VarLocBasedLDV::OpenRangesSet::insert(LocIndices VarLocIDs,
 
 /// Return the Loc ID of an entry value backup location, if it exists for the
 /// variable.
-llvm::Optional<LocIndices>
+std::optional<LocIndices>
 VarLocBasedLDV::OpenRangesSet::getEntryValueBackup(DebugVariable Var) {
   auto It = EntryValuesBackupVars.find(Var);
   if (It != EntryValuesBackupVars.end())
@@ -1344,7 +1342,7 @@ void VarLocBasedLDV::transferDebugValue(const MachineInstr &MI,
                MO.isCImm();
       })) {
     // Use normal VarLoc constructor for registers and immediates.
-    VarLoc VL(MI, LS);
+    VarLoc VL(MI);
     // End all previous ranges of VL.Var.
     OpenRanges.erase(VL);
 
@@ -1357,7 +1355,7 @@ void VarLocBasedLDV::transferDebugValue(const MachineInstr &MI,
     // This must be an undefined location. If it has an open range, erase it.
     assert(MI.isUndefDebugValue() &&
            "Unexpected non-undef DBG_VALUE encountered");
-    VarLoc VL(MI, LS);
+    VarLoc VL(MI);
     OpenRanges.erase(VL);
   }
 }
@@ -1398,7 +1396,7 @@ void VarLocBasedLDV::emitEntryValues(MachineInstr &MI,
       continue;
 
     auto DebugVar = VL.Var;
-    Optional<LocIndices> EntryValBackupIDs =
+    std::optional<LocIndices> EntryValBackupIDs =
         OpenRanges.getEntryValueBackup(DebugVar);
 
     // If the parameter has the entry value backup, it means we should
@@ -1407,7 +1405,7 @@ void VarLocBasedLDV::emitEntryValues(MachineInstr &MI,
       continue;
 
     const VarLoc &EntryVL = VarLocIDs[EntryValBackupIDs->back()];
-    VarLoc EntryLoc = VarLoc::CreateEntryLoc(EntryVL.MI, LS, EntryVL.Expr,
+    VarLoc EntryLoc = VarLoc::CreateEntryLoc(EntryVL.MI, EntryVL.Expr,
                                              EntryVL.Locs[0].Value.RegNo);
     LocIndices EntryValueIDs = VarLocIDs.insert(EntryLoc);
     assert(EntryValueIDs.size() == 1 &&
@@ -1618,9 +1616,9 @@ bool VarLocBasedLDV::isLocationSpill(const MachineInstr &MI,
   return false;
 }
 
-Optional<VarLocBasedLDV::VarLoc::SpillLoc>
+std::optional<VarLocBasedLDV::VarLoc::SpillLoc>
 VarLocBasedLDV::isRestoreInstruction(const MachineInstr &MI,
-                                      MachineFunction *MF, Register &Reg) {
+                                     MachineFunction *MF, Register &Reg) {
   if (!MI.hasOneMemOperand())
     return std::nullopt;
 
@@ -1647,7 +1645,7 @@ void VarLocBasedLDV::transferSpillOrRestoreInst(MachineInstr &MI,
   MachineFunction *MF = MI.getMF();
   TransferKind TKind;
   Register Reg;
-  Optional<VarLoc::SpillLoc> Loc;
+  std::optional<VarLoc::SpillLoc> Loc;
 
   LLVM_DEBUG(dbgs() << "Examining instruction: "; MI.dump(););
 
@@ -1777,7 +1775,7 @@ void VarLocBasedLDV::transferRegisterCopy(MachineInstr &MI,
       if (VL.isEntryValueBackupReg(SrcReg)) {
         LLVM_DEBUG(dbgs() << "Copy of the entry value: "; MI.dump(););
         VarLoc EntryValLocCopyBackup =
-            VarLoc::CreateEntryCopyBackupLoc(VL.MI, LS, VL.Expr, DestReg);
+            VarLoc::CreateEntryCopyBackupLoc(VL.MI, VL.Expr, DestReg);
         // Stop tracking the original entry value.
         OpenRanges.erase(VL);
 
@@ -2090,7 +2088,7 @@ void VarLocBasedLDV::recordEntryValue(const MachineInstr &MI,
   // valid. It is valid until a parameter is not changed.
   DIExpression *NewExpr =
       DIExpression::prepend(MI.getDebugExpression(), DIExpression::EntryValue);
-  VarLoc EntryValLocAsBackup = VarLoc::CreateEntryBackupLoc(MI, LS, NewExpr);
+  VarLoc EntryValLocAsBackup = VarLoc::CreateEntryBackupLoc(MI, NewExpr);
   LocIndices EntryValLocIDs = VarLocIDs.insert(EntryValLocAsBackup);
   OpenRanges.insert(EntryValLocIDs, EntryValLocAsBackup);
 }

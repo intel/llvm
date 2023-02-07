@@ -63,7 +63,7 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
                        ClangdServer::Callbacks *ServerCallbacks,
                        const ThreadsafeFS &TFS, AsyncTaskRunner *Tasks)
       : FIndex(FIndex), ServerCallbacks(ServerCallbacks), TFS(TFS),
-        Tasks(Tasks) {}
+        Stdlib{std::make_shared<StdLibSet>()}, Tasks(Tasks) {}
 
   void onPreambleAST(PathRef Path, llvm::StringRef Version,
                      const CompilerInvocation &CI, ASTContext &Ctx,
@@ -71,7 +71,7 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
                      const CanonicalIncludes &CanonIncludes) override {
     // If this preamble uses a standard library we haven't seen yet, index it.
     if (FIndex)
-      if (auto Loc = Stdlib.add(*CI.getLangOpts(), PP.getHeaderSearchInfo()))
+      if (auto Loc = Stdlib->add(*CI.getLangOpts(), PP.getHeaderSearchInfo()))
         indexStdlib(CI, std::move(*Loc));
 
     if (FIndex)
@@ -79,11 +79,20 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
   }
 
   void indexStdlib(const CompilerInvocation &CI, StdLibLocation Loc) {
-    auto Task = [this, LO(*CI.getLangOpts()), Loc(std::move(Loc)),
-                 CI(std::make_unique<CompilerInvocation>(CI))]() mutable {
+    // This task is owned by Tasks, which outlives the TUScheduler and
+    // therefore the UpdateIndexCallbacks.
+    // We must be careful that the references we capture outlive TUScheduler.
+    auto Task = [LO(*CI.getLangOpts()), Loc(std::move(Loc)),
+                 CI(std::make_unique<CompilerInvocation>(CI)),
+                 // External values that outlive ClangdServer
+                 TFS(&TFS),
+                 // Index outlives TUScheduler (declared first)
+                 FIndex(FIndex),
+                 // shared_ptr extends lifetime
+                 Stdlib(Stdlib)]() mutable {
       IndexFileIn IF;
-      IF.Symbols = indexStandardLibrary(std::move(CI), Loc, TFS);
-      if (Stdlib.isBest(LO))
+      IF.Symbols = indexStandardLibrary(std::move(CI), Loc, *TFS);
+      if (Stdlib->isBest(LO))
         FIndex->updatePreamble(std::move(IF));
     };
     if (Tasks)
@@ -128,7 +137,7 @@ private:
   FileIndex *FIndex;
   ClangdServer::Callbacks *ServerCallbacks;
   const ThreadsafeFS &TFS;
-  StdLibSet Stdlib;
+  std::shared_ptr<StdLibSet> Stdlib;
   AsyncTaskRunner *Tasks;
 };
 
@@ -415,8 +424,7 @@ void ClangdServer::codeComplete(PathRef File, Position Pos,
     }
     if (SpecFuzzyFind && SpecFuzzyFind->NewReq) {
       std::lock_guard<std::mutex> Lock(CachedCompletionFuzzyFindRequestMutex);
-      CachedCompletionFuzzyFindRequestByFile[File] =
-          SpecFuzzyFind->NewReq.value();
+      CachedCompletionFuzzyFindRequestByFile[File] = *SpecFuzzyFind->NewReq;
     }
     // SpecFuzzyFind is only destroyed after speculative fuzzy find finishes.
     // We don't want `codeComplete` to wait for the async call if it doesn't use
@@ -737,7 +745,7 @@ void ClangdServer::findDocumentHighlights(
 }
 
 void ClangdServer::findHover(PathRef File, Position Pos,
-                             Callback<llvm::Optional<HoverInfo>> CB) {
+                             Callback<std::optional<HoverInfo>> CB) {
   auto Action = [File = File.str(), Pos, CB = std::move(CB),
                  this](llvm::Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
@@ -766,7 +774,7 @@ void ClangdServer::typeHierarchy(PathRef File, Position Pos, int Resolve,
 
 void ClangdServer::superTypes(
     const TypeHierarchyItem &Item,
-    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>> CB) {
+    Callback<std::optional<std::vector<TypeHierarchyItem>>> CB) {
   WorkScheduler->run("typeHierarchy/superTypes", /*Path=*/"",
                      [=, CB = std::move(CB)]() mutable {
                        CB(clangd::superTypes(Item, Index));
@@ -782,7 +790,7 @@ void ClangdServer::subTypes(const TypeHierarchyItem &Item,
 
 void ClangdServer::resolveTypeHierarchy(
     TypeHierarchyItem Item, int Resolve, TypeHierarchyDirection Direction,
-    Callback<llvm::Optional<TypeHierarchyItem>> CB) {
+    Callback<std::optional<TypeHierarchyItem>> CB) {
   WorkScheduler->run(
       "Resolve Type Hierarchy", "", [=, CB = std::move(CB)]() mutable {
         clangd::resolveTypeHierarchy(Item, Resolve, Direction, Index);
@@ -810,7 +818,7 @@ void ClangdServer::incomingCalls(
                      });
 }
 
-void ClangdServer::inlayHints(PathRef File, llvm::Optional<Range> RestrictRange,
+void ClangdServer::inlayHints(PathRef File, std::optional<Range> RestrictRange,
                               Callback<std::vector<InlayHint>> CB) {
   auto Action = [RestrictRange(std::move(RestrictRange)),
                  CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
@@ -955,8 +963,8 @@ void ClangdServer::semanticHighlights(
                             Transient);
 }
 
-void ClangdServer::getAST(PathRef File, llvm::Optional<Range> R,
-                          Callback<llvm::Optional<ASTNode>> CB) {
+void ClangdServer::getAST(PathRef File, std::optional<Range> R,
+                          Callback<std::optional<ASTNode>> CB) {
   auto Action =
       [R, CB(std::move(CB))](llvm::Expected<InputsAndAST> Inputs) mutable {
         if (!Inputs)
