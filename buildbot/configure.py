@@ -60,6 +60,7 @@ def do_configure(args):
 
     build_compiler_c = '/usr/bin/gcc'
     build_compiler_cpp = '/usr/bin/g++'
+    cmake_export_compile_commands = 'OFF'
     verbose = 'OFF'
 
     if sys.platform != "darwin":
@@ -148,6 +149,9 @@ def do_configure(args):
     if args.build_compiler_cpp:
         build_compiler_cpp = args.build_compiler_cpp
 
+    if args.export_compile_commands:        
+        export_compile_commands = args.export_compile_commands
+
     if args.verbose:
         verbose = args.verbose
         
@@ -189,6 +193,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
         "-DCMAKE_C_COMPILER={}".format(build_compiler_c),
         "-DCMAKE_CXX_COMPILER={}".format(build_compiler_cpp),
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS={}".format(export_compile_commands),                
         "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
     ]
@@ -271,6 +276,7 @@ def main():
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     parser.add_argument("--build-compiler-c", metavar="BUILD_COMPILER_C", help="C compiler to use to build the project")
     parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project")
+    parser.add_argument("--export-compile-commands", default='OFF', help="Export cmake compilation commands")        
     parser.add_argument("--verbose", default='OFF', help="Verbose build")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
 
