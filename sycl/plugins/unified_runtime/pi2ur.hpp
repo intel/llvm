@@ -118,7 +118,6 @@ public:
         *pValuePI = 0;
         break;
       }
-      printf("[%d]: %d\n", Count, *pValueUR);
 
       auto It = Map.find(*pValueUR);
       if (It == Map.end()) {
@@ -128,9 +127,6 @@ public:
       ++pValuePI;
       ++pValueUR;
     }
-
-    printf("convertArray[%d]: %d -> %d, param_value_size_ret=%d\n", Count,
-           sizeof(TypeUR), sizeof(TypePI), *param_value_size_ret);
 
     delete[] ValueUR;
     return PI_SUCCESS;
