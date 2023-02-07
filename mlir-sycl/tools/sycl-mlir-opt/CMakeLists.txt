@@ -1,6 +1,7 @@
 set(LIBS
   MLIRMlirOptMain
   MLIRSYCLDialect
+  MLIRSYCLToGPU
   MLIRSYCLToLLVM
   MLIRSYCLTransforms
 )

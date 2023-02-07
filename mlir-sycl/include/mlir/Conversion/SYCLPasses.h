@@ -9,6 +9,7 @@
 #ifndef MLIR_CONVERSION_SYCLPASSES_H
 #define MLIR_CONVERSION_SYCLPASSES_H
 
+#include "mlir/Conversion/SYCLToGPU/SYCLToGPUPass.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVMPass.h"
 
 namespace mlir {
