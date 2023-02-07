@@ -134,32 +134,28 @@ void foo() {
 // CHECK-NEXT: 416 |           pointer _M_finish
 // CHECK-NEXT: 424 |           pointer _M_end_of_storage
 // CHECK-NEXT: 432 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK:      432 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
+// CHECK:      432 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 432 |       class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 432 |         struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 432 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
-// CHECK-NEXT: 432 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
-// CHECK-NEXT: 432 |               struct std::default_delete<class sycl::detail::HostKernelBase> (base) (empty)
-// CHECK-NEXT: 432 |           struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
+// CHECK:      432 |           struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
 // CHECK-NEXT: 432 |             class sycl::detail::HostKernelBase * _M_head_impl
 // CHECK-NEXT: 440 |   class std::unique_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK:      440 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> > _M_t
+// CHECK:      440 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> >
 // CHECK-NEXT: 440 |       class std::tuple<class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > _M_t
 // CHECK-NEXT: 440 |         struct std::_Tuple_impl<0, class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > (base)
 // CHECK-NEXT: 440 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
 // CHECK-NEXT: 440 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
-// CHECK-NEXT: 440 |               struct std::default_delete<class sycl::detail::HostTask> (base) (empty)
-// CHECK-NEXT: 440 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
+// CHECK:      440 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
 // CHECK-NEXT: 440 |             class sycl::detail::HostTask * _M_head_impl
 // CHECK-NEXT: 448 |   detail::OSModuleHandle MOSModuleHandle
 // CHECK-NEXT: 456 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
-// CHECK:      456 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
+// CHECK:      456 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
 // CHECK-NEXT: 456 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
 // CHECK-NEXT: 456 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
 // CHECK-NEXT: 456 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
 // CHECK-NEXT: 456 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
-// CHECK-NEXT: 456 |               struct std::default_delete<class sycl::detail::InteropTask> (base) (empty)
-// CHECK-NEXT: 456 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
+// CHECK:      456 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
 // CHECK-NEXT: 456 |             class sycl::detail::InteropTask * _M_head_impl
 // CHECK-NEXT: 464 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEvents
 // CHECK-NEXT: 464 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
