@@ -14,45 +14,45 @@ void foo(sycl::detail::HostKernelBase &HKB) {
   HKB.call(Desc, &HPInfo);
 }
 
-// CHECK:      Vtable for 'sycl::_V1::detail::HostKernelBase' (6 entries).
+// CHECK:      Vtable for 'sycl::detail::HostKernelBase' (6 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::_V1::detail::HostKernelBase RTTI
-// CHECK-NEXT:       -- (sycl::_V1::detail::HostKernelBase, 0) vtable address --
-// CHECK-NEXT:   2 | void sycl::_V1::detail::HostKernelBase::call(const NDRDescT &, HostProfilingInfo *) [pure]
-// CHECK-NEXT:   3 | char *sycl::_V1::detail::HostKernelBase::getPtr() [pure]
-// CHECK-NEXT:   4 | sycl::_V1::detail::HostKernelBase::~HostKernelBase() [complete]
-// CHECK-NEXT:   5 | sycl::_V1::detail::HostKernelBase::~HostKernelBase() [deleting]
+// CHECK-NEXT:   1 | sycl::detail::HostKernelBase RTTI
+// CHECK-NEXT:       -- (sycl::detail::HostKernelBase, 0) vtable address --
+// CHECK-NEXT:   2 | void sycl::detail::HostKernelBase::call(const NDRDescT &, HostProfilingInfo *) [pure]
+// CHECK-NEXT:   3 | char *sycl::detail::HostKernelBase::getPtr() [pure]
+// CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
+// CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
 
 void foo(sycl::detail::CG *CG) { delete CG; }
-// CHECK:    Vtable for 'sycl::_V1::detail::CG' (4 entries).
+// CHECK:    Vtable for 'sycl::detail::CG' (4 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::_V1::detail::CG RTTI
-// CHECK-NEXT:       -- (sycl::_V1::detail::CG, 0) vtable address --
-// CHECK-NEXT:   2 | sycl::_V1::detail::CG::~CG() [complete]
-// CHECK-NEXT:   3 | sycl::_V1::detail::CG::~CG() [deleting]
+// CHECK-NEXT:   1 | sycl::detail::CG RTTI
+// CHECK-NEXT:       -- (sycl::detail::CG, 0) vtable address --
+// CHECK-NEXT:   2 | sycl::detail::CG::~CG() [complete]
+// CHECK-NEXT:   3 | sycl::detail::CG::~CG() [deleting]
 
 void foo(sycl::detail::PropertyWithDataBase *Prop) { delete Prop; }
-// CHECK:    Vtable for 'sycl::_V1::detail::PropertyWithDataBase' (4 entries).
+// CHECK:    Vtable for 'sycl::detail::PropertyWithDataBase' (4 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::_V1::detail::PropertyWithDataBase RTTI
-// CHECK-NEXT:       -- (sycl::_V1::detail::PropertyWithDataBase, 0) vtable address --
-// CHECK-NEXT:   2 | sycl::_V1::detail::PropertyWithDataBase::~PropertyWithDataBase() [complete]
-// CHECK-NEXT:   3 | sycl::_V1::detail::PropertyWithDataBase::~PropertyWithDataBase() [deleting]
+// CHECK-NEXT:   1 | sycl::detail::PropertyWithDataBase RTTI
+// CHECK-NEXT:       -- (sycl::detail::PropertyWithDataBase, 0) vtable address --
+// CHECK-NEXT:   2 | sycl::detail::PropertyWithDataBase::~PropertyWithDataBase() [complete]
+// CHECK-NEXT:   3 | sycl::detail::PropertyWithDataBase::~PropertyWithDataBase() [deleting]
 
 void foo(sycl::detail::SYCLMemObjAllocator &Allocator) {
   (void)Allocator.allocate(0);
 }
-// CHECK:    Vtable for 'sycl::_V1::detail::SYCLMemObjAllocator' (9 entries).
+// CHECK:    Vtable for 'sycl::detail::SYCLMemObjAllocator' (9 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::_V1::detail::SYCLMemObjAllocator RTTI
-// CHECK-NEXT:       -- (sycl::_V1::detail::SYCLMemObjAllocator, 0) vtable address --
-// CHECK-NEXT:   2 | void *sycl::_V1::detail::SYCLMemObjAllocator::getAllocatorImpl() [pure]
-// CHECK-NEXT:   3 | sycl::_V1::detail::SYCLMemObjAllocator::~SYCLMemObjAllocator() [complete]
-// CHECK-NEXT:   4 | sycl::_V1::detail::SYCLMemObjAllocator::~SYCLMemObjAllocator() [deleting]
-// CHECK-NEXT:   5 | void *sycl::_V1::detail::SYCLMemObjAllocator::allocate(std::size_t) [pure]
-// CHECK-NEXT:   6 | void sycl::_V1::detail::SYCLMemObjAllocator::deallocate(void *, std::size_t) [pure]
-// CHECK-NEXT:   7 | std::size_t sycl::_V1::detail::SYCLMemObjAllocator::getValueSize() const [pure]
-// CHECK-NEXT:   8 | void sycl::_V1::detail::SYCLMemObjAllocator::setAlignment(std::size_t) [pure]
+// CHECK-NEXT:   1 | sycl::detail::SYCLMemObjAllocator RTTI
+// CHECK-NEXT:       -- (sycl::detail::SYCLMemObjAllocator, 0) vtable address --
+// CHECK-NEXT:   2 | void *sycl::detail::SYCLMemObjAllocator::getAllocatorImpl() [pure]
+// CHECK-NEXT:   3 | sycl::detail::SYCLMemObjAllocator::~SYCLMemObjAllocator() [complete]
+// CHECK-NEXT:   4 | sycl::detail::SYCLMemObjAllocator::~SYCLMemObjAllocator() [deleting]
+// CHECK-NEXT:   5 | void *sycl::detail::SYCLMemObjAllocator::allocate(std::size_t) [pure]
+// CHECK-NEXT:   6 | void sycl::detail::SYCLMemObjAllocator::deallocate(void *, std::size_t) [pure]
+// CHECK-NEXT:   7 | std::size_t sycl::detail::SYCLMemObjAllocator::getValueSize() const [pure]
+// CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjAllocator::setAlignment(std::size_t) [pure]
 
 void foo(sycl::device_selector &DeviceSelector) {
   (void)DeviceSelector.select_device();

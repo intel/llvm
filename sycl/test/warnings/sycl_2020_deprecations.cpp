@@ -183,7 +183,7 @@ int main() {
   (void)ESIMDCPUBackend;
 
   sycl::half Val = 1.0f;
-  // expected-warning@+1{{'bit_cast<unsigned short, sycl::_V1::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
   (void)BitCastRes;
 
