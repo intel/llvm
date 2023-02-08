@@ -3,10 +3,10 @@
 
 // RUN: %clang_cc1 -fsycl-is-device -O0 -fsycl-optimize-non-user-code -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
-// Check that kernel do not contain noinline and optnone func attrs.
+// Check that kernel contains noinline and optnone func attrs.
 // CHECK: define {{.*}} @_ZTSZ4mainE6kernel() #[[KERNEL_ATTRS:[0-9]+]]
 
-// Check that 'anonymous namespace'::sycl::* functions do not contain
+// Check that 'anonymous namespace'::sycl::* functions contains
 // noinline and optnone func attrs since topmost namespace is anonymous
 // instead of sycl.
 namespace {
@@ -21,7 +21,6 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &func) {
   func();
 }
 
-// #0 and #2 contain noinline and optnone func attrs.
 // CHECK: attributes #[[KERNEL_ATTRS]] = {{.*}} noinline {{.*}} optnone
 // CHECK: attributes #[[BAR4_ATTRS]] = {{.*}} noinline {{.*}} optnone
 
