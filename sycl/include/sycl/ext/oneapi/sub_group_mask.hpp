@@ -30,6 +30,8 @@ namespace ext::oneapi {
 #endif
 
 // defining `group_ballot` here to make predicate default `true`
+// need to forward declare sub_group_mask first
+struct sub_group_mask;
 template <typename Group>
 detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
                     sub_group_mask>
