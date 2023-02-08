@@ -1199,8 +1199,7 @@ a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.
 
 a@
-[----
-source]
+[source]
 ----
 template <typename T,
           typename propertyListA,
