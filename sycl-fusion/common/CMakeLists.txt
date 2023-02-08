@@ -5,6 +5,7 @@ add_llvm_library(sycl-fusion-common
 target_include_directories(sycl-fusion-common
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
 if (BUILD_SHARED_LIBS)

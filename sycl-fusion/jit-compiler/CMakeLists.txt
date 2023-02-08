@@ -26,7 +26,6 @@ target_include_directories(sycl-fusion
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
-  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/lib>
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
   ${LLVM_SPIRV_INCLUDE_DIRS}
 )
