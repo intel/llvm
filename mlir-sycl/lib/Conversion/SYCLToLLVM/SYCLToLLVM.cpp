@@ -36,6 +36,19 @@ using namespace mlir::sycl;
 // Utility functions
 //===----------------------------------------------------------------------===//
 
+/// Whether the SYCL typed input arguments originate from a load operation.
+static bool argsOriginateFromLoad(ValueRange args) {
+  return llvm::all_of(args, [](auto arg) {
+    return !isSYCLType(arg.getType()) ||
+           isa<memref::LoadOp, AffineLoadOp>(arg.getDefiningOp());
+  });
+}
+
+static Value getContainerPtr(Value arg) {
+  return TypeSwitch<Operation *, Value>(arg.getDefiningOp())
+      .Case<LLVM::LoadOp>([](LLVM::LoadOp Load) { return Load.getAddr(); });
+}
+
 // Returns true if the given type is 'memref<?xSYCLType>', and false otherwise.
 template <typename SYCLType> static bool isMemRefOf(const Type &type) {
   if (!type.isa<MemRefType>())
@@ -736,6 +749,26 @@ public:
 // AccessorSubscriptPattern - Convert `sycl.accessor.subscript` to LLVM.
 //===----------------------------------------------------------------------===//
 
+static Value getAccessorMemoryRange(OpBuilder &builder, Location loc, Value acc,
+                                    int32_t index) {
+  const auto addressSpace =
+      acc.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const auto gep = static_cast<Value>(builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(builder.getI64Type(), addressSpace), acc,
+      ArrayRef<LLVM::GEPArg>{0, 0, 1, 0, 0, index}, /*inbounds*/ true));
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+static Value getIDComponent(OpBuilder &builder, Location loc, Value id,
+                            int32_t index) {
+  const auto addressSpace =
+      id.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const auto gep = static_cast<Value>(builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(builder.getI64Type(), addressSpace), id,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0, index}, /*inbounds*/ true));
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
 /// Base class for other patterns converting `sycl.accessor.subscript` to LLVM.
 class AccessorSubscriptPattern
     : public ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp> {
@@ -758,43 +791,35 @@ protected:
     return op.getIndex().getType().isa<IDType>();
   }
 
-  /// Returns the pointer in the accessor.
-  static Value getPointer(OpBuilder &builder, Location loc,
-                          OpAdaptor opAdaptor) {
-    return builder.create<LLVM::ExtractValueOp>(loc, opAdaptor.getAcc(),
-                                                ArrayRef<int64_t>{1, 0});
-  }
-
   /// Calculates the linear index out of an id.
   static Value getLinearIndex(OpBuilder &builder, Location loc,
                               AccessorType accTy, OpAdaptor opAdaptor) {
-    const auto id = opAdaptor.getIndex();
-    const auto mem = opAdaptor.getAcc();
+    const auto id = getContainerPtr(opAdaptor.getIndex());
+    const auto mem = getContainerPtr(opAdaptor.getAcc());
     // int64_t Res{0};
     Value res = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(), 0);
     for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
       // Res = Res * Mem[I] + Id[I]
-      const Value memI = builder.create<LLVM::ExtractValueOp>(
-          loc, mem, ArrayRef<int64_t>{0, 1, 0, 0, i});
-      const Value idI = builder.create<LLVM::ExtractValueOp>(
-          loc, id, ArrayRef<int64_t>{0, 0, i});
+      const auto memI = getAccessorMemoryRange(builder, loc, mem, i);
+      const auto idI = getIDComponent(builder, loc, id, i);
       res = builder.create<LLVM::AddOp>(
           loc, builder.create<LLVM::MulOp>(loc, res, memI), idI);
     }
     return res;
   }
 
-  static Value rewriteSubscript(SYCLAccessorSubscriptOp op, Value ptr,
+  static Value rewriteSubscript(SYCLAccessorSubscriptOp op, Value acc,
                                 Value offset, Type retTy, OpBuilder &builder) {
-    return builder.create<LLVM::GEPOp>(op.getLoc(), retTy, ptr, offset,
+    return builder.create<LLVM::GEPOp>(op.getLoc(), retTy, getContainerPtr(acc),
+                                       ArrayRef<LLVM::GEPArg>{0, 1, 0, offset},
                                        /*inbounds*/ true);
   }
 
   static Value rewriteSubscriptScalarOffset(SYCLAccessorSubscriptOp op,
                                             OpAdaptor opAdaptor, Type retTy,
                                             OpBuilder &builder) {
-    return rewriteSubscript(op, getPointer(builder, op.getLoc(), opAdaptor),
-                            opAdaptor.getIndex(), retTy, builder);
+    return rewriteSubscript(op, opAdaptor.getAcc(), opAdaptor.getIndex(), retTy,
+                            builder);
   }
 
   static Value rewriteSubscriptIDOffset(SYCLAccessorSubscriptOp op,
@@ -802,7 +827,7 @@ protected:
                                         OpBuilder &builder) {
     const auto loc = op.getLoc();
     return rewriteSubscript(
-        op, getPointer(builder, loc, opAdaptor),
+        op, opAdaptor.getAcc(),
         getLinearIndex(builder, loc, op.getAcc().getType(), opAdaptor), retTy,
         builder);
   }
@@ -814,7 +839,8 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(argsOriginateFromLoad(op.getOperands()) &&
+                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
@@ -834,7 +860,8 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(argsOriginateFromLoad(op.getOperands()) &&
+                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op) &&
                    AccessorSubscriptPattern::has1DAccessor(op));
   }
@@ -860,7 +887,8 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(argsOriginateFromLoad(op.getOperands()) &&
+                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op) &&
                    !AccessorSubscriptPattern::has1DAccessor(op));
   }
@@ -893,7 +921,8 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(argsOriginateFromLoad(op.getOperands()) &&
+                   AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
@@ -918,7 +947,8 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(argsOriginateFromLoad(op.getOperands()) &&
+                   AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
