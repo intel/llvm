@@ -68,7 +68,7 @@ due to the special case where the driver finds no configuration for a target and
 must assume that there exists some device that supports any given aspect. Since
 the driver has no way of knowing all possible aspects, we use a catch-all macro
 to denote this case instead. This is not needed for $A^{all}_t$ for any target
-$t$, as the driver will always know all relevant aspects.
+$t$, as it will always be the intersection of finite sets of aspects.
 
 ## Changes to the device headers
 
