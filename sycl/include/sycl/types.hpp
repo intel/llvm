@@ -2394,6 +2394,12 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 template <typename T, typename = void>
 struct is_device_copyable : std::false_type {};
 
+// NOTE: this specialization is a candidate for all T such that T is trivially
+// copyable, including std::array<T, N>, std::optional<T>, std::variant<T>,
+// sycl::marray<T> and T[N]. Thus, specializations for all these mentioned
+// types are guarded by `std::enable_if_t<!std::is_trivially_copyable<...>>`
+// so that they are candidates only for non-trivially-copyable types.
+// Otherwise, there are several candidates and the compiler can't decide.
 template <typename T>
 struct is_device_copyable<
     T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
@@ -2407,8 +2413,6 @@ template <typename T>
 struct is_device_copyable<std::array<T, 0>> : std::true_type {};
 
 // std::array<T, N> is implicitly device copyable type if T is device copyable
-// and it is not trivially copyable (if it is trivially copyable it is device
-// copyable by default)
 template <typename T, std::size_t N>
 struct is_device_copyable<
     std::array<T, N>,
@@ -2416,8 +2420,6 @@ struct is_device_copyable<
     : is_device_copyable<T> {};
 
 // std::optional<T> is implicitly device copyable type if T is device copyable
-// and it is not trivially copyable (if it is trivially copyable it is device
-// copyable by default)
 template <typename T>
 struct is_device_copyable<
     std::optional<T>,
@@ -2445,14 +2447,12 @@ struct is_device_copyable<std::tuple<T, Ts...>>
 template <> struct is_device_copyable<std::variant<>> : std::true_type {};
 
 // std::variant<Ts...> is implicitly device copyable type if each type T of
-// Ts... is device copyable, and it is not trivially copyable (if it is
-// trivially copyable it is device copyable by default)
-template <typename T, typename... Ts>
-struct is_device_copyable<std::variant<T, Ts...>,
-                          std::enable_if_t<!std::is_trivially_copyable<
-                              std::variant<T, Ts...>>::value>>
-    : detail::bool_constant<is_device_copyable<T>::value &&
-                            is_device_copyable<std::variant<Ts...>>::value> {};
+// Ts... is device copyable
+template <typename... Ts>
+struct is_device_copyable<
+    std::variant<Ts...>,
+    std::enable_if_t<!std::is_trivially_copyable<std::variant<Ts...>>::value>>
+    : is_device_copyable<Ts...> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
@@ -2463,9 +2463,7 @@ struct is_device_copyable<
                                          !std::is_trivially_copyable<T>::value>>
     : std::true_type {};
 
-// array is device copyable if element type is device copyable and it is also
-// not trivially copyable (if the element type is trivially copyable, the array
-// is device copyable by default).
+// array is device copyable if element type is device copyable
 template <typename T, std::size_t N>
 struct is_device_copyable<
     T[N], std::enable_if_t<!std::is_trivially_copyable<T>::value>>
