@@ -34,9 +34,9 @@ struct ParallelLICM : public ParallelLICMBase<ParallelLICM> {
 /// Represents the memory effects associated with an operation.
 struct OperationMemoryEffects {
   OperationMemoryEffects(Operation &op) {
-    if (op.getName().hasInterface<MemoryEffectOpInterface>()) {
+    if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
       SmallVector<MemoryEffects::EffectInstance, 1> effects;
-      cast<MemoryEffectOpInterface>(op).getEffects(effects);
+      memEffect.getEffects(effects);
 
       // Collect the memory effects of the operation.
       for (MemoryEffects::EffectInstance &effect : effects)
@@ -75,15 +75,15 @@ struct OperationMemoryEffects {
 
     // If the given operation has side effects, characterize them and check
     // whether they might prevent hoisting.
-    if (other.getName().hasInterface<MemoryEffectOpInterface>()) {
+    if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(other)) {
       // Check whether the given operation writes or allocates a resource read
       // by the operation associated with this class.
       for (SideEffects::Resource *res : readResources) {
         SmallVector<MemoryEffects::EffectInstance> effects;
-        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        memEffect.getEffectsOnResource(res, effects);
         for (const MemoryEffects::EffectInstance &effect : effects) {
-          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
-              isa<MemoryEffects::Write>(effect.getEffect()))
+          if (isa<MemoryEffects::Allocate, MemoryEffects::Write>(
+                  effect.getEffect()))
             return true;
         }
       }
@@ -92,11 +92,10 @@ struct OperationMemoryEffects {
       // that is written by the operation associated with this class.
       for (SideEffects::Resource *res : writeResources) {
         SmallVector<MemoryEffects::EffectInstance> effects;
-        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        memEffect.getEffectsOnResource(res, effects);
         for (const MemoryEffects::EffectInstance &effect : effects) {
-          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
-              isa<MemoryEffects::Read>(effect.getEffect()) ||
-              isa<MemoryEffects::Write>(effect.getEffect()))
+          if (isa<MemoryEffects::Allocate, MemoryEffects::Read,
+                  MemoryEffects::Write>(effect.getEffect()))
             return true;
         }
       }
@@ -105,11 +104,10 @@ struct OperationMemoryEffects {
       // that is freed by the operation associated with this class.
       for (SideEffects::Resource *res : freeResources) {
         SmallVector<MemoryEffects::EffectInstance> effects;
-        cast<MemoryEffectOpInterface>(other).getEffectsOnResource(res, effects);
+        memEffect.getEffectsOnResource(res, effects);
         for (const MemoryEffects::EffectInstance &effect : effects) {
-          if (isa<MemoryEffects::Allocate>(effect.getEffect()) ||
-              isa<MemoryEffects::Write>(effect.getEffect()) ||
-              isa<MemoryEffects::Read>(effect.getEffect()))
+          if (isa<MemoryEffects::Allocate, MemoryEffects::Write,
+                  MemoryEffects::Read>(effect.getEffect()))
             return true;
         }
       }
@@ -170,7 +168,7 @@ static bool canBeHoisted(Operation &op, T loop,
     return false;
   }
 
-  // If the operation has not side effects it can be hoisted.
+  // If the operation has no side effects it can be hoisted.
   if (isMemoryEffectFree(&op)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "can be hoisted: operation has no side effects\n");
@@ -241,7 +239,7 @@ static bool canBeHoisted(Operation &op, T loop,
 
   // Recurse into the regions for this op and check whether the contained ops
   // can be hoisted. We can inductively assume that this op will have its block
-  // args available outside the loop
+  // args available outside the loop.
   SmallPtrSet<Operation *, 2> willBeMoved2(willBeMoved.begin(),
                                            willBeMoved.end());
   willBeMoved2.insert(&op);
@@ -287,16 +285,17 @@ void moveParallelLoopInvariantCode(scf::ParallelOp loop) {
 
   // Move all operations we found to be invariant outside of the loop.
   OpBuilder b(loop);
-  Value cond = nullptr;
+  Value cond;
   for (auto pair :
        llvm::zip(loop.getLowerBound(), loop.getUpperBound(), loop.getStep())) {
-    auto val = b.create<arith::CmpIOp>(
+    const Value val = b.create<arith::CmpIOp>(
         loop.getLoc(), arith::CmpIPredicate::sle,
         b.create<arith::AddIOp>(loop.getLoc(), std::get<0>(pair),
                                 std::get<2>(pair)),
         std::get<1>(pair));
-    cond =
-        cond ? (Value)b.create<arith::AndIOp>(loop.getLoc(), cond, val) : val;
+    cond = cond ? static_cast<Value>(
+                      b.create<arith::AndIOp>(loop.getLoc(), cond, val))
+                : val;
   }
 
   auto ifOp = b.create<scf::IfOp>(loop.getLoc(), TypeRange(), cond);
@@ -351,6 +350,10 @@ void moveParallelLoopInvariantCode(AffineParallelOp loop) {
   SmallVector<Value> values;
   OperandRange lb_ops = loop.getLowerBoundsOperands(),
                ub_ops = loop.getUpperBoundsOperands();
+
+  //  std::copy(lb_ops.begin(), lb_ops.end(), std::back_inserter(values));
+  // std::copy(ub_ops.begin(), ub_ops.end(), std::back_inserter(values));
+
   for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumDims(); ++idx)
     values.push_back(lb_ops[idx]);
   for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
@@ -384,12 +387,12 @@ void ParallelLICM::runOnOperation() {
       llvm::dbgs() << "\n";
     });
 
-    if (auto parLoop = dyn_cast<scf::ParallelOp>((Operation *)loop))
-      moveParallelLoopInvariantCode(parLoop);
-    else if (auto parLoop = dyn_cast<AffineParallelOp>((Operation *)loop))
-      moveParallelLoopInvariantCode(parLoop);
-    else
-      moveLoopInvariantCode(loop);
+    moveLoopInvariantCode(loop);
+    TypeSwitch<Operation *>((Operation *)loop)
+        .Case<scf::ParallelOp>(
+            [&](auto loop) { moveParallelLoopInvariantCode(loop); })
+        .Case<AffineParallelOp>(
+            [&](auto loop) { moveParallelLoopInvariantCode(loop); });
   });
 }
 
