@@ -51,6 +51,8 @@ SYCL specification refer to that revision.
 This extension also depends on the following other SYCL extension:
 
 * link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+* link:./sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
 
 == Status
 
