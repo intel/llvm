@@ -8007,10 +8007,16 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
 
 void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+
+  // If there is no such attribute there is nothing to check. If there are
+  // dependent arguments we cannot know the actual number of arguments so we
+  // defer the check.
   if (!AddIRFuncAttr ||
       hasDependentExpr(AddIRFuncAttr->args_begin(), AddIRFuncAttr->args_size()))
     return;
 
+  // If there are no name-value pairs in the attribute it will not have an
+  // effect and we can skip the check. The filter is ignored.
   size_t NumArgsWithoutFilter =
       AddIRFuncAttr->args_size() - (AddIRFuncAttr->hasFilterList() ? 1 : 0);
   if (NumArgsWithoutFilter == 0)
