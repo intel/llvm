@@ -284,7 +284,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     {
       SmallVector<Metadata *, 8> MDOps;
       MDOps.reserve(F.arg_size());
-      bool foundKernelProperties = false;
+      bool FoundKernelProperties = false;
       for (unsigned i = 0; i < F.arg_size(); i++) {
         SmallVector<Metadata *, 8> MDArgOps;
         for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
@@ -293,11 +293,11 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
             MDArgOps.push_back(SPIRVMetadata);
         }
         if (!MDArgOps.empty())
-          foundKernelProperties = true;
+          FoundKernelProperties = true;
         MDOps.push_back(MDNode::get(Ctx, MDArgOps));
       }
       // Add the generated metadata to the kernel function.
-      if (foundKernelProperties) {
+      if (FoundKernelProperties) {
         F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
         CompileTimePropertiesMet = true;
       }

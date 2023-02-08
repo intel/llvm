@@ -1,9 +1,6 @@
 ; RUN: opt -passes="compile-time-properties" -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll
 ;
-; TODO: Remove --device-globals once other features start using compile-time
-;       properties.
-;
 ; Tests the translation of "sycl-kernel-arg-attribute" to "spirv.ParameterDecorations" metadata
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
