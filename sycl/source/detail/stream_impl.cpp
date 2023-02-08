@@ -116,11 +116,7 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
       fflush(stdout);
     });
   });
-  if (LeadEvent) {
-    LeadEvent->attachEventToComplete(detail::getSyclObjImpl(Event));
-    LeadEvent->getSubmittedQueue()->registerStreamServiceEvent(
-        detail::getSyclObjImpl(Event));
-  }
+  Event.wait();
 }
 
 void stream_impl::flush() { flush(nullptr); }
