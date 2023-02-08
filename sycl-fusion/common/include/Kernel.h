@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_KERNEL_H
 
 #include <algorithm>
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -106,37 +107,6 @@ public:
   constexpr static Indices AllZeros{0, 0, 0};
 
   ///
-  /// Returns whether or not two ranges can be fused.
-  ///
-  /// In order to be fusable, two ranges must:
-  /// 1. Both have the local size specified or not;
-  /// 2. If the local size is specified, it must be equal.
-  /// 3. Have the same offset;
-  static bool compatibleRanges(const NDRange &LHS, const NDRange &RHS);
-
-  template <typename InputIt>
-  static InputIt findSpecifiedLocalSize(InputIt Begin, InputIt End) {
-    return std::find_if(Begin, End,
-                        [&AllZeros = NDRange::AllZeros](const auto &ND) {
-                          return ND.hasSpecificLocalSize();
-                        });
-  }
-
-  ///
-  /// Return whether a combination of ND-ranges is valid for fusion.
-  template <typename InputIt>
-  static bool isValidCombination(InputIt Begin, InputIt End) {
-    if (Begin == End) {
-      return false;
-    }
-    const auto FirstSpecLocal = findSpecifiedLocalSize(Begin, End);
-    const auto &ND = FirstSpecLocal == End ? *Begin : *FirstSpecLocal;
-    return std::all_of(Begin, End, [&ND](const auto &Other) {
-      return NDRange::compatibleRanges(ND, Other);
-    });
-  }
-
-  ///
   /// Return the product of each index in an indices array.
   constexpr static size_t linearize(const jit_compiler::Indices &I) {
     return I[0] * I[1] * I[2];
@@ -146,7 +116,28 @@ public:
 
   NDRange(int Dimensions, const Indices &GlobalSize,
           const Indices &LocalSize = {1, 1, 1},
-          const Indices &Offset = {0, 0, 0});
+          const Indices &Offset = {0, 0, 0})
+      : Dimensions{Dimensions},
+        GlobalSize{GlobalSize}, LocalSize{LocalSize}, Offset{Offset} {
+#ifndef NDEBUG
+    const auto CheckDim = [Dimensions](const Indices &Range) {
+      return std::all_of(Range.begin() + Dimensions, Range.end(),
+                         [](auto D) { return D == 1; });
+    };
+    const auto CheckOffsetDim = [Dimensions](const Indices &Offset) {
+      return std::all_of(Offset.begin() + Dimensions, Offset.end(),
+
+                         [](auto D) { return D == 0; });
+    };
+#endif // NDEBUG
+    assert(CheckDim(GlobalSize) &&
+           "Invalid global range for number of dimensions");
+    assert(
+        (CheckDim(LocalSize) || std::all_of(LocalSize.begin(), LocalSize.end(),
+                                            [](auto D) { return D == 0; })) &&
+        "Invalid local range for number of dimensions");
+    assert(CheckOffsetDim(Offset) && "Invalid offset for number of dimensions");
+  }
 
   constexpr const Indices &getGlobalSize() const { return GlobalSize; }
   constexpr const Indices &getLocalSize() const { return LocalSize; }

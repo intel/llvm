@@ -34,9 +34,8 @@ target_include_directories(sycl-fusion
 find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-fusion
-  PUBLIC
-  sycl-fusion-common
   PRIVATE
+  sycl-fusion-common
   LLVMSPIRVLib
   SYCLKernelFusionPasses
   ${CMAKE_THREAD_LIBS_INIT}

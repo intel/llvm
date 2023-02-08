@@ -49,9 +49,19 @@ static Indices getMaximalGlobalSize(ArrayRef<NDRange> NDRanges) {
       ->first;
 }
 
+static bool compatibleRanges(const NDRange &LHS, const NDRange &RHS) {
+  const auto Dimensions = std::max(LHS.getDimensions(), RHS.getDimensions());
+  const auto EqualIndices = [Dimensions](const Indices &LHS,
+                                         const Indices &RHS) {
+    return std::equal(LHS.begin(), LHS.begin() + Dimensions, RHS.begin());
+  };
+  return (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
+          EqualIndices(LHS.getLocalSize(), RHS.getLocalSize())) &&
+         EqualIndices(LHS.getOffset(), RHS.getOffset());
+}
+
 NDRange jit_compiler::combineNDRanges(ArrayRef<NDRange> NDRanges) {
-  assert(NDRange::isValidCombination(NDRanges.begin(), NDRanges.end()) &&
-         "Invalid ND-ranges combination");
+  assert(isValidCombination(NDRanges) && "Invalid ND-ranges combination");
   const auto Dimensions =
       std::max_element(NDRanges.begin(), NDRanges.end(),
                        [](const auto &LHS, const auto &RHS) {
@@ -60,10 +70,30 @@ NDRange jit_compiler::combineNDRanges(ArrayRef<NDRange> NDRanges) {
           ->getDimensions();
   const auto GlobalSize = getMaximalGlobalSize(NDRanges);
   const auto *End = NDRanges.end();
-  const auto *LocalSizeIter =
-      NDRange::findSpecifiedLocalSize(NDRanges.begin(), End);
+  const auto *LocalSizeIter = findSpecifiedLocalSize(NDRanges);
   const auto &LocalSize =
       LocalSizeIter == End ? NDRange::AllZeros : LocalSizeIter->getLocalSize();
   const auto &Front = NDRanges.front();
   return {Dimensions, GlobalSize, LocalSize, Front.getOffset()};
+}
+
+bool jit_compiler::isHeterogeneousList(ArrayRef<NDRange> NDRanges) {
+  const auto *FirstSpecifiedLocalSize = findSpecifiedLocalSize(NDRanges);
+  const auto &ND = FirstSpecifiedLocalSize == NDRanges.end()
+                       ? NDRanges.front()
+                       : *FirstSpecifiedLocalSize;
+  return any_of(NDRanges, [&ND](const auto &Other) { return ND != Other; });
+}
+
+bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
+  if (NDRanges.empty()) {
+    return false;
+  }
+  const auto *FirstSpecifiedLocalSize = findSpecifiedLocalSize(NDRanges);
+  const auto &ND = FirstSpecifiedLocalSize == NDRanges.end()
+                       ? NDRanges.front()
+                       : *FirstSpecifiedLocalSize;
+  return llvm::all_of(NDRanges, [&ND](const auto &Other) {
+    return compatibleRanges(ND, Other);
+  });
 }

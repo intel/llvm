@@ -9,6 +9,7 @@
 #include "KernelFusion.h"
 #include "Kernel.h"
 #include "KernelIO.h"
+#include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
 #include "fusion/FusionPipeline.h"
@@ -55,6 +56,11 @@ FusionResult KernelFusion::fuseKernels(
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
   const auto NDRanges = gatherNDRanges(KernelInformation);
+
+  if (!isValidCombination(NDRanges)) {
+    return FusionResult{
+        "Cannot fuse kernels with different offsets or local sizes"};
+  }
 
   // Initialize the configuration helper to make the options for this invocation
   // available (on a per-thread basis).

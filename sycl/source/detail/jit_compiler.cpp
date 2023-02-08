@@ -711,13 +711,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     ++KernelIndex;
   }
 
-  if (!::jit_compiler::NDRange::isValidCombination(Ranges.begin(),
-                                                   Ranges.end())) {
-    printPerformanceWarning(
-        "Cannot fuse kernels with different offsets or local sizes");
-    return nullptr;
-  }
-
   // Pre-process the arguments, to detect identical parameters or arguments that
   // can be constant-propagated by the JIT compiler.
   std::vector<::jit_compiler::ParameterInternalization> InternalizeParams;

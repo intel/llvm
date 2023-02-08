@@ -11,25 +11,27 @@
 
 #include "Kernel.h"
 
-#include <algorithm>
-
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 
 namespace jit_compiler {
 ///
 /// Combine a list of ND-ranges, obtaining the resulting "fused" ND-range.
 NDRange combineNDRanges(llvm::ArrayRef<NDRange> NDRanges);
 
+inline llvm::ArrayRef<NDRange>::const_iterator
+findSpecifiedLocalSize(llvm::ArrayRef<NDRange> NDRanges) {
+  return llvm::find_if(
+      NDRanges, [](const auto &ND) { return ND.hasSpecificLocalSize(); });
+}
+
 ///
 /// Returns whether the input list of ND-ranges is heterogeneous or not.
-inline bool isHeterogeneousList(llvm::ArrayRef<NDRange> NDRanges) {
-  const auto *Begin = NDRanges.begin();
-  const auto *End = NDRanges.end();
-  const auto *FirstSpecLocal = NDRange::findSpecifiedLocalSize(Begin, End);
-  return std::any_of(Begin, End,
-                     [&ND = FirstSpecLocal == End ? *Begin : *FirstSpecLocal](
-                         const auto &Other) { return ND != Other; });
-}
+bool isHeterogeneousList(llvm::ArrayRef<NDRange> NDRanges);
+
+///
+/// Return whether a combination of ND-ranges is valid for fusion.
+bool isValidCombination(llvm::ArrayRef<NDRange> NDRanges);
 } // namespace jit_compiler
 
 #endif // SYCL_FUSION_COMMON_NDRANGESHELPER_H
