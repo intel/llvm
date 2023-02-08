@@ -291,9 +291,12 @@ public:
 
     // Prepare for new yielded value for 'replaceOp'.
     SmallVector<Value, 4> NewYieldedRes, NewRes(NewForOp.getResults());
-    size_t AdditionalRes =
-        NewForOp.getResults().size() - ForOp.getResults().size();
-    assert(AdditionalRes >= 0 && "must be >= 0");
+    const auto NewForOpNumRes = NewForOp.getNumResults();
+    const auto ForOpNumRes = ForOp.getNumResults();
+    assert(NewForOpNumRes >= ForOpNumRes &&
+           "new for must cannot have less arguments than old one");
+    const auto AdditionalRes =
+        static_cast<size_t>(NewForOpNumRes - ForOpNumRes);
     NewRes.insert(NewRes.end(), NewRes.begin(), NewRes.end() - AdditionalRes);
 
     // Propagate results new forOp to downstream loads if any, otherwise insert
