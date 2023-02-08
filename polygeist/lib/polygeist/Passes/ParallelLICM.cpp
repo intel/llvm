@@ -356,7 +356,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp loop) {
             std::back_inserter(values));
   std::copy(ub_ops.begin(),
             ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
-            op std::back_inserter(values));
+            std::back_inserter(values));
   std::copy(lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
             lb_ops.end(), std::back_inserter(values));
   std::copy(ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
