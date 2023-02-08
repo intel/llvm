@@ -34,7 +34,7 @@
 // RUN:   | FileCheck -check-prefix=ARGS %s
 
 //      ARGS: -cc1" "-triple" "nvptx64-nvidia-cuda" "-S" {{.*}} "-target-cpu" "sm_61" "-target-feature" "+ptx{{[0-9]+}}" {{.*}} "-o" "[[PTX:.+]].s"
-// ARGS-NEXT: ptxas{{.*}}"-m64" "-O0" "--gpu-name" "sm_61" "--output-file" "[[CUBIN:.+]].cubin" "[[PTX]].s" "-c"
+// ARGS-NEXT: ptxas{{.*}}"-m64" "-O3" "--gpu-name" "sm_61" "--output-file" "[[CUBIN:.+]].cubin" "[[PTX]].s" "-c"
 // ARGS-NEXT: nvlink{{.*}}"-o" "a.out" "-arch" "sm_61" {{.*}} "[[CUBIN]].cubin"
 
 //
@@ -45,7 +45,7 @@
 // RUN:   | FileCheck -check-prefix=OBJECT %s
 
 //      OBJECT: -cc1" "-triple" "nvptx64-nvidia-cuda" "-S" {{.*}} "-target-cpu" "sm_61" "-target-feature" "+ptx{{[0-9]+}}" {{.*}} "-o" "[[PTX:.+]].s"
-// OBJECT-NEXT: ptxas{{.*}}"-m64" "-O0" "--gpu-name" "sm_61" "--output-file" "[[OBJ:.+]].o" "[[PTX]].s" "-c"
+// OBJECT-NEXT: ptxas{{.*}}"-m64" "-O3" "--gpu-name" "sm_61" "--output-file" "[[OBJ:.+]].o" "[[PTX]].s" "-c"
 
 //
 // Test the generated arguments to the CUDA binary utils when targeting NVPTX. 
@@ -64,5 +64,5 @@
 // RUN:   | FileCheck -check-prefix=DEFAULT %s
 
 //      DEFAULT: -cc1" "-triple" "nvptx64-nvidia-cuda" "-S" {{.*}} "-target-cpu" "sm_35" "-target-feature" "+ptx{{[0-9]+}}" {{.*}} "-o" "[[PTX:.+]].s"
-// DEFAULT-NEXT: ptxas{{.*}}"-m64" "-O0" "--gpu-name" "sm_35" "--output-file" "[[CUBIN:.+]].cubin" "[[PTX]].s" "-c"
+// DEFAULT-NEXT: ptxas{{.*}}"-m64" "-O3" "--gpu-name" "sm_35" "--output-file" "[[CUBIN:.+]].cubin" "[[PTX]].s" "-c"
 // DEFAULT-NEXT: nvlink{{.*}}"-o" "a.out" "-arch" "sm_35" {{.*}} "[[CUBIN]].cubin"
