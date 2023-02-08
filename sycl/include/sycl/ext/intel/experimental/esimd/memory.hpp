@@ -572,50 +572,101 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @return is a vector of type T and size NElts
+/// @return is a vector of type T and size NElts. The elements of the returned
+/// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
+  // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  constexpr int SmallIntFactor =
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
+  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT =
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
+  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
+  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  constexpr int SmallIntFactor =
-      (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts % SmallIntFactor == 0,
-                "Number of elements is not supported by Transposed load");
 
+  __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+      __esimd_lsc_load_stateless<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
+                                 _DS, _VS, _Transposed, N>(pred.data(),
+                                                           Addrs.data());
+  return Result.template bit_cast_view<T>();
+}
+
+/// USM pointer transposed gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Accesses contiguous block of memory of `NElts * S` bytes  starting from
+/// given address, where S is a byte size of an "element" defined by the \c DS
+/// template parameter. The maximum size of accessed block is 512 bytes for PVC
+/// and 256 bytes for ACM (DG2).
+/// When \c DS equals \c lsc_data_size::u64, the address must be 8-byte aligned,
+/// otherwise - 4-bytes aligned. Allowed values for the data size are
+/// \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts values are
+/// 1, 2, 3, 4, 8, 16, 32, 64.
+/// Note that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts
+/// must be 64.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param p is the base pointer.
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed.
+/// @param old_values contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and size NElts.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+__ESIMD_API __ESIMD_NS::simd<T, NElts>
+lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
+               __ESIMD_NS::simd<T, NElts> old_values) {
+  // Verify input template arguments.
+  detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  constexpr int SmallIntFactor =
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
-  constexpr detail::lsc_vector_size _VS =
-      detail::to_lsc_vector_size<NElts / SmallIntFactor>();
-  if constexpr (SmallIntFactor == 1) {
-    if constexpr (_DS == lsc_data_size::u32) {
-      __ESIMD_NS::simd<uint32_t, NElts> result =
-          __esimd_lsc_load_stateless<uint32_t, L1H, L3H, _AddressScale,
-                                     _ImmOffset, lsc_data_size::u32, _VS,
-                                     _Transposed, N>(pred.data(), addrs.data());
-      return result.template bit_cast_view<T>();
-    } else {
-      __ESIMD_NS::simd<uint64_t, NElts> result =
-          __esimd_lsc_load_stateless<uint64_t, L1H, L3H, _AddressScale,
-                                     _ImmOffset, lsc_data_size::u64, _VS,
-                                     _Transposed, N>(pred.data(), addrs.data());
-      return result.template bit_cast_view<T>();
-    }
-  } else {
-    __ESIMD_NS::simd<uint32_t, NElts / SmallIntFactor> result =
-        __esimd_lsc_load_stateless<uint32_t, L1H, L3H, _AddressScale,
-                                   _ImmOffset, lsc_data_size::u32, _VS,
-                                   _Transposed, N>(pred.data(), addrs.data());
-    return result.template bit_cast_view<T>();
-  }
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT =
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
+  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _Transposed = detail::lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> OldVals =
+      old_values.template bit_cast_view<LoadElemT>();
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+      __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L3H, _AddressScale,
+                                       _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), Addrs.data(), OldVals.data());
+  return Result.template bit_cast_view<T>();
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -638,7 +689,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @return is a vector of type T and size NElts
+/// @return is a vector of type T and size NElts. The elements of the returned
+/// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
@@ -650,47 +702,102 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred);
-#else
+#else  // !__ESIMD_FORCE_STATELESS_MEM
+  // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  auto si = __ESIMD_NS::get_surface_index(acc);
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
-      (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts % SmallIntFactor == 0,
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
                 "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
-  constexpr detail::lsc_vector_size _VS =
-      detail::to_lsc_vector_size<NElts / SmallIntFactor>();
 
-  if constexpr (SmallIntFactor == 1) {
-    if constexpr (_DS == lsc_data_size::u32) {
-      __ESIMD_NS::simd<uint32_t, NElts> result =
-          __esimd_lsc_load_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
-                               lsc_data_size::u32, _VS, _Transposed, N>(
-              pred.data(), offsets.data(), si);
-      return result.template bit_cast_view<T>();
-    } else {
-      __ESIMD_NS::simd<uint64_t, NElts> result =
-          __esimd_lsc_load_bti<uint64_t, L1H, L3H, _AddressScale, _ImmOffset,
-                               lsc_data_size::u64, _VS, _Transposed, N>(
-              pred.data(), offsets.data(), si);
-      return result.template bit_cast_view<T>();
-    }
-  } else {
-    __ESIMD_NS::simd<uint32_t, NElts / SmallIntFactor> result =
-        __esimd_lsc_load_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
-                             lsc_data_size::u32, _VS, _Transposed, N>(
-            pred.data(), offsets.data(), si);
-    return result.template bit_cast_view<T>();
-  }
-#endif
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT =
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
+  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _Transposed = detail::lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  __ESIMD_NS::simd<uint32_t, N> Offsets = offset;
+  auto SI = __ESIMD_NS::get_surface_index(acc);
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+      __esimd_lsc_load_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                           _VS, _Transposed, N>(pred.data(), Offsets.data(),
+                                                SI);
+  return Result.template bit_cast_view<T>();
+#endif // !__ESIMD_FORCE_STATELESS_MEM
+}
+
+/// Accessor-based transposed gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+/// See comments in the  \ref lsc_block_load API for description and parameter
+/// constraints.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offset is the zero-based offset in bytes.
+/// @param pred is operation predicate. Operation is skipped for index 'i'
+/// if pred[i] == 0 and the result element is taken from \p old_values[i].
+/// Otherwise, the operation is performed.
+/// @param old_values contains the values copied to the result when
+/// the corresponding element from \p pred is zero.
+/// @return is a vector of type T and size NElts
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
+                             __ESIMD_NS::simd<T, NElts>>
+lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
+               __ESIMD_NS::simd<T, NElts> old_values) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, old_values);
+#else  // !__ESIMD_FORCE_STATELESS_MEM
+  // Verify input template arguments.
+  detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  constexpr int SmallIntFactor =
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
+  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT =
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
+  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _Transposed = detail::lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  __ESIMD_NS::simd<uint32_t, N> Offsets = offset;
+  auto SI = __ESIMD_NS::get_surface_index(acc);
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> OldVals =
+      old_values.template bit_cast_view<LoadElemT>();
+  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+      __esimd_lsc_load_merge_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
+                                 _DS, _VS, _Transposed, N>(
+          pred.data(), Offsets.data(), SI, OldVals.data());
+  return Result.template bit_cast_view<T>();
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
 /// USM pointer prefetch gather.
