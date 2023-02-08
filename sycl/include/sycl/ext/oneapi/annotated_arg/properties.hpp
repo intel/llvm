@@ -18,6 +18,7 @@ namespace oneapi {
 namespace experimental {
 
 template <typename T, typename PropertyListT> class annotated_arg;
+template <typename T, typename PropertyListT> class annotated_ptr;
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
@@ -152,6 +153,49 @@ struct is_property_key_of<maxburst_key, annotated_arg<T, PropertyListT>>
 template <typename T, typename PropertyListT>
 struct is_property_key_of<wait_request_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
+
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<register_map_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<conduit_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<stable_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<buffer_location_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<awidth_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<dwidth_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<latency_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_write_mode_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<maxburst_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<wait_request_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+
 
 namespace detail {
 template <> struct PropertyToKind<register_map_key> {
