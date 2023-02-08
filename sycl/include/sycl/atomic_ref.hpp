@@ -542,6 +542,8 @@ class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 public:
   using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
                         DefaultScope, AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
+                        DefaultScope, AddressSpace>::atomic_ref_impl::operator=;
 };
 
 // Partial specialization for 64-bit floating-point types needed for optional
@@ -561,6 +563,8 @@ class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 public:
   using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
                         DefaultScope, AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
+                        DefaultScope, AddressSpace>::atomic_ref_impl::operator=;
 };
 
 // Partial specialization for pointer types
