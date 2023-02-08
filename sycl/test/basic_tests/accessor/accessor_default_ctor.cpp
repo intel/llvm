@@ -13,7 +13,7 @@ int main() {
   assert(B.get_pointer() == nullptr);
   // TODO: uncomment check with get_multi_ptr() when SYCL 2020 mupti_ptr feature
   // will be merged
-  // assert(B.get_multi_ptr() == nullptr);
+  assert(B.get_multi_ptr() == nullptr);
 
   return 0;
 }
