@@ -2,9 +2,6 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// TODO: enable when Jira ticket resolved
-// XFAIL: gpu
-//
 // Check that full compilation works:
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
@@ -127,10 +124,11 @@ int main(void) {
 
             // Invoke SIMD function:
             if constexpr (scale_scalar)
-              vc = invoke_simd<simd<float, VL>(simd<float, VL>, float)>(
-                  sg, SIMD_CALLEE_scale, va, uniform{n});
+              vc = invoke_simd<simd<float, VL> __regcall (*)(
+                  simd<float, VL>, float)>(sg, SIMD_CALLEE_scale, va,
+                                           uniform{n});
             else
-              vc = invoke_simd<simd<float, VL>(
+              vc = invoke_simd<simd<float, VL> __regcall (*)(
                   simd<float, VL>, simd<float, VL>)>(sg, SIMD_CALLEE_scale, va,
                                                      n);
 
