@@ -245,7 +245,7 @@ backend_input_t2<backend::ext_oneapi_level_zero,
 struct {
   // ze_command_queue_handle_t or
   // ze_command_list_handle_t
-  void *ze_handle;
+  void *LevelZeroHandle;
   bool IsImmCmdList;
 } NativeHandleEnhanced_t;
 

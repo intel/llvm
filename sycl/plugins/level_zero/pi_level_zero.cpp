@@ -3981,6 +3981,14 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   if (Queue->UsingImmCmdLists) {
     zePrint("The queue uses immediate cmdlists\n");
     auto ZeCmdList = pi_cast<ze_command_list_handle_t *>(NativeHandle);
+    // If no activity has occured on the queue we will create an immediate
+    // commandlist.
+    if (ComputeQueueGroupRef.ImmCmdLists[0] == Queue->CommandListMap.end()) {
+      pi_command_list_ptr_t CmdList;
+      if (auto Res = Queue->Context->getAvailableCommandList(Queue, CmdList,
+                                                             false, true))
+        return Res;
+    }
     // Extract the Level Zero command list handle from the given PI queue
     *ZeCmdList = ComputeQueueGroupRef.ImmCmdLists[0]->first;
     *IsImmCmdList = true;

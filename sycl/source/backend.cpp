@@ -129,19 +129,20 @@ __SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
                                 const context &Context, const device *Device,
                                 bool KeepOwnership,
                                 const async_handler &Handler, backend Backend) {
-  ze_queue_or_cmdlist_handle_t NativeHandle2 =
-      reinterpret_cast<ze_queue_or_cmdlist_handle_t>(NativeHandle);
+  NativeHandleEnhanced_t NativeHandle2 =
+      reinterpret_cast<NativeHandleEnhanced_t>(NativeHandle);
 
   if (Device) {
     const auto &DeviceImpl = getSyclObjImpl(*Device);
     return make_queue_impl2(
-        reinterpret_cast<pi_native_handle>(NativeHandle2->ze_handle), Context,
-        DeviceImpl->getHandleRef(), KeepOwnership, NativeHandle2->IsImmCmdList,
-        Handler, Backend);
+        reinterpret_cast<pi_native_handle>(NativeHandle2->LevelZeroHandle),
+        Context, DeviceImpl->getHandleRef(), KeepOwnership,
+        NativeHandle2->IsImmCmdList, Handler, Backend);
   } else {
     return make_queue_impl2(
-        reinterpret_cast<pi_native_handle>(NativeHandle2->ze_handle), Context,
-        nullptr, KeepOwnership, NativeHandle2->IsImmCmdList, Handler, Backend);
+        reinterpret_cast<pi_native_handle>(NativeHandle2->LevelZeroHandle),
+        Context, nullptr, KeepOwnership, NativeHandle2->IsImmCmdList, Handler,
+        Backend);
   }
 }
 

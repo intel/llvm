@@ -37,9 +37,9 @@ typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 typedef struct _ze_queue_or_cmdlist {
-  void *ze_handle;
+  void *LevelZeroHandle;
   bool IsImmCmdList;
-} *ze_queue_or_cmdlist_handle_t;
+} *NativeHandleEnhanced_t;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -67,7 +67,7 @@ template <> struct interop<backend::ext_oneapi_level_zero, event> {
 
 template <> struct interop<backend::ext_oneapi_level_zero, queue> {
   using type = ze_command_queue_handle_t;
-  using type2 = ze_queue_or_cmdlist_handle_t;
+  using type2 = NativeHandleEnhanced_t;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
@@ -149,12 +149,12 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
         : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
   };
   struct type2 {
-    ze_queue_or_cmdlist_handle_t NativeHandle;
+    NativeHandleEnhanced_t NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
     device Device;
 
-    type2(ze_queue_or_cmdlist_handle_t nativeHandle, device dev,
+    type2(NativeHandleEnhanced_t nativeHandle, device dev,
           ext::oneapi::level_zero::ownership ownership =
               ext::oneapi::level_zero::ownership::transfer)
         : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
