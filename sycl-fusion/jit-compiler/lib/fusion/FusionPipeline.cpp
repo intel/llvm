@@ -71,6 +71,9 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   ModulePassManager MPM;
   // Run the fusion pass on the LLVM IR module.
   MPM.addPass(SYCLKernelFusion{BarriersFlags});
+  // This pass is needed to inline remapping function calls inserted by the
+  // SYCLKernelFusion pass.
+  MPM.addPass(AlwaysInlinerPass{});
   {
     FunctionPassManager FPM;
     // Run loop unrolling and SROA to split the kernel functor struct into its
@@ -93,7 +96,6 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   MPM.addPass(SYCLInternalizer{});
   MPM.addPass(SYCLCP{});
   // Run additional optimization passes after completing fusion.
-  MPM.addPass(AlwaysInlinerPass{});
   {
     FunctionPassManager FPM;
     FPM.addPass(SROAPass{SROAOptions::ModifyCFG});

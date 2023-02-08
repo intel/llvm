@@ -17,8 +17,13 @@ target_include_directories(SYCLKernelFusion
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE
-  ${SYCL_JIT_BASE_DIR}/jit-compiler/include
   ${SYCL_JIT_BASE_DIR}/common/include
+  ${SYCL_JIT_BASE_DIR}/common/lib
+)
+
+target_link_libraries(SYCLKernelFusion
+  PRIVATE
+  sycl-fusion-common
 )
 
 # Static library for linking with the jit_compiler
@@ -46,6 +51,11 @@ target_include_directories(SYCLKernelFusionPasses
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   PRIVATE
-  ${SYCL_JIT_BASE_DIR}/jit-compiler/include
   ${SYCL_JIT_BASE_DIR}/common/include
+  ${SYCL_JIT_BASE_DIR}/common/lib
+)
+
+target_link_libraries(SYCLKernelFusionPasses
+  PRIVATE
+  sycl-fusion-common
 )

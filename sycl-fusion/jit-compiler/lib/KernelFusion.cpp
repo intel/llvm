@@ -68,7 +68,7 @@ FusionResult KernelFusion::fuseKernels(
                      Constants,
                      jit_compiler::isHeterogeneousList(NDRanges)
                          ? std::optional<std::vector<NDRange>>{NDRanges}
-                         : std::optional<std::vector<NDRange>>{}};
+                         : std::optional<std::vector<NDRange>>{std::nullopt}};
   if (CachingEnabled) {
     std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
     if (CachedKernel) {

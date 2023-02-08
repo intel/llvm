@@ -40,17 +40,17 @@ constexpr static StringLiteral KernelArgTypeQual{"kernel_arg_type_qual"};
 constexpr StringLiteral SYCLKernelFusion::NDRangeMDKey;
 constexpr StringLiteral SYCLKernelFusion::NDRangesMDKey;
 
-struct FusedKernel {
+struct InputKernel {
   StringRef Name;
   jit_compiler::NDRange ND;
-  FusedKernel(StringRef Name, const jit_compiler::NDRange &ND)
+  InputKernel(StringRef Name, const jit_compiler::NDRange &ND)
       : Name{Name}, ND{ND} {}
 };
 
-struct FusedKernelFunction {
+struct InputKernelFunction {
   Function *F;
   const jit_compiler::NDRange &ND;
-  FusedKernelFunction(Function *F, const jit_compiler::NDRange &ND)
+  InputKernelFunction(Function *F, const jit_compiler::NDRange &ND)
       : F{F}, ND{ND} {}
 };
 
@@ -85,7 +85,7 @@ static jit_compiler::NDRange getNDFromMD(const Metadata *MD) {
 
 static unsigned getUnsignedFromMD(Metadata *MD);
 
-static bool hasHeterogeneousNDRangesList(ArrayRef<FusedKernelFunction> Fs) {
+static bool hasHeterogeneousNDRangesList(ArrayRef<InputKernelFunction> Fs) {
   SmallVector<jit_compiler::NDRange> NDRanges;
   NDRanges.reserve(Fs.size());
   std::transform(Fs.begin(), Fs.end(), std::back_inserter(NDRanges),
@@ -282,7 +282,7 @@ void SYCLKernelFusion::fuseKernel(
 
   // Second metadata operand should be the list of kernels to fuse.
   auto *KernelList = cast<MDNode>(MD->getOperand(1).get());
-  SmallVector<FusedKernel> FusedKernels;
+  SmallVector<InputKernel> FusedKernels;
   {
     const auto NumKernels = KernelList->getNumOperands();
     assert(NDRangeMD && NumKernels == NDRangesMD->getNumOperands() &&
@@ -327,7 +327,7 @@ void SYCLKernelFusion::fuseKernel(
   // Locate all the functions that should be fused into this kernel in the
   // module. The module MUST contain definitions for all functions that should
   // be fused, otherwise this is an error.
-  SmallVector<FusedKernelFunction> InputFunctions;
+  SmallVector<InputKernelFunction> InputFunctions;
   SmallVector<Type *> FusedArguments;
   SmallVector<std::string> FusedArgNames;
   SmallVector<AttributeSet> FusedParamAttributes;
@@ -528,7 +528,7 @@ void SYCLKernelFusion::fuseKernel(
       auto *IF = KF.F;
       SmallVector<Value *> CallArgs;
       for (size_t I = 0; I < IF->arg_size(); ++I) {
-        // Lookup actual paprameter index in the mapping.
+        // Lookup actual parameter index in the mapping.
         assert(ParamMapping.count({FuncIndex, I}));
         unsigned ParamIdx = ParamMapping[{FuncIndex, I}];
         CallArgs.push_back(FusedFunction->getArg(ParamIdx));

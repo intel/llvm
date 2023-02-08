@@ -10,8 +10,6 @@
 #define SYCL_FUSION_COMMON_KERNEL_H
 
 #include <algorithm>
-#include <cassert>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -114,15 +112,14 @@ public:
   /// 1. Both have the local size specified or not;
   /// 2. If the local size is specified, it must be equal.
   /// 3. Have the same offset;
-  static bool compatibleRanges(const NDRange &LHS, const NDRange &RHS) {
-    const auto Dimensions = std::max(LHS.getDimensions(), RHS.getDimensions());
-    const auto EqualIndices = [Dimensions](const Indices &LHS,
-                                           const Indices &RHS) {
-      return std::equal(LHS.begin(), LHS.begin() + Dimensions, RHS.begin());
-    };
-    return (EqualIndices(LHS.getLocalSize(), RHS.getLocalSize()) ||
-            LHS.getLocalSize() == AllZeros || RHS.getLocalSize() == AllZeros) &&
-           EqualIndices(LHS.getOffset(), RHS.getOffset());
+  static bool compatibleRanges(const NDRange &LHS, const NDRange &RHS);
+
+  template <typename InputIt>
+  static InputIt findSpecifiedLocalSize(InputIt Begin, InputIt End) {
+    return std::find_if(Begin, End,
+                        [&AllZeros = NDRange::AllZeros](const auto &ND) {
+                          return ND.hasSpecificLocalSize();
+                        });
   }
 
   ///
@@ -132,16 +129,11 @@ public:
     if (Begin == End) {
       return false;
     }
-    const auto &AllZeros = NDRange::AllZeros;
-    const auto FirstSpecLocal =
-        std::find_if(Begin, End, [&AllZeros](const auto &ND) {
-          return ND.getLocalSize() != AllZeros;
-        });
-    return std::all_of(Begin, End,
-                       [&ND = FirstSpecLocal == End ? *Begin : *FirstSpecLocal](
-                           const auto &Other) {
-                         return NDRange::compatibleRanges(ND, Other);
-                       });
+    const auto FirstSpecLocal = findSpecifiedLocalSize(Begin, End);
+    const auto &ND = FirstSpecLocal == End ? *Begin : *FirstSpecLocal;
+    return std::all_of(Begin, End, [&ND](const auto &Other) {
+      return NDRange::compatibleRanges(ND, Other);
+    });
   }
 
   ///
@@ -154,38 +146,19 @@ public:
 
   NDRange(int Dimensions, const Indices &GlobalSize,
           const Indices &LocalSize = {1, 1, 1},
-          const Indices &Offset = {0, 0, 0})
-      : Dimensions{Dimensions},
-        GlobalSize{GlobalSize}, LocalSize{LocalSize}, Offset{Offset} {
-#ifndef NDEBUG
-    const auto CheckDim = [Dimensions](const Indices &Range) {
-      return std::all_of(Range.begin() + Dimensions, Range.end(),
-                         [](auto D) { return D == 1; });
-    };
-    const auto CheckOffsetDim = [Dimensions](const Indices &Offset) {
-      return std::all_of(Offset.begin() + Dimensions, Offset.end(),
-
-                         [](auto D) { return D == 0; });
-    };
-#endif // NDEBUG
-    assert(CheckDim(GlobalSize) &&
-           "Invalid global range for number of dimensions");
-    assert(
-        (CheckDim(LocalSize) || std::all_of(LocalSize.begin(), LocalSize.end(),
-                                            [](auto D) { return D == 0; })) &&
-        "Invalid local range for number of dimensions");
-    assert(CheckOffsetDim(Offset) && "Invalid offset for number of dimensions");
-  }
+          const Indices &Offset = {0, 0, 0});
 
   constexpr const Indices &getGlobalSize() const { return GlobalSize; }
   constexpr const Indices &getLocalSize() const { return LocalSize; }
   constexpr const Indices &getOffset() const { return Offset; }
   constexpr int getDimensions() const { return Dimensions; }
 
+  bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+
   friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
     return LHS.Dimensions == RHS.Dimensions &&
            LHS.GlobalSize == RHS.GlobalSize &&
-           (LHS.LocalSize == AllZeros || RHS.LocalSize == AllZeros ||
+           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
             LHS.LocalSize == RHS.LocalSize) &&
            LHS.Offset == RHS.Offset;
   }

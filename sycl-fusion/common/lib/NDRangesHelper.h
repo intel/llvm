@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_NDRANGESHELPER_H
-#define SYCL_FUSION_JIT_COMPILER_NDRANGESHELPER_H
+#ifndef SYCL_FUSION_COMMON_NDRANGESHELPER_H
+#define SYCL_FUSION_COMMON_NDRANGESHELPER_H
 
 #include "Kernel.h"
 
@@ -25,14 +25,11 @@ NDRange combineNDRanges(llvm::ArrayRef<NDRange> NDRanges);
 inline bool isHeterogeneousList(llvm::ArrayRef<NDRange> NDRanges) {
   const auto *Begin = NDRanges.begin();
   const auto *End = NDRanges.end();
-  const auto *FirstSpecLocal =
-      std::find_if(Begin, End, [&AllZeros = NDRange::AllZeros](const auto &ND) {
-        return ND.getLocalSize() != AllZeros;
-      });
+  const auto *FirstSpecLocal = NDRange::findSpecifiedLocalSize(Begin, End);
   return std::any_of(Begin, End,
                      [&ND = FirstSpecLocal == End ? *Begin : *FirstSpecLocal](
                          const auto &Other) { return ND != Other; });
 }
 } // namespace jit_compiler
 
-#endif // SYCL_FUSION_JIT_COMPILER_NDRANGESHELPER_H
+#endif // SYCL_FUSION_COMMON_NDRANGESHELPER_H

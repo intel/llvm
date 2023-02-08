@@ -69,9 +69,8 @@ uint64_t Remapper::getDefaultValue(Kind K) {
   case Kind::GroupIDRemapper:
   case Kind::GlobalOffsetRemapper:
     return 0;
-  default:
-    llvm_unreachable("Unhandled kind");
   }
+  llvm_unreachable("Unhandled kind");
 }
 
 static raw_ostream &operator<<(raw_ostream &Os, const Indices &I) {
@@ -106,9 +105,8 @@ std::string Remapper::getFunctionName(Kind K, const NDRange &SrcNDRange,
           return "group_id";
         case Kind::GlobalOffsetRemapper:
           return "global_offset";
-        default:
-          llvm_unreachable("Unhandled kind");
         }
+        llvm_unreachable("Unhandled kind");
       }()
     << "_remapper_" << SrcNDRange << "_" << FusedNDRange;
   return S.str();
@@ -123,17 +121,19 @@ bool Remapper::shouldRemap(Kind K, const NDRange &SrcNDRange,
   case Kind::NumWorkGroupsRemapper:
   case Kind::LocalSizeRemapper:
     // Do not remap when the local size is not specified.
-    return SrcNDRange.getLocalSize() != NDRange::AllZeros;
+    return SrcNDRange.hasSpecificLocalSize();
   case Kind::GlobalIDRemapper:
   case Kind::LocalIDRemapper:
   case Kind::GroupIDRemapper: {
+    // No need to remap when all but the dimensions and the left-most components
+    // of the global size range are equal.
     const auto &GS0 = SrcNDRange.getGlobalSize();
     const auto &GS1 = FusedNDRange.getGlobalSize();
-    return !std::equal(GS0.begin() + 1, GS0.end(), GS1.begin() + 1);
+    return SrcNDRange.getDimensions() != FusedNDRange.getDimensions() ||
+           !std::equal(GS0.begin() + 1, GS0.end(), GS1.begin() + 1);
   }
-  default:
-    llvm_unreachable("Unhandled kind");
   }
+  llvm_unreachable("Unhandled kind");
 }
 
 /// Mirrors getters arguments depending on the input dimension.
@@ -287,9 +287,8 @@ Value *Remapper::generateCase(Kind K, IRBuilderBase &Builder,
   case Kind::GlobalOffsetRemapper:
     return generateGetGlobalOffsetCase(Builder, SrcNDRange, FusedNDRange,
                                        Index);
-  default:
-    llvm_unreachable("Unhandled kind");
   }
+  llvm_unreachable("Unhandled kind");
 }
 
 static constexpr size_t NumBuiltins{8};

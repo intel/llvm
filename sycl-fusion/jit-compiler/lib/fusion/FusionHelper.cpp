@@ -106,22 +106,17 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
       };
 
       // Attach ND-range of the fused kernel
-      {
-        assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
-        F->setMetadata(SYCLKernelFusion::NDRangeMDKey,
-                       MDFromND(FF.FusedNDRange));
-      }
+      assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
+      F->setMetadata(SYCLKernelFusion::NDRangeMDKey, MDFromND(FF.FusedNDRange));
 
       // Attach ND-ranges of each kernel to be fused
-      {
-        const auto SrcNDRanges = FF.NDRanges;
-        SmallVector<Metadata *> Nodes;
-        std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
-                       std::back_inserter(Nodes), MDFromND);
-        assert(!F->hasMetadata(SYCLKernelFusion::NDRangesMDKey));
-        F->setMetadata(SYCLKernelFusion::NDRangesMDKey,
-                       MDNode::get(LLVMCtx, Nodes));
-      }
+      const auto SrcNDRanges = FF.NDRanges;
+      SmallVector<Metadata *> Nodes;
+      std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
+                     std::back_inserter(Nodes), MDFromND);
+      assert(!F->hasMetadata(SYCLKernelFusion::NDRangesMDKey));
+      F->setMetadata(SYCLKernelFusion::NDRangesMDKey,
+                     MDNode::get(LLVMCtx, Nodes));
     }
 
     // The user of this API may be able to determine that

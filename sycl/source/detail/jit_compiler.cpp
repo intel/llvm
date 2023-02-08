@@ -537,15 +537,6 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
   }
 }
 
-static std::vector<::jit_compiler::NDRange>
-gatherRanges(const std::vector<::jit_compiler::SYCLKernelInfo> &Info) {
-  std::vector<::jit_compiler::NDRange> Ranges;
-  Ranges.reserve(Info.size());
-  std::transform(Info.begin(), Info.end(), std::back_inserter(Ranges),
-                 [](const auto &I) { return I.NDR; });
-  return Ranges;
-}
-
 std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
@@ -559,6 +550,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<detail::AccessorImplPtr> AccStorage;
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
+  std::vector<::jit_compiler::NDRange> Ranges;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -680,6 +672,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.LocalSize),
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
+    Ranges.push_back(JITCompilerNDR);
     InputKernelInfo.emplace_back(KernelName, ArgDescriptor, JITCompilerNDR,
                                  BinInfo);
     InputKernelNames.push_back(KernelName);
@@ -718,8 +711,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     ++KernelIndex;
   }
 
-  if (const auto Ranges = gatherRanges(InputKernelInfo);
-      !::jit_compiler::NDRange::isValidCombination(Ranges.begin(),
+  if (!::jit_compiler::NDRange::isValidCombination(Ranges.begin(),
                                                    Ranges.end())) {
     printPerformanceWarning(
         "Cannot fuse kernels with different offsets or local sizes");

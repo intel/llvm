@@ -8,6 +8,8 @@
 
 #include "NDRangesHelper.h"
 
+#include <map>
+
 using namespace jit_compiler;
 using namespace llvm;
 
@@ -47,17 +49,6 @@ static Indices getMaximalGlobalSize(ArrayRef<NDRange> NDRanges) {
       ->first;
 }
 
-///
-/// Return the first non-zeros local size.
-static Indices findSpecifiedLocalSize(ArrayRef<NDRange> NDRanges) {
-  const auto *Iter =
-      std::find_if(NDRanges.begin(), NDRanges.end(),
-                   [&AllZeros = NDRange::AllZeros](const auto &ND) {
-                     return ND.getLocalSize() != AllZeros;
-                   });
-  return Iter == NDRanges.end() ? NDRange::AllZeros : Iter->getLocalSize();
-}
-
 NDRange jit_compiler::combineNDRanges(ArrayRef<NDRange> NDRanges) {
   assert(NDRange::isValidCombination(NDRanges.begin(), NDRanges.end()) &&
          "Invalid ND-ranges combination");
@@ -68,7 +59,11 @@ NDRange jit_compiler::combineNDRanges(ArrayRef<NDRange> NDRanges) {
                        })
           ->getDimensions();
   const auto GlobalSize = getMaximalGlobalSize(NDRanges);
-  const auto LocalSize = findSpecifiedLocalSize(NDRanges);
+  const auto *End = NDRanges.end();
+  const auto *LocalSizeIter =
+      NDRange::findSpecifiedLocalSize(NDRanges.begin(), End);
+  const auto &LocalSize =
+      LocalSizeIter == End ? NDRange::AllZeros : LocalSizeIter->getLocalSize();
   const auto &Front = NDRanges.front();
   return {Dimensions, GlobalSize, LocalSize, Front.getOffset()};
 }

@@ -30,6 +30,9 @@ namespace jit_compiler {
 using CacheKeyT =
     std::tuple<std::vector<std::string>, ParamIdentList, int,
                std::vector<ParameterInternalization>, std::vector<JITConstant>,
+               // This field of the cache is optional because, if all of the
+               // ranges are equal, we will perform no remapping, so that fused
+               // kernels can be reused with different lists of equal nd-ranges.
                std::optional<std::vector<NDRange>>>;
 
 ///

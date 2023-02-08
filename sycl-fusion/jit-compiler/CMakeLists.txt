@@ -5,7 +5,6 @@ add_llvm_library(sycl-fusion
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
-   lib/fusion/NDRangesHelper.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
 
@@ -13,6 +12,7 @@ add_llvm_library(sycl-fusion
    Core
    Support
    Analysis
+   IPO
    TransformUtils
    Passes
    Linker
@@ -26,6 +26,7 @@ target_include_directories(sycl-fusion
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
+  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/lib>
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
   ${LLVM_SPIRV_INCLUDE_DIRS}
 )
@@ -33,6 +34,8 @@ target_include_directories(sycl-fusion
 find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-fusion
+  PUBLIC
+  sycl-fusion-common
   PRIVATE
   LLVMSPIRVLib
   SYCLKernelFusionPasses
