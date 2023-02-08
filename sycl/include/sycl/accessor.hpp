@@ -2082,7 +2082,7 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <access::decorated IsDecorated = access::decorated::legacy>
+  template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
@@ -2770,7 +2770,7 @@ public:
     return const_reverse_iterator(begin());
   }
 
-  template <access::decorated IsDecorated = access::decorated::legacy>
+  template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
