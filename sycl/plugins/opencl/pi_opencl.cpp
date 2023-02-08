@@ -290,8 +290,6 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
   return PI_SUCCESS;
 }
 
-extern "C" {
-
 // Helper functions
 
 // Returns true if the device is a cslice subdevice.
@@ -345,6 +343,8 @@ static bool isPVC(pi_device device) {
 }
 
 // End of helper functions
+
+extern "C" {
 
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
