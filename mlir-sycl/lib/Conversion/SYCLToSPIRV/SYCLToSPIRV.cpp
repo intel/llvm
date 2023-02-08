@@ -66,18 +66,13 @@ Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
       });
 }
 
-/// Creates an operation of with name \p opName from the GPU dialect using the
-/// dimension \p i as an attribute.
-///
-/// \return The result of such operation.
+/// Extracts component \p i from SPIRV composite \p values.
 Value getDimension(OpBuilder &builder, Location loc, Value values, int64_t i) {
   return builder.create<spirv::CompositeExtractOp>(loc, values, i);
 }
 
-/// Converts n-dimensional operations of type \tparam OpTy to operations of type
-/// \tparam GPUOpTy.
-///
-/// Work is offloaded to the rewrite function above.
+/// Converts n-dimensional operations of type \tparam OpTy to calls to \tparam
+/// builtin SPIR-V builtin.
 template <typename OpTy,
           spirv::BuiltIn builtin = spirv_counterpart_builtin_v<OpTy>>
 class GridOpPattern : public OpConversionPattern<OpTy> {
@@ -89,10 +84,10 @@ protected:
 };
 
 /// Replace \p op with a sequence of operations that:
-/// 1. Allocate a new array of the result type in the stack
-/// 2. Initialize the dimensions of the array with the expected results using
-/// the operation with name \p opName from the GPU dialect
-/// 3. Load the value in position \p index (assumed to be inbounds)
+/// 1. Allocate a new array of the result type in the stack;
+/// 2. Initialize the dimensions of the array with the result of calling SPIR-V
+/// builtin \p builtin;
+/// 3. Load the value in position \p index (assumed to be inbounds).
 void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
                     const SPIRVTypeConverter &typeConverter,
                     ConversionPatternRewriter &rewriter) {
@@ -134,8 +129,8 @@ public:
 };
 
 /// Replace \p op with a sequence of operations that:
-/// 1. Allocate a new object of the result type in the stack
-/// 2. Load the object
+/// 1. Allocate a new object of the result type in the stack;
+/// 2. Load the object;
 /// 3. Initialize the dimensions of the object with the values in builtin \p
 /// builtin.
 void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
@@ -203,8 +198,6 @@ void rewrite1D(Operation *op, spirv::BuiltIn builtin,
 
 /// Converts one-dimensional operations of type \tparam OpTy to calls to a SPIRV
 /// dialect builtin.
-///
-/// Due to the different output type, casting is needed before returning.
 template <typename OpTy>
 class SingleDimGridOpPattern : public GridOpPattern<OpTy> {
 public:
