@@ -172,8 +172,8 @@ public:
   enable_if_t<
       IsKnownIdentityOp<typename ReducerRelayT::value_type,
                         typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type> static constexpr getIdentity() {
-    return ReducerT::getIdentity();
+      typename ReducerRelayT::value_type> constexpr getIdentity() {
+    return getIdentityStatic();
   }
 
   template <typename ReducerRelayT = ReducerT>
@@ -183,6 +183,17 @@ public:
       typename ReducerRelayT::value_type>
   getIdentity() {
     return MReducerRef.identity();
+  }
+
+  // MSVC does not like static overloads of non-static functions, even if they
+  // are made mutually exclusive through SFINAE. Instead we use a new static
+  // function to be used when a static function is needed.
+  template <typename ReducerRelayT = ReducerT>
+  enable_if_t<
+      IsKnownIdentityOp<typename ReducerRelayT::value_type,
+                        typename ReducerRelayT::binary_operation>::value,
+      typename ReducerRelayT::value_type> static constexpr getIdentityStatic() {
+    return ReducerT::getIdentity();
   }
 
 private:
@@ -819,7 +830,7 @@ private:
     // list of known operations does not break the existing programs.
     if constexpr (is_known_identity) {
       (void)Identity;
-      return ReducerAccess<reducer_type>::getIdentity();
+      return ReducerAccess<reducer_type>::getIdentityStatic();
     } else {
       return Identity;
     }
@@ -837,8 +848,8 @@ public:
   template <typename _self = self,
             enable_if_t<_self::is_known_identity> * = nullptr>
   reduction_impl(RedOutVar Var, bool InitializeToIdentity = false)
-      : algo(ReducerAccess<reducer_type>::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Var) {
+      : algo(ReducerAccess<reducer_type>::getIdentityStatic(),
+             BinaryOperation(), InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
         throw sycl::runtime_error(errc::invalid,
@@ -1396,8 +1407,8 @@ struct NDRangeReduction<
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? In[GID * NElements + E]
-                    : ReducerAccess<
-                          typename Reduction::reducer_type>::getIdentity();
+                    : ReducerAccess<typename Reduction::reducer_type>::
+                          getIdentityStatic();
             PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
             if (NDIt.get_local_linear_id() == 0) {
               if (IsUpdateOfUserVar)
