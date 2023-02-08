@@ -351,17 +351,16 @@ void moveParallelLoopInvariantCode(AffineParallelOp loop) {
   OperandRange lb_ops = loop.getLowerBoundsOperands(),
                ub_ops = loop.getUpperBoundsOperands();
 
-  //  std::copy(lb_ops.begin(), lb_ops.end(), std::back_inserter(values));
-  // std::copy(ub_ops.begin(), ub_ops.end(), std::back_inserter(values));
-
-  for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumDims(); ++idx)
-    values.push_back(lb_ops[idx]);
-  for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
-    values.push_back(ub_ops[idx]);
-  for (unsigned idx = 0; idx < loop.getLowerBoundsMap().getNumSymbols(); ++idx)
-    values.push_back(lb_ops[idx + loop.getLowerBoundsMap().getNumDims()]);
-  for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols(); ++idx)
-    values.push_back(ub_ops[idx + loop.getUpperBoundsMap().getNumDims()]);
+  std::copy(lb_ops.begin(),
+            lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin(),
+            ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
+            lb_ops.end(), std::back_inserter(values));
+  std::copy(ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
+            ub_ops.end(), std::back_inserter(values));
 
   auto iset = IntegerSet::get(
       /*dim*/ loop.getLowerBoundsMap().getNumDims() +
