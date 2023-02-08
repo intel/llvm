@@ -162,6 +162,7 @@
 ??$get_info@Usingle_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Usub_group_independent_forward_progress@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Usub_group_sizes@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
+??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_device_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_host_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_restricted_shared_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
