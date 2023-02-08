@@ -5502,10 +5502,6 @@ def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group
 // FLangOption + NoXarchOption
 //===----------------------------------------------------------------------===//
 
-def flang_experimental_exec : Flag<["-"], "flang-experimental-exec">,
-  Flags<[FlangOption, FlangOnlyOption, NoXarchOption, HelpHidden]>,
-  HelpText<"Enable support for generating executables (experimental)">;
-
 def flang_experimental_hlfir : Flag<["-"], "flang-experimental-hlfir">,
   Flags<[FlangOption, FC1Option, FlangOnlyOption, NoXarchOption, HelpHidden]>,
   HelpText<"Use HLFIR lowering (experimental)">;
