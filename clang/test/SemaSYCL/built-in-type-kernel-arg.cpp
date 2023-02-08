@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for arguments

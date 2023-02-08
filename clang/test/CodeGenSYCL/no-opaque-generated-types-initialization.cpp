@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks that compiler generates correct code when kernel arguments

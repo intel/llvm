@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel arguments for

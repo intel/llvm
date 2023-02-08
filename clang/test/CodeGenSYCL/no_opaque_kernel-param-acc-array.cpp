@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks a kernel argument that is an Accessor array

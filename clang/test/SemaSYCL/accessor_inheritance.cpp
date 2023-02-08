@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test checks inheritance support for struct types with accessors

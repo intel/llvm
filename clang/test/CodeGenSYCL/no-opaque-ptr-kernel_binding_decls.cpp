@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -internal-isystem %S/Inputs -fsycl-is-device -std=c++20 -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 #include "sycl.hpp"

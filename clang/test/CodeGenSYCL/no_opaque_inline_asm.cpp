@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -no-opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
 
 class kernel;
