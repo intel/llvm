@@ -11,7 +11,7 @@ but can only be used if there are no cross-object dependencies. [f884993d]
 - Added support for per-aspect device code split mode. [9a2c4fe5]
 - Extended support for the large GRF mode to non-ESIMD kernels. [9994934b]
 [ab2a42c6]
-- Implemented the [`sycl_ext_intel_device_architecture`](doc/extensions/supported/sycl_ext_oneapi_device_architecture.asciidoc)
+- Implemented the [`sycl_ext_intel_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
 extension. [0e32a28d] [b59d93cc] [5bd5c871] [e5de913f]
 - Implemented the [`sycl_ext_oneapi_kernel_properties`](doc/extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc)
 experimental extension. [332e4ee0] [27454de6] [70ee3d56] [430c7221]
@@ -41,7 +41,7 @@ without attached host memory. [894ce256]
 extension. [cdb09dca]
 - Implemented the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/proposed/sycl_ext_oneapi_user_defined_reductions.asciidoc)
 extension. [8311d790]
-- Implemented the [`sycl_ext_oneapi_queue_empty`](doc/extensions/proposed/sycl_ext_oneapi_queue_empty.asciidoc)
+- Implemented the [`sycl_ext_oneapi_queue_empty`](doc/extensions/supported/sycl_ext_oneapi_queue_empty.asciidoc)
 extension proposal. [c4932957]
 - Implemented the [`sycl_ext_oneapi_weak_object`](doc/extensions/supported/sycl_ext_oneapi_weak_object.asciidoc)
 extension. [d9484274] [9297f63e]
@@ -50,7 +50,7 @@ extension. The old behavior that exposed compute slices as sub-sub-devices is
 now deprecated. For compatibility purposes, it can be brought back via the
 `SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING` environment
 varible. [5995c618]
-- Implemented the [`sycl_ext_intel_queue_index`](doc/extensions/proposed/sycl_ext_intel_queue_index.asciidoc)
+- Implemented the [`sycl_ext_intel_queue_index`](doc/extensions/supported/sycl_ext_intel_queue_index.asciidoc)
 extension. [d2ec9645] [7179e830]
 - Implemented the [`sycl_ext_oneapi_memcpy2d`](doc/extensions/supported/sycl_ext_oneapi_memcpy2d.asciidoc)
 extension. [516d4112]
@@ -87,7 +87,7 @@ sub-devices as SYCL root devices and supports negative filters.
 enviornment variable. [bd03e0d3]
 
 ### Documentation
-- Added the [`sycl_ext_oneapi_device_architecture`](doc/extensions/supported/sycl_ext_oneapi_device_architecture.asciidoc)
+- Added the [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
  extension specification. [7f2b17ed]
 - Added the [`sycl_ext_oneapi_memcpy2d`](doc/extensions/supported/sycl_ext_oneapi_memcpy2d.asciidoc)
 extension specification. [296e9c3a]
@@ -99,9 +99,9 @@ extension specification. [d9484274]
 extension proposal. [ed7cb4b0]
 - Added the [`sycl_ext_codeplay_kernel_fusion`](doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
 extension proposal. [be3dfbd7]
-- Added the [`sycl_ext_intel_queue_index`](doc/extensions/proposed/sycl_ext_intel_queue_index.asciidoc)
+- Added the [`sycl_ext_intel_queue_index`](doc/extensions/supported/sycl_ext_intel_queue_index.asciidoc)
 extension proposal. [f5fb7599]
-- Added the [`sycl_ext_intel_cslice`](doc/extensions/proposed/sycl_ext_intel_cslice.asciidoc)
+- Added the [`sycl_ext_intel_cslice`](doc/extensions/supported/sycl_ext_intel_cslice.asciidoc)
 extension proposal. [5777e1fe]
 - Added the [`sycl_ext_oneapi_group_sort`](doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc)
 extension update proposal that introduced sorting functions with fixed-size arrays. [c6d1cafd]
@@ -179,7 +179,7 @@ extension specification. [52f34fd5]
 - Removed `queue::size` and `queue::get_wait_list` functions from the
 `sycl_ext_oneapi_queue_status_query` extension due to performance overhead
 implications and renamed it to
-[`sycl_ext_oneapi_queue_empty`](doc/extensions/proposed/sycl_ext_oneapi_queue_empty.asciidoc). [b540f819]
+[`sycl_ext_oneapi_queue_empty`](doc/extensions/supported/sycl_ext_oneapi_queue_empty.asciidoc). [b540f819]
 - Clarified ESIMD emulator device selection behavior in
 [`sycl_ext_intel_esimd`](doc/extensions/experimental/sycl_ext_intel_esimd/esimd_emulator.md).
 [9b5f2884]
