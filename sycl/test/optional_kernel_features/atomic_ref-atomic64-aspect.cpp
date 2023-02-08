@@ -10,7 +10,6 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  double d = 10.0;
   sycl::queue q;
   q.submit([&](sycl::handler &h) {
     h.single_task([=]() {
