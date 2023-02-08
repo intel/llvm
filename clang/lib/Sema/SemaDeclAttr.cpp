@@ -8022,9 +8022,9 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   if (NumArgsWithoutFilter == 0)
     return;
 
-  // "sycl-single-task" is an implicitly used name which is present on all
-  // single_task invocations. It can only conflict with max_global_work_dim, but
-  // the value will be the same so there is no need for a warning.
+  // "sycl-single-task" is present on all single_task invocations, implicitly
+  // added by the SYCL headers. It can only conflict with max_global_work_dim,
+  // but the value will be the same so there is no need for a warning.
   if (NumArgsWithoutFilter == 2 &&
       AddIRFuncAttr->getFilteredAttributeNameValuePairs(Context)[0].first ==
           "sycl-single-task")
