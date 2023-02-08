@@ -5630,6 +5630,41 @@ result = PI_CHECK_ERROR(cuCtxEnablePeerAccess(peer_device->get_context(), 0));
 return result;
 }
 
+pi_result cuda_piextDisablePeer(pi_device command_device, pi_device peer_device){
+
+ pi_result result = PI_SUCCESS;
+try {
+    ScopedContext active(command_device->get_context());
+result = PI_CHECK_ERROR(cuCtxDisablePeerAccess(peer_device->get_context()));
+
+  } catch (pi_result err) {
+    result = err;
+  }
+return result;
+}
+
+pi_result cuda_piextCanAccessPeer(pi_device command_device,
+                                  pi_device peer_device, int access_type) {
+
+  int res;
+  pi_result result = PI_SUCCESS;
+
+  CUdevice_P2PAttribute attr =
+      access_type == 0 ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
+                       : CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+  try {
+    ScopedContext active(command_device->get_context());
+    PI_CHECK_ERROR(cuDeviceGetP2PAttribute(&res, attr, command_device->get(),
+                                           peer_device->get()));
+  } catch (pi_result err) {
+    result = err;
+  }
+  if (res == 0) {
+    return PI_ERROR_INVALID_OPERATION;
+  }
+  return result;
+}
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5785,6 +5820,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
   _PI_CL(piextEnablePeer, cuda_piextEnablePeer)
+  _PI_CL(piextDisablePeer, cuda_piextDisablePeer)
+  _PI_CL(piextCanAccessPeer, cuda_piextCanAccessPeer)
 
 #undef _PI_CL
 

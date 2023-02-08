@@ -200,11 +200,37 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-bool device::ext_oneapi_enable_peer_access(const device &peer) {
+void device::ext_oneapi_enable_peer_access(const device &peer) {
   const RT::PiDevice Device = impl->getHandleRef();
-  const detail::plugin &Plugin = impl->getPlugin();
-  const RT::PiDevice PeerPi = peer.impl->getHandleRef();
-  Plugin.call<detail::PiApiKind::piextEnablePeer>(Device, PeerPi );
+  const RT::PiDevice PeerDevice = peer.impl->getHandleRef();
+  if (Device != PeerDevice) {
+    const detail::plugin &Plugin = impl->getPlugin();
+    Plugin.call<detail::PiApiKind::piextEnablePeer>(Device, PeerDevice);
+  }
+}
+
+void device::ext_oneapi_disable_peer_access(const device &peer) {
+  const RT::PiDevice Device = impl->getHandleRef();
+  const RT::PiDevice PeerDevice = peer.impl->getHandleRef();
+  if (Device != PeerDevice) {
+    const detail::plugin Plugin = impl->getPlugin();
+    Plugin.call<detail::PiApiKind::piextDisablePeer>(Device, PeerDevice);
+  }
+}
+
+bool device::ext_oneapi_can_access_peer(const device &peer,
+                                        ext::oneapi::peer_access value) {
+  const RT::PiDevice Device = impl->getHandleRef();
+  const RT::PiDevice PeerDevice = peer.impl->getHandleRef();
+  if (Device != PeerDevice) {
+    const detail::plugin Plugin = impl->getPlugin();
+    RT::PiResult Err = Plugin.call_nocheck<detail::PiApiKind::piextCanAccessPeer>(
+        Device, PeerDevice, static_cast<int>(value));
+
+    if (Err != PI_SUCCESS) {
+      return false;
+    }
+  }
   return true;
 }
 

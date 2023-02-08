@@ -1033,7 +1033,12 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
 
-__SYCL_EXPORT pi_result piextEnablePeer(pi_device command_device, pi_device peer_device);
+__SYCL_EXPORT pi_result piextEnablePeer(pi_device command_device,
+                                        pi_device peer_device);
+__SYCL_EXPORT pi_result piextDisablePeer(pi_device command_device,
+                                         pi_device peer_device);
+__SYCL_EXPORT pi_result piextCanAccessPeer(pi_device command_device,
+                                           pi_device peer_device, int access_type);
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for

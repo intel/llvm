@@ -9444,10 +9444,23 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
-pi_result piextEnablePeer(pi_device command_device, pi_device peer_device){
+pi_result piextEnablePeer(pi_device command_device, pi_device peer_device) {
 
-die("piextEnablePeer not "
-        "implemented \n");
+  die("piextEnablePeer not "
+      "implemented \n");
+}
+
+pi_result piextDisablePeer(pi_device command_device, pi_device peer_device) {
+
+  die("piextDisablePeer not "
+      "implemented \n");
+}
+
+pi_result piextCanAccessPeer(pi_device command_device, pi_device peer_device,
+                             int access_type) {
+
+  die("piextCanAccessPeer not "
+      "implemented \n");
 }
 
 } // extern "C"
