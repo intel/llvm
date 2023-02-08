@@ -3002,7 +3002,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     BodyStmts.push_back(NewExpr.getAs<Stmt>());
   }
 
-  void doScalarInit(Expr* FromExpr, QualType Ty) {
+  void doScalarInit(Expr *FromExpr, QualType Ty) {
     assert(FromExpr->getType()->isScalarType());
     // Compute the size of the memory buffer to be copied.
     QualType SizeType = SemaRef.Context.getSizeType();
@@ -3019,13 +3019,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // to CodeGen anyway.
     ToType.removeLocalConst();
     ToType = SemaRef.Context.getPointerType(ToType);
-    To = BinaryOperator::Create(SemaRef.Context, To, FromExpr, BO_Assign, ToType,
-                                VK_LValue, OK_Ordinary, KernelCallerSrcLoc,
-                                SemaRef.CurFPFeatureOverrides());
+    To = BinaryOperator::Create(
+        SemaRef.Context, To, FromExpr, BO_Assign, ToType, VK_LValue,
+        OK_Ordinary, KernelCallerSrcLoc, SemaRef.CurFPFeatureOverrides());
     BodyStmts.push_back(To);
   }
 
-  void doMemCopyInit(Expr* FromExpr, QualType Ty) {
+  void doMemCopyInit(Expr *FromExpr, QualType Ty) {
     // Compute the size of the memory buffer to be copied.
     QualType SizeType = SemaRef.Context.getSizeType();
     llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
@@ -3056,11 +3056,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     BodyStmts.push_back(Call.getAs<Stmt>());
   }
 
-  void doInit(Expr* FromExpr, QualType Ty) {
+  void doInit(Expr *FromExpr, QualType Ty) {
     if (FromExpr->getType()->isScalarType()) {
       doScalarInit(FromExpr, Ty);
-    }
-    else {
+    } else {
       doMemCopyInit(FromExpr, Ty);
     }
   }
@@ -3088,7 +3087,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     MemberExprBases.pop_back();
   }
 
-  void addFieldInit(FieldDecl *FD, QualType Ty, Expr* ParamRef) {
+  void addFieldInit(FieldDecl *FD, QualType Ty, Expr *ParamRef) {
     addFieldMemberExpr(FD, Ty);
     doInit(ParamRef, Ty);
     removeFieldMemberExpr(FD, Ty);
@@ -3286,8 +3285,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return true;
   }
 
-  bool handleSpecialType(const CXXRecordDecl *Base,
-                         const CXXBaseSpecifier &BS, QualType Ty) {
+  bool handleSpecialType(const CXXRecordDecl *Base, const CXXBaseSpecifier &BS,
+                         QualType Ty) {
     MemberExprBases.push_back(getDeriveToBaseExpr(Base, BS, Ty));
     callFieldCtor();
 
@@ -3387,8 +3386,8 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclSpecialType(const CXXRecordDecl *Base, const CXXBaseSpecifier &BS,
-                             QualType Ty) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
     return handleSpecialType(Base, BS, Ty);
   }
 
@@ -3456,7 +3455,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
     ++StructDepth;
-    //addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
+    // addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
     addFieldMemberExpr(FD, Ty);
     return true;
@@ -3464,7 +3463,7 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     --StructDepth;
-    //CollectionInitExprs.pop_back();
+    // CollectionInitExprs.pop_back();
 
     removeFieldMemberExpr(FD, Ty);
     return true;
@@ -3493,7 +3492,7 @@ public:
                    QualType) final {
     --StructDepth;
     MemberExprBases.pop_back();
-    //CollectionInitExprs.pop_back();
+    // CollectionInitExprs.pop_back();
     return true;
   }
 
@@ -3513,7 +3512,7 @@ public:
   }
 
   bool nextElement(QualType, uint64_t Index) final {
-    //ArrayInfos.back().second = Index;
+    // ArrayInfos.back().second = Index;
 
     // Pop off the last member expr base.
     if (Index != 0)
@@ -3526,8 +3525,8 @@ public:
 
   bool leaveArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    //CollectionInitExprs.pop_back();
-    //ArrayInfos.pop_back();
+    // CollectionInitExprs.pop_back();
+    // ArrayInfos.pop_back();
 
     // Remove the IndexExpr.
     if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())

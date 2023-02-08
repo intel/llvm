@@ -277,7 +277,8 @@ bool Expr::isFlexibleArrayMemberLike(
           //    as a SYCL kernel is being processed.
           //    In normal situation the capture list is used.
           //    No harm done, just a work around.
-          const Expr *SizeExpr = dyn_cast_or_null<IntegerLiteral>(CTL.getSizeExpr());
+          const Expr *SizeExpr =
+              dyn_cast_or_null<IntegerLiteral>(CTL.getSizeExpr());
           if (!SizeExpr || SizeExpr->getExprLoc().isMacroID())
             return false;
         }
