@@ -116,16 +116,16 @@ struct OperationMemoryEffects {
     return false;
   }
 
-  const SmallVector<SideEffects::Resource *> &getReadResources() const {
+  const ArrayRef<SideEffects::Resource *> getReadResources() const {
     return readResources;
   };
-  const SmallVector<SideEffects::Resource *> &getWriteResources() const {
+  const ArrayRef<SideEffects::Resource *> getWriteResources() const {
     return writeResources;
   };
-  const SmallVector<SideEffects::Resource *> &getFreeResources() const {
+  const ArrayRef<SideEffects::Resource *> getFreeResources() const {
     return freeResources;
   };
-  const SmallVector<SideEffects::Resource *> &getAllocateResources() const {
+  const ArrayRef<SideEffects::Resource *> getAllocateResources() const {
     return allocateResources;
   };
 
@@ -356,7 +356,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp loop) {
             std::back_inserter(values));
   std::copy(ub_ops.begin(),
             ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
-            std::back_inserter(values));
+            op std::back_inserter(values));
   std::copy(lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
             lb_ops.end(), std::back_inserter(values));
   std::copy(ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
