@@ -90,7 +90,8 @@ void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 ///
 /// \brief Retrieve string representation of the underlying pool specific
 ///        result reported by the last API that returned
-///        UMA_RESULT_ERROR_POOL_SPECIFIC. Allows for a pool independent way to
+///        UMA_RESULT_ERROR_POOL_SPECIFIC or NULL ptr (in case of allocation
+///        functions). Allows for a pool independent way to
 ///        return a pool specific result.
 ///
 /// \details
