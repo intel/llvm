@@ -134,9 +134,9 @@ class LLVM_LIBRARY_VISIBILITY OpenMPLinker : public Tool {
                      const char *LinkingOutput) const override;
 };
 
-class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
+class LLVM_LIBRARY_VISIBILITY SYCLLinker : public FatBinary {
 public:
-  SYCLLinker(const ToolChain &TC) : Linker(TC) {}
+  SYCLLinker(const ToolChain &TC) : FatBinary(TC) {}
 
   Tool* GetSYCLToolChainLinker() const {
     if (!SYCLToolChainLinker)
