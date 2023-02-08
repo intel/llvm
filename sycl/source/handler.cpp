@@ -107,11 +107,11 @@ event handler::finalize() {
         continue;
 
       accessors.insert(arg.MPtr);
-      if (accessors.size() > MRequirements.size())
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
     }
+    if (accessors.size() > MRequirements.size())
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
   }
 
   const auto &type = getType();
