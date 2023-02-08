@@ -166,6 +166,12 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 /// respective IR declarations.
 std::optional<VFInfo> tryDemangleForVFABI(StringRef MangledName,
                                           const Module &M);
+/// \param M -> The pointer to module used to retrieve informations about the
+/// vector function. If nullptr is passed, we don't check the existence of
+/// the demangled vector function.
+std::optional<VFInfo> tryDemangleForVFABI(StringRef MangledName,
+                                          const Module *M = nullptr);
+VFInfo demangleForVFABI(StringRef MangledName);
 
 /// This routine mangles the given VectorName according to the LangRef
 /// specification for vector-function-abi-variant attribute and is specific to
