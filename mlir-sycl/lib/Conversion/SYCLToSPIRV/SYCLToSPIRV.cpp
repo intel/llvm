@@ -97,13 +97,12 @@ void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
       op, builtin, typeConverter.getIndexType(), rewriter);
   const auto loc = op->getLoc();
   const auto indexTy = rewriter.getIndexType();
-  const auto alloca = static_cast<Value>(rewriter.create<memref::AllocaOp>(
-      loc, MemRefType::get({dimensions}, indexTy)));
+  const Value alloca = rewriter.create<memref::AllocaOp>(
+      loc, MemRefType::get({dimensions}, indexTy));
   for (int64_t i = 0; i < dimensions; ++i) {
-    const auto c =
-        static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, i));
-    const auto val = static_cast<Value>(rewriter.create<arith::IndexCastOp>(
-        loc, indexTy, getDimension(rewriter, loc, values, i)));
+    const Value c = rewriter.create<arith::ConstantIndexOp>(loc, i);
+    const Value val = rewriter.create<arith::IndexCastOp>(
+        loc, indexTy, getDimension(rewriter, loc, values, i));
     rewriter.create<AffineStoreOp>(loc, val, alloca, c);
   }
   index = rewriter.create<arith::IndexCastOp>(loc, indexTy, index);
@@ -146,20 +145,18 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   const auto dimMtTy = MemRefType::get(dimensions, targetIndexType, {}, 4);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
-  const auto alloca = static_cast<Value>(
-      rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy)));
+  const Value alloca =
+      rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy));
   // Load
-  const auto zero =
-      static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  const auto res = static_cast<Value>(
-      rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, zero));
+  const Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  const Value res = rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, zero);
   const auto argumentTypes =
       rewriter.getTypeArrayAttr({MemRefType::get(1, resTy, {}, 4), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
-    const auto index = static_cast<Value>(
-        rewriter.create<arith::ConstantIntOp>(loc, i, getIndexTy));
+    const Value index =
+        rewriter.create<arith::ConstantIntOp>(loc, i, getIndexTy);
     const auto val = convertScalarToDtype(
         rewriter, loc, getDimension(rewriter, loc, values, i), targetIndexType,
         /*isUnsignedCast*/ false);
