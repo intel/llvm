@@ -1,5 +1,6 @@
 // RUN: sycl-mlir-opt -split-input-file %s -verify-diagnostics
 
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 
