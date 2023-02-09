@@ -868,6 +868,14 @@ let IntrProperties = [IntrArgMemOnly, IntrWillReturn] in {
                                                       llvm_ptr_ty,
                                                       llvm_ptr_ty ]>;
 }
+//===--------------- FPAccuracy Floating Point Intrinsics ----------------===//
+//
+let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
+def int_experimental_fpaccuracy_cos  : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                 [ LLVMMatchType<0>,
+                                                   llvm_metadata_ty ]>;
+// TODO: add entries for all math functions.
+}
 
 //===--------------- Constrained Floating Point Intrinsics ----------------===//
 //

@@ -303,6 +303,15 @@ public:
 
   enum ExcessPrecisionKind { FPP_Standard, FPP_Fast, FPP_None };
 
+  enum FPAccuracyKind {
+    FPA_Default,
+    FPA_High,
+    FPA_Medium,
+    FPA_Low,
+    FPA_Sycl,
+    FPA_Cuda
+  };
+
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
 

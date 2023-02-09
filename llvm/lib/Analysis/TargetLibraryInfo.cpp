@@ -1296,6 +1296,21 @@ bool TargetLibraryInfoImpl::isFunctionVectorizable(StringRef funcName) const {
   return I != VectorDescs.end() && StringRef(I->ScalarFnName) == funcName;
 }
 
+bool TargetLibraryInfoImpl::isFPAccuracyAvailable() const {
+  // TODO: this must be returning true or false depending if accuracy
+  // for function is availble. For now, return true for testing purposes.
+  return true;
+}
+
+StringRef TargetLibraryInfoImpl::getFPAccuracy(StringRef Func,
+                                               unsigned FPAccuracyID) {
+  // TODO: check on the Func string and return "float ulp"
+  // For now returning a dummy string.
+  StringRef ULP = "float 2.5";
+  return ULP;
+}
+
+
 StringRef
 TargetLibraryInfoImpl::getVectorizedFunction(StringRef F,
                                              const ElementCount &VF) const {

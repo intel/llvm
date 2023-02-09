@@ -1661,6 +1661,11 @@ def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<
   Values<"ignore,maytrap,strict">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPE_Ignore", "FPE_MayTrap", "FPE_Strict"]>,
   MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Default">;
+def ffp_accuracy_EQ : Joined<["-"], "ffp-accuracy=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Specifies the required accuracy for floating-point operations and library calls.">,
+  Values<"default,high,medium,low">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["FPA_Default", "FPA_High", "FPA_Medium", "FPA_Low"]>,
+  MarshallingInfoEnum<LangOpts<"FPAccuracy">, "FPA_Default">;
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption, FC1Option, FlangOption], "Allow aggressive, lossy floating-point optimizations",

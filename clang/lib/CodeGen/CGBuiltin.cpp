@@ -33,6 +33,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
@@ -62,6 +63,8 @@
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
+
+class TargetLibraryInfoImpl;
 
 static void initializeAlloca(CodeGenFunction &CGF, AllocaInst *AI, Value *Size,
                              Align AlignmentInBytes) {
@@ -472,14 +475,63 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
   return Store;
 }
 
+static StringRef
+convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
+  StringRef AccuracyVal;
+  switch (FPAccuracy) {
+  case LangOptions::FPA_Default:
+    AccuracyVal = "fpaccuracy.default";
+    break;
+  case LangOptions::FPA_High:
+    AccuracyVal = "fpaccuracy.high";
+    break;
+  case LangOptions::FPA_Medium:
+    AccuracyVal = "fpaccuracy.medium";
+    break;
+  case LangOptions::FPA_Low:
+    AccuracyVal = "fpaccuracy.low";
+    break;
+  case LangOptions::FPA_Sycl:
+    AccuracyVal = "fpaccuracy.sycl";
+    break;
+  case LangOptions::FPA_Cuda:
+    AccuracyVal = "fpaccuracy.cuda";
+    break;
+  }
+  return AccuracyVal;
+}
+
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
 // floating-point intrinsic.
 static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
                                 const CallExpr *E, unsigned IntrinsicID,
-                                unsigned ConstrainedIntrinsicID) {
+                                unsigned ConstrainedIntrinsicID,
+    unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
+  llvm::TargetLibraryInfoImpl TLII(CGF.getTarget().getTriple());
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-
+  if (FPAccuracyIntrinsicID != Intrinsic::not_intrinsic) {
+    LangOptions::FPAccuracyKind FPAccuracy = CGF.getLangOpts().getFPAccuracy();
+    // Enter this part of the condition only when TLI.isFPACCuracyAvailable is
+    // true, implying FPAccuary != LangOptions::FPA_Default.
+    if (FPAccuracy == LangOptions::FPA_Default)
+      CGF.CGM.Error(E->getExprLoc(), "FP accuracy other than defaut is expected");
+    StringRef FPAccuracyVal = convertFPAccuracy(FPAccuracy);
+    auto *AccuracyMDS = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
+    auto *AccuracyMD =
+        MetadataAsValue::get(CGF.Builder.getContext(), AccuracyMDS);
+    Function *F = CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Src0->getType());
+    // TODO: For now, the IR generated for cos function for example is of this form:
+    // call float @llvm.experimental.fpaccuracy.cos.f32(float %0, metadata !"fpaccuracy.value")
+    // But the final goal is to generate this IR:
+    // call float @llvm.experimental.fpaccuracy.cos.f32(float %0, float ulp)
+    // TODO:
+    // TLI.getFPAccuracy should return a string of the form "float ulp" depending
+    // on the function (IntrinsicID) and the command line accuracy (FPAccuracyIntrinsicID)
+    // FPAccuracyVal = TLI.getFPAccuracy(F->getName(), FPAccuracyIntrinsicID)
+    // auto *AccuracyMDS = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
+    return CGF.Builder.CreateCall(F, {Src0, AccuracyMD});
+  }
   if (CGF.Builder.getIsFPConstrained()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
@@ -2189,6 +2241,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   // See if we can constant fold this builtin.  If so, don't emit it at all.
   // TODO: Extend this handling to all builtin calls that we can constant-fold.
   Expr::EvalResult Result;
+
+  llvm::TargetLibraryInfoImpl TLII(getTarget().getTriple());
   if (E->isPRValue() && E->EvaluateAsRValue(Result, CGM.getContext()) &&
       !Result.hasSideEffects()) {
     if (Result.Val.isInt())
@@ -2258,11 +2312,15 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf:
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
-    case Builtin::BI__builtin_cosf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::cos,
-                                   Intrinsic::experimental_constrained_cos));
-
+    case Builtin::BI__builtin_cosf128: {
+      if (TLII.isFPAccuracyAvailable())
+        return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+            *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos,
+            Intrinsic::experimental_fpaccuracy_cos));
+      else
+        return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+            *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos));
+    }
     case Builtin::BIexp:
     case Builtin::BIexpf:
     case Builtin::BIexpl:

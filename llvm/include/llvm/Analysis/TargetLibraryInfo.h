@@ -15,6 +15,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+
 #include <optional>
 
 namespace llvm {
@@ -261,6 +262,9 @@ public:
   /// conventions.
   static bool isCallingConvCCompatible(CallBase *CI);
   static bool isCallingConvCCompatible(Function *Callee);
+
+  bool isFPAccuracyAvailable() const;
+  StringRef getFPAccuracy(StringRef Func, unsigned FPAccuracyID);
 };
 
 /// Provides information about what library functions are available for
