@@ -12,6 +12,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
 
@@ -21,6 +22,7 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr StringRef SYCL_HOST_PIPE_ATTR = "sycl-host-pipe";
 
 using CallGraphNodeAction = ::std::function<void(Function *)>;
 using CallGraphFunctionFilter =
@@ -113,6 +115,10 @@ bool collectPossibleStoredVals(
 
 inline bool isSYCLExternalFunction(const Function *F) {
   return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
+}
+
+inline bool isHostPipeVariable(const GlobalVariable &GV) {
+  return GV.hasAttribute(SYCL_HOST_PIPE_ATTR);
 }
 
 } // namespace utils

@@ -336,6 +336,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
+			elseif( ${ARCH} STREQUAL amdgcn )
+				# AMDGCN needs libclc to be compiled to high bc version since all atomic
+				# clang builtins need to be accessible
+				set( flags "SHELL:-mcpu=gfx940")
 			else()
 				set ( flags )
 			endif()
