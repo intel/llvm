@@ -22,7 +22,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "polygeist/Passes/Utils.h"
+#include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-to-llvm"

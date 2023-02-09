@@ -26,7 +26,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "polygeist/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "pragmaHandler.h"
 
 #include "clang/../../lib/CodeGen/CGRecordLayout.h"
