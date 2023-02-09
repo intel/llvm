@@ -917,6 +917,11 @@ x86_64_avx512:
   sub-group-sizes: [8, 32]
 ```
 
+The device entries have an optional `may_support_other_aspects` sub-key
+specifying if a given target may be supported by devices that support aspects
+not in the `aspects` list. This is used by the [DeviceAspectTraitDesign.md][10]
+design.
+
 The values of the aspects in this configuration file can be the numerical
 values from the `enum class aspect` enumeration or the enum identifier itself.
 
@@ -928,6 +933,8 @@ to select an alternate configuration file.
 
 **TODO**:
 * Define location of the default device configuration file.
+
+[10]: <DeviceAspectTraitDesign.md>
 
 #### New features in clang compilation driver and tools
 
