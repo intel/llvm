@@ -827,7 +827,7 @@ public:
       if (!SymbolsOrErr->empty()) {
         // Add section with symbols names to fat object.
         Expected<StringRef> SymbolsFileOrErr =
-            TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+            TempFiles.Create(ArrayRef<char>(*SymbolsOrErr));
         if (!SymbolsFileOrErr)
           return SymbolsFileOrErr.takeError();
 
@@ -1071,7 +1071,7 @@ public:
   Expected<std::optional<StringRef>>
   ReadBundleStart(MemoryBuffer &Input) override {
     if (NextBundle == Bundles.end())
-      return None;
+      return std::nullopt;
     CurrBundle = NextBundle++;
     return CurrBundle->first();
   }
