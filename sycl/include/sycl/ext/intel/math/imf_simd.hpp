@@ -13,6 +13,10 @@
 extern "C" {
 unsigned int __imf_vabs2(unsigned int);
 unsigned int __imf_vabs4(unsigned int);
+unsigned int __imf_vneg2(unsigned int);
+unsigned int __imf_vneg4(unsigned int);
+unsigned int __imf_vnegss2(unsigned int);
+unsigned int __imf_vnegss4(unsigned int);
 unsigned int __imf_vabsdiffs2(unsigned int, unsigned int);
 unsigned int __imf_vabsdiffs4(unsigned int, unsigned int);
 unsigned int __imf_vabsdiffu2(unsigned int, unsigned int);
@@ -25,6 +29,14 @@ unsigned int __imf_vaddss2(unsigned int, unsigned int);
 unsigned int __imf_vaddss4(unsigned int, unsigned int);
 unsigned int __imf_vaddus2(unsigned int, unsigned int);
 unsigned int __imf_vaddus4(unsigned int, unsigned int);
+unsigned int __imf_vsub2(unsigned int, unsigned int);
+unsigned int __imf_vsub4(unsigned int, unsigned int);
+unsigned int __imf_vsubss2(unsigned int, unsigned int);
+unsigned int __imf_vsubss4(unsigned int, unsigned int);
+unsigned int __imf_vsubus2(unsigned int, unsigned int);
+unsigned int __imf_vsubus4(unsigned int, unsigned int);
+unsigned int __imf_vhaddu2(unsigned int, unsigned int);
+unsigned int __imf_vhaddu4(unsigned int, unsigned int);
 unsigned int __imf_vavgs2(unsigned int, unsigned int);
 unsigned int __imf_vavgs4(unsigned int, unsigned int);
 unsigned int __imf_vavgu2(unsigned int, unsigned int);
@@ -57,6 +69,30 @@ unsigned int __imf_vmins2(unsigned int, unsigned int);
 unsigned int __imf_vmins4(unsigned int, unsigned int);
 unsigned int __imf_vminu2(unsigned int, unsigned int);
 unsigned int __imf_vminu4(unsigned int, unsigned int);
+unsigned int __imf_vseteq2(unsigned int, unsigned int);
+unsigned int __imf_vseteq4(unsigned int, unsigned int);
+unsigned int __imf_vsetne2(unsigned int, unsigned int);
+unsigned int __imf_vsetne4(unsigned int, unsigned int);
+unsigned int __imf_vsetges2(unsigned int, unsigned int);
+unsigned int __imf_vsetges4(unsigned int, unsigned int);
+unsigned int __imf_vsetgeu2(unsigned int, unsigned int);
+unsigned int __imf_vsetgeu4(unsigned int, unsigned int);
+unsigned int __imf_vsetgts2(unsigned int, unsigned int);
+unsigned int __imf_vsetgts4(unsigned int, unsigned int);
+unsigned int __imf_vsetgtu2(unsigned int, unsigned int);
+unsigned int __imf_vsetgtu4(unsigned int, unsigned int);
+unsigned int __imf_vsetles2(unsigned int, unsigned int);
+unsigned int __imf_vsetles4(unsigned int, unsigned int);
+unsigned int __imf_vsetleu2(unsigned int, unsigned int);
+unsigned int __imf_vsetleu4(unsigned int, unsigned int);
+unsigned int __imf_vsetlts2(unsigned int, unsigned int);
+unsigned int __imf_vsetlts4(unsigned int, unsigned int);
+unsigned int __imf_vsetltu2(unsigned int, unsigned int);
+unsigned int __imf_vsetltu4(unsigned int, unsigned int);
+unsigned int __imf_vsads2(unsigned int, unsigned int);
+unsigned int __imf_vsads4(unsigned int, unsigned int);
+unsigned int __imf_vsadu2(unsigned int, unsigned int);
+unsigned int __imf_vsadu4(unsigned int, unsigned int);
 };
 
 namespace sycl {
@@ -71,6 +107,26 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs2(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs4(Tp x) {
   return __imf_vabs4(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg2(Tp x) {
+  return __imf_vneg2(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg4(Tp x) {
+  return __imf_vneg4(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss2(Tp x) {
+  return __imf_vnegss2(x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss4(Tp x) {
+  return __imf_vnegss4(x);
 }
 
 template <typename Tp>
@@ -141,6 +197,54 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddus4(Tp x,
                                                                          Tp y) {
   return __imf_vaddus4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub2(Tp x,
+                                                                       Tp y) {
+  return __imf_vsub2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub4(Tp x,
+                                                                       Tp y) {
+  return __imf_vsub4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss2(Tp x,
+                                                                         Tp y) {
+  return __imf_vsubss2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss4(Tp x,
+                                                                         Tp y) {
+  return __imf_vsubss4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus2(Tp x,
+                                                                         Tp y) {
+  return __imf_vsubus2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus4(Tp x,
+                                                                         Tp y) {
+  return __imf_vsubus4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vhaddu2(Tp x,
+                                                                         Tp y) {
+  return __imf_vhaddu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vhaddu4(Tp x,
+                                                                         Tp y) {
+  return __imf_vhaddu4(x, y);
 }
 
 template <typename Tp>
@@ -335,6 +439,149 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vminu4(Tp x,
   return __imf_vminu4(x, y);
 }
 
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vseteq2(Tp x,
+                                                                         Tp y) {
+  return __imf_vseteq2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vseteq4(Tp x,
+                                                                         Tp y) {
+  return __imf_vseteq4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsetne2(Tp x,
+                                                                         Tp y) {
+  return __imf_vsetne2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsetne4(Tp x,
+                                                                         Tp y) {
+  return __imf_vsetne4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetges2(Tp x, Tp y) {
+  return __imf_vsetges2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetges4(Tp x, Tp y) {
+  return __imf_vsetges4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgeu2(Tp x, Tp y) {
+  return __imf_vsetgeu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgeu4(Tp x, Tp y) {
+  return __imf_vsetgeu4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgts2(Tp x, Tp y) {
+  return __imf_vsetgts2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgts4(Tp x, Tp y) {
+  return __imf_vsetgts4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgtu2(Tp x, Tp y) {
+  return __imf_vsetgtu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetgtu4(Tp x, Tp y) {
+  return __imf_vsetgtu4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetles2(Tp x, Tp y) {
+  return __imf_vsetles2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetles4(Tp x, Tp y) {
+  return __imf_vsetles4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetleu2(Tp x, Tp y) {
+  return __imf_vsetleu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetleu4(Tp x, Tp y) {
+  return __imf_vsetleu4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetlts2(Tp x, Tp y) {
+  return __imf_vsetlts2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetlts4(Tp x, Tp y) {
+  return __imf_vsetlts4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetltu2(Tp x, Tp y) {
+  return __imf_vsetltu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vsetltu4(Tp x, Tp y) {
+  return __imf_vsetltu4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsads2(Tp x,
+                                                                        Tp y) {
+  return __imf_vsads2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsads4(Tp x,
+                                                                        Tp y) {
+  return __imf_vsads4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsadu2(Tp x,
+                                                                        Tp y) {
+  return __imf_vsadu2(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsadu4(Tp x,
+                                                                        Tp y) {
+  return __imf_vsadu4(x, y);
+}
 } // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
