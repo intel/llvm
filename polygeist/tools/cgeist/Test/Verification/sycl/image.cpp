@@ -19,7 +19,7 @@ static constexpr unsigned N = 8;
 // CHECK-NEXT:    affine.store %0, %alloca[0] : memref<1xi32>
 // CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4>) -> !llvm.ptr<struct<(ptr<struct<"opencl.image1d_ro_t", opaque>, 1>, array<24 x i8>)>, 4>
 // CHECK-NEXT:    %2 = affine.load %arg1[0] : memref<?x!sycl_item_1_>
-// CHECK-NEXT:    %3 = "sycl.item.get_id"(%2, %c0_i32) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>, i32], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EEixEi, TypeName = @item} : (!sycl_item_1_, i32) -> i64
+// CHECK-NEXT:    %3 = sycl.item.get_id(%2, %c0_i32) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>, i32], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EEixEi, TypeName = @item} : (!sycl_item_1_, i32) -> i64
 // CHECK-NEXT:    %4 = arith.trunci %3 : i64 to i32
 // CHECK-NEXT:    %5 = "polygeist.memref2pointer"(%alloca) : (memref<1xi32>) -> !llvm.ptr<i32>
 // CHECK-NEXT:    %6 = llvm.addrspacecast %5 : !llvm.ptr<i32> to !llvm.ptr<i32, 4>
