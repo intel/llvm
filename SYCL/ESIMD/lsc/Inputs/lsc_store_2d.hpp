@@ -1,4 +1,4 @@
-//==---------------- lsc_block_store.hpp - DPC++ ESIMD on-device test ------==//
+//==---------------- lsc_store_2d.hpp - DPC++ ESIMD on-device test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,7 +16,38 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental::esimd::detail;
+
+template <unsigned int N, unsigned int M>
+constexpr unsigned int roundUpNextMultiple() {
+  return ((N + M - 1) / M) * M;
+}
+
+/// Compute next power of 2 of a constexpr with guaranteed compile-time
+/// evaluation.
+template <unsigned int N, unsigned int K, bool K_gt_eq_N> struct NextPowerOf2;
+template <unsigned int N, unsigned int K> struct NextPowerOf2<N, K, true> {
+  static constexpr unsigned int get() { return K; }
+};
+template <unsigned int N, unsigned int K> struct NextPowerOf2<N, K, false> {
+  static constexpr unsigned int get() {
+    return NextPowerOf2<N, K * 2, K * 2 >= N>::get();
+  }
+};
+
+template <unsigned int N> constexpr unsigned int getNextPowerOf2() {
+  return NextPowerOf2<N, 1, (1 >= N)>::get();
+}
+template <> constexpr unsigned int getNextPowerOf2<0>() { return 0; }
+
+// Compute the data size for 2d block load or store.
+template <typename T, int NBlocks, int Height, int Width, bool Transposed,
+          bool Transformed>
+constexpr int get_lsc_block_2d_data_size() {
+  if (Transformed)
+    return roundUpNextMultiple<Height, 4 / sizeof(T)>() *
+           getNextPowerOf2<Width>() * NBlocks;
+  return Width * Height * NBlocks;
+}
 
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           int BlockWidth, int BlockHeight = 1,
@@ -65,7 +96,7 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
 
             simd<T, N> vals(new_val + off, 1);
             // IUT
-            lsc_store2d<T, BlockWidth, BlockHeight, L1H, L3H>(
+            lsc_store_2d<T, BlockWidth, BlockHeight, L1H, L3H>(
                 out + off, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
                 SurfacePitch * sizeof(T) - 1, X, Y, vals);
           });

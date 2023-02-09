@@ -80,10 +80,10 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
   constexpr int N =
       get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth,
                                  Transposed, Transformed>();
-  /* Due to store2d a is subject to stricter restrictions:
+  /* Due to store_2d a is subject to stricter restrictions:
    *   NBlocks always 1, no Transposed, no Transformed, max BlockHeight 8.
    * Series of 2d stores with height 1 are used to write loaded data to output
-   * buffer. Also Transformed load2d extends BlockWidth to the next power of 2
+   * buffer. Also Transformed load_2d extends BlockWidth to the next power of 2
    * and rounds up BlockHeight.
    */
   constexpr int SH = Transformed
@@ -135,22 +135,22 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
 
             simd<T, N> vals;
             if constexpr (use_prefetch) {
-              lsc_prefetch2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L3H>(
+              lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L3H>(
                   in + off, width, height, pitch, X, Y);
-              vals =
-                  lsc_load2d<T, BlockWidth, BlockHeight, NBlocks, Transposed,
-                             Transformed>(in + off, width, height, pitch, X, Y);
+              vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
+                                 Transposed, Transformed>(in + off, width,
+                                                          height, pitch, X, Y);
             } else {
-              vals = lsc_load2d<T, BlockWidth, BlockHeight, NBlocks, Transposed,
-                                Transformed, L1H, L3H>(in + off, width, height,
-                                                       pitch, X, Y);
+              vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
+                                 Transposed, Transformed, L1H, L3H>(
+                  in + off, width, height, pitch, X, Y);
             }
 
             for (int i = 0; i < NBlocks; i++) {
               for (int j = 0; j < SH; j++) {
                 simd<T, SN> v =
                     vals.template select<SN, 1>(i * SN * SH + j * SW);
-                lsc_store2d<T, SW>(
+                lsc_store_2d<T, SW>(
                     out + off, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
                     SurfacePitch * sizeof(T) - 1, X + i * SW, Y + j, v);
               }

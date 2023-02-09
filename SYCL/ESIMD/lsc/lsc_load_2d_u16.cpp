@@ -1,4 +1,4 @@
-//==---------------- lsc_block_load_u16.cpp - DPC++ ESIMD on-device test ---==//
+//==---------------- lsc_load_2d_u16.cpp - DPC++ ESIMD on-device test ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include "Inputs/lsc_block_load.hpp"
+#include "Inputs/lsc_load_prefetch_2d.hpp"
 
 constexpr uint32_t seed = 322;
 using T = uint16_t;
