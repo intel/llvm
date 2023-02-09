@@ -132,11 +132,15 @@ public:
     });
     PrepareNotify.notify();
 #endif
-    if (has_property<ext::oneapi::property::queue::discard_events>() &&
-        has_property<property::queue::enable_profiling>()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Queue cannot be constructed with both of "
-                            "discard_events and enable_profiling.");
+    if (has_property<property::queue::enable_profiling>()) {
+      if (has_property<ext::oneapi::property::queue::discard_events>())
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Queue cannot be constructed with both of "
+                              "discard_events and enable_profiling.");
+      if (!MDevice->has(aspect::queue_profiling))
+        throw sycl::exception(make_error_code(errc::feature_not_supported),
+                              "Cannot enable profiling, the associated device "
+                              "does not have the queue_profiling aspect");
     }
     if (has_property<ext::intel::property::queue::compute_index>()) {
       int Idx = get_property<ext::intel::property::queue::compute_index>()
