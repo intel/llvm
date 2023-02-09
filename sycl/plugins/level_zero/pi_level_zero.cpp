@@ -5658,7 +5658,8 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_CALL(Src->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size, ZeHandleSrc + Offset,
-                              NumEventsInWaitList, EventWaitList, Event, true);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -5925,7 +5926,8 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
                               ZeHandleDst + Offset, // dst
                               BlockingWrite, Size,
                               Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event, true);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
