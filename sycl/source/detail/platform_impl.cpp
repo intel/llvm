@@ -151,7 +151,10 @@ std::vector<platform> platform_impl::get_platforms() {
   // SYCL_DEVICE_FILTER
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  if (!FilterList || FilterList->backendCompatible(backend::host))
+  detail::ods_target_list *OdsTargetList =
+      detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
+  if ((!FilterList || FilterList->backendCompatible(backend::host)) &&
+      (!OdsTargetList || OdsTargetList->backendCompatible(backend::host)))
     Platforms.emplace_back(
         createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl()));
 
@@ -474,7 +477,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                     DeviceType == info::device_type::all)) {
     // If SYCL_DEVICE_FILTER is set, check if filter contains host.
     device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
+    if ((!FilterList || FilterList->containsHost()) &&
+        (!OdsTargetList || OdsTargetList->containsHost())) {
       Res.push_back(
           createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
     }

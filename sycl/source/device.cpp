@@ -66,6 +66,12 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
       includeHost = false;
     else
       includeHost = FilterList->containsHost();
+  } else if (OdsTargetList) {
+    if (deviceType != info::device_type::host &&
+        deviceType != info::device_type::all)
+      includeHost = false;
+    else
+      includeHost = OdsTargetList->containsHost();
   } else {
     includeHost = detail::match_types(deviceType, info::device_type::host);
   }

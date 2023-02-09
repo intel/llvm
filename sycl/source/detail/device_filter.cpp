@@ -277,6 +277,19 @@ bool ods_target_list::backendCompatible(backend Backend) {
       });
 }
 
+bool ods_target_list::containsHost() {
+  for (const auto &Filter : TargetList) {
+    if (Filter.Backend == backend::host || Filter.Backend == backend::all)
+      if (Filter.DeviceType == info::device_type::host ||
+          Filter.DeviceType == info::device_type::all || !Filter.DeviceType)
+        // SYCL RT never creates more than one HOST device.
+        // All device numbers other than 0 are rejected.
+        if (!Filter.DeviceNum || Filter.DeviceNum == 0)
+          return true;
+  }
+  return false;
+}
+
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
