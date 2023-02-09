@@ -741,8 +741,8 @@ public:
       CloneTypeReplacements["unsigned long"] = "unsigned long long";
     }
 
-    // Make replaced char functions clones of explicit signed or unsigned or
-    // long long variant
+    // Make replaced char functions clones of explicit signed char or unsigned
+    // char type
     if (CharSignedness == Signedness::Signed) {
       CloneTypeReplacements["char"] = "signed char";
     } else {
