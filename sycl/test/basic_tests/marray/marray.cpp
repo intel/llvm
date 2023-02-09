@@ -18,24 +18,34 @@ struct NotDefaultConstructible {
 };
 
 template <typename DataT> void CheckConstexprVariadicCtors() {
-  constexpr DataT DefaultVal{1};
+  constexpr DataT default_val{1};
 
-  constexpr sycl::marray<DataT, 5> ma(DefaultVal, DefaultVal, DefaultVal,
-                                      DefaultVal, DefaultVal);
-  constexpr sycl::marray<DataT, 3> mb(DefaultVal, DefaultVal, DefaultVal);
+  constexpr sycl::marray<DataT, 5> marray_with_5_elements(
+      default_val, default_val, default_val, default_val, default_val);
+  constexpr sycl::marray<DataT, 3> marray_with_3_elements(
+      default_val, default_val, default_val);
 
-  constexpr sycl::marray<DataT, 6> m1(ma, DefaultVal);
-  constexpr sycl::marray<DataT, 6> m2(DefaultVal, ma);
-  constexpr sycl::marray<DataT, 7> m3(DefaultVal, ma, DefaultVal);
-  constexpr sycl::marray<DataT, 8> m4(ma, mb);
-  constexpr sycl::marray<DataT, 9> m5(DefaultVal, ma, mb);
-  constexpr sycl::marray<DataT, 9> m6(ma, DefaultVal, mb);
-  constexpr sycl::marray<DataT, 9> m7(ma, mb, DefaultVal);
-  constexpr sycl::marray<DataT, 10> m8(DefaultVal, ma, DefaultVal, mb);
-  constexpr sycl::marray<DataT, 10> m9(DefaultVal, ma, mb, DefaultVal);
-  constexpr sycl::marray<DataT, 10> m10(ma, DefaultVal, mb, DefaultVal);
-  constexpr sycl::marray<DataT, 11> m11(DefaultVal, ma, DefaultVal, mb,
-                                        DefaultVal);
+  constexpr sycl::marray<DataT, 6> m1(marray_with_5_elements, default_val);
+  constexpr sycl::marray<DataT, 6> m2(default_val, marray_with_5_elements);
+  constexpr sycl::marray<DataT, 7> m3(default_val, marray_with_5_elements,
+                                      default_val);
+  constexpr sycl::marray<DataT, 8> m4(marray_with_5_elements,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m5(default_val, marray_with_5_elements,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m6(marray_with_5_elements, default_val,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m7(marray_with_5_elements,
+                                      marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 10> m8(default_val, marray_with_5_elements,
+                                       default_val, marray_with_3_elements);
+  constexpr sycl::marray<DataT, 10> m9(default_val, marray_with_5_elements,
+                                       marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 10> m10(marray_with_5_elements, default_val,
+                                        marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 11> m11(default_val, marray_with_5_elements,
+                                        default_val, marray_with_3_elements,
+                                        default_val);
 }
 
 int main() {
