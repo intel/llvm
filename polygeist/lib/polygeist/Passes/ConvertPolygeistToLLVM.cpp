@@ -27,6 +27,7 @@
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
@@ -351,138 +352,6 @@ struct StoreMemRefOpLowering : public MemAccessLowering {
     if (!DataPtr)
       return failure();
     rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, adaptor.getValue(), DataPtr);
-    return success();
-  }
-};
-
-struct SignatureConversionPattern : public ConversionPattern {
-  using ConversionPattern::ConversionPattern;
-
-protected:
-  /// States whether a signature should be converted
-  ///
-  /// A signature should be converted if it contains at least a memref type and
-  /// all of the memref types in it can be lowered to a bare ptr.
-  static bool shouldConvertSignature(TypeRange types) {
-    bool hasMT{false};
-    for (auto type : types) {
-      if (auto mt = type.dyn_cast<MemRefType>()) {
-        if (!canBeLoweredToBarePtr(mt))
-          return false;
-        hasMT = true;
-      }
-    }
-    return hasMT;
-  }
-};
-
-/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
-///
-/// Copied here to be able to pass custom benefit.
-struct ReturnOpTypeConversionPattern : public SignatureConversionPattern {
-  ReturnOpTypeConversionPattern(MLIRContext *context,
-                                PatternBenefit benefit = 1)
-      : SignatureConversionPattern(func::ReturnOp::getOperationName(), benefit,
-                                   context) {}
-  ReturnOpTypeConversionPattern(TypeConverter &typeConverter,
-                                MLIRContext *context,
-                                PatternBenefit benefit = 1)
-      : SignatureConversionPattern(typeConverter,
-                                   func::ReturnOp::getOperationName(), benefit,
-                                   context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> args,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto returnOp = cast<func::ReturnOp>(op);
-    if (!shouldConvertSignature(returnOp.getOperandTypes()))
-      return failure();
-    func::ReturnOp::Adaptor adaptor{args};
-
-    rewriter.updateRootInPlace(
-        returnOp, [&] { returnOp->setOperands(adaptor.getOperands()); });
-    return success();
-  }
-};
-
-/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
-///
-/// Copied here to be able to pass custom benefit.
-struct CallOpSignatureConversion : public SignatureConversionPattern {
-  CallOpSignatureConversion(MLIRContext *context, PatternBenefit benefit = 1)
-      : SignatureConversionPattern(func::CallOp::getOperationName(), benefit,
-                                   context) {}
-  CallOpSignatureConversion(TypeConverter &typeConverter, MLIRContext *context,
-                            PatternBenefit benefit = 1)
-      : SignatureConversionPattern(
-            typeConverter, func::CallOp::getOperationName(), benefit, context) {
-  }
-
-  /// Hook for derived classes to implement combined matching and rewriting.
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> args,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto callOp = cast<func::CallOp>(op);
-    if (!shouldConvertSignature(callOp.getOperandTypes()))
-      return failure();
-    func::CallOp::Adaptor adaptor{args};
-    // Convert the original function results.
-    SmallVector<Type, 1> convertedResults;
-    if (failed(typeConverter->convertTypes(callOp.getResultTypes(),
-                                           convertedResults)))
-      return failure();
-
-    // Substitute with the new result types from the corresponding FuncType
-    // conversion.
-    rewriter.replaceOpWithNewOp<func::CallOp>(
-        callOp, callOp.getCallee(), convertedResults, adaptor.getOperands());
-    return success();
-  }
-};
-
-/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
-///
-/// Copied here to be able to pass custom benefit.
-struct AnyFunctionOpInterfaceSignatureConversion
-    : public SignatureConversionPattern {
-  AnyFunctionOpInterfaceSignatureConversion(MLIRContext *context,
-                                            PatternBenefit benefit = 1)
-      : SignatureConversionPattern(Pattern::MatchInterfaceOpTypeTag(),
-                                   FunctionOpInterface::getInterfaceID(),
-                                   benefit, context) {}
-  AnyFunctionOpInterfaceSignatureConversion(TypeConverter &typeConverter,
-                                            MLIRContext *context,
-                                            PatternBenefit benefit = 1)
-      : SignatureConversionPattern(
-            typeConverter, Pattern::MatchInterfaceOpTypeTag(),
-            FunctionOpInterface::getInterfaceID(), benefit, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto funcOp = cast<FunctionOpInterface>(op);
-    const auto type = funcOp.getFunctionType().cast<FunctionType>();
-    const auto operandTypes = type.getInputs();
-    const auto resultTypes = type.getResults();
-    if (!shouldConvertSignature(operandTypes) &&
-        !shouldConvertSignature(resultTypes))
-      return failure();
-
-    // Convert the original function types.
-    TypeConverter::SignatureConversion result(type.getNumInputs());
-    SmallVector<Type, 1> newResults;
-    if (failed(typeConverter->convertSignatureArgs(operandTypes, result)) ||
-        failed(typeConverter->convertTypes(resultTypes, newResults)) ||
-        failed(rewriter.convertRegionTypes(&funcOp.getFunctionBody(),
-                                           *typeConverter, &result)))
-      return failure();
-
-    // Update the function signature in-place.
-    auto newType = FunctionType::get(rewriter.getContext(),
-                                     result.getConvertedTypes(), newResults);
-
-    rewriter.updateRootInPlace(funcOp, [&] { funcOp.setType(newType); });
-
     return success();
   }
 };
@@ -1370,6 +1239,15 @@ struct ConvertPolygeistToLLVMPass
 
       LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
       RewritePatternSet patterns(&getContext());
+
+      if (useBarePtrCallConv) {
+        // Keep these at the top; these should be run before the rest of
+        // function conversion patterns.
+        populateReturnOpTypeConversionPattern(patterns, converter);
+        populateCallOpTypeConversionPattern(patterns, converter);
+        populateAnyFunctionOpInterfaceTypeConversionPattern(patterns,
+                                                            converter);
+      }
       sycl::populateSYCLToLLVMConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
@@ -1414,12 +1292,6 @@ struct ConvertPolygeistToLLVMPass
                      AllocMemrefOpLowering, AllocaMemrefOpLowering,
                      CastMemrefOpLowering, DeallocOpLowering,
                      LoadMemRefOpLowering, StoreMemRefOpLowering>(converter, 2);
-
-        // These should be run before lowering to the LLVM dialect to avoid
-        // lowering memrefs to a struct.
-        patterns.add<AnyFunctionOpInterfaceSignatureConversion,
-                     CallOpSignatureConversion, ReturnOpTypeConversionPattern>(
-            converter, &getContext(), /*benefit*/ 2);
       }
 
       // Legality callback for operations that checks whether their operand and
