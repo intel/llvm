@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_POLYGEIST_UTILS_BARRIERUTILS_H_
-#define MLIR_POLYGEIST_UTILS_BARRIERUTILS_H_
+#ifndef MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_
+#define MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -75,4 +75,4 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
 }
 } // namespace mlir
 
-#endif // MLIR_POLYGEIST_UTILS_BARRIERUTILS_H_
+#endif // MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_

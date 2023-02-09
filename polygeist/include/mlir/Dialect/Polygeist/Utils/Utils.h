@@ -1,5 +1,3 @@
-#ifndef MLIR_POLYGEIST_UTILS_UTILS_H_
-#define MLIR_POLYGEIST_UTILS_UTILS_H_
 //===- Utils.h - Utilities for Polygeist transformations ---------* C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#ifndef MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
+#define MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -149,4 +150,4 @@ inline LLVM::LLVMFuncOp getAllocFn(LLVMTypeConverter &typeConverter,
 
 } // namespace mlir
 
-#endif // MLIR_POLYGEIST_UTILS_UTILS_H_
+#endif // MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
