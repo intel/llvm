@@ -12,7 +12,7 @@
 // CHECK-MLIR: call @cons_5() : () -> ()
 
 // CHECK-MLIR-LABEL: func.func @cons_5() attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>
-// CHECK-MLIR:           sycl.constructor(%{{.*}})
+// CHECK-MLIR:           sycl.constructor{{.*}}(%{{.*}})
 // CHECK-MLIR-NEXT:      return
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()

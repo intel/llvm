@@ -109,7 +109,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-NEXT: %3 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
 // CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1Ev, TypeName = @id} : (memref<?x!sycl_id_2_, 4>) -> ()
+// CHECK-NEXT: sycl.constructor @id(%5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1Ev} : (memref<?x!sycl_id_2_, 4>)
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_1()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
@@ -129,7 +129,7 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
 // CHECK-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%2, %arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, i64, i64) -> ()
+// CHECK-NEXT: sycl.constructor @id(%2, %arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm} : (memref<?x!sycl_id_2_, 4>, i64, i64)
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_2(i64 noundef %0, i64 noundef %1)
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
@@ -151,7 +151,7 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: %3 = "polygeist.memref2pointer"(%arg0) : (memref<?x![[ITEM]]>) -> !llvm.ptr<![[ITEM]]>
 // CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<![[ITEM]]> to !llvm.ptr<![[ITEM]], 4>
 // CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<![[ITEM]], 4>) -> memref<?x![[ITEM]], 4>
-// CHECK-NEXT: sycl.constructor(%2, %5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x![[ITEM]], 4>) -> ()
+// CHECK-NEXT: sycl.constructor @id(%2, %5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE} : (memref<?x!sycl_id_2_, 4>, memref<?x![[ITEM]], 4>)
 
 // CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]]* noundef byval(%"class.sycl::_V1::item.2.true") align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]  
@@ -172,7 +172,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: %3 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
 // CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%2, %5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> ()
+// CHECK-NEXT: sycl.constructor @id(%2, %5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ERKS2_} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>)
 
 // CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.sycl::_V1::id.2"]]*  noundef byval(%"class.sycl::_V1::id.2") align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
@@ -187,7 +187,7 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 // CHECK-LABEL: func.func @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(
 // CHECK-SAME: {{.*}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 // CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, index) -> memref<?x!sycl_accessor_impl_device_1_, 4>
-// CHECK: sycl.constructor([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledFunctionName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_, TypeName = @AccessorImplDevice} : (memref<?x!sycl_accessor_impl_device_1_, 4>, memref<?x!sycl_id_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>) -> ()
+// CHECK: sycl.constructor @AccessorImplDevice([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledFunctionName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_} : (memref<?x!sycl_accessor_impl_device_1_, 4>, memref<?x!sycl_id_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>)
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
@@ -201,7 +201,7 @@ extern "C" SYCL_EXTERNAL void cons_5() {
 
 // CHECK-LABEL: func.func @cons_6(
 // CHECK-SAME:                    %{{.*}}: i32
-// CHECK:         sycl.constructor({{.*}}, {{.*}}) {MangledFunctionName = @[[VEC_SPLAT_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_i32_8_, 4>, memref<?xi32, 4>) -> ()
+// CHECK:         sycl.constructor @vec({{.*}}, {{.*}}) {MangledFunctionName = @[[VEC_SPLAT_CTR:.*]]} : (memref<?x!sycl_vec_i32_8_, 4>, memref<?xi32, 4>)
 // CHECK:         func.func @[[VEC_SPLAT_CTR]](%{{.*}}: memref<?x!sycl_vec_i32_8_, 4> {{{.*}}}, %{{.*}}: memref<?xi32, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 // CHECK:         vector.splat %{{.*}} : vector<8xi32>
 
@@ -218,7 +218,7 @@ extern "C" SYCL_EXTERNAL void cons_6(int Arg) {
 
 // CHECK-LABEL: func.func @cons_7(
 // CHECK-SAME:                    %[[ARG0:.*]]: f32 {{{.*}}}, %[[ARG1:.*]]: f32 {{{.*}}}, %[[ARG2:.*]]: f32 {{{.*}}}, %[[ARG3:.*]]: f32 {{{.*}}})
-// CHECK:         sycl.constructor(%{{.*}}, %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[ARG3]]) {MangledFunctionName = @[[VEC_INITLIST_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_f32_4_, 4>, f32, f32, f32, f32) -> ()
+// CHECK:         sycl.constructor @vec(%{{.*}}, %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[ARG3]]) {MangledFunctionName = @[[VEC_INITLIST_CTR:.*]]} : (memref<?x!sycl_vec_f32_4_, 4>, f32, f32, f32, f32)
 // CHECK:       func.func @[[VEC_INITLIST_CTR]](%{{.*}}: memref<?x!sycl_vec_f32_4_, 4> {{{.*}}}, %{{.*}}: f32 {{{.*}}}, %{{.*}}: f32 {{{.*}}}, %{{.*}}: f32 {{{.*}}}, %{{.*}}: f32 {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_7(
@@ -231,7 +231,7 @@ extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
 
 // CHECK-LABEL: func.func @cons_8(
 // CHECK-SAME:                    %[[ARG0:.*]]: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}})
-// CHECK:         sycl.constructor(%{{.*}}, %[[ARG0]]) {MangledFunctionName = @[[VEC_COPY_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_f64_16_, 4>, memref<?x!sycl_vec_f64_16_, 4>) -> ()
+// CHECK:         sycl.constructor @vec(%{{.*}}, %[[ARG0]]) {MangledFunctionName = @[[VEC_COPY_CTR:.*]]} : (memref<?x!sycl_vec_f64_16_, 4>, memref<?x!sycl_vec_f64_16_, 4>)
 // CHECK:       func.func @[[VEC_COPY_CTR]](%{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_8(
@@ -244,7 +244,7 @@ extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other
 
 // CHECK-LABEL: func.func @cons_9(
 // CHECK-SAME:                    %[[ARG0:.*]]: vector<3xi8>
-// CHECK:         sycl.constructor(%{{.*}}, %[[ARG0]]) {MangledFunctionName = @[[VEC_NATIVE_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_i8_3_, 4>, vector<3xi8>) -> ()
+// CHECK:         sycl.constructor @vec(%{{.*}}, %[[ARG0]]) {MangledFunctionName = @[[VEC_NATIVE_CTR:.*]]} : (memref<?x!sycl_vec_i8_3_, 4>, vector<3xi8>)
 // CHECK:       func.func @[[VEC_NATIVE_CTR]](%{{.*}}: memref<?x!sycl_vec_i8_3_, 4> {{{.*}}}, %{{.*}}: vector<3xi8> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_9(
@@ -257,7 +257,7 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 
 // CHECK-LABEL: func.func @cons_10(
 // CHECK-SAME:                     %[[ARG0:.*]]: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %[[ARG1:.*]]: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %[[ARG2:.*]]: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: i64 {{{.*}}}, %{{.*}}: i64 {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], {{.*}}}
-// CHECK:         sycl.constructor(%3, %[[ARG0]], %[[ARG1]], %[[ARG2]], %6, %9) {MangledFunctionName = @[[VEC_INITLIST_VEC_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_i64_16_, 4>, memref<?x!sycl_vec_i64_8_, 4>, memref<?x!sycl_vec_i64_4_, 4>, memref<?x!sycl_vec_i64_2_, 4>, memref<?xi64, 4>, memref<?xi64, 4>) -> ()
+// CHECK:         sycl.constructor @vec(%3, %[[ARG0]], %[[ARG1]], %[[ARG2]], %6, %9) {MangledFunctionName = @[[VEC_INITLIST_VEC_CTR:.*]]} : (memref<?x!sycl_vec_i64_16_, 4>, memref<?x!sycl_vec_i64_8_, 4>, memref<?x!sycl_vec_i64_4_, 4>, memref<?x!sycl_vec_i64_2_, 4>, memref<?xi64, 4>, memref<?xi64, 4>)
 // CHECK:       func.func @[[VEC_INITLIST_VEC_CTR]](%{{.*}}: memref<?x!sycl_vec_i64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(

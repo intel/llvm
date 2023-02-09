@@ -640,7 +640,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];      
 
   let assemblyFormat = [{
-    `(` $Args `)` attr-dict `:` functional-type($Args, results)
+    $TypeName `(` $Args `)` attr-dict `:` `(` type($Args) `)`
   }];
 }
 
