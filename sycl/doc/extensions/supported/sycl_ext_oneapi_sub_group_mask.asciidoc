@@ -304,6 +304,13 @@ struct sub_group_mask {
 
   static constexpr size_t max_bits = /* implementation-defined */;
 
+  sub_group_mask();
+  sub_group_mask(unsigned long long val);
+  template<typename T, std::size_t K>
+  sub_group_mask(const sycl::marray<T, K>& val);
+  sub_group_mask(const sub_group_mask &other) = default;
+  sub_group_mask& operator=(const sub_group_mask &other) = default;
+
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
   bool test(id<1> id) const;
