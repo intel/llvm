@@ -114,9 +114,11 @@ if config.esimd_emulator_be == "ON":
     config.available_features.add('esimd_emulator_be')
 
 if triple == 'nvptx64-nvidia-cuda':
+    llvm_config.with_system_environment('CUDA_PATH')
     config.available_features.add('cuda')
 
 if triple == 'amdgcn-amd-amdhsa':
+    llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch
     if not any([f.startswith('--offload-arch') for f in additional_flags]):
