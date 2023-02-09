@@ -25,12 +25,12 @@ namespace experimental {
 
 // Deduction guide
 template <typename T, typename... Args>
-annotated_ptr(T, Args...)
-    -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
+annotated_ptr(T *, Args...)
+    ->annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
 annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
-    -> annotated_ptr<
+    ->annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
@@ -81,13 +81,13 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *_ptr, const PropertyValueTs &...props) noexcept
+  annotated_ptr(T *_ptr, const PropertyValueTs &... props) noexcept
       : ptr(global_pointer_t(_ptr)) {
     static_assert(
         std::is_same<
             property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value,
+            detail::merged_properties_t<
+                property_list_t, decltype(properties{props...})>>::value,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -97,45 +97,49 @@ public:
   // annotated_ptr object. The same property in `Props...` and `PropertyList2`
   // must have the same property value.
   template <typename T2, typename PropertyList2>
-  explicit annotated_ptr(const annotated_ptr<T2, PropertyList2> &other) noexcept
+  explicit annotated_ptr(
+      const annotated_ptr<T2, PropertyList2> &other) noexcept
       : ptr(other.ptr) {
-    static_assert(std::is_convertible<T2, T *>::value,
-                  "The underlying data type of the input annotated_ptr is not "
-                  "compatible");
+    static_assert(
+        std::is_convertible<T2 *, T *>::value,
+        "The underlying data type of the input annotated_ptr is not "
+        "compatible");
 
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The constructed annotated_ptr type must contain all the properties of "
+        std::is_same<property_list_t,
+                     detail::merged_properties_t<property_list_t,
+                                                 PropertyList2>>::value,
+        "The constructed annotated_ptr type must contain all the properties "
+        "of "
         "the input annotated_ptr");
   }
 
-  // Constructs an annotated_ptr object from another annotated_ptr object and a
-  // property list. The new property set is the union of property lists
+  // Constructs an annotated_ptr object from another annotated_ptr object and
+  // a property list. The new property set is the union of property lists
   // `PropertyListU` and `PropertyListV`. The same property in `PropertyListU`
   // and `PropertyListV` must have the same property value.
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
       : ptr(other.ptr) {
-    static_assert(std::is_convertible<T2, T *>::value,
-                  "The underlying data type of the input annotated_ptr is not "
-                  "compatible");
+    static_assert(
+        std::is_convertible<T2 *, T *>::value,
+        "The underlying data type of the input annotated_ptr is not "
+        "compatible");
 
     static_assert(
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value,
-        "The property list of constructed annotated_ptr type must be the union "
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
+        "The property list of constructed annotated_ptr type must be the "
+        "union "
         "of the input property lists");
   }
 
-  reference operator*() const noexcept {
-    return reference(ptr);
-  }
+  reference operator*() const noexcept { return reference(ptr); }
 
   reference operator[](std::ptrdiff_t idx) const noexcept {
-    return reference(ptr[idx]);
+    return reference(ptr + idx);
   }
 
   annotated_ptr operator+(size_t offset) const noexcept {
@@ -146,31 +150,29 @@ public:
     return ptr - other.ptr;
   }
 
-  explicit operator bool() const noexcept {
-    return ptr != nullptr;
-  }
+  explicit operator bool() const noexcept { return ptr != nullptr; }
 
   operator T *() noexcept = delete;
   operator T *() const = delete;
 
-  T* get() const noexcept { return ptr; }
+  T *get() const noexcept { return ptr; }
 
-  annotated_ptr& operator=(T*) noexcept {
+  annotated_ptr &operator=(T *) noexcept {
     return annotated_ptr<T, property_list_t>(ptr);
   }
 
-  annotated_ptr& operator++() noexcept {
+  annotated_ptr &operator++() noexcept {
     ptr += 1;
     return *this;
   }
-  
+
   annotated_ptr operator++(int) noexcept {
     auto tmp = *this;
     ptr += 1;
     return tmp;
   }
 
-  annotated_ptr& operator--() noexcept {
+  annotated_ptr &operator--() noexcept {
     ptr -= 1;
     return *this;
   }

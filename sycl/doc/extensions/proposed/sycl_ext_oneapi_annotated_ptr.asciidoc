@@ -561,10 +561,11 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
+    annotated_ref(T*);
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    annotated_ref& operator=(const T&) const;
-    annotated_ref& operator=(const annotated_ref&) const = default;
+    annotated_ref& operator=(const T &);
+    annotated_ref& operator=(const annotated_ref&) = default;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -598,7 +599,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const T &) const;
+annotated_ref& operator=(const T &);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -608,7 +609,7 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const annotated_ref&) const = default;
+annotated_ref& operator=(const annotated_ref&) = default;
 ----
 |
 Assign from another `annotated_ref` object.

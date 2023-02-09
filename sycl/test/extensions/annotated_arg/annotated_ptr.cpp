@@ -32,6 +32,7 @@ struct MyIP {
       a[i] = i;
     }
     *a += 1;
+    *(a + 1) *= 5;
   }
 };
 
@@ -69,14 +70,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(std::is_same<decltype(tmp15), annotated_ptr_t3>::value,
                 "deduction guide failed 1");
 
-  // Property list can't have duplicated properties
-  // auto tmp16 = annotated_ptr(raw, awidth<32>, awidth<32>);   // ERR
-  // auto tmp17 = annotated_ptr(raw, awidth<32>, awidth<22>);  // ERR
-
-  // auto tmp18 = annotated_ptr(raw, properties{awidth<32>, dwidth<32>,
-  // awidth<32>}); // ERR: Duplicate properties in property list auto tmp19 =
-  // annotated_ptr(raw, properties{awidth<32>, awidth<22>});  // ERR
-
   // Construct from another annotated_ptr
   // templated copy constructor
   annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg11(
@@ -90,9 +83,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 3");
 
   // Construct from another annotated_ptr and a property list
-  // annotated_ptr<int*, decltype(properties{awidth<32>, dwidth<32>})>
-  // arg21(tmp11, properties{dwidth<32>});   // ERR:  the type properties should
-  // be the union of the inputs
   annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg22(
       tmp12, properties{dwidth<32>});
   auto arg23 = annotated_ptr(tmp12, properties{dwidth<32>}); // deduction guide
@@ -102,8 +92,8 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 5");
 
   // Construct from inconvertible type
-  // annotated_ptr<int> tmp21;
-  // annotated_ptr<int*, decltype(properties{dwidth<32>})> arg24(tmp21,
+  // annotated_ptr<float> tmp21;
+  // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
   // Property merge
@@ -115,15 +105,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 6");
   static_assert(std::is_same<decltype(arg33), annotated_ptr_t1>::value,
                 "deduction guide failed 7");
-  // auto arg34 = annotated_ptr(arg32, properties{awidth<32>, dwidth<22>});  //
-  // ERR: two input property lists are conflict
-  // annotated_ptr<int*, decltype(properties{awidth<32>, dwidth<32>})>
-  //    arg35(arg31, properties{latency<32>, dwidth<32>}); // ERR: input
-  // property list is conflict with the declared type
-
-  // Implicit Conversion
-  int *x11 = arg13;
-  const int *x13 = arg32;
 
   // operator[]
   arg31[0] = 1;
