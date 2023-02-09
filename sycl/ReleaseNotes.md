@@ -39,7 +39,7 @@ passed context's members. [a7827795]
 without attached host memory. [894ce256]
 - Implemented the [`sycl_ext_oneapi_queue_priority`](doc/extensions/supported/sycl_ext_oneapi_queue_priority.asciidoc)
 extension. [cdb09dca]
-- Implemented the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/proposed/sycl_ext_oneapi_user_defined_reductions.asciidoc)
+- Implemented the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/experimental/sycl_ext_oneapi_user_defined_reductions.asciidoc)
 extension. [8311d790]
 - Implemented the [`sycl_ext_oneapi_queue_empty`](doc/extensions/supported/sycl_ext_oneapi_queue_empty.asciidoc)
 extension proposal. [c4932957]
@@ -91,7 +91,7 @@ enviornment variable. [bd03e0d3]
  extension specification. [7f2b17ed]
 - Added the [`sycl_ext_oneapi_memcpy2d`](doc/extensions/supported/sycl_ext_oneapi_memcpy2d.asciidoc)
 extension specification. [296e9c3a]
-- Added the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/proposed/sycl_ext_oneapi_user_defined_reductions.asciidoc)
+- Added the [`sycl_ext_oneapi_user_defined_reductions`](doc/extensions/experimental/sycl_ext_oneapi_user_defined_reductions.asciidoc)
 extension specification. [cd4fd8c7]
 - Added the [`sycl_ext_oneapi_weak_object`](doc/extensions/supported/sycl_ext_oneapi_weak_object.asciidoc)
 extension specification. [d9484274]
