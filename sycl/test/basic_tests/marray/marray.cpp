@@ -12,6 +12,32 @@
 #include <sycl/sycl.hpp>
 using namespace sycl;
 
+struct NotDefaultConstructible {
+  NotDefaultConstructible() = delete;
+  constexpr NotDefaultConstructible(int){};
+};
+
+template <typename DataT> void CheckConstexprVariadicCtors() {
+  constexpr DataT DefaultVal{1};
+
+  constexpr sycl::marray<DataT, 5> ma(DefaultVal, DefaultVal, DefaultVal,
+                                      DefaultVal, DefaultVal);
+  constexpr sycl::marray<DataT, 3> mb(DefaultVal, DefaultVal, DefaultVal);
+
+  constexpr sycl::marray<DataT, 6> m1(ma, DefaultVal);
+  constexpr sycl::marray<DataT, 6> m2(DefaultVal, ma);
+  constexpr sycl::marray<DataT, 7> m3(DefaultVal, ma, DefaultVal);
+  constexpr sycl::marray<DataT, 8> m4(ma, mb);
+  constexpr sycl::marray<DataT, 9> m5(DefaultVal, ma, mb);
+  constexpr sycl::marray<DataT, 9> m6(ma, DefaultVal, mb);
+  constexpr sycl::marray<DataT, 9> m7(ma, mb, DefaultVal);
+  constexpr sycl::marray<DataT, 10> m8(DefaultVal, ma, DefaultVal, mb);
+  constexpr sycl::marray<DataT, 10> m9(DefaultVal, ma, mb, DefaultVal);
+  constexpr sycl::marray<DataT, 10> m10(ma, DefaultVal, mb, DefaultVal);
+  constexpr sycl::marray<DataT, 11> m11(DefaultVal, ma, DefaultVal, mb,
+                                        DefaultVal);
+}
+
 int main() {
   // Constructing vector from a scalar
   sycl::marray<int, 1> marray_from_one_elem(1);
@@ -99,6 +125,21 @@ int main() {
   constexpr sycl::marray<double, 5> mb(ma);
   constexpr sycl::marray<double, 5> mc = ma;
 
+  // check variadic ctor
+  CheckConstexprVariadicCtors<bool>();
+  CheckConstexprVariadicCtors<std::int8_t>();
+  CheckConstexprVariadicCtors<std::uint8_t>();
+  CheckConstexprVariadicCtors<std::int16_t>();
+  CheckConstexprVariadicCtors<std::uint16_t>();
+  CheckConstexprVariadicCtors<std::int32_t>();
+  CheckConstexprVariadicCtors<std::uint32_t>();
+  CheckConstexprVariadicCtors<std::int64_t>();
+  CheckConstexprVariadicCtors<std::uint64_t>();
+  CheckConstexprVariadicCtors<sycl::half>();
+  CheckConstexprVariadicCtors<float>();
+  CheckConstexprVariadicCtors<double>();
+  CheckConstexprVariadicCtors<NotDefaultConstructible>();
+
   // check trivially copyability
   struct Copyable {
     int a;
@@ -117,8 +158,6 @@ int main() {
                 "sycl::marray<std::tuple<>, 5> is not device copyable type");
   static_assert(!sycl::is_device_copyable<sycl::marray<std::string, 5>>::value,
                 "sycl::marray<std::string, 5> is device copyable type");
-
-  return 0;
 
   return 0;
 }
