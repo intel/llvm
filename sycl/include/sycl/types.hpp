@@ -2469,22 +2469,29 @@ struct is_device_copyable<
     T[N], std::enable_if_t<!std::is_trivially_copyable<T>::value>>
     : is_device_copyable<T> {};
 
-namespace detail {
-template <typename T, typename = void>
-struct IsDeprecatedDeviceCopyable : std::false_type {};
-
-// TODO: using C++ attribute [[deprecated]] or the macro __SYCL2020_DEPRECATED
-// does not produce expected warning message for the type 'T'.
 template <typename T>
-struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
-    IsDeprecatedDeviceCopyable<
-        T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
-                            std::is_trivially_destructible<T>::value &&
-                            !is_device_copyable<T>::value>> : std::true_type {};
+struct is_device_copyable<
+    T, std::enable_if_t<!std::is_trivially_copyable<T>::value &&
+                        (std::is_const_v<T> || std::is_volatile_v<T>)>>
+    : is_device_copyable<std::remove_cv_t<T>> {};
 
-template <typename T, int N>
-struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
-    IsDeprecatedDeviceCopyable<T[N]> : IsDeprecatedDeviceCopyable<T> {};
+namespace detail {
+  template <typename T, typename = void>
+  struct IsDeprecatedDeviceCopyable : std::false_type {};
+
+  // TODO: using C++ attribute [[deprecated]] or the macro __SYCL2020_DEPRECATED
+  // does not produce expected warning message for the type 'T'.
+  template <typename T>
+  struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+      IsDeprecatedDeviceCopyable<
+          T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
+                              std::is_trivially_destructible<T>::value &&
+                              !is_device_copyable<T>::value>> : std::true_type {
+  };
+
+  template <typename T, int N>
+  struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+      IsDeprecatedDeviceCopyable<T[N]> : IsDeprecatedDeviceCopyable<T> {};
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Checks that the fields of the type T with indices 0 to (NumFieldsToCheck - 1)
