@@ -22,7 +22,7 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-void graph_impl::exec(sycl::detail::queue_ptr q) {
+void graph_impl::exec(const sycl::detail::queue_ptr &q) {
   if (MSchedule.empty()) {
     for (auto n : MRoots) {
       n->topology_sort(MSchedule);
@@ -32,7 +32,7 @@ void graph_impl::exec(sycl::detail::queue_ptr q) {
     n->exec(q);
 }
 
-void graph_impl::exec_and_wait(sycl::detail::queue_ptr q) {
+void graph_impl::exec_and_wait(const sycl::detail::queue_ptr &q) {
   bool isSubGraph = q->getIsGraphSubmitting();
   if (!isSubGraph) {
     q->setIsGraphSubmitting(true);

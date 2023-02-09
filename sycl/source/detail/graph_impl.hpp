@@ -86,8 +86,8 @@ struct graph_impl {
 
   graph_ptr MParent;
 
-  void exec(sycl::detail::queue_ptr q);
-  void exec_and_wait(sycl::detail::queue_ptr q);
+  void exec(const sycl::detail::queue_ptr &q);
+  void exec_and_wait(const sycl::detail::queue_ptr &q);
 
   void add_root(node_ptr n);
   void remove_root(node_ptr n);

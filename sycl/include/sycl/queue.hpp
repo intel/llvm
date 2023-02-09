@@ -1079,14 +1079,12 @@ public:
   event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
                              ext::oneapi::experimental::graph_state::executable>
                              Graph,
-                         event DepEvent) {
-    const detail::code_location CodeLoc = {};
+                         event DepEvent _CODELOCPARAM(&CodeLoc)) {
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
           CGH.ext_oneapi_graph(Graph);
-        },
-        CodeLoc);
+        } _CODELOCFW(CodeLoc));
   }
 
   /// Shortcut for executing a graph of commands.
