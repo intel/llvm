@@ -20,13 +20,13 @@
 // CHECK-MLIR: func.call @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_(%11, %12) : (!llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>, !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>) -> ()
 // CHECK-MLIR: %13 = llvm.load %0 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>>
 // CHECK-MLIR: affine.store %13, %9[0] : memref<?x!llvm.struct<(memref<?xi32, 4>)>>
-// CHECK-MLIR: %14 = sycl.call() {FunctionName = @declptr, MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
-// CHECK-MLIR: %15 = sycl.call(%14) {FunctionName = @getElement, MangledFunctionName = @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE, TypeName = @Builder} : (memref<?x!sycl_item_1_, 4>) -> !sycl_item_1_
+// CHECK-MLIR: %14 = sycl.call @declptr() {MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
+// CHECK-MLIR: %15 = sycl.call @getElement(%14) {MangledFunctionName = @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE, TypeName = @Builder} : (memref<?x!sycl_item_1_, 4>) -> !sycl_item_1_
 // CHECK-MLIR: %16 = "polygeist.memref2pointer"(%alloca_1) : (memref<1x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>) -> !llvm.ptr<!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>
 // CHECK-MLIR: %17 = llvm.addrspacecast %16 : !llvm.ptr<!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>> to !llvm.ptr<!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>
 // CHECK-MLIR: %18 = "polygeist.pointer2memref"(%17) : (!llvm.ptr<!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>) -> memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>
 // CHECK-MLIR: affine.store %15, %alloca[0] : memref<1x!sycl_item_1_>
-// CHECK-MLIR: sycl.call(%18, %cast) {FunctionName = @"operator()", MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, memref<?x!sycl_item_1_>) -> ()
+// CHECK-MLIR: sycl.call @"operator()"(%18, %cast) {MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, memref<?x!sycl_item_1_>) -> ()
 // CHECK-MLIR: gpu.return
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE

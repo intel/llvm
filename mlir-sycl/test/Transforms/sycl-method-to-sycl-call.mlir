@@ -20,7 +20,7 @@
 // CHECK-NEXT:      %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_accessor_2_i32_rw_gb, 4>) -> memref<?x!sycl_accessor_2_i32_rw_gb, 4>
 // CHECK-NEXT:      memref.store %[[VAL_1]], %[[ID_ALLOCA]]{{\[}}%[[VAL_2]]] : memref<1x!sycl_id_2_>
 // CHECK-NEXT:      %[[ID_CAST:.*]] = memref.cast %[[ID_ALLOCA]] : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.call(%[[VAL_6]], %[[ID_CAST]]) {FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.call @"operator[]"(%[[VAL_6]], %[[ID_CAST]]) {MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
 // CHECK-NEXT:      return %[[VAL_7]] : memref<?xi32, 4>
 // CHECK-NEXT:    }
 
@@ -39,7 +39,7 @@ func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1:
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
 // CHECK-NEXT:      %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
 // CHECK-NEXT:      %[[VAL_7:.*]] = sycl.cast(%[[VAL_6]]) : (memref<?x!sycl_range_2_, 4>) -> memref<?x!sycl_array_2_, 4>
-// CHECK-NEXT:      %[[VAL_8:.*]] = sycl.call(%[[VAL_7]], %[[VAL_1]]) {FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_array_2_, 4>, i32) -> i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = sycl.call @get(%[[VAL_7]], %[[VAL_1]]) {MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_array_2_, 4>, i32) -> i64
 // CHECK-NEXT:      return %[[VAL_8]] : i64
 // CHECK-NEXT:    }
 
@@ -56,7 +56,7 @@ func.func @range_get(%arg0: !sycl_range_2_, %arg1: i32) -> i64 {
 // CHECK-NEXT:      %[[VAL_3:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.addrspacecast %[[VAL_3]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
 // CHECK-NEXT:      %[[VAL_5:.*]] = "polygeist.pointer2memref"(%[[VAL_4]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
-// CHECK-NEXT:      %[[VAL_6:.*]] = sycl.call(%[[VAL_5]]) {FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (memref<?x!sycl_range_2_, 4>) -> i64
+// CHECK-NEXT:      %[[VAL_6:.*]] = sycl.call @size(%[[VAL_5]]) {MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (memref<?x!sycl_range_2_, 4>) -> i64
 // CHECK-NEXT:      return %[[VAL_6]] : i64
 // CHECK-NEXT:    }
 
@@ -73,7 +73,7 @@ func.func @range_size(%arg0: !sycl_range_2_) -> i64 {
 // CHECK-NEXT:      %[[VAL_3:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_item_1_>) -> !llvm.ptr<!sycl_item_1_>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.addrspacecast %[[VAL_3]] : !llvm.ptr<!sycl_item_1_> to !llvm.ptr<!sycl_item_1_, 4>
 // CHECK-NEXT:      %[[VAL_5:.*]] = "polygeist.pointer2memref"(%[[VAL_4]]) : (!llvm.ptr<!sycl_item_1_, 4>) -> memref<?x!sycl_item_1_, 4>
-// CHECK-NEXT:      %[[VAL_6:.*]] = sycl.call(%[[VAL_5]]) {FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (memref<?x!sycl_item_1_, 4>) -> !sycl_id_1_
+// CHECK-NEXT:      %[[VAL_6:.*]] = sycl.call @get_id(%[[VAL_5]]) {MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (memref<?x!sycl_item_1_, 4>) -> !sycl_id_1_
 // CHECK-NEXT:      return %[[VAL_6]] : !sycl_id_1_
 // CHECK-NEXT:    }
 

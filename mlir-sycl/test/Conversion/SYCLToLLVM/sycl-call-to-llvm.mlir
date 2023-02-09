@@ -12,7 +12,7 @@
 func.func private @foo() -> (i32)
 
 func.func @test() -> (i32) {
-  %0 = sycl.call() {FunctionName = @foo, MangledFunctionName = @foo, TypeName = @accessor} : () -> i32
+  %0 = sycl.call @foo() {MangledFunctionName = @foo, TypeName = @accessor} : () -> i32
   return %0 : i32
 }
 
@@ -31,7 +31,7 @@ func.func private @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6target
 
 func.func @accessorInit1(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb>, %arg1: memref<?xi32>, %arg2: !sycl_range_1_, %arg3: !sycl_range_1_, %arg4: !sycl_id_1_) {
   // CHECK: llvm.call @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE({{.*}}) : ([[ARG_TYPES]]) -> ()
-  sycl.call(%arg0, %arg1, %arg2, %arg3, %arg4) {FunctionName = @__init, MangledFunctionName = @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?xi32>, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_) -> ()
+  sycl.call @__init(%arg0, %arg1, %arg2, %arg3, %arg4) {MangledFunctionName = @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?xi32>, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_) -> ()
   return
 }
 

@@ -8,6 +8,36 @@
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
 !sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
 
+// CHECK-LABEL: test_void_call
+func.func @test_void_call() {
+  sycl.call @foo() {MangledFunctionName = @foov, TypeName = @A} : () -> ()
+  return
+}
+
+// CHECK-LABEL: test_void_call_with_arg
+func.func @test_void_call_with_arg(%arg_0: i32) {
+  sycl.call @foo(%arg_0) {MangledFunctionName = @fooi, TypeName = @A} : (i32) -> ()
+  return
+}
+
+// CHECK-LABEL: test_i32_call
+func.func @test_i32_call() {
+  %0 = sycl.call @bar() {MangledFunctionName = @barv, TypeName = @A} : () -> (i32)
+  return
+}
+
+// CHECK-LABEL: test_i32_call_with_arg
+func.func @test_i32_call_with_arg(%arg_0: i32) {
+  %0 = sycl.call @bar(%arg_0) {MangledFunctionName = @bari, TypeName = @A} : (i32) -> (i32)
+  return
+}
+
+// CHECK-LABEL: test_i32_call_with_two_args
+func.func @test_i32_call_with_two_args(%arg_0: i32, %arg_1: i64) {
+  %0 = sycl.call @bar(%arg_0, %arg_1) {MangledFunctionName = @baril, TypeName = @A} : (i32, i64) -> (i32)
+  return
+}
+
 // CHECK-LABEL: test_num_work_items
 func.func @test_num_work_items() -> !sycl_range_1_ {
   %0 = sycl.num_work_items() : () -> !sycl_range_1_

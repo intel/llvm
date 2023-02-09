@@ -724,7 +724,7 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
   }];    
 
   let assemblyFormat = [{
-    `(` $Args `)` attr-dict `:` functional-type($Args, results)
+    $FunctionName `(` $Args `)` attr-dict `:` functional-type($Args, results)
   }];
 }
 
