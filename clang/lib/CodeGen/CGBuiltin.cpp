@@ -12397,8 +12397,8 @@ static Value *getMaskVecValue(CodeGenFunction &CGF, Value *Mask,
 static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                  Align Alignment) {
   // Cast the pointer to right type.
-  Value *Ptr = CGF.Builder.CreateBitCast(Ops[0],
-                               llvm::PointerType::getUnqual(Ops[1]->getType()));
+  Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2],
@@ -12411,8 +12411,8 @@ static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                 Align Alignment) {
   // Cast the pointer to right type.
   llvm::Type *Ty = Ops[1]->getType();
-  Value *Ptr =
-      CGF.Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(Ty));
+  Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ty));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2], cast<llvm::FixedVectorType>(Ty)->getNumElements());
