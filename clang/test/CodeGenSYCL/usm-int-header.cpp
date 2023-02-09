@@ -30,7 +30,4 @@ int main() {
     });
 }
 
-// CHECK: FunctionDecl {{.*}}usm_test 'void (__global int *, __global float *)'
-
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows-msvc
+// CHECK: FunctionDecl {{.*}}usm_test{{.*}} 'void (__global int *, __global float *)'
