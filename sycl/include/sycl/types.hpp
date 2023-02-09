@@ -2513,7 +2513,7 @@ struct CheckBasesAreDeviceCopyable
     : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
   using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
   static_assert(is_device_copyable<BaseT>::value ||
-
+                    detail::IsDeprecatedDeviceCopyable<BaseT>::value,
                 "The specified type is not device copyable");
 };
 
