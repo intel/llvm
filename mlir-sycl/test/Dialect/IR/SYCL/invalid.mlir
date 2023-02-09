@@ -23,6 +23,13 @@ func.func @test_cast_bad_shape(%arg: memref<1x!sycl_id_1_>) -> memref<2x!sycl_ar
 
 // -----
 
+func.func @test_not_arg_constructor() {
+  // expected-error @+1 {{'sycl.constructor' op A sycl::constructor must be passed the object to build as the first argument}}
+  "sycl.constructor"() {TypeName = @range, MangledFunctionName = @rangev} : () -> ()
+}
+
+// -----
+
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 
 func.func @test_non_memref_arg_constructor(%range: !sycl_range_1_) {
