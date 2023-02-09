@@ -54,7 +54,8 @@ the target.
 
 When compiling a SYCL program, where $[t1, t2, \ldots, tn]$ are the $n$ targets
 specified in `-fsycl-targets` including any targets implicitly added by the
-driver, the driver defines the following macros:
+driver, the driver defines the following macros in both host and device
+compilation invocations:
 * `__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `1` for all $i$ in
 ${\bigcap}^n_{k=1} A^{all}_{tk}$.
 * `__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` as `1` if
