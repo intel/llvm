@@ -10,7 +10,7 @@
 
 // CHECK-LABEL: test_num_work_items
 func.func @test_num_work_items() -> !sycl_range_1_ {
-  %0 = sycl.num_work_items: !sycl_range_1_
+  %0 = sycl.num_work_items : !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -22,7 +22,7 @@ func.func @test_num_work_items_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_global_id
 func.func @test_global_id() -> !sycl_id_2_ {
-  %0 = sycl.global_id: !sycl_id_2_
+  %0 = sycl.global_id : !sycl_id_2_
   return %0 : !sycl_id_2_
 }
 
@@ -34,7 +34,7 @@ func.func @test_global_id_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_local_id
 func.func @test_local_id() -> !sycl_id_3_ {
-  %0 = sycl.local_id: !sycl_id_3_
+  %0 = sycl.local_id : !sycl_id_3_
   return %0 : !sycl_id_3_
 }
 
@@ -46,7 +46,7 @@ func.func @test_local_id_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_global_offset
 func.func @test_global_offset() -> !sycl_id_1_ {
-  %0 = sycl.global_offset: !sycl_id_1_
+  %0 = sycl.global_offset : !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -58,7 +58,7 @@ func.func @test_global_offset_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_num_work_groups
 func.func @test_num_work_groups() -> !sycl_range_2_ {
-  %0 = sycl.num_work_groups: !sycl_range_2_
+  %0 = sycl.num_work_groups : !sycl_range_2_
   return %0 : !sycl_range_2_
 }
 
@@ -70,7 +70,7 @@ func.func @test_num_work_groups_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_work_group_size
 func.func @test_work_group_size() -> !sycl_range_3_ {
-  %0 = sycl.work_group_size: !sycl_range_3_
+  %0 = sycl.work_group_size : !sycl_range_3_
   return %0 : !sycl_range_3_
 }
 
@@ -82,7 +82,7 @@ func.func @test_work_group_size_dim(%i: i32) -> index {
 
 // CHECK-LABEL: test_work_group_id
 func.func @test_work_group_id() -> !sycl_id_1_ {
-  %0 = sycl.work_group_id: !sycl_id_1_
+  %0 = sycl.work_group_id : !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
