@@ -12,6 +12,40 @@
 #include <sycl/sycl.hpp>
 using namespace sycl;
 
+#define CHECK_BINOP(OP, LHS, RHS)                                           \
+  assert((LHS[0] * RHS) == (LHS * RHS) && (LHS * RHS[0]) == (LHS * RHS));
+
+template <typename T> void CheckBinOps() {
+  sycl::marray<T, 3> ref_arr0{0};
+  sycl::marray<T, 3> ref_arr1{1};
+  sycl::marray<T, 3> ref_arr2{2};
+  sycl::marray<T, 3> ref_arr3{3};
+
+  CHECK_BINOP(+, ref_arr1, ref_arr2)
+  CHECK_BINOP(-, ref_arr1, ref_arr2)
+  CHECK_BINOP(*, ref_arr1, ref_arr2)
+  CHECK_BINOP(/, ref_arr1, ref_arr2)
+  CHECK_BINOP(&&, ref_arr0, ref_arr2)
+  CHECK_BINOP(||, ref_arr0, ref_arr2)
+  CHECK_BINOP(==, ref_arr1, ref_arr2)
+  CHECK_BINOP(!=, ref_arr1, ref_arr2)
+  CHECK_BINOP(<, ref_arr1, ref_arr2)
+  CHECK_BINOP(>, ref_arr1, ref_arr2)
+  CHECK_BINOP(<=, ref_arr1, ref_arr2)
+  CHECK_BINOP(>=, ref_arr1, ref_arr2)
+
+  if constexpr (!std::is_same_v<T, sycl::half> && !std::is_same_v<T, float> &&
+                !std::is_same_v<T, double>) {
+    // Operators not supported on sycl::half, float, and double.
+    CHECK_BINOP(%, ref_arr1, ref_arr2)
+    CHECK_BINOP(&, ref_arr1, ref_arr3)
+    CHECK_BINOP(|, ref_arr1, ref_arr3)
+    CHECK_BINOP(^, ref_arr1, ref_arr3)
+    CHECK_BINOP(>>, ref_arr1, ref_arr2)
+    CHECK_BINOP(<<, ref_arr1, ref_arr2)
+  }
+}
+
 int main() {
   // Constructing vector from a scalar
   sycl::marray<int, 1> marray_from_one_elem(1);
@@ -93,6 +127,20 @@ int main() {
   assert(t___[0] == ~1 && t___[1] == ~2 && t___[2] == ~3);
   b___ = !mint3{0, 1, 2};
   assert(b___[0] == true && b___[1] == false && b___[2] == false);
+
+  // Check direct binary operators
+  CheckBinOps<bool>();
+  CheckBinOps<std::int8_t>();
+  CheckBinOps<std::uint8_t>();
+  CheckBinOps<std::int16_t>();
+  CheckBinOps<std::uint16_t>();
+  CheckBinOps<std::int32_t>();
+  CheckBinOps<std::uint32_t>();
+  CheckBinOps<std::int64_t>();
+  CheckBinOps<std::uint64_t>();
+  CheckBinOps<sycl::half>();
+  CheckBinOps<float>();
+  CheckBinOps<double>();
 
   // check copyability
   constexpr sycl::marray<double, 5> ma;
