@@ -19,7 +19,7 @@
 // CHECK-NEXT:      return %[[VAL_2]] : !sycl_range_1_
 // CHECK-NEXT:    }
 func.func @test_num_work_items() -> !sycl_range_1_ {
-  %0 = sycl.num_work_items() : () -> !sycl_range_1_
+  %0 = sycl.num_work_items : !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -40,7 +40,7 @@ func.func @test_num_work_items() -> !sycl_range_1_ {
 // CHECK-NEXT:      return %[[VAL_9]] : index
 // CHECK-NEXT:    }
 func.func @test_num_work_items_dim(%i: i32) -> index {
-  %0 = sycl.num_work_items(%i) : (i32) -> index
+  %0 = sycl.num_work_items %i : index
   return %0 : index
 }
 
@@ -61,7 +61,7 @@ func.func @test_num_work_items_dim(%i: i32) -> index {
 // CHECK-NEXT:      return %[[VAL_2]] : !sycl_id_2_
 // CHECK-NEXT:    }
 func.func @test_global_id() -> !sycl_id_2_ {
-  %0 = sycl.global_id() : () -> !sycl_id_2_
+  %0 = sycl.global_id : !sycl_id_2_
   return %0 : !sycl_id_2_
 }
 
@@ -82,7 +82,7 @@ func.func @test_global_id() -> !sycl_id_2_ {
 // CHECK-NEXT:      return %[[VAL_9]] : index
 // CHECK-NEXT:    }
 func.func @test_global_id_dim(%i: i32) -> index {
-  %0 = sycl.global_id(%i) : (i32) -> index
+  %0 = sycl.global_id %i : index
   return %0 : index
 }
 
@@ -108,7 +108,7 @@ func.func @test_global_id_dim(%i: i32) -> index {
 // CHECK-NEXT:      return %[[VAL_2]] : !sycl_id_3_
 // CHECK-NEXT:    }
 func.func @test_local_id() -> !sycl_id_3_ {
-  %0 = sycl.local_id() : () -> !sycl_id_3_
+  %0 = sycl.local_id : !sycl_id_3_
   return %0 : !sycl_id_3_
 }
 
@@ -129,7 +129,7 @@ func.func @test_local_id() -> !sycl_id_3_ {
 // CHECK-NEXT:      return %[[VAL_9]] : index
 // CHECK-NEXT:    }
 func.func @test_local_id_dim(%i: i32) -> index {
-  %0 = sycl.local_id(%i) : (i32) -> index
+  %0 = sycl.local_id %i : index
   return %0 : index
 }
 
@@ -155,7 +155,7 @@ func.func @test_local_id_dim(%i: i32) -> index {
 // CHECK-NEXT:      return %[[VAL_2]] : !sycl_range_3_
 // CHECK-NEXT:    }
 func.func @test_work_group_size() -> !sycl_range_3_ {
-  %0 = sycl.work_group_size() : () -> !sycl_range_3_
+  %0 = sycl.work_group_size : !sycl_range_3_
   return %0 : !sycl_range_3_
 }
 
@@ -176,7 +176,7 @@ func.func @test_work_group_size() -> !sycl_range_3_ {
 // CHECK-NEXT:      return %[[VAL_9]] : index
 // CHECK-NEXT:    }
 func.func @test_work_group_size_dim(%i: i32) -> index {
-  %0 = sycl.work_group_size(%i) : (i32) -> index
+  %0 = sycl.work_group_size %i : index
   return %0 : index
 }
 
@@ -192,7 +192,7 @@ func.func @test_work_group_size_dim(%i: i32) -> index {
 // CHECK-NEXT:      return %[[VAL_2]] : !sycl_id_1_
 // CHECK-NEXT:    }
 func.func @test_work_group_id() -> !sycl_id_1_ {
-  %0 = sycl.work_group_id() : () -> !sycl_id_1_
+  %0 = sycl.work_group_id : !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -213,7 +213,7 @@ func.func @test_work_group_id() -> !sycl_id_1_ {
 // CHECK-NEXT:      return %[[VAL_9]] : index
 // CHECK-NEXT:    }
 func.func @test_work_group_id_dim(%i: i32) -> index {
-  %0 = sycl.work_group_id(%i) : (i32) -> index
+  %0 = sycl.work_group_id %i : index
   return %0 : index
 }
 
@@ -223,7 +223,7 @@ func.func @test_work_group_id_dim(%i: i32) -> index {
 // CHECK-NEXT:      return %[[VAL_1]] : i32
 // CHECK-NEXT:    }
 func.func @test_num_sub_groups() -> i32 {
-  %0 = sycl.num_sub_groups : () -> i32
+  %0 = sycl.num_sub_groups : i32
   return %0 : i32
 }
 
@@ -233,7 +233,7 @@ func.func @test_num_sub_groups() -> i32 {
 // CHECK-NEXT:      return %[[VAL_1]] : i32
 // CHECK-NEXT:    }
 func.func @test_sub_group_size() -> i32 {
-  %0 = sycl.sub_group_size : () -> i32
+  %0 = sycl.sub_group_size : i32
   return %0 : i32
 }
 
@@ -243,6 +243,6 @@ func.func @test_sub_group_size() -> i32 {
 // CHECK-NEXT:      return %[[VAL_1]] : i32
 // CHECK-NEXT:    }
 func.func @test_sub_group_id() -> i32 {
-  %0 = sycl.sub_group_id : () -> i32
+  %0 = sycl.sub_group_id : i32
   return %0 : i32
 }
