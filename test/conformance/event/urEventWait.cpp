@@ -57,11 +57,15 @@ TEST_P(urEventWaitTest, Success) {
     EXPECT_SUCCESS(urEventRelease(event2));
 }
 
-TEST_P(urEventWaitTest, ZeroSize) {
+using urEventWaitNegativeTest = uur::urQueueTest;
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitNegativeTest);
+
+TEST_P(urEventWaitNegativeTest, ZeroSize) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE, urEventWait(0, nullptr));
 }
 
-TEST_P(urEventWaitTest, InvalidNullPointerEventList) {
+TEST_P(urEventWaitNegativeTest, InvalidNullPointerEventList) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urEventWait(1, nullptr));
 }
