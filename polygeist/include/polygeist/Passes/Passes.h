@@ -7,6 +7,7 @@
 namespace mlir {
 class PatternRewriter;
 class DominanceInfo;
+class LLVMTypeConverter;
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
@@ -25,6 +26,12 @@ std::unique_ptr<Pass> createLegalizeForSPIRVPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
+
+/// Collect a set of patterns to convert memory-related operations from the
+/// MemRef dialect to the LLVM dialect forcing a "bare pointer" calling
+/// convention.
+void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
+                                                RewritePatternSet &patterns);
 
 } // namespace polygeist
 } // namespace mlir

@@ -1260,19 +1260,6 @@ struct ConvertPolygeistToLLVMPass
       populateVectorToLLVMConversionPatterns(converter, patterns);
 
       converter.addConversion([&](async::TokenType type) { return type; });
-      // This overrides the default
-      if (useBarePtrCallConv)
-        // Patterns are tried in reverse add order, so this is tried before the
-        // one added by default.
-        converter.addConversion([&](MemRefType type) -> Optional<Type> {
-          if (!canBeLoweredToBarePtr(type))
-            return std::nullopt;
-          const auto elemType = converter.convertType(type.getElementType());
-          if (!elemType)
-            return Type{};
-          return LLVM::LLVMPointerType::get(elemType,
-                                            type.getMemorySpaceAsInt());
-        });
 
       patterns
           .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
@@ -1287,12 +1274,9 @@ struct ConvertPolygeistToLLVMPass
 
       // Run these instead of the ones provided by the dialect to avoid lowering
       // memrefs to a struct.
-      if (useBarePtrCallConv) {
-        patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
-                     AllocMemrefOpLowering, AllocaMemrefOpLowering,
-                     CastMemrefOpLowering, DeallocOpLowering,
-                     LoadMemRefOpLowering, StoreMemRefOpLowering>(converter, 2);
-      }
+      if (useBarePtrCallConv)
+        polygeist::populateBareMemRefToLLVMConversionPatterns(converter,
+                                                              patterns);
 
       // Legality callback for operations that checks whether their operand and
       // results types are converted.
@@ -1381,4 +1365,26 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   auto dl = llvm::DataLayout("");
   return std::make_unique<ConvertPolygeistToLLVMPass>(false, false, 64u, false,
                                                       dl);
+}
+
+void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  assert(converter.getOptions().useBarePtrCallConv &&
+         "Expecting \"bare pointer\" calling convention");
+  patterns
+      .add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
+           AllocMemrefOpLowering, AllocaMemrefOpLowering, CastMemrefOpLowering,
+           DeallocOpLowering, LoadMemRefOpLowering, StoreMemRefOpLowering>(
+          converter, 2);
+
+  // Patterns are tried in reverse add order, so this is tried before the
+  // one added by default.
+  converter.addConversion([&](MemRefType type) -> Optional<Type> {
+    if (!canBeLoweredToBarePtr(type))
+      return std::nullopt;
+    const auto elemType = converter.convertType(type.getElementType());
+    if (!elemType)
+      return Type{};
+    return LLVM::LLVMPointerType::get(elemType, type.getMemorySpaceAsInt());
+  });
 }
