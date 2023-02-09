@@ -32,7 +32,7 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader"
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader|validation"
 
   windows-build:
     name: Build - Windows
@@ -59,4 +59,4 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader"
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader|validation"
