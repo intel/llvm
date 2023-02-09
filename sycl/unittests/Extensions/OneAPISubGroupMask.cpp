@@ -11,12 +11,12 @@ protected:
           sycl::ext::oneapi::sub_group_mask>(0, GetParam());
   sycl::ext::oneapi::sub_group_mask MaskOne =
       sycl::detail::Builder::createSubGroupMask<
+          sycl::ext::oneapi::sub_group_mask>(1, GetParam());
+  sycl::ext::oneapi::sub_group_mask MaskAllOnes =
+      sycl::detail::Builder::createSubGroupMask<
           sycl::ext::oneapi::sub_group_mask>(
           static_cast<sycl::ext::oneapi::sub_group_mask::BitsType>(-1),
           GetParam());
-  sycl::ext::oneapi::sub_group_mask MaskAllOnes =
-      sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(1, GetParam());
 };
 
 TEST_P(SubGroupMask, SubscriptOperatorBool) {
