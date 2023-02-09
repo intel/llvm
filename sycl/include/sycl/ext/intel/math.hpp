@@ -46,6 +46,8 @@ _iml_half_internal __imf_rsqrtf16(_iml_half_internal);
 float __imf_truncf(float);
 double __imf_trunc(double);
 _iml_half_internal __imf_truncf16(_iml_half_internal);
+unsigned int __imf_vabs2(unsigned int);
+unsigned int __imf_vabs4(unsigned int);
 };
 
 namespace sycl {
@@ -197,6 +199,14 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> trunc(Tp x) {
 sycl::half2 trunc(sycl::half2 x) {
   return sycl::half2{trunc(x.s0()), trunc(x.s1())};
 }
+
+// functions for SIMD emulation
+template <typename Tp>
+Tp vabs2(Tp x) = delete;
+template <> unsigned int vabs2(unsigned int x) { return __imf_vabs2(x); }
+template <typename Tp>
+Tp vabs4(Tp x) = delete;
+template <> unsigned int vabs4(unsigned int x) { return __imf_vabs4(x); }
 } // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
