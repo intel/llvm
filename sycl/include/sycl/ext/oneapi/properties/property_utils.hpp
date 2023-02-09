@@ -110,9 +110,8 @@ template <typename RHS> struct SelectNonVoid<void, RHS> {
 // Sort types accoring to their PropertyID.
 struct SortByPropertyId {
   template <typename T1, typename T2>
-  using fn = sycl::detail::boost::mp11::mp_bool <
-             (PropertyID<T1>::value <
-              PropertyID<T2>::value)>;
+  using fn = sycl::detail::boost::mp11::mp_bool<(PropertyID<T1>::value <
+                                                 PropertyID<T2>::value)>;
 };
 template <typename... Ts> struct Sorted {
   static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
