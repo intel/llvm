@@ -285,9 +285,9 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       SmallVector<Metadata *, 8> MDOps;
       MDOps.reserve(F.arg_size());
       bool FoundKernelProperties = false;
-      for (unsigned i = 0; i < F.arg_size(); i++) {
+      for (unsigned I = 0; I < F.arg_size(); I++) {
         SmallVector<Metadata *, 8> MDArgOps;
-        for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
+        for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
                   attributeToDecorateMetadata(Ctx, Attribute))
             MDArgOps.push_back(SPIRVMetadata);
