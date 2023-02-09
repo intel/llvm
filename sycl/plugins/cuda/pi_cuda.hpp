@@ -86,27 +86,28 @@ private:
   using native_type = CUdevice;
 
   native_type cuDevice_;
+  CUcontext cuContext_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
-  pi_context context_;
 
   static constexpr pi_uint32 max_work_item_dimensions = 3u;
   size_t max_work_item_sizes[max_work_item_dimensions];
   int max_work_group_size;
 
 public:
-  _pi_device(native_type cuDevice, pi_platform platform)
-      : cuDevice_(cuDevice), refCount_{1}, platform_(platform) {}
+  _pi_device(native_type cuDevice, CUcontext cuContext, pi_platform platform)
+      : cuDevice_(cuDevice), cuContext_(cuContext), refCount_{1},
+        platform_(platform) {}
+
+  ~_pi_device() { cuDevicePrimaryCtxRelease(cuDevice_); }
 
   native_type get() const noexcept { return cuDevice_; };
+
+  CUcontext get_context() const noexcept { return cuContext_; };
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
-
-  void set_context(pi_context ctx) { context_ = ctx; };
-
-  pi_context get_context() { return context_; };
 
   void save_max_work_item_sizes(size_t size,
                                 size_t *save_max_work_item_sizes) noexcept {
@@ -174,16 +175,12 @@ struct _pi_context {
 
   using native_type = CUcontext;
 
-  enum class kind { primary, user_defined } kind_;
   native_type cuContext_;
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  _pi_context(kind k, CUcontext ctxt, _pi_device *devId,
-              bool backend_owns = true)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        has_ownership{backend_owns} {
-    deviceId_->set_context(this);
+  _pi_context(_pi_device *devId)
+      : cuContext_{devId->get_context()}, deviceId_{devId}, refCount_{1} {
     cuda_piDeviceRetain(deviceId_);
   };
 
@@ -206,20 +203,15 @@ struct _pi_context {
 
   native_type get() const noexcept { return cuContext_; }
 
-  bool is_primary() const noexcept { return kind_ == kind::primary; }
-
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
-  bool backend_has_ownership() const noexcept { return has_ownership; }
-
 private:
   std::mutex mutex_;
   std::vector<deleter_data> extended_deleters_;
-  const bool has_ownership;
 };
 
 /// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
