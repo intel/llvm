@@ -1,12 +1,34 @@
 // RUN: sycl-mlir-opt %s | sycl-mlir-opt | FileCheck %s
 // RUN: sycl-mlir-opt %s --mlir-print-op-generic | sycl-mlir-opt | FileCheck %s
 
-!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
-!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
-!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
-!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
+!sycl_array_3_ = !sycl.array<[3], (memref<3xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl_array_3_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl_array_3_)>
+!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+
+// CHECK-LABEL: test_cast_id
+func.func @test_cast_id(%arg: memref<1x!sycl_id_1_>) -> memref<1x!sycl_array_1_> {
+  %0 = sycl.cast %arg : memref<1x!sycl_id_1_> to memref<1x!sycl_array_1_>
+  return %0 : memref<1x!sycl_array_1_>
+}
+
+// CHECK-LABEL: test_cast_range
+func.func @test_cast_range(%arg: memref<1x!sycl_range_2_>) -> memref<1x!sycl_array_2_> {
+  %0 = sycl.cast %arg : memref<1x!sycl_range_2_> to memref<1x!sycl_array_2_>
+  return %0 : memref<1x!sycl_array_2_>
+}
+
+// CHECK-LABEL: test_cast_accessor
+func.func @test_cast_accessor(%arg: memref<1x!sycl_accessor_1_i32_w_gb>) -> memref<1x!sycl.accessor_common> {
+  %0 = sycl.cast %arg : memref<1x!sycl_accessor_1_i32_w_gb> to memref<1x!sycl.accessor_common>
+  return %0 : memref<1x!sycl.accessor_common>
+}
 
 // CHECK-LABEL: test_num_work_items
 func.func @test_num_work_items() -> !sycl_range_1_ {
