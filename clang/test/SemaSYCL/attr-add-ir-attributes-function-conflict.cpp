@@ -43,10 +43,10 @@ int main() {
   Wrapper<NameValuePair> NonemptyWrapper;
   WrapperWithImplicit<> EmptyWrapperWithImplicit;
   WrapperWithImplicit<NameValuePair> NonemptyWrapperWithImplicit;
-  Wrapper<> EmptyWrapperWithFilter;
-  Wrapper<NameValuePair> NonemptyWrapperWithFilter;
-  WrapperWithImplicit<> EmptyWrapperWithImplicitAndFilter;
-  WrapperWithImplicit<NameValuePair> NonemptyWrapperWithImplicitAndFilter;
+  WrapperWithFilter<> EmptyWrapperWithFilter;
+  WrapperWithFilter<NameValuePair> NonemptyWrapperWithFilter;
+  WrapperWithImplicitAndFilter<> EmptyWrapperWithImplicitAndFilter;
+  WrapperWithImplicitAndFilter<NameValuePair> NonemptyWrapperWithImplicitAndFilter;
 
   EmptyWrapper.kernel_single_task<class EK1>([]() [[sycl::reqd_work_group_size(1)]] {});
   EmptyWrapper.kernel_single_task<class EK2>([]() [[sycl::reqd_work_group_size(1,2)]] {});

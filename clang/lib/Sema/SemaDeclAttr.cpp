@@ -8026,7 +8026,7 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   // added by the SYCL headers. It can only conflict with max_global_work_dim,
   // but the value will be the same so there is no need for a warning.
   if (NumArgsWithoutFilter == 2 &&
-      AddIRFuncAttr->getFilteredAttributeNameValuePairs(Context)[0].first ==
+      AddIRFuncAttr->getAttributeNameValuePairs(Context)[0].first ==
           "sycl-single-task")
     return;
 
