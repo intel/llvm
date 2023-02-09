@@ -142,8 +142,8 @@ auto get_native(const SyclObjectT &Obj)
 }
 
 template <backend BackendName, class SyclObjectT>
-auto get_native2(const SyclObjectT &Obj)
-    -> backend_return_t2<BackendName, SyclObjectT> {
+auto get_native_standard_or_immediate(const SyclObjectT &Obj)
+    ->backend_return_t2<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
@@ -233,10 +233,10 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
-__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                const context &TargetContext,
-                                const device *TargetDevice, bool KeepOwnership,
-                                const async_handler &Handler, backend Backend);
+__SYCL_EXPORT queue make_queue_standard_or_immediate(
+    pi_native_handle NativeHandle, const context &TargetContext,
+    const device *TargetDevice, bool KeepOwnership,
+    const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -303,11 +303,13 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
-make_queue2(const typename backend_traits<Backend>::template input_type2<queue>
-                &BackendObject,
-            const context &TargetContext, const async_handler Handler = {}) {
-  return detail::make_queue2(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext, nullptr, false, Handler, Backend);
+make_queue_standard_or_immediate(
+    const typename backend_traits<Backend>::template input_type2<queue>
+        &BackendObject,
+    const context &TargetContext, const async_handler Handler = {}) {
+  return detail::make_queue_standard_or_immediate(
+      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext, nullptr,
+      false, Handler, Backend);
 }
 
 template <backend Backend>

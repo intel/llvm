@@ -299,10 +299,10 @@ data to the host to access the data. Users can get type of the allocation using 
     }).wait();
 ```
 
-The ```sycl::get_native2<backend::ext_oneapi_level_zero>``` is an additional free-function for obtaining an enhanced raw native Level-Zero handle.
+The ```sycl::get_native_standard_or_immediate<backend::ext_oneapi_level_zero>``` is an additional free-function for obtaining an enhanced raw native Level-Zero handle.
 ``` C++
 template <backend BackendName, class SyclObjectT>
-auto get_native2(const SyclObjectT &Obj)
+auto get_native_standard_or_immediate(const SyclObjectT &Obj)
     -> backend_return_t2<BackendName, SyclObjectT>
 ```
 It is currently supported only for SYCL ```queue```. The returned object could contain either a command queue or immediate command list, and a flag indicating which it is.
@@ -365,7 +365,7 @@ If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zer
 <td>
 
 ``` C++
-make_queue2<backend::ext_oneapi_level_zero>(
+make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
     const backend_input_t2<
         backend::ext_oneapi_level_zero, queue> &,
     const context &Context)
@@ -540,4 +540,4 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
 |9|2022-05-12|Steffen Larsen|Added device member to queue input type
 |10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension
-|11|2023-02-05|Rajiv Deodhar|Added make_queue2 and get_native2 methods for SYCL queues that use immediate commandlists
+|11|2023-02-05|Rajiv Deodhar|Added make_queue_standard_or_immediate and get_native_standard_or_immediate methods to support either type of command list

@@ -125,10 +125,9 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   }
 }
 
-__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                const context &Context, const device *Device,
-                                bool KeepOwnership,
-                                const async_handler &Handler, backend Backend) {
+__SYCL_EXPORT queue make_queue_standard_or_immediate(
+    pi_native_handle NativeHandle, const context &Context, const device *Device,
+    bool KeepOwnership, const async_handler &Handler, backend Backend) {
   NativeHandleEnhanced_t NativeHandle2 =
       reinterpret_cast<NativeHandleEnhanced_t>(NativeHandle);
 
