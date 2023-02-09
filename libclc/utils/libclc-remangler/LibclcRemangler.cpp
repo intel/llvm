@@ -70,7 +70,8 @@ static llvm::cl::OptionCategory
 static cl::opt<std::string>
     InputIRFilename("input-ir", cl::desc("<input bitcode>"),
                     cl::cat(LibCLCRemanglerToolCategory));
-static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"));
+static cl::opt<std::string> OutputFilename("o", cl::init("-"),
+                                           cl::desc("Output filename"));
 static cl::opt<SupportedLongWidth>
     LongWidth("long-width",
               cl::values(clEnumValN(SupportedLongWidth::L32, "l32",
@@ -87,6 +88,9 @@ static cl::opt<Signedness> CharSignedness(
 static cl::opt<bool> Verbose("v", cl::desc("Enable verbose output"),
                              cl::init(false),
                              cl::cat(LibCLCRemanglerToolCategory));
+static cl::opt<bool> TextualOut("S", cl::desc("Emit LLVM textual assembly"),
+                                cl::init(false),
+                                cl::cat(LibCLCRemanglerToolCategory));
 static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
                              cl::cat(LibCLCRemanglerToolCategory));
 
@@ -842,8 +846,8 @@ private:
       Function *NewF = CloneFunction(Clonee, Dummy);
       NewF->setName(std::string(CloneName));
     } else if (Verbose) {
-      std::cout << "Could not create copy " << CloneName.data() << " : missing "
-                << CloneeName.data() << std::endl;
+      errs() << "Could not create copy " << CloneName.data() << " : missing "
+             << CloneeName.data() << '\n';
     }
 
     return true;
@@ -874,16 +878,15 @@ private:
 
     if (RemangledName != MangledName) {
       if (Verbose || TestRun) {
-        std::cout << "Mangling changed:"
-                  << "\n"
-                  << "Original:  " << MangledName << "\n"
-                  << "New:       " << RemangledName << "\n"
-                  << std::endl;
+        errs() << "Mangling changed:"
+               << "\n"
+               << "Original:  " << MangledName << "\n"
+               << "New:       " << RemangledName << "\n";
       }
       // In test run mode, where no substitution is made, change in mangling
       // name represents a failure. Report an error.
       if (TestRun) {
-        std::cout << "Test run failure!" << std::endl;
+        errs() << "Test run failure!\n";
         return false;
       }
       Func.setName(RemangledName);
@@ -934,12 +937,14 @@ private:
 
     if (TestRun) {
       if (Verbose)
-        std::cout << "Successfully processed: " << NumProcessed << " functions."
-                  << std::endl;
+        errs() << "Successfully processed: " << NumProcessed << " functions.\n";
       return;
     }
 
-    WriteBitcodeToFile(*M, Out->os());
+    if (TextualOut)
+      M->print(Out->os(), nullptr, true);
+    else
+      WriteBitcodeToFile(*M, Out->os());
 
     // Declare success.
     Out->keep();
