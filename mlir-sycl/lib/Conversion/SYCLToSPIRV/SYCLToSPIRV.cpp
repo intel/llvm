@@ -115,7 +115,7 @@ template <typename OpTy> class GridOpPatternIndex : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
-  LogicalResult match(OpTy op) const override {
+  LogicalResult match(OpTy op) const final {
     return success(op.getNumOperands() == 1);
   }
 
@@ -173,7 +173,7 @@ class GridOpPatternNoIndex : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
-  LogicalResult match(OpTy op) const override {
+  LogicalResult match(OpTy op) const final {
     return success(op.getNumOperands() == 0);
   }
 
