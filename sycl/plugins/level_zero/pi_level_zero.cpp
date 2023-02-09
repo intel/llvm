@@ -26,8 +26,8 @@
 
 #include <zet_api.h>
 
-#include "ur_bindings.hpp"
 #include "ur/usm_allocator_config.hpp"
+#include "ur_bindings.hpp"
 
 extern "C" {
 // Forward declarartions.
