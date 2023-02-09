@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2021-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -118,20 +118,21 @@ work-item with the id `max_local_range()-1`.
 
 |`sub_group_mask()`
 |Constructs a group mask with all bits set to 0. Size of a group mask
-corresponds to max local range of a sub-group which work-item belongs to.
+corresponds to max local range of the sub-group which work-item belongs to.
 
 |`sub_group_mask(unsigned long long val)`
 |Constructs a group mask with the first `N` bit positions to the
 corresponding bit values in _val_. `N` is a size of a group mask and it
-corresponds to max local range of a sub-group which work-item belongs to. If
-size of a group mask is bigger than number of bits in the value representation
-of `unsigned long long`, the remaining positions are initialized to zero.
+corresponds to max local range of the sub-group which work-item belongs to. If
+size of a group mask is bigger than the number of bits in the value
+representation of `unsigned long long`, the remaining positions are initialized
+to zero.
 
-|`template <typename T> sub_group_mask(const T& &val)`
+|`template <typename T, std::size_t K> sub_group_mask(const sycl::marray<T, K>& &val)`
 |Constructs a group mask with the first `N` bit positions to the
 corresponding bit values in _val_. `T` must be a SYCL `marray` of integral
-types. `N` is a size of a group mask and it corresponds to max local range of a
-sub-group which work-item belongs to. If size of a group mask is bigger than
+types. `N` is a size of a group mask and it corresponds to max local range of
+the sub-group which work-item belongs to. If size of a group mask is bigger than
 number of bits in the value representation of `T`, the remaining positions are
 initialized to zero.
 
