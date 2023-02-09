@@ -1252,7 +1252,7 @@ struct ConvertPolygeistToLLVMPass
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
-      mlir::populateMemRefToLLVMConversionPatterns(converter, patterns);
+      populateMemRefToLLVMConversionPatterns(converter, patterns);
       populateFuncToLLVMConversionPatterns(converter, patterns);
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
