@@ -133,6 +133,9 @@ DevicesEnvironment *DevicesEnvironment::instance = nullptr;
 DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
     : PlatformEnvironment(argc, argv) {
     instance = this;
+    if (!error.empty()) {
+        return;
+    }
     uint32_t count = 0;
     if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
         error = "urDevicesGet() failed to get number of devices.";
