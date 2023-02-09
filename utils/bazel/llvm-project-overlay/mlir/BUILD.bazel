@@ -24,6 +24,7 @@ licenses(["notice"])
 exports_files([
     "LICENSE.TXT",
     "run_lit.sh",
+    "utils/textmate/mlir.json",
 ])
 
 filegroup(
@@ -1201,13 +1202,16 @@ cc_library(
     hdrs = glob(["include/mlir/Dialect/Affine/TransformOps/*.h"]),
     includes = ["include"],
     deps = [
+        ":AffineAnalysis",
         ":AffineDialect",
         ":AffineTransformOpsIncGen",
         ":AffineTransforms",
         ":AffineUtils",
         ":FuncDialect",
         ":IR",
+        ":PDLDialect",
         ":TransformDialect",
+        ":Transforms",
         ":VectorDialect",
     ],
 )
@@ -2392,6 +2396,21 @@ cc_library(
 )
 
 cc_library(
+    name = "NVGPUUtils",
+    srcs = ["lib/Dialect/NVGPU/Utils/MMAUtils.cpp"],
+    hdrs = ["include/mlir/Dialect/NVGPU/Utils/MMAUtils.h"],
+    includes = ["include"],
+    deps = [
+        ":AffineDialect",
+        ":ArithDialect",
+        ":IR",
+        ":NVGPUDialect",
+        ":NVVMDialect",
+        ":VectorDialect",
+    ],
+)
+
+cc_library(
     name = "NVGPUTransforms",
     srcs = [
         "lib/Dialect/NVGPU/Transforms/MmaSyncTF32Transform.cpp",
@@ -2641,6 +2660,7 @@ cc_library(
         ":AffineDialect",
         ":Analysis",
         ":ArithDialect",
+        ":DialectUtils",
         ":FuncDialect",
         ":IR",
         ":SideEffectInterfaces",
@@ -3418,11 +3438,39 @@ cc_library(
         ":TransformDialect",
         ":TransformUtils",
         ":VectorDialect",
+        ":VectorEnumsIncGen",
         ":VectorToSCF",
         ":VectorTransformOpsIncGen",
         ":VectorTransforms",
         ":X86VectorTransforms",
         "//llvm:Support",
+    ],
+)
+
+td_library(
+    name = "VectorTransformsTdFiles",
+    srcs = ["include/mlir/Dialect/Vector/Transforms/VectorTransformsBase.td"],
+    includes = ["include"],
+    deps = [":OpBaseTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "VectorEnumsIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-enum-decls"],
+            "include/mlir/Dialect/Vector/Transforms/VectorTransformsEnums.h.inc",
+        ),
+        (
+            ["-gen-enum-defs"],
+            "include/mlir/Dialect/Vector/Transforms/VectorTransformsEnums.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Vector/Transforms/VectorTransformsBase.td",
+    deps = [
+        ":OpBaseTdFiles",
     ],
 )
 
@@ -3473,6 +3521,7 @@ cc_library(
         ":TensorDialect",
         ":Transforms",
         ":VectorDialect",
+        ":VectorEnumsIncGen",
         ":VectorInterfaces",
         ":VectorPassIncGen",
         ":VectorUtils",
@@ -4260,6 +4309,7 @@ cc_library(
         ":GPUTransforms",
         ":IR",
         ":LLVMCommonConversion",
+        ":LLVMDialect",
         ":MathDialect",
         ":MemRefToLLVM",
         ":Pass",
@@ -5093,6 +5143,7 @@ cc_library(
         ":SPIRVDialect",
         ":SPIRVPassIncGen",
         ":SPIRVUtils",
+        ":Support",
         ":Transforms",
         "//llvm:Support",
     ],
@@ -6427,6 +6478,7 @@ cc_library(
         ":IR",
         ":InferIntRangeInterface",
         ":LoopLikeInterface",
+        ":Pass",
         ":SideEffectInterfaces",
         ":Support",
         ":ViewLikeInterface",
@@ -6577,8 +6629,8 @@ cc_library(
 
 cc_library(
     name = "LLVMToLLVMIRTranslation",
-    srcs = glob(["lib/Target/LLVMIR/Dialect/LLVMIR/*.cpp"]),
-    hdrs = glob(["include/mlir/Target/LLVMIR/Dialect/LLVMIR/*.h"]),
+    srcs = ["lib/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.cpp"],
+    hdrs = ["include/mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"],
     includes = ["include"],
     deps = [
         ":IR",
@@ -6587,6 +6639,22 @@ cc_library(
         ":LLVMIntrinsicConversionIncGen",
         ":Support",
         ":ToLLVMIRTranslation",
+        "//llvm:Core",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "LLVMIRToLLVMTranslation",
+    srcs = ["lib/Target/LLVMIR/Dialect/LLVMIR/LLVMIRToLLVMTranslation.cpp"],
+    hdrs = ["include/mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMIRToLLVMTranslation.h"],
+    includes = ["include"],
+    deps = [
+        ":FromLLVMIRTranslation",
+        ":LLVMConversionIncGen",
+        ":LLVMDialect",
+        ":LLVMIntrinsicConversionIncGen",
+        ":Support",
         "//llvm:Core",
         "//llvm:Support",
     ],
@@ -6634,6 +6702,7 @@ cc_library(
         ":AMXToLLVMIRTranslation",
         ":ArmNeonToLLVMIRTranslation",
         ":ArmSVEToLLVMIRTranslation",
+        ":LLVMIRToLLVMTranslation",
         ":LLVMToLLVMIRTranslation",
         ":NVVMToLLVMIRTranslation",
         ":OpenACCToLLVMIRTranslation",
@@ -6662,13 +6731,13 @@ cc_library(
 cc_library(
     name = "FromLLVMIRTranslation",
     srcs = [
-        "lib/Target/LLVMIR/ConvertFromLLVMIR.cpp",
         "lib/Target/LLVMIR/DebugImporter.cpp",
         "lib/Target/LLVMIR/ModuleImport.cpp",
         "lib/Target/LLVMIR/TypeFromLLVM.cpp",
     ],
     hdrs = [
         "include/mlir/Target/LLVMIR/Import.h",
+        "include/mlir/Target/LLVMIR/LLVMImportInterface.h",
         "include/mlir/Target/LLVMIR/ModuleImport.h",
         "include/mlir/Target/LLVMIR/TypeFromLLVM.h",
         "lib/Target/LLVMIR/DebugImporter.h",
@@ -6684,6 +6753,23 @@ cc_library(
         ":TranslateLib",
         "//llvm:Core",
         "//llvm:IRPrinter",
+        "//llvm:IRReader",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "FromLLVMIRTranslationRegistration",
+    srcs = [
+        "lib/Target/LLVMIR/ConvertFromLLVMIR.cpp",
+    ],
+    deps = [
+        ":AllToLLVMIRTranslations",
+        ":DLTIDialect",
+        ":FromLLVMIRTranslation",
+        ":IR",
+        ":TranslateLib",
+        "//llvm:Core",
         "//llvm:IRReader",
         "//llvm:Support",
     ],
@@ -6760,7 +6846,7 @@ cc_library(
     name = "AllTranslations",
     hdrs = ["include/mlir/InitAllTranslations.h"],
     deps = [
-        ":FromLLVMIRTranslation",
+        ":FromLLVMIRTranslationRegistration",
         ":SPIRVTranslateRegistration",
         ":TargetCpp",
         ":ToLLVMIRTranslationRegistration",
@@ -7267,6 +7353,8 @@ cc_binary(
         ":SPIRVDialect",
         ":SPIRVTransforms",
         ":ToLLVMIRTranslation",
+        ":VectorDialect",
+        ":VectorToLLVM",
         "//llvm:Support",
     ],
 )
@@ -8474,6 +8562,7 @@ td_library(
         ":PDLDialectTdFiles",
         ":SCFTdFiles",
         ":TransformDialectTdFiles",
+        ":VectorTransformsTdFiles",
     ],
 )
 
@@ -8655,8 +8744,6 @@ cc_library(
     srcs = glob([
         "lib/Conversion/VectorToGPU/*.cpp",
         "lib/Conversion/VectorToGPU/*.h",
-        "lib/Dialect/NVGPU/Utils/*.cpp",
-        "include/mlir/Dialect/NVGPU/Utils/*.h",
     ]),
     hdrs = glob([
         "include/mlir/Conversion/VectorToGPU/*.h",
@@ -8675,6 +8762,7 @@ cc_library(
         ":LLVMDialect",
         ":MemRefDialect",
         ":NVGPUDialect",
+        ":NVGPUUtils",
         ":NVVMDialect",
         ":Pass",
         ":SCFDialect",
@@ -9099,6 +9187,7 @@ cc_library(
         ":TransformDialectEnumsIncGen",
         ":TransformDialectIncGen",
         ":TransformDialectInterfacesIncGen",
+        ":TransformDialectUtils",
         ":TransformOpsIncGen",
         ":TransformTypesIncGen",
         "//llvm:Support",
@@ -9148,14 +9237,13 @@ cc_library(
 
 cc_library(
     name = "TransformDialectUtils",
-    srcs = ["lib/Dialect/Transform/Utils/Utils.cpp"],
-    hdrs = ["include/mlir/Dialect/Transform/Utils/Utils.h"],
+    srcs = glob(["lib/Dialect/Transform/Utils/*cpp"]),
+    hdrs = glob(["include/mlir/Dialect/Transform/Utils/*.h"]),
     includes = ["include"],
     deps = [
         ":DialectUtils",
         ":IR",
         ":Support",
-        ":TransformDialect",
         ":ViewLikeInterface",
         "//llvm:Support",
     ],
@@ -10479,8 +10567,8 @@ cc_library(
         ":Support",
         ":TableGen",
         "//llvm:Support",
-        "//llvm:TargetParser",
         "//llvm:TableGen",
+        "//llvm:TargetParser",
     ],
 )
 

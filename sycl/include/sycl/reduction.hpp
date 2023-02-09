@@ -238,7 +238,7 @@ private:
       auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
                                         getMemoryScope<Space>(), Space>(
           address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
-      Functor(AtomicRef, reducer->getElement(E));
+      Functor(std::move(AtomicRef), reducer->getElement(E));
     }
   }
 
@@ -258,7 +258,7 @@ public:
               IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
@@ -269,7 +269,7 @@ public:
               IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
@@ -280,7 +280,7 @@ public:
               IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
@@ -293,7 +293,7 @@ public:
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
   /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
@@ -305,7 +305,7 @@ public:
               IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
   /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
@@ -317,9 +317,17 @@ public:
               IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };
+
+template <typename T, class BinaryOperation, int Dims> class reducer_common {
+public:
+  using value_type = T;
+  using binary_operation = BinaryOperation;
+  static constexpr int dimensions = Dims;
+};
+
 } // namespace detail
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -336,7 +344,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -371,7 +380,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -398,7 +408,8 @@ class reducer<T, BinaryOperation, Dims, Extent, View,
               std::enable_if_t<Dims == 0 && View == true>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && View == true>>> {
+                  std::enable_if_t<Dims == 0 && View == true>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
 
@@ -423,7 +434,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -453,7 +465,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -2347,9 +2360,7 @@ template <
     typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
 detail::reduction_impl<
     T, BinaryOperation, 0, 1,
-    accessor<T, 1, access::mode::read_write, access::target::device,
-             access::placeholder::true_t,
-             ext::oneapi::accessor_property_list<>>>
+    accessor<T, 1, access::mode::read_write, access::target::device>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.

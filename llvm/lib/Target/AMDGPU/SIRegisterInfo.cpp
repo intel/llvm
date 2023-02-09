@@ -1524,6 +1524,7 @@ void SIRegisterInfo::buildSpillLoadStore(
     unsigned SOffsetRegState = 0;
     unsigned SrcDstRegState = getDefRegState(!IsStore);
     const bool IsLastSubReg = i + 1 == e;
+    const bool IsFirstSubReg = i == 0;
     if (IsLastSubReg) {
       SOffsetRegState |= getKillRegState(Scavenged);
       // The last implicit use carries the "Kill" flag.
@@ -1532,7 +1533,7 @@ void SIRegisterInfo::buildSpillLoadStore(
 
     // Make sure the whole register is defined if there are undef components by
     // adding an implicit def of the super-reg on the first instruction.
-    bool NeedSuperRegDef = e > 1 && IsStore && i == 0;
+    bool NeedSuperRegDef = e > 1 && IsStore && IsFirstSubReg;
     bool NeedSuperRegImpOperand = e > 1;
 
     // Remaining element size to spill into memory after some parts of it
@@ -1559,11 +1560,13 @@ void SIRegisterInfo::buildSpillLoadStore(
         MIB.addReg(ValueReg, RegState::ImplicitDefine);
         NeedSuperRegDef = false;
       }
-      if (IsSubReg || NeedSuperRegImpOperand) {
+      if ((IsSubReg || NeedSuperRegImpOperand) && (IsFirstSubReg || IsLastSubReg)) {
         NeedSuperRegImpOperand = true;
         unsigned State = SrcDstRegState;
-        if (Lane != LaneE)
+        if (!IsLastSubReg || (Lane != LaneE))
           State &= ~RegState::Kill;
+        if (!IsFirstSubReg || (Lane != LaneS))
+          State &= ~RegState::Define;
         MIB.addReg(ValueReg, RegState::Implicit | State);
       }
       RemEltSize -= 4;
@@ -2887,7 +2890,7 @@ ArrayRef<int16_t> SIRegisterInfo::getRegSplitParts(const TargetRegisterClass *RC
   const std::vector<int16_t> &Parts = RegSplitParts[EltDWORDs - 1];
   const unsigned NumParts = RegDWORDs / EltDWORDs;
 
-  return makeArrayRef(Parts.data(), NumParts);
+  return ArrayRef(Parts.data(), NumParts);
 }
 
 const TargetRegisterClass*
@@ -3155,17 +3158,15 @@ SIRegisterInfo::getProperlyAlignedRC(const TargetRegisterClass *RC) const {
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR128(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_128RegClass.begin(),
-                      ST.getMaxNumSGPRs(MF) / 4);
+  return ArrayRef(AMDGPU::SGPR_128RegClass.begin(), ST.getMaxNumSGPRs(MF) / 4);
 }
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR64(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_64RegClass.begin(),
-                      ST.getMaxNumSGPRs(MF) / 2);
+  return ArrayRef(AMDGPU::SGPR_64RegClass.begin(), ST.getMaxNumSGPRs(MF) / 2);
 }
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR32(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_32RegClass.begin(), ST.getMaxNumSGPRs(MF));
+  return ArrayRef(AMDGPU::SGPR_32RegClass.begin(), ST.getMaxNumSGPRs(MF));
 }

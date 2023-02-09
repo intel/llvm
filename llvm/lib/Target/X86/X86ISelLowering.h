@@ -667,7 +667,6 @@ namespace llvm {
     PROBED_ALLOCA,
 
     // Memory barriers.
-    MEMBARRIER,
     MFENCE,
 
     // Get a random integer and indicate whether it is valid in CF.
@@ -799,6 +798,9 @@ namespace llvm {
     LBTS,
     LBTC,
     LBTR,
+    LBTS_RM,
+    LBTC_RM,
+    LBTR_RM,
 
     /// RAO arithmetic instructions.
     /// OUTCHAIN = AADD(INCHAIN, PTR, RHS)
@@ -1092,6 +1094,8 @@ namespace llvm {
         unsigned OldShiftOpcode, unsigned NewShiftOpcode,
         SelectionDAG &DAG) const override;
 
+    bool preferScalarizeSplat(unsigned Opc) const override;
+
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
 
@@ -1115,7 +1119,9 @@ namespace llvm {
       return VTIsOk(XVT) && VTIsOk(KeptBitsVT);
     }
 
-    bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override;
+    ShiftLegalizationStrategy
+    preferredShiftLegalizationStrategy(SelectionDAG &DAG, SDNode *N,
+                                       unsigned ExpansionFactor) const override;
 
     bool shouldSplatInsEltVarIndex(EVT VT) const override;
 
@@ -1187,7 +1193,7 @@ namespace llvm {
         bool PoisonOnly, bool ConsiderFlags, unsigned Depth) const override;
 
     bool isSplatValueForTargetNode(SDValue Op, const APInt &DemandedElts,
-                                   APInt &UndefElts,
+                                   APInt &UndefElts, const SelectionDAG &DAG,
                                    unsigned Depth) const override;
 
     bool isTargetCanonicalConstantNode(SDValue Op) const override {
