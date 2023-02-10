@@ -160,6 +160,10 @@ class type_traits:
             return False
         except:
             return False
+    
+    @staticmethod
+    def is_funcptr(name, meta):
+        return name in meta['fptr_typedef']
 
     @staticmethod
     def is_struct(name, meta):

@@ -666,6 +666,9 @@ def _generate_returns(obj, meta):
                 if type_traits.is_pointer(item['type']):
                     _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`"%item['name'])
 
+                elif type_traits.is_funcptr(item['type'], meta):
+                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`"%item['name'])
+
                 elif type_traits.is_handle(item['type']) and not type_traits.is_ipc_handle(item['type']):
                     _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`"%item['name'])
 

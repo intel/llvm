@@ -173,7 +173,7 @@ namespace driver
     urContextSetExtendedDeleter(
         ur_context_handle_t hContext,                   ///< [in] handle of the context.
         ur_context_extended_deleter_t pfnDeleter,       ///< [in] Function pointer to extended deleter.
-        void* pUserData                                 ///< [in][out] pointer to data to be passed to callback.
+        void* pUserData                                 ///< [in][out][optional] pointer to data to be passed to callback.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
