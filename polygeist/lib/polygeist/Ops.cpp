@@ -2057,6 +2057,8 @@ public:
       if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
         return failure();
     } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
+      if (lhs.getInt() != 0 && lhs.getInt() != 1)
+        return failure();
     } else
       return failure();
 
@@ -2065,6 +2067,8 @@ public:
       if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
         return failure();
     } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
+      if (rhs.getInt() != 0 && rhs.getInt() != 1)
+        return failure();
     } else
       return failure();
 
