@@ -163,39 +163,46 @@ events, and programs are explicitly created against a context. A trivial work wi
     // Release the context handle
     ${x}ContextRelease(hContext);    
 
-Modules and Programs
+Programs and Kernels
 ====================
 
-There are multiple levels of constructs needed for executing kernels on the device:
+There are two constructs we need to prepare code for execution on the device:
 
-* Modules represent a single translation unit that consists of kernels and globals that have been compiled together.
-* Programs represent one or more modules that have been linked together.
-* Kernels represent the kernel within a program that will be launched onto the device.
+* Programs serve as containers for device code. They typically encapsulate a
+  collection of functions and global variables represented in an intermediate
+  language, and one or more device-native binaries compiled from that
+  collection.
+* Kernels represent a handle to a function within a program that can be
+  launched on a device.
 
-.. image:: ../images/modules_programs.png
 
-Modules and Programs
---------------------
+Programs
+--------
 
-A module is the compiled code or object for a single compilation unit. Modules can be created from a SPIR-V module. A program
-are a collection of modules that are linked together.
+Programs can be constructed with an intermediate language binary or a
+device-native binary. Programs constructed with IL must be further compiled
+through either ${x}ProgramCompile and ${x}ProgramLink or ${x}ProgramBuild
+before they can be used to create a kernel object.
 
 .. parsed-literal::
 
-    // Create module
-    ${x}_module_handle_t hModule;
-    ${x}ModuleCreate(hContext, (const void*)pIL, length, nullptr, nullptr, nullptr, hModule);
-
-    // Create program from module
+    // Create a program with IL
     ${x}_program_handle_t hProgram;
-    ${x}ProgramCreate(hContext, 1, &hModule, nullptr, nullptr, hProgram);
+    ${x}ProgramCreateWithIL(hContext, ILBin, ILBinSize, nullptr, &hProgram);
 
+    // Build the program.
+    ${x}ProgramBuild(hContext, hProgram, nullptr);
+
+The diagram below shows the possible paths to obtaining a program that can be
+used to create a kernel:
+
+.. image:: ../images/programs.png
 
 Kernels
 -------
 
-A Kernel is a reference to a kernel within a module and it supports both explicit and implicit kernel
-arguments along with data needed for launch.
+A Kernel is a reference to a kernel within a program and it supports both
+explicit and implicit kernel arguments along with data needed for launch.
 
 .. parsed-literal::
 

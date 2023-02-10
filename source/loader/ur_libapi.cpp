@@ -489,8 +489,8 @@ urDevicePartition(
 ///        information and the IR characteristics.
 ///
 /// @details
-///     - The input binaries are various AOT images, and possibly a SPIR-V
-///       binary for JIT compilation.
+///     - The input binaries are various AOT images, and possibly an IL binary
+///       for JIT compilation.
 ///     - The selected binary will be able to be run on the target device.
 ///     - If no suitable binary can be found then function returns
 ///       ${X}_INVALID_BINARY.
@@ -1682,13 +1682,14 @@ urUSMPoolDestroy(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create Module object from IL.
+/// @brief Create a program object from input intermediate language.
 ///
 /// @details
-///     - Multiple calls to this function will return identical device handles,
-///       in the same order.
 ///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCreateProgramWithIL**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1698,183 +1699,28 @@ urUSMPoolDestroy(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pIL`
-///         + `NULL == pOptions`
-///         + `NULL == phModule`
-ur_result_t UR_APICALL
-urModuleCreate(
-    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
-    const void *pIL,                      ///< [in] pointer to IL string.
-    size_t length,                        ///< [in] length of IL in bytes.
-    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
-                                          ///< called when program compilation is complete.
-    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
-    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
-) {
-    auto pfnCreate = ur_lib::context->urDdiTable.Module.pfnCreate;
-    if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnCreate(hContext, pIL, length, pOptions, pfnNotify, pUserData, phModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get a reference to the Module object.
-///
-/// @details
-///     - Get a reference to the Module object handle. Increment its reference
-///       count
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-ur_result_t UR_APICALL
-urModuleRetain(
-    ur_module_handle_t hModule ///< [in] handle for the Module to retain
-) {
-    auto pfnRetain = ur_lib::context->urDdiTable.Module.pfnRetain;
-    if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnRetain(hModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Release Module.
-///
-/// @details
-///     - Decrement reference count and destroy the Module if reference count
-///       becomes zero.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-ur_result_t UR_APICALL
-urModuleRelease(
-    ur_module_handle_t hModule ///< [in] handle for the Module to release
-) {
-    auto pfnRelease = ur_lib::context->urDdiTable.Module.pfnRelease;
-    if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnRelease(hModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Return platform native module handle.
-///
-/// @details
-///     - Retrieved native handle can be used for direct interaction with the
-///       native platform driver.
-///     - Use interoperability platform extensions to convert native handle to
-///       native type.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phNativeModule`
-ur_result_t UR_APICALL
-urModuleGetNativeHandle(
-    ur_module_handle_t hModule,        ///< [in] handle of the module.
-    ur_native_handle_t *phNativeModule ///< [out] a pointer to the native handle of the module.
-) {
-    auto pfnGetNativeHandle = ur_lib::context->urDdiTable.Module.pfnGetNativeHandle;
-    if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnGetNativeHandle(hModule, phNativeModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create runtime module object from native module handle.
-///
-/// @details
-///     - Creates runtime module handle from native driver module handle.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeModule`
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phModule`
-ur_result_t UR_APICALL
-urModuleCreateWithNativeHandle(
-    ur_native_handle_t hNativeModule, ///< [in] the native handle of the module.
-    ur_context_handle_t hContext,     ///< [in] handle of the context instance.
-    ur_module_handle_t *phModule      ///< [out] pointer to the handle of the module object created.
-) {
-    auto pfnCreateWithNativeHandle = ur_lib::context->urDdiTable.Module.pfnCreateWithNativeHandle;
-    if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnCreateWithNativeHandle(hNativeModule, hContext, phModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create Program from input SPIR-V modules.
-///
-/// @details
-///     - The application may call this function from simultaneous threads.
-///
-/// @remarks
-///   _Analogues_
-///     - **clCreateProgram**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phModules`
 ///         + `NULL == phProgram`
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_BINARY
+///         + If `pIL` is not a valid IL binary for devices in `hContext`.
+///     - ::UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE
+///         + If devices in `hContext` don't have the capability to compile an IL binary at runtime.
 ur_result_t UR_APICALL
-urProgramCreate(
+urProgramCreateWithIL(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    uint32_t count,                             ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const void *pIL,                            ///< [in] pointer to IL binary.
+    size_t length,                              ///< [in] length of `pIL` in bytes.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
-    auto pfnCreate = ur_lib::context->urDdiTable.Program.pfnCreate;
-    if (nullptr == pfnCreate) {
+    auto pfnCreateWithIL = ur_lib::context->urDdiTable.Program.pfnCreateWithIL;
+    if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
+    return pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1900,6 +1746,8 @@ urProgramCreate(
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NATIVE_BINARY
+///         + If `pBinary` isn't a valid binary for `hDevice.`
 ur_result_t UR_APICALL
 urProgramCreateWithBinary(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
@@ -1915,6 +1763,126 @@ urProgramCreateWithBinary(
     }
 
     return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one program, negates need for the
+///        linking step.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point, the program passed
+///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
+///       for each device in `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clBuildProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred when building `hProgram`.
+ur_result_t UR_APICALL
+urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnBuild = ur_lib::context->urDdiTable.Program.pfnBuild;
+    if (nullptr == pfnBuild) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnBuild(hContext, hProgram, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point `hProgram` will contain
+///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
+///       device in `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCompileProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred while compiling `hProgram`.
+ur_result_t UR_APICALL
+urProgramCompile(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in][out] handle of the program to compile.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnCompile = ur_lib::context->urDdiTable.Program.pfnCompile;
+    if (nullptr == pfnCompile) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnCompile(hContext, hProgram, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point the program returned in
+///       `phProgram` will contain a binary of the
+///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
+///       `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clLinkProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPrograms`
+///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+ur_result_t UR_APICALL
+urProgramLink(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
+) {
+    auto pfnLink = ur_lib::context->urDdiTable.Program.pfnLink;
+    if (nullptr == pfnLink) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnLink(hContext, count, phPrograms, pOptions, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2101,6 +2069,10 @@ urProgramGetBuildInfo(
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
+///     - `hProgram` must have been created with the ::urProgramCreateWithIL
+///       entry point.
+///     - Any spec constants set with this entry point will apply only to
+///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

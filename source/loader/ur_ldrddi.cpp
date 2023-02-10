@@ -16,7 +16,6 @@ ur_device_factory_t ur_device_factory;
 ur_context_factory_t ur_context_factory;
 ur_event_factory_t ur_event_factory;
 ur_program_factory_t ur_program_factory;
-ur_module_factory_t ur_module_factory;
 ur_kernel_factory_t ur_kernel_factory;
 ur_queue_factory_t ur_queue_factory;
 ur_native_factory_t ur_native_factory;
@@ -1554,182 +1553,12 @@ urUSMPoolDestroy(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreate
+/// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL
-urModuleCreate(
-    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
-    const void *pIL,                      ///< [in] pointer to IL string.
-    size_t length,                        ///< [in] length of IL in bytes.
-    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
-                                          ///< called when program compilation is complete.
-    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
-    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnCreate = dditable->ur.Module.pfnCreate;
-    if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-    // forward to device-platform
-    result = pfnCreate(hContext, pIL, length, pOptions, pfnNotify, pUserData, phModule);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phModule = reinterpret_cast<ur_module_handle_t>(
-            ur_module_factory.getInstance(*phModule, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRetain
-__urdlllocal ur_result_t UR_APICALL
-urModuleRetain(
-    ur_module_handle_t hModule ///< [in] handle for the Module to retain
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_module_object_t *>(hModule)->dditable;
-    auto pfnRetain = dditable->ur.Module.pfnRetain;
-    if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hModule = reinterpret_cast<ur_module_object_t *>(hModule)->handle;
-
-    // forward to device-platform
-    result = pfnRetain(hModule);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRelease
-__urdlllocal ur_result_t UR_APICALL
-urModuleRelease(
-    ur_module_handle_t hModule ///< [in] handle for the Module to release
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_module_object_t *>(hModule)->dditable;
-    auto pfnRelease = dditable->ur.Module.pfnRelease;
-    if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hModule = reinterpret_cast<ur_module_object_t *>(hModule)->handle;
-
-    // forward to device-platform
-    result = pfnRelease(hModule);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleGetNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleGetNativeHandle(
-    ur_module_handle_t hModule,        ///< [in] handle of the module.
-    ur_native_handle_t *phNativeModule ///< [out] a pointer to the native handle of the module.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_module_object_t *>(hModule)->dditable;
-    auto pfnGetNativeHandle = dditable->ur.Module.pfnGetNativeHandle;
-    if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hModule = reinterpret_cast<ur_module_object_t *>(hModule)->handle;
-
-    // forward to device-platform
-    result = pfnGetNativeHandle(hModule, phNativeModule);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phNativeModule = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeModule, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleCreateWithNativeHandle(
-    ur_native_handle_t hNativeModule, ///< [in] the native handle of the module.
-    ur_context_handle_t hContext,     ///< [in] handle of the context instance.
-    ur_module_handle_t *phModule      ///< [out] pointer to the handle of the module object created.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_native_object_t *>(hNativeModule)->dditable;
-    auto pfnCreateWithNativeHandle = dditable->ur.Module.pfnCreateWithNativeHandle;
-    if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hNativeModule = reinterpret_cast<ur_native_object_t *>(hNativeModule)->handle;
-
-    // convert loader handle to platform handle
-    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-    // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeModule, hContext, phModule);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phModule = reinterpret_cast<ur_module_handle_t>(
-            ur_module_factory.getInstance(*phModule, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCreate
-__urdlllocal ur_result_t UR_APICALL
-urProgramCreate(
+urProgramCreateWithIL(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    uint32_t count,                             ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const void *pIL,                            ///< [in] pointer to IL binary.
+    size_t length,                              ///< [in] length of `pIL` in bytes.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
@@ -1737,23 +1566,16 @@ urProgramCreate(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnCreate = dditable->ur.Program.pfnCreate;
-    if (nullptr == pfnCreate) {
+    auto pfnCreateWithIL = dditable->ur.Program.pfnCreateWithIL;
+    if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
-    // convert loader handles to platform handles
-    auto phModulesLocal = new ur_module_handle_t[count];
-    for (size_t i = 0; (nullptr != phModules) && (i < count); ++i) {
-        phModulesLocal[i] = reinterpret_cast<ur_module_object_t *>(phModules[i])->handle;
-    }
-
     // forward to device-platform
-    result = pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
-    delete[] phModulesLocal;
+    result = pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -1798,6 +1620,111 @@ urProgramCreateWithBinary(
 
     // forward to device-platform
     result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phProgram = reinterpret_cast<ur_program_handle_t>(
+            ur_program_factory.getInstance(*phProgram, dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuild
+__urdlllocal ur_result_t UR_APICALL
+urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnBuild = dditable->ur.Program.pfnBuild;
+    if (nullptr == pfnBuild) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+
+    // forward to device-platform
+    result = pfnBuild(hContext, hProgram, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompile
+__urdlllocal ur_result_t UR_APICALL
+urProgramCompile(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in][out] handle of the program to compile.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnCompile = dditable->ur.Program.pfnCompile;
+    if (nullptr == pfnCompile) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+
+    // forward to device-platform
+    result = pfnCompile(hContext, hProgram, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+__urdlllocal ur_result_t UR_APICALL
+urProgramLink(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnLink = dditable->ur.Program.pfnLink;
+    if (nullptr == pfnLink) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handles to platform handles
+    auto phProgramsLocal = new ur_program_handle_t[count];
+    for (size_t i = 0; (nullptr != phPrograms) && (i < count); ++i) {
+        phProgramsLocal[i] = reinterpret_cast<ur_program_object_t *>(phPrograms[i])->handle;
+    }
+
+    // forward to device-platform
+    result = pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+    delete[] phProgramsLocal;
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4914,76 +4841,6 @@ urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Module table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetModuleProcAddrTable(
-    ur_api_version_t version,       ///< [in] API version requested
-    ur_module_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-    if (loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    if (nullptr == pDdiTable) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    }
-
-    if (loader::context->version < version) {
-        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-    }
-
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    bool atLeastOneplatformValid = false;
-    // Load the device-platform DDI tables
-    for (auto &platform : loader::context->platforms) {
-        if (platform.initStatus != UR_RESULT_SUCCESS) {
-            continue;
-        }
-        auto getTable = reinterpret_cast<ur_pfnGetModuleProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetModuleProcAddrTable"));
-        if (!getTable) {
-            continue;
-        }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Module);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        if ((loader::context->platforms.size() > 1) || loader::context->forceIntercept) {
-            // return pointers to loader's DDIs
-            pDdiTable->pfnCreate = loader::urModuleCreate;
-            pDdiTable->pfnRetain = loader::urModuleRetain;
-            pDdiTable->pfnRelease = loader::urModuleRelease;
-            pDdiTable->pfnGetNativeHandle = loader::urModuleGetNativeHandle;
-            pDdiTable->pfnCreateWithNativeHandle = loader::urModuleCreateWithNativeHandle;
-        } else {
-            // return pointers directly to platform's DDIs
-            *pDdiTable = loader::context->platforms.front().dditable.ur.Module;
-        }
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -5109,8 +4966,11 @@ urGetProgramProcAddrTable(
     if (UR_RESULT_SUCCESS == result) {
         if ((loader::context->platforms.size() > 1) || loader::context->forceIntercept) {
             // return pointers to loader's DDIs
-            pDdiTable->pfnCreate = loader::urProgramCreate;
+            pDdiTable->pfnCreateWithIL = loader::urProgramCreateWithIL;
             pDdiTable->pfnCreateWithBinary = loader::urProgramCreateWithBinary;
+            pDdiTable->pfnBuild = loader::urProgramBuild;
+            pDdiTable->pfnCompile = loader::urProgramCompile;
+            pDdiTable->pfnLink = loader::urProgramLink;
             pDdiTable->pfnRetain = loader::urProgramRetain;
             pDdiTable->pfnRelease = loader::urProgramRelease;
             pDdiTable->pfnGetFunctionPointer = loader::urProgramGetFunctionPointer;

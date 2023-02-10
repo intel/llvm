@@ -83,12 +83,7 @@ class: $xProgram
 name: "$x_program_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
-desc: "Handle of Module object"
-class: $xModule
-name: "$x_module_handle_t"
---- #--------------------------------------------------------------------------
-type: handle
-desc: "Handle of module's Kernel object"
+desc: "Handle of program's Kernel object"
 class: $xKernel
 name: "$x_kernel_handle_t"
 --- #--------------------------------------------------------------------------
@@ -152,8 +147,6 @@ etors:
       desc: "Returned when the event wait list or the events in the wait list are invalid."
     - name: ERROR_MISALIGNED_SUB_BUFFER_OFFSET
       desc: "Misaligned sub buffer offset"
-    - name: ERROR_BUILD_PROGRAM_FAILURE
-      desc: "Build program failure"
     - name: ERROR_INVALID_WORK_GROUP_SIZE
       desc: "Invalid work group size"
     - name: ERROR_COMPILER_NOT_AVAILABLE
@@ -183,7 +176,7 @@ etors:
     - name: ERROR_INVALID_KERNEL
       desc: "Invalid kernel"
     - name: ERROR_INVALID_KERNEL_NAME
-      desc: "[Validation] kernel name is not found in the module"
+      desc: "[Validation] kernel name is not found in the program"
     - name: ERROR_INVALID_KERNEL_ARGUMENT_INDEX
       desc: "[Validation] kernel argument index is not valid for kernel"
     - name: ERROR_INVALID_KERNEL_ARGUMENT_SIZE
@@ -208,10 +201,10 @@ etors:
       desc: "Insufficient device memory to satisfy call"
     - name: ERROR_OUT_OF_RESOURCES
       desc: "Out of resources"
-    - name: ERROR_MODULE_BUILD_FAILURE
-      desc: "Error occurred when building module, see build log for details"
-    - name: ERROR_MODULE_LINK_FAILURE
-      desc: "Error occurred when linking modules, see build log for details"
+    - name: ERROR_PROGRAM_BUILD_FAILURE
+      desc: "Error occurred when building program, see build log for details"
+    - name: ERROR_PROGRAM_LINK_FAILURE
+      desc: "Error occurred when linking programs, see build log for details"
     - name: ERROR_UNSUPPORTED_VERSION
       desc: "[Validation] generic error code for unsupported versions"
     - name: ERROR_UNSUPPORTED_FEATURE
@@ -241,15 +234,15 @@ etors:
     - name: ERROR_INVALID_NATIVE_BINARY
       desc: "[Validation] native binary is not supported by the device"
     - name: ERROR_INVALID_GLOBAL_NAME
-      desc: "[Validation] global variable is not found in the module"
+      desc: "[Validation] global variable is not found in the program"
     - name: ERROR_INVALID_FUNCTION_NAME
-      desc: "[Validation] function name is not found in the module"
+      desc: "[Validation] function name is not found in the program"
     - name: ERROR_INVALID_GROUP_SIZE_DIMENSION
       desc: "[Validation] group size dimension is not valid for the kernel or device"
     - name: ERROR_INVALID_GLOBAL_WIDTH_DIMENSION
       desc: "[Validation] global width dimension is not valid for the kernel or device"
-    - name: ERROR_MODULE_UNLINKED
-      desc: "[Validation] module with imports needs to be linked before kernels can be created from it."
+    - name: ERROR_PROGRAM_UNLINKED
+      desc: "[Validation] compiled program or program with imports needs to be linked before kernels can be created from it."
     - name: ERROR_OVERLAPPING_REGIONS
       desc: "[Validation] copy operations do not support overlapping regions of memory"
     - name: ERROR_INVALID_HOST_PTR

@@ -107,11 +107,7 @@ typedef struct ur_event_handle_t_ *ur_event_handle_t;
 typedef struct ur_program_handle_t_ *ur_program_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of Module object
-typedef struct ur_module_handle_t_ *ur_module_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of module's Kernel object
+/// @brief Handle of program's Kernel object
 typedef struct ur_kernel_handle_t_ *ur_kernel_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -155,68 +151,67 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,         ///< Returned when the event wait list or the events in the wait list are
                                                           ///< invalid.
     UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,    ///< Misaligned sub buffer offset
-    UR_RESULT_ERROR_BUILD_PROGRAM_FAILURE = 15,           ///< Build program failure
-    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 16,         ///< Invalid work group size
-    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 17,          ///< Compiler not available
-    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 18,    ///< Profiling info not available
-    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 19,                ///< Device not found
-    UR_RESULT_ERROR_INVALID_DEVICE = 20,                  ///< Invalid device
-    UR_RESULT_ERROR_DEVICE_LOST = 21,                     ///< Device hung, reset, was removed, or driver update occurred
-    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 22,           ///< Device requires a reset
-    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 23,       ///< Device currently in low power state
-    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 24,         ///< Device paritioning failed
-    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 25,  ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
-    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 26,          ///< Invalid work item size
-    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 27,          ///< Invalid work dimension
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 28,             ///< Invalid kernel args
-    UR_RESULT_ERROR_INVALID_KERNEL = 29,                  ///< Invalid kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 30,             ///< [Validation] kernel name is not found in the module
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 31,   ///< [Validation] kernel argument index is not valid for kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 32,    ///< [Validation] kernel argument size does not match kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 33,  ///< [Validation] value of kernel attribute is not valid for the kernel or
+    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 15,         ///< Invalid work group size
+    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 16,          ///< Compiler not available
+    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,    ///< Profiling info not available
+    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                ///< Device not found
+    UR_RESULT_ERROR_INVALID_DEVICE = 19,                  ///< Invalid device
+    UR_RESULT_ERROR_DEVICE_LOST = 20,                     ///< Device hung, reset, was removed, or driver update occurred
+    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,           ///< Device requires a reset
+    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,       ///< Device currently in low power state
+    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,         ///< Device paritioning failed
+    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,  ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
+    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,          ///< Invalid work item size
+    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,          ///< Invalid work dimension
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,             ///< Invalid kernel args
+    UR_RESULT_ERROR_INVALID_KERNEL = 28,                  ///< Invalid kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 29,             ///< [Validation] kernel name is not found in the program
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30,   ///< [Validation] kernel argument index is not valid for kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31,    ///< [Validation] kernel argument size does not match kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32,  ///< [Validation] value of kernel attribute is not valid for the kernel or
                                                           ///< device
-    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 34,              ///< Invalid image size
-    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 35, ///< Invalid image format descriptor
-    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 36,      ///< Image format not supported
-    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 37,   ///< Memory object allocation failure
-    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 38,      ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 39,                   ///< [Validation] driver is not initialized
-    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 40,              ///< Insufficient host memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 41,            ///< Insufficient device memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_RESOURCES = 42,                ///< Out of resources
-    UR_RESULT_ERROR_MODULE_BUILD_FAILURE = 43,            ///< Error occurred when building module, see build log for details
-    UR_RESULT_ERROR_MODULE_LINK_FAILURE = 44,             ///< Error occurred when linking modules, see build log for details
-    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 45,             ///< [Validation] generic error code for unsupported versions
-    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 46,             ///< [Validation] generic error code for unsupported features
-    UR_RESULT_ERROR_INVALID_ARGUMENT = 47,                ///< [Validation] generic error code for invalid arguments
-    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 48,             ///< [Validation] handle argument is not valid
-    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 49,            ///< [Validation] object pointed to by handle still in-use by device
-    UR_RESULT_ERROR_INVALID_NULL_POINTER = 50,            ///< [Validation] pointer argument may not be nullptr
-    UR_RESULT_ERROR_INVALID_SIZE = 51,                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
+    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,              ///< Invalid image size
+    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34, ///< Invalid image format descriptor
+    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,      ///< Image format not supported
+    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,   ///< Memory object allocation failure
+    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,      ///< Program object parameter is invalid.
+    UR_RESULT_ERROR_UNINITIALIZED = 38,                   ///< [Validation] driver is not initialized
+    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,              ///< Insufficient host memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,            ///< Insufficient device memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                ///< Out of resources
+    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,           ///< Error occurred when building program, see build log for details
+    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,            ///< Error occurred when linking programs, see build log for details
+    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,             ///< [Validation] generic error code for unsupported versions
+    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,             ///< [Validation] generic error code for unsupported features
+    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                ///< [Validation] generic error code for invalid arguments
+    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,             ///< [Validation] handle argument is not valid
+    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,            ///< [Validation] object pointed to by handle still in-use by device
+    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,            ///< [Validation] pointer argument may not be nullptr
+    UR_RESULT_ERROR_INVALID_SIZE = 50,                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
                                                           ///< out of bounds)
-    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 52,                ///< [Validation] size argument is not supported by the device (e.g., too
+    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                ///< [Validation] size argument is not supported by the device (e.g., too
                                                           ///< large)
-    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 53,           ///< [Validation] alignment argument is not supported by the device (e.g.,
+    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,           ///< [Validation] alignment argument is not supported by the device (e.g.,
                                                           ///< too small)
-    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 54,  ///< [Validation] synchronization object in invalid state
-    UR_RESULT_ERROR_INVALID_ENUMERATION = 55,             ///< [Validation] enumerator argument is not valid
-    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 56,         ///< [Validation] enumerator argument is not supported by the device
-    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 57,        ///< [Validation] image format is not supported by the device
-    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 58,           ///< [Validation] native binary is not supported by the device
-    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 59,             ///< [Validation] global variable is not found in the module
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 60,           ///< [Validation] function name is not found in the module
-    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 61,    ///< [Validation] group size dimension is not valid for the kernel or
+    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,  ///< [Validation] synchronization object in invalid state
+    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,             ///< [Validation] enumerator argument is not valid
+    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,         ///< [Validation] enumerator argument is not supported by the device
+    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,        ///< [Validation] image format is not supported by the device
+    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,           ///< [Validation] native binary is not supported by the device
+    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,             ///< [Validation] global variable is not found in the program
+    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,           ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,    ///< [Validation] group size dimension is not valid for the kernel or
                                                           ///< device
-    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 62,  ///< [Validation] global width dimension is not valid for the kernel or
+    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,  ///< [Validation] global width dimension is not valid for the kernel or
                                                           ///< device
-    UR_RESULT_ERROR_MODULE_UNLINKED = 63,                 ///< [Validation] module with imports needs to be linked before kernels can
-                                                          ///< be created from it.
-    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 64,             ///< [Validation] copy operations do not support overlapping regions of
+    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                ///< [Validation] compiled program or program with imports needs to be
+                                                          ///< linked before kernels can be created from it.
+    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,             ///< [Validation] copy operations do not support overlapping regions of
                                                           ///< memory
-    UR_RESULT_ERROR_INVALID_HOST_PTR = 65,                ///< Invalid host pointer
-    UR_RESULT_ERROR_INVALID_USM_SIZE = 66,                ///< Invalid USM size
-    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 67,       ///< Objection allocation failure
-    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 68,                ///< An adapter specific warning/error has been reported and can be
+    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                ///< Invalid host pointer
+    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                ///< Invalid USM size
+    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,       ///< Objection allocation failure
+    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                ///< An adapter specific warning/error has been reported and can be
                                                           ///< retrieved via the urGetLastResult entry point.
     UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                 ///< Unknown or internal error
     /// @cond
@@ -881,8 +876,8 @@ urDevicePartition(
 ///        information and the IR characteristics.
 ///
 /// @details
-///     - The input binaries are various AOT images, and possibly a SPIR-V
-///       binary for JIT compilation.
+///     - The input binaries are various AOT images, and possibly an IL binary
+///       for JIT compilation.
 ///     - The selected binary will be able to be run on the target device.
 ///     - If no suitable binary can be found then function returns
 ///       ${X}_INVALID_BINARY.
@@ -2327,142 +2322,6 @@ urUSMPoolDestroy(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Unified Runtime APIs for Module
-#if !defined(__GNUC__)
-#pragma region module
-#endif
-///////////////////////////////////////////////////////////////////////////////
-/// @brief callback function for urModuleCreate
-typedef void (*ur_modulecreate_callback_t)(
-    ur_module_handle_t hModule, ///< [in] handle of Module object created.
-    void *pParams               ///< [in][out] pointer to user data to be passed to callback.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create Module object from IL.
-///
-/// @details
-///     - Multiple calls to this function will return identical device handles,
-///       in the same order.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIL`
-///         + `NULL == pOptions`
-///         + `NULL == phModule`
-UR_APIEXPORT ur_result_t UR_APICALL
-urModuleCreate(
-    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
-    const void *pIL,                      ///< [in] pointer to IL string.
-    size_t length,                        ///< [in] length of IL in bytes.
-    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
-                                          ///< called when program compilation is complete.
-    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
-    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get a reference to the Module object.
-///
-/// @details
-///     - Get a reference to the Module object handle. Increment its reference
-///       count
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-UR_APIEXPORT ur_result_t UR_APICALL
-urModuleRetain(
-    ur_module_handle_t hModule ///< [in] handle for the Module to retain
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Release Module.
-///
-/// @details
-///     - Decrement reference count and destroy the Module if reference count
-///       becomes zero.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-UR_APIEXPORT ur_result_t UR_APICALL
-urModuleRelease(
-    ur_module_handle_t hModule ///< [in] handle for the Module to release
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Return platform native module handle.
-///
-/// @details
-///     - Retrieved native handle can be used for direct interaction with the
-///       native platform driver.
-///     - Use interoperability platform extensions to convert native handle to
-///       native type.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hModule`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phNativeModule`
-UR_APIEXPORT ur_result_t UR_APICALL
-urModuleGetNativeHandle(
-    ur_module_handle_t hModule,        ///< [in] handle of the module.
-    ur_native_handle_t *phNativeModule ///< [out] a pointer to the native handle of the module.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create runtime module object from native module handle.
-///
-/// @details
-///     - Creates runtime module handle from native driver module handle.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeModule`
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phModule`
-UR_APIEXPORT ur_result_t UR_APICALL
-urModuleCreateWithNativeHandle(
-    ur_native_handle_t hNativeModule, ///< [in] the native handle of the module.
-    ur_context_handle_t hContext,     ///< [in] handle of the context instance.
-    ur_module_handle_t *phModule      ///< [out] pointer to the handle of the module object created.
-);
-
-#if !defined(__GNUC__)
-#pragma endregion
-#endif
 // Intel 'oneAPI' Level-Zero Runtime APIs for Program
 #if !defined(__GNUC__)
 #pragma region program
@@ -2518,14 +2377,14 @@ typedef struct ur_program_properties_t {
 } ur_program_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create Program from input SPIR-V modules.
+/// @brief Create a program object from input intermediate language.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
 ///
 /// @remarks
 ///   _Analogues_
-///     - **clCreateProgram**
+///     - **clCreateProgramWithIL**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2534,17 +2393,20 @@ typedef struct ur_program_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phModules`
+///         + `NULL == pIL`
 ///         + `NULL == phProgram`
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_BINARY
+///         + If `pIL` is not a valid IL binary for devices in `hContext`.
+///     - ::UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE
+///         + If devices in `hContext` don't have the capability to compile an IL binary at runtime.
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCreate(
+urProgramCreateWithIL(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    uint32_t count,                             ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const void *pIL,                            ///< [in] pointer to IL binary.
+    size_t length,                              ///< [in] length of `pIL` in bytes.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 );
@@ -2572,6 +2434,8 @@ urProgramCreate(
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NATIVE_BINARY
+///         + If `pBinary` isn't a valid binary for `hDevice.`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithBinary(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
@@ -2580,6 +2444,105 @@ urProgramCreateWithBinary(
     const uint8_t *pBinary,                     ///< [in] pointer to binary.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of Program object created.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one program, negates need for the
+///        linking step.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point, the program passed
+///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
+///       for each device in `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clBuildProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred when building `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point `hProgram` will contain
+///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
+///       device in `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCompileProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred while compiling `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCompile(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in][out] handle of the program to compile.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a succesful call to this entry point the program returned in
+///       `phProgram` will contain a binary of the
+///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
+///       `hContext`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clLinkProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPrograms`
+///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLink(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2803,6 +2766,10 @@ typedef struct ur_specialization_constant_info_t {
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
+///     - `hProgram` must have been created with the ::urProgramCreateWithIL
+///       entry point.
+///     - Any spec constants set with this entry point will apply only to
+///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -5512,26 +5479,25 @@ typedef struct ur_event_callbacks_t {
 } ur_event_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urProgramCreate
+/// @brief Callback function parameters for urProgramCreateWithIL
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_program_create_params_t {
+typedef struct ur_program_create_with_il_params_t {
     ur_context_handle_t *phContext;
-    uint32_t *pcount;
-    const ur_module_handle_t **pphModules;
-    const char **ppOptions;
+    const void **ppIL;
+    size_t *plength;
     const ur_program_properties_t **ppProperties;
     ur_program_handle_t **pphProgram;
-} ur_program_create_params_t;
+} ur_program_create_with_il_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urProgramCreate
+/// @brief Callback function-pointer for urProgramCreateWithIL
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnProgramCreateCb_t)(
-    ur_program_create_params_t *params,
+typedef void(UR_APICALL *ur_pfnProgramCreateWithILCb_t)(
+    ur_program_create_with_il_params_t *params,
     ur_result_t result,
     void *pTracerUserData,
     void **ppTracerInstanceUserData);
@@ -5557,6 +5523,74 @@ typedef struct ur_program_create_with_binary_params_t {
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
 typedef void(UR_APICALL *ur_pfnProgramCreateWithBinaryCb_t)(
     ur_program_create_with_binary_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urProgramBuild
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_build_params_t {
+    ur_context_handle_t *phContext;
+    ur_program_handle_t *phProgram;
+    const char **ppOptions;
+} ur_program_build_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urProgramBuild
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnProgramBuildCb_t)(
+    ur_program_build_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urProgramCompile
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_compile_params_t {
+    ur_context_handle_t *phContext;
+    ur_program_handle_t *phProgram;
+    const char **ppOptions;
+} ur_program_compile_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urProgramCompile
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnProgramCompileCb_t)(
+    ur_program_compile_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urProgramLink
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_link_params_t {
+    ur_context_handle_t *phContext;
+    uint32_t *pcount;
+    const ur_program_handle_t **pphPrograms;
+    const char **ppOptions;
+    ur_program_handle_t **pphProgram;
+} ur_program_link_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urProgramLink
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnProgramLinkCb_t)(
+    ur_program_link_params_t *params,
     ur_result_t result,
     void *pTracerUserData,
     void **ppTracerInstanceUserData);
@@ -5741,8 +5775,11 @@ typedef void(UR_APICALL *ur_pfnProgramCreateWithNativeHandleCb_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Program callback functions pointers
 typedef struct ur_program_callbacks_t {
-    ur_pfnProgramCreateCb_t pfnCreateCb;
+    ur_pfnProgramCreateWithILCb_t pfnCreateWithILCb;
     ur_pfnProgramCreateWithBinaryCb_t pfnCreateWithBinaryCb;
+    ur_pfnProgramBuildCb_t pfnBuildCb;
+    ur_pfnProgramCompileCb_t pfnCompileCb;
+    ur_pfnProgramLinkCb_t pfnLinkCb;
     ur_pfnProgramRetainCb_t pfnRetainCb;
     ur_pfnProgramReleaseCb_t pfnReleaseCb;
     ur_pfnProgramGetFunctionPointerCb_t pfnGetFunctionPointerCb;
@@ -5752,125 +5789,6 @@ typedef struct ur_program_callbacks_t {
     ur_pfnProgramGetNativeHandleCb_t pfnGetNativeHandleCb;
     ur_pfnProgramCreateWithNativeHandleCb_t pfnCreateWithNativeHandleCb;
 } ur_program_callbacks_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleCreate
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_module_create_params_t {
-    ur_context_handle_t *phContext;
-    const void **ppIL;
-    size_t *plength;
-    const char **ppOptions;
-    ur_modulecreate_callback_t *ppfnNotify;
-    void **ppUserData;
-    ur_module_handle_t **pphModule;
-} ur_module_create_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleCreate
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnModuleCreateCb_t)(
-    ur_module_create_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleRetain
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_module_retain_params_t {
-    ur_module_handle_t *phModule;
-} ur_module_retain_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleRetain
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnModuleRetainCb_t)(
-    ur_module_retain_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleRelease
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_module_release_params_t {
-    ur_module_handle_t *phModule;
-} ur_module_release_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleRelease
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnModuleReleaseCb_t)(
-    ur_module_release_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleGetNativeHandle
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_module_get_native_handle_params_t {
-    ur_module_handle_t *phModule;
-    ur_native_handle_t **pphNativeModule;
-} ur_module_get_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleGetNativeHandle
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnModuleGetNativeHandleCb_t)(
-    ur_module_get_native_handle_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleCreateWithNativeHandle
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_module_create_with_native_handle_params_t {
-    ur_native_handle_t *phNativeModule;
-    ur_context_handle_t *phContext;
-    ur_module_handle_t **pphModule;
-} ur_module_create_with_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleCreateWithNativeHandle
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnModuleCreateWithNativeHandleCb_t)(
-    ur_module_create_with_native_handle_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Module callback functions pointers
-typedef struct ur_module_callbacks_t {
-    ur_pfnModuleCreateCb_t pfnCreateCb;
-    ur_pfnModuleRetainCb_t pfnRetainCb;
-    ur_pfnModuleReleaseCb_t pfnReleaseCb;
-    ur_pfnModuleGetNativeHandleCb_t pfnGetNativeHandleCb;
-    ur_pfnModuleCreateWithNativeHandleCb_t pfnCreateWithNativeHandleCb;
-} ur_module_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urKernelCreate
@@ -7940,7 +7858,6 @@ typedef struct ur_callbacks_t {
     ur_context_callbacks_t Context;
     ur_event_callbacks_t Event;
     ur_program_callbacks_t Program;
-    ur_module_callbacks_t Module;
     ur_kernel_callbacks_t Kernel;
     ur_sampler_callbacks_t Sampler;
     ur_mem_callbacks_t Mem;
