@@ -222,7 +222,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
   const RT::PiDevice Device = impl->getHandleRef();
   const RT::PiDevice Peer = peer.impl->getHandleRef();
-  //const RT::PIPeerAttr Attr = attr == ext::oneapi::peer_access::access_supported ? access_supported : atomics_supported;
+
   if (Device != Peer) {
     const detail::plugin Plugin = impl->getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<detail::PiApiKind::piextCanAccessPeer>(

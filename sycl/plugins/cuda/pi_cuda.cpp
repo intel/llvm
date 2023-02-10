@@ -5617,49 +5617,53 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextEnablePeer(pi_device command_device, pi_device peer_device){
+pi_result cuda_piextEnablePeer(pi_device command_device,
+                               pi_device peer_device) {
 
- pi_result result = PI_SUCCESS;
-try {
+  pi_result result = PI_SUCCESS;
+  try {
     ScopedContext active(command_device->get_context());
-result = PI_CHECK_ERROR(cuCtxEnablePeerAccess(peer_device->get_context(), 0));
+    result =
+        PI_CHECK_ERROR(cuCtxEnablePeerAccess(peer_device->get_context(), 0));
 
   } catch (pi_result err) {
     result = err;
   }
-return result;
+  return result;
 }
 
-pi_result cuda_piextDisablePeer(pi_device command_device, pi_device peer_device){
+pi_result cuda_piextDisablePeer(pi_device command_device,
+                                pi_device peer_device) {
 
- pi_result result = PI_SUCCESS;
-try {
+  pi_result result = PI_SUCCESS;
+  try {
     ScopedContext active(command_device->get_context());
-result = PI_CHECK_ERROR(cuCtxDisablePeerAccess(peer_device->get_context()));
+    result = PI_CHECK_ERROR(cuCtxDisablePeerAccess(peer_device->get_context()));
 
   } catch (pi_result err) {
     result = err;
   }
-return result;
+  return result;
 }
 
 pi_result cuda_piextCanAccessPeer(pi_device command_device,
-                                  pi_device peer_device, pi_peer_attr value) {
+                                  pi_device peer_device, pi_peer_attr attr) {
 
-  int res;
+  int value;
   pi_result result = PI_SUCCESS;
 
-  CUdevice_P2PAttribute attr =
-      value == access_supported ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
-                       : CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+  CUdevice_P2PAttribute CUattr =
+      attr == access_supported
+          ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
+          : CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
   try {
     ScopedContext active(command_device->get_context());
-    PI_CHECK_ERROR(cuDeviceGetP2PAttribute(&res, attr, command_device->get(),
-                                           peer_device->get()));
+    PI_CHECK_ERROR(cuDeviceGetP2PAttribute(
+        &value, CUattr, command_device->get(), peer_device->get()));
   } catch (pi_result err) {
     result = err;
   }
-  if (res == 0) {
+  if (value == 0) {
     return PI_ERROR_INVALID_OPERATION;
   }
   return result;

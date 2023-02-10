@@ -40,11 +40,6 @@ enum class aspect;
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-/*
-enum class peer_access {
-  access_supported,
-  atomics_supported,
-};*/
 
 using peer_access = RT::PIPeerAttr;
 
