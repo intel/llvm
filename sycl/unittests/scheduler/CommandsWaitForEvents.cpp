@@ -159,16 +159,16 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
           [=]() { Out << "Hello, World!" << endl; });
     });
 
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.size() == 0)
-        << "Expected 0 service stream event";
+    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.size() == 1)
+        << "Expected 1 service stream event";
 
     std::shared_ptr<sycl::detail::event_impl> EventImpl =
         detail::getSyclObjImpl(Event);
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_TRUE(EventImplProxy->MPostCompleteEvents.size() == 0)
-        << "Expected 0 post complete event";
+    ASSERT_TRUE(EventImplProxy->MPostCompleteEvents.size() == 1)
+        << "Expected 1 post complete event";
 
     Q.wait();
 
