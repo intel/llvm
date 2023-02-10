@@ -46,6 +46,16 @@ struct urEventReferenceTest : uur::urQueueTest {
     ur_event_handle_t event = nullptr;
     std::vector<uint32_t> input;
 };
+
+struct urEventTest : urEventReferenceTest {
+
+    void TearDown() override {
+        if (event) {
+            EXPECT_SUCCESS(urEventRelease(event));
+        }
+        urEventReferenceTest::TearDown();
+    }
+};
 } // namespace event
 } // namespace uur
 

@@ -349,4 +349,27 @@ inline std::ostream &operator<<(std::ostream &out,
     return out;
 }
 
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_event_info_t &info) {
+    switch (info) {
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
+        break;
+
+        CASE(UR_EVENT_INFO_COMMAND_QUEUE);
+        CASE(UR_EVENT_INFO_CONTEXT);
+        CASE(UR_EVENT_INFO_COMMAND_TYPE);
+        CASE(UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
+        CASE(UR_EVENT_INFO_REFERENCE_COUNT);
+
+#undef CASE
+
+    default:
+        out << "UNKNOWN_UR_EVENT_INFO_TYPE";
+        break;
+    }
+    return out;
+}
+
 #endif // UR_CONFORMANCE_INCLUDE_CHECKS_H_INCLUDED
