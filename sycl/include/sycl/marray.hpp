@@ -392,22 +392,27 @@ public:
   using ALIAS##N = sycl::marray<TYPE, N>;
 
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
-  __SYCL_MAKE_MARRAY_ALIAS(mchar, char, N)                                     \
-  __SYCL_MAKE_MARRAY_ALIAS(mshort, short, N)                                   \
-  __SYCL_MAKE_MARRAY_ALIAS(mint, int, N)                                       \
-  __SYCL_MAKE_MARRAY_ALIAS(mlong, long, N)                                     \
+  __SYCL_MAKE_MARRAY_ALIAS(mbool, bool, N)                                     \
+  __SYCL_MAKE_MARRAY_ALIAS(mchar, std::int8_t, N)                              \
+  __SYCL_MAKE_MARRAY_ALIAS(mshort, std::int16_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mint, std::int32_t, N)                              \
+  __SYCL_MAKE_MARRAY_ALIAS(mlong, std::int64_t, N)                             \
+  __SYCL_MAKE_MARRAY_ALIAS(mlonglong, std::int64_t, N)                         \
   __SYCL_MAKE_MARRAY_ALIAS(mfloat, float, N)                                   \
   __SYCL_MAKE_MARRAY_ALIAS(mdouble, double, N)                                 \
   __SYCL_MAKE_MARRAY_ALIAS(mhalf, half, N)
 
+// FIXME: schar, longlong and ulonglong aliases are not defined by SYCL 2020
+//        spec, but they are preserved in SYCL 2020 mode, because SYCL-CTS is
+//        still using them.
+//        See KhronosGroup/SYCL-CTS#446 and KhronosGroup/SYCL-Docs#335
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
-  __SYCL_MAKE_MARRAY_ALIAS(mschar, signed char, N)                             \
-  __SYCL_MAKE_MARRAY_ALIAS(muchar, unsigned char, N)                           \
-  __SYCL_MAKE_MARRAY_ALIAS(mushort, unsigned short, N)                         \
-  __SYCL_MAKE_MARRAY_ALIAS(muint, unsigned int, N)                             \
-  __SYCL_MAKE_MARRAY_ALIAS(mulong, unsigned long, N)                           \
-  __SYCL_MAKE_MARRAY_ALIAS(mlonglong, long long, N)                            \
-  __SYCL_MAKE_MARRAY_ALIAS(mulonglong, unsigned long long, N)
+  __SYCL_MAKE_MARRAY_ALIAS(mschar, std::int8_t, N)                             \
+  __SYCL_MAKE_MARRAY_ALIAS(muchar, std::uint8_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mushort, std::uint16_t, N)                          \
+  __SYCL_MAKE_MARRAY_ALIAS(muint, std::uint32_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mulong, std::uint64_t, N)                           \
+  __SYCL_MAKE_MARRAY_ALIAS(mulonglong, std::uint64_t, N)
 
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(N)                        \
   __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES(N)                           \
