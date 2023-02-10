@@ -97,18 +97,19 @@ using namespace llvm::opt;
 
 namespace {
 
-class CommonOptTable : public opt::OptTable {
+class CommonOptTable : public opt::GenericOptTable {
 public:
   CommonOptTable(ArrayRef<Info> OptionInfos, const char *Usage,
                  const char *Description)
-      : OptTable(OptionInfos), Usage(Usage), Description(Description) {
+      : opt::GenericOptTable(OptionInfos), Usage(Usage),
+        Description(Description) {
     setGroupedShortOptions(true);
   }
 
   void printHelp(StringRef Argv0, bool ShowHidden = false) const {
     Argv0 = sys::path::filename(Argv0);
-    opt::OptTable::printHelp(outs(), (Argv0 + Usage).str().c_str(), Description,
-                             ShowHidden, ShowHidden);
+    opt::GenericOptTable::printHelp(outs(), (Argv0 + Usage).str().c_str(),
+                                    Description, ShowHidden, ShowHidden);
     // TODO Replace this with OptTable API once it adds extrahelp support.
     outs() << "\nPass @FILE as argument to read options from FILE.\n";
   }
@@ -653,10 +654,10 @@ public:
     if (Bytes.size() >= 4) {
       // D should be casted to uint32_t here as it is passed by format to
       // snprintf as vararg.
-      for (uint32_t D : makeArrayRef(
-               reinterpret_cast<const support::little32_t *>(Bytes.data()),
-               Bytes.size() / 4))
-        OS << format(" %08" PRIX32, D);
+      for (uint32_t D :
+           ArrayRef(reinterpret_cast<const support::little32_t *>(Bytes.data()),
+                    Bytes.size() / 4))
+          OS << format(" %08" PRIX32, D);
     } else {
       for (unsigned char B : Bytes)
         OS << format(" %02" PRIX8, B);
@@ -2008,7 +2009,10 @@ static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
   const Target *TheTarget = getTarget(Obj);
 
   // Package up features to be passed to target/subtarget
-  SubtargetFeatures Features = Obj->getFeatures();
+  Expected<SubtargetFeatures> FeaturesValue = Obj->getFeatures();
+  if (!FeaturesValue)
+    reportError(FeaturesValue.takeError(), Obj->getFileName());
+  SubtargetFeatures Features = *FeaturesValue;
   if (!MAttrs.empty()) {
     for (unsigned I = 0; I != MAttrs.size(); ++I)
       Features.AddFeature(MAttrs[I]);

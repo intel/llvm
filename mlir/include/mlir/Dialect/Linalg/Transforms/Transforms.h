@@ -162,6 +162,9 @@ FailureOr<Operation *> fuseElementwiseOps(RewriterBase &rewriter,
 
 /// Split the given `op` into two parts along the given iteration space
 /// `dimension` at the specified `splitPoint`, and return the two parts.
+/// If the second part is statically known to be empty, do not create it
+/// and return nullptr instead. Error state is signalled by returning
+/// a pair of nullptrs.
 ///
 /// For example, the following op:
 ///
@@ -261,8 +264,9 @@ using CopyCallbackFn =
     std::function<LogicalResult(OpBuilder &b, Value src, Value dst)>;
 
 struct LinalgPromotionOptions {
-  /// Indices of subViews to promote. If `None`, try to promote all operands.
-  std::optional<DenseSet<unsigned>> operandsToPromote = std::nullopt;
+  /// Indices of subViews to promote. If `std::nullopt`, try to promote all
+  /// operands.
+  std::optional<DenseSet<unsigned>> operandsToPromote;
   LinalgPromotionOptions &setOperandsToPromote(ArrayRef<int64_t> operands) {
     operandsToPromote = DenseSet<unsigned>();
     operandsToPromote->insert(operands.begin(), operands.end());
@@ -273,7 +277,7 @@ struct LinalgPromotionOptions {
   /// Otherwise the partial view will be used. The decision is defaulted to
   /// `useFullTileBuffersDefault` when `useFullTileBuffers` is None and for
   /// operands missing from `useFullTileBuffers`.
-  std::optional<llvm::SmallBitVector> useFullTileBuffers = std::nullopt;
+  std::optional<llvm::SmallBitVector> useFullTileBuffers;
   LinalgPromotionOptions &setUseFullTileBuffers(ArrayRef<bool> useFullTiles) {
     unsigned size = useFullTiles.size();
     llvm::SmallBitVector tmp(size, false);
@@ -289,8 +293,8 @@ struct LinalgPromotionOptions {
     useFullTileBuffersDefault = use;
     return *this;
   }
-  /// Alignment of promoted buffer. If `None` do not specify alignment.
-  std::optional<unsigned> alignment = std::nullopt;
+  /// Alignment of promoted buffer. If `std::nullopt` do not specify alignment.
+  std::optional<unsigned> alignment;
   LinalgPromotionOptions &setAlignment(unsigned align) {
     alignment = align;
     return *this;
@@ -301,11 +305,11 @@ struct LinalgPromotionOptions {
     useAlloca = use;
     return *this;
   }
-  /// Callback function to do the allocation of the promoted buffer. If None,
-  /// then the default allocation scheme of allocating a memref<?xi8> buffer
-  /// followed by a view operation is used.
-  std::optional<AllocBufferCallbackFn> allocationFn = std::nullopt;
-  std::optional<DeallocBufferCallbackFn> deallocationFn = std::nullopt;
+  /// Callback function to do the allocation of the promoted buffer. If
+  /// std::nullopt, then the default allocation scheme of allocating a
+  /// memref<?xi8> buffer followed by a view operation is used.
+  std::optional<AllocBufferCallbackFn> allocationFn;
+  std::optional<DeallocBufferCallbackFn> deallocationFn;
   LinalgPromotionOptions &
   setAllocationDeallocationFns(AllocBufferCallbackFn const &allocFn,
                                DeallocBufferCallbackFn const &deallocFn) {
@@ -314,9 +318,9 @@ struct LinalgPromotionOptions {
     return *this;
   }
   /// Callback function to do the copy of data to and from the promoted
-  /// subview. If None then a memref.copy is used.
-  std::optional<CopyCallbackFn> copyInFn = std::nullopt;
-  std::optional<CopyCallbackFn> copyOutFn = std::nullopt;
+  /// subview. If std::nullopt then a memref.copy is used.
+  std::optional<CopyCallbackFn> copyInFn;
+  std::optional<CopyCallbackFn> copyOutFn;
   LinalgPromotionOptions &setCopyInOutFns(CopyCallbackFn const &copyIn,
                                           CopyCallbackFn const &copyOut) {
     copyInFn = copyIn;
@@ -622,7 +626,7 @@ struct LinalgTilingAndFusionOptions {
   SmallVector<int64_t> tileInterchange;
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
-  std::optional<LinalgLoopDistributionOptions> tileDistribution = std::nullopt;
+  std::optional<LinalgLoopDistributionOptions> tileDistribution;
   LinalgTilingAndFusionOptions &
   setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
     tileDistribution = std::move(distributionOptions);
@@ -675,7 +679,7 @@ struct LinalgTilingOptions {
 
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
-  std::optional<LinalgLoopDistributionOptions> distribution = std::nullopt;
+  std::optional<LinalgLoopDistributionOptions> distribution;
 
   LinalgTilingOptions &
   setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
