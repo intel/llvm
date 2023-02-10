@@ -5644,13 +5644,13 @@ return result;
 }
 
 pi_result cuda_piextCanAccessPeer(pi_device command_device,
-                                  pi_device peer_device, int access_type) {
+                                  pi_device peer_device, pi_peer_attr value) {
 
   int res;
   pi_result result = PI_SUCCESS;
 
   CUdevice_P2PAttribute attr =
-      access_type == 0 ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
+      value == access_supported ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
                        : CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
   try {
     ScopedContext active(command_device->get_context());
@@ -5819,6 +5819,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+    // Peer to Peer
   _PI_CL(piextEnablePeer, cuda_piextEnablePeer)
   _PI_CL(piextDisablePeer, cuda_piextDisablePeer)
   _PI_CL(piextCanAccessPeer, cuda_piextCanAccessPeer)

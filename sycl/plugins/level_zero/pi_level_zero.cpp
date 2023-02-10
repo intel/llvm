@@ -9446,21 +9446,34 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
 pi_result piextEnablePeer(pi_device command_device, pi_device peer_device) {
 
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
   die("piextEnablePeer not "
-      "implemented \n");
+      "implemented");
+  return {};
 }
 
 pi_result piextDisablePeer(pi_device command_device, pi_device peer_device) {
 
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
   die("piextDisablePeer not "
-      "implemented \n");
+      "implemented");
+  return {};
 }
 
 pi_result piextCanAccessPeer(pi_device command_device, pi_device peer_device,
-                             int access_type) {
+                             pi_peer_attr attr) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
 
   die("piextCanAccessPeer not "
-      "implemented \n");
+      "implemented");
+  return {};
 }
 
 } // extern "C"

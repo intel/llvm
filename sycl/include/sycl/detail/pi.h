@@ -973,9 +973,15 @@ typedef struct {
 using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
 
+typedef enum {
+ access_supported,
+  atomics_supported,
+} _pi_peer_attr;
+
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
 using pi_mem_info = _pi_mem_info;
+using pi_peer_attr = _pi_peer_attr;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1038,7 +1044,7 @@ __SYCL_EXPORT pi_result piextEnablePeer(pi_device command_device,
 __SYCL_EXPORT pi_result piextDisablePeer(pi_device command_device,
                                          pi_device peer_device);
 __SYCL_EXPORT pi_result piextCanAccessPeer(pi_device command_device,
-                                           pi_device peer_device, int access_type);
+                                           pi_device peer_device, pi_peer_attr attr);
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for

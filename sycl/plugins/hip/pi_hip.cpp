@@ -5356,6 +5356,38 @@ pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
+pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  die("hip_piextEnablePeer not "
+      "implemented");
+  return {};
+}
+
+pi_result hip_piextDisablePeer(pi_device command_device, pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  die("hip_piextDisablePeer not "
+      "implemented");
+  return {};
+}
+
+pi_result hip_piextCanAccessPeer(pi_device command_device, pi_device peer_device,
+                             pi_peer_attr attr) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  die("hip_piextCanAccessPeer not "
+      "implemented");
+  return {};
+}
+
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5504,6 +5536,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  // Peer to Peer
+  _PI_CL(piextEnablePeer, hip_piextEnablePeer)
+  _PI_CL(piextDisablePeer, hip_piextDisablePeer)
+  _PI_CL(piextCanAccessPeer, hip_piextCanAccessPeer)
 
 #undef _PI_CL
 
