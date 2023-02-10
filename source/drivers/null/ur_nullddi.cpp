@@ -1059,130 +1059,21 @@ urUSMPoolDestroy(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreate
+/// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL
-urModuleCreate(
-    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
-    const void *pIL,                      ///< [in] pointer to IL string.
-    size_t length,                        ///< [in] length of IL in bytes.
-    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
-                                          ///< called when program compilation is complete.
-    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
-    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Module.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, pIL, length, pOptions, pfnNotify, pUserData, phModule);
-    } else {
-        // generic implementation
-        *phModule = reinterpret_cast<ur_module_handle_t>(d_context.get());
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRetain
-__urdlllocal ur_result_t UR_APICALL
-urModuleRetain(
-    ur_module_handle_t hModule ///< [in] handle for the Module to retain
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Module.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hModule);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRelease
-__urdlllocal ur_result_t UR_APICALL
-urModuleRelease(
-    ur_module_handle_t hModule ///< [in] handle for the Module to release
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Module.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hModule);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleGetNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleGetNativeHandle(
-    ur_module_handle_t hModule,        ///< [in] handle of the module.
-    ur_native_handle_t *phNativeModule ///< [out] a pointer to the native handle of the module.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Module.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hModule, phNativeModule);
-    } else {
-        // generic implementation
-        *phNativeModule = reinterpret_cast<ur_native_handle_t>(d_context.get());
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleCreateWithNativeHandle(
-    ur_native_handle_t hNativeModule, ///< [in] the native handle of the module.
-    ur_context_handle_t hContext,     ///< [in] handle of the context instance.
-    ur_module_handle_t *phModule      ///< [out] pointer to the handle of the module object created.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle = d_context.urDdiTable.Module.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeModule, hContext, phModule);
-    } else {
-        // generic implementation
-        *phModule = reinterpret_cast<ur_module_handle_t>(d_context.get());
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCreate
-__urdlllocal ur_result_t UR_APICALL
-urProgramCreate(
+urProgramCreateWithIL(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    uint32_t count,                             ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const void *pIL,                            ///< [in] pointer to IL binary.
+    size_t length,                              ///< [in] length of `pIL` in bytes.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Program.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
+    auto pfnCreateWithIL = d_context.urDdiTable.Program.pfnCreateWithIL;
+    if (nullptr != pfnCreateWithIL) {
+        result = pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
     } else {
         // generic implementation
         *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
@@ -1208,6 +1099,72 @@ urProgramCreateWithBinary(
     auto pfnCreateWithBinary = d_context.urDdiTable.Program.pfnCreateWithBinary;
     if (nullptr != pfnCreateWithBinary) {
         result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
+    } else {
+        // generic implementation
+        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuild
+__urdlllocal ur_result_t UR_APICALL
+urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnBuild = d_context.urDdiTable.Program.pfnBuild;
+    if (nullptr != pfnBuild) {
+        result = pfnBuild(hContext, hProgram, pOptions);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompile
+__urdlllocal ur_result_t UR_APICALL
+urProgramCompile(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in][out] handle of the program to compile.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnCompile = d_context.urDdiTable.Program.pfnCompile;
+    if (nullptr != pfnCompile) {
+        result = pfnCompile(hContext, hProgram, pOptions);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+__urdlllocal ur_result_t UR_APICALL
+urProgramLink(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnLink = d_context.urDdiTable.Program.pfnLink;
+    if (nullptr != pfnLink) {
+        result = pfnLink(hContext, count, phPrograms, pOptions, phProgram);
     } else {
         // generic implementation
         *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
@@ -3207,42 +3164,6 @@ urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Module table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetModuleProcAddrTable(
-    ur_api_version_t version,       ///< [in] API version requested
-    ur_module_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-    if (nullptr == pDdiTable) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    }
-
-    if (driver::d_context.version < version) {
-        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-    }
-
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    pDdiTable->pfnCreate = driver::urModuleCreate;
-
-    pDdiTable->pfnRetain = driver::urModuleRetain;
-
-    pDdiTable->pfnRelease = driver::urModuleRelease;
-
-    pDdiTable->pfnGetNativeHandle = driver::urModuleGetNativeHandle;
-
-    pDdiTable->pfnCreateWithNativeHandle = driver::urModuleCreateWithNativeHandle;
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -3301,9 +3222,15 @@ urGetProgramProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = driver::urProgramCreate;
+    pDdiTable->pfnCreateWithIL = driver::urProgramCreateWithIL;
 
     pDdiTable->pfnCreateWithBinary = driver::urProgramCreateWithBinary;
+
+    pDdiTable->pfnBuild = driver::urProgramBuild;
+
+    pDdiTable->pfnCompile = driver::urProgramCompile;
+
+    pDdiTable->pfnLink = driver::urProgramLink;
 
     pDdiTable->pfnRetain = driver::urProgramRetain;
 

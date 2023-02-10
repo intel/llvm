@@ -253,12 +253,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEventProcAddrTable_t)(
     ur_event_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urProgramCreate
-typedef ur_result_t(UR_APICALL *ur_pfnProgramCreate_t)(
+/// @brief Function-pointer for urProgramCreateWithIL
+typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithIL_t)(
     ur_context_handle_t,
-    uint32_t,
-    const ur_module_handle_t *,
-    const char *,
+    const void *,
+    size_t,
     const ur_program_properties_t *,
     ur_program_handle_t *);
 
@@ -270,6 +269,29 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithBinary_t)(
     size_t,
     const uint8_t *,
     const ur_program_properties_t *,
+    ur_program_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramBuild
+typedef ur_result_t(UR_APICALL *ur_pfnProgramBuild_t)(
+    ur_context_handle_t,
+    ur_program_handle_t,
+    const char *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramCompile
+typedef ur_result_t(UR_APICALL *ur_pfnProgramCompile_t)(
+    ur_context_handle_t,
+    ur_program_handle_t,
+    const char *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramLink
+typedef ur_result_t(UR_APICALL *ur_pfnProgramLink_t)(
+    ur_context_handle_t,
+    uint32_t,
+    const ur_program_handle_t *,
+    const char *,
     ur_program_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -332,8 +354,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Program functions pointers
 typedef struct ur_program_dditable_t {
-    ur_pfnProgramCreate_t pfnCreate;
+    ur_pfnProgramCreateWithIL_t pfnCreateWithIL;
     ur_pfnProgramCreateWithBinary_t pfnCreateWithBinary;
+    ur_pfnProgramBuild_t pfnBuild;
+    ur_pfnProgramCompile_t pfnCompile;
+    ur_pfnProgramLink_t pfnLink;
     ur_pfnProgramRetain_t pfnRetain;
     ur_pfnProgramRelease_t pfnRelease;
     ur_pfnProgramGetFunctionPointer_t pfnGetFunctionPointer;
@@ -364,71 +389,6 @@ urGetProgramProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetProgramProcAddrTable_t)(
     ur_api_version_t,
     ur_program_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleCreate
-typedef ur_result_t(UR_APICALL *ur_pfnModuleCreate_t)(
-    ur_context_handle_t,
-    const void *,
-    size_t,
-    const char *,
-    ur_modulecreate_callback_t,
-    void *,
-    ur_module_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleRetain
-typedef ur_result_t(UR_APICALL *ur_pfnModuleRetain_t)(
-    ur_module_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleRelease
-typedef ur_result_t(UR_APICALL *ur_pfnModuleRelease_t)(
-    ur_module_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleGetNativeHandle
-typedef ur_result_t(UR_APICALL *ur_pfnModuleGetNativeHandle_t)(
-    ur_module_handle_t,
-    ur_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleCreateWithNativeHandle
-typedef ur_result_t(UR_APICALL *ur_pfnModuleCreateWithNativeHandle_t)(
-    ur_native_handle_t,
-    ur_context_handle_t,
-    ur_module_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Module functions pointers
-typedef struct ur_module_dditable_t {
-    ur_pfnModuleCreate_t pfnCreate;
-    ur_pfnModuleRetain_t pfnRetain;
-    ur_pfnModuleRelease_t pfnRelease;
-    ur_pfnModuleGetNativeHandle_t pfnGetNativeHandle;
-    ur_pfnModuleCreateWithNativeHandle_t pfnCreateWithNativeHandle;
-} ur_module_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Module table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetModuleProcAddrTable(
-    ur_api_version_t version,       ///< [in] API version requested
-    ur_module_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetModuleProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetModuleProcAddrTable_t)(
-    ur_api_version_t,
-    ur_module_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelCreate
@@ -1451,7 +1411,6 @@ typedef struct ur_dditable_t {
     ur_context_dditable_t Context;
     ur_event_dditable_t Event;
     ur_program_dditable_t Program;
-    ur_module_dditable_t Module;
     ur_kernel_dditable_t Kernel;
     ur_sampler_dditable_t Sampler;
     ur_mem_dditable_t Mem;

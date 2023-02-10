@@ -1367,21 +1367,18 @@ urUSMPoolDestroy(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreate
+/// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL
-urModuleCreate(
-    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
-    const void *pIL,                      ///< [in] pointer to IL string.
-    size_t length,                        ///< [in] length of IL in bytes.
-    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
-                                          ///< called when program compilation is complete.
-    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
-    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
+urProgramCreateWithIL(
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    const void *pIL,                            ///< [in] pointer to IL binary.
+    size_t length,                              ///< [in] length of `pIL` in bytes.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
-    auto pfnCreate = context.urDdiTable.Module.pfnCreate;
+    auto pfnCreateWithIL = context.urDdiTable.Program.pfnCreateWithIL;
 
-    if (nullptr == pfnCreate) {
+    if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -1391,143 +1388,6 @@ urModuleCreate(
         }
 
         if (NULL == pIL) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pOptions) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == phModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    return pfnCreate(hContext, pIL, length, pOptions, pfnNotify, pUserData, phModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRetain
-__urdlllocal ur_result_t UR_APICALL
-urModuleRetain(
-    ur_module_handle_t hModule ///< [in] handle for the Module to retain
-) {
-    auto pfnRetain = context.urDdiTable.Module.pfnRetain;
-
-    if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-    }
-
-    return pfnRetain(hModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleRelease
-__urdlllocal ur_result_t UR_APICALL
-urModuleRelease(
-    ur_module_handle_t hModule ///< [in] handle for the Module to release
-) {
-    auto pfnRelease = context.urDdiTable.Module.pfnRelease;
-
-    if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-    }
-
-    return pfnRelease(hModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleGetNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleGetNativeHandle(
-    ur_module_handle_t hModule,        ///< [in] handle of the module.
-    ur_native_handle_t *phNativeModule ///< [out] a pointer to the native handle of the module.
-) {
-    auto pfnGetNativeHandle = context.urDdiTable.Module.pfnGetNativeHandle;
-
-    if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == phNativeModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    return pfnGetNativeHandle(hModule, phNativeModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urModuleCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL
-urModuleCreateWithNativeHandle(
-    ur_native_handle_t hNativeModule, ///< [in] the native handle of the module.
-    ur_context_handle_t hContext,     ///< [in] handle of the context instance.
-    ur_module_handle_t *phModule      ///< [out] pointer to the handle of the module object created.
-) {
-    auto pfnCreateWithNativeHandle = context.urDdiTable.Module.pfnCreateWithNativeHandle;
-
-    if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hNativeModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == phModule) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    return pfnCreateWithNativeHandle(hNativeModule, hContext, phModule);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCreate
-__urdlllocal ur_result_t UR_APICALL
-urProgramCreate(
-    ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    uint32_t count,                             ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
-    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
-    ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
-) {
-    auto pfnCreate = context.urDdiTable.Program.pfnCreate;
-
-    if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == phModules) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -1544,7 +1404,7 @@ urProgramCreate(
         }
     }
 
-    return pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
+    return pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1591,6 +1451,93 @@ urProgramCreateWithBinary(
     }
 
     return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuild
+__urdlllocal ur_result_t UR_APICALL
+urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnBuild = context.urDdiTable.Program.pfnBuild;
+
+    if (nullptr == pfnBuild) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    return pfnBuild(hContext, hProgram, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompile
+__urdlllocal ur_result_t UR_APICALL
+urProgramCompile(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    ur_program_handle_t hProgram, ///< [in][out] handle of the program to compile.
+    const char *pOptions          ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnCompile = context.urDdiTable.Program.pfnCompile;
+
+    if (nullptr == pfnCompile) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    return pfnCompile(hContext, hProgram, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+__urdlllocal ur_result_t UR_APICALL
+urProgramLink(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
+) {
+    auto pfnLink = context.urDdiTable.Program.pfnLink;
+
+    if (nullptr == pfnLink) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phPrograms) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    return pfnLink(hContext, count, phPrograms, pOptions, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4306,50 +4253,6 @@ urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Module table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetModuleProcAddrTable(
-    ur_api_version_t version,       ///< [in] API version requested
-    ur_module_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-    auto &dditable = validation_layer::context.urDdiTable.Module;
-
-    if (nullptr == pDdiTable) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    }
-
-    if (UR_MAJOR_VERSION(validation_layer::context.version) != UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) > UR_MINOR_VERSION(version)) {
-        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-    }
-
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urModuleCreate;
-
-    dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urModuleRetain;
-
-    dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urModuleRelease;
-
-    dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urModuleGetNativeHandle;
-
-    dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
-    pDdiTable->pfnCreateWithNativeHandle = validation_layer::urModuleCreateWithNativeHandle;
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -4419,11 +4322,20 @@ urGetProgramProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urProgramCreate;
+    dditable.pfnCreateWithIL = pDdiTable->pfnCreateWithIL;
+    pDdiTable->pfnCreateWithIL = validation_layer::urProgramCreateWithIL;
 
     dditable.pfnCreateWithBinary = pDdiTable->pfnCreateWithBinary;
     pDdiTable->pfnCreateWithBinary = validation_layer::urProgramCreateWithBinary;
+
+    dditable.pfnBuild = pDdiTable->pfnBuild;
+    pDdiTable->pfnBuild = validation_layer::urProgramBuild;
+
+    dditable.pfnCompile = pDdiTable->pfnCompile;
+    pDdiTable->pfnCompile = validation_layer::urProgramCompile;
+
+    dditable.pfnLink = pDdiTable->pfnLink;
+    pDdiTable->pfnLink = validation_layer::urProgramLink;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
     pDdiTable->pfnRetain = validation_layer::urProgramRetain;
@@ -4684,10 +4596,6 @@ ur_result_t context_t::init(
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetMemProcAddrTable(UR_API_VERSION_0_9, &dditable->Mem);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetModuleProcAddrTable(UR_API_VERSION_0_9, &dditable->Module);
     }
 
     if (UR_RESULT_SUCCESS == result) {

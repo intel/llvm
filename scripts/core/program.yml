@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2023 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 #
@@ -73,28 +73,25 @@ members:
       desc: "[in][optional][range(0,count)] pointer to array of metadata entries."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Create Program from input SPIR-V modules."
+desc: "Create a program object from input intermediate language."
 class: $xProgram
-name: Create
+name: CreateWithIL
 decl: static
 ordinal: "0"
 analogue:
-    - "**clCreateProgram**"
+    - "**clCreateProgramWithIL**"
 details:
     - "The application may call this function from simultaneous threads."
 params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context instance"
-    - type: uint32_t
-      name: count
-      desc: "[in] number of module handles in module list."
-    - type: const $x_module_handle_t*
-      name: phModules
-      desc: "[in][range(0, count)] pointer to array of modules."
-    - type: const char*
-      name: pOptions
-      desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: const void*
+      name: pIL
+      desc: "[in] pointer to IL binary."
+    - type: size_t
+      name: length
+      desc: "[in] length of `pIL` in bytes."
     - type: const $x_program_properties_t*
       name: pProperties
       desc: "[in][optional] pointer to program creation properties."
@@ -106,13 +103,17 @@ returns:
         - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
+    - $X_RESULT_ERROR_INVALID_BINARY:
+        - "If `pIL` is not a valid IL binary for devices in `hContext`."
+    - $X_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
+        - "If devices in `hContext` don't have the capability to compile an IL binary at runtime."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a program object from device native binary."
 class: $xProgram
 name: CreateWithBinary
 decl: static
-ordinal: "0"
+ordinal: "1"
 analogue:
     - "**clCreateProgramWithBinary**"
 details:
@@ -141,13 +142,102 @@ returns:
         - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
+    - $X_RESULT_ERROR_INVALID_NATIVE_BINARY:
+        - "If `pBinary` isn't a valid binary for `hDevice.`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one program, negates need for the linking step."
+class: $xProgram
+name: Build
+decl: static
+ordinal: "2"
+analogue:
+    - "**clBuildProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a succesful call to this entry point, the program passed will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] Handle of the program to build."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred when building `hProgram`."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: Compile
+decl: static
+ordinal: "3"
+analogue:
+    - "**clCompileProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a succesful call to this entry point `hProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in][out] handle of the program to compile."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred while compiling `hProgram`."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: Link
+decl: static
+ordinal: "4"
+analogue:
+    - "**clLinkProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a succesful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: uint32_t
+      name: count
+      desc: "[in] number of program handles in `phPrograms`."
+    - type: const $x_program_handle_t*
+      name: phPrograms
+      desc: "[in][range(0, count)] pointer to array of program handles."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out] pointer to handle of program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If one of the programs in `phPrograms` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+      - "If an error occurred while linking `phPrograms`."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the Program object."
 class: $xProgram
 name: Retain
 decl: static
-ordinal: "0"
+ordinal: "5"
 analogue:
     - "**clRetainProgram**"
 details:
@@ -164,7 +254,7 @@ desc: "Release Program."
 class: $xProgram
 name: Release
 decl: static
-ordinal: "0"
+ordinal: "6"
 analogue:
     - "**clReleaseProgram**"
 details:
@@ -181,7 +271,7 @@ desc: "Retrieves a device function pointer to a user-defined function."
 class: $xProgram
 name: GetFunctionPointer
 decl: static
-ordinal: "0"
+ordinal: "7"
 analogue:
     - "**clGetDeviceFunctionPointerINTEL**"
 details:
@@ -240,7 +330,7 @@ type: function
 desc: "Query information about a Program object"
 class: $xProgram
 name: GetInfo
-ordinal: "0"
+ordinal: "7"
 analogue:
     - "**clGetProgramInfo**"
 params:
@@ -311,7 +401,7 @@ type: function
 desc: "Query build information about a Program object for a Device"
 class: $xProgram
 name: GetBuildInfo
-ordinal: "0"
+ordinal: "7"
 analogue:
     - "**clGetProgramBuildInfo**"
 params:
@@ -362,7 +452,9 @@ name: SetSpecializationConstants
 details:
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
-ordinal: "0"
+    - "`hProgram` must have been created with the $xProgramCreateWithIL entry point."
+    - "Any spec constants set with this entry point will apply only to subsequent calls to $xProgramBuild or $xProgramCompile."
+ordinal: "7"
 params:
     - type: $x_program_handle_t
       name: hProgram
@@ -382,7 +474,7 @@ desc: "Return program native program handle."
 class: $xProgram
 name: GetNativeHandle
 decl: static
-ordinal: "0"
+ordinal: "7"
 details:
     - "Retrieved native handle can be used for direct interaction with the native platform driver."
     - "Use interoperability program extensions to convert native handle to native type."
@@ -403,7 +495,7 @@ desc: "Create runtime program object from native program handle."
 class: $xProgram
 name: CreateWithNativeHandle
 decl: static
-ordinal: "0"
+ordinal: "7"
 details:
     - "Creates runtime program handle from native driver program handle."
     - "The application may call this function from simultaneous threads for the same context."

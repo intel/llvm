@@ -27,9 +27,6 @@ using ur_event_factory_t = singleton_factory_t<ur_event_object_t, ur_event_handl
 using ur_program_object_t = object_t<ur_program_handle_t>;
 using ur_program_factory_t = singleton_factory_t<ur_program_object_t, ur_program_handle_t>;
 
-using ur_module_object_t = object_t<ur_module_handle_t>;
-using ur_module_factory_t = singleton_factory_t<ur_module_object_t, ur_module_handle_t>;
-
 using ur_kernel_object_t = object_t<ur_kernel_handle_t>;
 using ur_kernel_factory_t = singleton_factory_t<ur_kernel_object_t, ur_kernel_handle_t>;
 

@@ -430,7 +430,7 @@ name: SelectBinary
 decl: static
 ordinal: "0"
 details:
-    - "The input binaries are various AOT images, and possibly a SPIR-V binary for JIT compilation."
+    - "The input binaries are various AOT images, and possibly an IL binary for JIT compilation."
     - "The selected binary will be able to be run on the target device."
     - "If no suitable binary can be found then function returns ${X}_INVALID_BINARY."
     - "The application may call this function from simultaneous threads for the same device."

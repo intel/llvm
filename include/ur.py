@@ -79,12 +79,7 @@ class ur_program_handle_t(c_void_p):
     pass
 
 ###############################################################################
-## @brief Handle of Module object
-class ur_module_handle_t(c_void_p):
-    pass
-
-###############################################################################
-## @brief Handle of module's Kernel object
+## @brief Handle of program's Kernel object
 class ur_kernel_handle_t(c_void_p):
     pass
 
@@ -132,68 +127,67 @@ class ur_result_v(IntEnum):
     ERROR_INVALID_EVENT_WAIT_LIST = 13              ## Returned when the event wait list or the events in the wait list are
                                                     ## invalid.
     ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14         ## Misaligned sub buffer offset
-    ERROR_BUILD_PROGRAM_FAILURE = 15                ## Build program failure
-    ERROR_INVALID_WORK_GROUP_SIZE = 16              ## Invalid work group size
-    ERROR_COMPILER_NOT_AVAILABLE = 17               ## Compiler not available
-    ERROR_PROFILING_INFO_NOT_AVAILABLE = 18         ## Profiling info not available
-    ERROR_DEVICE_NOT_FOUND = 19                     ## Device not found
-    ERROR_INVALID_DEVICE = 20                       ## Invalid device
-    ERROR_DEVICE_LOST = 21                          ## Device hung, reset, was removed, or driver update occurred
-    ERROR_DEVICE_REQUIRES_RESET = 22                ## Device requires a reset
-    ERROR_DEVICE_IN_LOW_POWER_STATE = 23            ## Device currently in low power state
-    ERROR_DEVICE_PARTITION_FAILED = 24              ## Device paritioning failed
-    ERROR_INVALID_DEVICE_PARTITION_COUNT = 25       ## Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
-    ERROR_INVALID_WORK_ITEM_SIZE = 26               ## Invalid work item size
-    ERROR_INVALID_WORK_DIMENSION = 27               ## Invalid work dimension
-    ERROR_INVALID_KERNEL_ARGS = 28                  ## Invalid kernel args
-    ERROR_INVALID_KERNEL = 29                       ## Invalid kernel
-    ERROR_INVALID_KERNEL_NAME = 30                  ## [Validation] kernel name is not found in the module
-    ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 31        ## [Validation] kernel argument index is not valid for kernel
-    ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 32         ## [Validation] kernel argument size does not match kernel
-    ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 33       ## [Validation] value of kernel attribute is not valid for the kernel or
+    ERROR_INVALID_WORK_GROUP_SIZE = 15              ## Invalid work group size
+    ERROR_COMPILER_NOT_AVAILABLE = 16               ## Compiler not available
+    ERROR_PROFILING_INFO_NOT_AVAILABLE = 17         ## Profiling info not available
+    ERROR_DEVICE_NOT_FOUND = 18                     ## Device not found
+    ERROR_INVALID_DEVICE = 19                       ## Invalid device
+    ERROR_DEVICE_LOST = 20                          ## Device hung, reset, was removed, or driver update occurred
+    ERROR_DEVICE_REQUIRES_RESET = 21                ## Device requires a reset
+    ERROR_DEVICE_IN_LOW_POWER_STATE = 22            ## Device currently in low power state
+    ERROR_DEVICE_PARTITION_FAILED = 23              ## Device paritioning failed
+    ERROR_INVALID_DEVICE_PARTITION_COUNT = 24       ## Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
+    ERROR_INVALID_WORK_ITEM_SIZE = 25               ## Invalid work item size
+    ERROR_INVALID_WORK_DIMENSION = 26               ## Invalid work dimension
+    ERROR_INVALID_KERNEL_ARGS = 27                  ## Invalid kernel args
+    ERROR_INVALID_KERNEL = 28                       ## Invalid kernel
+    ERROR_INVALID_KERNEL_NAME = 29                  ## [Validation] kernel name is not found in the program
+    ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30        ## [Validation] kernel argument index is not valid for kernel
+    ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31         ## [Validation] kernel argument size does not match kernel
+    ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32       ## [Validation] value of kernel attribute is not valid for the kernel or
                                                     ## device
-    ERROR_INVALID_IMAGE_SIZE = 34                   ## Invalid image size
-    ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 35      ## Invalid image format descriptor
-    ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 36           ## Image format not supported
-    ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 37        ## Memory object allocation failure
-    ERROR_INVALID_PROGRAM_EXECUTABLE = 38           ## Program object parameter is invalid.
-    ERROR_UNINITIALIZED = 39                        ## [Validation] driver is not initialized
-    ERROR_OUT_OF_HOST_MEMORY = 40                   ## Insufficient host memory to satisfy call
-    ERROR_OUT_OF_DEVICE_MEMORY = 41                 ## Insufficient device memory to satisfy call
-    ERROR_OUT_OF_RESOURCES = 42                     ## Out of resources
-    ERROR_MODULE_BUILD_FAILURE = 43                 ## Error occurred when building module, see build log for details
-    ERROR_MODULE_LINK_FAILURE = 44                  ## Error occurred when linking modules, see build log for details
-    ERROR_UNSUPPORTED_VERSION = 45                  ## [Validation] generic error code for unsupported versions
-    ERROR_UNSUPPORTED_FEATURE = 46                  ## [Validation] generic error code for unsupported features
-    ERROR_INVALID_ARGUMENT = 47                     ## [Validation] generic error code for invalid arguments
-    ERROR_INVALID_NULL_HANDLE = 48                  ## [Validation] handle argument is not valid
-    ERROR_HANDLE_OBJECT_IN_USE = 49                 ## [Validation] object pointed to by handle still in-use by device
-    ERROR_INVALID_NULL_POINTER = 50                 ## [Validation] pointer argument may not be nullptr
-    ERROR_INVALID_SIZE = 51                         ## [Validation] invalid size or dimensions (e.g., must not be zero, or is
+    ERROR_INVALID_IMAGE_SIZE = 33                   ## Invalid image size
+    ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34      ## Invalid image format descriptor
+    ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35           ## Image format not supported
+    ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36        ## Memory object allocation failure
+    ERROR_INVALID_PROGRAM_EXECUTABLE = 37           ## Program object parameter is invalid.
+    ERROR_UNINITIALIZED = 38                        ## [Validation] driver is not initialized
+    ERROR_OUT_OF_HOST_MEMORY = 39                   ## Insufficient host memory to satisfy call
+    ERROR_OUT_OF_DEVICE_MEMORY = 40                 ## Insufficient device memory to satisfy call
+    ERROR_OUT_OF_RESOURCES = 41                     ## Out of resources
+    ERROR_PROGRAM_BUILD_FAILURE = 42                ## Error occurred when building program, see build log for details
+    ERROR_PROGRAM_LINK_FAILURE = 43                 ## Error occurred when linking programs, see build log for details
+    ERROR_UNSUPPORTED_VERSION = 44                  ## [Validation] generic error code for unsupported versions
+    ERROR_UNSUPPORTED_FEATURE = 45                  ## [Validation] generic error code for unsupported features
+    ERROR_INVALID_ARGUMENT = 46                     ## [Validation] generic error code for invalid arguments
+    ERROR_INVALID_NULL_HANDLE = 47                  ## [Validation] handle argument is not valid
+    ERROR_HANDLE_OBJECT_IN_USE = 48                 ## [Validation] object pointed to by handle still in-use by device
+    ERROR_INVALID_NULL_POINTER = 49                 ## [Validation] pointer argument may not be nullptr
+    ERROR_INVALID_SIZE = 50                         ## [Validation] invalid size or dimensions (e.g., must not be zero, or is
                                                     ## out of bounds)
-    ERROR_UNSUPPORTED_SIZE = 52                     ## [Validation] size argument is not supported by the device (e.g., too
+    ERROR_UNSUPPORTED_SIZE = 51                     ## [Validation] size argument is not supported by the device (e.g., too
                                                     ## large)
-    ERROR_UNSUPPORTED_ALIGNMENT = 53                ## [Validation] alignment argument is not supported by the device (e.g.,
+    ERROR_UNSUPPORTED_ALIGNMENT = 52                ## [Validation] alignment argument is not supported by the device (e.g.,
                                                     ## too small)
-    ERROR_INVALID_SYNCHRONIZATION_OBJECT = 54       ## [Validation] synchronization object in invalid state
-    ERROR_INVALID_ENUMERATION = 55                  ## [Validation] enumerator argument is not valid
-    ERROR_UNSUPPORTED_ENUMERATION = 56              ## [Validation] enumerator argument is not supported by the device
-    ERROR_UNSUPPORTED_IMAGE_FORMAT = 57             ## [Validation] image format is not supported by the device
-    ERROR_INVALID_NATIVE_BINARY = 58                ## [Validation] native binary is not supported by the device
-    ERROR_INVALID_GLOBAL_NAME = 59                  ## [Validation] global variable is not found in the module
-    ERROR_INVALID_FUNCTION_NAME = 60                ## [Validation] function name is not found in the module
-    ERROR_INVALID_GROUP_SIZE_DIMENSION = 61         ## [Validation] group size dimension is not valid for the kernel or
+    ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53       ## [Validation] synchronization object in invalid state
+    ERROR_INVALID_ENUMERATION = 54                  ## [Validation] enumerator argument is not valid
+    ERROR_UNSUPPORTED_ENUMERATION = 55              ## [Validation] enumerator argument is not supported by the device
+    ERROR_UNSUPPORTED_IMAGE_FORMAT = 56             ## [Validation] image format is not supported by the device
+    ERROR_INVALID_NATIVE_BINARY = 57                ## [Validation] native binary is not supported by the device
+    ERROR_INVALID_GLOBAL_NAME = 58                  ## [Validation] global variable is not found in the program
+    ERROR_INVALID_FUNCTION_NAME = 59                ## [Validation] function name is not found in the program
+    ERROR_INVALID_GROUP_SIZE_DIMENSION = 60         ## [Validation] group size dimension is not valid for the kernel or
                                                     ## device
-    ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 62       ## [Validation] global width dimension is not valid for the kernel or
+    ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61       ## [Validation] global width dimension is not valid for the kernel or
                                                     ## device
-    ERROR_MODULE_UNLINKED = 63                      ## [Validation] module with imports needs to be linked before kernels can
-                                                    ## be created from it.
-    ERROR_OVERLAPPING_REGIONS = 64                  ## [Validation] copy operations do not support overlapping regions of
+    ERROR_PROGRAM_UNLINKED = 62                     ## [Validation] compiled program or program with imports needs to be
+                                                    ## linked before kernels can be created from it.
+    ERROR_OVERLAPPING_REGIONS = 63                  ## [Validation] copy operations do not support overlapping regions of
                                                     ## memory
-    ERROR_INVALID_HOST_PTR = 65                     ## Invalid host pointer
-    ERROR_INVALID_USM_SIZE = 66                     ## Invalid USM size
-    ERROR_OBJECT_ALLOCATION_FAILURE = 67            ## Objection allocation failure
-    ERROR_ADAPTER_SPECIFIC = 68                     ## An adapter specific warning/error has been reported and can be
+    ERROR_INVALID_HOST_PTR = 64                     ## Invalid host pointer
+    ERROR_INVALID_USM_SIZE = 65                     ## Invalid USM size
+    ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
+    ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urGetLastResult entry point.
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
@@ -911,14 +905,6 @@ class ur_usm_pool_limits_desc_t(Structure):
     ]
 
 ###############################################################################
-## @brief callback function for urModuleCreate
-def ur_modulecreate_callback_t(user_defined_callback):
-    @CFUNCTYPE(None, ur_module_handle_t, c_void_p)
-    def ur_modulecreate_callback_t_wrapper(hModule, pParams):
-        return user_defined_callback(hModule, pParams)
-    return ur_modulecreate_callback_t_wrapper
-
-###############################################################################
 ## @brief Program metadata property type.
 class ur_program_metadata_type_v(IntEnum):
     UINT32 = 0                                      ## type is a 32-bit integer.
@@ -1462,11 +1448,11 @@ class ur_event_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urProgramCreate
+## @brief Function-pointer for urProgramCreateWithIL
 if __use_win_types:
-    _urProgramCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithIL_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithIL_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramCreateWithBinary
@@ -1474,6 +1460,27 @@ if __use_win_types:
     _urProgramCreateWithBinary_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 else:
     _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urProgramBuild
+if __use_win_types:
+    _urProgramBuild_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_char_p )
+else:
+    _urProgramBuild_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramCompile
+if __use_win_types:
+    _urProgramCompile_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_char_p )
+else:
+    _urProgramCompile_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramLink
+if __use_win_types:
+    _urProgramLink_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+else:
+    _urProgramLink_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramRetain
@@ -1536,8 +1543,11 @@ else:
 ## @brief Table of Program functions pointers
 class ur_program_dditable_t(Structure):
     _fields_ = [
-        ("pfnCreate", c_void_p),                                        ## _urProgramCreate_t
+        ("pfnCreateWithIL", c_void_p),                                  ## _urProgramCreateWithIL_t
         ("pfnCreateWithBinary", c_void_p),                              ## _urProgramCreateWithBinary_t
+        ("pfnBuild", c_void_p),                                         ## _urProgramBuild_t
+        ("pfnCompile", c_void_p),                                       ## _urProgramCompile_t
+        ("pfnLink", c_void_p),                                          ## _urProgramLink_t
         ("pfnRetain", c_void_p),                                        ## _urProgramRetain_t
         ("pfnRelease", c_void_p),                                       ## _urProgramRelease_t
         ("pfnGetFunctionPointer", c_void_p),                            ## _urProgramGetFunctionPointer_t
@@ -1546,53 +1556,6 @@ class ur_program_dditable_t(Structure):
         ("pfnSetSpecializationConstants", c_void_p),                    ## _urProgramSetSpecializationConstants_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urProgramGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urProgramCreateWithNativeHandle_t
-    ]
-
-###############################################################################
-## @brief Function-pointer for urModuleCreate
-if __use_win_types:
-    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, c_void_p, c_void_p, POINTER(ur_module_handle_t) )
-else:
-    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, c_void_p, c_void_p, POINTER(ur_module_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urModuleRetain
-if __use_win_types:
-    _urModuleRetain_t = WINFUNCTYPE( ur_result_t, ur_module_handle_t )
-else:
-    _urModuleRetain_t = CFUNCTYPE( ur_result_t, ur_module_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urModuleRelease
-if __use_win_types:
-    _urModuleRelease_t = WINFUNCTYPE( ur_result_t, ur_module_handle_t )
-else:
-    _urModuleRelease_t = CFUNCTYPE( ur_result_t, ur_module_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urModuleGetNativeHandle
-if __use_win_types:
-    _urModuleGetNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_module_handle_t, POINTER(ur_native_handle_t) )
-else:
-    _urModuleGetNativeHandle_t = CFUNCTYPE( ur_result_t, ur_module_handle_t, POINTER(ur_native_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urModuleCreateWithNativeHandle
-if __use_win_types:
-    _urModuleCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_module_handle_t) )
-else:
-    _urModuleCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_module_handle_t) )
-
-
-###############################################################################
-## @brief Table of Module functions pointers
-class ur_module_dditable_t(Structure):
-    _fields_ = [
-        ("pfnCreate", c_void_p),                                        ## _urModuleCreate_t
-        ("pfnRetain", c_void_p),                                        ## _urModuleRetain_t
-        ("pfnRelease", c_void_p),                                       ## _urModuleRelease_t
-        ("pfnGetNativeHandle", c_void_p),                               ## _urModuleGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p)                         ## _urModuleCreateWithNativeHandle_t
     ]
 
 ###############################################################################
@@ -2306,7 +2269,6 @@ class ur_dditable_t(Structure):
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),
         ("Program", ur_program_dditable_t),
-        ("Module", ur_module_dditable_t),
         ("Kernel", ur_kernel_dditable_t),
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
@@ -2388,8 +2350,11 @@ class UR_DDI:
         self.__dditable.Program = Program
 
         # attach function interface to function address
-        self.urProgramCreate = _urProgramCreate_t(self.__dditable.Program.pfnCreate)
+        self.urProgramCreateWithIL = _urProgramCreateWithIL_t(self.__dditable.Program.pfnCreateWithIL)
         self.urProgramCreateWithBinary = _urProgramCreateWithBinary_t(self.__dditable.Program.pfnCreateWithBinary)
+        self.urProgramBuild = _urProgramBuild_t(self.__dditable.Program.pfnBuild)
+        self.urProgramCompile = _urProgramCompile_t(self.__dditable.Program.pfnCompile)
+        self.urProgramLink = _urProgramLink_t(self.__dditable.Program.pfnLink)
         self.urProgramRetain = _urProgramRetain_t(self.__dditable.Program.pfnRetain)
         self.urProgramRelease = _urProgramRelease_t(self.__dditable.Program.pfnRelease)
         self.urProgramGetFunctionPointer = _urProgramGetFunctionPointer_t(self.__dditable.Program.pfnGetFunctionPointer)
@@ -2398,20 +2363,6 @@ class UR_DDI:
         self.urProgramSetSpecializationConstants = _urProgramSetSpecializationConstants_t(self.__dditable.Program.pfnSetSpecializationConstants)
         self.urProgramGetNativeHandle = _urProgramGetNativeHandle_t(self.__dditable.Program.pfnGetNativeHandle)
         self.urProgramCreateWithNativeHandle = _urProgramCreateWithNativeHandle_t(self.__dditable.Program.pfnCreateWithNativeHandle)
-
-        # call driver to get function pointers
-        Module = ur_module_dditable_t()
-        r = ur_result_v(self.__dll.urGetModuleProcAddrTable(version, byref(Module)))
-        if r != ur_result_v.SUCCESS:
-            raise Exception(r)
-        self.__dditable.Module = Module
-
-        # attach function interface to function address
-        self.urModuleCreate = _urModuleCreate_t(self.__dditable.Module.pfnCreate)
-        self.urModuleRetain = _urModuleRetain_t(self.__dditable.Module.pfnRetain)
-        self.urModuleRelease = _urModuleRelease_t(self.__dditable.Module.pfnRelease)
-        self.urModuleGetNativeHandle = _urModuleGetNativeHandle_t(self.__dditable.Module.pfnGetNativeHandle)
-        self.urModuleCreateWithNativeHandle = _urModuleCreateWithNativeHandle_t(self.__dditable.Module.pfnCreateWithNativeHandle)
 
         # call driver to get function pointers
         Kernel = ur_kernel_dditable_t()

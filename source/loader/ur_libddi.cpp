@@ -43,10 +43,6 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urGetModuleProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Module);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
         result = urGetPlatformProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Platform);
     }
 
