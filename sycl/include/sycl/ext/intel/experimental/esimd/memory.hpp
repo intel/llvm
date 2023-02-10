@@ -592,7 +592,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   static_assert(NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
-  constexpr bool Use64BitData = (NElts * sizeof(T)) % 8 == 0;
+  constexpr bool Use64BitData =
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -670,7 +672,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   static_assert(NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
-  constexpr bool Use64BitData = (NElts * sizeof(T)) % 8 == 0;
+  constexpr bool Use64BitData =
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1119,7 +1123,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   static_assert(NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
-  constexpr bool Use64BitData = (NElts * sizeof(T)) % 8 == 0;
+  constexpr bool Use64BitData =
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1197,7 +1203,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   static_assert(NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
-  constexpr bool Use64BitData = (NElts * sizeof(T)) % 8 == 0;
+  constexpr bool Use64BitData =
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
