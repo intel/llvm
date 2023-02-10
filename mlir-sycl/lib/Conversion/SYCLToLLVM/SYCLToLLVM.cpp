@@ -534,14 +534,18 @@ private:
 // SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
 //===----------------------------------------------------------------------===//
 
-Value rangeGet(OpBuilder &builder, Location loc, Value range, LLVM::GEPArg i) {
+Value rangeGetRef(OpBuilder &builder, Location loc, Value range,
+                  LLVM::GEPArg i) {
   const auto ty = builder.getI64Type();
   const auto addressSpace =
       range.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
-  const Value gep = builder.create<LLVM::GEPOp>(
+  return builder.create<LLVM::GEPOp>(
       loc, LLVM::LLVMPointerType::get(ty, addressSpace), range,
       ArrayRef<LLVM::GEPArg>{0, 0, 0, i}, /*inbounds*/ true);
-  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value rangeGet(OpBuilder &builder, Location loc, Value range, LLVM::GEPArg i) {
+  return builder.create<LLVM::LoadOp>(loc, rangeGetRef(builder, loc, range, i));
 }
 
 class RangeGetPattern : public ConvertOpToLLVMPattern<SYCLRangeGetOp> {
@@ -556,6 +560,22 @@ public:
                ConversionPatternRewriter &rewriter) const final {
     rewriter.replaceOp(op, rangeGet(rewriter, op.getLoc(), opAdaptor.getRange(),
                                     opAdaptor.getIndex()));
+  }
+};
+
+class RangeGetRefPattern : public ConvertOpToLLVMPattern<SYCLRangeGetOp> {
+public:
+  using ConvertOpToLLVMPattern<SYCLRangeGetOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(SYCLRangeGetOp op) const final {
+    return success(op.getType().isa<MemRefType>());
+  }
+
+  void rewrite(SYCLRangeGetOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op,
+                       rangeGetRef(rewriter, op.getLoc(), opAdaptor.getRange(),
+                                   opAdaptor.getIndex()));
   }
 };
 
@@ -826,8 +846,7 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv)
-    patterns
-        .add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
-             NDRangeGetGroupRangePattern, RangeGetPattern, RangeSizePattern>(
-            typeConverter);
+    patterns.add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
+                 NDRangeGetGroupRangePattern, RangeGetPattern,
+                 RangeGetRefPattern, RangeSizePattern>(typeConverter);
 }

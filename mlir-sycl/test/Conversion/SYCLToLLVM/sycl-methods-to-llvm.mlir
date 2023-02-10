@@ -106,6 +106,25 @@ func.func @test(%mr: memref<?x!sycl_range_3_>, %idx: i32) -> i64 {
 // -----
 
 //===-------------------------------------------------------------------------------------------------===//
+// sycl.range.get with reference result type
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[RANGE3:.*]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> !llvm.ptr<i64> {
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[RANGE3]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:      llvm.return %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:    }
+func.func @test(%mr: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64> {
+  %0 = "sycl.range.get"(%mr, %idx) { ArgumentTypes = [memref<?x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"range" }  : (memref<?x!sycl_range_3_>, i32) -> memref<?xi64>
+  return %0 : memref<?xi64>
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
 // sycl.range.size
 //===-------------------------------------------------------------------------------------------------===//
 
