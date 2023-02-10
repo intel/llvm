@@ -664,7 +664,7 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
   let results = (outs CastRes:$result);
 
   let assemblyFormat = [{
-    `(` $source `)` attr-dict `:` functional-type($source, results)
+    $source attr-dict `:` type($source) `to` type($result)
   }];
 }
 

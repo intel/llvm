@@ -38,7 +38,7 @@ func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1:
 // CHECK-NEXT:      %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_3]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
 // CHECK-NEXT:      %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
-// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.cast(%[[VAL_6]]) : (memref<?x!sycl_range_2_, 4>) -> memref<?x!sycl_array_2_, 4>
+// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.cast %[[VAL_6]] : memref<?x!sycl_range_2_, 4> to memref<?x!sycl_array_2_, 4>
 // CHECK-NEXT:      %[[VAL_8:.*]] = sycl.call @get(%[[VAL_7]], %[[VAL_1]]) {MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_array_2_, 4>, i32) -> i64
 // CHECK-NEXT:      return %[[VAL_8]] : i64
 // CHECK-NEXT:    }
