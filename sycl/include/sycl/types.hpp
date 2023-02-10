@@ -58,6 +58,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <variant>
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv>
@@ -2429,7 +2430,9 @@ struct is_device_copyable<
 // std::pair<T1, T2> is implicitly device copyable type if T1 and T2 are device
 // copyable
 template <typename T1, typename T2>
-struct is_device_copyable<std::pair<T1, T2>>
+struct is_device_copyable<
+    std::pair<T1, T2>,
+    std::enable_if_t<!std::is_trivially_copyable<std::pair<T1, T2>>::value>>
     : detail::bool_constant<is_device_copyable<T1>::value &&
                             is_device_copyable<T2>::value> {};
 
@@ -2439,7 +2442,9 @@ template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
 // std::tuple<Ts...> is implicitly device copyable type if each type T of Ts...
 // is device copyable.
 template <typename T, typename... Ts>
-struct is_device_copyable<std::tuple<T, Ts...>>
+struct is_device_copyable<
+    std::tuple<T, Ts...>,
+    std::enable_if_t<!std::is_trivially_copyable<std::tuple<T, Ts...>>::value>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
