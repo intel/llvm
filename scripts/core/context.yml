@@ -203,4 +203,4 @@ params:
             [in] Function pointer to extended deleter.
     - type: void*
       name: pUserData
-      desc: "[in][out] pointer to data to be passed to callback."
+      desc: "[in][out][optional] pointer to data to be passed to callback."
