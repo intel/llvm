@@ -75,13 +75,13 @@
 // CHECK:          (%arg0: memref<?x!sycl_id_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}, 
 // CHECK-SAME:      %arg1: memref<?x!sycl_id_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef})
 // CHECK-SAME:      attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKONCE:llvm.linkage = #llvm.linkage<linkonce_odr>]] 
-// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_array_1_, 4>
+// CHECK-NEXT:   %0 = sycl.cast %arg0 : memref<?x!sycl_id_1_, 4> to memref<?x!sycl_array_1_, 4>
 //
 // CHECK-LABEL: func.func @_ZN4sycl3_V15rangeILi1EEC1ERKS2_
 // CHECK:          (%arg0: memref<?x!sycl_range_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}, 
 // CHECK-SAME:      %arg1: memref<?x!sycl_range_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef})
 // CHECK-SAME:     attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
-// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_range_1_, 4>) -> memref<?x!sycl_array_1_, 4>
+// CHECK-NEXT:   %0 = sycl.cast %arg0 : memref<?x!sycl_range_1_, 4> to memref<?x!sycl_array_1_, 4>
 
 // CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.sycl::_V1::id.1"]]* noundef byval(%"class.sycl::_V1::id.1") align 8 [[ARG0:%.*]], 
 // CHECK-LLVM-SAME:                          [[RANGE_TYPE:%"class.sycl::_V1::range.1"]]* noundef byval(%"class.sycl::_V1::range.1") align 8 [[ARG1:%.*]]) #[[FUNCATTRS:[0-9]+]]
