@@ -406,82 +406,94 @@ ror(T1 src0, T2 src1) {
 /// @addtogroup sycl_esimd_math
 /// @{
 
-// imul
-#ifndef ESIMD_HAS_LONG_LONG
-// use mulh instruction for high half
-template <typename T0, typename T1, typename U, int SZ>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                                      __ESIMD_DNS::is_dword_type<T1>::value &&
-                                      __ESIMD_DNS::is_dword_type<U>::value,
-                                  __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-  rmd = Src0 * Src1;
-  if constexpr (std::is_unsigned<T0>::value)
-    return __esimd_umulh(Src0.data(), Src1.data());
-  else
-    return __esimd_smulh(Src0.data(), Src1.data());
+/// Computes the 64-bit result of two 32-bit element vectors \p src0 and
+/// \p src1 multiplication. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the results are written to the output
+/// parameter \p rmd and the upper parts of the results are returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> imul_impl(__ESIMD_NS::simd<T, N> &rmd,
+                                             __ESIMD_NS::simd<T0, N> src0,
+                                             __ESIMD_NS::simd<T1, N> src1) {
+  static_assert(__ESIMD_DNS::is_dword_type<T>::value &&
+                    __ESIMD_DNS::is_dword_type<T0>::value &&
+                    __ESIMD_DNS::is_dword_type<T1>::value,
+                "expected 32-bit integer vector operands.");
+  using Comp32T = __ESIMD_DNS::computation_type_t<T0, T1>;
+  auto Src0 = src0.template bit_cast_view<Comp32T>();
+  auto Src1 = src1.template bit_cast_view<Comp32T>();
+
+  // Compute the result using 64-bit multiplication operation.
+  using Comp64T =
+      std::conditional_t<std::is_signed_v<Comp32T>, int64_t, uint64_t>;
+  __ESIMD_NS::simd<Comp64T, N> Product64 = Src0;
+  Product64 *= Src1;
+
+  // Split the 32-bit high and low parts to return them from this function.
+  auto Product32 = Product64.template bit_cast_view<T>();
+  if constexpr (N == 1) {
+    rmd = Product32[0];
+    return Product32[1];
+  } else {
+    rmd = Product32.template select<N, 2>(0);
+    return Product32.template select<N, 2>(1);
+  }
 }
 
-#else
-// imul bdw+ version: use qw=dw*dw multiply.
-// We need to special case SZ==1 to avoid "error: when select size is 1, the
-// stride must also be 1" on the selects.
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                         __ESIMD_DNS::is_dword_type<T1>::value &&
-                         __ESIMD_DNS::is_dword_type<U>::value && SZ == 1,
-                     __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(rmd), long long>;
-  ComputationTy Product = convert<long long>(src0);
-  Product *= src1;
-  rmd = Product.bit_cast_view<T0>().select<1, 1>[0];
-  return Product.bit_cast_view<T0>().select<1, 1>[1];
+/// Computes the 64-bit multiply result of two 32-bit integer vectors \p src0
+/// and \p src1. The result is returned in two separate 32-bit vectors.
+/// The low 32-bit parts of the result are written to the output parameter
+/// \p rmd and the upper parts of the result are returned from the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> imul(__ESIMD_NS::simd<T, N> &rmd,
+                                        __ESIMD_NS::simd<T0, N> src0,
+                                        __ESIMD_NS::simd<T1, N> src1) {
+  return imul_impl<T, T0, T1, N>(rmd, src0, src1);
 }
 
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                         __ESIMD_DNS::is_dword_type<T1>::value &&
-                         __ESIMD_DNS::is_dword_type<U>::value && SZ != 1,
-                     __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(rmd), long long>;
-  ComputationTy Product = convert<long long>(src0);
-  Product *= src1;
-  rmd = Product.bit_cast_view<T0>().select<SZ, 2>(0);
-  return Product.bit_cast_view<T0>().select<SZ, 2>(1);
-}
-#endif
-
-// TODO: document
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-imul(__ESIMD_NS::simd<T0, SZ> &rmd, U src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return esimd::imul(rmd, src1, src0);
+/// Computes the 64-bit multiply result of 32-bit integer vector \p src0 and
+/// 32-bit integer scalar \p src1. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the result is written to the output
+/// parameter \p rmd and the upper part of the results is returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T1>::value,
+                             __ESIMD_NS::simd<T, N>>
+imul(__ESIMD_NS::simd<T, N> &rmd, __ESIMD_NS::simd<T0, N> src0, T1 src1) {
+  __ESIMD_NS::simd<T1, N> Src1V = src1;
+  return esimd::imul_impl<T, T0, T1, N>(rmd, src0, Src1V);
 }
 
-// TODO: document
-template <typename T0, typename T, typename U>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
-                                      __ESIMD_DNS::is_esimd_scalar<U>::value &&
-                                      __ESIMD_DNS::is_esimd_scalar<T0>::value,
-                                  T0>
-    imul(__ESIMD_NS::simd<T0, 1> &rmd, T src0, U src1) {
-  __ESIMD_NS::simd<T, 1> src_0 = src0;
-  __ESIMD_NS::simd<U, 1> src_1 = src1;
-  __ESIMD_NS::simd<T0, 1> res =
-      esimd::imul(rmd, src_0.select_all(), src_1.select_all());
-  return res[0];
+/// Computes the 64-bit multiply result of a scalar 32-bit integer \p src0 and
+/// 32-bit integer vector \p src1. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the result is written to the output
+/// parameter \p rmd and the upper part of the results is returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value,
+                             __ESIMD_NS::simd<T, N>>
+imul(__ESIMD_NS::simd<T, N> &rmd, T0 src0, __ESIMD_NS::simd<T1, N> src1) {
+  __ESIMD_NS::simd<T0, N> Src0V = src0;
+  return esimd::imul_impl<T, T0, T1, N>(rmd, Src0V, src1);
+}
+
+/// Computes the 64-bit multiply result of two scalar 32-bit integer values
+/// \p src0 and \p src1. The result is returned in two separate 32-bit scalars.
+/// The low 32-bit part of the result is written to the output parameter \p rmd
+/// and the upper part of the result is returned from the function.
+template <typename T, typename T0, typename T1>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value &&
+                                 __ESIMD_DNS::is_dword_type<T0>::value &&
+                                 __ESIMD_DNS::is_dword_type<T1>::value,
+                             T>
+imul(T &rmd, T0 src0, T1 src1) {
+  __ESIMD_NS::simd<T, 1> RmdV = rmd;
+  __ESIMD_NS::simd<T0, 1> Src0V = src0;
+  __ESIMD_NS::simd<T1, 1> Src1V = src1;
+  __ESIMD_NS::simd<T, 1> Res =
+      esimd::imul_impl<T, T0, T1, 1>(RmdV, Src0V, Src1V);
+  rmd = RmdV[0];
+  return Res[0];
 }
 
 /// Integral quotient (vector version)
