@@ -57,7 +57,7 @@ params:
       name: NumEntries
       desc: |
             [in] the number of devices to be added to phDevices.
-            If phDevices in not NULL then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
+            If phDevices in not NULL then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_VALUE,
             will be returned.
     - type: "$x_device_handle_t*"
       name: phDevices
@@ -70,7 +70,7 @@ params:
             [out][optional] pointer to the number of devices.
             pNumDevices will be updated with the total number of devices available.
 returns:
-    - $X_RESULT_ERROR_INVALID_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported device info"
@@ -310,11 +310,13 @@ params:
       desc: |
             [out][optional] array of bytes holding the info.
             If propSize is not equal to or greater than the real number of bytes needed to return the info
-            then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pDeviceInfo is not used.
+            then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pDeviceInfo is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried infoType.
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Makes a reference of the device handle indicating it's in use until paired $xDeviceRelease is called"
@@ -412,6 +414,9 @@ params:
       name: pNumDevicesRet
       desc: |
             [out][optional] pointer to the number of sub-devices the device can be partitioned into according to the partitioning property.
+returns:
+    - $X_RESULT_ERROR_DEVICE_PARTITION_FAILED
+    - $X_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Selects the most appropriate device binary based on runtime information and the IR characteristics."
@@ -437,12 +442,15 @@ params:
     - type: "uint32_t"
       name: NumBinaries
       desc: |
-            [in] the number of binaries passed in ppBinaries. Must greater than or equal to zero.
+            [in] the number of binaries passed in ppBinaries. 
+            Must greater than or equal to zero otherwise $X_RESULT_ERROR_INVALID_VALUE is returned.
     - type: "uint32_t*"
       name: pSelectedBinary
       desc: |
             [out] the index of the selected binary in the input array of binaries.
             If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "FP capabilities"
