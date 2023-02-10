@@ -289,12 +289,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                           "conjunction with SYCL_DEVICE_FILTER");
   } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                             backend::ext_oneapi_unified_runtime);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                             backend::ext_oneapi_unified_runtime);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -338,6 +338,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     if (list.backendCompatible(backend::opencl)) {
       PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     }
+    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
+      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                               backend::ext_oneapi_unified_runtime);
+    }
     if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
       PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                                backend::ext_oneapi_level_zero);
@@ -352,10 +356,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     }
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
-      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                               backend::ext_oneapi_unified_runtime);
     }
   }
   return PluginNames;
