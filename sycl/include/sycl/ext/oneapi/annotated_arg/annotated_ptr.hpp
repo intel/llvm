@@ -13,7 +13,6 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/annotated_arg/annotated_ref.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -23,14 +22,67 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
+namespace {
+#define PROPAGATE_OP(op)                                                       \
+  annotated_ref operator op(const T &rhs) noexcept {                           \
+    (*ptr) op rhs;                                                             \
+    return *this;                                                              \
+  }
+
+template <typename T, typename PropertyListT = detail::empty_properties_t>
+class annotated_ref {
+  // This should always fail when instantiating the unspecialized version.
+  static_assert(is_property_list<PropertyListT>::value,
+                "Property list is invalid.");
+};
+
+template <typename T, typename... Props>
+class annotated_ref<T, detail::properties_t<Props...>> {
+  using property_list_t = detail::properties_t<Props...>;
+
+private:
+  T *ptr
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_annotations_member(
+          detail::PropertyMetaInfo<Props>::name...,
+          detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+      ;
+
+public:
+  annotated_ref(T *_ptr) : ptr(_ptr) {}
+  annotated_ref(const annotated_ref &) = default;
+
+  operator T() const { return *ptr; }
+
+  annotated_ref &operator=(const T &obj) {
+    *ptr = obj;
+    return *this;
+  }
+
+  annotated_ref &operator=(const annotated_ref &) = default;
+
+  PROPAGATE_OP(+=)
+  PROPAGATE_OP(-=)
+  PROPAGATE_OP(*=)
+  PROPAGATE_OP(/=)
+  PROPAGATE_OP(%=)
+  PROPAGATE_OP(^=)
+  PROPAGATE_OP(&=)
+  PROPAGATE_OP(|=)
+};
+
+#undef PROPAGATE_OP
+} // namespace
+
 // Deduction guide
 template <typename T, typename... Args>
 annotated_ptr(T *, Args...)
-    ->annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
+    -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
 annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
-    ->annotated_ptr<
+    -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
@@ -44,7 +96,8 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using reference = annotated_ref<T, property_list_t>;
+  using reference =
+      sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
@@ -81,13 +134,13 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *_ptr, const PropertyValueTs &... props) noexcept
+  annotated_ptr(T *_ptr, const PropertyValueTs &...props) noexcept
       : ptr(global_pointer_t(_ptr)) {
     static_assert(
         std::is_same<
             property_list_t,
-            detail::merged_properties_t<
-                property_list_t, decltype(properties{props...})>>::value,
+            detail::merged_properties_t<property_list_t,
+                                        decltype(properties{props...})>>::value,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -97,18 +150,16 @@ public:
   // annotated_ptr object. The same property in `Props...` and `PropertyList2`
   // must have the same property value.
   template <typename T2, typename PropertyList2>
-  explicit annotated_ptr(
-      const annotated_ptr<T2, PropertyList2> &other) noexcept
+  explicit annotated_ptr(const annotated_ptr<T2, PropertyList2> &other) noexcept
       : ptr(other.ptr) {
-    static_assert(
-        std::is_convertible<T2 *, T *>::value,
-        "The underlying data type of the input annotated_ptr is not "
-        "compatible");
+    static_assert(std::is_convertible<T2 *, T *>::value,
+                  "The underlying data type of the input annotated_ptr is not "
+                  "compatible");
 
     static_assert(
-        std::is_same<property_list_t,
-                     detail::merged_properties_t<property_list_t,
-                                                 PropertyList2>>::value,
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
         "The constructed annotated_ptr type must contain all the properties "
         "of "
         "the input annotated_ptr");
@@ -122,15 +173,13 @@ public:
   explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
       : ptr(other.ptr) {
-    static_assert(
-        std::is_convertible<T2 *, T *>::value,
-        "The underlying data type of the input annotated_ptr is not "
-        "compatible");
+    static_assert(std::is_convertible<T2 *, T *>::value,
+                  "The underlying data type of the input annotated_ptr is not "
+                  "compatible");
 
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
+        std::is_same<property_list_t, detail::merged_properties_t<
+                                          PropertyListU, PropertyListV>>::value,
         "The property list of constructed annotated_ptr type must be the "
         "union "
         "of the input property lists");

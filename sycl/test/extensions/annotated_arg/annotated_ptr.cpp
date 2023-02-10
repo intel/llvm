@@ -72,8 +72,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
 
   // Construct from another annotated_ptr
   // templated copy constructor
-  annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg11(
-      tmp11);
+  annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg11(tmp11);
   auto arg12 =
       annotated_ptr<int, decltype(properties{dwidth<32>, awidth<32>})>(tmp11);
 
