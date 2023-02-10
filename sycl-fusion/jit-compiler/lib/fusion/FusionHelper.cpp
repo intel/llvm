@@ -125,6 +125,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
           const auto S = [&]() -> StringRef {
             switch (Info.Intern) {
+            default:
             case jit_compiler::Internalization::None:
               llvm_unreachable(
                   "Only a valid internalization kind should be used");

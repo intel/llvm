@@ -5508,14 +5508,22 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
-    // Add IR attributes if add_ir_attribute_global_variable is attached to
-    // type.
-    if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
-      AddGlobalSYCLIRAttributes(GV, RD);
-    // If VarDecl has a type decorated with SYCL device_global attribute, emit
-    // IR attribute 'sycl-unique-id'.
-    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
-      addSYCLUniqueID(GV, D, Context);
+
+    if (RD) {
+      // Add IR attributes if add_ir_attribute_global_variable is attached to
+      // type.
+      if (RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
+        AddGlobalSYCLIRAttributes(GV, RD);
+      // If VarDecl has a type decorated with SYCL device_global attribute 
+      // emit IR attribute 'sycl-unique-id'.
+      if (RD->hasAttr<SYCLDeviceGlobalAttr>())
+        addSYCLUniqueID(GV, D, Context);
+      // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
+      // 'sycl-unique-id'.
+      if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
+        if (Attr->getType() == SYCLTypeAttr::SYCLType::host_pipe)
+          addSYCLUniqueID(GV, D, Context);
+    }
   }
 
   if (D->getType().isRestrictQualified()) {

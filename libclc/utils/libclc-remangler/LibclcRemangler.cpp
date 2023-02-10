@@ -70,7 +70,8 @@ static llvm::cl::OptionCategory
 static cl::opt<std::string>
     InputIRFilename("input-ir", cl::desc("<input bitcode>"),
                     cl::cat(LibCLCRemanglerToolCategory));
-static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"));
+static cl::opt<std::string> OutputFilename("o", cl::init("-"),
+                                           cl::desc("Output filename"));
 static cl::opt<SupportedLongWidth>
     LongWidth("long-width",
               cl::values(clEnumValN(SupportedLongWidth::L32, "l32",
@@ -87,6 +88,9 @@ static cl::opt<Signedness> CharSignedness(
 static cl::opt<bool> Verbose("v", cl::desc("Enable verbose output"),
                              cl::init(false),
                              cl::cat(LibCLCRemanglerToolCategory));
+static cl::opt<bool> TextualOut("S", cl::desc("Emit LLVM textual assembly"),
+                                cl::init(false),
+                                cl::cat(LibCLCRemanglerToolCategory));
 static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
                              cl::cat(LibCLCRemanglerToolCategory));
 
@@ -170,17 +174,101 @@ public:
 private:
   BumpPointerAllocator Alloc;
 };
+
+clang::QualType getBaseType(StringView Name, clang::ASTContext *AST,
+                            bool &IsVariadic) {
+  clang::QualType Res;
+  // First find the match against `QualType`...
+  if (Name == "void")
+    Res = AST->VoidTy;
+  else if (Name == "wchar_t")
+    Res = AST->WCharTy;
+  else if (Name == "bool")
+    Res = AST->BoolTy;
+  else if (Name == "char")
+    Res = AST->CharTy;
+  else if (Name == "signed char")
+    Res = AST->SignedCharTy;
+  else if (Name == "unsigned char")
+    Res = AST->UnsignedCharTy;
+  else if (Name == "short")
+    Res = AST->ShortTy;
+  else if (Name == "unsigned short")
+    Res = AST->UnsignedShortTy;
+  else if (Name == "int")
+    Res = AST->IntTy;
+  else if (Name == "unsigned int")
+    Res = AST->UnsignedIntTy;
+  else if (Name == "long")
+    Res = AST->LongTy;
+  else if (Name == "unsigned long")
+    Res = AST->UnsignedLongTy;
+  else if (Name == "long long")
+    Res = AST->LongLongTy;
+  else if (Name == "unsigned long long")
+    Res = AST->UnsignedLongLongTy;
+  else if (Name == "__int128")
+    Res = AST->Int128Ty;
+  else if (Name == "unsigned __int128")
+    Res = AST->UnsignedInt128Ty;
+  else if (Name == "float")
+    Res = AST->FloatTy;
+  else if (Name == "double")
+    Res = AST->DoubleTy;
+  else if (Name == "long double")
+    Res = AST->LongDoubleTy;
+  else if (Name == "__float128")
+    Res = AST->Float128Ty;
+  else if (Name == "...") {
+    Res = clang::QualType{};
+    IsVariadic = true;
+  } else if (Name == "decimal64")
+    assert(false && "unhandled type name: decimal64");
+  else if (Name == "decimal128")
+    assert(false && "unhandled type name: decimal128");
+  else if (Name == "decimal32")
+    assert(false && "unhandled type name: decimal32");
+  else if (Name == "decimal16")
+    assert(false && "unhandled type name: decimal16");
+  else if (Name == "char32_t")
+    Res = AST->Char32Ty;
+  else if (Name == "char16_t")
+    Res = AST->Char16Ty;
+  else if (Name == "char8_t")
+    Res = AST->Char8Ty;
+  else if (Name == "_Float16")
+    Res = AST->Float16Ty;
+  else if (Name == "half")
+    Res = AST->HalfTy;
+  else if (Name == "auto")
+    Res = AST->AutoDeductTy;
+  else if (Name == "decltype(auto)")
+    assert(false && "unhandled type name: decltype(auto)");
+  else if (Name == "std::nullptr_t")
+    Res = AST->NullPtrTy;
+  else if (Name == "_BitInt")
+    assert(false && "unhandled type name: _BitInt");
+  else {
+    StringRef const N{Name.begin(), Name.size()};
+    auto &II = AST->Idents.get(N);
+    auto *DC = AST->getTranslationUnitDecl();
+    auto *ED = EnumDecl::Create(*AST, DC, SourceLocation(), SourceLocation(),
+                                &II, nullptr, false, false, true);
+    Res = AST->getEnumType(ED);
+  }
+  return Res;
+}
 } // unnamed namespace
 
 using Demangler = ManglingParser<DefaultAllocator>;
 
 class Remangler {
 public:
-  Remangler(ASTContext *ContextAST, const Node *Root,
+  Remangler(ASTContext *AST, const Node *Root,
             SmallDenseMap<const char *, const char *> TypeReplacements)
-      : ContextAST(ContextAST), Root(Root), TypeReplacements(TypeReplacements) {
-    MangleContext.reset(ItaniumMangleContext::create(
-        *ContextAST, ContextAST->getDiagnostics()));
+      : AST(AST), Root(Root), TypeReplacements(TypeReplacements) {
+    MangleContext.reset(
+        ItaniumMangleContext::create(*AST, AST->getDiagnostics()));
   }
 
   bool hasFailed() { return Failed; }
@@ -218,17 +306,14 @@ private:
       if (Quals & itanium_demangle::Qualifiers::QualRestrict)
         Data |= clang::Qualifiers::TQ::Restrict;
     }
-    NodeKindInfo(Node::Kind K, const char *NestedName, size_t NestedNameSize)
-        : K(K) {
-
-      DataStr.assign(NestedName, NestedNameSize);
+    NodeKindInfo(Node::Kind K, const char *S, size_t N) : K(K) {
+      DataStr.assign(S, N);
     }
     Node::Kind K;
     size_t Data = 0;
     std::string DataStr;
   };
 
-private:
   // Construct FunctionDecl from return, argument and template types.
   FunctionDecl *createKernelDecl(
       clang::QualType RetTy, const SmallVector<clang::QualType> &TemplateArgTys,
@@ -240,17 +325,16 @@ private:
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
     Info.Variadic = IsVariadic;
     clang::QualType const VoidFuncType =
-        ContextAST->getFunctionType(ContextAST->VoidTy, {}, Info);
+        AST->getFunctionType(AST->VoidTy, {}, Info);
     FunctionDecl *FD = FunctionDecl::Create(
-        *ContextAST, ContextAST->getTranslationUnitDecl(), SourceLocation{},
+        *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
-        ContextAST->getTrivialTypeSourceInfo(ContextAST->VoidTy), SC_None,
-        false, false, false, ConstexprSpecKind::Unspecified, nullptr);
+        AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
+        false, ConstexprSpecKind::Unspecified, nullptr);
     FD->setImplicitlyInline(false);
 
     // Set the name.
-    const FunctionEncoding *Encoding =
-        static_cast<const FunctionEncoding *>(Root);
+    const auto *Encoding = static_cast<const FunctionEncoding *>(Root);
     assert(
         (Encoding->getName()->getKind() == Node::Kind::KNameType ||
          Encoding->getName()->getKind() == Node::Kind::KNameWithTemplateArgs) &&
@@ -264,16 +348,16 @@ private:
       KernelNameStr.assign(NT->getBaseName().begin(), NT->getBaseName().size());
     }
     StringRef const KernelName(KernelNameStr);
-    FD->setDeclName(&ContextAST->Idents.get(KernelName));
+    FD->setDeclName(&AST->Idents.get(KernelName));
 
     // Construct the argument list.
     SmallVector<ParmVarDecl *, 8> ArgParams;
     for (auto &QT : ArgTys) {
-      auto &II = ContextAST->Idents.get("");
-      auto *TTSI = ContextAST->getTrivialTypeSourceInfo(QT);
-      auto *NewParam = ParmVarDecl::Create(*ContextAST, FD, SourceLocation(),
-                                           SourceLocation(), &II, QT, TTSI,
-                                           SC_None, nullptr);
+      auto &II = AST->Idents.get("");
+      auto *TTSI = AST->getTrivialTypeSourceInfo(QT);
+      auto *NewParam =
+          ParmVarDecl::Create(*AST, FD, SourceLocation(), SourceLocation(), &II,
+                              QT, TTSI, SC_None, nullptr);
       NewParam->setScopeInfo(0, ArgParams.size());
       NewParam->setDeclContext(FD);
       ArgParams.push_back(NewParam);
@@ -282,7 +366,7 @@ private:
     // If not templated, finish here.
     if (TemplateArgTys.empty()) {
       clang::QualType const FuncType =
-          ContextAST->getFunctionType(RetTy, ArgTys, Info);
+          AST->getFunctionType(RetTy, ArgTys, Info);
       FD->setType(FuncType);
       FD->setParams(ArgParams);
       return FD;
@@ -290,13 +374,13 @@ private:
 
     // Use FD as a base for a future function specialisation.
     FunctionDecl *FDSpecialization = FunctionDecl::Create(
-        *ContextAST, ContextAST->getTranslationUnitDecl(), SourceLocation{},
+        *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
-        ContextAST->getTrivialTypeSourceInfo(ContextAST->VoidTy), SC_None,
-        false, false, false, ConstexprSpecKind::Unspecified, nullptr);
+        AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
+        false, ConstexprSpecKind::Unspecified, nullptr);
     FDSpecialization->setImplicitlyInline(false);
 
-    FDSpecialization->setDeclName(&ContextAST->Idents.get(KernelName));
+    FDSpecialization->setDeclName(&AST->Idents.get(KernelName));
 
     // Will be used to build template parameter list.
     SmallVector<NamedDecl *> TemplateNamedDecls;
@@ -308,13 +392,12 @@ private:
     for (auto &TemplateArgQT : TemplateArgTys) {
       std::string const Name{std::string{"TempTy"} +
                              std::to_string(TemplateIndex)};
-      auto &II = ContextAST->Idents.get(Name);
+      auto &II = AST->Idents.get(Name);
       auto *TTPD = TemplateTypeParmDecl::Create(
-          *ContextAST, FDSpecialization->getDeclContext(), SourceLocation(),
+          *AST, FDSpecialization->getDeclContext(), SourceLocation(),
           SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
-      TTPD->setDefaultArgument(
-          ContextAST->getTrivialTypeSourceInfo(TemplateArgQT));
+      TTPD->setDefaultArgument(AST->getTrivialTypeSourceInfo(TemplateArgQT));
 
       TemplateNamedDecls.emplace_back(TTPD);
       auto TA = TemplateArgument(TemplateArgQT);
@@ -323,17 +406,16 @@ private:
       // Store this qualified type with newly created proper template type
       // param qualified type.
       TemplateTypeParamTys.push_back(
-          ContextAST->getTemplateTypeParmType(0, TemplateIndex, false, TTPD));
+          AST->getTemplateTypeParmType(0, TemplateIndex, false, TTPD));
 
       ++TemplateIndex;
     }
     // Fix up the template types in the original FD's arg tys and return ty.
     auto AreQTsEqual = [&](const clang::QualType &LHS,
                            const clang::QualType &RHS) -> bool {
-      return (LHS.getBaseTypeIdentifier() && RHS.getBaseTypeIdentifier() &&
-              LHS.getBaseTypeIdentifier()->isStr(
-                  RHS.getBaseTypeIdentifier()->getName())) ||
-             LHS == RHS;
+      auto *LID = LHS.getBaseTypeIdentifier();
+      auto *RID = RHS.getBaseTypeIdentifier();
+      return (RID && LID && LID->isStr(RID->getName())) || LHS == RHS;
     };
     unsigned NumReplaced = 0;
     unsigned Idx = 0;
@@ -356,29 +438,29 @@ private:
            "Expected full specialization.");
     // Now that the template types have been patched up, set functions type.
     clang::QualType const TemplateFuncType =
-        ContextAST->getFunctionType(RetTy, ArgTys, Info);
+        AST->getFunctionType(RetTy, ArgTys, Info);
     FD->setType(TemplateFuncType);
     FD->setParams(ArgParams);
     FDSpecialization->setType(TemplateFuncType);
     FDSpecialization->setParams(ArgParams);
 
     auto *TPL = TemplateParameterList::Create(
-        *ContextAST, SourceLocation(), SourceLocation(), TemplateNamedDecls,
+        *AST, SourceLocation(), SourceLocation(), TemplateNamedDecls,
         SourceLocation(), nullptr);
-    auto *FTD = FunctionTemplateDecl::Create(*ContextAST, FD->getDeclContext(),
+    auto *FTD = FunctionTemplateDecl::Create(*AST, FD->getDeclContext(),
                                              SourceLocation(),
                                              DeclarationName(), TPL, FD);
     auto TAArr =
         makeArrayRef(TemplateArguments.begin(), TemplateArguments.size());
-    auto *TAL = TemplateArgumentList::CreateCopy(*ContextAST, TAArr);
-    FDSpecialization->setTemplateParameterListsInfo(*ContextAST, TPL);
+    auto *TAL = TemplateArgumentList::CreateCopy(*AST, TAArr);
+    FDSpecialization->setTemplateParameterListsInfo(*AST, TPL);
     FDSpecialization->setFunctionTemplateSpecialization(
         FTD, TAL, nullptr, TSK_ExplicitSpecialization);
 
     return FDSpecialization;
   }
 
-  // Peal off additional type info, such as CV qualifiers or pointers, by
+  // Peel off additional type info, such as CV qualifiers or pointers, by
   // recursively calling itself. The information is appended to `PossibleKinds`
   // vector.
   // The base case is achieved in `handleLeafTypeNode`.
@@ -389,17 +471,16 @@ private:
     switch (Kind) {
     case Node::Kind::KPointerType: {
       PossibleKinds.push_back(NodeKindInfo(Kind));
-      const itanium_demangle::PointerType *PType =
+      const auto *PType =
           static_cast<const itanium_demangle::PointerType *>(TypeNode);
       return handleTypeNode(PType->getPointee(), PossibleKinds);
     }
     case Node::Kind::KVectorType: {
-      const itanium_demangle::VectorType *VecType =
+      const auto *VecType =
           static_cast<const itanium_demangle::VectorType *>(TypeNode);
       assert(VecType->getDimension()->getKind() == Node::Kind::KNameType);
-      const itanium_demangle::NameType *Dims =
-          static_cast<const itanium_demangle::NameType *>(
-              VecType->getDimension());
+      const auto *Dims = static_cast<const itanium_demangle::NameType *>(
+          VecType->getDimension());
       std::string const DN{Dims->getName().begin(), Dims->getName().size()};
       auto D = std::atoi(DN.c_str());
       PossibleKinds.push_back(NodeKindInfo(Kind, D));
@@ -423,7 +504,7 @@ private:
       return handleLeafTypeNode(&FP16, PossibleKinds);
     }
     case Node::Kind::KVendorExtQualType: {
-      const itanium_demangle::VendorExtQualType *ExtQualType =
+      const auto *ExtQualType =
           static_cast<const itanium_demangle::VendorExtQualType *>(TypeNode);
       std::string const AS(ExtQualType->getExt().begin(),
                            ExtQualType->getExt().size());
@@ -436,35 +517,28 @@ private:
       return handleTypeNode(ExtQualType->getTy(), PossibleKinds);
     }
     case Node::Kind::KQualType: {
-      const itanium_demangle::QualType *QType =
-          static_cast<const itanium_demangle::QualType *>(TypeNode);
-      auto Qual = QType->getQuals();
-      PossibleKinds.push_back(NodeKindInfo(Kind, Qual));
+      auto *QType = static_cast<const itanium_demangle::QualType *>(TypeNode);
+      PossibleKinds.push_back({Kind, QType->getQuals()});
       return handleTypeNode(QType->getChild(), PossibleKinds);
     }
     case Node::Kind::KNameType: {
-      const itanium_demangle::NameType *TypeName =
-          static_cast<const itanium_demangle::NameType *>(TypeNode);
-      return handleLeafTypeNode(TypeName, PossibleKinds);
+      auto *NT = static_cast<const itanium_demangle::NameType *>(TypeNode);
+      return handleLeafTypeNode(NT, PossibleKinds);
     }
     case Node::Kind::KNestedName: {
-      const itanium_demangle::NestedName *NestedName =
+      const auto *NN =
           static_cast<const itanium_demangle::NestedName *>(TypeNode);
-      OutputBuffer NestedNameBuff;
-      NestedName->Qual->print(NestedNameBuff);
-      PossibleKinds.push_back(
-          NodeKindInfo(Kind, NestedNameBuff.getBuffer(),
-                       NestedNameBuff.getCurrentPosition()));
-      const itanium_demangle::NameType *TypeName =
-          static_cast<const itanium_demangle::NameType *>(NestedName->Name);
-      return handleLeafTypeNode(TypeName, PossibleKinds);
+      OutputBuffer QB;
+      NN->Qual->print(QB);
+      PossibleKinds.push_back({Kind, QB.getBuffer(), QB.getCurrentPosition()});
+      const auto *TN =
+          static_cast<const itanium_demangle::NameType *>(NN->Name);
+      return handleLeafTypeNode(TN, PossibleKinds);
     }
     default: {
       OutputBuffer ErrorTypeOut;
-      ErrorTypeOut << "Unhandled type : ";
       TypeNode->print(ErrorTypeOut);
-      ErrorTypeOut << "\n";
-      errs() << ErrorTypeOut.getBuffer();
+      errs() << "Unhandled type: " << ErrorTypeOut.getBuffer() << "\n";
       free(ErrorTypeOut.getBuffer());
       Failed = true;
     }
@@ -489,88 +563,8 @@ private:
         Name = StringView(It->second);
     }
 
-    clang::QualType Res;
     bool IsVariadic = false;
-
-    // First find the match against `QualType`...
-    if (Name == "void")
-      Res = ContextAST->VoidTy;
-    else if (Name == "wchar_t")
-      Res = ContextAST->WCharTy;
-    else if (Name == "bool")
-      Res = ContextAST->BoolTy;
-    else if (Name == "char")
-      Res = ContextAST->CharTy;
-    else if (Name == "signed char")
-      Res = ContextAST->SignedCharTy;
-    else if (Name == "unsigned char")
-      Res = ContextAST->UnsignedCharTy;
-    else if (Name == "short")
-      Res = ContextAST->ShortTy;
-    else if (Name == "unsigned short")
-      Res = ContextAST->UnsignedShortTy;
-    else if (Name == "int")
-      Res = ContextAST->IntTy;
-    else if (Name == "unsigned int")
-      Res = ContextAST->UnsignedIntTy;
-    else if (Name == "long")
-      Res = ContextAST->LongTy;
-    else if (Name == "unsigned long")
-      Res = ContextAST->UnsignedLongTy;
-    else if (Name == "long long")
-      Res = ContextAST->LongLongTy;
-    else if (Name == "unsigned long long")
-      Res = ContextAST->UnsignedLongLongTy;
-    else if (Name == "__int128")
-      Res = ContextAST->Int128Ty;
-    else if (Name == "unsigned __int128")
-      Res = ContextAST->UnsignedInt128Ty;
-    else if (Name == "float")
-      Res = ContextAST->FloatTy;
-    else if (Name == "double")
-      Res = ContextAST->DoubleTy;
-    else if (Name == "long double")
-      Res = ContextAST->LongDoubleTy;
-    else if (Name == "__float128")
-      Res = ContextAST->Float128Ty;
-    else if (Name == "...") {
-      Res = clang::QualType{};
-      IsVariadic = true;
-    } else if (Name == "decimal64")
-      assert(false && "unhandled type name: decimal64");
-    else if (Name == "decimal128")
-      assert(false && "unhandled type name: decimal128");
-    else if (Name == "decimal32")
-      assert(false && "unhandled type name: decimal32");
-    else if (Name == "decimal16")
-      assert(false && "unhandled type name: decimal16");
-    else if (Name == "char32_t")
-      Res = ContextAST->Char32Ty;
-    else if (Name == "char16_t")
-      Res = ContextAST->Char16Ty;
-    else if (Name == "char8_t")
-      Res = ContextAST->Char8Ty;
-    else if (Name == "_Float16")
-      Res = ContextAST->Float16Ty;
-    else if (Name == "half")
-      Res = ContextAST->HalfTy;
-    else if (Name == "auto")
-      Res = ContextAST->AutoDeductTy;
-    else if (Name == "decltype(auto)")
-      assert(false && "unhandled type name: decltype(auto)");
-    else if (Name == "std::nullptr_t")
-      Res = ContextAST->NullPtrTy;
-    else if (Name == "_BitInt")
-      assert(false && "unhandled type name: _BitInt");
-    else {
-      StringRef const N{Name.begin(), Name.size()};
-      auto &II = ContextAST->Idents.get(N);
-      auto *DC = ContextAST->getTranslationUnitDecl();
-      auto *ED =
-          EnumDecl::Create(*ContextAST, DC, SourceLocation(), SourceLocation(),
-                           &II, nullptr, false, false, true);
-      Res = ContextAST->getEnumType(ED);
-    }
+    clang::QualType Res = getBaseType(Name, AST, IsVariadic);
 
     // then apply gathered information to that `QualType`.
 
@@ -596,29 +590,26 @@ private:
         RecordDecl *RD = nullptr;
         if (!SpvNamespace)
           SpvNamespace = NamespaceDecl::Create(
-              *ContextAST, ContextAST->getTranslationUnitDecl(), false, SL, SL,
-              &ContextAST->Idents.get("__spv", tok::TokenKind::identifier),
-              nullptr, false);
+              *AST, AST->getTranslationUnitDecl(), false, SL, SL,
+              &AST->Idents.get("__spv", tok::TokenKind::identifier), nullptr,
+              false);
         std::string StructName{KNN->DataStr};
         StructName.erase(0, StructName.find_first_not_of("__spv::"));
-        auto *II =
-            &ContextAST->Idents.get(StructName, tok::TokenKind::identifier);
-        RD = RecordDecl::Create(*ContextAST, TTK_Struct, SpvNamespace, SL, SL,
-                                II);
-        auto *NNS =
-            NestedNameSpecifier::Create(*ContextAST, nullptr, SpvNamespace);
-        auto RecordQT = ContextAST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*ContextAST, NNS, false,
+        auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
+        RD = RecordDecl::Create(*AST, TTK_Struct, SpvNamespace, SL, SL, II);
+        auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
+        auto RecordQT = AST->getRecordType(RD);
+        NNS = NestedNameSpecifier::Create(*AST, NNS, false,
                                           RecordQT.getTypePtr());
         auto &EnumName =
-            ContextAST->Idents.get(Res.getBaseTypeIdentifier()->getName());
+            AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
         // namespace/class info.
-        auto *ED = EnumDecl::Create(*ContextAST, RD, SourceLocation(),
-                                    SourceLocation(), &EnumName, nullptr, false,
-                                    false, true);
-        Res = ContextAST->getEnumType(ED);
-        Res = ContextAST->getElaboratedType(ETK_None, NNS, Res);
+        auto *ED =
+            EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
+                             &EnumName, nullptr, false, false, true);
+        Res = AST->getEnumType(ED);
+        Res = AST->getElaboratedType(ETK_None, NNS, Res);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -630,22 +621,22 @@ private:
     for (auto I = PossibleKinds.rbegin(); I != PossibleKinds.rend(); ++I) {
       switch (I->K) {
       case Node::Kind::KPointerType: {
-        Res = ContextAST->getPointerType(Res);
+        Res = AST->getPointerType(Res);
         break;
       }
       case Node::Kind::KVectorType: {
-        Res = ContextAST->getVectorType(
-            Res, I->Data, clang::VectorType::VectorKind::GenericVector);
+        Res = AST->getVectorType(Res, I->Data,
+                                 clang::VectorType::VectorKind::GenericVector);
         break;
       }
       case Node::Kind::KQualType: {
         auto Quals = clang::Qualifiers::fromFastMask(I->Data);
-        Res = ContextAST->getQualifiedType(Res, Quals);
+        Res = AST->getQualifiedType(Res, Quals);
         break;
       }
       case Node::Kind::KVendorExtQualType: {
         auto AS = getLangASFromTargetAS(I->Data);
-        Res = ContextAST->getAddrSpaceQualType(Res, AS);
+        Res = AST->getAddrSpaceQualType(Res, AS);
         break;
       }
       case Node::Kind::KNestedName: {
@@ -674,7 +665,7 @@ private:
       RetTy =
           std::get<0>(handleTypeNode(Encoding->getReturnType(), PossibleKinds));
     } else
-      RetTy = ContextAST->VoidTy;
+      RetTy = AST->VoidTy;
 
     if (Encoding->getName()->getKind() == Node::Kind::KNameWithTemplateArgs) {
       const NameWithTemplateArgs *NWTA =
@@ -702,7 +693,7 @@ private:
   }
 
 private:
-  ASTContext *ContextAST = nullptr;
+  ASTContext *AST = nullptr;
   std::unique_ptr<clang::MangleContext> MangleContext{};
   const Node *Root = nullptr;
   SmallDenseMap<const char *, const char *> TypeReplacements{};
@@ -721,15 +712,14 @@ class TargetTypeReplacements {
   void createRemangledTypeReplacements() {
     // RemangleTypes which are not aliases or not the exact same alias
     // type
-    for (auto &TypeReplacementPair : ParameterTypeReplacements)
-      if (CloneTypeReplacements.find(TypeReplacementPair.getFirst()) ==
-          CloneTypeReplacements.end())
-        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
-            TypeReplacementPair.getSecond();
-      else if (CloneTypeReplacements[TypeReplacementPair.getFirst()] !=
-               TypeReplacementPair.getSecond())
-        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
-            TypeReplacementPair.getSecond();
+    for (auto &PTR : ParameterTypeReplacements) {
+      const char *From = PTR.getFirst();
+      const char *To = PTR.getSecond();
+      if (CloneTypeReplacements.find(From) == CloneTypeReplacements.end())
+        RemangledCloneTypeReplacements[From] = To;
+      else if (CloneTypeReplacements[From] != To)
+        RemangledCloneTypeReplacements[From] = To;
+    }
   }
 
 public:
@@ -751,8 +741,8 @@ public:
       CloneTypeReplacements["unsigned long"] = "unsigned long long";
     }
 
-    // Make replaced char functions clones of either integer or long
-    // long variant
+    // Make replaced char functions clones of explicit signed char or unsigned
+    // char type
     if (CharSignedness == Signedness::Signed) {
       CloneTypeReplacements["char"] = "signed char";
     } else {
@@ -778,16 +768,16 @@ public:
 
 class LibCLCRemangler : public ASTConsumer {
 public:
-  LibCLCRemangler() : ContextAST(nullptr), ContextLLVM(), Replacements() {}
+  LibCLCRemangler() : ASTCtx(nullptr), LLVMCtx(), Replacements() {}
 
   void Initialize(ASTContext &C) override {
-    ContextAST = &C;
+    ASTCtx = &C;
     SMDiagnostic Err;
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
     std::unique_ptr<llvm::Module> const M =
         ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
-            parseIR(Buff.get()->getMemBufferRef(), Err, ContextLLVM)));
+            parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx)));
 
     handleModule(M.get());
   }
@@ -804,11 +794,8 @@ private:
       return false;
 
     // create clone of remangled function
-    if (!createCloneFromMap(M, RemangledName, FunctionTree,
-                            Replacements.getRemangledCloneTypeReplacements()))
-      return false;
-
-    return true;
+    return createCloneFromMap(M, RemangledName, FunctionTree,
+                              Replacements.getRemangledCloneTypeReplacements());
   }
 
   bool
@@ -816,7 +803,7 @@ private:
                      const itanium_demangle::Node *FunctionTree,
                      SmallDenseMap<const char *, const char *> TypeReplacements,
                      bool CloneeTypeReplacement = false) {
-    Remangler ATR{ContextAST, FunctionTree, TypeReplacements};
+    Remangler ATR{ASTCtx, FunctionTree, TypeReplacements};
 
     std::string const RemangledName = ATR.remangle();
 
@@ -836,16 +823,14 @@ private:
       CloneeName = OriginalName;
     }
 
-    Function *Clonee = M->getFunction(CloneeName);
-    if (Clonee) {
+    if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
-      NewF->setName(std::string(CloneName));
+      NewF->setName(CloneName.str());
     } else if (Verbose) {
-      std::cout << "Could not create copy " << CloneName.data() << " : missing "
-                << CloneeName.data() << std::endl;
+      errs() << "Could not create copy " << CloneName.data() << " : missing "
+             << CloneeName.data() << '\n';
     }
-
     return true;
   }
 
@@ -854,17 +839,16 @@ private:
       return true;
 
     std::string const MangledName = Func.getName().str();
-    Demangler D{MangledName.c_str(),
-                MangledName.c_str() + MangledName.length()};
+    Demangler D{MangledName.data(), MangledName.data() + MangledName.size()};
     const itanium_demangle::Node *FunctionTree = D.parse();
-    if (FunctionTree == nullptr) {
+    if (!FunctionTree) {
       errs() << "Unable to demangle name: " << MangledName << '\n';
       return false;
     }
 
     // Try to change the parameter types in the function name using the
     // mappings.
-    Remangler R{ContextAST, FunctionTree,
+    Remangler R{ASTCtx, FunctionTree,
                 Replacements.getParameterTypeReplacements()};
 
     std::string const RemangledName = R.remangle();
@@ -874,16 +858,15 @@ private:
 
     if (RemangledName != MangledName) {
       if (Verbose || TestRun) {
-        std::cout << "Mangling changed:"
-                  << "\n"
-                  << "Original:  " << MangledName << "\n"
-                  << "New:       " << RemangledName << "\n"
-                  << std::endl;
+        errs() << "Mangling changed:"
+               << "\n"
+               << "Original:  " << MangledName << "\n"
+               << "New:       " << RemangledName << "\n";
       }
       // In test run mode, where no substitution is made, change in mangling
       // name represents a failure. Report an error.
       if (TestRun) {
-        std::cout << "Test run failure!" << std::endl;
+        errs() << "Test run failure!\n";
         return false;
       }
       Func.setName(RemangledName);
@@ -894,7 +877,6 @@ private:
                         Replacements))
         return false;
     }
-
     return true;
   }
 
@@ -921,11 +903,8 @@ private:
       FuncList.push_back(&Func);
 
     bool Success = true;
-    unsigned NumProcessed = 0;
-    for (auto *Func : FuncList) {
-      Success = remangleFunction(*Func, M) && Success;
-      ++NumProcessed;
-    }
+    for (auto *Func : FuncList)
+      Success &= remangleFunction(*Func, M);
     // Only fail after all to give as much context as possible.
     if (!Success) {
       errs() << "Failed to remangle all mangled functions in module.\n";
@@ -934,20 +913,23 @@ private:
 
     if (TestRun) {
       if (Verbose)
-        std::cout << "Successfully processed: " << NumProcessed << " functions."
-                  << std::endl;
+        errs() << "Successfully processed: " << FuncList.size()
+               << " functions.\n";
       return;
     }
 
-    WriteBitcodeToFile(*M, Out->os());
+    if (TextualOut)
+      M->print(Out->os(), nullptr, true);
+    else
+      WriteBitcodeToFile(*M, Out->os());
 
     // Declare success.
     Out->keep();
   }
 
 private:
-  ASTContext *ContextAST;
-  LLVMContext ContextLLVM;
+  ASTContext *ASTCtx;
+  LLVMContext LLVMCtx;
   TargetTypeReplacements Replacements;
 };
 
