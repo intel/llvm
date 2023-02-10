@@ -5,6 +5,7 @@
 
 // This performs basic checks such as reduction creation, getIdentity() method,
 // and the combine() method of the aux class 'reducer'.
+// Note: This test relies on non-standard implementation details.
 
 #include "reduction_utils.hpp"
 #include <cassert>
@@ -24,8 +25,10 @@ void test_reducer(Reduction &Redu, T A, T B) {
 
   typename Reduction::binary_operation BOp;
   T ExpectedValue = BOp(A, B);
-  assert(ExpectedValue == Reducer.MValue &&
+  assert(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0) &&
          "Wrong result of binary operation.");
+  assert(toBool(Reducer.identity() == Redu.getIdentity()) &&
+         "Failed identity() check().");
 }
 
 template <typename T, typename Reduction, typename BinaryOperation>
@@ -35,8 +38,11 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
   Reducer.combine(B);
 
   T ExpectedValue = BOp(A, B);
-  assert(toBool(ExpectedValue == Reducer.MValue) &&
-         "Wrong result of binary operation.");
+  assert(
+      toBool(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0)) &&
+      "Wrong result of binary operation.");
+  assert(toBool(Reducer.identity() == Redu.getIdentity()) &&
+         "Failed identity() check().");
 }
 
 template <typename... Ts> class KernelNameGroup;
