@@ -53,8 +53,14 @@ public:
   // Remove during next ABI breaking window
   void flush();
 
+  size_t size() const noexcept;
+
+  size_t get_work_item_buffer_size() const;
+
+  // TODO: Unusued. Remove when ABI-break is allowed.
   size_t get_size() const;
 
+  // TODO: Unusued. Remove when ABI-break is allowed.
   size_t get_max_statement_size() const;
 
   template <typename propertyT> bool has_property() const noexcept {

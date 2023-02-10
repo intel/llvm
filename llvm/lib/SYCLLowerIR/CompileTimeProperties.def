@@ -16,3 +16,18 @@
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
 SYCL_COMPILE_TIME_PROPERTY("sycl-init-mode", 6148, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-implement-in-csr", 6149, DecorValueTy::boolean)
+
+// The corresponding SPIR-V OpCodes for kernel pointer/arg properties
+// https://github.com/intel-innersource/documentation.xpu.architecture.spirv-extension-drafts/pull/70
+SYCL_COMPILE_TIME_PROPERTY("sycl-buffer-location", 5921, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-conduit", 6175, DecorValueTy::boolean)
+SYCL_COMPILE_TIME_PROPERTY("sycl-register-map", 6176, DecorValueTy::boolean)
+SYCL_COMPILE_TIME_PROPERTY("sycl-awidth", 6177, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-dwidth", 6178, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-latency", 6179, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-read-write-mode", 6180, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-maxburst", 6181, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-alignment", 6182, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-wait-request", 6183, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-stable", 6184, DecorValueTy::boolean)
+SYCL_COMPILE_TIME_PROPERTY("sycl-strict", 19, DecorValueTy::boolean)
