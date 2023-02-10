@@ -318,12 +318,13 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
 }
 
 // Forward declarations
-static pi_result
-enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
-                     pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event,
-                     bool PreferCopyEngine = false);
+static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
+                                      pi_queue Queue, void *Dst,
+                                      pi_bool BlockingWrite, size_t Size,
+                                      const void *Src,
+                                      pi_uint32 NumEventsInWaitList,
+                                      const pi_event *EventWaitList,
+                                      pi_event *Event, bool PreferCopyEngine);
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, const void *SrcBuffer,
@@ -577,19 +578,30 @@ pi_result _pi_context::initialize() {
     createUSMAllocators(SingleRootDevice);
   }
 
-  // Create the immediate command list to be used for initializations
+  // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
   //
-  // TODO: get rid of using Devices[0] for the context with multiple
-  // root-devices. We should somehow make the data initialized on all devices.
+  // TODO: we use Device[0] here as the single immediate command-list
+  // for buffer creation and migration. Initialization is in
+  // in sync and is always performed to Devices[0] as well but
+  // D2D migartion, if no P2P, is broken since it should use
+  // immediate command-list for the specfic devices, and this single one.
+  //
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
 
-  // NOTE: we always submit to the "0" index compute engine with immediate
-  // command list since this is one for context.
+  // Prefer to use copy engine for initialization copies,
+  // if available and allowed (main copy engine with index 0).
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
   ZeCommandQueueDesc.ordinal =
       Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
+  if (Range.first >= 0 &&
+      Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy].ZeOrdinal !=
+          -1)
+    ZeCommandQueueDesc.ordinal =
+        Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy].ZeOrdinal;
+
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
@@ -5646,7 +5658,8 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_CALL(Src->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size, ZeHandleSrc + Offset,
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -5913,7 +5926,8 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
                               ZeHandleDst + Offset, // dst
                               BlockingWrite, Size,
                               Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
