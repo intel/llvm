@@ -2049,10 +2049,12 @@ public:
     if (!op.getType().isa<IntegerType>() || op.getType().isInteger(1))
       return failure();
 
+    // Determines whether the given value fits into a boolean type.
     auto getI1 = [&op, &rewriter](Value val) -> Value {
+      constexpr int typeWidth = 1;
       if (matchPattern(val, m_Op<arith::ExtUIOp>())) {
         Value result = val.getDefiningOp()->getOperand(0);
-        if (result.getType().cast<IntegerType>().isInteger(1))
+        if (result.getType().cast<IntegerType>().isInteger(typeWidth))
           return result;
       }
 
@@ -2060,7 +2062,7 @@ public:
       if (matchPattern(val, m_Constant(&intAttr))) {
         if (intAttr.getInt() == 0 || intAttr.getInt() == 1)
           return rewriter.create<ConstantIntOp>(op.getLoc(), intAttr.getInt(),
-                                                1);
+                                                typeWidth);
       }
 
       return nullptr;
