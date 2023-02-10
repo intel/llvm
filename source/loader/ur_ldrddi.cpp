@@ -2874,7 +2874,7 @@ namespace loader
         ur_device_type_t DeviceType,                    ///< [in] the type of the devices.
         uint32_t NumEntries,                            ///< [in] the number of devices to be added to phDevices.
                                                         ///< If phDevices in not NULL then NumEntries should be greater than zero,
-                                                        ///< otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                                        ///< otherwise ::UR_RESULT_ERROR_INVALID_VALUE,
                                                         ///< will be returned.
         ur_device_handle_t* phDevices,                  ///< [out][optional][range(0, NumEntries)] array of handle of devices.
                                                         ///< If NumEntries is less than the number of devices available, then
@@ -2925,7 +2925,7 @@ namespace loader
         void* pDeviceInfo,                              ///< [out][optional] array of bytes holding the info.
                                                         ///< If propSize is not equal to or greater than the real number of bytes
                                                         ///< needed to return the info
-                                                        ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                        ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
                                                         ///< pDeviceInfo is not used.
         size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of the queried infoType.
         )
@@ -3047,8 +3047,9 @@ namespace loader
     urDeviceSelectBinary(
         ur_device_handle_t hDevice,                     ///< [in] handle of the device to select binary for.
         const uint8_t** ppBinaries,                     ///< [in] the array of binaries to select from.
-        uint32_t NumBinaries,                           ///< [in] the number of binaries passed in ppBinaries. Must greater than or
-                                                        ///< equal to zero.
+        uint32_t NumBinaries,                           ///< [in] the number of binaries passed in ppBinaries. 
+                                                        ///< Must greater than or equal to zero otherwise
+                                                        ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
         uint32_t* pSelectedBinary                       ///< [out] the index of the selected binary in the input array of binaries.
                                                         ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
         )
