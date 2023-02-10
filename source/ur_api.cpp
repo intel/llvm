@@ -1877,6 +1877,16 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 ///     - Any spec constants set with this entry point will apply only to
 ///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
 ///
+/// @details
+///     - `hProgram` must have been created with the ::urProgramCreateWithIL
+///       entry point.
+///     - Any spec constants set with this entry point will apply only to
+///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
+///
+/// @remarks
+///   _Analogues_
+///     - **clSetProgramSpecializationConstant**
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
