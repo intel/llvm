@@ -17,7 +17,7 @@
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 ;
-; CHECK-SPIRV: EntryPoint {{[0-9]+}} [[KERNEL_ID:[0-9]+]] "test"
+; CHECK-SPIRV: Name [[KERNEL_ID:[0-9]+]] "test"
 ; CHECK-SPIRV: TypeInt [[INT32_TYPE_ID:[0-9]+]] 32
 ; CHECK-SPIRV: TypePointer [[INT_PTR:[0-9]+]] 5 [[INT32_TYPE_ID]]
 ; CHECK-SPIRV: TypeFunction [[FOO_TYPE_ID:[0-9]+]] [[INT32_TYPE_ID]] [[INT32_TYPE_ID]]

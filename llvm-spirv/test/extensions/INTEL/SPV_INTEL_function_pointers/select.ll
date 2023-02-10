@@ -6,7 +6,7 @@
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: EntryPoint 6 [[#KERNEL_ID:]] "_ZTS6kernel"
+; CHECK-SPIRV: Name [[#KERNEL_ID:]] "_ZTS6kernel"
 ; CHECK-SPIRV-DAG: Name [[#BAR:]] "_Z3barii"
 ; CHECK-SPIRV-DAG: Name [[#BAZ:]] "_Z3bazii"
 ; CHECK-SPIRV: TypeInt [[#INT32:]] 32

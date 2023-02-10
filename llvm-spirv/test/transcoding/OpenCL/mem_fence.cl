@@ -34,7 +34,7 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags) {
   // mem_fence(flags);
 }
 
-// CHECK-SPIRV: EntryPoint {{[0-9]+}} [[TEST_CONST_FLAGS:[0-9]+]] "test_mem_fence_const_flags"
+// CHECK-SPIRV: Name [[TEST_CONST_FLAGS:[0-9]+]] "test_mem_fence_const_flags"
 // CHECK-SPIRV: TypeInt [[UINT:[0-9]+]] 32 0
 //
 // In SPIR-V, mem_fence is represented as OpMemoryBarrier [2] and OpenCL

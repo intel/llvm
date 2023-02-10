@@ -41,8 +41,8 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 
-; CHECK-SPIRV-WORKAROUND: String 17 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
-; CHECK-SPIRV-WORKAROUND-NEGATIVE-NOT: String 17 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
+; CHECK-SPIRV-WORKAROUND: String 21 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
+; CHECK-SPIRV-WORKAROUND-NEGATIVE-NOT: String 21 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
 
 ; CHECK-LLVM-WORKAROUND: !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-WORKAROUND: [[TYPE]] = !{!"cl::tt::vec<float, 4>*"}
