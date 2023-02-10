@@ -20,9 +20,11 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/Passes/Utils.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-to-llvm"
@@ -528,11 +530,19 @@ private:
   }
 };
 
-// TODO: Push fix when testing is possible.
-#if 0
 //===----------------------------------------------------------------------===//
 // SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
 //===----------------------------------------------------------------------===//
+
+Value rangeGet(OpBuilder &builder, Location loc, Value range, LLVM::GEPArg i) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      range.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), range,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0, i}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
 
 class RangeGetPattern : public ConvertOpToLLVMPattern<SYCLRangeGetOp> {
 public:
@@ -544,33 +554,14 @@ public:
 
   void rewrite(SYCLRangeGetOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
-    const auto loc = op.getLoc();
-    const auto range = opAdaptor.getRange();
-    auto *typeConverter = getTypeConverter();
-    const auto alignment = op.getRange().getDimension() * 8;
-    const auto alloca = static_cast<Value>(rewriter.create<LLVM::AllocaOp>(
-        loc,
-        LLVM::LLVMPointerType::get(typeConverter->convertType(range.getType())),
-        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1),
-        alignment));
-    rewriter.create<LLVM::StoreOp>(loc, range, alloca);
-    const auto ref = static_cast<Value>(rewriter.create<LLVM::GEPOp>(
-        loc,
-        LLVM::LLVMPointerType::get(typeConverter->convertType(op.getType())),
-        alloca, ArrayRef<LLVM::GEPArg>{0, 0, 0, opAdaptor.getIndex()},
-        /*inbounds*/ true));
-    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, ref, alignment);
+    rewriter.replaceOp(op, rangeGet(rewriter, op.getLoc(), opAdaptor.getRange(),
+                                    opAdaptor.getIndex()));
   }
 };
 
 //===----------------------------------------------------------------------===//
 // SYCLRangeSizePattern - Convert `sycl.range.size` to LLVM.
 //===----------------------------------------------------------------------===//
-
-Value rangeGet(OpBuilder &builder, Location loc, Value range, int64_t i) {
-  return builder.create<LLVM::ExtractValueOp>(loc, range,
-                                              ArrayRef<int64_t>{0, 0, i});
-}
 
 class RangeSizePattern : public ConvertOpToLLVMPattern<SYCLRangeSizeOp> {
 public:
@@ -580,12 +571,12 @@ public:
   matchAndRewrite(SYCLRangeSizeOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    auto size = static_cast<Value>(
-        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1));
+    Value size =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1);
     const auto range = opAdaptor.getRange();
-    for (unsigned i = 0, dim = op.getRange().getType().getDimension(); i < dim;
+    for (unsigned i = 0, dim = getDimensions(op.getRange().getType()); i < dim;
          ++i) {
-      const auto val = rangeGet(rewriter, loc, range, static_cast<int64_t>(i));
+      const auto val = rangeGet(rewriter, loc, range, static_cast<int32_t>(i));
       size = rewriter.create<LLVM::MulOp>(loc, size, val);
     }
     rewriter.replaceOp(op, size);
@@ -599,8 +590,13 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// Extract the global range out of an ND-range
-Value getGlobalRange(OpBuilder &builder, Location loc, Value nd) {
-  return builder.create<LLVM::ExtractValueOp>(loc, nd, ArrayRef<int64_t>{0});
+Value getGlobalRange(OpBuilder &builder, Location loc, Value nd, RangeType ty) {
+  const auto addressSpace =
+      nd.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), nd,
+      ArrayRef<LLVM::GEPArg>{0, 0}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
 }
 
 /// Convert SYCLNdRangeGetGlobalRange to LLVM
@@ -615,8 +611,8 @@ public:
   LogicalResult
   matchAndRewrite(SYCLNdRangeGetGlobalRange op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.replaceOp(
-        op, getGlobalRange(rewriter, op.getLoc(), opAdaptor.getND()));
+    rewriter.replaceOp(op, getGlobalRange(rewriter, op.getLoc(),
+                                          opAdaptor.getND(), op.getType()));
     return success();
   }
 };
@@ -627,8 +623,13 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// Extract the local range out of an ND-range
-Value getLocalRange(OpBuilder &builder, Location loc, Value nd) {
-  return builder.create<LLVM::ExtractValueOp>(loc, nd, ArrayRef<int64_t>{1});
+Value getLocalRange(OpBuilder &builder, Location loc, Value nd, RangeType ty) {
+  const auto addressSpace =
+      nd.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), nd,
+      ArrayRef<LLVM::GEPArg>{0, 1}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
 }
 
 /// Convert SYCLNdRangeGetLocalRange to LLVM
@@ -643,8 +644,8 @@ public:
   LogicalResult
   matchAndRewrite(SYCLNdRangeGetLocalRange op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.replaceOp(op,
-                       getLocalRange(rewriter, op.getLoc(), opAdaptor.getND()));
+    rewriter.replaceOp(op, getLocalRange(rewriter, op.getLoc(),
+                                         opAdaptor.getND(), op.getType()));
     return success();
   }
 };
@@ -653,6 +654,28 @@ public:
 // NDRangeGetGroupRangePattern - Converts `sycl.nd_range.get_group_range` to
 // LLVM.
 //===----------------------------------------------------------------------===//
+
+Value ndRangeGetGlobalDim(OpBuilder &builder, Location loc, Value nd,
+                          int32_t dim) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      nd.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), nd,
+      ArrayRef<LLVM::GEPArg>{0, 0, 0, 0, dim}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
+
+Value ndRangeGetLocalDim(OpBuilder &builder, Location loc, Value nd,
+                         int32_t dim) {
+  const auto ty = builder.getI64Type();
+  const auto addressSpace =
+      nd.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+  const Value gep = builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMPointerType::get(ty, addressSpace), nd,
+      ArrayRef<LLVM::GEPArg>{0, 1, 0, 0, dim}, /*inbounds*/ true);
+  return builder.create<LLVM::LoadOp>(loc, gep);
+}
 
 /// Convert SYCLNdRangeGetGroupRange to LLVM
 ///
@@ -669,24 +692,25 @@ public:
                   ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
     const auto nd = opAdaptor.getND();
-    const auto globalRange = getGlobalRange(rewriter, loc, nd);
-    const auto localRange = getLocalRange(rewriter, loc, nd);
     const auto rangeTy = op.getType();
-    auto result = static_cast<Value>(rewriter.create<LLVM::UndefOp>(
-        loc, getTypeConverter()->convertType(rangeTy)));
-    for (unsigned i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
-      const auto lhs = rangeGet(rewriter, loc, globalRange, i);
-      const auto rhs = rangeGet(rewriter, loc, localRange, i);
-      const auto val =
-          static_cast<Value>(rewriter.create<LLVM::UDivOp>(loc, lhs, rhs));
-      result = rewriter.create<LLVM::InsertValueOp>(loc, result, val,
-                                                    ArrayRef<int64_t>{0, 0, i});
+    Value alloca = rewriter.create<LLVM::AllocaOp>(
+        loc, LLVM::LLVMPointerType::get(typeConverter->convertType(rangeTy)),
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 1),
+        /*alignment*/ 0);
+    const auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getI64Type());
+    for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
+      const auto lhs = ndRangeGetGlobalDim(rewriter, loc, nd, i);
+      const auto rhs = ndRangeGetLocalDim(rewriter, loc, nd, i);
+      const Value val = rewriter.create<LLVM::UDivOp>(loc, lhs, rhs);
+      const Value ptr = rewriter.create<LLVM::GEPOp>(
+          loc, ptrTy, alloca, ArrayRef<LLVM::GEPArg>{0, 0, 0, i},
+          /*inbounds*/ true);
+      rewriter.create<LLVM::StoreOp>(loc, val, ptr);
     }
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
     return success();
   }
 };
-#endif // 0
 
 //===----------------------------------------------------------------------===//
 // Pattern population
@@ -801,11 +825,9 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
-#if 0
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns
         .add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
              NDRangeGetGroupRangePattern, RangeGetPattern, RangeSizePattern>(
             typeConverter);
-#endif // 0
 }
