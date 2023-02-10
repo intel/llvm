@@ -1978,10 +1978,8 @@ static pi_result SetKernelParamsAndLaunch(
       Requirement *Req = (Requirement *)(Arg.MPtr);
       if (Req->MAccessRange == range<3>({0, 0, 0}))
         break;
-      if (getMemAllocationFunc == nullptr)
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
+      assert(getMemAllocationFunc != nullptr &&
+             "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
