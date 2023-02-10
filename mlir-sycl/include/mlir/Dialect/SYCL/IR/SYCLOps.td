@@ -113,6 +113,10 @@ class SYCLMethodOpInterfaceImpl<
   let extraClassDefinition = [{
     constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
   }];
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -779,6 +783,10 @@ def SYCLRangeGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
+
+  let assemblyFormat = [{
+    $Range `[` $Index `]` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -886,6 +894,10 @@ def SYCLIDGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
+
+  let assemblyFormat = [{
+    $ID `[` $Index `]` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

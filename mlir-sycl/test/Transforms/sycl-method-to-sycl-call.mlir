@@ -44,7 +44,7 @@ func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1:
 // CHECK-NEXT:    }
 
 func.func @range_get(%arg0: !sycl_range_2_, %arg1: i32) -> i64 {
-  %0 = "sycl.range.get"(%arg0, %arg1) {ArgumentTypes = [memref<?x!sycl_array_2_, 4>, i32], FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_range_2_, i32) -> i64
+  %0 = sycl.range.get %arg0[%arg1] {ArgumentTypes = [memref<?x!sycl_array_2_, 4>, i32], FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_range_2_, i32) -> i64
   return %0 : i64
 }
 
@@ -61,7 +61,7 @@ func.func @range_get(%arg0: !sycl_range_2_, %arg1: i32) -> i64 {
 // CHECK-NEXT:    }
 
 func.func @range_size(%arg0: !sycl_range_2_) -> i64 {
-  %0 = "sycl.range.size"(%arg0) {ArgumentTypes = [memref<?x!sycl_range_2_, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (!sycl_range_2_) -> i64
+  %0 = sycl.range.size(%arg0) {ArgumentTypes = [memref<?x!sycl_range_2_, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (!sycl_range_2_) -> i64
   return %0 : i64
 }
 
@@ -78,6 +78,6 @@ func.func @range_size(%arg0: !sycl_range_2_) -> i64 {
 // CHECK-NEXT:    }
 
 func.func @sycl_item_get_id(%arg0: !sycl_item_1_) -> !sycl_id_1_ {
-  %0 = "sycl.item.get_id"(%arg0) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>], FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (!sycl_item_1_) -> !sycl_id_1_
+  %0 = sycl.item.get_id(%arg0) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>], FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (!sycl_item_1_) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }
