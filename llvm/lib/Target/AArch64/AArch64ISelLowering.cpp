@@ -140,6 +140,17 @@ static cl::opt<unsigned> MaxXors("aarch64-max-xors", cl::init(16), cl::Hidden,
 /// Value type used for condition codes.
 static const MVT MVT_CC = MVT::i32;
 
+static const MCPhysReg GPRArgRegs[] = {AArch64::X0, AArch64::X1, AArch64::X2,
+                                       AArch64::X3, AArch64::X4, AArch64::X5,
+                                       AArch64::X6, AArch64::X7};
+static const MCPhysReg FPRArgRegs[] = {AArch64::Q0, AArch64::Q1, AArch64::Q2,
+                                       AArch64::Q3, AArch64::Q4, AArch64::Q5,
+                                       AArch64::Q6, AArch64::Q7};
+
+const ArrayRef<MCPhysReg> llvm::AArch64::getGPRArgRegs() { return GPRArgRegs; }
+
+const ArrayRef<MCPhysReg> llvm::AArch64::getFPRArgRegs() { return FPRArgRegs; }
+
 static inline EVT getPackedSVEVectorVT(EVT VT) {
   switch (VT.getSimpleVT().SimpleTy) {
   default:
@@ -6693,10 +6704,8 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
 
   SmallVector<SDValue, 8> MemOps;
 
-  static const MCPhysReg GPRArgRegs[] = { AArch64::X0, AArch64::X1, AArch64::X2,
-                                          AArch64::X3, AArch64::X4, AArch64::X5,
-                                          AArch64::X6, AArch64::X7 };
-  unsigned NumGPRArgRegs = std::size(GPRArgRegs);
+  auto GPRArgRegs = AArch64::getGPRArgRegs();
+  unsigned NumGPRArgRegs = GPRArgRegs.size();
   if (Subtarget->isWindowsArm64EC()) {
     // In the ARM64EC ABI, only x0-x3 are used to pass arguments to varargs
     // functions.
@@ -6746,10 +6755,8 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
   FuncInfo->setVarArgsGPRSize(GPRSaveSize);
 
   if (Subtarget->hasFPARMv8() && !IsWin64) {
-    static const MCPhysReg FPRArgRegs[] = {
-        AArch64::Q0, AArch64::Q1, AArch64::Q2, AArch64::Q3,
-        AArch64::Q4, AArch64::Q5, AArch64::Q6, AArch64::Q7};
-    static const unsigned NumFPRArgRegs = std::size(FPRArgRegs);
+    auto FPRArgRegs = AArch64::getFPRArgRegs();
+    const unsigned NumFPRArgRegs = FPRArgRegs.size();
     unsigned FirstVariadicFPR = CCInfo.getFirstUnallocated(FPRArgRegs);
 
     unsigned FPRSaveSize = 16 * (NumFPRArgRegs - FirstVariadicFPR);
@@ -9771,7 +9778,7 @@ bool AArch64TargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
     IsLegal = Insn.size() <= Limit;
   }
 
-  LLVM_DEBUG(dbgs() << (IsLegal ? "Legal " : "Illegal ") << VT.getEVTString()
+  LLVM_DEBUG(dbgs() << (IsLegal ? "Legal " : "Illegal ") << VT
                     << " imm value: "; Imm.dump(););
   return IsLegal;
 }
@@ -15281,7 +15288,7 @@ static SDValue performVecReduceAddCombine(SDNode *N, SelectionDAG &DAG,
 // matter. We can convert UADDV(add(zext(extract_lo(x)), zext(extract_hi(x))))
 // into UADDV(UADDLP(x)). This can also happen through an extra add, where we
 // transform UADDV(add(y, add(zext(extract_lo(x)), zext(extract_hi(x))))).
-static SDValue performUADDVCombine(SDNode *N, SelectionDAG &DAG) {
+static SDValue performUADDVAddCombine(SDValue A, SelectionDAG &DAG) {
   auto DetectAddExtract = [&](SDValue A) {
     // Look for add(zext(extract_lo(x)), zext(extract_hi(x))), returning
     // UADDLP(x) if found.
@@ -15315,22 +15322,27 @@ static SDValue performUADDVCombine(SDNode *N, SelectionDAG &DAG) {
     return DAG.getNode(Opcode, SDLoc(A), VT, Ext0.getOperand(0));
   };
 
-  SDValue A = N->getOperand(0);
   if (SDValue R = DetectAddExtract(A))
-    return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0), R);
-  if (A.getOpcode() == ISD::ADD) {
-    if (SDValue R = DetectAddExtract(A.getOperand(0)))
-      return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0),
-                         DAG.getNode(ISD::ADD, SDLoc(A), A.getValueType(), R,
-                                     A.getOperand(1)));
-    if (SDValue R = DetectAddExtract(A.getOperand(1)))
-      return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0),
-                         DAG.getNode(ISD::ADD, SDLoc(A), A.getValueType(), R,
-                                     A.getOperand(0)));
-  }
+    return R;
+
+  if (A.getOperand(0).getOpcode() == ISD::ADD && A.getOperand(0).hasOneUse())
+    if (SDValue R = performUADDVAddCombine(A.getOperand(0), DAG))
+      return DAG.getNode(ISD::ADD, SDLoc(A), A.getValueType(), R,
+                         A.getOperand(1));
+  if (A.getOperand(1).getOpcode() == ISD::ADD && A.getOperand(1).hasOneUse())
+    if (SDValue R = performUADDVAddCombine(A.getOperand(1), DAG))
+      return DAG.getNode(ISD::ADD, SDLoc(A), A.getValueType(), R,
+                         A.getOperand(0));
   return SDValue();
 }
 
+static SDValue performUADDVCombine(SDNode *N, SelectionDAG &DAG) {
+  SDValue A = N->getOperand(0);
+  if (A.getOpcode() == ISD::ADD)
+    if (SDValue R = performUADDVAddCombine(A, DAG))
+      return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0), R);
+  return SDValue();
+}
 
 static SDValue performXorCombine(SDNode *N, SelectionDAG &DAG,
                                  TargetLowering::DAGCombinerInfo &DCI,
@@ -18295,12 +18307,24 @@ static SDValue performIntrinsicCombine(SDNode *N,
     return convertMergedOpToPredOp(N, ISD::SUB, DAG, true, true);
   case Intrinsic::aarch64_sve_and:
     return convertMergedOpToPredOp(N, ISD::AND, DAG, true);
+  case Intrinsic::aarch64_sve_and_u:
+    return DAG.getNode(ISD::AND, SDLoc(N), N->getValueType(0), N->getOperand(2),
+                       N->getOperand(3));
   case Intrinsic::aarch64_sve_bic:
     return convertMergedOpToPredOp(N, AArch64ISD::BIC, DAG, true);
+  case Intrinsic::aarch64_sve_bic_u:
+    return DAG.getNode(AArch64ISD::BIC, SDLoc(N), N->getValueType(0),
+                       N->getOperand(2), N->getOperand(3));
   case Intrinsic::aarch64_sve_eor:
     return convertMergedOpToPredOp(N, ISD::XOR, DAG, true);
+  case Intrinsic::aarch64_sve_eor_u:
+    return DAG.getNode(ISD::XOR, SDLoc(N), N->getValueType(0), N->getOperand(2),
+                       N->getOperand(3));
   case Intrinsic::aarch64_sve_orr:
     return convertMergedOpToPredOp(N, ISD::OR, DAG, true);
+  case Intrinsic::aarch64_sve_orr_u:
+    return DAG.getNode(ISD::OR, SDLoc(N), N->getValueType(0), N->getOperand(2),
+                       N->getOperand(3));
   case Intrinsic::aarch64_sve_sabd:
     return convertMergedOpToPredOp(N, ISD::ABDS, DAG, true);
   case Intrinsic::aarch64_sve_sabd_u:
@@ -20352,6 +20376,7 @@ static SDValue performSETCCCombine(SDNode *N,
   // setcc (srl x, imm), 0, ne ==> setcc (and x, (-1 << imm)), 0, ne
   if (Cond == ISD::SETNE && isNullConstant(RHS) &&
       LHS->getOpcode() == ISD::SRL && isa<ConstantSDNode>(LHS->getOperand(1)) &&
+      LHS->getConstantOperandVal(1) < VT.getScalarSizeInBits() &&
       LHS->hasOneUse()) {
     EVT TstVT = LHS->getValueType(0);
     if (TstVT.isScalarInteger() && TstVT.getFixedSizeInBits() <= 64) {

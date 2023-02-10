@@ -68,6 +68,7 @@ cc_test(
         "//clang:frontend",
         "//clang:tooling",
         "//llvm:Support",
+        "//llvm:TargetParser",
         "//llvm:TestingSupport",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
@@ -207,6 +208,7 @@ cc_test(
         "//clang:basic",
         "//clang:format",
         "//clang:frontend",
+        "//clang:rewrite",
         "//clang:tooling_core",
         "//llvm:Support",
         "//third-party/unittest:gmock",
@@ -253,6 +255,7 @@ cc_test(
     deps = [
         "//clang:ast",
         "//clang:basic",
+        "//clang:frontend",
         "//clang:lex",
         "//clang:parse",
         "//clang:sema",
@@ -260,8 +263,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//third-party/unittest:gmock",
-        "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
+        "//third-party/unittest:gtest",
     ],
 )
 

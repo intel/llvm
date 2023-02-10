@@ -12,9 +12,9 @@
 #include "src/__support/CPP/bit.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/common.h"
-#include "src/__support/macros/architectures.h"
+#include "src/__support/macros/properties/architectures.h"
 
-#if !defined(LIBC_TARGET_IS_X86)
+#if !defined(LIBC_TARGET_ARCH_IS_X86)
 #error "Invalid include"
 #endif
 

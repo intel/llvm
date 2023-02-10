@@ -151,7 +151,7 @@ The primary goal of experimental support is to assist in the process of ratifica
   LLVM implements the `0.2 draft specification <https://github.com/riscv/riscv-isa-manual/releases/tag/draft-20220831-bf5a151>`_.
 
 ``experimental-ztso``
-  LLVM implements the `v0.1 proposed specification <https://github.com/riscv/riscv-isa-manual/releases/download/draft-20220723-10eea63/riscv-spec.pdf>`_ (see Chapter 25).  Using will set appropriate ELF flags and attributes, but does not yet change code generation.
+  LLVM implements the `v0.1 proposed specification <https://github.com/riscv/riscv-isa-manual/releases/download/draft-20220723-10eea63/riscv-spec.pdf>`_ (see Chapter 25).  The mapping from the C/C++ memory model to Ztso has not yet been ratified in any standards document.  There are multiple possible mappings, and they are *not* mutually ABI compatible.  The mapping LLVM implements is ABI compatible with the default WMO mapping.  This mapping may change and there is *explicitly* no ABI stability offered while the extension remains in experimental status.  User beware.
 
 ``experimental-zvfh``
   LLVM implements `this draft text <https://github.com/riscv/riscv-v-spec/pull/780>`_.
@@ -168,6 +168,9 @@ Inclusion of a vendor extension will be considered on a case by case basis.  All
 It is our intention to follow the naming conventions described in `riscv-non-isa/riscv-toolchain-conventions <https://github.com/riscv-non-isa/riscv-toolchain-conventions#conventions-for-vendor-extensions>`_.  Exceptions to this naming will need to be strongly motivated.
 
 The current vendor extensions supported are:
+
+``XTHeadBa``
+  LLVM implements `the THeadBa (address-generation) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
 
 ``XTHeadVdot``
   LLVM implements `version 1.0.0 of the THeadV-family custom instructions specification <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.0/xthead-2022-12-04-2.2.0.pdf>`_ by T-HEAD of Alibaba.  All instructions are prefixed with `th.` as described in the specification, and the riscv-toolchain-convention document linked above.

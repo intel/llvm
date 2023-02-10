@@ -10,7 +10,8 @@
 #define LLVM_LIBC_SRC_STRING_MEMORY_UTILS_BCMP_IMPLEMENTATIONS_H
 
 #include "src/__support/common.h"
-#include "src/__support/macros/architectures.h"
+#include "src/__support/macros/optimization.h"
+#include "src/__support/macros/properties/architectures.h"
 #include "src/string/memory_utils/op_aarch64.h"
 #include "src/string/memory_utils/op_builtin.h"
 #include "src/string/memory_utils/op_generic.h"
@@ -29,7 +30,7 @@ inline_bcmp_embedded_tiny(CPtr p1, CPtr p2, size_t count) {
   return BcmpReturnType::ZERO();
 }
 
-#if defined(LIBC_TARGET_IS_X86) || defined(LIBC_TARGET_IS_AARCH64)
+#if defined(LIBC_TARGET_ARCH_IS_X86) || defined(LIBC_TARGET_ARCH_IS_AARCH64)
 [[maybe_unused]] LIBC_INLINE BcmpReturnType
 inline_bcmp_generic_gt16(CPtr p1, CPtr p2, size_t count) {
   if (count < 256)
@@ -39,9 +40,10 @@ inline_bcmp_generic_gt16(CPtr p1, CPtr p2, size_t count) {
   align_to_next_boundary<64, Arg::P1>(p1, p2, count);
   return generic::Bcmp<64>::loop_and_tail(p1, p2, count);
 }
-#endif // defined(LIBC_TARGET_IS_X86) || defined(LIBC_TARGET_IS_AARCH64)
+#endif // defined(LIBC_TARGET_ARCH_IS_X86) ||
+       // defined(LIBC_TARGET_ARCH_IS_AARCH64)
 
-#if defined(LIBC_TARGET_IS_X86)
+#if defined(LIBC_TARGET_ARCH_IS_X86)
 [[maybe_unused]] LIBC_INLINE BcmpReturnType
 inline_bcmp_x86_sse2_gt16(CPtr p1, CPtr p2, size_t count) {
   if (count <= 32)
@@ -62,7 +64,7 @@ inline_bcmp_x86_avx2_gt16(CPtr p1, CPtr p2, size_t count) {
     return x86::avx2::Bcmp<32>::head_tail(p1, p2, count);
   if (count <= 128)
     return x86::avx2::Bcmp<64>::head_tail(p1, p2, count);
-  if (unlikely(count >= 256)) {
+  if (LIBC_UNLIKELY(count >= 256)) {
     if (auto value = x86::avx2::Bcmp<64>::block(p1, p2))
       return value;
     align_to_next_boundary<64, Arg::P1>(p1, p2, count);
@@ -78,7 +80,7 @@ inline_bcmp_x86_avx512bw_gt16(CPtr p1, CPtr p2, size_t count) {
     return x86::avx2::Bcmp<32>::head_tail(p1, p2, count);
   if (count <= 128)
     return x86::avx512bw::Bcmp<64>::head_tail(p1, p2, count);
-  if (unlikely(count >= 256)) {
+  if (LIBC_UNLIKELY(count >= 256)) {
     if (auto value = x86::avx512bw::Bcmp<64>::block(p1, p2))
       return value;
     align_to_next_boundary<64, Arg::P1>(p1, p2, count);
@@ -109,14 +111,14 @@ inline_bcmp_x86_avx512bw_gt16(CPtr p1, CPtr p2, size_t count) {
   else
     return inline_bcmp_generic_gt16(p1, p2, count);
 }
-#endif // defined(LIBC_TARGET_IS_X86)
+#endif // defined(LIBC_TARGET_ARCH_IS_X86)
 
-#if defined(LIBC_TARGET_IS_AARCH64)
+#if defined(LIBC_TARGET_ARCH_IS_AARCH64)
 [[maybe_unused]] LIBC_INLINE BcmpReturnType inline_bcmp_aarch64(CPtr p1,
                                                                 CPtr p2,
                                                                 size_t count) {
-  if (likely(count <= 32)) {
-    if (unlikely(count >= 16)) {
+  if (LIBC_LIKELY(count <= 32)) {
+    if (LIBC_UNLIKELY(count >= 16)) {
       return aarch64::Bcmp<16>::head_tail(p1, p2, count);
     }
     switch (count) {
@@ -151,23 +153,23 @@ inline_bcmp_x86_avx512bw_gt16(CPtr p1, CPtr p2, size_t count) {
     return aarch64::Bcmp<32>::head_tail(p1, p2, count);
 
   // Aligned loop if > 256, otherwise normal loop
-  if (unlikely(count > 256)) {
+  if (LIBC_UNLIKELY(count > 256)) {
     if (auto value = aarch64::Bcmp<32>::block(p1, p2))
       return value;
     align_to_next_boundary<16, Arg::P1>(p1, p2, count);
   }
   return aarch64::Bcmp<32>::loop_and_tail(p1, p2, count);
 }
-#endif // defined(LIBC_TARGET_IS_AARCH64)
+#endif // defined(LIBC_TARGET_ARCH_IS_AARCH64)
 
 LIBC_INLINE BcmpReturnType inline_bcmp(CPtr p1, CPtr p2, size_t count) {
-#if defined(LIBC_TARGET_IS_X86)
+#if defined(LIBC_TARGET_ARCH_IS_X86)
   return inline_bcmp_x86(p1, p2, count);
-#elif defined(LIBC_TARGET_IS_AARCH64)
+#elif defined(LIBC_TARGET_ARCH_IS_AARCH64)
   return inline_bcmp_aarch64(p1, p2, count);
-#elif defined(LIBC_TARGET_IS_ARM)
+#elif defined(LIBC_TARGET_ARCH_IS_ARM)
   return inline_bcmp_embedded_tiny(p1, p2, count);
-#elif defined(LIBC_TARGET_IS_GPU)
+#elif defined(LIBC_TARGET_ARCH_IS_GPU)
   return inline_bcmp_embedded_tiny(p1, p2, count);
 #else
 #error "Unsupported platform"

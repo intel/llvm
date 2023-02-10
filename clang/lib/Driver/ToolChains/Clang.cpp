@@ -54,12 +54,12 @@
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/TargetParser/ARMTargetParserCommon.h"
+#include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
 
@@ -6967,7 +6967,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
   if (Arg *A = Args.getLastArgNoClaim(options::OPT_p)) {
-    if (!TC.getTriple().isOSAIX() && !TC.getTriple().isOSOpenBSD()) {
+    if (TC.getTriple().isOSAIX()) {
+      CmdArgs.push_back("-pg");
+    } else if (!TC.getTriple().isOSOpenBSD()) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+    }
+  }
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_pg)) {
+    if (TC.getTriple().isOSzOS()) {
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     }

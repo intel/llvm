@@ -27,7 +27,8 @@
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/common.h"
 #include "src/__support/endian.h"
-#include "src/__support/macros/compiler_features.h"
+#include "src/__support/macros/optimization.h"
+#include "src/__support/macros/properties/compiler.h"
 #include "src/string/memory_utils/op_builtin.h"
 #include "src/string/memory_utils/utils.h"
 
@@ -123,7 +124,7 @@ static_assert((UINTPTR_MAX == 4294967295U) ||
                   (UINTPTR_MAX == 18446744073709551615UL),
               "We currently only support 32- or 64-bit platforms");
 
-#if defined(LIBC_TARGET_IS_X86_64) || defined(LIBC_TARGET_IS_AARCH64)
+#if defined(LIBC_TARGET_ARCH_IS_X86_64) || defined(LIBC_TARGET_ARCH_IS_AARCH64)
 #define LLVM_LIBC_HAS_UINT64
 #endif
 

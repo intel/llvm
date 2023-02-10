@@ -213,7 +213,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
     // across the loop nests.
     PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                 ForgetAllSCEVInLoopUnroll));
-    PM.add(createWarnMissedTransformationsPass());
   }
 
   if (!IsFullLTO) {
@@ -252,9 +251,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
     PM.add(createSLPVectorizerPass());
   }
 
-  // Enhance/cleanup vector code.
-  PM.add(createVectorCombinePass());
-
   if (!IsFullLTO) {
     PM.add(createInstructionCombiningPass());
 
@@ -273,8 +269,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
       PM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
                             /*AllowSpeculation=*/true));
     }
-
-    PM.add(createWarnMissedTransformationsPass());
   }
 
   // After vectorization and unrolling, assume intrinsics may tell us more
@@ -362,8 +356,6 @@ void PassManagerBuilder::populateModulePassManager(
     // and saves running remaining passes on the eliminated functions.
     MPM.add(createEliminateAvailableExternallyPass());
 
-  MPM.add(createReversePostOrderFunctionAttrsPass());
-
   // The inliner performs some kind of dead code elimination as it goes,
   // but there are cases that are not really caught by it. We might
   // at some point consider teaching the inliner about them, but it
@@ -407,9 +399,6 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createLoopDistributePass());
 
   addVectorPasses(MPM, /* IsFullLTO */ false);
-
-  // FIXME: We shouldn't bother with this anymore.
-  MPM.add(createStripDeadPrototypesPass()); // Get rid of dead prototypes
 
   // GlobalOpt already deletes dead functions and globals, at -O2 try a
   // late pass of GlobalDCE.  It is capable of deleting dead cycles.
@@ -483,8 +472,7 @@ LLVMPassManagerBuilderSetDisableSimplifyLibCalls(LLVMPassManagerBuilderRef PMB,
 void
 LLVMPassManagerBuilderUseInlinerWithThreshold(LLVMPassManagerBuilderRef PMB,
                                               unsigned Threshold) {
-  PassManagerBuilder *Builder = unwrap(PMB);
-  Builder->Inliner = createFunctionInliningPass(Threshold);
+  // TODO: remove this
 }
 
 void
