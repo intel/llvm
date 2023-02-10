@@ -263,6 +263,9 @@ struct _pi_mem {
   // Context where the memory object is accessibles
   pi_context context_;
 
+  // Device where the memory is located
+  pi_device device_;
+
   /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
   enum class mem_type { buffer, surface } mem_type_;
@@ -365,9 +368,11 @@ struct _pi_mem {
   } mem_;
 
   /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
-  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
-          CUdeviceptr ptr, void *host_ptr, size_t size)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
+  _pi_mem(pi_context ctxt, pi_device, dev, pi_mem parent,
+          mem_::buffer_mem_::alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
+          size_t size)
+      : context_{ctxt}, device_{dev}, refCount_{1}, mem_type_{
+                                                        mem_type::buffer} {
     mem_.buffer_mem_.ptr_ = ptr;
     mem_.buffer_mem_.parent_ = parent;
     mem_.buffer_mem_.hostPtr_ = host_ptr;
@@ -384,9 +389,10 @@ struct _pi_mem {
   };
 
   /// Constructs the PI allocation for an Image object (surface in CUDA)
-  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+  _pi_mem(pi_context ctxt, pi_device dev, CUarray array, CUsurfObject surf,
           pi_mem_type image_type, void *host_ptr)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+      : context_{ctxt}, device_{dev}, refCount_{1}, mem_type_{
+                                                        mem_type::surface} {
     // Ignore unused parameter
     (void)host_ptr;
 
@@ -416,6 +422,7 @@ struct _pi_mem {
   bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
+  CUcontext get_native_context() const noexcept { return context_->get(device_); }
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

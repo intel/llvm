@@ -2355,8 +2355,8 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_device device,
     if (retErr == PI_SUCCESS) {
       pi_mem parentBuffer = nullptr;
 
-      auto piMemObj = std::unique_ptr<_pi_mem>(
-          new _pi_mem{context, parentBuffer, allocMode, ptr, host_ptr, size});
+      auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
+          context, device, parentBuffer, allocMode, ptr, host_ptr, size});
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
@@ -2408,7 +2408,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       return PI_SUCCESS;
     }
 
-    ScopedContext active(uniqueMemObj->get_context()->get()[0]);
+    ScopedContext active(uniqueMemObj->get_native_context());
 
     if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
@@ -2481,7 +2481,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
           parent_buffer->mem_.buffer_mem_.get_size()) &&
          "PI_ERROR_INVALID_BUFFER_SIZE");
   // Retained indirectly due to retaining parent buffer below.
-  pi_context context = parent_buffer->context_;
   _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
       _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
 
@@ -2500,8 +2499,9 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
 
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
-    retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
-        context, parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
+    retMemObj = std::unique_ptr<_pi_mem>{
+        new _pi_mem{parent_buffer->get_context(), parent_buffer->get_device(),
+                    parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
   } catch (pi_result err) {
     *memObj = nullptr;
     return err;
@@ -3437,8 +3437,9 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_device device,
     CUsurfObject surface;
     retErr = PI_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
 
-    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-        context, image_array, surface, image_desc->image_type, host_ptr});
+    auto piMemObj = std::unique_ptr<_pi_mem>(
+        new _pi_mem{context, device, image_array, surface,
+                    image_desc->image_type, host_ptr});
 
     if (piMemObj == nullptr) {
       return PI_ERROR_OUT_OF_HOST_MEMORY;
@@ -5180,6 +5181,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
+
     assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
@@ -5757,7 +5759,7 @@ pi_result cuda_piTearDown(void *) {
 pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                        uint64_t *HostTime) {
   _pi_event::native_type event;
-  ScopedContext active(Device->get_context()->get()[0]);
+  ScopedContext active(Device->get_context()->get(Device));
 
   if (DeviceTime) {
     PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
