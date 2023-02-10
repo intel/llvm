@@ -1,28 +1,29 @@
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: MIT
 
 add_conformance_test_with_devices_environment(enqueue
-    urEnqueueKernelLaunch.cpp
     urEnqueueEventsWait.cpp
     urEnqueueEventsWaitWithBarrier.cpp
-    urEnqueueMemBufferRead.cpp
-    urEnqueueMemBufferWrite.cpp
-    urEnqueueMemBufferReadRect.cpp
-    urEnqueueMemBufferWriteRect.cpp
-    urEnqueueMemBufferCopy.cpp
+    urEnqueueKernelLaunch.cpp
     urEnqueueMemBufferCopyRect.cpp
+    urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
-    urEnqueueMemImageRead.cpp
-    urEnqueueMemImageWrite.cpp
+    urEnqueueMemBufferMap.cpp
+    urEnqueueMemBufferRead.cpp
+    urEnqueueMemBufferReadRect.cpp
+    urEnqueueMemBufferWrite.cpp
+    urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
     urEnqueueMemImageFill.cpp
-    urEnqueueMemBufferMap.cpp
     urEnqueueMemImageMap.cpp
+    urEnqueueMemImageRead.cpp
+    urEnqueueMemImageWrite.cpp
     urEnqueueMemUnmap.cpp
-    urEnqueueUSMMemset.cpp
-    urEnqueueUSMMemcpy.cpp
-    urEnqueueUSMPrefetch.cpp
-    urEnqueueUSMMemAdvice.cpp
     urEnqueueUSMFill2D.cpp
+    urEnqueueUSMMemAdvise.cpp
+    urEnqueueUSMMemcpy.cpp
+    urEnqueueUSMMemcpy2D.cpp
+    urEnqueueUSMMemset.cpp
     urEnqueueUSMMemset2D.cpp
-    urEnqueueUSMMemcpy2D.cpp)
+    urEnqueueUSMPrefetch.cpp
+    )

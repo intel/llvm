@@ -123,6 +123,7 @@ struct urContextTest : urDeviceTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTest::SetUp());
         ASSERT_SUCCESS(urContextCreate(1, &device, &context));
+        ASSERT_NE(context, nullptr);
     }
 
     void TearDown() override {
@@ -130,7 +131,7 @@ struct urContextTest : urDeviceTest {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTest::TearDown());
     }
 
-    ur_context_handle_t context;
+    ur_context_handle_t context = nullptr;
 };
 
 struct urMemBufferTest : urContextTest {
@@ -146,7 +147,7 @@ struct urMemBufferTest : urContextTest {
         if (buffer) {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
-        urContextTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
     ur_mem_handle_t buffer = nullptr;
@@ -189,7 +190,7 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
         if (buffer) {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
-        urContextTestWithParam<T>::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
     ur_mem_handle_t buffer = nullptr;
 };
@@ -198,14 +199,17 @@ struct urQueueTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+        ASSERT_NE(queue, nullptr);
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urQueueRelease(queue));
-        urContextTest::TearDown();
+        if (queue) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
@@ -216,8 +220,10 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urQueueRelease(queue));
-        urContextTestWithParam<T>::TearDown();
+        if (queue) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
 
     ur_queue_handle_t queue;
@@ -237,7 +243,7 @@ struct urMultiQueueTest : urContextTest {
         if (queue2 != nullptr) {
             EXPECT_SUCCESS(urQueueRelease(queue2));
         }
-        urContextTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
     ur_queue_handle_t queue1 = nullptr;
@@ -259,7 +265,7 @@ struct urMultiDeviceContextTest : urPlatformTest {
         if (context) {
             ASSERT_SUCCESS(urContextRelease(context));
         }
-        urPlatformTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
     }
 
     ur_context_handle_t context = nullptr;
@@ -277,7 +283,7 @@ struct urMultiDeviceMemBufferTest : urMultiDeviceContextTest {
         if (buffer) {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
-        urMultiDeviceContextTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::TearDown());
     }
 
     ur_mem_handle_t buffer = nullptr;
@@ -300,7 +306,7 @@ struct urMultiDeviceMemBufferQueueTest : urMultiDeviceMemBufferTest {
         for (const auto &queue : queues) {
             EXPECT_SUCCESS(urQueueRelease(queue));
         }
-        urMultiDeviceMemBufferTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceMemBufferTest::TearDown());
     }
 
     std::vector<ur_queue_handle_t> queues;
@@ -317,7 +323,7 @@ struct urMemBufferQueueTest : urQueueTest {
         if (buffer) {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
-        urQueueTest::TearDown();
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
     }
 
     const size_t count = 8;
