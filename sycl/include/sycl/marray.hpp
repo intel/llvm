@@ -14,8 +14,83 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/half_type.hpp>
 
+#include <array>
+#include <type_traits>
+#include <utility>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+template <typename DataT, std::size_t N> class marray;
+
+namespace detail {
+
+// Helper trait for counting the aggregate number of arguments in a type list,
+// expanding marrays.
+template <typename... Ts> struct GetMArrayArgsSize;
+template <> struct GetMArrayArgsSize<> {
+  static constexpr std::size_t value = 0;
+};
+template <typename T, std::size_t N, typename... Ts>
+struct GetMArrayArgsSize<marray<T, N>, Ts...> {
+  static constexpr std::size_t value = N + GetMArrayArgsSize<Ts...>::value;
+};
+template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
+  static constexpr std::size_t value = 1 + GetMArrayArgsSize<Ts...>::value;
+};
+
+// Helper function for concatenating two std::array.
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility trait for creating an std::array from an marray.
+template <typename DataT, typename T, std::size_t... Is>
+constexpr std::array<T, sizeof...(Is)>
+MArrayToArray(const marray<T, sizeof...(Is)> &A, std::index_sequence<Is...>) {
+  return {static_cast<DataT>(A.MData[Is])...};
+}
+template <typename DataT, typename T, std::size_t N>
+constexpr std::array<T, N> MArrayToArray(const marray<T, N> &A) {
+  return MArrayToArray<DataT>(A, std::make_index_sequence<N>());
+}
+
+// Utility for creating an std::array from a arguments of either types
+// convertible to DataT or marrays of a type convertible to DataT.
+template <typename DataT, typename... ArgTN> struct ArrayCreator;
+template <typename DataT, typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, ArgT, ArgTN...> {
+  static constexpr std::array<DataT, GetMArrayArgsSize<ArgT, ArgTN...>::value>
+  Create(const ArgT &Arg, const ArgTN &...Args) {
+    return ConcatArrays(std::array<DataT, 1>{static_cast<DataT>(Arg)},
+                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+  }
+};
+template <typename DataT, typename T, std::size_t N, typename... ArgTN>
+struct ArrayCreator<DataT, marray<T, N>, ArgTN...> {
+  static constexpr std::array<DataT,
+                              GetMArrayArgsSize<marray<T, N>, ArgTN...>::value>
+  Create(const marray<T, N> &Arg, const ArgTN &...Args) {
+    return ConcatArrays(MArrayToArray<DataT>(Arg),
+                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+  }
+};
+template <typename DataT> struct ArrayCreator<DataT> {
+  static constexpr std::array<DataT, 0> Create() {
+    return std::array<DataT, 0>{};
+  }
+};
+} // namespace detail
 
 /// Provides a cross-platform math array class template that works on
 /// SYCL devices as well as in host C++ code.
@@ -34,25 +109,35 @@ public:
 private:
   value_type MData[NumElements];
 
-  template <class...> struct conjunction : std::true_type {};
-  template <class B1, class... tail>
-  struct conjunction<B1, tail...>
-      : std::conditional<bool(B1::value), conjunction<tail...>, B1>::type {};
+  // Trait for checking if an argument type is either convertible to the data
+  // type or an array of types convertible to the data type.
+  template <typename T>
+  struct IsSuitableArgType : std::is_convertible<T, DataT> {};
+  template <typename T, size_t N>
+  struct IsSuitableArgType<marray<T, N>> : std::is_convertible<T, DataT> {};
 
-  // TypeChecker is needed for (const ArgTN &... Args) ctor to validate Args.
-  template <typename T, typename DataT_>
-  struct TypeChecker : std::is_convertible<T, DataT_> {};
-
-  // Shortcuts for Args validation in (const ArgTN &... Args) ctor.
+  // Trait for computing the conjunction of of IsSuitableArgType. The empty type
+  // list will trivially evaluate to true.
   template <typename... ArgTN>
-  using EnableIfSuitableTypes = typename std::enable_if<
-      conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
+  struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<ArgTN>...> {};
+
+  // FIXME: MArrayToArray needs to be a friend to access MData. If the subscript
+  //        operator is made constexpr this can be removed.
+  template <typename, typename T, std::size_t... Is>
+  friend constexpr std::array<T, sizeof...(Is)>
+  detail::MArrayToArray(const marray<T, sizeof...(Is)> &,
+                        std::index_sequence<Is...>);
 
   constexpr void initialize_data(const Type &Arg) {
     for (size_t i = 0; i < NumElements; ++i) {
       MData[i] = Arg;
     }
   }
+
+  template <size_t... Is>
+  constexpr marray(const std::array<DataT, NumElements> &Arr,
+                   std::index_sequence<Is...>)
+      : MData{Arr[Is]...} {}
 
 public:
   constexpr marray() : MData{} {}
@@ -61,10 +146,13 @@ public:
     initialize_data(Arg);
   }
 
-  template <
-      typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
-      typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  constexpr marray(const ArgTN &...Args) : MData{static_cast<Type>(Args)...} {}
+  template <typename... ArgTN,
+            typename = std::enable_if_t<
+                AllSuitableArgTypes<ArgTN...>::value &&
+                detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
+  constexpr marray(const ArgTN &...Args)
+      : marray{detail::ArrayCreator<DataT, ArgTN...>::Create(Args...),
+               std::make_index_sequence<NumElements>()} {}
 
   constexpr marray(const marray<Type, NumElements> &Rhs) = default;
 
