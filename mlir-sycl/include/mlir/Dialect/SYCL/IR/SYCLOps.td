@@ -113,6 +113,10 @@ class SYCLMethodOpInterfaceImpl<
   let extraClassDefinition = [{
     constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
   }];
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,7 +644,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];      
 
   let assemblyFormat = [{
-    `(` $Args `)` attr-dict `:` functional-type($Args, results)
+    $TypeName `(` $Args `)` attr-dict `:` `(` type($Args) `)`
   }];
 }
 
@@ -664,7 +668,7 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
   let results = (outs CastRes:$result);
 
   let assemblyFormat = [{
-    `(` $source `)` attr-dict `:` functional-type($source, results)
+    $source attr-dict `:` type($source) `to` type($result)
   }];
 }
 
@@ -724,7 +728,7 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
   }];    
 
   let assemblyFormat = [{
-    `(` $Args `)` attr-dict `:` functional-type($Args, results)
+    $FunctionName `(` $Args `)` attr-dict `:` functional-type($Args, results)
   }];
 }
 
@@ -779,6 +783,10 @@ def SYCLRangeGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
+
+  let assemblyFormat = [{
+    $Range `[` $Index `]` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -886,6 +894,10 @@ def SYCLIDGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
+
+  let assemblyFormat = [{
+    $ID `[` $Index `]` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

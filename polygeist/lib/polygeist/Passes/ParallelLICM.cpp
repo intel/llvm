@@ -606,14 +606,17 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (opsToMove.empty())
     return 0;
 
-  TypeSwitch<Operation *>((Operation *)loop)
-      .Case<scf::ParallelOp>([&](auto loop) { createLoopGuard(loop); })
-      .Case<AffineParallelOp>([&](auto loop) { createLoopGuard(loop); })
-      .Case<AffineForOp>([&](auto loop) { createLoopGuard(loop); })
-      .Default([](auto) { llvm_unreachable("TODO"); });
+  bool guardedLoop =
+      TypeSwitch<Operation *, bool>((Operation *)loop)
+          .Case<scf::ParallelOp, AffineParallelOp, AffineForOp>([&](auto loop) {
+            createLoopGuard(loop);
+            return true;
+          })
+          .Default([](auto) { return false; });
 
-  for (Operation *op : opsToMove)
-    loop.moveOutOfLoop(op);
+  if (guardedLoop)
+    for (Operation *op : opsToMove)
+      loop.moveOutOfLoop(op);
 
   return opsToMove.size();
 }

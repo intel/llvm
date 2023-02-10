@@ -1,5 +1,53 @@
 // RUN: sycl-mlir-opt -split-input-file %s -verify-diagnostics
 
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+
+func.func @test_cast_not_parents(%arg: memref<1x!sycl_id_1_>) -> memref<1x!sycl.accessor_common> {
+  // expected-error @+1 {{'sycl.cast' op operand type 'memref<1x!sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>>' and result type 'memref<1x!sycl.accessor_common>' are cast incompatible}}
+  %0 = sycl.cast %arg : memref<1x!sycl_id_1_> to memref<1x!sycl.accessor_common>
+  return %0 : memref<1x!sycl.accessor_common>
+}
+
+// -----
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+
+func.func @test_cast_bad_shape(%arg: memref<1x!sycl_id_1_>) -> memref<2x!sycl_array_1_> {
+  // expected-error @+1 {{'sycl.cast' op operand type 'memref<1x!sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>>' and result type 'memref<2x!sycl.array<[1], (memref<1xi64, 4>)>>' are cast incompatible}}
+  %0 = sycl.cast %arg : memref<1x!sycl_id_1_> to memref<2x!sycl_array_1_>
+  return %0 : memref<2x!sycl_array_1_>
+}
+
+// -----
+
+func.func @test_not_arg_constructor() {
+  // expected-error @+1 {{'sycl.constructor' op A sycl::constructor must be passed the object to build as the first argument}}
+  "sycl.constructor"() {TypeName = @range, MangledFunctionName = @rangev} : () -> ()
+}
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+func.func @test_non_memref_arg_constructor(%range: !sycl_range_1_) {
+  // expected-error @+1 {{'sycl.constructor' op The first argument of a sycl::constructor op has to be a MemRef to a SYCL type}}
+  sycl.constructor @range(%range) {MangledFunctionName = @rangev} : (!sycl_range_1_)
+}
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+func.func @test_non_sycl_arg_constructor(%i: memref<1xi32>) {
+  // expected-error @+1 {{'sycl.constructor' op The first argument of a sycl::constructor op has to be a MemRef to a SYCL type}}
+  sycl.constructor @range(%i) {MangledFunctionName = @rangev} : (memref<1xi32>)
+}
+
+// -----
+
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 
 func.func @test_num_work_items(%i: i32) -> !sycl_range_1_ {

@@ -9,11 +9,11 @@
 
 // ALWAYS-INLINE-LABEL: func.func @caller() -> i32 {
 // ALWAYS-INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32
-// ALWAYS-INLINE-NEXT:    %0 = sycl.call() {FunctionName = @inline_hint_callee_, MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE-NEXT:    %1 = sycl.call() {FunctionName = @private_callee_, MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE-NEXT:    %2 = sycl.call() {FunctionName = @small_callee_, MangledFunctionName = @small_callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE-NEXT:    %3 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE-NEXT:    %4 = sycl.call() {FunctionName = @gpu_func_callee_, MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %0 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %1 = sycl.call @private_callee_() {MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %2 = sycl.call @small_callee_() {MangledFunctionName = @small_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %3 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %4 = sycl.call @gpu_func_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
 // ALWAYS-INLINE-NEXT:    %5 = arith.addi %c1_i32, %0 : i32
 // ALWAYS-INLINE-NEXT:    %6 = arith.addi %1, %2 : i32
 // ALWAYS-INLINE-NEXT:    %7 = arith.addi %3, %4 : i32
@@ -40,8 +40,8 @@
 // INLINE-DAG:     %c2_i32 = arith.constant 2 : i32
 // INLINE-DAG:     %c3_i32 = arith.constant 3 : i32
 // INLINE-DAG:     %c4_i32 = arith.constant 4 : i32
-// INLINE-NEXT:    %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
-// INLINE-NEXT:    %1 = sycl.call() {FunctionName = @gpu_func_callee_, MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+// INLINE-NEXT:    %0 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// INLINE-NEXT:    %1 = sycl.call @gpu_func_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
 // INLINE-NEXT:    %2 = arith.addi %c1_i32, %c2_i32 : i32
 // INLINE-NEXT:    %3 = arith.addi %c3_i32, %c4_i32 : i32
 // INLINE-NEXT:    %4 = arith.addi %0, %1 : i32
@@ -60,12 +60,12 @@
 gpu.module @module {
 
 func.func @caller() -> i32 {
-  %res1 = sycl.call() {FunctionName = @"always_inline_callee_", MangledFunctionName = @always_inline_callee, TypeName = @A} : () -> i32
-  %res2 = sycl.call() {FunctionName = @"inline_hint_callee_", MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
-  %res3 = sycl.call() {FunctionName = @"private_callee_", MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
-  %res4 = sycl.call() {FunctionName = @"small_callee_", MangledFunctionName = @small_callee, TypeName = @A} : () -> i32
-  %res5 = sycl.call() {FunctionName = @"callee_", MangledFunctionName = @callee, TypeName = @A} : () -> i32  
-  %res6 = sycl.call() {FunctionName = @"gpu_func_callee_", MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+  %res1 = sycl.call @always_inline_callee_() {MangledFunctionName = @always_inline_callee, TypeName = @A} : () -> i32
+  %res2 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
+  %res3 = sycl.call @private_callee_() {MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
+  %res4 = sycl.call @small_callee_() {MangledFunctionName = @small_callee, TypeName = @A} : () -> i32
+  %res5 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32  
+  %res6 = sycl.call @gpu_func_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
   %add1 = arith.addi %res1, %res2 : i32
   %add2 = arith.addi %res3, %res4 : i32  
   %add3 = arith.addi %res5, %res6 : i32  
@@ -117,8 +117,8 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // COM: Ensure a func.func can be inlined in a gpu.func caller iff the callee is 'alwaysinline'. 
 // ALWAYS-INLINE-LABEL: gpu.func @caller() -> i32 {
 // ALWAYS-INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32  
-// ALWAYS-INLINE-NEXT:    %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE-NEXT:    %1 = sycl.call() {FunctionName = @gpu_callee_, MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %0 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE-NEXT:    %1 = sycl.call @gpu_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
 // ALWAYS-INLINE-NEXT:    %2 = arith.addi %c1_i32, %0 : i32
 // ALWAYS-INLINE-NEXT:    %3 = arith.addi %2, %1 : i32
 // ALWAYS-INLINE-NEXT:    gpu.return %3 : i32
@@ -127,8 +127,8 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // COM: Ensure a func.func can be inlined in a gpu.func caller. 
 // INLINE-LABEL: gpu.func @caller() -> i32 {
 // INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32  
-// INLINE-NEXT:    %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
-// INLINE-NEXT:    %1 = sycl.call() {FunctionName = @gpu_callee_, MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+// INLINE-NEXT:    %0 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// INLINE-NEXT:    %1 = sycl.call @gpu_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
 // INLINE-NEXT:    %2 = arith.addi %c1_i32, %0 : i32
 // INLINE-NEXT:    %3 = arith.addi %2, %1 : i32
 // INLINE-NEXT:    gpu.return %3 : i32
@@ -137,9 +137,9 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 gpu.module @module {
 
 gpu.func @caller() -> i32 {
-  %res1 = sycl.call() {FunctionName = @"inlinable_callee_", MangledFunctionName = @inlinable_callee, TypeName = @A} : () -> i32
-  %res2 = sycl.call() {FunctionName = @"callee_", MangledFunctionName = @callee, TypeName = @A} : () -> i32  
-  %res3 = sycl.call() {FunctionName = @"gpu_callee_", MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
+  %res1 = sycl.call @inlinable_callee_() {MangledFunctionName = @inlinable_callee, TypeName = @A} : () -> i32
+  %res2 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32  
+  %res3 = sycl.call @gpu_callee_() {MangledFunctionName = @gpu_func_callee, TypeName = @A} : () -> i32
   %res4 = arith.addi %res1, %res2 : i32
   %res5 = arith.addi %res4, %res3 : i32  
   gpu.return %res5 : i32
@@ -176,7 +176,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE-DAG:     %c2_i32 = arith.constant 2 : i32
 // INLINE-DAG:     %c1_i32_0 = arith.constant 1 : i32
 // INLINE-DAG:     %c2_i32_1 = arith.constant 2 : i32
-// INLINE-DAG:     %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// INLINE-DAG:     %0 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
 // INLINE-NEXT:    %1 = arith.addi %c2_i32_1, %0 : i32
 // INLINE-NEXT:    %2 = arith.addi %c1_i32_0, %1 : i32
 // INLINE-NEXT:    %3 = arith.addi %c1_i32, %c2_i32 : i32
@@ -189,14 +189,14 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 func.func private @inline_hint_callee() -> i32 attributes {passthrough = ["inlinehint"]} {
   %c_i32 = arith.constant 1 : i32
-  %res1 = sycl.call() {FunctionName = @"private_callee_", MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
+  %res1 = sycl.call @private_callee_() {MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
   %res2 = arith.addi %c_i32, %res1 : i32
   return %res2 : i32
 }
 
 func.func private @private_callee() -> i32 {
   %c_i32 = arith.constant 2 : i32
-  %res1 = sycl.call() {FunctionName = @"callee_", MangledFunctionName = @callee, TypeName = @A} : () -> i32
+  %res1 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
   %res2 = arith.addi %c_i32, %res1 : i32
   return %res2 : i32
 }
@@ -204,7 +204,7 @@ func.func private @private_callee() -> i32 {
 func.func @callee() -> i32 {
   %c1 = arith.constant 1 : i32
   %c2 = arith.constant 2 : i32
-  %res1 = sycl.call() {FunctionName = @"inline_hint_callee_", MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
+  %res1 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
   %add1 = arith.addi %c1, %c2 : i32
   %add2 = arith.addi %res1, %add1 : i32  
   return %add2 : i32
