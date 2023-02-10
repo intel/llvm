@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -fsycl-is-device -DCOMPILE_ONLY %s
 
 #include <sycl/sycl.hpp>
 #include <variant>
@@ -99,52 +99,15 @@ int main() {
 #if COMPILE_ONLY
   sycl::queue q;
   {
-    std::variant<ACopyable> variant_arr[5];
     std::variant<ACopyable> variant;
     q.submit([&](sycl::handler &cgh) {
        cgh.single_task([=]() {
          // std::variant with complex types relies on virtual functions, so
          // they cannot be used within sycl kernels
-         auto size = sizeof(variant_arr[0]);
-         size = sizeof(variant);
+         auto v = variant;
        });
      }).wait_and_throw();
-  }
-  {
-    const std::variant<ACopyable> variant_arr[5];
-    const std::variant<ACopyable> variant;
-    q.submit([&](sycl::handler &cgh) {
-       cgh.single_task([=]() {
-         // std::variant with complex types relies on virtual functions, so
-         // they cannot be used within sycl kernels
-         auto size = sizeof(variant_arr[0]);
-         size = sizeof(variant);
-       });
-     }).wait_and_throw();
-  }
-  {
-    volatile std::variant<ACopyable> variant_arr[5];
-    volatile std::variant<ACopyable> variant;
-    q.submit([&](sycl::handler &cgh) {
-       cgh.single_task([=]() {
-         // std::variant with complex types relies on virtual functions, so
-         // they cannot be used within sycl kernels
-         auto size = sizeof(variant_arr[0]);
-         size = sizeof(variant);
-       });
-     }).wait_and_throw();
-  }
-  {
-    const volatile std::variant<ACopyable> variant_arr[5];
-    const volatile std::variant<ACopyable> variant;
-    q.submit([&](sycl::handler &cgh) {
-       cgh.single_task([=]() {
-         // std::variant with complex types relies on virtual functions, so
-         // they cannot be used within sycl kernels
-         auto size = sizeof(variant_arr[0]);
-         size = sizeof(variant);
-       });
-     }).wait_and_throw();
+    //expected-error@variant:* {{SYCL kernel cannot call through a function pointer}}
   }
 #endif
 
