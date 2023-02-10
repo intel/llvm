@@ -218,12 +218,12 @@ urContextCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUserData`
+///         + `NULL == pfnDeleter`
 ur_result_t UR_APICALL
 urContextSetExtendedDeleter(
     ur_context_handle_t hContext,                   ///< [in] handle of the context.
     ur_context_extended_deleter_t pfnDeleter,       ///< [in] Function pointer to extended deleter.
-    void* pUserData                                 ///< [in][out] pointer to data to be passed to callback.
+    void* pUserData                                 ///< [in][out][optional] pointer to data to be passed to callback.
     )
 {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1484,6 +1484,8 @@ urEventCreateWithNativeHandle(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNotify`
 ur_result_t UR_APICALL
 urEventSetCallback(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object
