@@ -129,3 +129,30 @@ TEST_P(urDeviceGetInfoTest, Success) {
         ASSERT_NE(info_data, nullptr);
     }
 }
+
+TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
+    ur_device_type_t device_type;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urDeviceGetInfo(nullptr, UR_DEVICE_INFO_TYPE,
+                                     sizeof(ur_device_type_t), &device_type,
+                                     nullptr));
+}
+
+TEST_P(urDeviceGetInfoTest, InvalidEnumerationInfoType) {
+    for (auto device : devices) {
+        ur_device_type_t device_type;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
+                         urDeviceGetInfo(device, UR_DEVICE_INFO_FORCE_UINT32,
+                                         sizeof(ur_device_type_t), &device_type,
+                                         nullptr));
+    }
+}
+
+TEST_P(urDeviceGetInfoTest, InvalidValuePropSize) {
+    for (auto device : devices) {
+        ur_device_type_t device_type;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+                         urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE, 0,
+                                         &device_type, nullptr));
+    }
+}

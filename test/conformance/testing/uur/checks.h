@@ -6,21 +6,7 @@
 
 #include <gtest/gtest.h>
 #include <ur_api.h>
-
-namespace uur {
-
-struct Result {
-    Result(ur_result_t result) noexcept : value(result) {}
-
-    constexpr bool operator==(const Result &rhs) const noexcept { return value == rhs.value; }
-
-    ur_result_t value;
-};
-
-inline std::ostream &operator<<(std::ostream &out, const Result &result) {
-    out << result.value;
-    return out;
-}
+#include <uur/utils.h>
 
 inline std::ostream &operator<<(std::ostream &out, const ur_result_t &result) {
     switch (result) {
@@ -105,6 +91,24 @@ inline std::ostream &operator<<(std::ostream &out, const ur_result_t &result) {
     }
     return out;
 }
+
+namespace uur {
+
+struct Result {
+    Result(ur_result_t result) noexcept : value(result) {}
+
+    constexpr bool operator==(const Result &rhs) const noexcept {
+        return value == rhs.value;
+    }
+
+    ur_result_t value;
+};
+
+inline std::ostream &operator<<(std::ostream &out, const Result &result) {
+    out << result.value;
+    return out;
+}
+
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT
@@ -256,7 +260,32 @@ inline std::ostream &operator<<(std::ostream &out, const ur_platform_info_t &inf
     return out;
 }
 
-inline std::ostream &operator<<(std::ostream &out, const ur_queue_info_t &info) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_context_info_t &info) {
+
+    switch (info) {
+#define CASE(VALUE)    \
+    case VALUE:        \
+        out << #VALUE; \
+        break;
+
+        CASE(UR_CONTEXT_INFO_NUM_DEVICES);
+        CASE(UR_CONTEXT_INFO_DEVICES);
+        CASE(UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+        CASE(UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+        CASE(UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
+        CASE(UR_CONTEXT_INFO_FORCE_UINT32);
+
+#undef CASE
+    default:
+        out << "unkown ur_context_info_t: " << info;
+        break;
+    }
+    return out;
+}
+
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_queue_info_t &info) {
     switch (info) {
 #define CASE(VALUE)    \
     case VALUE:        \
@@ -381,6 +410,12 @@ inline std::ostream &operator<<(std::ostream &out, const ur_profiling_info_t &in
         out << "UNKNOWN_UR_PROFILING_INFO_TYPE";
         break;
     }
+    return out;
+}
+
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_device_handle_t &device) {
+    out << uur::GetDeviceName(device);
     return out;
 }
 

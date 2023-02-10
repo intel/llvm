@@ -29,3 +29,11 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
         ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
     }
 }
+
+TEST_F(urDeviceGetGlobalTimestampTest, InvalidNullHandleDevice) {
+    uint64_t device_time = 0;
+    uint64_t host_time = 0;
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urDeviceGetGlobalTimestamps(nullptr, &device_time, &host_time));
+}
