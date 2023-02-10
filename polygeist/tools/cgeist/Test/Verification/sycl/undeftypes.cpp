@@ -30,8 +30,8 @@ using namespace sycl::detail;
 // CHECK-LABEL:  func.func @_Z16vec_wrapper_testfm(
 // CHECK-SAME:     %[[SPAN:.*]]: f32
 // CHECK-SAME:     %[[INDEX:.*]]: i64
-// CHECK:          sycl.call(%{{.*}}, %[[SPAN]]) {FunctionName = @VecWrapper, MangledFunctionName = @{{.*}}, TypeName = @VecWrapper} : (memref<?x!llvm.struct<(!sycl_vec_f32_4_)>, 4>, f32) -> ()
-// CHECK:          %{{.*}} = sycl.call(%{{.*}}, %[[INDEX]]) {FunctionName = @"operator[]", MangledFunctionName = @{{.*}}, TypeName = @VecWrapper} : (memref<?x!llvm.struct<(!sycl_vec_f32_4_)>, 4>, i64) -> f32
+// CHECK:          sycl.call @VecWrapper(%{{.*}}, %[[SPAN]]) {MangledFunctionName = @{{.*}}, TypeName = @VecWrapper} : (memref<?x!llvm.struct<(!sycl_vec_f32_4_)>, 4>, f32) -> ()
+// CHECK:          %{{.*}} = sycl.call @"operator[]"(%{{.*}}, %[[INDEX]]) {MangledFunctionName = @{{.*}}, TypeName = @VecWrapper} : (memref<?x!llvm.struct<(!sycl_vec_f32_4_)>, 4>, i64) -> f32
 
 // CHECK-ERROR:  Found type in the sycl namespace, but not in the SYCL dialect
 

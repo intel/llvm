@@ -655,7 +655,7 @@ SYCL_EXTERNAL void group_get_local_linear_range(sycl::group<1> group) {
 // CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x![[ITEM2]]>) -> !llvm.ptr<![[ITEM2]]>
 // CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<![[ITEM2]]> to !llvm.ptr<![[ITEM2]], 4>
 // CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<![[ITEM2]], 4>) -> memref<?x![[ITEM2]], 4>
-// CHECK-MLIR-NEXT: %3 = sycl.call(%2, %2) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i1
+// CHECK-MLIR-NEXT: %3 = sycl.call @"operator=="(%2, %2) {MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -678,7 +678,7 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 // CHECK-MLIR-NEXT: %3 = "polygeist.memref2pointer"(%arg1) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
 // CHECK-MLIR-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-MLIR-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %6 = sycl.call(%2, %5) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i1
+// CHECK-MLIR-NEXT: %6 = sycl.call @"operator=="(%2, %5) {MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -702,7 +702,7 @@ SYCL_EXTERNAL void op_1(sycl::id<2> a, sycl::id<2> b) {
 // CHECK-MLIR-NEXT: %1 = "sycl.id.get"(%0, %c0_i32) {ArgumentTypes = [memref<?x!sycl_array_2_, 4>, i32], FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
 // CHECK-MLIR-NEXT: %2 = "sycl.id.get"(%0, %c1_i32) {ArgumentTypes = [memref<?x!sycl_array_2_, 4>, i32], FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
 // CHECK-MLIR-NEXT: %3 = arith.addi %1, %2 : i64
-// CHECK-MLIR-NEXT: %4 = sycl.call(%3) {FunctionName = @abs, MangledFunctionName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
+// CHECK-MLIR-NEXT: %4 = sycl.call @abs(%3) {MangledFunctionName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
