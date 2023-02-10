@@ -10,7 +10,7 @@
 // CHECK-MLIR-SAME:      %arg1: !llvm.ptr<!llvm.struct<(memref<?xi32, 1>)>> {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi32, 1>)>, llvm.noundef}) 
 // CHECK-MLIR-SAME:      kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>
 
-// CHECK-MLIR: sycl.constructor(%4, %7) {MangledFunctionName = @_ZN4sycl3_V15rangeILi1EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl_range_1_, 4>, memref<?x!sycl_range_1_, 4>) -> ()
+// CHECK-MLIR: sycl.constructor @range(%4, %7) {MangledFunctionName = @_ZN4sycl3_V15rangeILi1EEC1ERKS2_} : (memref<?x!sycl_range_1_, 4>, memref<?x!sycl_range_1_, 4>)
 // CHECK-MLIR: %8 = affine.load %alloca_0[0] : memref<1x!sycl_range_1_>
 // CHECK-MLIR: affine.store %8, %1[0] : memref<?x!sycl_range_1_>
 // CHECK-MLIR: %9 = "polygeist.subindex"(%cast_2, %c1) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>, index) -> memref<?x!llvm.struct<(memref<?xi32, 4>)>>

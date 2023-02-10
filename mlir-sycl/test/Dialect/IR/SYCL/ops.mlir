@@ -60,6 +60,28 @@ func.func @test_i32_call_with_two_args(%arg_0: i32, %arg_1: i64) {
   return
 }
 
+// CHECK-LABEL: test_constructor
+func.func @test_constructor(%id: memref<1x!sycl_id_1_>) {
+  sycl.constructor @id(%id) {MangledFunctionName = @idv} : (memref<1x!sycl_id_1_>)
+  return
+}
+
+// CHECK-LABEL: test_constructor_with_arg
+func.func @test_constructor_with_arg(%range: memref<1x!sycl_range_1_>,
+                                     %arg_0: i32) {
+  sycl.constructor @range(%range, %arg_0) {MangledFunctionName = @rangei} : (memref<1x!sycl_range_1_>, i32)
+  return
+}
+
+// CHECK-LABEL: test_constructor_with_args
+func.func @test_constructor_with_args(%range: memref<1x!sycl_range_1_>,
+                                      %arg_0: i32,
+				      %arg_1: i32,
+				      %arg_2: i32) {
+  sycl.constructor @range(%range, %arg_0, %arg_1, %arg_2) {MangledFunctionName = @rangeiii} : (memref<1x!sycl_range_1_>, i32, i32, i32)
+  return
+}
+
 // CHECK-LABEL: test_num_work_items
 func.func @test_num_work_items() -> !sycl_range_1_ {
   %0 = sycl.num_work_items() : () -> !sycl_range_1_
