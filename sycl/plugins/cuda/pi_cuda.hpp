@@ -222,7 +222,7 @@ struct _pi_context {
   CUcontext get(pi_device device) {
     for (size_t i = 0; i < deviceIds_.size(); i++) {
       if (deviceIds_[i] == device) {
-        return cuContexts_[i];
+        return device->get_context();
       }
     }
     return nullptr;
@@ -356,7 +356,7 @@ struct _pi_mem {
   } mem_;
 
   /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
-  _pi_mem(pi_context ctxt, pi_device, dev, pi_mem parent,
+  _pi_mem(pi_context ctxt, pi_device dev, pi_mem parent,
           mem_::buffer_mem_::alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
           size_t size)
       : context_{ctxt}, device_{dev}, refCount_{1}, mem_type_{
@@ -410,6 +410,7 @@ struct _pi_mem {
   bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
+  pi_device get_device() const noexcept { return device_; }
   CUcontext get_native_context() const noexcept { return context_->get(device_); }
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }

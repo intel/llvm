@@ -745,12 +745,13 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
-  auto native_ctxts = get_context()->get();
+  auto devs = get_context()->get_devices();
+
   // we count the build as successful if it succeeds on at least one device
   bool success = false;
   CUresult res1 = CUDA_ERROR_NO_DEVICE;
-  for (size_t i = 0; i < native_ctxts.size(); i++) {
-    ScopedContext ctx(native_ctxts[i]);
+  for (size_t i = 0; i < devs.size(); i++) {
+    ScopedContext ctx(devs[i]->get_context());
     res1 = cuModuleLoadDataEx(&modules_[i], static_cast<const void *>(binary_),
                               numberOfOptions, options, optionVals);
     build_results_[i] = res1;
@@ -2144,8 +2145,8 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
 
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
-    piContextPtr =
-        std::unique_ptr<_pi_context>(new _pi_context{devices, num_devices});
+    piContextPtr = std::unique_ptr<_pi_context>(new _pi_context(
+        std::vector<pi_device>(devices, devices + num_devices)));
 
     static std::once_flag initFlag;
     std::call_once(
@@ -2189,11 +2190,12 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 pi_result cuda_piextContextGetNativeHandle(pi_context context,
                                            pi_native_handle *nativeHandle) {
   // Currently only support context interop with one device
-  if (context->get().size() != 1) {
+  if (context->get_devices().size() != 1) {
     return PI_ERROR_INVALID_CONTEXT;
   }
 
-  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get()[0]);
+  *nativeHandle = reinterpret_cast<pi_native_handle>(
+      context->get_devices()[0]->get_context());
   return PI_SUCCESS;
 }
 
@@ -2851,7 +2853,8 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
 
     for (size_t i = 0; i < modules.size(); i++) {
       CUmodule module = modules[i];
-      ScopedContext active(program->get_context()->get()[i]);
+      ScopedContext active(
+          program->get_context()->get_devices()[i]->get_context());
 
       if (program->build_results_[i] != CUDA_SUCCESS) {
         cuFuncs[i] = nullptr;
@@ -3531,7 +3534,7 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
   try {
     // We need a context for the linking operations but the result can later be
     // used in any other context, so just use the first one.
-    ScopedContext active(context->get()[0]);
+    ScopedContext active(context->get_devices()[0]->get_context());
 
     CUlinkState state;
     std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
@@ -3659,7 +3662,8 @@ pi_result cuda_piProgramRelease(pi_program program) {
       const auto &modules = program->get();
       for (size_t i = 0; i < modules.size(); i++) {
         if (program->build_results_[i] == CUDA_SUCCESS) {
-          ScopedContext active(program->get_context()->get()[i]);
+          ScopedContext active(
+              program->get_context()->get_devices()[i]->get_context());
           result = PI_CHECK_ERROR(cuModuleUnload(modules[i]));
         }
       }
@@ -3944,7 +3948,8 @@ pi_result cuda_piEventRelease(pi_event event) {
     std::unique_ptr<_pi_event> event_ptr{event};
     pi_result result = PI_ERROR_INVALID_EVENT;
     try {
-      ScopedContext active(event->get_context()->get()[0]);
+      ScopedContext active(
+          event->get_context()->get_devices()[0]->get_context());
       result = event->release();
     } catch (...) {
       result = PI_ERROR_OUT_OF_RESOURCES;
@@ -5018,7 +5023,7 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
     // cuMemAllocHost requires an active context but the allocation is then
     // available on all the USM compatible contexts and devices so we can
     // simply use the first one.
-    ScopedContext active(context->get()[0]);
+    ScopedContext active(context->get_devices()[0]->get_context());
     result = PI_CHECK_ERROR(cuMemAllocHost(result_ptr, size));
   } catch (pi_result error) {
     result = error;
@@ -5085,7 +5090,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
   assert(context != nullptr);
   pi_result result = PI_SUCCESS;
   try {
-    ScopedContext active(context->get()[0]);
+    ScopedContext active(context->get_devices()[0]->get_context());
     bool is_managed;
     unsigned int type;
     void *attribute_values[2] = {&is_managed, &type};
@@ -5479,7 +5484,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   pi_result result = PI_SUCCESS;
 
   try {
-    ScopedContext active(context->get()[0]);
+    ScopedContext active(context->get_devices()[0]->get_context());
     switch (param_name) {
     case PI_MEM_ALLOC_TYPE: {
       unsigned int value;
@@ -5671,7 +5676,7 @@ pi_result cuda_piTearDown(void *) {
 pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                        uint64_t *HostTime) {
   _pi_event::native_type event;
-  ScopedContext active(Device->get_context()->get(Device));
+  ScopedContext active(Device->get_context());
 
   if (DeviceTime) {
     PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
