@@ -32,6 +32,7 @@ inputs:
 post-if: false
 runs:
   using: "composite"
+  timeout-minutes: 60
   steps:
   - run: |
       cp -r /actions .
