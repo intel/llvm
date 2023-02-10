@@ -2045,37 +2045,31 @@ public:
 
   LogicalResult matchAndRewrite(arith::SelectOp op,
                                 PatternRewriter &rewriter) const override {
-    auto ty = op.getType().dyn_cast<IntegerType>();
-    if (!ty)
-      return failure();
-    if (ty.getWidth() == 1)
-      return failure();
-    IntegerAttr lhs, rhs;
-    Value lhs_v = nullptr, rhs_v = nullptr;
-    if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
-      lhs_v = ext.getIn();
-      if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
-    } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
-      if (lhs.getInt() != 0 && lhs.getInt() != 1)
-        return failure();
-    } else
+    // Cannot extui i1 to i1, or i1 to f32
+    if (!op.getType().isa<IntegerType>() || op.getType().isInteger(1))
       return failure();
 
-    if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
-      rhs_v = ext.getIn();
-      if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
-    } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
-      if (rhs.getInt() != 0 && rhs.getInt() != 1)
-        return failure();
-    } else
-      return failure();
+    auto getI1 = [&op, &rewriter](Value val) -> Value {
+      if (matchPattern(val, m_Op<arith::ExtUIOp>())) {
+        Value result = val.getDefiningOp()->getOperand(0);
+        if (result.getType().cast<IntegerType>().isInteger(1))
+          return result;
+      }
 
-    if (!lhs_v)
-      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
-    if (!rhs_v)
-      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+      IntegerAttr intAttr;
+      if (matchPattern(val, m_Constant(&intAttr))) {
+        if (intAttr.getInt() == 0 || intAttr.getInt() == 1)
+          return rewriter.create<ConstantIntOp>(op.getLoc(), intAttr.getInt(),
+                                                1);
+      }
+
+      return nullptr;
+    };
+
+    Value lhs_v = getI1(op.getTrueValue());
+    Value rhs_v = getI1(op.getFalseValue());
+    if (!lhs_v || !rhs_v)
+      return failure();
 
     rewriter.replaceOpWithNewOp<ExtUIOp>(
         op, op.getType(),
