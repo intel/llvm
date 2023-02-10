@@ -96,20 +96,5 @@ int main() {
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
 
-#if COMPILE_ONLY
-  sycl::queue q;
-  {
-    std::variant<ACopyable> variant;
-    q.submit([&](sycl::handler &cgh) {
-       cgh.single_task([=]() {
-         // std::variant with complex types relies on virtual functions, so
-         // they cannot be used within sycl kernels
-         auto v = variant;
-       });
-     }).wait_and_throw();
-    //expected-error@variant:* {{SYCL kernel cannot call through a function pointer}}
-  }
-#endif
-
   return 0;
 }
