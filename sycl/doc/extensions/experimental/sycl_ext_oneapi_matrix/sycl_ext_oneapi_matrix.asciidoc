@@ -92,30 +92,6 @@ features the implementation supports.
  feature-test macro always has this value.
 |===
 
-=== Matrix API Versions
-
-While this document presents the core API that unifies Intel AMX,
-Intel XMX, and Nvidia Tensor Cores, the implementations support
-slightly different versions of the API. For this reason, we introduce
-a new macro, namely `SYCL_EXT_ONEAPI_MATRIX_VERSION` to distinguish
-between these different implementations. The goal in the next few
-months is to get rid of this implementation versioning macro. These
-are the current values for this macro.
-
-[frame="none",options="header"]
-|======================
-|Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and Intel
-XMX. load, store, mad, fill, piece-wise operations, and the query
-interface are supported. The old API used for this implementation is
-detailed in
-link:../../deprecated/sycl_ext_oneapi_matrix_no_use.asciidoc[matrix extension]
-|3     |Initial implementation on Nvidia Tensor Cores
-|4     |JIT implementation on Intel AMX and Intel XMX. load, store,
-mad, fill, piece-wise operations, and the query interface are
-supported. Plus, AOT implementation on Nvidia Tensor Cores 
-|======================
-
 === New `joint_matrix` class
 We introduce a new class called `joint_matrix`. The user needs to
 specify the group memory scope, the type of the elements, the shape,
@@ -133,12 +109,13 @@ struct joint_matrix {
 ```
 
 IMPORTANT: Matrix layout defaulting to `layout::dynamic` applies only
-to matrix with `use::accumulator`
+to `joint_matrix` with `use::accumulator`
 
 ==== Use
-Specifying the usage of the matrix: matrix left (A), matrix right (B)
-or accumulator +(C)+ is required by backend implementations to reason
-about the layout of the matrix in registers.
+The main operation performed by the matrix hardware is `D=C+A*B`. `Use`
+argument specifies the usage of the matrix: matrix left (`A`), matrix
+right (`B`) or accumulator +(`C`)+ and `D`. This is required by backend
+implementations to reason about the layout of the matrix in registers.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -275,7 +252,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 }
 ```
 The matrix multiply and add function performs the multiply operation
-on the matrices `A` and `B`, accumulate the result with `C` and return
+on the matrices `A` and `B`, accumulates the result with `C` and returns
 the result.
 
 
