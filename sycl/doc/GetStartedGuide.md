@@ -782,9 +782,7 @@ queue objects bound to Intel GPU device:
 int main() {
 
   auto NEOGPUDeviceSelector = [](const sycl::device &Device){
-    using namespace sycl::info;
-
-    const std::string DeviceName = Device.get_info<device::name>();
+    const std::string DeviceName = Device.get_info<sycl::info::device::name>();
     bool match = Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
     return match ? 1 : -1;
   };
@@ -805,9 +803,7 @@ there is none.
 ```c++
 
 int CUDASelector(const sycl::device &Device) {
-  using namespace sycl::info;
-  const std::string DriverVersion = Device.get_info<device::driver_version>();
-
+  const std::string DriverVersion = Device.get_info<sycl::info::device::driver_version>();
   if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
     std::cout << " CUDA device found " << std::endl;
     return 1;
