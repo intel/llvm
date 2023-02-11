@@ -7,6 +7,8 @@
 //===-----------------------------------------------------------------===//
 
 #include "ur_level_zero_common.hpp"
+#include <stdarg.h>
+#include <unordered_map>
 
 std::unordered_map<ze_result_t, ur_result_t> Ze2UrErrorMapping = {
     {ZE_RESULT_SUCCESS, UR_RESULT_SUCCESS},
@@ -44,4 +46,13 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return It->second;
+}
+
+void urPrint(const char *Format, ...) {
+  if (UrL0Debug & UR_L0_DEBUG_BASIC) {
+    va_list Args;
+    va_start(Args, Format);
+    vfprintf(stderr, Format, Args);
+    va_end(Args);
+  }
 }

@@ -31,10 +31,6 @@ struct ur_program_handle_t_ : public _ur_program_handle_t {
   using _ur_program_handle_t::_ur_program_handle_t;
 };
 
-struct ur_module_handle_t_ : public _ur_module_handle_t {
-  using _ur_module_handle_t::_ur_module_handle_t;
-};
-
 struct ur_kernel_handle_t_ : public _ur_kernel_handle_t {
   using _ur_kernel_handle_t::_ur_kernel_handle_t;
 };

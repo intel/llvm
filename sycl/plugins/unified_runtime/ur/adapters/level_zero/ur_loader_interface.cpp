@@ -32,7 +32,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   }
 
   pDdiTable->pfnInit = urInit;
-  pDdiTable->pfnGetLastResult = nullptr;
+  pDdiTable->pfnGetLastResult = urGetLastResult;
   pDdiTable->pfnTearDown = urTearDown;
 
   return retVal;
@@ -48,13 +48,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnSetExtendedDeleter = nullptr;
+  pDdiTable->pfnCreate = urContextCreate;
+  pDdiTable->pfnRetain = urContextRetain;
+  pDdiTable->pfnRelease = urContextRelease;
+  pDdiTable->pfnGetInfo = urContextGetInfo;
+  pDdiTable->pfnGetNativeHandle = urContextGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urContextCreateWithNativeHandle;
+  pDdiTable->pfnSetExtendedDeleter = urContextSetExtendedDeleter;
 
   return retVal;
 }
@@ -69,28 +69,29 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnKernelLaunch = nullptr;
-  pDdiTable->pfnEventsWait = nullptr;
-  pDdiTable->pfnEventsWaitWithBarrier = nullptr;
-  pDdiTable->pfnMemBufferRead = nullptr;
-  pDdiTable->pfnMemBufferWrite = nullptr;
-  pDdiTable->pfnMemBufferReadRect = nullptr;
-  pDdiTable->pfnMemBufferWriteRect = nullptr;
-  pDdiTable->pfnMemBufferCopy = nullptr;
-  pDdiTable->pfnMemBufferCopyRect = nullptr;
-  pDdiTable->pfnMemBufferFill = nullptr;
-  pDdiTable->pfnMemImageRead = nullptr;
-  pDdiTable->pfnMemImageWrite = nullptr;
-  pDdiTable->pfnMemImageCopy = nullptr;
-  pDdiTable->pfnMemBufferMap = nullptr;
-  pDdiTable->pfnMemUnmap = nullptr;
-  pDdiTable->pfnUSMMemcpy = nullptr;
-  pDdiTable->pfnUSMPrefetch = nullptr;
-  pDdiTable->pfnUSMMemAdvise = nullptr;
-  pDdiTable->pfnUSMFill2D = nullptr;
-  pDdiTable->pfnUSMMemcpy2D = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableWrite = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableRead = nullptr;
+  pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
+  pDdiTable->pfnEventsWait = urEnqueueEventsWait;
+  pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
+  pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
+  pDdiTable->pfnMemBufferWrite = urEnqueueMemBufferWrite;
+  pDdiTable->pfnMemBufferReadRect = urEnqueueMemBufferReadRect;
+  pDdiTable->pfnMemBufferWriteRect = urEnqueueMemBufferWriteRect;
+  pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
+  pDdiTable->pfnMemBufferCopyRect = urEnqueueMemBufferCopyRect;
+  pDdiTable->pfnMemBufferFill = urEnqueueMemBufferFill;
+  pDdiTable->pfnMemImageRead = urEnqueueMemImageRead;
+  pDdiTable->pfnMemImageWrite = urEnqueueMemImageWrite;
+  pDdiTable->pfnMemImageCopy = urEnqueueMemImageCopy;
+  pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
+  pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
+  pDdiTable->pfnUSMFill = urEnqueueUSMFill;
+  pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
+  pDdiTable->pfnUSMMemAdvise = urEnqueueUSMMemAdvise;
+  pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
+  pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
+  pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
+  pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
 
   return retVal;
 }
@@ -104,14 +105,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetProfilingInfo = nullptr;
-  pDdiTable->pfnWait = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnSetCallback = nullptr;
+  pDdiTable->pfnGetInfo = urEventGetInfo;
+  pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
+  pDdiTable->pfnWait = urEventWait;
+  pDdiTable->pfnRetain = urEventRetain;
+  pDdiTable->pfnRelease = urEventRelease;
+  pDdiTable->pfnGetNativeHandle = urEventGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urEventCreateWithNativeHandle;
+  pDdiTable->pfnSetCallback = urEventSetCallback;
 
   return retVal;
 }
@@ -125,20 +126,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetGroupInfo = nullptr;
-  pDdiTable->pfnGetSubGroupInfo = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnSetArgValue = nullptr;
-  pDdiTable->pfnSetArgLocal = nullptr;
-  pDdiTable->pfnSetArgPointer = nullptr;
-  pDdiTable->pfnSetExecInfo = nullptr;
-  pDdiTable->pfnSetArgSampler = nullptr;
-  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnCreate = urKernelCreate;
+  pDdiTable->pfnGetInfo = urKernelGetInfo;
+  pDdiTable->pfnGetGroupInfo = urKernelGetGroupInfo;
+  pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
+  pDdiTable->pfnRetain = urKernelRetain;
+  pDdiTable->pfnRelease = urKernelRelease;
+  pDdiTable->pfnGetNativeHandle = urKernelGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urKernelCreateWithNativeHandle;
+  pDdiTable->pfnSetArgValue = urKernelSetArgValue;
+  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
+  pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
+  pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
+  pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
+  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
+  pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   return retVal;
 }
 
@@ -151,15 +153,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnImageCreate = nullptr;
-  pDdiTable->pfnBufferCreate = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnBufferPartition = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnImageGetInfo = nullptr;
+  pDdiTable->pfnImageCreate = urMemImageCreate;
+  pDdiTable->pfnBufferCreate = urMemBufferCreate;
+  pDdiTable->pfnRetain = urMemRetain;
+  pDdiTable->pfnRelease = urMemRelease;
+  pDdiTable->pfnBufferPartition = urMemBufferPartition;
+  pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urMemCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urMemGetInfo;
+  pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
 
   return retVal;
 }
@@ -175,9 +177,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   }
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetApiVersion = nullptr;
+  pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
+  pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
 
   return retVal;
 }
@@ -192,14 +194,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnCreateWithBinary = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetFunctionPointer = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetBuildInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
+  pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
+  pDdiTable->pfnBuild = urProgramBuild;
+  pDdiTable->pfnCompile = urProgramCompile;
+  pDdiTable->pfnLink = urProgramLink;
+  pDdiTable->pfnRetain = urProgramRetain;
+  pDdiTable->pfnRelease = urProgramRelease;
+  pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
+  pDdiTable->pfnGetInfo = urProgramGetInfo;
+  pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
+  pDdiTable->pfnSetSpecializationConstants =
+      urProgramSetSpecializationConstants;
+  pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
 
   return retVal;
 }
@@ -214,14 +222,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnFinish = nullptr;
-  pDdiTable->pfnFlush = nullptr;
+  pDdiTable->pfnGetInfo = urQueueGetInfo;
+  pDdiTable->pfnCreate = urQueueCreate;
+  pDdiTable->pfnRetain = urQueueRetain;
+  pDdiTable->pfnRelease = urQueueRelease;
+  pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
+  pDdiTable->pfnFinish = urQueueFinish;
+  pDdiTable->pfnFlush = urQueueFlush;
 
   return retVal;
 }
@@ -235,12 +243,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreate = urSamplerCreate;
+  pDdiTable->pfnRetain = urSamplerRetain;
+  pDdiTable->pfnRelease = urSamplerRelease;
+  pDdiTable->pfnGetInfo = urSamplerGetInfo;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
 
   return retVal;
 }
@@ -254,11 +262,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnHostAlloc = nullptr;
-  pDdiTable->pfnDeviceAlloc = nullptr;
-  pDdiTable->pfnSharedAlloc = nullptr;
-  pDdiTable->pfnFree = nullptr;
-  pDdiTable->pfnGetMemAllocInfo = nullptr;
+
+  pDdiTable->pfnHostAlloc = urUSMHostAlloc;
+  pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
+  pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
+  pDdiTable->pfnFree = urUSMFree;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolDestroy = urUSMPoolDestroy;
 
   return retVal;
 }
@@ -277,10 +288,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   pDdiTable->pfnRetain = urDeviceRetain;
   pDdiTable->pfnRelease = urDeviceRelease;
   pDdiTable->pfnPartition = urDevicePartition;
-  pDdiTable->pfnSelectBinary = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetGlobalTimestamps = nullptr;
+  pDdiTable->pfnSelectBinary = urDeviceSelectBinary;
+  pDdiTable->pfnGetNativeHandle = urDeviceGetNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urDeviceCreateWithNativeHandle;
+  pDdiTable->pfnGetGlobalTimestamps = urDeviceGetGlobalTimestamps;
 
   return retVal;
 }
