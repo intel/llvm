@@ -16,8 +16,8 @@
 #include <vector>
 
 #include <ur/ur.hpp>
+#include <ur_api.h>
 #include <ze_api.h>
-#include <zer_api.h>
 #include <zes_api.h>
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
@@ -81,40 +81,41 @@ public:
 };
 
 // Map Level Zero runtime error code to UR error code.
-static zer_result_t ze2urResult(ze_result_t ZeResult) {
-  static std::unordered_map<ze_result_t, zer_result_t> ErrorMapping = {
-      {ZE_RESULT_SUCCESS, ZER_RESULT_SUCCESS},
-      {ZE_RESULT_ERROR_DEVICE_LOST, ZER_RESULT_ERROR_DEVICE_LOST},
-      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, ZER_RESULT_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_NOT_AVAILABLE, ZER_RESULT_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_UNINITIALIZED, ZER_RESULT_INVALID_PLATFORM},
-      {ZE_RESULT_ERROR_INVALID_ARGUMENT, ZER_RESULT_ERROR_INVALID_ARGUMENT},
-      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SIZE, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, ZER_RESULT_INVALID_VALUE},
+static ur_result_t ze2urResult(ze_result_t ZeResult) {
+  static std::unordered_map<ze_result_t, ur_result_t> ErrorMapping = {
+      {ZE_RESULT_SUCCESS, UR_RESULT_SUCCESS},
+      {ZE_RESULT_ERROR_DEVICE_LOST, UR_RESULT_ERROR_DEVICE_LOST},
+      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS,
+       UR_RESULT_ERROR_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_NOT_AVAILABLE, UR_RESULT_ERROR_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_UNINITIALIZED, UR_RESULT_ERROR_INVALID_PLATFORM},
+      {ZE_RESULT_ERROR_INVALID_ARGUMENT, UR_RESULT_ERROR_INVALID_ARGUMENT},
+      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_INVALID_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, UR_RESULT_ERROR_INVALID_VALUE},
       {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
-       ZER_RESULT_INVALID_EVENT},
-      {ZE_RESULT_ERROR_INVALID_ENUMERATION, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, ZER_RESULT_INVALID_BINARY},
-      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, ZER_RESULT_INVALID_KERNEL_NAME},
+       UR_RESULT_ERROR_INVALID_EVENT},
+      {ZE_RESULT_ERROR_INVALID_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, UR_RESULT_ERROR_INVALID_BINARY},
+      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME,
+       UR_RESULT_ERROR_INVALID_KERNEL_NAME},
       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
-       ZER_RESULT_ERROR_INVALID_FUNCTION_NAME},
-      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, ZER_RESULT_INVALID_OPERATION},
+       UR_RESULT_ERROR_INVALID_FUNCTION_NAME},
+      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, UR_RESULT_ERROR_INVALID_OPERATION},
       {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
-       ZER_RESULT_INVALID_WORK_GROUP_SIZE},
+       UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE},
       {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
-       ZER_RESULT_ERROR_MODULE_BUILD_FAILURE},
+       UR_RESULT_ERROR_MODULE_BUILD_FAILURE},
       {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
-       ZER_RESULT_ERROR_OUT_OF_DEVICE_MEMORY},
-      {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-       ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY}};
+       UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY},
+      {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY, UR_RESULT_ERROR_OUT_OF_HOST_MEMORY}};
 
   auto It = ErrorMapping.find(ZeResult);
   if (It == ErrorMapping.end()) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return It->second;
 }
@@ -145,14 +146,14 @@ bool setEnvVar(const char *name, const char *value);
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
 struct _ur_platform_handle_t;
-using ur_platform_handle_t = _ur_platform_handle_t *;
+// using ur_platform_handle_t = _ur_platform_handle_t *;
 struct _ur_device_handle_t;
-using ur_device_handle_t = _ur_device_handle_t *;
+// using ur_device_handle_t = _ur_device_handle_t *;
 
 struct _ur_platform_handle_t : public _ur_platform {
   _ur_platform_handle_t(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
-  zer_result_t initialize();
+  ur_result_t initialize();
 
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
@@ -171,21 +172,21 @@ struct _ur_platform_handle_t : public _ur_platform {
   bool ZeDriverModuleProgramExtensionFound{false};
 
   // Cache UR devices for reuse
-  std::vector<std::unique_ptr<_zer_device_handle_t>> PiDevicesCache;
+  std::vector<std::unique_ptr<ur_device_handle_t_>> PiDevicesCache;
   pi_shared_mutex PiDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.
-  zer_result_t populateDeviceCacheIfNeeded();
+  ur_result_t populateDeviceCacheIfNeeded();
 
   // Return the PI device from cache that represents given native device.
   // If not found, then nullptr is returned.
-  zer_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
+  ur_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
 };
 
 struct _ur_device_handle_t : _pi_object {
-  _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
-                      zer_device_handle_t ParentDevice = nullptr)
+  _ur_device_handle_t(ze_device_handle_t Device, ur_platform_handle_t Plt,
+                      ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ImmCommandListsPreferred{false}, ZeDeviceProperties{},
         ZeDeviceComputeProperties{} {
@@ -240,8 +241,8 @@ struct _ur_device_handle_t : _pi_object {
   // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
   // command queue ordinal and index respectively, used to initialize
   // sub-sub-devices.
-  zer_result_t initialize(int SubSubDeviceOrdinal = -1,
-                          int SubSubDeviceIndex = -1);
+  ur_result_t initialize(int SubSubDeviceOrdinal = -1,
+                         int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
   // This field is only set at _ur_device_handle_t creation time, and cannot
@@ -253,19 +254,19 @@ struct _ur_device_handle_t : _pi_object {
   // reuse The order of sub-devices in this vector is repeated from the
   // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
   // call, which will always return sub-devices in the fixed same order.
-  std::vector<zer_device_handle_t> SubDevices;
+  std::vector<ur_device_handle_t> SubDevices;
 
   // PI platform to which this device belongs.
   // This field is only set at _ur_device_handle_t creation time, and cannot
   // change. Therefore it can be accessed without holding a lock on this
   // _ur_device_handle_t.
-  zer_platform_handle_t Platform;
+  ur_platform_handle_t Platform;
 
   // Root-device of a sub-device, null if this is not a sub-device.
   // This field is only set at _ur_device_handle_t creation time, and cannot
   // change. Therefore it can be accessed without holding a lock on this
   // _ur_device_handle_t.
-  const zer_device_handle_t RootDevice;
+  const ur_device_handle_t RootDevice;
 
   // Whether to use immediate commandlists for queues on this device.
   // For some devices (e.g. PVC) immediate commandlists are preferred.
@@ -307,9 +308,9 @@ struct _ur_device_handle_t : _pi_object {
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
-// TODO: make it into a zer_device_handle_t class member
+// TODO: make it into a ur_device_handle_t class member
 const std::pair<int, int>
-getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device);
+getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
 
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
@@ -324,40 +325,10 @@ public:
 
   ZeUSMImportExtension() : Enabled{false} {}
 
-  void setZeUSMImport(ur_platform_handle_t Platform) {
-    // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-    // host ptr import during buffer creation.
-    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-      return;
-
-    // Check if USM hostptr import feature is available.
-    ze_driver_handle_t DriverHandle = Platform->ZeDriver;
-    if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                        (DriverHandle, "zexDriverImportExternalPointer",
-                         reinterpret_cast<void **>(
-                             &zexDriverImportExternalPointer))) == 0) {
-      ZE_CALL_NOCHECK(
-          zeDriverGetExtensionFunctionAddress,
-          (DriverHandle, "zexDriverReleaseImportedPointer",
-           reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
-      // Hostptr import/release is turned on because it has been requested
-      // by the env var, and this platform supports the APIs.
-      Enabled = true;
-      // Hostptr import is only possible if piMemBufferCreate receives a
-      // hostptr as an argument. The SYCL runtime passes a host ptr
-      // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
-      setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
-    }
-  }
+  void setZeUSMImport(_ur_platform_handle_t *Platform);
   void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
-                     size_t Size) {
-    ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                    (DriverHandle, HostPtr, Size));
-  }
-  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr) {
-    ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
-  }
+                     size_t Size);
+  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
 };
 
 // Helper wrapper for working with USM import extension in Level Zero.
