@@ -71,6 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
 )
 
 # Build level zero adapter
@@ -90,7 +91,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_device.hpp"
     "ur/adapters/level_zero/ur_level_zero_event.hpp"
     "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.hpp"
     "ur/adapters/level_zero/ur_level_zero_platform.hpp"
     "ur/adapters/level_zero/ur_level_zero_program.hpp"
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
@@ -101,7 +102,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_device.cpp"
     "ur/adapters/level_zero/ur_level_zero_event.cpp"
     "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.cpp"
     "ur/adapters/level_zero/ur_level_zero_platform.cpp"
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"

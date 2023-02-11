@@ -48,6 +48,9 @@ const int UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT = UR_EXT_DEVICE_INFO_END - 15;
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
 
+const uint32_t UR_EXT_MAP_FLAG_WRITE_INVALIDATE_REGION =
+    (UR_MAP_FLAG_WRITE << 1);
+
 const int UR_EXT_RESULT_END = 0x1000;
 const ur_result_t UR_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
     ur_result_t(UR_EXT_RESULT_END - 1);
@@ -56,6 +59,38 @@ const int UR_EXT_USM_CAPS_ACCESS = 1 << 0;
 const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
 const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
 const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
+
+const int UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY = 1 << 5;
+
+const ur_context_info_t UR_EXT_CONTEXT_INFO_REFERENCE_COUNT =
+    (ur_context_info_t)(UR_CONTEXT_INFO_FORCE_UINT32 - 2);
+
+const ur_context_info_t UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES =
+    (ur_context_info_t)(UR_CONTEXT_INFO_FORCE_UINT32 - 1);
+
+const ur_queue_info_t UR_EXT_ONEAPI_QUEUE_INFO_EMPTY =
+    (ur_queue_info_t)(UR_QUEUE_INFO_SIZE + 1);
+
+const ur_command_t UR_EXT_COMMAND_TYPE_USER =
+    (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
+
+const ur_image_channel_order_t UR_EXT_IMAGE_CHANNEL_ORDER_ABGR =
+    ur_image_channel_order_t(UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 - 1);
+
+typedef enum ur_ext_sampler_filter_mode_t {
+  UR_EXT_SAMPLER_FILTER_MODE_NEAREST = 0,
+  UR_EXT_SAMPLER_FILTER_MODE_LINEAR = 1,
+  UR_EXT_SAMPLER_FILTER_MODE_FORCE_UINT32 = 0x7fffffff
+} ur_ext_sampler_filter_mode_t;
+
+const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
+    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
+const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM =
+    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 2);
+const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA =
+    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 3);
+const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT =
+    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 4);
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -228,10 +263,14 @@ struct _ur_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   ur_shared_mutex Mutex;
+
+  // Indicates if we own the native handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnNativeHandle = false;
 };
 
 // Helper for one-liner validation
-#define PI_ASSERT(condition, error)                                            \
+#define UR_ASSERT(condition, error)                                            \
   if (!(condition))                                                            \
     return error;
 
@@ -279,7 +318,7 @@ ur_result_t getInfo(size_t param_value_size, void *param_value,
                     size_t *param_value_size_ret, T value) {
 
   auto assignment = [](void *param_value, T value, size_t value_size) {
-    (void)value_size;
+    std::ignore = value_size;
     *static_cast<T *>(param_value) = value;
   };
 
