@@ -396,6 +396,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      libsycldevice
      level-zero-sycl-dev
      win_proxy_loader
+     unified-runtime-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
