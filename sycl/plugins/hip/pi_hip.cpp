@@ -2845,7 +2845,12 @@ pi_result hip_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  size_t threadsPerBlock[3] = {32u, 1u, 1u};
+  int warpSize = 32;
+  sycl::detail::pi::assertion(
+      hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
+                            command_queue->device_->get()) == hipSuccess);
+  const uint32_t subGroupSize = static_cast<uint32_t>(warpSize);
+  size_t threadsPerBlock[3] = {subGroupSize, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
