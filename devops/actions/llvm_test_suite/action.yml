@@ -92,25 +92,18 @@ runs:
       ls -R test_e2e
       rm -f ${{ inputs.e2e_tests_archive }}
   - name: Configure
-    if: ${{ !inputs.in_tree_e2e }}
     shell: bash
     run: |
       echo "::group::CMake configuration"
       mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
-      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
-      export CHECK_TARGET=check-sycl-all
-      echo "::endgroup::"
-  - name: Configure In-tree
-    if: inputs.in_tree_e2e
-    shell: bash
-    run: |
-      echo "::group::CMake configuration"
-      mkdir build
-      export PATH=$PWD/toolchain/bin/:$PATH
-      # TODO: Rename check_sycl_all input
-      cmake  -GNinja -B./build -S./test_e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
-      export CHECK_TARGET=check-sycl-e2e
+      if ${{ inputs.in_tree_e2e }}
+      then
+        # TODO: Rename check_sycl_all input
+        cmake  -GNinja -B./build -S./test_e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
+      else
+        cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
+      fi
       echo "::endgroup::"
   - name: Run testing
     shell: bash
@@ -120,9 +113,9 @@ runs:
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
       # For standalone llvm-test-suite
-      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e}}.json"
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e }}.json"
       # For in-tree End-to-End tests
-      export SYCL_TEST_E2E_TARGETS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e}}.json"
+      export SYCL_TEST_E2E_TARGETS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
@@ -145,10 +138,12 @@ runs:
       echo "::endgroup::"
       cd build
       echo "::group::Check"
-      pwd
-      ls
-      echo $CHECK_TARGET
-      ninja $CHECK_TARGET
+      if ${{ inputs.in_tree_e2e }}
+      then
+        ninja check-sycl-e2e
+      else
+        ninja check-sycl-all
+      fi
       echo "::endgroup::"
   - name: Upload test results
     uses: actions/upload-artifact@v1

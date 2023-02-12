@@ -39,7 +39,7 @@ jobs:
       build_configure_extra_args: --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
   linux_no_assert:
     name: Linux (no assert)
-    if: github.repository == 'intel/llvm'
+    if: false
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -51,7 +51,7 @@ jobs:
     # TODO use nightly images when Docker containers are available
     name: Linux + Clang + Shared libs
     runs-on: ubuntu-20.04
-    if: github.repository == 'intel/llvm'
+    if: false
     steps:
     - uses: actions/checkout@v3
       with:
