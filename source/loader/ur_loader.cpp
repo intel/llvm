@@ -33,13 +33,13 @@ ur_result_t context_t::init() {
         intercept_enabled = true;
 
     return UR_RESULT_SUCCESS;
-};
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {
     for (auto &drv : platforms) {
         FREE_DRIVER_LIBRARY(drv.handle);
     }
-};
+}
 
 } // namespace loader
