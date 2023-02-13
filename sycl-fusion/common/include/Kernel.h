@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_KERNEL_H
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <string>
 #include <vector>
