@@ -23,10 +23,6 @@ class OpBuilder;
 class ValueRange;
 namespace sycl {
 class SYCLMethodOpInterface;
-/// Generates a list of values to be used as arguments to a
-/// SYCLMethodOpInterface instance from \p Original.
-SmallVector<Value> adaptSYCLMethodOpArguments(OpBuilder &Builder, Location Loc,
-                                              ValueRange Original);
 /// Abstracts different cast operations from which \p Original may have
 /// originated.
 Value abstractCasts(Value Original);

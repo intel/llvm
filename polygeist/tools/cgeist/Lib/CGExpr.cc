@@ -1118,8 +1118,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
                           << " to replace SYCL method call.\n");
 
   return static_cast<sycl::SYCLMethodOpInterface>(Builder.create(
-      Loc, Builder.getStringAttr(*OptOpName),
-      sycl::adaptSYCLMethodOpArguments(Builder, Loc, OperandsCpy),
+      Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
       getSYCLMethodOpAttrs(Builder, Operands.getTypes(), TypeName, FunctionName,
                            MangledFunctionName)));
