@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
@@ -50,9 +51,15 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
   const mlir::Type TargetElementType = MT.getElementType();
   const unsigned TargetMemSpace = MT.getMemorySpaceAsInt();
 
-  assert(TargetShape == ThisType.getShape() &&
-         "Shape should not change when casting to base class for a member "
-         "function call.");
+  if (TargetShape != ThisType.getShape()) {
+    Original = Rewriter.create<memref::CastOp>(
+        Loc,
+        MemRefType::get(TargetShape, MT.getElementType(), MT.getLayout(),
+                        MT.getMemorySpace()),
+        Original);
+    LLVM_DEBUG(llvm::dbgs()
+               << "  MemRef cast needed: " << Original << "\n");
+  }
 
   if (ThisType.getMemorySpaceAsInt() != TargetMemSpace) {
     Original = Rewriter.create<polygeist::Memref2PointerOp>(
@@ -66,8 +73,8 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
         Original);
     Original = Rewriter.create<polygeist::Pointer2MemrefOp>(
         Loc,
-        MemRefType::get(TargetShape, ThisType.getElementType(), {},
-                        TargetMemSpace),
+        MemRefType::get(TargetShape, ThisType.getElementType(),
+                        MT.getLayout().getAffineMap(), TargetMemSpace),
         Original);
     LLVM_DEBUG(llvm::dbgs()
                << "  Address space cast needed: " << Original << "\n");

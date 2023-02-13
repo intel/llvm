@@ -41,6 +41,17 @@ func.func @range_size(%arg0: memref<?x!sycl_range_2_, 4>) -> i64 {
   return %0 : i64
 }
 
+// CHECK-LABEL:   func.func @range_size_diff_shape(
+// CHECK-SAME:                          %[[VAL_0:.*]]: memref<1x!sycl_range_2_, 4>) -> i64 {
+// CHECK-NEXT:      %[[VAL_1:.*]] = memref.cast %[[VAL_0]] : memref<1x!sycl_range_2_, 4> to memref<?x!sycl_range_2_, 4>
+// CHECK-NEXT:      %[[VAL_2:.*]] = sycl.call @size(%[[VAL_1]]) {MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (memref<?x!sycl_range_2_, 4>) -> i64
+// CHECK-NEXT:      return %[[VAL_2]] : i64
+// CHECK-NEXT:    }
+func.func @range_size_diff_shape(%arg0: memref<1x!sycl_range_2_, 4>) -> i64 {
+  %0 = sycl.range.size(%arg0) {ArgumentTypes = [memref<?x!sycl_range_2_, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (memref<1x!sycl_range_2_, 4>) -> i64
+  return %0 : i64
+}
+
 // CHECK-LABEL:   func.func @sycl_item_get_id(
 // CHECK-SAME:                                %[[VAL_0:.*]]: memref<?x!sycl_item_1_, 4>) -> !sycl_id_1_ {
 // CHECK-NEXT:      %[[VAL_1:.*]] = sycl.call @get_id(%[[VAL_0]]) {MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (memref<?x!sycl_item_1_, 4>) -> !sycl_id_1_
