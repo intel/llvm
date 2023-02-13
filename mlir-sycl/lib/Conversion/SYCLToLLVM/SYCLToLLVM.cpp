@@ -547,7 +547,7 @@ public:
     const auto loc = op.getLoc();
     const auto range = opAdaptor.getRange();
     auto *typeConverter = getTypeConverter();
-    const auto alignment = op.getRange().getDimension() * 8;
+    const auto alignment = op.getRange().getType().getDimension() * 8;
     const auto alloca = static_cast<Value>(rewriter.create<LLVM::AllocaOp>(
         loc,
         LLVM::LLVMPointerType::get(typeConverter->convertType(range.getType())),
