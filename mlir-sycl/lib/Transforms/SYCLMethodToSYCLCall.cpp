@@ -54,11 +54,10 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
   if (TargetShape != ThisType.getShape()) {
     Original = Rewriter.create<memref::CastOp>(
         Loc,
-        MemRefType::get(TargetShape, ThisType.getElementType(), ThisType.getLayout(),
-                        ThisType.getMemorySpace()),
+        MemRefType::get(TargetShape, ThisType.getElementType(),
+                        ThisType.getLayout(), ThisType.getMemorySpace()),
         Original);
-    LLVM_DEBUG(llvm::dbgs()
-               << "  MemRef cast needed: " << Original << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "  MemRef cast needed: " << Original << "\n");
   }
 
   if (ThisType.getMemorySpaceAsInt() != TargetMemSpace) {
