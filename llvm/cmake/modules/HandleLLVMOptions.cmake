@@ -884,9 +884,44 @@ macro(append_common_sanitizer_flags)
   endif()
 endmacro()
 
+macro(is_sanitizer_opt_set option_list option_name ret_var)
+  list(FIND ${option_list} ${option_name} opt_idx)
+  message(is_sanitizer_opt_set = ${${option_list}})
+  message(is_sanitizer_opt_set = ${option_name})
+  message(is_sanitizer_opt_set = ${opt_idx})
+  if (NOT ${opt_idx} EQUAL -1)
+    message(is_sanitizer_opt_set set var)
+    set (${ret_var} TRUE PARENT_SCOPE)
+    list(REMOVE_AT ${option_list} ${opt_idx} PARENT_SCOPE)
+  endif()
+endmacro()
+
 # Turn on sanitizers if necessary.
 if(LLVM_USE_SANITIZER)
   if (LLVM_ON_UNIX)
+    set (sanitizer_opt_list ${LLVM_USE_SANITIZER})
+    separate_arguments(sanitizer_opt_list)
+    list(LENGTH sanitizer_opt_list len)
+    message(STATUS "len = ${len}")
+    
+    is_sanitizer_opt_set(sanitizer_opt_list "cfi" enable_option)
+    # Enable only if supported. CFI requires pretty up-to-date hardware because it’s an instruction set extension
+    if (${enable_option})
+      if (GCC)
+        add_compile_option_ext("-fcf-protection=full -mcet" FSANITIZE_CFI)
+      else()
+        add_compile_option_ext("-fsanitize=cfi" FSANITIZE_CFI)
+      endif()
+    endif()
+
+    is_sanitizer_opt_set(sanitizer_opt_list "SafeStack" enable_option)
+    if (${enable_option})
+      add_compile_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFE_STACK)
+    endif()
+
+    list(LENGTH sanitizer_opt_list len)
+    message(STATUS "len = ${len}")
+
     if (LLVM_USE_SANITIZER STREQUAL "Address")
       append_common_sanitizer_flags()
       append("-fsanitize=address" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
@@ -1307,43 +1342,61 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
   add_flag_if_supported("-no-canonical-prefixes" NO_CANONICAL_PREFIXES)
 endif()
 
-if(LLVM_ON_UNIX)
-  # Fortify Source (strongly recommended):
-  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(WARNING
-      "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
-    message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
-  else()
-    # Sanitizers do not work with checked memory functions,
-    # such as __memset_chk. We do not build release packages
-    # with sanitizers, so just avoid -D_FORTIFY_SOURCE=2
-    # under LLVM_USE_SANITIZER.
-    if (NOT LLVM_USE_SANITIZER)
-      message(STATUS "Building with -D_FORTIFY_SOURCE=2")
-      add_definitions(-D_FORTIFY_SOURCE=2)
-    else()
+function(append_common_extra_recommended_flags)
+  if( LLVM_ON_UNIX )
+    # Fortify Source (strongly recommended):
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       message(WARNING
-        "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
+        "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
+      message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
+    else()
+      # Sanitizers do not work with checked memory functions,
+      # such as __memset_chk. We do not build release packages
+      # with sanitizers, so just avoid -D_FORTIFY_SOURCE=2
+      # under LLVM_USE_SANITIZER.
+      if (NOT LLVM_USE_SANITIZER)
+        message(STATUS "Building with -D_FORTIFY_SOURCE=2")
+        add_definitions(-D_FORTIFY_SOURCE=2)
+      else()
+        message(WARNING
+          "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
+      endif()
     endif()
+
+    # Format String Defense
+    add_compile_option_ext("-Wformat" WFORMAT)
+    add_compile_option_ext("-Wformat-security" WFORMATSECURITY)
+    add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
+
+    # Stack Protection
+    add_compile_option_ext("-fstack-protector-strong" FSTACKPROTECTORSTRONG)
+
+    # Full Relocation Read Only
+    add_link_option_ext("-Wl,-z,relro" ZRELRO
+      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+      CMAKE_SHARED_LINKER_FLAGS)
+
+    # Immediate Binding (Bindnow)
+    add_link_option_ext("-Wl,-z,now" ZNOW
+      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+      CMAKE_SHARED_LINKER_FLAGS)
   endif()
+endfunction()
 
-  # Format String Defense
-  add_compile_option_ext("-Wformat" WFORMAT)
-  add_compile_option_ext("-Wformat-security" WFORMATSECURITY)
-  add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
+message("EXTRA_RECOMMENDED_OPTSET =" ${EXTRA_RECOMMENDED_OPTSET})
 
-  # Stack Protection
-  add_compile_option_ext("-fstack-protector-strong" FSTACKPROTECTORSTRONG)
-
-  # Full Relocation Read Only
-  add_link_option_ext("-Wl,-z,relro" ZRELRO
-    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
-    CMAKE_SHARED_LINKER_FLAGS)
-
-  # Immediate Binding (Bindnow)
-  add_link_option_ext("-Wl,-z,now" ZNOW
-    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
-    CMAKE_SHARED_LINKER_FLAGS)
+if ( EXTRA_RECOMMENDED_OPTSET )
+    if (EXTRA_RECOMMENDED_OPTSET STREQUAL "none")
+    # No actions.
+    elseif (EXTRA_RECOMMENDED_OPTSET STREQUAL "default")
+      append_common_extra_recommended_flags()
+    elseif (EXTRA_RECOMMENDED_OPTSET STREQUAL "sanitize")
+      append_common_extra_recommended_flags()
+      # add sanitize explicitly
+      # sanitize should be added to compile and link lines both
+    else()
+      message(FATAL_ERROR "Unsupported value of EXTRA_RECOMMENDED_OPTSET: ${EXTRA_RECOMMENDED_OPTSET}")
+    endif()
 endif()
 
 set(LLVM_THIRD_PARTY_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../third-party CACHE STRING
