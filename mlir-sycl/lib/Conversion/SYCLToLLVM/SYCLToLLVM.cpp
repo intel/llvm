@@ -774,7 +774,11 @@ protected:
 
   /// Whether the input accessor is 1-dimensional.
   static bool has1DAccessor(SYCLAccessorSubscriptOp op) {
-    return op.getAcc().getType().cast<AccessorType>().getDimension() == 1;
+    return op.getAcc()
+               .getType()
+               .getElementType()
+               .cast<AccessorType>()
+               .getDimension() == 1;
   }
 
   /// Whether the input offset is an id.
@@ -901,8 +905,9 @@ public:
           loc, subscript, zero, ArrayRef<int64_t>{0, 0, 0, i});
     }
     // Insert original accessor
-    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, subscript,
-                                                     opAdaptor.getAcc(), 1);
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, subscript, rewriter.create<LLVM::LoadOp>(loc, opAdaptor.getAcc()),
+        1);
   }
 };
 
