@@ -111,9 +111,7 @@ public:
     auto pValuePI = static_cast<TypePI *>(param_value);
     memcpy(pValueUR, param_value, *param_value_size_ret);
 
-    size_t Count = 0;
     while (pValueUR) {
-      ++Count;
       if (*pValueUR == 0) {
         *pValuePI = 0;
         break;

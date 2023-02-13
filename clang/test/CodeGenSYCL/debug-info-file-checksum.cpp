@@ -35,5 +35,4 @@
 // TODO: Fails on windows because of the use of append-file command that returns
 // path with "\\" on windows. getPresumedLoc is failing with Literal String
 // parser returning erroneous filename.
-// XFAIL: windows-msvc
-
+// XFAIL: target=x86_64-pc-windows-msvc
