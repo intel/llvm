@@ -6,16 +6,31 @@
 
 // TODO: Add cuda and sycl lines for testing
 
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=high -Wno-implicit-function-declaration -emit-llvm -o - %s | FileCheck %s -check-prefix=FPAHIGH
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=medium -Wno-implicit-function-declaration -emit-llvm -o - %s | FileCheck %s -check-prefix=FPAMED
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=low -Wno-implicit-function-declaration -emit-llvm -o - %s | FileCheck %s -check-prefix=FPALOW
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=high \
+// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: | FileCheck %s -check-prefixes=CHECK,FPAHIGH
+
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=medium \
+// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: | FileCheck %s -check-prefixes=CHECK,FPAMED
+
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-accuracy=low \
+// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: | FileCheck %s -check-prefixes=CHECK,FPALOW
 
 float a, b;
 
 void foo(void) {
  // CHECK-LABEL: define {{.*}}void @foo()
   a = cosf(b);
-  // FPAHIGH: call float @llvm.experimental.fpaccuracy.cos.f32(float %{{.*}}, metadata !"fpaccuracy.high")
+  // FPAHIGH: call float @llvm.experimental.fpaccuracy.cos.f32(float %{{.*}}) #2
   // FPAMED: call float @llvm.experimental.fpaccuracy.cos.f32(float %{{.*}}, metadata !"fpaccuracy.medium")
   // FPALOW: call float @llvm.experimental.fpaccuracy.cos.f32(float %{{.*}}, metadata !"fpaccuracy.low")
 }
+
+// CHECK: declare float @llvm.experimental.fpaccuracy.cos.f32(float, metadata)
+// CHECK-SAME: #1
+
+// CHECK: attributes #1 =  { {{.*}} "fpbuiltin-max-error"="Float 2.5"}
+// TODO: Needs to add the value of the error.
+// CHECK: attributes #2 = { fpbultin_max_error }

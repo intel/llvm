@@ -2822,6 +2822,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     FPContract = "on";
   bool StrictFPModel = false;
   StringRef Float16ExcessPrecision = "";
+  StringRef FPAccuracy;
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -3125,6 +3126,14 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
           FPContract = "on";
       }
       break;
+    case options::OPT_ffp_accuracy_EQ:
+      StringRef Val = A->getValue();
+      if (!(Val.equals("high") || Val.equals("low") || Val.equals("medium") ||
+            Val.equals("sycl") || Val.equals("cuda")))
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getSpelling() << Val;
+      FPAccuracy = Val;
+      break;
     }
     if (StrictFPModel) {
       // If -ffp-model=strict has been specified on command line but
@@ -3217,6 +3226,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!Float16ExcessPrecision.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffloat16-excess-precision=" +
                                          Float16ExcessPrecision));
+
+  if (!FPAccuracy.empty())
+    CmdArgs.push_back(Args.MakeArgString("-ffp-accuracy=" + FPAccuracy));
 
   ParseMRecip(D, Args, CmdArgs);
 

@@ -221,6 +221,10 @@ def ImmArg : EnumAttr<"immarg", [ParamAttr]>;
 /// Function can return twice.
 def ReturnsTwice : EnumAttr<"returns_twice", [FnAttr]>;
 
+/// Floating point accuracy of the function defined with the ULP error of the
+/// function.
+def FPBuiltinMaxError : EnumAttr<"fpbultin_max_error", [FnAttr]>;
+
 /// Safe Stack protection.
 def SafeStack : EnumAttr<"safestack", [FnAttr]>;
 

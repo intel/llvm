@@ -2737,6 +2737,13 @@ def ReturnsTwice : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def FPBuiltinMaxError : InheritableAttr {
+  let Spellings = [Clang<"fpbultin_max_error">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 def DisableTailCalls : InheritableAttr {
   let Spellings = [Clang<"disable_tail_calls">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;

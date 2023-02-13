@@ -501,36 +501,48 @@ convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
   return AccuracyVal;
 }
 
+// TODO: This function is only a place holder. Returning for now a hard-code value
+// of the ULP error.
+StringRef getFPAccuracy(Function* F) { return "Float 2.5"; }
+
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
 // floating-point intrinsic.
 static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
                                 const CallExpr *E, unsigned IntrinsicID,
-                                unsigned ConstrainedIntrinsicID,
-    unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
-  llvm::TargetLibraryInfoImpl TLII(CGF.getTarget().getTriple());
+                                   unsigned ConstrainedIntrinsicID) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-  if (FPAccuracyIntrinsicID != Intrinsic::not_intrinsic) {
+  if (CGF.getLangOpts().getFPAccuracy()) {
+      // TODO: Need to check here if the accuracy of the math library function
+      // is different than the one in the command line.
     LangOptions::FPAccuracyKind FPAccuracy = CGF.getLangOpts().getFPAccuracy();
-    // Enter this part of the condition only when TLI.isFPACCuracyAvailable is
-    // true, implying FPAccuary != LangOptions::FPA_Default.
-    if (FPAccuracy == LangOptions::FPA_Default)
-      CGF.CGM.Error(E->getExprLoc(), "FP accuracy other than defaut is expected");
     StringRef FPAccuracyVal = convertFPAccuracy(FPAccuracy);
-    auto *AccuracyMDS = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
-    auto *AccuracyMD =
-        MetadataAsValue::get(CGF.Builder.getContext(), AccuracyMDS);
-    Function *F = CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Src0->getType());
-    // TODO: For now, the IR generated for cos function for example is of this form:
-    // call float @llvm.experimental.fpaccuracy.cos.f32(float %0, metadata !"fpaccuracy.value")
-    // But the final goal is to generate this IR:
-    // call float @llvm.experimental.fpaccuracy.cos.f32(float %0, float ulp)
-    // TODO:
-    // TLI.getFPAccuracy should return a string of the form "float ulp" depending
-    // on the function (IntrinsicID) and the command line accuracy (FPAccuracyIntrinsicID)
-    // FPAccuracyVal = TLI.getFPAccuracy(F->getName(), FPAccuracyIntrinsicID)
-    // auto *AccuracyMDS = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
-    return CGF.Builder.CreateCall(F, {Src0, AccuracyMD});
+    Function *F = CGF.CGM.getIntrinsic(Intrinsic::experimental_fpaccuracy_cos,
+                                       Src0->getType());
+    // TODO: getFPAccuracy is a place holder for the ucooming function. This will
+    // have to use Target (may be?) in order to calculate the accuracy allowed
+    // for the function F. For now the function is retruning a hard-coded string.
+    StringRef AccuracyStr = getFPAccuracy(F);
+    auto *AccuracyMD = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
+    auto *Src1 = MetadataAsValue::get(CGF.Builder.getContext(), AccuracyMD);
+    // TODO: expecting a second argument for this intrinsic. For now keep the metada,
+    // but not sure what Andy wants here?
+    llvm::CallInst *CI = CGF.Builder.CreateCall(F, { Src0, Src1 });
+    if (CGF.getLangOpts().getFPAccuracy() !=
+        LangOptions::FPAccuracyKind::FPA_Default) {
+        // TODI: Do we want to mark the declaration of the new builtin
+        // with the attribute? See LIT test.
+      llvm::AttrBuilder FuncAttrs(F->getContext());
+      FuncAttrs.addAttribute("fpbuiltin-max-error", AccuracyStr);
+      F->addFnAttrs(FuncAttrs);
+      // TODO: For now adding the attribute at the call site without the ULP value.
+      // Not sure how to do that yet. Will work on it.
+      llvm::AttributeList FPBuiltinMaxErrorAttr = llvm::AttributeList::get(
+          CGF.getLLVMContext(), llvm::AttributeList::FunctionIndex,
+          llvm::Attribute::FPBuiltinMaxError);
+      CI->setAttributes(FPBuiltinMaxErrorAttr);
+    }
+    return CI;
   }
   if (CGF.Builder.getIsFPConstrained()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
@@ -2313,12 +2325,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
     case Builtin::BI__builtin_cosf128: {
-      if (TLII.isFPAccuracyAvailable())
-        return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
-            *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos,
-            Intrinsic::experimental_fpaccuracy_cos));
-      else
-        return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
             *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos));
     }
     case Builtin::BIexp:
