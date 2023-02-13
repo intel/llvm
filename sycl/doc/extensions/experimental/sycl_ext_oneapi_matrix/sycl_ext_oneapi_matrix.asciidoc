@@ -56,11 +56,12 @@ The joint_matrix type is an optional kernel feature as defined
 in section 5.7 of the core SYCL specification.  Each device supports
 only certain values for the `Rows` and `Cols` template parameters and
 only certain types for the `T` template parameter.  Applications can
-use the query API `tpu_params` to determine the set of legal
-parameters for each device.  If the application submits a kernel using
+use the query API in `tpu_params` or
+`get_info<experimental::info::device::matrix>` to determine the set of
+legal parameters for each device.  If the application submits a kernel using
 an unsupported `joint_matrix` parameter, the implementation throws a
 synchronous exception with the `errc::kernel_not_supported` error code
-as described in section 5.7. 
+as described in section 5.7.
 
 == Overview
 Joint matrix is a SYCL extension for matrix hardware programming. It
@@ -114,7 +115,7 @@ to `joint_matrix` with `use::accumulator`
 ==== Use
 The main operation performed by the matrix hardware is `D=C+A*B`. `Use`
 argument specifies the usage of the matrix: matrix left (`A`), matrix
-right (`B`) or accumulator +(`C`)+ and `D`. This is required by backend
+right (`B`) or accumulator (`C`) and `D`. This is required by backend
 implementations to reason about the layout of the matrix in registers.
 
 ```c++
@@ -173,10 +174,10 @@ functions will be called once by each work item in the group.
 
 To be aligned with the SYCL 2020 group algorithms, an additional group
 argument is added to the matrix operations to designate that these
-functions are collective operations. The {dpcpp} syntax is the following: 
+functions are collective operations. The {dpcpp} syntax is the following:
 
 IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported.  
+is supported.
 
 ==== Load
 ```c++
@@ -213,7 +214,7 @@ matrix to be loaded from. `Layout` determines whether the data is
 being read in a row (`row_major`), column major (`column_major`)
 fashion. `stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major
-layout. 
+layout.
 
 
 ==== Store
@@ -261,7 +262,7 @@ Unlike `joint_matrix_load` that assumes that all the matrices are
 directly loaded from memory, `joint_matrix_fill`  makes it possible to
 multiply a matrix which is not directly loaded from memory but rather
 initialized directly in the register. On Intel AMX, if the
-initialization constant is zero, this would map to the `_tile_zero` intrinsic: 
+initialization constant is zero, this would map to the `_tile_zero` intrinsic:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -272,7 +273,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 }
 ```
 IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported.  
+is supported.
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
@@ -289,7 +290,7 @@ of the * link:sycl_ext_intel_matrix.asciidoc[sycl_ext_intel_matrix]
 Besides the `Group` and the `joint_matrix` argument,
 `joint_matrix_apply` takes a lambda expression as an argument that
 specifies the specific operation on each of the elements of the input
-matrix. 
+matrix.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -302,14 +303,14 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 In the following example, every element of the matrix `C` is
 multiplied by `alpha`. Then, an activation function, `relu` in this
-example, is applied on each of the elements of `C`. 
+example, is applied on each of the elements of `C`.
 
 ```c++
-joint_matrix_apply(sg, C, [=](T x) {  
-    x *= alpha; 
-    relu(x); 
+joint_matrix_apply(sg, C, [=](T x) {
+    x *= alpha;
+    relu(x);
 });
-
+```
 IMPORTANT: `joint_matrix_apply` is not implemented yet.
 
 === Joint Matrix Additional Types
@@ -319,13 +320,13 @@ such as tf32. tf32 type has a 19 bit format with one sign bit, 8
 exponent bits offering the same range as fp32,  and 10 mantissa bits
 offering same precision as  half type. The usage of tf32 type is
 restricted to `joint_matrix` using:
-`sycl::ext::oneapi::experimental::matrix::precision::tf32`. 
+`sycl::ext::oneapi::experimental::matrix::precision::tf32`.
 
-Joint matrix type tf32 is defined as an empty class with no member functions. 
+Joint matrix type tf32 is defined as an empty class with no member functions.
 ```c++
 namespace precision {
   class tf32;
-} 
+}
 ```
 Besides the type, one conversion function is added:
 `round_to_tf32` that  performs the rounding to tf32.
@@ -351,7 +352,7 @@ range<2> L = {1, SG_SIZE};
 int8_t *memA = malloc_shared<int8_t>(M*K, q);
 int8_t *memB = malloc_shared<int8_t>(K*N, q);
 int32_t *memC = malloc_shared<int32_t>(M*N, q);
-q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)                            
+q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
   [[sycl::reqd_sub_group_size(SG_SIZE)]] {
    const auto global_idx = item.get_global_id(0);
    const auto global_idy = item.get_global_id(1);
@@ -365,14 +366,14 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    for (int k = 0; k < K; k += tK) {
      joint_matrix_load(sg, tA,
           multi_ptr<int8_t, sycl::access::address_space::global_space>(memA) +
-	  sg_startx * tM * K + k, K);
+          sg_startx * tM * K + k, K);
      joint_matrix_load(sg, tB,
           multi_ptr<int8_t, sycl::access::address_space::global_space>(memB) +
-	  k * N + sg_starty/SG_SIZE*tN, N); 
+          k * N + sg_starty/SG_SIZE*tN, N);
      tC = joint_matrix_mad(sg, tA, tB, tC);
    }
-   joint_matrix_apply(sg, tC, [=](int8_t x) {  
-    x *= alpha; 
+   joint_matrix_apply(sg, tC, [=](int8_t x) {
+    x *= alpha;
    });
    joint_matrix_store(sg, tC,
         multi_ptr<int32_t, sycl::access::address_space::global_space>(memC) +
@@ -381,16 +382,19 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 ```
 
 === Query Interface
-Intel AMX, Intel XMX and Nvidia matrix hardware support different
+Intel AMX, Intel XMX and Nvidia Tensor Cores matrix hardware support different
 sizes and types (see Appendix: Supported Combinations Per
 Hardware). The query interface is used to validate user code and
 inform them about supported types, sizes, scope, and layouts by the
-implementation. This also offers development and tuning productivity by both
-scientists and library developers. The query interface we are
-proposing here is a compile-time query, so there will be no runtime
-errors.
+implementation. This also offers development and tuning productivity
+by both scientists and library developers. We provide two types of the
+query interface: compile-time query and runtime query.
 
-The query interface proposed here consists of three functionalities:
+==== Compile-Time Query
+This returns `constexpr` values to use in `joint_matrix` template
+arguments but depends on an enumeration of the matrix hardware that
+can be tested.  The compile-time query interface proposed here
+consists of two functionalities:
 
 - Validation: at compile time, the validation functionality informs
   the user whether a specific combination is valid or not. This takes
@@ -403,88 +407,35 @@ The query interface proposed here consists of three functionalities:
   needed. This form happens when the user specifies all template
   parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query: the general query interface provides information
-  about sizes, types,  and scopes that are supported by a specific TPU
-  implementation. This is needed to avoid padding by the user, for
-  tuning, and efficient code generation if used by a library. The
-  general query returns an array of `combinations` of `combination`
-  type. Each combination includes the sizes and the types for the
-  matrices A, B, and accumulator. Note that for each TPU, the query
-  returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize`
-  exclusively, depending on whether the implementation supports a
-  continuous or discrete number of sizes. For example, the Intel AMX
-  implementation supports a continuous number of sizes, so the `max_*`
-  variant is applied and only the maximum number is returned. The
-  Intel XMX implementation, on the other hand, supports a discrete
-  list of numbers so the  `msize, nsize, ksize` variant is applied.
-  This form takes place when users only specify the TPU they are
-  interested in using.
-
 The table below provides a description for each of the member
-variables and type aliases in `tpu_params` class and the forms in
-which  they are defined.
+variables in `matrix_params` class and the forms in which  they are
+defined.
 
 [frame="none",options="header"]
 |======================
-| Member/type alias in `tpu_params` | Forms they are defined in |Description
-|`type_a`| validation, default values|type alias for the type of matrix A
-|`type_b`|  validation, default values|type alias for the type of matrix B
-|`type_accumulator`|  validation, default values|type alias for the
-type of matrix accumulator
-|`M`|  validation, default values|when no sizes are provided by the
-user, indicates the suggested default size for M; usually this
-corresponds to the maximum size the implementation supports. In
-validation mode, where the user does provide sizes, this is the same
-value M that the user provides if M is supported by the implementation
-|`N`|  validation, default values|when no sizes are provided by the
-user, indicates the suggested default size for N; usually this
-corresponds to the maximum size the implementation supports. In
-validation mode, where the user does provide sizes, this is the same
-value N that the user provides if N is supported by the implementation
-|`K`|  validation, default values|when no sizes are provided by the
-user, indicates the suggested default size for K; usually this
-corresponds to the maximum size the implementation supports. In
-validation mode, where the user does provide sizes, this is the same
-value K that the user provides if K is supported by the implementation
-|`joint_matrix_a`|  validation, default values|type alias for
-`joint_matrix` for matrix A
-|`joint_matrix_b`| validation, default values| type alias for
-`joint_matrix` for matrix B
-|`joint_matrix_accumulator`|  validation, default values| type alias
-for `joint_matrix` for matrix accumulator
-|numtiles|  validation, default values, general query|indicates number
-of tiles in Intel AMX (does not apply to Intel XMX)
-|scopes| validation, default values, general query| indicates the
-memory and execution scopes supported by the TPU implementation
-|`combination` |  validation, default values, general query|composes
-the types and sizes of A, B, accumulator matrices allowed in one combination
-|`max_msize`, `max_nsize`, `max_ksize`|  validation, default values,
-general query| if the TPU implementation supports a continuous number
-of element sizes, each of these members is non-zero, and the TPU
-implementation supports all element sizes from 1 up to (and including)
-that number. By contrast, if the TPU implementation supports a
-discrete number of element sizes, each of these members has the value zero
-|`msize`, `nsize`, `ksize`|  validation, default values, general
-query| if the TPU implementation supports a discrete number of element
-sizes, each of these members is non-zero, and the value tells one of
-the supported element sizes. By contrast, if the TPU supports a
-continuous number of element sizes, each of these members has the value zero
-|`atype`, `btype`, `accumulatortype`| validation, default values,
-general query| indicates the types supported in the combination
-|`combinations`    | validation, default values, general query| tells
-the set of supported matrix sizes and types according to the template
-parameters that are provided. In the "general query" form, the user
-provides only the TPU type, so the combinations array contains all
-supported tile sizes and element types for that TPU. In the "default
-values" form, the user provides the TPU type and element types, so the
-combinations array contains only those supported matrix sizes and
-element types that match those element types on that TPU. In the
-"validation" form, the user provides the TPU type, element types, and
-element sizes so only this specific combination is returned in the
-combinations array. 
-|`num_combinations`|  validation, default values, general
-query|indicates number of combinations supported by the TPU
-implementation which corresponds to the size of the `combinations` array
+| Member/type alias in `tpu_params` | Description
+|`type_a`| type alias for the type of matrix A
+|`type_b`| type alias for the type of matrix B
+|`type_accumulator`| type alias for the type of matrix accumulator
+|`M`|when no sizes are provided by the user, indicates the suggested
+default size for M; usually this corresponds to the maximum size the
+implementation supports. In validation mode, where the user does
+provide sizes, this is the same value M that the user provides if M is
+supported by the implementation
+|`N`|when no sizes are provided by the user, indicates the suggested
+default size for N; usually this corresponds to the maximum size the
+implementation supports. In validation mode, where the user does
+provide sizes, this is the same value N that the user provides if N is
+supported by the implementation
+|`K`| when no sizes are provided by the user, indicates the suggested
+default size for K; usually this corresponds to the maximum size the
+implementation supports. In validation mode, where the user does
+provide sizes, this is the same value K that the user provides if K is
+supported by the implementation
+|`joint_matrix_a`| type alias for `joint_matrix` for matrix A
+|`joint_matrix_b`| type alias for `joint_matrix` for matrix B |
+`joint_matrix_accumulator`| type alias for `joint_matrix` for matrix
+accumulator
 |======================
 
 ```c++
@@ -495,7 +446,8 @@ struct tpu_params;
 
 // Validation form: Valid or not
 // Specialization when both types and sizes are given
-template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK, layout>
+template <typename Ta, typename Tb, typename Tc, int sM, int sN, int
+sK, layout>
 struct tpu_params<
     tpu::amx, Ta, Tb, Tc, sM, sN, sK,
     typename std::enable_if<(
@@ -506,11 +458,8 @@ struct tpu_params<
       (sM == 0 && sN == 0 && sK == 0) ||
           (is_combination_valid_amx<Ta, Tb, Tc>(sM, sN, sK)),
       "Invalid parameters for Intel AMX, query valid types and maximum sizes "
-      "using: "
-      "tpu_params<tpu::amx> myparams; and then check out
-      myparams.combinations array");
-
-
+      "using: dev.get_info<experimental::info::device::matrix>(); and
+      then check out matrix::combinations array");
   using type_a = Ta; // this type alias is not available in the
   current implementation 
   using type_b = Tb; // this type alias is not available in the
@@ -534,27 +483,6 @@ struct tpu_params<
   template <typename Group>
   using joint_matrix_accumulator = joint_matrix<Group, Tc,
   use::accumulator, defaultM, defaultN>;
-
-  static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scopes[] = {scope_t::sub_group};
-  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-  };
-  // In this case, the combinations array contains only the
-  combination that the user provided
-  static constexpr combination combinations[] = {
-      {16, 16, (sizeof(Ta) == 1) ? 64 : 32, sM, sN, sK}};
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
 };
 
 // Default values form: Sizes-only query
@@ -566,9 +494,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
                                            !std::is_same_v<Tc, void>)>::type> {
   static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
                 "Invalid types for Intel AMX, supported types are
-		int8_t, uint8_t, "
-                "and bf16 (Note that unsigned short should be used in the"
-                "DPC++ code to implement bf16) ");
+                 int8_t, uint8_t, and bfloat16) ");
 
   using type_a = Ta; // this type alias is not available in the
   current implementation 
@@ -589,107 +515,24 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   template <typename Group>
   using joint_matrix_accumulator = joint_matrix<Group, Tc,
   use::accumulator, M, N>;
-
-  static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scopes[] = {scope_t::sub_group};
-  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-  };
-  // In this case, the combinations array contain only the
-  combinations that correspond to the Ta, Tb, and Tc 
-  // types that the user provided
-  static constexpr combination combinations[] = {
-      {16, 16, (sizeof(Ta) == 1) ? 64 : 32}};
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
 };
-
-// General query form:
-// types are not given, no default sizes and no implicit matrix construction
-template <int sM, int sN, int sK>
-struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
-  static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scopes[] = {scope_t::sub_group};
-  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-  };
-  
-  static constexpr combination combinations[] = {
-      {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
-      matrix_type::sint32},
-      {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
-      matrix_type::sint32},
-      {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
-      matrix_type::sint32},
-      {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
-      matrix_type::sint32},
-      {16, 16, 32, 0, 0,0, matrix_type::bf16, matrix_type::bf16,
-      matrix_type::fp32}};
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
-};
-
 enum class tpu {
   xmx8,
   xmx16,
   amx
 };
-
-enum class matrix_type {
-  bf16,
-  fp16,
-  tf32,
-  fp32,
-  fp64,
-  sint2,
-  sint4,
-  sint8,
-  sint16,
-  sint32, 
-  sint64,
-  uint2,
-  uint4,
-  uint8,
-  uint16,
-  uint32,
-  uint64
-};
-
-enum class scope_t {
-  sub_group,
-  work_group
-};
-}
 ```
-==== Validation Example:
+===== Validation Example:
 ```c++
 // User can provide sizes besides the types and tpu_params can assert
   if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
-using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;  
+using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;
 size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
-==== Default Values Example:
+===== Default Values Example:
 ```c++
 using myparams = tpu_params_both<tpu::xmx16, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
@@ -702,17 +545,107 @@ myparams::joint_matrix_b<sub_group, layout::row_major> sub_b;
 myparams::joint_matrix_accumulator<sub_group> sub_c;
 
 ```
+==== Runtime Query
+This provides a more general query interface with information about
+sizes, types,  and scopes that are supported by a specific matrix
+implementation. This is needed to avoid padding by the user, for
+tuning, and efficient code generation if used by a library. The
+general query returns an array of `combinations` of `combination`
+type. Each combination includes the sizes and the types for the
+matrices A, B, and accumulator. Note that for each matrix hardware,
+the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
+ksize` exclusively, depending on whether the implementation supports a
+continuous or discrete number of sizes. For example, the Intel AMX
+implementation supports a continuous number of sizes, so the `max_*`
+variant is applied and only the maximum number is returned. The Intel
+XMX implementation, on the other hand, supports a discrete list of
+numbers so the `msize, nsize, ksize` variant is applied.
 
-==== General Query Example:
+The table below provides a description for each of the device matrix
+desciptors that can be queried using `get_info` API.
+
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::oneapi::experimental::info::device::matrix::numtiles`| `uint32_t`
+|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
+|`ext::oneapi::experimental::info::device::matrix::scopes`
+|`std::vector<scope_t>`
+|indicates the memory and execution scopes supported by the matrix
+implementation
+|`ext::oneapi::experimental::info::device::matrix::num_scopes`|`uint32_t`
+|indicates number of scopes supported by the matrix implementation
+|`ext::oneapi::experimental::info::device::matrix::combinations` |
+`std::vector<combination>`| tells the set of supported matrix sizes
+and types
+|`ext::oneapi::experimental::info::device::matrix::num_combinations`|`uint32_t`
+|indicates number of combinations supported by the matrix
+implementation which corresponds to the size of the `combinations` array
+|`combination` 
+|`combination`
+|composes the types and sizes of A, B, accumulator matrices allowed in
+one combination
+|`max_msize`, `max_nsize`, `max_ksize`| `uint32_t`| if the matrix
+implementation supports a continuous number of element sizes, each of
+these members is non-zero, and the matrix implementation supports all
+element sizes from 1 up to (and including) that number. By contrast,
+if the TPU implementation supports a discrete number of element
+sizes, each of these members has the value zero
+|`msize`, `nsize`, `ksize`| `uint32_t`| if the matrix implementation
+supports a discrete number of element sizes, each of these members is
+non-zero, and the value tells one of the supported element sizes. By
+contrast, if the matrix hardware supports a continuous number of
+element sizes, each of these members has the value zero
+|`atype`, `btype`, `accumulatortype`| `matrix_type` | indicates the
+types supported in the combination
+|======================
+
+```c++
+enum class scope_t {
+  sub_group,
+  work_group
+};
+enum class matrix_type {
+  bf16,
+  fp16,
+  tf32,
+  fp32,
+  fp64,
+  sint2,
+  sint4,
+  sint8,
+  sint16,
+  sint32,
+  sint64,
+  uint2,
+  uint4,
+  uint8,
+  uint16,
+  uint32,
+  uint64
+};
+struct combination {
+  uint32_t max_msize;
+  uint32_t max_nsize;
+  uint32_t max_ksize;
+  uint32_t msize;
+  uint32_t nsize;
+  uint32_t ksize;
+  matrix_type atype;
+  matrix_type btype;
+  matrix_type accumulatortype;
+};
+```
+
+===== General Query Example:
 ```c++
 constexpr int M = 1500; // with msize = 8 and msize = 4,
           // M can be broken up to 125 sequence of 8-sized ops and
-	  remaining 500 using 125 sequence of 4-sized ops
-tpu_params<tpu::xmx16> params;
-constexpr int msize = break_dimension(params, M);
-constexpr int msize_remainder = break_dimension_remainder(params, M);
-constexpr int nsize = params.combinations[0].nsize;
-constexpr int ksize = params.combinations[0].ksize;
+          // remaining 500 using 125 sequence of 4-sized ops
+auto combinations = device.get_info<info::device::matrix::combinations>();
+
+constexpr int {msize, nsize, ksize} = break_dimension(combinations, M);
+constexpr int msize_remainder = break_dimension_remainder(combinations, M);
 // device code:
 joint_matrix<sub_group, int8_t, use::a, msize, ksize, layout::row_major> sub_a;
 joint_matrix<sub_group, int8_t, use::b, ksize, nsize, layout::row_major> sub_b;
@@ -768,5 +701,5 @@ implementation
 portable across Intel AMX, Intel XMX and Nvidia Tensor Cores, and move
 the Intel-specifics to a separate extension document.
 |6   |2023-01-09 |Dounia Khaldi |Add `joint_matrix_apply` API, tf32
-type, and supported combinations appendix.
+type, runtime query, and supported combinations appendix.
 |======================
