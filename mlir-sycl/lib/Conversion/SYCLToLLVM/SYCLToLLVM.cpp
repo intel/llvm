@@ -36,19 +36,6 @@ using namespace mlir::sycl;
 // Utility functions
 //===----------------------------------------------------------------------===//
 
-/// Whether the SYCL typed input arguments originate from a load operation.
-static bool argsOriginateFromLoad(ValueRange args) {
-  return llvm::all_of(args, [](auto arg) {
-    return !isSYCLType(arg.getType()) ||
-           isa<memref::LoadOp, AffineLoadOp>(arg.getDefiningOp());
-  });
-}
-
-static Value getContainerPtr(Value arg) {
-  return TypeSwitch<Operation *, Value>(arg.getDefiningOp())
-      .Case<LLVM::LoadOp>([](LLVM::LoadOp Load) { return Load.getAddr(); });
-}
-
 // Returns true if the given type is 'memref<?xSYCLType>', and false otherwise.
 template <typename SYCLType> static bool isMemRefOf(const Type &type) {
   if (!type.isa<MemRefType>())
@@ -778,24 +765,28 @@ public:
 protected:
   /// Whether the input accessor has atomic access mode.
   static bool hasAtomicAccessor(SYCLAccessorSubscriptOp op) {
-    return op.getAcc().getType().getAccessMode() == MemoryAccessMode::Atomic;
+    return op.getAcc()
+               .getType()
+               .getElementType()
+               .cast<AccessorType>()
+               .getAccessMode() == MemoryAccessMode::Atomic;
   }
 
   /// Whether the input accessor is 1-dimensional.
   static bool has1DAccessor(SYCLAccessorSubscriptOp op) {
-    return op.getAcc().getType().getDimension() == 1;
+    return op.getAcc().getType().cast<AccessorType>().getDimension() == 1;
   }
 
   /// Whether the input offset is an id.
   static bool hasIDOffsetType(SYCLAccessorSubscriptOp op) {
-    return op.getIndex().getType().isa<IDType>();
+    return op.getIndex().getType().isa<MemRefType>();
   }
 
   /// Calculates the linear index out of an id.
   static Value getLinearIndex(OpBuilder &builder, Location loc,
                               AccessorType accTy, OpAdaptor opAdaptor) {
-    const auto id = getContainerPtr(opAdaptor.getIndex());
-    const auto mem = getContainerPtr(opAdaptor.getAcc());
+    const auto id = opAdaptor.getIndex();
+    const auto mem = opAdaptor.getAcc();
     // int64_t Res{0};
     Value res = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(), 0);
     for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
@@ -810,7 +801,7 @@ protected:
 
   static Value rewriteSubscript(SYCLAccessorSubscriptOp op, Value acc,
                                 Value offset, Type retTy, OpBuilder &builder) {
-    return builder.create<LLVM::GEPOp>(op.getLoc(), retTy, getContainerPtr(acc),
+    return builder.create<LLVM::GEPOp>(op.getLoc(), retTy, acc,
                                        ArrayRef<LLVM::GEPArg>{0, 1, 0, offset},
                                        /*inbounds*/ true);
   }
@@ -828,8 +819,11 @@ protected:
     const auto loc = op.getLoc();
     return rewriteSubscript(
         op, opAdaptor.getAcc(),
-        getLinearIndex(builder, loc, op.getAcc().getType(), opAdaptor), retTy,
-        builder);
+        getLinearIndex(
+            builder, loc,
+            op.getAcc().getType().getElementType().cast<AccessorType>(),
+            opAdaptor),
+        retTy, builder);
   }
 };
 
@@ -839,8 +833,7 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(argsOriginateFromLoad(op.getOperands()) &&
-                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
@@ -860,8 +853,7 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(argsOriginateFromLoad(op.getOperands()) &&
-                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op) &&
                    AccessorSubscriptPattern::has1DAccessor(op));
   }
@@ -887,8 +879,7 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(argsOriginateFromLoad(op.getOperands()) &&
-                   !AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(!AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op) &&
                    !AccessorSubscriptPattern::has1DAccessor(op));
   }
@@ -904,7 +895,7 @@ public:
     // Zero-initialize rest of the offset id<Dim - 1>
     const Value zero =
         rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), 0);
-    for (unsigned i = 1, dim = op.getAcc().getType().getDimension() - 1;
+    for (unsigned i = 1, dim = getDimensions(op.getAcc().getType()) - 1;
          i < dim; ++i) {
       subscript = rewriter.create<LLVM::InsertValueOp>(
           loc, subscript, zero, ArrayRef<int64_t>{0, 0, 0, i});
@@ -921,8 +912,7 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(argsOriginateFromLoad(op.getOperands()) &&
-                   AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
@@ -947,8 +937,7 @@ public:
   using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(argsOriginateFromLoad(op.getOperands()) &&
-                   AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
                    !AccessorSubscriptPattern::hasIDOffsetType(op));
   }
 
