@@ -69,14 +69,15 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
 
   auto Alloca = static_cast<Value>(CreateAlloca(Rewriter));
 
-  // Store the element
-  Rewriter.create<memref::StoreOp>(
-      Loc, Original, Alloca,
-      ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
+  if (auto Load = Original.getDefiningOp<memref::LoadOp>())
+    Alloca = Load.getOperand(0);
+  else
+    // Store the element
+    Rewriter.create<memref::StoreOp>(
+        Loc, Original, Alloca,
+        ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
 
-  // Cast the memref value to the expected shape
-  Alloca = Rewriter.createOrFold<memref::CastOp>(
-      Loc, MemRefType::get(TargetShape, ThisType), Alloca);
+  auto CurShape = Alloca.getType().cast<MemRefType>().getShape();
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
       MT.getMemorySpaceAsInt()) {
@@ -86,9 +87,14 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
     Alloca = Rewriter.create<LLVM::AddrSpaceCastOp>(
         Loc, LLVM::LLVMPointerType::get(ThisType, TargetMemSpace), Alloca);
     Alloca = Rewriter.create<polygeist::Pointer2MemrefOp>(
+        Loc, MemRefType::get(CurShape, ThisType, {}, TargetMemSpace), Alloca);
+  }
+
+  // Cast the memref value to the expected shape
+  if (CurShape != TargetShape)
+    Alloca = Rewriter.createOrFold<memref::CastOp>(
         Loc, MemRefType::get(TargetShape, ThisType, {}, TargetMemSpace),
         Alloca);
-  }
 
   if (Alloca.getType() == MT) {
     LLVM_DEBUG(llvm::dbgs()
