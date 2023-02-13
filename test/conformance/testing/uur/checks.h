@@ -372,4 +372,26 @@ inline std::ostream &operator<<(std::ostream &out,
     return out;
 }
 
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_profiling_info_t &info) {
+    switch (info) {
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
+        break;
+
+        CASE(UR_PROFILING_INFO_COMMAND_QUEUED);
+        CASE(UR_PROFILING_INFO_COMMAND_SUBMIT);
+        CASE(UR_PROFILING_INFO_COMMAND_START);
+        CASE(UR_PROFILING_INFO_COMMAND_END);
+
+#undef CASE
+
+    default:
+        out << "UNKNOWN_UR_PROFILING_INFO_TYPE";
+        break;
+    }
+    return out;
+}
+
 #endif // UR_CONFORMANCE_INCLUDE_CHECKS_H_INCLUDED
