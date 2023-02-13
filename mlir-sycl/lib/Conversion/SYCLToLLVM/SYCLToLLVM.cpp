@@ -528,6 +528,8 @@ private:
   }
 };
 
+// TODO: Push fix when testing is possible.
+#if 0
 //===----------------------------------------------------------------------===//
 // SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -545,7 +547,7 @@ public:
     const auto loc = op.getLoc();
     const auto range = opAdaptor.getRange();
     auto *typeConverter = getTypeConverter();
-    const auto alignment = op.getRange().getType().getDimension() * 8;
+    const auto alignment = op.getRange().getDimension() * 8;
     const auto alloca = static_cast<Value>(rewriter.create<LLVM::AllocaOp>(
         loc,
         LLVM::LLVMPointerType::get(typeConverter->convertType(range.getType())),
@@ -684,6 +686,7 @@ public:
     return success();
   }
 };
+#endif // 0
 
 //===----------------------------------------------------------------------===//
 // Pattern population
@@ -798,9 +801,11 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
+#if 0
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns
         .add<NDRangeGetGlobalRangePattern, NDRangeGetLocalRangePattern,
              NDRangeGetGroupRangePattern, RangeGetPattern, RangeSizePattern>(
             typeConverter);
+#endif // 0
 }

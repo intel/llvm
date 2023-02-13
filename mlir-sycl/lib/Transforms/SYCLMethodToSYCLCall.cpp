@@ -11,16 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -47,62 +45,40 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
     return Original;
 
   const auto MT = TargetType.cast<MemRefType>();
-  const Type ThisType = Original.getType();
+  const auto ThisType = Original.getType().cast<MemRefType>();
   const llvm::ArrayRef<int64_t> TargetShape = MT.getShape();
   const mlir::Type TargetElementType = MT.getElementType();
   const unsigned TargetMemSpace = MT.getMemorySpaceAsInt();
 
-  const auto CreateAlloca = [=](OpBuilder &Builder) -> memref::AllocaOp {
-    OpBuilder::InsertionGuard Guard{Builder};
+  assert(TargetShape == ThisType.getShape() &&
+         "Shape should not change when casting to base class for a member "
+         "function call.");
 
-    auto ParentFunction = cast<mlir::FunctionOpInterface>(
-        Builder.getInsertionPoint()
-            ->getParentWithTrait<mlir::FunctionOpInterface::Trait>());
-
-    // We first create needed allocas
-    Builder.setInsertionPointToStart(
-        &*ParentFunction.getFunctionBody().getBlocks().begin());
-
-    return Builder.create<memref::AllocaOp>(Loc,
-                                            MemRefType::get({1}, ThisType));
-  };
-
-  auto Alloca = static_cast<Value>(CreateAlloca(Rewriter));
-
-  // Store the element
-  Rewriter.create<memref::StoreOp>(
-      Loc, Original, Alloca,
-      ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
-
-  // Cast the memref value to the expected shape
-  Alloca = Rewriter.createOrFold<memref::CastOp>(
-      Loc, MemRefType::get(TargetShape, ThisType), Alloca);
-
-  if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
-      MT.getMemorySpaceAsInt()) {
-    // Cast to the required memspace
-    Alloca = Rewriter.create<polygeist::Memref2PointerOp>(
-        Loc, LLVM::LLVMPointerType::get(ThisType), Alloca);
-    Alloca = Rewriter.create<LLVM::AddrSpaceCastOp>(
-        Loc, LLVM::LLVMPointerType::get(ThisType, TargetMemSpace), Alloca);
-    Alloca = Rewriter.create<polygeist::Pointer2MemrefOp>(
-        Loc, MemRefType::get(TargetShape, ThisType, {}, TargetMemSpace),
-        Alloca);
-  }
-
-  if (Alloca.getType() == MT) {
+  if (ThisType.getMemorySpaceAsInt() != TargetMemSpace) {
+    Original = Rewriter.create<polygeist::Memref2PointerOp>(
+        Loc,
+        LLVM::LLVMPointerType::get(ThisType.getElementType(),
+                                   ThisType.getMemorySpaceAsInt()),
+        Original);
+    Original = Rewriter.create<LLVM::AddrSpaceCastOp>(
+        Loc,
+        LLVM::LLVMPointerType::get(ThisType.getElementType(), TargetMemSpace),
+        Original);
+    Original = Rewriter.create<polygeist::Pointer2MemrefOp>(
+        Loc,
+        MemRefType::get(TargetShape, ThisType.getElementType(), {},
+                        TargetMemSpace),
+        Original);
     LLVM_DEBUG(llvm::dbgs()
-               << "  No cast needed; alloca inserted: " << Alloca << "\n");
-    return Alloca;
+               << "  Address space cast needed: " << Original << "\n");
   }
 
-  mlir::Value Cast = Rewriter.create<sycl::SYCLCastOp>(
-      Loc, MemRefType::get(TargetShape, TargetElementType, {}, TargetMemSpace),
-      Alloca);
+  if (ThisType.getElementType() != TargetElementType) {
+    Original = Rewriter.create<sycl::SYCLCastOp>(Loc, TargetType, Original);
+    LLVM_DEBUG(llvm::dbgs() << "  sycl.cast inserted: " << Original << "\n");
+  }
 
-  LLVM_DEBUG(llvm::dbgs() << "  Cast inserted: " << Cast << "\n");
-
-  return Cast;
+  return Original;
 }
 
 static SmallVector<Value>

@@ -18,6 +18,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -53,7 +54,8 @@ inline constexpr spirv::BuiltIn spirv_counterpart_builtin_v =
 Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
                   Value index, ArrayAttr argumentTypes,
                   FlatSymbolRefAttr functionName) {
-  return TypeSwitch<Type, Value>(res.getType())
+  return TypeSwitch<Type, Value>(
+             res.getType().cast<MemRefType>().getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
         // `this` type
         using ArgTy = decltype(arg);
@@ -145,11 +147,10 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   const auto dimMtTy = MemRefType::get(dimensions, targetIndexType, {}, 4);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
-  const Value alloca =
+  const Value res =
       rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy));
   // Load
   const Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  const Value res = rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, zero);
   const auto argumentTypes =
       rewriter.getTypeArrayAttr({MemRefType::get(1, resTy, {}, 4), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
@@ -164,6 +165,7 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
                                  argumentTypes, functionName);
     rewriter.create<AffineStoreOp>(loc, val, ptr, zero);
   }
+  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, res, zero);
 }
 
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an
