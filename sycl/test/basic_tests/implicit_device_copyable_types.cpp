@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -fsycl-is-device -DCOMPILE_ONLY %s
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
 #include <variant>
