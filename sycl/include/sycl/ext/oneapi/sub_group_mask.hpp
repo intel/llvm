@@ -249,7 +249,8 @@ struct sub_group_mask {
   }
 
 private:
-  sub_group_mask(BitsType rhs, size_t bn) : Bits(rhs), bits_num(bn) {
+  sub_group_mask(BitsType rhs, size_t bn)
+      : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
     assert(bits_num <= max_bits);
   }
   inline BitsType valuable_bits(size_t bn) const {

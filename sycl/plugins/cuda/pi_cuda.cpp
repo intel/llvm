@@ -188,7 +188,7 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// contexts to be restored by SYCL.
 class ScopedContext {
 public:
-  ScopedContext(pi_context ctxt) : device(nullptr) {
+  ScopedContext(pi_context ctxt) {
     if (!ctxt) {
       throw PI_ERROR_INVALID_CONTEXT;
     }
@@ -196,22 +196,9 @@ public:
     set_context(ctxt->get());
   }
 
-  ScopedContext(CUcontext ctxt) : device(nullptr) { set_context(ctxt); }
+  ScopedContext(CUcontext ctxt) { set_context(ctxt); }
 
-  // Creating a scoped context from a device will simply use the primary
-  // context, this should be used when there is no other appropriate context,
-  // such as for the device infos.
-  ScopedContext(pi_device device) : device(device) {
-    CUcontext ctxt;
-    cuDevicePrimaryCtxRetain(&ctxt, device->get());
-
-    set_context(ctxt);
-  }
-
-  ~ScopedContext() {
-    if (device)
-      cuDevicePrimaryCtxRelease(device->get());
-  }
+  ~ScopedContext() {}
 
 private:
   void set_context(CUcontext desired) {
@@ -225,8 +212,6 @@ private:
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
     }
   }
-
-  pi_device device;
 };
 
 /// \cond NODOXY
@@ -788,81 +773,6 @@ std::string getKernelNames(pi_program) {
   sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
-
-/// RAII object that calls the reference count release function on the held PI
-/// object on destruction.
-///
-/// The `dismiss` function stops the release from happening on destruction.
-template <typename T> class ReleaseGuard {
-private:
-  T Captive;
-
-  static pi_result callRelease(pi_device Captive) {
-    return cuda_piDeviceRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_context Captive) {
-    return cuda_piContextRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_mem Captive) {
-    return cuda_piMemRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_program Captive) {
-    return cuda_piProgramRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_kernel Captive) {
-    return cuda_piKernelRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_queue Captive) {
-    return cuda_piQueueRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_event Captive) {
-    return cuda_piEventRelease(Captive);
-  }
-
-public:
-  ReleaseGuard() = delete;
-  /// Obj can be `nullptr`.
-  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
-  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
-    Other.Captive = nullptr;
-  }
-
-  ReleaseGuard(const ReleaseGuard &) = delete;
-
-  /// Calls the related PI object release function if the object held is not
-  /// `nullptr` or if `dismiss` has not been called.
-  ~ReleaseGuard() {
-    if (Captive != nullptr) {
-      pi_result ret = callRelease(Captive);
-      if (ret != PI_SUCCESS) {
-        // A reported CUDA error is either an implementation or an asynchronous
-        // CUDA error for which it is unclear if the function that reported it
-        // succeeded or not. Either way, the state of the program is compromised
-        // and likely unrecoverable.
-        sycl::detail::pi::die(
-            "Unrecoverable program state reached in cuda_piMemRelease");
-      }
-    }
-  }
-
-  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
-
-  ReleaseGuard &operator=(ReleaseGuard &&Other) {
-    Captive = Other.Captive;
-    Other.Captive = nullptr;
-    return *this;
-  }
-
-  /// End the guard and do not release the reference count of the held
-  /// PI object.
-  void dismiss() { Captive = nullptr; }
-};
 
 //-- PI API implementation
 extern "C" {
@@ -2407,8 +2317,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
               bufferRegion.origin;
   }
 
-  ReleaseGuard<pi_mem> releaseGuard(parent_buffer);
-
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
     retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
@@ -2421,7 +2329,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  releaseGuard.dismiss();
   *memObj = retMemObj.release();
   return PI_SUCCESS;
 }
