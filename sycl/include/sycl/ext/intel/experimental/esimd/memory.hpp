@@ -585,7 +585,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
                 "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
@@ -645,7 +645,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
                 "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
@@ -709,7 +709,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
                 "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
@@ -774,7 +774,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts / SmallIntFactor > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
                 "Number of elements is not supported by Transposed load");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
