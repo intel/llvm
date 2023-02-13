@@ -11,7 +11,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // TODO: the test gives irregular fails in CI (flaky), disabled until resolved.
-// XFAIL: *
+// UNSUPPORTED: gpu
 
 // The test verifies ESIMD API that multiplies 2 32-bit integer scalars/vectors
 // resulting into 64-bit result and returning the result as 2 parts:
