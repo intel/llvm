@@ -6,30 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include "Inputs/lsc_usm_load.hpp"
-
-constexpr uint32_t seed = 185;
-constexpr lsc_data_size DS = lsc_data_size::u8u32;
-
-constexpr cache_hint L1H = cache_hint::cached;
-constexpr cache_hint L3H = cache_hint::uncached;
+#include "Inputs/lsc_usm_gather_prefetch.hpp"
 
 int main(void) {
-  srand(seed);
-  bool passed = true;
+  constexpr lsc_data_size DS = lsc_data_size::u8u32;
+  constexpr uint32_t Seed = 186;
+  srand(Seed);
 
-  // non-transpose
-  passed &= test<0, uint32_t, 1, 1, 1, 1, false, DS, L1H, L3H, true>(rand());
-  passed &= test<1, uint32_t, 1, 4, 32, 1, false, DS, L1H, L3H, true>(rand());
-  passed &= test<2, uint32_t, 2, 4, 16, 1, false, DS, L1H, L3H, true>(rand());
-  passed &= test<3, uint32_t, 2, 2, 8, 1, false, DS, L1H, L3H, true>(rand());
-  passed &= test<4, uint32_t, 4, 2, 4, 1, false, DS, L1H, L3H, true>(rand());
-  passed &= test<5, uint32_t, 4, 16, 2, 1, false, DS, L1H, L3H, true>(rand());
+  bool Passed = true;
+  Passed &= test_lsc_prefetch<0, uint32_t, DS>();
 
-  std::cout << (passed ? "Passed\n" : "FAILED\n");
-  return passed ? 0 : 1;
+  std::cout << (Passed ? "Passed\n" : "FAILED\n");
+  return Passed ? 0 : 1;
 }

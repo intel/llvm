@@ -1,4 +1,4 @@
-//==------- lsc_usm_load_u32_scalar_off.cpp - DPC++ ESIMD on-device test---==//
+//==-- lsc_usm_block_load_u32_scalar_off.cpp - DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,4 +13,4 @@
 
 #define USE_SCALAR_OFFSET
 
-#include "lsc_usm_load_u32.cpp"
+#include "lsc_usm_block_load_u32.cpp"

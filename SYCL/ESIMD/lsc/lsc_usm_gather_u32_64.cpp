@@ -1,4 +1,4 @@
-//==--------- lsc_usm_prefetch_u64_64.cpp - DPC++ ESIMD on-device test -----==//
+//==------- lsc_usm_gather_u32_64.cpp - DPC++ ESIMD on-device test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,4 +13,4 @@
 
 #define USE_64_BIT_OFFSET
 
-#include "lsc_usm_prefetch_u64.cpp"
+#include "lsc_usm_gather_u32.cpp"

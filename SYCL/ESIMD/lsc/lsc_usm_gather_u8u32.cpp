@@ -1,4 +1,4 @@
-//==--------- lsc_usm_prefetch_u64_64.cpp - DPC++ ESIMD on-device test -----==//
+//==------- lsc_usm_gather_u8u32.cpp - DPC++ ESIMD on-device test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +9,16 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// 64 bit offset variant of the test - uses 64 bit offsets.
+#include "Inputs/lsc_usm_gather_prefetch.hpp"
 
-#define USE_64_BIT_OFFSET
+int main(void) {
+  constexpr uint32_t Seed = 185;
+  constexpr lsc_data_size DS = lsc_data_size::u8u32;
+  srand(Seed);
 
-#include "lsc_usm_prefetch_u64.cpp"
+  bool Passed = true;
+  Passed &= test_lsc_gather<0, uint32_t, DS>();
+
+  std::cout << (Passed ? "Passed\n" : "FAILED\n");
+  return Passed ? 0 : 1;
+}

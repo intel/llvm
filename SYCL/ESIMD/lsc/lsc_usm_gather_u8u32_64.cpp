@@ -1,4 +1,4 @@
-//==-------- lsc_usm_load_u64_scalar_off.cpp - DPC++ ESIMD on-device test-==//
+//==------- lsc_usm_gather_u8u32_64.cpp - DPC++ ESIMD on-device test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +9,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// scalar offset variant of the test - uses scalar offsets.
+// 64 bit offset variant of the test - uses 64 bit offsets.
 
-#define USE_SCALAR_OFFSET
+#define USE_64_BIT_OFFSET
 
-#include "lsc_usm_load_u64.cpp"
+#include "lsc_usm_gather_u8u32.cpp"

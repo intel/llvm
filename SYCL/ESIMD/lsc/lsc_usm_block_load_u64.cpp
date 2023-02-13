@@ -1,4 +1,4 @@
-//==------------ lsc_usm_prefetch_u16u32.cpp - DPC++ ESIMD on-device test --==//
+//==------------ lsc_usm_block_load_u64.cpp - DPC++ ESIMD on-device test ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,15 +9,23 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include "Inputs/lsc_usm_gather_prefetch.hpp"
+#include "Inputs/lsc_usm_block_load_prefetch.hpp"
+
+constexpr uint32_t Seed = 187;
+template <typename T> bool tests() {
+  bool Passed = true;
+  Passed &= test<T, 32>(1, 4);
+  Passed &= test<T, 16>(2, 2);
+  Passed &= test<T, 4>(4, 4);
+  return Passed;
+}
 
 int main(void) {
-  constexpr lsc_data_size DS = lsc_data_size::u16u32;
-  constexpr uint32_t Seed = 186;
   srand(Seed);
-
   bool Passed = true;
-  Passed &= test_lsc_prefetch<0, uint32_t, DS>();
+
+  Passed &= tests<uint64_t>();
+  Passed &= tests<double>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
