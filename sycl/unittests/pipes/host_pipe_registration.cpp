@@ -69,7 +69,7 @@ public:
 };
 
 using test_host_pipe =
-    ext::intel::experimental::host_pipe<pipe_id<0>, test_data_type, pipe_prop>;
+    ext::intel::experimental::pipe<pipe_id<0>, test_data_type, pipe_prop>;
 
 pi_event READ = reinterpret_cast<pi_event>(0);
 pi_event WRITE = reinterpret_cast<pi_event>(1);

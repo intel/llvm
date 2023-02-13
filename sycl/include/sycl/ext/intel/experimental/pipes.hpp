@@ -9,16 +9,26 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include "pipe_properties.hpp"
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device.hpp>
+#include <sycl/queue.hpp>
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/stl.hpp>
 #include <type_traits>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#include <xpti/xpti_trace_framework.hpp>
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext::intel::experimental {
+namespace ext {
+namespace intel {
+namespace experimental {
 
 namespace detail {
 template <typename Properties, typename PropertyKey, typename Cond = void>
@@ -40,10 +50,22 @@ struct ValueOrDefault<
 };
 } // namespace detail
 
+// A helper templateless base class to get the host_pipe name.
+class pipe_base{
+
+  protected:
+        
+    pipe_base();
+    ~pipe_base();
+
+    static std::string get_pipe_name(const void *HostPipePtr);
+
+};
+
 template <class _name, class _dataT, int32_t _min_capacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),
           class = void>
-class pipe {
+class pipe : public pipe_base{
 public:
   struct 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -171,9 +193,43 @@ public:
   // Blocking pipes
 
   // Host API
-  static _dataT read(queue & q, memory_order order = memory_order::seq_cst);
+  static _dataT read(queue & q, memory_order order = memory_order::seq_cst)
+  {
+     const device Dev = q.get_device();
+      bool IsReadPipeSupported =
+          Dev.has_extension("cl_intel_program_scope_host_pipe");
+      if (!IsReadPipeSupported) {
+        return &_dataT();
+      }
+      _dataT data;
+      const void *HostPipePtr = &m_Storage;
+      const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+      event e = q.submit([=](handler &CGH) {
+        CGH.read_write_host_pipe(pipe_name, (void *)(&data), sizeof(_dataT), false,
+                                true /* read */);
+      });
+      e.wait();
+      return data;
+  }
+
   static void write(queue & q, const _dataT &data,
-                    memory_order order = memory_order::seq_cst);
+                    memory_order order = memory_order::seq_cst)
+  {
+  const device Dev = q.get_device();
+  bool IsReadPipeSupported =
+      Dev.has_extension("cl_intel_program_scope_host_pipe");
+  if (!IsReadPipeSupported) {
+    return;
+  }
+  const void *HostPipePtr = &m_Storage;
+  const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+  const void *data_ptr = &data;
+  event e = q.submit([=](handler &CGH) {
+    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
+                             false /* write */);
+  });
+  e.wait();
+}
   
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -333,6 +389,8 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace ext::intel::experimental
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
