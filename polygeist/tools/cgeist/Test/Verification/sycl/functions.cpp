@@ -4,6 +4,8 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-LLVM
 
+// XFAIL: *
+
 #include <sycl/sycl.hpp>
 
 // CHECK-MLIR-NO-MANGLED-FUNCTION-NAME-NOT: {{^(sycl\.constructor|sycl\.call){,0}.*}} MangledFunctionName

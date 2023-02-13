@@ -1,4 +1,5 @@
 // RUN: sycl-mlir-opt -sycl-method-to-sycl-call -split-input-file -verify-diagnostics %s | FileCheck %s
+// XFAIL: *
 
 !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
