@@ -80,7 +80,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          cuCallback);
 #endif
   }
-  if (std::string_view(StreamName) == "sycl.api" &&
+  if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
@@ -103,7 +103,7 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
            std::getenv("SYCL_TRACE_CU_ENABLE"))
     cuPrintersFinish();
 #endif
-  if (std::string_view(StreamName) == "sycl.api" &&
+  if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE"))
     syclPrintersFinish();
 }

@@ -69,7 +69,7 @@ GlobalHandler::~GlobalHandler() = default;
 void GlobalHandler::InitXPTIStuff() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Let subscribers know a new stream is being initialized
-  getXPTIRegistry().initializeStream(SYCL_API_STREAM_NAME, GMajVer, GMinVer,
+  getXPTIRegistry().initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer,
                                      GVerStr);
   xpti::payload_t SYCLPayload("SYCL Interface Layer");
   uint64_t SYCLInstanceNo;
@@ -85,7 +85,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
-    uint8_t StreamID = xptiRegisterStream(SYCL_API_STREAM_NAME);
+    uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
 
     detail::tls_code_loc_t Tls;
     auto CodeLocation = Tls.query();

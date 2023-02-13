@@ -43,7 +43,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
-  uint8_t StreamID = xptiRegisterStream("sycl.api");
+  uint8_t StreamID = xptiRegisterStream("sycl");
   xptiRegisterCallback(StreamID, xpti::trace_diagnostics, testCallback);
 }
 
