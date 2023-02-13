@@ -40,7 +40,7 @@ enum functions_t {
   XPTI_TRACE_ENABLED,
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
-  // XPTI_TRACE_TRY_TO_ENABLE,
+  XPTI_FORCE_SET_TRACE_ENABLED,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -76,7 +76,7 @@ class ProxyLoader {
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
-      /*{XPTI_TRACE_TRY_TO_ENABLE, "xptiTraceTryToEnable"}*/};
+      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -430,6 +430,16 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 
 XPTI_EXPORT_API void xptiTraceTryToEnable() {
   xpti::ProxyLoader::instance().tryToEnable();
+}
+
+XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_FORCE_SET_TRACE_ENABLED);
+    if (f) {
+      (*(xpti_force_set_trace_enabled_t)f)(YesOrNo);
+    }
+  }
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,

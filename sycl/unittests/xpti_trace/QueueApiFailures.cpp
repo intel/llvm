@@ -37,9 +37,15 @@ pi_result redefinedEnqueueKernelLaunch(
 
 class QueueApiFailures : public ::testing::Test {
 protected:
-  void SetUp() { xptiTraceTryToEnable(); }
+  void SetUp() {
+    xptiForceSetTraceEnabled(true);
+    xptiTraceTryToEnable();
+  }
 
-  void TearDown() { resetReceivedNotifications(); }
+  void TearDown() {
+    resetReceivedNotifications();
+    xptiForceSetTraceEnabled(false);
+  }
 
 public:
   static std::string BuildCodeLocationMessage(const char *FileName,
@@ -56,7 +62,6 @@ public:
     return Result;
   }
 
-  unittest::ScopedEnvVar XPTIenabling{"XPTI_TRACE_ENABLE", "1", [] {}};
   unittest::ScopedEnvVar PathToXPTIFW{"XPTI_FRAMEWORK_DISPATCHER",
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
