@@ -16,6 +16,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopInvariantCodeMotionUtils.h"
@@ -381,7 +382,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
       llvm::dbgs().indent(2)
-          << "cannot be hoisted: operand(s) can't be hoisted\n\n";
+          << "cannot be hoisted: operand(s) can't be hoisted\n";
     });
     return false;
   }
@@ -390,7 +391,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   if (isMemoryEffectFree(&op)) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "can be hoisted: has no side effects\n\n";
+      llvm::dbgs().indent(2) << "can be hoisted: has no side effects\n";
     });
     return true;
   }
@@ -400,7 +401,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
       !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "cannot be hoisted: unknown side effects\n\n";
+      llvm::dbgs().indent(2) << "cannot be hoisted: unknown side effects\n";
     });
     return false;
   }
@@ -411,7 +412,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
       llvm::dbgs().indent(2)
-          << "cannot be hoisted: operation allocates a resource\n\n";
+          << "cannot be hoisted: operation allocates a resource\n";
     });
     return false;
   }
@@ -424,7 +425,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
        sideEffects.freesResource()) &&
       hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis)) {
     LLVM_DEBUG(llvm::dbgs()
-               << "Cannot be hoisted: found conflicting operation\n\n");
+               << "Cannot be hoisted: found conflicting operation\n");
     return false;
   }
 
@@ -443,7 +444,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Can be hoisted: no conflicts found\n\n");
+  LLVM_DEBUG(llvm::dbgs() << "Can be hoisted: no conflicts found\n");
 
   return true;
 }
@@ -545,6 +546,39 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   loop->moveBefore(ifOp.getThenBlock()->getTerminator());
 }
 
+[[maybe_unused]] static void createLoopGuard(scf::ForOp loop) {
+  OpBuilder b(loop);
+  Location loc = loop->getLoc();
+  auto cond = b.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sle,
+      b.create<arith::AddIOp>(loc, loop.getLowerBound(), loop.getStep()),
+      loop.getUpperBound());
+
+  bool yieldsResults = !loop->getResults().empty();
+  TypeRange types(loop->getResults());
+  auto ifOp = b.create<scf::IfOp>(
+      loc, types, cond,
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getInitArgs());
+      });
+
+  loop->moveBefore(ifOp.thenBlock()->getTerminator());
+
+  // Replace uses of the loop return value(s) with the value(s) yielded by the
+  // if operation.
+  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
+    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
+      Block *useBlock = op.getOwner()->getBlock();
+      return useBlock != ifOp.thenBlock();
+    });
+
+  if (!yieldsResults)
+    ifOp.elseBlock()->erase();
+}
+
 /// Create a loop guard for an affine 'for' loop.
 [[maybe_unused]] static void createLoopGuard(AffineForOp loop) {
   OpBuilder b(loop);
@@ -594,9 +628,28 @@ collectHoistableOperations(LoopLikeOpInterface loop,
       /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
       /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
       eqflags);
-  auto ifOp = b.create<AffineIfOp>(loop.getLoc(), TypeRange(), iset, values,
-                                   /*else*/ false);
+
+  bool yieldsResults = !loop.getResults().empty();
+  TypeRange types(loop.getResults());
+  auto ifOp = b.create<AffineIfOp>(loop.getLoc(), types, iset, values,
+                                   yieldsResults ? true : false);
+
+  if (yieldsResults) {
+    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getResults());
+    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getIterOperands());
+  }
+
   loop->moveBefore(ifOp.getThenBlock()->getTerminator());
+
+  // Replace uses of the loop return value(s) with the value(s) yielded by the
+  // if operation.
+  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
+    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
+      Block *useBlock = op.getOwner()->getBlock();
+      return useBlock != ifOp.getThenBlock();
+    });
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
@@ -614,34 +667,62 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
           })
           .Default([](auto) { return false; });
 
+  size_t numOpsHoisted = 0;
   if (guardedLoop)
-    for (Operation *op : opsToMove)
+    for (Operation *op : opsToMove) {
       loop.moveOutOfLoop(op);
+      ++numOpsHoisted;
+    }
 
-  return opsToMove.size();
+  return numOpsHoisted;
 }
 
 void ParallelLICM::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+
+  [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
+    Operation *parentOp = loop;
+    do {
+      parentOp = parentOp->getParentOp();
+    } while (parentOp && !isa<func::FuncOp>(parentOp));
+    return parentOp;
+  };
 
   getOperation()->walk([&](LoopLikeOpInterface loop) {
     LLVM_DEBUG({
       llvm::dbgs() << "----------------\n";
       loop.print(llvm::dbgs() << "Original loop:\n");
       llvm::dbgs() << "\n";
+      llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
     });
 
-    // TODO: do we need to use the MLIR default LICM pass ?
-    size_t numOpHoisted = moveLoopInvariantCode(loop);
+    // First use MLIR LICM to hoist simple operations.
+    if (1) {
+      size_t numOpHoisted = moveLoopInvariantCode(loop);
 
-    numOpHoisted += moveLoopInvariantCode(loop, aliasAnalysis);
+      LLVM_DEBUG({
+        if (numOpHoisted)
+          loop.print(llvm::dbgs() << "Loop after MLIR LICM:\n");
+        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+        llvm::dbgs() << "----------------\n";
+        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
+        assert(mlir::verify(getParentFunction(loop)).succeeded());
+      });
+    }
 
-    LLVM_DEBUG({
-      if (numOpHoisted)
-        loop.print(llvm::dbgs() << "Modified loop:\n");
-      llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
-      llvm::dbgs() << "----------------\n";
-    });
+    // Now use this pass to hoist more complex operations.
+    {
+      size_t numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+
+      LLVM_DEBUG({
+        if (numOpHoisted)
+          loop.print(llvm::dbgs() << "Loop after Parallel LICM:\n");
+        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+        llvm::dbgs() << "----------------\n";
+        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
+        assert(mlir::verify(getParentFunction(loop)).succeeded());
+      });
+    }
   });
 }
 
