@@ -4975,6 +4975,11 @@ LLVMToSPIRVBase::collectEntryPointInterfaces(SPIRVFunction *SF, Function *F) {
   for (auto &GV : M->globals()) {
     const auto AS = GV.getAddressSpace();
     SPIRVModule *BM = SF->getModule();
+    // TODO: intel/llvm customization
+    // GPU backend cannot handle EntryPoint Interface
+    // global variables
+    if (AS != SPIRAS_Input && AS != SPIRAS_Output)
+      continue;
     if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4))
       if (AS != SPIRAS_Input && AS != SPIRAS_Output)
         continue;
