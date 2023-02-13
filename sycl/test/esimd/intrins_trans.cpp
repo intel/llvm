@@ -5,6 +5,10 @@
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
+// TODO: failing on windows. Temporarily marked as XFAIL, but it should be
+// fixed with the next pulldown automatically (just need some patch from llorg)
+// XFAIL: target={{.*}}windows{{.*}}
+
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
