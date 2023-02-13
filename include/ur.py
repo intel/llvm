@@ -140,56 +140,58 @@ class ur_result_v(IntEnum):
     ERROR_DEVICE_LOST = 21                          ## Device hung, reset, was removed, or driver update occurred
     ERROR_DEVICE_REQUIRES_RESET = 22                ## Device requires a reset
     ERROR_DEVICE_IN_LOW_POWER_STATE = 23            ## Device currently in low power state
-    ERROR_INVALID_WORK_ITEM_SIZE = 24               ## Invalid work item size
-    ERROR_INVALID_WORK_DIMENSION = 25               ## Invalid work dimension
-    ERROR_INVALID_KERNEL_ARGS = 26                  ## Invalid kernel args
-    ERROR_INVALID_KERNEL = 27                       ## Invalid kernel
-    ERROR_INVALID_KERNEL_NAME = 28                  ## [Validation] kernel name is not found in the module
-    ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 29        ## [Validation] kernel argument index is not valid for kernel
-    ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 30         ## [Validation] kernel argument size does not match kernel
-    ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 31       ## [Validation] value of kernel attribute is not valid for the kernel or
+    ERROR_DEVICE_PARTITION_FAILED = 24              ## Device paritioning failed
+    ERROR_INVALID_DEVICE_PARTITION_COUNT = 25       ## Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
+    ERROR_INVALID_WORK_ITEM_SIZE = 26               ## Invalid work item size
+    ERROR_INVALID_WORK_DIMENSION = 27               ## Invalid work dimension
+    ERROR_INVALID_KERNEL_ARGS = 28                  ## Invalid kernel args
+    ERROR_INVALID_KERNEL = 29                       ## Invalid kernel
+    ERROR_INVALID_KERNEL_NAME = 30                  ## [Validation] kernel name is not found in the module
+    ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 31        ## [Validation] kernel argument index is not valid for kernel
+    ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 32         ## [Validation] kernel argument size does not match kernel
+    ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 33       ## [Validation] value of kernel attribute is not valid for the kernel or
                                                     ## device
-    ERROR_INVALID_IMAGE_SIZE = 32                   ## Invalid image size
-    ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 33      ## Invalid image format descriptor
-    ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 34           ## Image format not supported
-    ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 35        ## Memory object allocation failure
-    ERROR_INVALID_PROGRAM_EXECUTABLE = 36           ## Program object parameter is invalid.
-    ERROR_UNINITIALIZED = 37                        ## [Validation] driver is not initialized
-    ERROR_OUT_OF_HOST_MEMORY = 38                   ## Insufficient host memory to satisfy call
-    ERROR_OUT_OF_DEVICE_MEMORY = 39                 ## Insufficient device memory to satisfy call
-    ERROR_OUT_OF_RESOURCES = 40                     ## Out of resources
-    ERROR_MODULE_BUILD_FAILURE = 41                 ## Error occurred when building module, see build log for details
-    ERROR_MODULE_LINK_FAILURE = 42                  ## Error occurred when linking modules, see build log for details
-    ERROR_UNSUPPORTED_VERSION = 43                  ## [Validation] generic error code for unsupported versions
-    ERROR_UNSUPPORTED_FEATURE = 44                  ## [Validation] generic error code for unsupported features
-    ERROR_INVALID_ARGUMENT = 45                     ## [Validation] generic error code for invalid arguments
-    ERROR_INVALID_NULL_HANDLE = 46                  ## [Validation] handle argument is not valid
-    ERROR_HANDLE_OBJECT_IN_USE = 47                 ## [Validation] object pointed to by handle still in-use by device
-    ERROR_INVALID_NULL_POINTER = 48                 ## [Validation] pointer argument may not be nullptr
-    ERROR_INVALID_SIZE = 49                         ## [Validation] size argument is invalid (e.g., must not be zero)
-    ERROR_UNSUPPORTED_SIZE = 50                     ## [Validation] size argument is not supported by the device (e.g., too
+    ERROR_INVALID_IMAGE_SIZE = 34                   ## Invalid image size
+    ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 35      ## Invalid image format descriptor
+    ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 36           ## Image format not supported
+    ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 37        ## Memory object allocation failure
+    ERROR_INVALID_PROGRAM_EXECUTABLE = 38           ## Program object parameter is invalid.
+    ERROR_UNINITIALIZED = 39                        ## [Validation] driver is not initialized
+    ERROR_OUT_OF_HOST_MEMORY = 40                   ## Insufficient host memory to satisfy call
+    ERROR_OUT_OF_DEVICE_MEMORY = 41                 ## Insufficient device memory to satisfy call
+    ERROR_OUT_OF_RESOURCES = 42                     ## Out of resources
+    ERROR_MODULE_BUILD_FAILURE = 43                 ## Error occurred when building module, see build log for details
+    ERROR_MODULE_LINK_FAILURE = 44                  ## Error occurred when linking modules, see build log for details
+    ERROR_UNSUPPORTED_VERSION = 45                  ## [Validation] generic error code for unsupported versions
+    ERROR_UNSUPPORTED_FEATURE = 46                  ## [Validation] generic error code for unsupported features
+    ERROR_INVALID_ARGUMENT = 47                     ## [Validation] generic error code for invalid arguments
+    ERROR_INVALID_NULL_HANDLE = 48                  ## [Validation] handle argument is not valid
+    ERROR_HANDLE_OBJECT_IN_USE = 49                 ## [Validation] object pointed to by handle still in-use by device
+    ERROR_INVALID_NULL_POINTER = 50                 ## [Validation] pointer argument may not be nullptr
+    ERROR_INVALID_SIZE = 51                         ## [Validation] size argument is invalid (e.g., must not be zero)
+    ERROR_UNSUPPORTED_SIZE = 52                     ## [Validation] size argument is not supported by the device (e.g., too
                                                     ## large)
-    ERROR_UNSUPPORTED_ALIGNMENT = 51                ## [Validation] alignment argument is not supported by the device (e.g.,
+    ERROR_UNSUPPORTED_ALIGNMENT = 53                ## [Validation] alignment argument is not supported by the device (e.g.,
                                                     ## too small)
-    ERROR_INVALID_SYNCHRONIZATION_OBJECT = 52       ## [Validation] synchronization object in invalid state
-    ERROR_INVALID_ENUMERATION = 53                  ## [Validation] enumerator argument is not valid
-    ERROR_UNSUPPORTED_ENUMERATION = 54              ## [Validation] enumerator argument is not supported by the device
-    ERROR_UNSUPPORTED_IMAGE_FORMAT = 55             ## [Validation] image format is not supported by the device
-    ERROR_INVALID_NATIVE_BINARY = 56                ## [Validation] native binary is not supported by the device
-    ERROR_INVALID_GLOBAL_NAME = 57                  ## [Validation] global variable is not found in the module
-    ERROR_INVALID_FUNCTION_NAME = 58                ## [Validation] function name is not found in the module
-    ERROR_INVALID_GROUP_SIZE_DIMENSION = 59         ## [Validation] group size dimension is not valid for the kernel or
+    ERROR_INVALID_SYNCHRONIZATION_OBJECT = 54       ## [Validation] synchronization object in invalid state
+    ERROR_INVALID_ENUMERATION = 55                  ## [Validation] enumerator argument is not valid
+    ERROR_UNSUPPORTED_ENUMERATION = 56              ## [Validation] enumerator argument is not supported by the device
+    ERROR_UNSUPPORTED_IMAGE_FORMAT = 57             ## [Validation] image format is not supported by the device
+    ERROR_INVALID_NATIVE_BINARY = 58                ## [Validation] native binary is not supported by the device
+    ERROR_INVALID_GLOBAL_NAME = 59                  ## [Validation] global variable is not found in the module
+    ERROR_INVALID_FUNCTION_NAME = 60                ## [Validation] function name is not found in the module
+    ERROR_INVALID_GROUP_SIZE_DIMENSION = 61         ## [Validation] group size dimension is not valid for the kernel or
                                                     ## device
-    ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 60       ## [Validation] global width dimension is not valid for the kernel or
+    ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 62       ## [Validation] global width dimension is not valid for the kernel or
                                                     ## device
-    ERROR_MODULE_UNLINKED = 61                      ## [Validation] module with imports needs to be linked before kernels can
+    ERROR_MODULE_UNLINKED = 63                      ## [Validation] module with imports needs to be linked before kernels can
                                                     ## be created from it.
-    ERROR_OVERLAPPING_REGIONS = 62                  ## [Validation] copy operations do not support overlapping regions of
+    ERROR_OVERLAPPING_REGIONS = 64                  ## [Validation] copy operations do not support overlapping regions of
                                                     ## memory
-    ERROR_INVALID_HOST_PTR = 63                     ## Invalid host pointer
-    ERROR_INVALID_USM_SIZE = 64                     ## Invalid USM size
-    ERROR_OBJECT_ALLOCATION_FAILURE = 65            ## Objection allocation failure
-    ERROR_ADAPTER_SPECIFIC = 66                     ## An adapter specific warning/error has been reported and can be
+    ERROR_INVALID_HOST_PTR = 65                     ## Invalid host pointer
+    ERROR_INVALID_USM_SIZE = 66                     ## Invalid USM size
+    ERROR_OBJECT_ALLOCATION_FAILURE = 67            ## Objection allocation failure
+    ERROR_ADAPTER_SPECIFIC = 68                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urGetLastResult entry point.
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
