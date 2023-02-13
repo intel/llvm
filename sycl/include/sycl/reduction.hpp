@@ -21,6 +21,7 @@
 #include <sycl/reduction_forward.hpp>
 #include <sycl/usm.hpp>
 
+#include <optional>
 #include <tuple>
 
 namespace sycl {
@@ -65,7 +66,7 @@ template <typename T> struct AreAllButLastReductions<T> {
 /// allocated elsewhere. The Subst parameter is an implementation detail and is
 /// used to spell out restrictions using 'enable_if'.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          bool View = false, typename Subst = void>
+          bool HasIdentity, bool View = false, typename Subst = void>
 class reducer;
 
 namespace detail {
@@ -151,12 +152,14 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
 template <typename Reducer> struct ReducerTraits;
 
 template <typename T, class BinaryOperation, int Dims, std::size_t Extent,
-          bool View, typename Subst>
-struct ReducerTraits<reducer<T, BinaryOperation, Dims, Extent, View, Subst>> {
+          bool HasIdentity, bool View, typename Subst>
+struct ReducerTraits<
+    reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View, Subst>> {
   using type = T;
   using op = BinaryOperation;
   static constexpr int dims = Dims;
   static constexpr size_t extent = Extent;
+  static constexpr bool has_identity = HasIdentity;
 };
 
 /// Helper class for accessing internal reducer member functions.
@@ -179,7 +182,8 @@ public:
   template <typename ReducerRelayT = ReducerT>
   enable_if_t<
       !IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                         typename ReducerRelayT::binary_operation>::value,
+                         typename ReducerRelayT::binary_operation>::value &&
+          ReducerTraits<ReducerRelayT>::has_identity,
       typename ReducerRelayT::value_type>
   getIdentity() {
     return MReducerRef.identity();
@@ -378,20 +382,22 @@ public:
 } // namespace detail
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
-/// of those types and operations for which the identity value is not known.
+/// of those types and operations for which the identity value is not statically
+/// known but is provided.
 ///
 /// It stores a copy of the identity and binary operation associated with the
 /// reduction.
-template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, View,
-    std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+    T, BinaryOperation, Dims, Extent, HasIdentity, View,
+    std::enable_if_t<Dims == 0 && Extent == 1 && View == false && HasIdentity &&
                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public detail::combiner<
-          reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<
-                      Dims == 0 && Extent == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+    : public detail::combiner<reducer<
+          T, BinaryOperation, Dims, Extent, HasIdentity, View,
+          std::enable_if_t<
+              Dims == 0 && Extent == 1 && View == false && HasIdentity &&
+              !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
       public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
@@ -416,17 +422,53 @@ private:
 };
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
+/// of those types and operations for which the identity value is not statically
+/// known but is not provided.
+///
+/// It stores a copy of the binary operation associated with the reduction.
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
+class reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+              std::enable_if_t<
+                  Dims == 0 && Extent == 1 && View == false && !HasIdentity &&
+                  !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public detail::combiner<reducer<
+          T, BinaryOperation, Dims, Extent, HasIdentity, View,
+          std::enable_if_t<
+              Dims == 0 && Extent == 1 && View == false && !HasIdentity &&
+              !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
+public:
+  reducer(BinaryOperation BOp) : MBinaryOp(BOp) {}
+
+  reducer &combine(const T &Partial) {
+    MValue = MValue ? MBinaryOp(*MValue, Partial) : Partial;
+    return *this;
+  }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
+  T &getElement(size_t) { return *MValue; }
+  const T &getElement(size_t) const { return *MValue; }
+
+  std::optional<T> MValue;
+  BinaryOperation MBinaryOp;
+};
+
+/// Specialization of the generic class 'reducer'. It is used for reductions
 /// of those types and operations for which the identity value is known.
 ///
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
-template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, View,
+    T, BinaryOperation, Dims, Extent, HasIdentity, View,
     std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
-          reducer<T, BinaryOperation, Dims, Extent, View,
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
                       detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
@@ -457,12 +499,13 @@ private:
 
 /// Component of 'reducer' class for array reductions, representing a single
 /// element of the span (as returned by the subscript operator).
-template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<Dims == 0 && View == true>>
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
+class reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+              std::enable_if_t<Dims == 0 && HasIdentity && View == true>>
     : public detail::combiner<
-          reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && View == true>>>,
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+                  std::enable_if_t<Dims == 0 && HasIdentity && View == true>>>,
       public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
@@ -479,24 +522,54 @@ private:
   BinaryOperation MBinaryOp;
 };
 
+/// Component of 'reducer' class for array reductions, representing a single
+/// element of the span (as returned by the subscript operator).
+/// This specialization handles cases without identity as the elements may not
+/// have been initialized yet.
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
+class reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+              std::enable_if_t<Dims == 0 && !HasIdentity && View == true>>
+    : public detail::combiner<
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+                  std::enable_if_t<Dims == 0 && !HasIdentity && View == true>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
+public:
+  reducer(std::optional<T> &Ref, BinaryOperation BOp)
+      : MElement(Ref), MBinaryOp(BOp) {}
+
+  reducer &combine(const T &Partial) {
+    MElement = MElement ? MBinaryOp(*MElement, Partial) : Partial;
+    return *this;
+  }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
+  std::optional<T> &MElement;
+  BinaryOperation MBinaryOp;
+};
+
 /// Specialization of 'reducer' class for array reductions exposing the
 /// subscript operator.
-template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, View,
-    std::enable_if_t<Dims == 1 && View == false &&
+    T, BinaryOperation, Dims, Extent, HasIdentity, View,
+    std::enable_if_t<Dims == 1 && View == false && HasIdentity &&
                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
-          reducer<T, BinaryOperation, Dims, Extent, View,
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
                   std::enable_if_t<
-                      Dims == 1 && View == false &&
+                      Dims == 1 && View == false && HasIdentity &&
                       !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
       public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, HasIdentity, true>
+  operator[](size_t Index) {
     return {MValue[Index], MBinaryOp};
   }
 
@@ -513,15 +586,48 @@ private:
   BinaryOperation MBinaryOp;
 };
 
+/// Specialization of 'reducer' class for array reductions exposing the
+/// subscript operator. This variant has no identity value.
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
+class reducer<
+    T, BinaryOperation, Dims, Extent, HasIdentity, View,
+    std::enable_if_t<Dims == 1 && View == false && !HasIdentity &&
+                     !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public detail::combiner<
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
+                  std::enable_if_t<
+                      Dims == 1 && View == false && !HasIdentity &&
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
+public:
+  reducer(BinaryOperation BOp) : MBinaryOp(BOp) {}
+
+  reducer<T, BinaryOperation, Dims - 1, Extent, HasIdentity, true>
+  operator[](size_t Index) {
+    return {MValue[Index], MBinaryOp};
+  }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
+  T &getElement(size_t E) { return *(MValue[E]); }
+  const T &getElement(size_t E) const { return *(MValue[E]); }
+
+  marray<std::optional<T>, Extent> MValue;
+  BinaryOperation MBinaryOp;
+};
+
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is known.
-template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool HasIdentity, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, View,
+    T, BinaryOperation, Dims, Extent, HasIdentity, View,
     std::enable_if_t<Dims == 1 && View == false &&
                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
-          reducer<T, BinaryOperation, Dims, Extent, View,
+          reducer<T, BinaryOperation, Dims, Extent, HasIdentity, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
                       detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
@@ -532,7 +638,8 @@ public:
 
   // SYCL 2020 revision 4 says this should be const, but this is a bug
   // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
-  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, HasIdentity, true>
+  operator[](size_t Index) {
     return {MValue[Index], BinaryOperation()};
   }
 
@@ -554,11 +661,11 @@ private:
 namespace detail {
 /// Templated class for common functionality of all reduction implementation
 /// classes.
-template <typename T, class BinaryOperation> class reduction_impl_common {
+template <typename T, class BinaryOperation, bool ExplicitIdentity,
+          typename CondT = void>
+class reduction_impl_identity_container {
 protected:
-  reduction_impl_common(const T &Identity, BinaryOperation BinaryOp,
-                        bool Init = false)
-      : MIdentity(Identity), MBinaryOp(BinaryOp), InitializeToIdentity(Init) {}
+  reduction_impl_identity_container(const T &Identity) : MIdentity(Identity) {}
 
 public:
   /// Returns the statically known identity value.
@@ -575,17 +682,25 @@ public:
     return MIdentity;
   }
 
-  /// Returns the binary operation associated with the reduction.
-  BinaryOperation getBinaryOperation() const { return MBinaryOp; }
-  bool initializeToIdentity() const { return InitializeToIdentity; }
+  /// Returns the identity if available and a default constructed value
+  /// otherwise.
+  T getIdentityOrDefault() { return getIdentity(); }
 
 protected:
   /// Identity of the BinaryOperation.
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
   const T MIdentity;
+};
 
-  BinaryOperation MBinaryOp;
-  bool InitializeToIdentity;
+// Specialization for identityless reductions.
+template <typename T, class BinaryOperation>
+class reduction_impl_identity_container<
+    T, BinaryOperation, false,
+    std::enable_if_t<!IsKnownIdentityOp<T, BinaryOperation>::value>> {
+public:
+  /// Returns the identity if available and a default constructed value
+  /// otherwise.
+  T getIdentityOrDefault() { return T{}; }
 };
 
 // Used for determining dimensions for temporary storage (mainly).
@@ -626,13 +741,42 @@ using __sycl_init_mem_for =
                        reduction::InitMemKrn<KernelName>>;
 
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
-class reduction_impl_algo : public reduction_impl_common<T, BinaryOperation> {
-  using base = reduction_impl_common<T, BinaryOperation>;
-  using self = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar>;
+          bool ExplicitIdentity, typename RedOutVar>
+class reduction_impl_algo
+    : public reduction_impl_identity_container<T, BinaryOperation,
+                                               ExplicitIdentity> {
+  using base =
+      reduction_impl_identity_container<T, BinaryOperation, ExplicitIdentity>;
+  using self = reduction_impl_algo<T, BinaryOperation, Dims, Extent,
+                                   ExplicitIdentity, RedOutVar>;
+
+  // TODO: Do we also need chooseBinOp?
+  static constexpr T chooseIdentity(const T &Identity) {
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
+    if constexpr (is_known_identity) {
+      (void)Identity;
+      return ReducerAccess<reducer_type>::getIdentityStatic();
+    } else {
+      return Identity;
+    }
+  }
 
 public:
-  using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
+  static constexpr bool is_known_identity =
+      IsKnownIdentityOp<T, BinaryOperation>::value;
+  static constexpr bool has_identity = is_known_identity || ExplicitIdentity;
+
+  using reducer_type = reducer<T, BinaryOperation, Dims, Extent, has_identity>;
   using result_type = T;
   using binary_operation = BinaryOperation;
 
@@ -650,7 +794,27 @@ public:
 
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       RedOutVar RedOut)
-      : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
+      : base(chooseIdentity(Identity)), MBinaryOp(BinaryOp),
+        InitializeToIdentity(Init), MRedOut(std::move(RedOut)) {}
+
+  template <typename RelayT = T,
+            typename RelayBinaryOperation = BinaryOperation>
+  reduction_impl_algo(
+      BinaryOperation BinaryOp, bool Init, RedOutVar RedOut,
+      std::enable_if_t<IsKnownIdentityOp<RelayT, RelayBinaryOperation>::value,
+                       int> = 0)
+      : base(ReducerAccess<reducer_type>::getIdentityStatic()),
+        MBinaryOp(BinaryOp), InitializeToIdentity(Init),
+        MRedOut(std::move(RedOut)) {}
+
+  template <typename RelayT = T,
+            typename RelayBinaryOperation = BinaryOperation>
+  reduction_impl_algo(
+      BinaryOperation BinaryOp, bool Init, RedOutVar RedOut,
+      std::enable_if_t<!IsKnownIdentityOp<RelayT, RelayBinaryOperation>::value,
+                       int> = 0)
+      : base(), MBinaryOp(BinaryOp), InitializeToIdentity(Init),
+        MRedOut(std::move(RedOut)) {}
 
   auto getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
@@ -706,8 +870,9 @@ public:
   //
   // This currently optimizes for a number of kernel instantiations instead of
   // runtime latency. That might change in future.
-  template <typename KernelName, typename FuncTy>
-  void withInitializedMem(handler &CGH, FuncTy Func) {
+  template <typename KernelName, typename FuncTy,
+            bool HasIdentity = has_identity>
+  std::enable_if_t<HasIdentity> withInitializedMem(handler &CGH, FuncTy Func) {
     // "Template" lambda to ensure that only one type of Func (USM/Buf) is
     // instantiated for the code below.
     auto DoIt = [&](auto &Out) {
@@ -732,8 +897,8 @@ public:
             Buf->template get_access<access::mode::read_write>(CopyHandler);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
-          bool IsUpdateOfUserVar = !base::initializeToIdentity();
-          auto BOp = base::getBinaryOperation();
+          bool IsUpdateOfUserVar = !initializeToIdentity();
+          auto BOp = getBinaryOperation();
 
           // Don't use constexpr as non-default host compilers (unlike clang)
           // might actually create a capture resulting in binary differences
@@ -755,15 +920,25 @@ public:
       });
     };
     if constexpr (is_usm) {
-      // Don't dispatch based on base::initializeToIdentity() as that would lead
+      // Don't dispatch based on initializeToIdentity() as that would lead
       // to two different instantiations of Func.
       DoIt(MRedOut);
     } else {
-      if (base::initializeToIdentity())
+      if (initializeToIdentity())
         DoIt(MRedOut);
       else
         Func(MRedOut);
     }
+  }
+
+  // Overload of withInitializedMem for reducer without identity. Initializing
+  // to identity is not allowed in this case.
+  template <typename KernelName, typename FuncTy,
+            bool HasIdentity = has_identity>
+  std::enable_if_t<!HasIdentity> withInitializedMem(handler &CGH, FuncTy Func) {
+    assert(!initializeToIdentity() &&
+           "Initialize to identity not allowed for identity-less reductions.");
+    Func(MRedOut);
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -793,6 +968,10 @@ public:
     return Counter.get();
   }
 
+  /// Returns the binary operation associated with the reduction.
+  BinaryOperation getBinaryOperation() const { return MBinaryOp; }
+  bool initializeToIdentity() const { return InitializeToIdentity; }
+
   RedOutVar &getUserRedVar() { return MRedOut; }
 
 private:
@@ -800,69 +979,61 @@ private:
   // 1-dimensional always.
   std::shared_ptr<buffer<T, 1>> MOutBufPtr;
 
+  BinaryOperation MBinaryOp;
+  bool InitializeToIdentity;
+
   /// User's accessor/USM pointer to where the reduction must be written.
   RedOutVar MRedOut;
 };
+
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
+          bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl
     : private reduction_impl_base,
-      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar> {
+      public reduction_impl_algo<T, BinaryOperation, Dims, Extent,
+                                 ExplicitIdentity, RedOutVar> {
 private:
-  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar>;
-  using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar>;
-
-  static constexpr bool is_known_identity =
-      IsKnownIdentityOp<T, BinaryOperation>::value;
-
-  // TODO: Do we also need chooseBinOp?
-  static constexpr T chooseIdentity(const T &Identity) {
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-    if constexpr (is_known_identity) {
-      (void)Identity;
-      return ReducerAccess<reducer_type>::getIdentityStatic();
-    } else {
-      return Identity;
-    }
-  }
+  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent,
+                                   ExplicitIdentity, RedOutVar>;
+  using self = reduction_impl<T, BinaryOperation, Dims, Extent,
+                              ExplicitIdentity, RedOutVar>;
 
 public:
+  using algo::is_known_identity;
   using algo::is_usm;
-
-  using reducer_type = typename algo::reducer_type;
 
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
 
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self,
-            enable_if_t<_self::is_known_identity> * = nullptr>
-  reduction_impl(RedOutVar Var, bool InitializeToIdentity = false)
-      : algo(ReducerAccess<reducer_type>::getIdentityStatic(),
-             BinaryOperation(), InitializeToIdentity, Var) {
+  /// Constructs reduction_impl when no identity is specified. This is only
+  /// available when ExplicitIdentity is false.
+  template <bool ExplicitIdentityRelay = ExplicitIdentity,
+            typename = std::enable_if_t<!ExplicitIdentityRelay>>
+  reduction_impl(RedOutVar Var, BinaryOperation BOp,
+                 bool InitializeToIdentity = false)
+      : algo(BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
         throw sycl::runtime_error(errc::invalid,
                                   "Reduction variable must be a scalar.",
                                   PI_ERROR_INVALID_VALUE);
+    if constexpr (!is_known_identity)
+      if (InitializeToIdentity)
+        throw sycl::runtime_error(errc::invalid,
+                                  "initialize_to_identity property cannot be "
+                                  "used with identityless reductions.",
+                                  PI_ERROR_INVALID_VALUE);
   }
 
-  /// Constructs reduction_impl when the identity value is unknown.
+  /// Constructs reduction_impl with an explicit identity value. This is only
+  /// available when ExplicitIdentity is true.
+  template <bool ExplicitIdentityRelay = ExplicitIdentity,
+            typename = std::enable_if_t<ExplicitIdentityRelay>>
   reduction_impl(RedOutVar &Var, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Var) {
+      : algo(Identity, BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
         throw sycl::runtime_error(errc::invalid,
@@ -871,12 +1042,12 @@ public:
   }
 };
 
-template <class BinaryOp, int Dims, size_t Extent, typename RedOutVar,
-          typename... RestTy>
+template <class BinaryOp, int Dims, size_t Extent, bool ExplicitIdentity,
+          typename RedOutVar, typename... RestTy>
 auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
   return reduction_impl<typename get_red_t<RedOutVar>::type, BinaryOp, Dims,
-                        Extent, RedOutVar>{RedVar,
-                                           std::forward<RestTy>(Rest)...};
+                        Extent, ExplicitIdentity, RedOutVar>{
+      RedVar, std::forward<RestTy>(Rest)...};
 }
 
 namespace reduction {
@@ -988,6 +1159,10 @@ struct NDRangeReduction<
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    static_assert(Reduction::has_identity,
+                  "Identityless reductions are not supported by the "
+                  "group_reduce_and_last_wg_detection strategy.");
+
     std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
@@ -1197,15 +1372,25 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
     local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
-    auto Identity = Redu.getIdentity();
+    auto IdentityOrDefault = Redu.getIdentityOrDefault();
     auto BOp = Redu.getBinaryOperation();
 
-    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
-                                         reduction::strategy::range_basic>;
+    // For identity-less reductions we do not need to capture the identity.
+    auto CreateReducerF = [=]() {
+      if constexpr (Reduction::has_identity)
+        return typename Reduction::reducer_type(IdentityOrDefault, BOp);
+      else
+        return typename Reduction::reducer_type(BOp);
+    };
+
+    using Name =
+        __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                reduction::strategy::range_basic,
+                                std::bool_constant<Reduction::has_identity>>;
 
     CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
-      typename Reduction::reducer_type Reducer(Identity, BOp);
+      typename Reduction::reducer_type Reducer = CreateReducerF();
       KernelFunc(NDId, Reducer);
 
       // If there are multiple values, reduce each separately
@@ -1511,14 +1696,27 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
     // Use local memory to reduce elements in work-groups into 0-th element.
     local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize, CGH};
-    typename Reduction::result_type ReduIdentity = Redu.getIdentity();
-    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
-                                         reduction::strategy::basic>;
 
     auto BOp = Redu.getBinaryOperation();
+
+    // For identity-less reductions we do not need to capture the identity.
+    typename Reduction::result_type IdentityOrDefault =
+        Redu.getIdentityOrDefault();
+    auto CreateReducerF = [=]() {
+      if constexpr (Reduction::has_identity)
+        return typename Reduction::reducer_type(IdentityOrDefault, BOp);
+      else
+        return typename Reduction::reducer_type(BOp);
+    };
+
+    using Name =
+        __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                reduction::strategy::basic,
+                                std::bool_constant<Reduction::has_identity>>;
+
     CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
       // Call user's functions. Reducer.MValue gets initialized there.
-      typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
+      typename Reduction::reducer_type Reducer = CreateReducerF();
       KernelFunc(NDIt, Reducer);
 
       size_t WGSize = NDIt.get_local_range().size();
@@ -1590,7 +1788,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
         local_accessor<typename Reduction::result_type, 1> LocalReds{
             WGSize, AuxHandler};
 
-        auto ReduIdentity = Redu.getIdentity();
         auto BOp = Redu.getBinaryOperation();
         using Name = __sycl_reduction_kernel<reduction::AuxKrn, KernelName,
                                              reduction::strategy::basic>;
@@ -1653,21 +1850,49 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           CGH)...);
 }
 
+template <typename Reduction, size_t IdentityI, typename OutAccT,
+          typename LocalAccT, typename BOPT, typename... Ts>
+auto getLastCombine(OutAccT OutAcc, LocalAccT LocalAcc, BOPT BOP,
+                    ReduTupleT<Ts...> IdentityVals,
+                    bool IsInitializeToIdentity) {
+  if constexpr (!Reduction::has_identity) {
+    // If there are no identity values we are in an identityless path and
+    // and cannot initialize to identity.
+    return BOP(LocalAcc[0], OutAcc[0]);
+  } else {
+    return BOP(LocalAcc[0], IsInitializeToIdentity
+                                ? std::get<IdentityI>(IdentityVals)
+                                : OutAcc[0]);
+  }
+}
+
+// Helper to get the type in a pack at a given index.
+template <size_t I, typename... Ts> struct get_type_at {
+  using type = std::remove_reference_t<decltype(std::get<I>(
+      std::declval<std::tuple<Ts...>>()))>;
+};
+template <size_t I, typename... Ts>
+using get_type_at_t = typename get_type_at<I, Ts...>::type;
+
 template <typename... Reductions, typename... OutAccT, typename... LocalAccT,
-          typename... BOPsT, typename... Ts, size_t... Is>
+          typename... BOPsT, typename... Ts, size_t... IdentityIs, size_t... Is>
 void writeReduSumsToOutAccs(
     bool IsOneWG, size_t OutAccIndex, ReduTupleT<OutAccT...> OutAccs,
     ReduTupleT<LocalAccT...> LocalAccs, ReduTupleT<BOPsT...> BOPs,
     ReduTupleT<Ts...> IdentityVals,
     std::array<bool, sizeof...(Reductions)> IsInitializeToIdentity,
-    std::index_sequence<Is...>) {
+    std::index_sequence<IdentityIs...>, std::index_sequence<Is...>) {
+  static_assert(sizeof...(IdentityIs) == sizeof...(Is),
+                "Mismatch in identities and reductions.");
+
   // Add the initial value of user's variable to the final result.
-  if (IsOneWG)
-    ((std::get<Is>(LocalAccs)[0] = std::get<Is>(BOPs)(
-          std::get<Is>(LocalAccs)[0], IsInitializeToIdentity[Is]
-                                          ? std::get<Is>(IdentityVals)
-                                          : std::get<Is>(OutAccs)[0])),
+  if (IsOneWG) {
+    ((std::get<Is>(LocalAccs)[0] =
+          getLastCombine<get_type_at_t<Is, Reductions...>, IdentityIs>(
+              std::get<Is>(OutAccs), std::get<Is>(LocalAccs),
+              std::get<Is>(BOPs), IdentityVals, IsInitializeToIdentity[Is])),
      ...);
+  }
 
   // The partial sums for the work-group are stored in 0-th elements of local
   // accessors. Simply write those sums to output accessors.
@@ -1743,6 +1968,90 @@ constexpr auto filterSequence(FunctorT F, std::index_sequence<Is...> Indices) {
   return filterSequenceHelper<T...>(F, Indices);
 }
 
+/// For each index 'I' in SelectorIs, the corresponding value in Is is picked.
+template <size_t... SelectorIs, size_t... Is>
+constexpr auto selectSequenceFromSequence(std::index_sequence<SelectorIs...>,
+                                          std::index_sequence<Is...>) {
+  return std::index_sequence<std::get<SelectorIs>(std::tuple{Is...})...>{};
+}
+
+// Creates a ReduTupleT with identities.
+template <typename... Reductions, size_t... Is>
+auto makeIdentityTuple(std::tuple<Reductions...> &ReduTuple,
+                       std::index_sequence<Is...>) {
+  return makeReduTupleT(std::get<Is>(ReduTuple).getIdentity()...);
+}
+
+// Creates a mapping between the identity indices and the reductions, padding
+// non-reduction elements in the map with sizeof...(Is) to make it a failure if
+// they are used.
+template <size_t DefaultI, typename IdentitySeq, typename ISeq,
+          bool... HasIdentities>
+struct identity_mapping;
+template <size_t DefaultI>
+struct identity_mapping<DefaultI, std::index_sequence<>,
+                        std::index_sequence<>> {
+  using type = std::index_sequence<>;
+};
+template <size_t DefaultI, size_t... IdentityIs, size_t I, size_t... Is,
+          bool... HasIdentities>
+struct identity_mapping<DefaultI, std::index_sequence<IdentityIs...>,
+                        std::index_sequence<I, Is...>, false,
+                        HasIdentities...> {
+  using type = decltype(concat_sequences(
+      std::integer_sequence<size_t, DefaultI>{},
+      typename identity_mapping<DefaultI, std::index_sequence<IdentityIs...>,
+                                std::index_sequence<Is...>,
+                                HasIdentities...>::type{}));
+};
+template <size_t DefaultI, size_t IdentityI, size_t... IdentityIs, size_t I,
+          size_t... Is, bool... HasIdentities>
+struct identity_mapping<DefaultI, std::index_sequence<IdentityI, IdentityIs...>,
+                        std::index_sequence<I, Is...>, true, HasIdentities...> {
+  using type = decltype(concat_sequences(
+      std::integer_sequence<size_t, IdentityI>{},
+      typename identity_mapping<DefaultI, std::index_sequence<IdentityIs...>,
+                                std::index_sequence<Is...>,
+                                HasIdentities...>::type{}));
+};
+template <typename... Reductions, size_t... IdentityIs, size_t... Is>
+auto makeIdentityMapping(std::index_sequence<IdentityIs...>,
+                         std::index_sequence<Is...>) {
+  return typename identity_mapping<
+      sizeof...(Is), std::index_sequence<IdentityIs...>,
+      std::index_sequence<Is...>, Reductions::has_identity...>::type{};
+}
+template <typename... Reductions> auto makeIdentityMapping() {
+  return makeIdentityMapping<Reductions...>(
+      std::make_index_sequence<(Reductions::has_identity + ... + 0)>{},
+      std::make_index_sequence<sizeof...(Reductions)>{});
+}
+
+// Creates reducers with the identities and binary operations.
+template <typename Reduction, size_t IdentityIdx, typename... Ts>
+auto makeReducer(const typename Reduction::binary_operation &BOP,
+                 const ReduTupleT<Ts...> &IdentitiesTuple) {
+  if constexpr (Reduction::has_identity) {
+    return typename Reduction::reducer_type{
+        std::get<IdentityIdx>(IdentitiesTuple), BOP};
+  } else {
+    std::ignore = IdentitiesTuple;
+    return typename Reduction::reducer_type{BOP};
+  }
+}
+template <typename... Reductions, typename... BOPTs, typename... Ts,
+          size_t... IdentityIs, size_t... Is>
+auto makeReducerTuple(const ReduTupleT<BOPTs...> &BOPTuple,
+                      const ReduTupleT<Ts...> &IdentitiesTuple,
+                      std::index_sequence<IdentityIs...>,
+                      std::index_sequence<Is...>) {
+  static_assert(
+      sizeof...(IdentityIs) == sizeof...(Is),
+      "Identity map does not have the same number of elements as reducers.");
+  return std::tuple{makeReducer<Reductions, IdentityIs>(std::get<Is>(BOPTuple),
+                                                        IdentitiesTuple)...};
+}
+
 struct IsScalarReduction {
   template <typename Reduction> struct Func {
     static constexpr bool value =
@@ -1757,16 +2066,23 @@ struct IsArrayReduction {
   };
 };
 
+struct IsReductionWithIdentity {
+  template <typename Reduction> struct Func {
+    static constexpr bool value = Reduction::has_identity;
+  };
+};
+
 /// All scalar reductions are processed together; there is one loop of log2(N)
 /// steps, and each reduction uses its own storage.
 template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... OutAccT, typename... ReducerT, typename... Ts,
-          typename... BOPsT, size_t... Is>
+          typename... BOPsT, size_t... IdentityIs, size_t... Is>
 void reduCGFuncImplScalar(
     bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<IdentityIs...> IdentityIndices,
     std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
@@ -1782,16 +2098,16 @@ void reduCGFuncImplScalar(
     size_t GrID = NDIt.get_group_linear_id();
     writeReduSumsToOutAccs<Reductions...>(
         IsOneWG, GrID, OutAccsTuple, LocalAccsTuple, BOPsTuple, IdentitiesTuple,
-        InitToIdentityProps, ReduIndices);
+        InitToIdentityProps, IdentityIndices, ReduIndices);
   }
 }
 
 /// Each array reduction is processed separately.
 template <typename Reduction, int Dims, typename LocalAccT, typename OutAccT,
-          typename ReducerT, typename T, typename BOPT>
+          typename ReducerT, typename BOPT>
 void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
                                LocalAccT LocalReds, OutAccT Out,
-                               ReducerT &Reducer, T Identity, BOPT BOp,
+                               ReducerT &Reducer, BOPT BOp,
                                bool IsInitializeToIdentity) {
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
@@ -1807,10 +2123,14 @@ void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
       size_t GrID = NDIt.get_group_linear_id();
-      Out[GrID * NElements + E] =
-          IsOneWG
-              ? BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E])
-              : LocalReds[0];
+      if constexpr (Reduction::has_identity) {
+        Out[GrID * NElements + E] =
+            IsOneWG ? BOp(LocalReds[0],
+                          IsInitializeToIdentity ? Reducer.identity() : Out[E])
+                    : LocalReds[0];
+      } else {
+        Out[GrID * NElements + E] = LocalReds[0];
+      }
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -1826,14 +2146,14 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
 void reduCGFuncImplArray(
     bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
-    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
        IsOneWG, NDIt, std::get<Is>(LocalAccsTuple), std::get<Is>(OutAccsTuple),
-       std::get<Is>(ReducersTuple), std::get<Is>(IdentitiesTuple),
-       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
+       std::get<Is>(ReducersTuple), std::get<Is>(BOPsTuple),
+       InitToIdentityProps[Is]),
    ...);
 }
 
@@ -1862,6 +2182,17 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
+  IsReductionWithIdentity ReductionWithIdentityPredicate;
+  auto ReductionWithIdentityIs = filterSequence<Reductions...>(
+      ReductionWithIdentityPredicate, ReduIndices);
+
+  // Create identity mapping. This creates an index sequence with the same size
+  // as ReduIndices where the elements with identities have an index into the
+  // limited identity tuple and the rest have some out-of-range index.
+  auto ReductionIdentityMapping = makeIdentityMapping<Reductions...>();
+  auto ScalarIdentityMapping =
+      selectSequenceFromSequence(ScalarIs, ReductionIdentityMapping);
+
   auto LocalAccsTuple = makeReduTupleT(
       local_accessor<typename Reductions::result_type, 1>{WGSize, CGH}...);
 
@@ -1873,7 +2204,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
   // code just once.
   auto Rest = [&](auto OutAccsTuple) {
     auto IdentitiesTuple =
-        makeReduTupleT(std::get<Is>(ReduTuple).getIdentity()...);
+        makeIdentityTuple(ReduTuple, ReductionWithIdentityIs);
     auto BOPsTuple =
         makeReduTupleT(std::get<Is>(ReduTuple).getBinaryOperation()...);
     std::array InitToIdentityProps{
@@ -1887,8 +2218,8 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
       auto ReduIndices = std::index_sequence_for<Reductions...>();
-      auto ReducersTuple = std::tuple{typename Reductions::reducer_type{
-          std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple)}...};
+      auto ReducersTuple = makeReducerTuple<Reductions...>(
+          BOPsTuple, IdentitiesTuple, ReductionIdentityMapping, ReduIndices);
       std::apply([&](auto &...Reducers) { KernelFunc(NDIt, Reducers...); },
                  ReducersTuple);
 
@@ -1898,15 +2229,16 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // ReduIndices);
       reduCGFuncImplScalar<Reductions...>(
           IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
-          IdentitiesTuple, BOPsTuple, InitToIdentityProps, ScalarIs);
+          IdentitiesTuple, BOPsTuple, InitToIdentityProps,
+          ScalarIdentityMapping, ScalarIs);
 
       // Combine and write-back the results of any array reductions
       // These are handled separately to minimize temporary storage and account
       // for the fact that each array reduction may have a different number of
       // elements to reduce (i.e. a different extent).
-      reduCGFuncImplArray<Reductions...>(
-          IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
-          IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
+      reduCGFuncImplArray<Reductions...>(IsOneWG, NDIt, LocalAccsTuple,
+                                         OutAccsTuple, ReducersTuple, BOPsTuple,
+                                         InitToIdentityProps, ArrayIs);
     });
   };
 
@@ -1932,13 +2264,14 @@ void associateReduAccsWithHandler(handler &CGH,
 /// steps, and each reduction uses its own storage.
 template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... InAccT, typename... OutAccT, typename... Ts,
-          typename... BOPsT, size_t... Is>
+          typename... BOPsT, size_t... IdentityIs, size_t... Is>
 void reduAuxCGFuncImplScalar(
     bool IsOneWG, nd_item<Dims> NDIt, size_t LID, size_t GID,
     size_t RemainingWorkSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<IdentityIs...> IdentityIndices,
     std::index_sequence<Is...> ReduIndices) {
   // The end work-group may have less work than the rest, so we only need to
   // read the value of the elements that still have work left.
@@ -1953,7 +2286,7 @@ void reduAuxCGFuncImplScalar(
     size_t GrID = NDIt.get_group_linear_id();
     writeReduSumsToOutAccs<Reductions...>(
         IsOneWG, GrID, OutAccsTuple, LocalAccsTuple, BOPsTuple, IdentitiesTuple,
-        InitToIdentityProps, ReduIndices);
+        InitToIdentityProps, IdentityIndices, ReduIndices);
   }
 }
 
@@ -2030,13 +2363,23 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
+  IsReductionWithIdentity ReductionWithIdentityPredicate;
+  auto ReductionWithIdentityIs = filterSequence<Reductions...>(
+      ReductionWithIdentityPredicate, ReduIndices);
+
+  // Create identity mapping. This creates an index sequence with the same size
+  // as ReduIndices where the elements with identities have an index into the
+  // limited identity tuple and the rest have some out-of-range index.
+  auto ReductionIdentityMapping = makeIdentityMapping<Reductions...>();
+  auto ScalarIdentityMapping =
+      selectSequenceFromSequence(ScalarIs, ReductionIdentityMapping);
+
   auto LocalAccsTuple = makeReduTupleT(
       local_accessor<typename Reductions::result_type, 1>{WGSize, CGH}...);
   auto InAccsTuple = makeReduTupleT(
       std::get<Is>(ReduTuple).getReadAccToPreviousPartialReds(CGH)...);
 
-  auto IdentitiesTuple =
-      makeReduTupleT(std::get<Is>(ReduTuple).getIdentity()...);
+  auto IdentitiesTuple = makeIdentityTuple(ReduTuple, ReductionWithIdentityIs);
   auto BOPsTuple =
       makeReduTupleT(std::get<Is>(ReduTuple).getBinaryOperation()...);
   std::array InitToIdentityProps{
@@ -2065,7 +2408,7 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
       reduAuxCGFuncImplScalar<Reductions...>(
           IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
           InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
-          InitToIdentityProps, ScalarIs);
+          InitToIdentityProps, ScalarIdentityMapping, ScalarIs);
       reduAuxCGFuncImplArray<Reductions...>(
           IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
           InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
@@ -2300,7 +2643,8 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
       // specification. However, implementing run-time check for that would
       // result in an extra kernel compilation(s). We probably need to
       // investigate if the usage of kernel_bundles can mitigate that.
-      if constexpr (Reduction::has_fast_reduce)
+      // Note: Identityless reductions cannot use group reductions.
+      if constexpr (Reduction::has_fast_reduce && Reduction::has_identity)
         return reduction::strategy::group_reduce_and_last_wg_detection;
       else if constexpr (Reduction::has_fast_atomics)
         return reduction::strategy::local_atomic_and_atomic_cross_wg;
@@ -2323,64 +2667,29 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
-template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename = std::enable_if_t<has_known_identity<BinaryOperation, T>::value>>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
+/// The reduction algorithm may be less efficient if the specified binary
+/// operation does not have a known identity.
+template <typename T, typename AllocatorT, typename BinaryOperation>
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
+               BinaryOperation Combiner, const property_list &PropList = {}) {
+  bool InitializeToIdentity =
+      PropList.has_property<property::reduction::initialize_to_identity>();
+  return detail::make_reduction<BinaryOperation, 0, 1, false>(
+      accessor{Var, CGH}, Combiner, InitializeToIdentity);
+}
+
+/// Constructs a reduction object using the reduction variable referenced by
+/// the given USM pointer \p Var, handler \p CGH, reduction operation
+/// \p Combiner, and optional reduction properties.
+/// The reduction algorithm may be less efficient if the specified binary
+/// operation does not have a known identity.
+template <typename T, typename BinaryOperation>
+auto reduction(T *Var, BinaryOperation Combiner,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH},
-                                                       InitializeToIdentity);
-}
-
-/// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
-/// reduction operation \p Combiner, and optional reduction properties.
-/// The reduction algorithm may be less efficient for this variant as the
-/// reduction identity is not known statically and it is not provided by user.
-template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
-detail::reduction_impl<
-    T, BinaryOperation, 0, 1,
-    accessor<T, 1, access::mode::read_write, access::target::device>>
-reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
-          const property_list &PropList = {}) {
-  // TODO: implement reduction that works even when identity is not known.
-  (void)PropList;
-  throw runtime_error("Identity-less reductions with unknown identity are not "
-                      "supported yet.",
-                      PI_ERROR_INVALID_VALUE);
-}
-
-/// Constructs a reduction object using the reduction variable referenced by
-/// the given USM pointer \p Var, handler \p CGH, reduction operation
-/// \p Combiner, and optional reduction properties.
-template <
-    typename T, typename BinaryOperation,
-    typename = std::enable_if_t<has_known_identity<BinaryOperation, T>::value>>
-auto reduction(T *Var, BinaryOperation, const property_list &PropList = {}) {
-  bool InitializeToIdentity =
-      PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(Var,
-                                                       InitializeToIdentity);
-}
-
-/// Constructs a reduction object using the reduction variable referenced by
-/// the given USM pointer \p Var, handler \p CGH, reduction operation
-/// \p Combiner, and optional reduction properties.
-/// The reduction algorithm may be less efficient for this variant as the
-/// reduction identity is not known statically and it is not provided by user.
-template <
-    typename T, typename BinaryOperation,
-    typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
-detail::reduction_impl<T, BinaryOperation, 0, 1, T *>
-reduction(T *, BinaryOperation, const property_list &PropList = {}) {
-  // TODO: implement reduction that works even when identity is not known.
-  (void)PropList;
-  throw runtime_error("Identity-less reductions with unknown identity are not "
-                      "supported yet.",
-                      PI_ERROR_INVALID_VALUE);
+  return detail::make_reduction<BinaryOperation, 0, 1, false>(
+      Var, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
@@ -2391,7 +2700,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(
+  return detail::make_reduction<BinaryOperation, 0, 1, true>(
       accessor{Var, CGH}, Identity, Combiner, InitializeToIdentity);
 }
 
@@ -2403,42 +2712,23 @@ auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(Var, Identity, Combiner,
-                                                       InitializeToIdentity);
+  return detail::make_reduction<BinaryOperation, 0, 1, true>(
+      Var, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
 /// the given sycl::span \p Span, reduction operation \p Combiner, and
 /// optional reduction properties.
-template <
-    typename T, size_t Extent, typename BinaryOperation,
-    typename = std::enable_if_t<Extent != dynamic_extent &&
-                                has_known_identity<BinaryOperation, T>::value>>
-auto reduction(span<T, Extent> Span, BinaryOperation,
+/// The reduction algorithm may be less efficient if the specified binary
+/// operation does not have a known identity.
+template <typename T, size_t Extent, typename BinaryOperation,
+          typename = std::enable_if_t<Extent != dynamic_extent>>
+auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 1, Extent>(
-      Span.data(), InitializeToIdentity);
-}
-
-/// Constructs a reduction object using the reduction variable referenced by
-/// the given sycl::span \p Span, reduction operation \p Combiner, and
-/// optional reduction properties.
-/// The reduction algorithm may be less efficient for this variant as the
-/// reduction identity is not known statically and it is not provided by user.
-template <
-    typename T, size_t Extent, typename BinaryOperation,
-    typename = std::enable_if_t<Extent != dynamic_extent &&
-                                !has_known_identity<BinaryOperation, T>::value>>
-detail::reduction_impl<T, BinaryOperation, 1, Extent, T *>
-reduction(span<T, Extent>, BinaryOperation,
-          const property_list &PropList = {}) {
-  // TODO: implement reduction that works even when identity is not known.
-  (void)PropList;
-  throw runtime_error("Identity-less reductions with unknown identity are not "
-                      "supported yet.",
-                      PI_ERROR_INVALID_VALUE);
+  return detail::make_reduction<BinaryOperation, 1, Extent, false>(
+      Span.data(), Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
@@ -2450,7 +2740,7 @@ auto reduction(span<T, Extent> Span, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 1, Extent>(
+  return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
