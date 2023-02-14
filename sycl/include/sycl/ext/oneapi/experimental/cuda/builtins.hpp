@@ -77,7 +77,7 @@ ldg(const T *ptr) {
 #endif
 }
 
-#undef ATTRIBUTE_EXT_VEC_TYPE(N)
+#undef ATTRIBUTE_EXT_VEC_TYPE
 
 } // namespace cuda
 } // namespace experimental

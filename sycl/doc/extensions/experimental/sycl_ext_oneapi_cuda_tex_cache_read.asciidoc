@@ -111,9 +111,8 @@ The template parameter `T` can be one of `float`, `vec<float, 2>`, `vec<float, 4
     });
 ```
 
-IMPORTANT: Data returned from `ldg`, e.g. `cacheA` and `cacheB` in the above example, should not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute correctly, however the texture cache will not be used. Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `ldg` with both the `const` and `$$__$$restrict$$__$$` qualifiers, which may aid the compiler in detecting the read-only condition.
+IMPORTANT: Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `ldg` with both the `const` and `$$__$$restrict$$__$$` qualifiers, which may aid the compiler in detecting the read-only condition. Additionally, data returned from `ldg`, e.g. `cacheA` and `cacheB` in the above example, should not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute correctly, however the texture cache will not be used.
 
 === Issues
 
 - Investigate exposing this functionality through annotated_ptr once the sycl_ext_oneapi_annotated_ptr becomes finalized.
-- Add `half`, `bfloat16` and integer cases. These cases require some additional work, and so won't be included in the initial implementation.
