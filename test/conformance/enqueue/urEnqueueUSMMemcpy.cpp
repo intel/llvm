@@ -16,11 +16,10 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
             GTEST_SKIP_("Device USM is not supported");
         }
 
-        ur_usm_mem_flags_t flags{};
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, &flags, allocation_size, 0, reinterpret_cast<void **>(&device_src)));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0, reinterpret_cast<void **>(&device_src)));
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, &flags, allocation_size, 0, reinterpret_cast<void **>(&device_dst)));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0, reinterpret_cast<void **>(&device_dst)));
 
         ASSERT_SUCCESS(
             urEnqueueUSMMemset(queue, device_src, memset_value, allocation_size, 0, nullptr, &memset_event));

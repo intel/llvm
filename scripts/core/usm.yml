@@ -15,9 +15,33 @@ desc: "USM memory property flags"
 class: $xUSM
 name: $x_usm_mem_flags_t
 etors:
-    - name: ALLOC_FLAGS_INTEL
+    - name: BIAS_CACHED
       value: "$X_BIT(0)"
-      desc: "The USM memory allocation is from Intel USM"
+      desc: "Allocation should be cached"
+    - name: BIAS_UNCACHED
+      value: "$X_BIT(1)"
+      desc: "Allocation should not be cached"
+    - name: WRITE_COMBINED
+      value: "$X_BIT(2)"
+      desc: "Memory should be allocated write-combined (WC)"
+    - name: INITIAL_PLACEMENT_DEVICE
+      value: "$X_BIT(3)"
+      desc: "Optimize shared allocation for first access on the device"
+    - name: INITIAL_PLACEMENT_HOST
+      value: "$X_BIT(4)"
+      desc: "Optimize shared allocation for first access on the host"
+    - name: DEVICE_READ_ONLY
+      value: "$X_BIT(5)"
+      desc: "Memory is only possibly modified from the host, but read-only in all device code"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM memory property flags"
+class: $xUSM
+name: $x_usm_pool_flags_t
+etors:
+    - name: ZERO_INITIALIZE_BLOCK
+      value: "$X_BIT(0)"
+      desc: "All coarse-grain allocations (allocations from the driver) will be zero-initialized."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM allocation type"
@@ -47,18 +71,74 @@ etors:
     - name: DEVICE
       desc: "Memory allocation device info"
 --- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of USM pool"
+class: $xUSM
+name: "$x_usm_pool_handle_t"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM allocation descriptor type"
+class: $xUSM
+name: $x_usm_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_usm_mem_flags_t
+      name:  flags
+      desc: "[in] memory allocation flags"
+    - type: $x_mem_advice_t
+      name: hints
+      desc: "[in] Memory advice hints"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM pool descriptor type"
+class: $xUSM
+name: $x_usm_pool_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_usm_pool_flags_t
+      name:  flags
+      desc: "[in] memory allocation flags"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM pool limits descriptor type"
+class: $xUSM
+name: $x_usm_pool_limits_desc_t
+base: $x_base_desc_t
+members:
+    - type: "size_t"
+      name:  maxPoolSize
+      desc: "[in] Maximum size of a memory pool"
+    - type: "size_t"
+      name:  maxPoolableSize
+      desc: "[in] Allocations up to this limit will be subject to pooling"
+    - type: "size_t"
+      name:  capacity
+      desc: "[in] When pooling, each bucket will hold a max of 4 unfreed slabs"
+    - type: "size_t"
+      name:  slabMinSize
+      desc: "[in] Minimum allocation size that will be requested from the driver"
+--- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate host memory"
 class: $xUSM
 name: HostAlloc
 ordinal: "0"
+details:
+  - "This function must support memory pooling."
+  - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
+  - "Otherwise, the behavior is implementation-defined."
+  - "Allocations served from different memory pools must be isolated and must not reside on the same page."
+  - "Any flags/hints passed through pUSMDesc only affect the single allocation."
 params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: $x_usm_mem_flags_t*
-      name: pUSMFlag
-      desc: "[in] USM memory allocation flags"
+    - type: $x_usm_desc_t*
+      name: pUSMDesc
+      desc: "[in][optional] USM memory allocation descriptor"
+    - type: $x_usm_pool_handle_t
+      name: pool
+      desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
@@ -80,6 +160,12 @@ desc: "USM allocate device memory"
 class: $xUSM
 name: DeviceAlloc
 ordinal: "0"
+details:
+  - "This function must support memory pooling."
+  - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
+  - "Otherwise, the behavior is implementation-defined."
+  - "Allocations served from different memory pools must be isolated and must not reside on the same page."
+  - "Any flags/hints passed through pUSMDesc only affect the single allocation."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -87,9 +173,12 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_usm_mem_flags_t*
-      name: pUSMProp
-      desc: "[in] USM memory properties"
+    - type: $x_usm_desc_t*
+      name: pUSMDesc
+      desc: "[in][optional] USM memory allocation descriptor"
+    - type: $x_usm_pool_handle_t
+      name: pool
+      desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
@@ -111,6 +200,12 @@ desc: "USM allocate shared memory"
 class: $xUSM
 name: SharedAlloc
 ordinal: "0"
+details:
+  - "This function must support memory pooling."
+  - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
+  - "Otherwise, the behavior is implementation-defined."
+  - "Allocations served from different memory pools must be isolated and must not reside on the same page."
+  - "Any flags/hints passed through pUSMDesc only affect the single allocation."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -118,9 +213,12 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_usm_mem_flags_t*
-      name: pUSMProp
-      desc: "[in] USM memory properties"
+    - type: $x_usm_desc_t*
+      name: pUSMDesc
+      desc: "[in][optional] USM memory allocation descriptor"
+    - type: $x_usm_pool_handle_t
+      name: pool
+      desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
@@ -182,3 +280,42 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create USM memory pool with desired properties."
+class: $xUSM
+name: PoolCreate
+ordinal: "0"
+details:
+  - "UR can create multiple instances of the pool depending on allocation requests."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_usm_pool_desc_t*
+      name: pPoolDesc
+      desc: "[in] pointer to USM pool descriptor. Can be chained with $x_usm_pool_limits_desc_t"
+    - type: $x_usm_pool_handle_t*
+      name: ppPool
+      desc: "[out] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy USM memory pool"
+class: $xUSM
+name: PoolDestroy
+ordinal: "0"
+details:
+    - "All allocation belonging to the pool should be freed before calling this function."
+    - "This functions returns all memory reserved by the pool to the driver."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_usm_pool_handle_t
+      name: pPool
+      desc: "[in] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
