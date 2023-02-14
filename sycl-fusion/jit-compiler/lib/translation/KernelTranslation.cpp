@@ -75,68 +75,68 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
     const unsigned char *ModulePtr = BinInfo.BinaryStart;
     size_t ModuleSize = BinInfo.BinarySize;
     BinaryBlob BinBlob{ModulePtr, ModuleSize};
-    if (ParsedBinaries.contains(BinBlob)) {
+    if (!ParsedBinaries.contains(BinBlob)) {
       // Multiple kernels can be stored in the same SPIR-V or LLVM IR module.
-      // If we encountered the same binary module before, skip.
+      // We only load if we did not encounter the same binary module before.
       // NOTE: We compare the pointer as well as the size, in case
       // a previous kernel only referenced part of the SPIR-V/LLVM IR module.
       // Not sure this can actually happen, but better safe than sorry.
-      continue;
-    }
-    // Simply load and translate the SPIR-V into the currently still empty
-    // module.
-    std::unique_ptr<llvm::Module> NewMod;
+      // Simply load and translate the SPIR-V into the currently still empty
+      // module.
+      std::unique_ptr<llvm::Module> NewMod;
 
-    switch (BinInfo.Format) {
-    case BinaryFormat::LLVM: {
-      auto ModOrError = loadLLVMKernel(LLVMCtx, Kernel);
-      if (auto Err = ModOrError.takeError()) {
-        return std::move(Err);
+      switch (BinInfo.Format) {
+      case BinaryFormat::LLVM: {
+        auto ModOrError = loadLLVMKernel(LLVMCtx, Kernel);
+        if (auto Err = ModOrError.takeError()) {
+          return std::move(Err);
+        }
+        NewMod = std::move(*ModOrError);
+        break;
       }
-      NewMod = std::move(*ModOrError);
-      break;
-    }
-    case BinaryFormat::SPIRV: {
-      auto ModOrError = loadSPIRVKernel(LLVMCtx, Kernel);
-      if (auto Err = ModOrError.takeError()) {
-        return std::move(Err);
+      case BinaryFormat::SPIRV: {
+        auto ModOrError = loadSPIRVKernel(LLVMCtx, Kernel);
+        if (auto Err = ModOrError.takeError()) {
+          return std::move(Err);
+        }
+        NewMod = std::move(*ModOrError);
+        break;
       }
-      NewMod = std::move(*ModOrError);
-      break;
-    }
-    default: {
-      return createStringError(
-          inconvertibleErrorCode(),
-          "Failed to load kernel from unsupported input format");
-    }
-    }
-
-    // We do not assume that the input binary information has the address bits
-    // set, but rather retrieve this information from the SPIR-V/LLVM module's
-    // data-layout.
-    BinInfo.AddressBits = NewMod->getDataLayout().getPointerSizeInBits();
-
-    if (First) {
-      // We can simply assign the module we just loaded from SPIR-V to the
-      // empty pointer on the first iteration.
-      Result = std::move(NewMod);
-      // The first module will dictate the address bits for the remaining.
-      AddressBits = BinInfo.AddressBits;
-      First = false;
-    } else {
-      // We have already loaded some module, so now we need to
-      // link the module we just loaded with the result so far.
-      // FIXME: We allow duplicates to be overridden by the module
-      // read last. This could cause problems if different modules contain
-      // definitions with the same name, but different body/content.
-      // Check that this is not problematic.
-      Linker::linkModules(*Result, std::move(NewMod),
-                          Linker::Flags::OverrideFromSrc);
-      if (AddressBits != BinInfo.AddressBits) {
+      default: {
         return createStringError(
             inconvertibleErrorCode(),
-            "Number of address bits between SPIR-V modules does not match");
+            "Failed to load kernel from unsupported input format");
       }
+      }
+
+      // We do not assume that the input binary information has the address bits
+      // set, but rather retrieve this information from the SPIR-V/LLVM module's
+      // data-layout.
+      BinInfo.AddressBits = NewMod->getDataLayout().getPointerSizeInBits();
+
+      if (First) {
+        // We can simply assign the module we just loaded from SPIR-V to the
+        // empty pointer on the first iteration.
+        Result = std::move(NewMod);
+        // The first module will dictate the address bits for the remaining.
+        AddressBits = BinInfo.AddressBits;
+        First = false;
+      } else {
+        // We have already loaded some module, so now we need to
+        // link the module we just loaded with the result so far.
+        // FIXME: We allow duplicates to be overridden by the module
+        // read last. This could cause problems if different modules contain
+        // definitions with the same name, but different body/content.
+        // Check that this is not problematic.
+        Linker::linkModules(*Result, std::move(NewMod),
+                            Linker::Flags::OverrideFromSrc);
+        if (AddressBits != BinInfo.AddressBits) {
+          return createStringError(
+              inconvertibleErrorCode(),
+              "Number of address bits between SPIR-V modules does not match");
+        }
+      }
+      ParsedBinaries.insert(BinBlob);
     }
     // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
     // 'work_group_size_hint' from metadata attached to the kernel function and
