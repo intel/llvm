@@ -59,7 +59,6 @@
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -69,6 +68,7 @@
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -371,6 +371,13 @@ public:
     NeedToEmitDeviceGlobalRegistration = true;
   }
 
+  /// Signals that emission of __sycl_host_pipe_registration type and
+  /// declaration of variable __sycl_host_pipe_registrar of this type in
+  /// integration header is required.
+  void addHostPipeRegistration() {
+    NeedToEmitHostPipeRegistration = true;
+  }
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -454,6 +461,10 @@ private:
   /// Keeps track of whether declaration of __sycl_device_global_registration
   /// type and __sycl_device_global_registrar variable are required to emit.
   bool NeedToEmitDeviceGlobalRegistration = false;
+
+  /// Keeps track of whether declaration of __sycl_host_pipe_registration
+  /// type and __sycl_host_pipe_registrar variable are required to emit.
+  bool NeedToEmitHostPipeRegistration = false;
 };
 
 class SYCLIntegrationFooter {
@@ -980,8 +991,8 @@ public:
   unsigned FunctionScopesStart = 0;
 
   ArrayRef<sema::FunctionScopeInfo*> getFunctionScopes() const {
-    return llvm::makeArrayRef(FunctionScopes.begin() + FunctionScopesStart,
-                              FunctionScopes.end());
+    return llvm::ArrayRef(FunctionScopes.begin() + FunctionScopesStart,
+                          FunctionScopes.end());
   }
 
   /// Stack containing information needed when in C++2a an 'auto' is encountered
@@ -996,9 +1007,9 @@ public:
   unsigned InventedParameterInfosStart = 0;
 
   ArrayRef<InventedTemplateParameterInfo> getInventedParameterInfos() const {
-    return llvm::makeArrayRef(InventedParameterInfos.begin() +
-                                  InventedParameterInfosStart,
-                              InventedParameterInfos.end());
+    return llvm::ArrayRef(InventedParameterInfos.begin() +
+                              InventedParameterInfosStart,
+                          InventedParameterInfos.end());
   }
 
   typedef LazyVector<TypedefNameDecl *, ExternalSemaSource,
@@ -1507,6 +1518,25 @@ public:
     bool InDiscardedStatement;
     bool InImmediateFunctionContext;
 
+    bool IsCurrentlyCheckingDefaultArgumentOrInitializer = false;
+
+    // When evaluating immediate functions in the initializer of a default
+    // argument or default member initializer, this is the declaration whose
+    // default initializer is being evaluated and the location of the call
+    // or constructor definition.
+    struct InitializationContext {
+      InitializationContext(SourceLocation Loc, ValueDecl *Decl,
+                            DeclContext *Context)
+          : Loc(Loc), Decl(Decl), Context(Context) {
+        assert(Decl && Context && "invalid initialization context");
+      }
+
+      SourceLocation Loc;
+      ValueDecl *Decl = nullptr;
+      DeclContext *Context = nullptr;
+    };
+    std::optional<InitializationContext> DelayedDefaultInitializationContext;
+
     ExpressionEvaluationContextRecord(ExpressionEvaluationContext Context,
                                       unsigned NumCleanupObjects,
                                       CleanupInfo ParentCleanup,
@@ -1783,7 +1813,7 @@ public:
 private:
   std::unique_ptr<sema::RISCVIntrinsicManager> RVIntrinsicManager;
 
-  Optional<std::unique_ptr<DarwinSDKInfo>> CachedDarwinSDKInfo;
+  std::optional<std::unique_ptr<DarwinSDKInfo>> CachedDarwinSDKInfo;
 
   bool WarnedDarwinSDKInfoMissing = false;
 
@@ -2074,8 +2104,8 @@ public:
 
     // Invariant: At most one of these Optionals has a value.
     // FIXME: Switch these to a Variant once that exists.
-    llvm::Optional<ImmediateDiagBuilder> ImmediateDiag;
-    llvm::Optional<unsigned> PartialDiagId;
+    std::optional<ImmediateDiagBuilder> ImmediateDiag;
+    std::optional<unsigned> PartialDiagId;
   };
 
   /// Is the last error level diagnostic immediate. This is used to determined
@@ -2563,6 +2593,12 @@ public:
   /// Is the module scope we are an interface?
   bool currentModuleIsInterface() const {
     return ModuleScopes.empty() ? false : ModuleScopes.back().ModuleInterface;
+  }
+
+  /// Is the module scope we are in a C++ Header Unit?
+  bool currentModuleIsHeaderUnit() const {
+    return ModuleScopes.empty() ? false
+                                : ModuleScopes.back().Module->isHeaderUnit();
   }
 
   /// Get the module owning an entity.
@@ -3538,22 +3574,34 @@ public:
     TUK_Friend       // Friend declaration:  'friend struct foo;'
   };
 
-  Decl *ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
-                 SourceLocation KWLoc, CXXScopeSpec &SS, IdentifierInfo *Name,
-                 SourceLocation NameLoc, const ParsedAttributesView &Attr,
-                 AccessSpecifier AS, SourceLocation ModulePrivateLoc,
-                 MultiTemplateParamsArg TemplateParameterLists, bool &OwnedDecl,
-                 bool &IsDependent, SourceLocation ScopedEnumKWLoc,
-                 bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
-                 bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                 SkipBodyInfo *SkipBody = nullptr);
+  enum OffsetOfKind {
+    // Not parsing a type within __builtin_offsetof.
+    OOK_Outside,
+    // Parsing a type within __builtin_offsetof.
+    OOK_Builtin,
+    // Parsing a type within macro "offsetof", defined in __buitin_offsetof
+    // To improve our diagnostic message.
+    OOK_Macro,
+  };
 
-  Decl *ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
-                                unsigned TagSpec, SourceLocation TagLoc,
-                                CXXScopeSpec &SS, IdentifierInfo *Name,
-                                SourceLocation NameLoc,
-                                const ParsedAttributesView &Attr,
-                                MultiTemplateParamsArg TempParamLists);
+  DeclResult ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
+                      SourceLocation KWLoc, CXXScopeSpec &SS,
+                      IdentifierInfo *Name, SourceLocation NameLoc,
+                      const ParsedAttributesView &Attr, AccessSpecifier AS,
+                      SourceLocation ModulePrivateLoc,
+                      MultiTemplateParamsArg TemplateParameterLists,
+                      bool &OwnedDecl, bool &IsDependent,
+                      SourceLocation ScopedEnumKWLoc,
+                      bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
+                      bool IsTypeSpecifier, bool IsTemplateParamOrArg,
+                      OffsetOfKind OOK, SkipBodyInfo *SkipBody = nullptr);
+
+  DeclResult ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
+                                     unsigned TagSpec, SourceLocation TagLoc,
+                                     CXXScopeSpec &SS, IdentifierInfo *Name,
+                                     SourceLocation NameLoc,
+                                     const ParsedAttributesView &Attr,
+                                     MultiTemplateParamsArg TempParamLists);
 
   TypeResult ActOnDependentTag(Scope *S,
                                unsigned TagSpec,
@@ -4917,10 +4965,13 @@ public:
   llvm::Error isValidSectionSpecifier(StringRef Str);
   bool checkSectionName(SourceLocation LiteralLoc, StringRef Str);
   bool checkTargetAttr(SourceLocation LiteralLoc, StringRef Str);
-  bool checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
-                                   const StringLiteral *Literal,
-                                   bool &HasDefault, bool &HasCommas,
-                                   SmallVectorImpl<StringRef> &Strings);
+  bool checkTargetVersionAttr(SourceLocation LiteralLoc, StringRef &Str,
+                              bool &isDefault);
+  bool
+  checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
+                              const StringLiteral *Literal, bool &HasDefault,
+                              bool &HasCommas, bool &HasNotDefault,
+                              SmallVectorImpl<SmallString<64>> &StringsBuffer);
   bool checkMSInheritanceAttrOnDefinition(
       CXXRecordDecl *RD, SourceRange Range, bool BestCase,
       MSInheritanceModel SemanticSpelling);
@@ -5642,7 +5693,7 @@ public:
   void MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base = nullptr);
   void MarkMemberReferenced(MemberExpr *E);
   void MarkFunctionParmPackReferenced(FunctionParmPackExpr *E);
-  void MarkCaptureUsedInEnclosingContext(VarDecl *Capture, SourceLocation Loc,
+  void MarkCaptureUsedInEnclosingContext(ValueDecl *Capture, SourceLocation Loc,
                                          unsigned CapturingScopeIndex);
 
   ExprResult CheckLValueToRValueConversionOperand(Expr *E);
@@ -6476,19 +6527,22 @@ public:
                         bool IsStdInitListInitialization, bool RequiresZeroInit,
                         unsigned ConstructKind, SourceRange ParenRange);
 
+  ExprResult ConvertMemberDefaultInitExpression(FieldDecl *FD, Expr *InitExpr,
+                                                SourceLocation InitLoc);
+
   ExprResult BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field);
 
 
   /// Instantiate or parse a C++ default argument expression as necessary.
   /// Return true on error.
   bool CheckCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
-                              ParmVarDecl *Param);
+                              ParmVarDecl *Param, Expr *Init = nullptr,
+                              bool SkipImmediateInvocations = true);
 
   /// BuildCXXDefaultArgExpr - Creates a CXXDefaultArgExpr, instantiating
   /// the default expr if needed.
-  ExprResult BuildCXXDefaultArgExpr(SourceLocation CallLoc,
-                                    FunctionDecl *FD,
-                                    ParmVarDecl *Param);
+  ExprResult BuildCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
+                                    ParmVarDecl *Param, Expr *Init = nullptr);
 
   /// FinalizeVarWithDestructor - Prepare for calling destructor on the
   /// constructed variable.
@@ -6836,7 +6890,7 @@ public:
                               BinaryOperatorKind Operator,
                               SourceLocation EllipsisLoc, Expr *RHS,
                               SourceLocation RParenLoc,
-                              Optional<unsigned> NumExpansions);
+                              std::optional<unsigned> NumExpansions);
   ExprResult BuildEmptyCXXFoldExpr(SourceLocation EllipsisLoc,
                                    BinaryOperatorKind Operator);
 
@@ -6943,16 +6997,12 @@ public:
                          SourceLocation PlacementRParen,
                          SourceRange TypeIdParens, Declarator &D,
                          Expr *Initializer);
-  ExprResult BuildCXXNew(SourceRange Range, bool UseGlobal,
-                         SourceLocation PlacementLParen,
-                         MultiExprArg PlacementArgs,
-                         SourceLocation PlacementRParen,
-                         SourceRange TypeIdParens,
-                         QualType AllocType,
-                         TypeSourceInfo *AllocTypeInfo,
-                         Optional<Expr *> ArraySize,
-                         SourceRange DirectInitRange,
-                         Expr *Initializer);
+  ExprResult
+  BuildCXXNew(SourceRange Range, bool UseGlobal, SourceLocation PlacementLParen,
+              MultiExprArg PlacementArgs, SourceLocation PlacementRParen,
+              SourceRange TypeIdParens, QualType AllocType,
+              TypeSourceInfo *AllocTypeInfo, std::optional<Expr *> ArraySize,
+              SourceRange DirectInitRange, Expr *Initializer);
 
   /// Determine whether \p FD is an aligned allocation or deallocation
   /// function that is unavailable.
@@ -7325,7 +7375,7 @@ public:
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(
       CXXRecordDecl *Class, CXXMethodDecl *Method,
-      Optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling =
+      std::optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling =
           std::nullopt);
 
   /// Endow the lambda scope info with the relevant properties.
@@ -7350,8 +7400,8 @@ public:
   }
   QualType buildLambdaInitCaptureInitialization(
       SourceLocation Loc, bool ByRef, SourceLocation EllipsisLoc,
-      Optional<unsigned> NumExpansions, IdentifierInfo *Id, bool DirectInit,
-      Expr *&Init);
+      std::optional<unsigned> NumExpansions, IdentifierInfo *Id,
+      bool DirectInit, Expr *&Init);
 
   /// Create a dummy variable within the declcontext of the lambda's
   ///  call operator, for name lookup purposes for a lambda init capture.
@@ -7492,15 +7542,15 @@ private:
   /// the case of lambdas) set up the LocalInstantiationScope of the current
   /// function.
   bool SetupConstraintScope(
-      FunctionDecl *FD, llvm::Optional<ArrayRef<TemplateArgument>> TemplateArgs,
+      FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
       MultiLevelTemplateArgumentList MLTAL, LocalInstantiationScope &Scope);
 
   /// Used during constraint checking, sets up the constraint template argument
   /// lists, and calls SetupConstraintScope to set up the
   /// LocalInstantiationScope to have the proper set of ParVarDecls configured.
-  llvm::Optional<MultiLevelTemplateArgumentList>
+  std::optional<MultiLevelTemplateArgumentList>
   SetupConstraintCheckingTemplateArgumentsAndScope(
-      FunctionDecl *FD, llvm::Optional<ArrayRef<TemplateArgument>> TemplateArgs,
+      FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
       LocalInstantiationScope &Scope);
 
 private:
@@ -8218,7 +8268,7 @@ public:
     explicit operator bool() const { return isRequired(); }
 
   private:
-    llvm::Optional<SourceLocation> TemplateKW;
+    std::optional<SourceLocation> TemplateKW;
   };
 
   enum class AssumedTemplateKind {
@@ -8781,8 +8831,8 @@ public:
       concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
   concepts::NestedRequirement *BuildNestedRequirement(Expr *E);
   concepts::NestedRequirement *
-  BuildNestedRequirement(
-      concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
+  BuildNestedRequirement(StringRef InvalidConstraintEntity,
+                         const ASTConstraintSatisfaction &Satisfaction);
   ExprResult ActOnRequiresExpr(SourceLocation RequiresKWLoc,
                                RequiresExprBodyDecl *Body,
                                ArrayRef<ParmVarDecl *> LocalParameters,
@@ -9032,14 +9082,13 @@ public:
   /// expansion.
   TypeSourceInfo *CheckPackExpansion(TypeSourceInfo *Pattern,
                                      SourceLocation EllipsisLoc,
-                                     Optional<unsigned> NumExpansions);
+                                     std::optional<unsigned> NumExpansions);
 
   /// Construct a pack expansion type from the pattern of the pack
   /// expansion.
-  QualType CheckPackExpansion(QualType Pattern,
-                              SourceRange PatternRange,
+  QualType CheckPackExpansion(QualType Pattern, SourceRange PatternRange,
                               SourceLocation EllipsisLoc,
-                              Optional<unsigned> NumExpansions);
+                              std::optional<unsigned> NumExpansions);
 
   /// Invoked when parsing an expression followed by an ellipsis, which
   /// creates a pack expansion.
@@ -9058,7 +9107,7 @@ public:
   ///
   /// \param EllipsisLoc The location of the ellipsis.
   ExprResult CheckPackExpansion(Expr *Pattern, SourceLocation EllipsisLoc,
-                                Optional<unsigned> NumExpansions);
+                                std::optional<unsigned> NumExpansions);
 
   /// Determine whether we could expand a pack expansion with the
   /// given set of parameter packs into separate arguments by repeatedly
@@ -9094,13 +9143,11 @@ public:
   /// are to be instantiated with arguments of different lengths), false
   /// otherwise. If false, \c ShouldExpand (and possibly \c NumExpansions)
   /// must be set.
-  bool CheckParameterPacksForExpansion(SourceLocation EllipsisLoc,
-                                       SourceRange PatternRange,
-                             ArrayRef<UnexpandedParameterPack> Unexpanded,
-                             const MultiLevelTemplateArgumentList &TemplateArgs,
-                                       bool &ShouldExpand,
-                                       bool &RetainExpansion,
-                                       Optional<unsigned> &NumExpansions);
+  bool CheckParameterPacksForExpansion(
+      SourceLocation EllipsisLoc, SourceRange PatternRange,
+      ArrayRef<UnexpandedParameterPack> Unexpanded,
+      const MultiLevelTemplateArgumentList &TemplateArgs, bool &ShouldExpand,
+      bool &RetainExpansion, std::optional<unsigned> &NumExpansions);
 
   /// Determine the number of arguments in the given pack expansion
   /// type.
@@ -9109,8 +9156,8 @@ public:
   /// consistent across all of the unexpanded parameter packs in its pattern.
   ///
   /// Returns an empty Optional if the type can't be expanded.
-  Optional<unsigned> getNumArgumentsInExpansion(QualType T,
-      const MultiLevelTemplateArgumentList &TemplateArgs);
+  std::optional<unsigned> getNumArgumentsInExpansion(
+      QualType T, const MultiLevelTemplateArgumentList &TemplateArgs);
 
   /// Determine whether the given declarator contains any unexpanded
   /// parameter packs.
@@ -9138,9 +9185,8 @@ public:
   /// \param NumExpansions Will be set to the number of expansions that will
   /// be generated from this pack expansion, if known a priori.
   TemplateArgumentLoc getTemplateArgumentPackExpansionPattern(
-      TemplateArgumentLoc OrigLoc,
-      SourceLocation &Ellipsis,
-      Optional<unsigned> &NumExpansions) const;
+      TemplateArgumentLoc OrigLoc, SourceLocation &Ellipsis,
+      std::optional<unsigned> &NumExpansions) const;
 
   /// Given a template argument that contains an unexpanded parameter pack, but
   /// which has already been substituted, attempt to determine the number of
@@ -9148,7 +9194,7 @@ public:
   ///
   /// This is intended for use when transforming 'sizeof...(Arg)' in order to
   /// avoid actually expanding the pack where possible.
-  Optional<unsigned> getFullyPackExpandedSize(TemplateArgument Arg);
+  std::optional<unsigned> getFullyPackExpandedSize(TemplateArgument Arg);
 
   //===--------------------------------------------------------------------===//
   // C++ Template Argument Deduction (C++ [temp.deduct])
@@ -9883,7 +9929,7 @@ public:
   /// Otherwise, contains a pointer that, if non-NULL, contains the nearest
   /// template-deduction context object, which can be used to capture
   /// diagnostics that will be suppressed.
-  Optional<sema::TemplateDeductionInfo *> isSFINAEContext() const;
+  std::optional<sema::TemplateDeductionInfo *> isSFINAEContext() const;
 
   /// Determines whether we are currently in a context that
   /// is not evaluated as per C++ [expr] p5.
@@ -9893,10 +9939,57 @@ public:
     return ExprEvalContexts.back().isUnevaluated();
   }
 
+  bool isConstantEvaluatedContext() const {
+    assert(!ExprEvalContexts.empty() &&
+           "Must be in an expression evaluation context");
+    return ExprEvalContexts.back().isConstantEvaluated();
+  }
+
   bool isImmediateFunctionContext() const {
     assert(!ExprEvalContexts.empty() &&
            "Must be in an expression evaluation context");
     return ExprEvalContexts.back().isImmediateFunctionContext();
+  }
+
+  bool isCheckingDefaultArgumentOrInitializer() const {
+    assert(!ExprEvalContexts.empty() &&
+           "Must be in an expression evaluation context");
+    const ExpressionEvaluationContextRecord &Ctx = ExprEvalContexts.back();
+    return (Ctx.Context ==
+            ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed) ||
+           Ctx.IsCurrentlyCheckingDefaultArgumentOrInitializer;
+  }
+
+  std::optional<ExpressionEvaluationContextRecord::InitializationContext>
+  InnermostDeclarationWithDelayedImmediateInvocations() const {
+    assert(!ExprEvalContexts.empty() &&
+           "Must be in an expression evaluation context");
+    for (const auto &Ctx : llvm::reverse(ExprEvalContexts)) {
+      if (Ctx.Context == ExpressionEvaluationContext::PotentiallyEvaluated &&
+          Ctx.DelayedDefaultInitializationContext)
+        return Ctx.DelayedDefaultInitializationContext;
+      if (Ctx.isConstantEvaluated() || Ctx.isImmediateFunctionContext() ||
+          Ctx.isUnevaluated())
+        break;
+    }
+    return std::nullopt;
+  }
+
+  std::optional<ExpressionEvaluationContextRecord::InitializationContext>
+  OutermostDeclarationWithDelayedImmediateInvocations() const {
+    assert(!ExprEvalContexts.empty() &&
+           "Must be in an expression evaluation context");
+    std::optional<ExpressionEvaluationContextRecord::InitializationContext> Res;
+    for (auto &Ctx : llvm::reverse(ExprEvalContexts)) {
+      if (Ctx.Context == ExpressionEvaluationContext::PotentiallyEvaluated &&
+          !Ctx.DelayedDefaultInitializationContext && Res)
+        break;
+      if (Ctx.isConstantEvaluated() || Ctx.isImmediateFunctionContext() ||
+          Ctx.isUnevaluated())
+        break;
+      Res = Ctx.DelayedDefaultInitializationContext;
+    }
+    return Res;
   }
 
   /// RAII class used to determine whether SFINAE has
@@ -10131,7 +10224,7 @@ public:
   ParmVarDecl *
   SubstParmVarDecl(ParmVarDecl *D,
                    const MultiLevelTemplateArgumentList &TemplateArgs,
-                   int indexAdjustment, Optional<unsigned> NumExpansions,
+                   int indexAdjustment, std::optional<unsigned> NumExpansions,
                    bool ExpectParameterPack, bool EvaluateConstraints = true);
   bool SubstParmTypes(SourceLocation Loc, ArrayRef<ParmVarDecl *> Params,
                       const FunctionProtoType::ExtParameterInfo *ExtParamInfos,
@@ -11244,7 +11337,7 @@ private:
     OpenMPDirectiveKind Kind;
 
     /// The directive with indirect clause.
-    Optional<Expr *> Indirect;
+    std::optional<Expr *> Indirect;
 
     /// The directive location.
     SourceLocation Loc;
@@ -11999,7 +12092,7 @@ public:
   /// \returns std::nullopt, if the function/variant function are not compatible
   /// with the pragma, pair of original function/variant ref expression
   /// otherwise.
-  Optional<std::pair<FunctionDecl *, Expr *>>
+  std::optional<std::pair<FunctionDecl *, Expr *>>
   checkOpenMPDeclareVariantFunction(DeclGroupPtrTy DG, Expr *VariantRef,
                                     OMPTraitInfo &TI, unsigned NumAppendArgs,
                                     SourceRange SR);
@@ -13113,7 +13206,7 @@ public:
       return std::make_pair(cast_or_null<VarDecl>(ConditionVar),
                             Condition.get());
     }
-    llvm::Optional<bool> getKnownValue() const {
+    std::optional<bool> getKnownValue() const {
       if (!HasKnownValue)
         return std::nullopt;
       return KnownValue;
@@ -13678,7 +13771,8 @@ public:
   void CodeCompleteObjCPropertyDefinition(Scope *S);
   void CodeCompleteObjCPropertySynthesizeIvar(Scope *S,
                                               IdentifierInfo *PropertyName);
-  void CodeCompleteObjCMethodDecl(Scope *S, Optional<bool> IsInstanceMethod,
+  void CodeCompleteObjCMethodDecl(Scope *S,
+                                  std::optional<bool> IsInstanceMethod,
                                   ParsedType ReturnType);
   void CodeCompleteObjCMethodDeclSelector(Scope *S,
                                           bool IsInstanceMethod,

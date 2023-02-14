@@ -111,6 +111,19 @@ add_entrypoint_object(
     strcmp.cpp
   HDRS
     strcmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strcasecmp
+  SRCS
+    strcasecmp.cpp
+  HDRS
+    strcasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -226,6 +239,19 @@ add_entrypoint_object(
     strncmp.cpp
   HDRS
     strncmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strncasecmp
+  SRCS
+    strncasecmp.cpp
+  HDRS
+    strncasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -246,6 +272,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.__support.CPP.new
 )
 
 add_entrypoint_object(

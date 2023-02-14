@@ -13,7 +13,6 @@
 
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -509,10 +508,10 @@ llvm::getAllocationFamily(const Value *I, const TargetLibraryInfo *TLI) {
     // Callee is some known library function.
     const auto AllocData = getAllocationDataForFunction(Callee, AnyAlloc, TLI);
     if (AllocData)
-      return mangledNameForMallocFamily(AllocData.value().Family);
+      return mangledNameForMallocFamily(AllocData->Family);
     const auto FreeData = getFreeFunctionDataForFunction(Callee, TLIFn);
     if (FreeData)
-      return mangledNameForMallocFamily(FreeData.value().Family);
+      return mangledNameForMallocFamily(FreeData->Family);
   }
   // Callee isn't a known library function, still check attributes.
   if (checkFnAllocKind(I, AllocFnKind::Free | AllocFnKind::Alloc |
@@ -751,7 +750,7 @@ SizeOffsetType ObjectSizeOffsetVisitor::visitAllocaInst(AllocaInst &I) {
   TypeSize ElemSize = DL.getTypeAllocSize(I.getAllocatedType());
   if (ElemSize.isScalable() && Options.EvalMode != ObjectSizeOpts::Mode::Min)
     return unknown();
-  APInt Size(IntTyBits, ElemSize.getKnownMinSize());
+  APInt Size(IntTyBits, ElemSize.getKnownMinValue());
   if (!I.isArrayAllocation())
     return std::make_pair(align(Size, I.getAlign()), Zero);
 
@@ -905,7 +904,7 @@ SizeOffsetType ObjectSizeOffsetVisitor::findLoadSizeOffset(
       // Is the error status of posix_memalign correctly checked? If not it
       // would be incorrect to assume it succeeds and load doesn't see the
       // previous value.
-      Optional<bool> Checked = isImpliedByDomCondition(
+      std::optional<bool> Checked = isImpliedByDomCondition(
           ICmpInst::ICMP_EQ, CB, ConstantInt::get(CB->getType(), 0), &Load, DL);
       if (!Checked || !*Checked)
         return Unknown();
@@ -1151,7 +1150,7 @@ ObjectSizeOffsetEvaluator::visitGEPOperator(GEPOperator &GEP) {
   if (!bothKnown(PtrData))
     return unknown();
 
-  Value *Offset = EmitGEPOffset(&Builder, DL, &GEP, /*NoAssumptions=*/true);
+  Value *Offset = emitGEPOffset(&Builder, DL, &GEP, /*NoAssumptions=*/true);
   Offset = Builder.CreateAdd(PtrData.second, Offset);
   return std::make_pair(PtrData.first, Offset);
 }

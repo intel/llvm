@@ -25,6 +25,7 @@
 #include "llvm/ADT/UniqueVector.h"
 #include "llvm/Frontend/OpenMP/OMPAssume.h"
 #include "llvm/Frontend/OpenMP/OMPContext.h"
+#include <optional>
 
 using namespace clang;
 using namespace llvm::omp;
@@ -1483,7 +1484,7 @@ void Parser::ParseOMPDeclareVariantClauses(Parser::DeclGroupPtrTy Ptr,
       ConsumeToken();
   }
 
-  Optional<std::pair<FunctionDecl *, Expr *>> DeclVarData =
+  std::optional<std::pair<FunctionDecl *, Expr *>> DeclVarData =
       Actions.checkOpenMPDeclareVariantFunction(
           Ptr, AssociatedFunction.get(), TI, AppendArgs.size(),
           SourceRange(Loc, Tok.getLocation()));
@@ -1781,7 +1782,7 @@ struct SimpleClauseData {
 };
 } // anonymous namespace
 
-static Optional<SimpleClauseData>
+static std::optional<SimpleClauseData>
 parseOpenMPSimpleClause(Parser &P, OpenMPClauseKind Kind) {
   const Token &Tok = P.getCurToken();
   SourceLocation Loc = Tok.getLocation();
@@ -1876,16 +1877,16 @@ void Parser::ParseOMPDeclareTargetClauses(
       }
       // Parse 'device_type' clause and go to next clause if any.
       if (IsDeviceTypeClause) {
-        Optional<SimpleClauseData> DevTypeData =
+        std::optional<SimpleClauseData> DevTypeData =
             parseOpenMPSimpleClause(*this, OMPC_device_type);
         if (DevTypeData) {
           if (DeviceTypeLoc.isValid()) {
             // We already saw another device_type clause, diagnose it.
-            Diag(DevTypeData.value().Loc,
+            Diag(DevTypeData->Loc,
                  diag::warn_omp_more_one_device_type_clause);
             break;
           }
-          switch (static_cast<OpenMPDeviceType>(DevTypeData.value().Type)) {
+          switch (static_cast<OpenMPDeviceType>(DevTypeData->Type)) {
           case OMPC_DEVICE_TYPE_any:
             DTCI.DT = OMPDeclareTargetDeclAttr::DT_Any;
             break;
@@ -3693,24 +3694,24 @@ OMPClause *Parser::ParseOpenMPInteropClause(OpenMPClauseKind Kind,
 ///
 OMPClause *Parser::ParseOpenMPSimpleClause(OpenMPClauseKind Kind,
                                            bool ParseOnly) {
-  llvm::Optional<SimpleClauseData> Val = parseOpenMPSimpleClause(*this, Kind);
+  std::optional<SimpleClauseData> Val = parseOpenMPSimpleClause(*this, Kind);
   if (!Val || ParseOnly)
     return nullptr;
   if (getLangOpts().OpenMP < 51 && Kind == OMPC_default &&
-      (static_cast<DefaultKind>(Val.value().Type) == OMP_DEFAULT_private ||
-       static_cast<DefaultKind>(Val.value().Type) ==
+      (static_cast<DefaultKind>(Val->Type) == OMP_DEFAULT_private ||
+       static_cast<DefaultKind>(Val->Type) ==
            OMP_DEFAULT_firstprivate)) {
-    Diag(Val.value().LOpen, diag::err_omp_invalid_dsa)
-        << getOpenMPClauseName(static_cast<DefaultKind>(Val.value().Type) ==
+    Diag(Val->LOpen, diag::err_omp_invalid_dsa)
+        << getOpenMPClauseName(static_cast<DefaultKind>(Val->Type) ==
                                        OMP_DEFAULT_private
                                    ? OMPC_private
                                    : OMPC_firstprivate)
         << getOpenMPClauseName(OMPC_default) << "5.1";
     return nullptr;
   }
-  return Actions.ActOnOpenMPSimpleClause(Kind, Val.value().Type,
-                                         Val.value().TypeLoc, Val.value().LOpen,
-                                         Val.value().Loc, Val.value().RLoc);
+  return Actions.ActOnOpenMPSimpleClause(Kind, Val->Type,
+                                         Val->TypeLoc, Val->LOpen,
+                                         Val->Loc, Val->RLoc);
 }
 
 /// Parsing of OpenMP clauses like 'ordered'.
