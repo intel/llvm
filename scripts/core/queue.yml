@@ -91,10 +91,10 @@ params:
       desc: "[in] size in bytes of the queue property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out] value of the queue property"
+      desc: "[out][optional] value of the queue property"
     - type: "size_t*"
       name: pPropSizeRet
-      desc: "[out] size in bytes returned in queue property value"
+      desc: "[out][optional] size in bytes returned in queue property value"
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -119,7 +119,7 @@ params:
     - type: const $x_queue_property_t*
       name: pProps
       desc: |
-            [in] specifies a list of queue properties and their corresponding values.
+            [in][optional] specifies a list of queue properties and their corresponding values.
             Each property name is immediately followed by the corresponding desired value.
             The list is terminated with a 0. 
             If a property value is not specified, then its default value will be used.

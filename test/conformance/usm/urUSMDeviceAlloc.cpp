@@ -13,7 +13,9 @@ TEST_P(urUSMDeviceAllocTest, Success) {
     ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_SUCCESS(urUSMFree(context, ptr));
