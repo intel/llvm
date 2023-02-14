@@ -713,7 +713,8 @@ protected:
   size_t MNextQueueIdx = 0;
 
   const bool MHostQueue = false;
-  // Assume OOO support by default.
+  /// Indicates that a native out-of-order queue could not be created and we
+  /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
   // Buffer to store assert failure descriptor
