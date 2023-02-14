@@ -12,6 +12,8 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+#include <unordered_map>
+
 namespace jit_compiler {
 enum class BinaryFormat : uint32_t;
 class JITContext;
@@ -59,6 +61,8 @@ private:
 
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  std::unordered_map<std::string, OSModuleHandle> CachedModules;
 
   std::unique_ptr<::jit_compiler::JITContext> MJITContext;
 };

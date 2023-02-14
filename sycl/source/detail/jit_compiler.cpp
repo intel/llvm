@@ -859,9 +859,14 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
     detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
     Handle = OSUtil::getOSModuleHandle(PIDeviceBinaries->DeviceBinaries);
-  } else if (DebugEnabled) {
-    // TODO(Lukas): Create correct OSModuleHandle when using a cached binary.
-    std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
+    CachedModules.emplace(FusedKernelInfo.Name, Handle);
+  } else {
+    if (DebugEnabled) {
+      std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
+    }
+    // Retrieve an OSModuleHandle for the cached binary.
+    assert(CachedModules.count(FusedKernelInfo.Name) && "No cached binary");
+    Handle = CachedModules.at(FusedKernelInfo.Name);
   }
 
   // Create a kernel bundle for the fused kernel.
