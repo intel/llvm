@@ -264,9 +264,40 @@ LogicalResult AllocaOp::verify() {
 // LLVM::BrOp
 //===----------------------------------------------------------------------===//
 
+/// Check if the `loopAttr` references correct symbols.
+static LogicalResult verifyLoopAnnotationAttr(LoopAnnotationAttr loopAttr,
+                                              Operation *op) {
+  if (!loopAttr)
+    return success();
+  // If the `llvm.loop` attribute is present, enforce the following structure,
+  // which the module translation can assume.
+  ArrayRef<SymbolRefAttr> parallelAccesses = loopAttr.getParallelAccesses();
+  if (parallelAccesses.empty())
+    return success();
+  for (SymbolRefAttr accessGroupRef : parallelAccesses) {
+    StringAttr metadataName = accessGroupRef.getRootReference();
+    auto metadataOp = SymbolTable::lookupNearestSymbolFrom<LLVM::MetadataOp>(
+        op->getParentOp(), metadataName);
+    if (!metadataOp)
+      return op->emitOpError() << "expected '" << accessGroupRef
+                               << "' to reference a metadata op";
+    StringAttr accessGroupName = accessGroupRef.getLeafReference();
+    Operation *accessGroupOp =
+        SymbolTable::lookupNearestSymbolFrom(metadataOp, accessGroupName);
+    if (!accessGroupOp)
+      return op->emitOpError() << "expected '" << accessGroupRef
+                               << "' to reference an access_group op";
+  }
+  return success();
+}
+
 SuccessorOperands BrOp::getSuccessorOperands(unsigned index) {
   assert(index == 0 && "invalid successor index");
   return SuccessorOperands(getDestOperandsMutable());
+}
+
+LogicalResult BrOp::verify() {
+  return verifyLoopAnnotationAttr(getLoopAnnotationAttr(), *this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -277,6 +308,24 @@ SuccessorOperands CondBrOp::getSuccessorOperands(unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
   return SuccessorOperands(index == 0 ? getTrueDestOperandsMutable()
                                       : getFalseDestOperandsMutable());
+}
+
+LogicalResult CondBrOp::verify() {
+  return verifyLoopAnnotationAttr(getLoopAnnotationAttr(), *this);
+}
+
+void CondBrOp::build(OpBuilder &builder, OperationState &result,
+                     Value condition, Block *trueDest, ValueRange trueOperands,
+                     Block *falseDest, ValueRange falseOperands,
+                     std::optional<std::pair<uint32_t, uint32_t>> weights) {
+  ElementsAttr weightsAttr;
+  if (weights)
+    weightsAttr =
+        builder.getI32VectorAttr({static_cast<int32_t>(weights->first),
+                                  static_cast<int32_t>(weights->second)});
+
+  build(builder, result, condition, trueOperands, falseOperands, weightsAttr,
+        /*loop_annotation=*/{}, trueDest, falseDest);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2307,7 +2356,7 @@ LogicalResult FenceOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// Folder for LLVM::BitcastOp
+// Folder and verifier for LLVM::BitcastOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult LLVM::BitcastOp::fold(FoldAdaptor adaptor) {
@@ -2319,6 +2368,41 @@ OpFoldResult LLVM::BitcastOp::fold(FoldAdaptor adaptor) {
     if (prev.getArg().getType() == getType())
       return prev.getArg();
   return {};
+}
+
+LogicalResult LLVM::BitcastOp::verify() {
+  auto resultType = extractVectorElementType(getResult().getType())
+                        .dyn_cast<LLVMPointerType>();
+  auto sourceType =
+      extractVectorElementType(getArg().getType()).dyn_cast<LLVMPointerType>();
+
+  // If one of the types is a pointer (or vector of pointers), then
+  // both source and result type have to be pointers.
+  if (static_cast<bool>(resultType) != static_cast<bool>(sourceType))
+    return emitOpError("can only cast pointers from and to pointers");
+
+  if (!resultType)
+    return success();
+
+  auto isVector = [](Type type) {
+    return type.isa<VectorType, LLVMScalableVectorType, LLVMFixedVectorType>();
+  };
+
+  // Due to bitcast requiring both operands to be of the same size, it is not
+  // possible for only one of the two to be a pointer of vectors.
+  if (isVector(getResult().getType()) && !isVector(getArg().getType()))
+    return emitOpError("cannot cast pointer to vector of pointers");
+
+  if (!isVector(getResult().getType()) && isVector(getArg().getType()))
+    return emitOpError("cannot cast vector of pointers to pointer");
+
+  // Bitcast cannot cast between pointers of different address spaces.
+  // 'llvm.addrspacecast' must be used for this purpose instead.
+  if (resultType.getAddressSpace() != sourceType.getAddressSpace())
+    return emitOpError("cannot cast pointers of different address spaces, "
+                       "use 'llvm.addrspacecast' instead");
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2942,32 +3026,6 @@ LogicalResult LLVMDialect::verifyDataLayoutString(
 /// Verify LLVM dialect attributes.
 LogicalResult LLVMDialect::verifyOperationAttribute(Operation *op,
                                                     NamedAttribute attr) {
-  // If the `llvm.loop` attribute is present, enforce the following structure,
-  // which the module translation can assume.
-  if (attr.getName() == LLVMDialect::getLoopAttrName()) {
-    auto loopAttr = attr.getValue().dyn_cast<LoopAnnotationAttr>();
-    if (!loopAttr)
-      return op->emitOpError() << "expected '" << LLVMDialect::getLoopAttrName()
-                               << "' to be a loop annotation attribute";
-    ArrayRef<SymbolRefAttr> parallelAccesses = loopAttr.getParallelAccesses();
-    if (parallelAccesses.empty())
-      return success();
-    for (SymbolRefAttr accessGroupRef : parallelAccesses) {
-      StringAttr metadataName = accessGroupRef.getRootReference();
-      auto metadataOp = SymbolTable::lookupNearestSymbolFrom<LLVM::MetadataOp>(
-          op->getParentOp(), metadataName);
-      if (!metadataOp)
-        return op->emitOpError() << "expected '" << accessGroupRef
-                                 << "' to reference a metadata op";
-      StringAttr accessGroupName = accessGroupRef.getLeafReference();
-      Operation *accessGroupOp =
-          SymbolTable::lookupNearestSymbolFrom(metadataOp, accessGroupName);
-      if (!accessGroupOp)
-        return op->emitOpError() << "expected '" << accessGroupRef
-                                 << "' to reference an access_group op";
-    }
-  }
-
   // If the data layout attribute is present, it must use the LLVM data layout
   // syntax. Try parsing it and report errors in case of failure. Users of this
   // attribute may assume it is well-formed and can pass it to the (asserting)

@@ -204,7 +204,7 @@ namespace {
       (void) llvm::createFloat2IntPass();
       (void) llvm::createEliminateAvailableExternallyPass();
       (void)llvm::createScalarizeMaskedMemIntrinLegacyPass();
-      (void) llvm::createHardwareLoopsPass();
+      (void) llvm::createHardwareLoopsLegacyPass();
       (void) llvm::createInjectTLIMappingsLegacyPass();
       (void) llvm::createUnifyLoopExitsPass();
       (void) llvm::createFixIrreduciblePass();

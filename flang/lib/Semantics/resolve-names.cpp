@@ -2672,8 +2672,8 @@ void ScopeHandler::MakeExternal(Symbol &symbol) {
 
 bool ScopeHandler::CheckDuplicatedAttr(
     SourceName name, const Symbol &symbol, Attr attr) {
-  if (attr == Attr::SAVE || attr == Attr::BIND_C) {
-    // these are checked elsewhere
+  if (attr == Attr::SAVE) {
+    // checked elsewhere
   } else if (symbol.attrs().test(attr)) { // C815
     if (symbol.implicitAttrs().test(attr)) {
       // Implied attribute is now confirmed explicitly
@@ -2718,7 +2718,7 @@ bool ModuleVisitor::Pre(const parser::Rename::Names &x) {
   const auto &useName{std::get<1>(x.t)};
   AddUseRename(useName.source);
   SymbolRename rename{AddUse(localName.source, useName.source)};
-  if (rename.use) {
+  if (rename.use && localName.source != useName.source) {
     EraseRenamedSymbol(*rename.use);
   }
   Resolve(useName, rename.use);
@@ -3175,6 +3175,11 @@ void InterfaceVisitor::Post(const parser::EndInterfaceStmt &) {
 bool InterfaceVisitor::Pre(const parser::GenericSpec &x) {
   if (auto *symbol{FindInScope(GenericSpecInfo{x}.symbolName())}) {
     SetGenericSymbol(*symbol);
+  }
+  if (const auto *opr{std::get_if<parser::DefinedOperator>(&x.u)}; opr &&
+      std::holds_alternative<parser::DefinedOperator::IntrinsicOperator>(
+          opr->u)) {
+    context().set_anyDefinedIntrinsicOperator(true);
   }
   return false;
 }
@@ -5768,7 +5773,14 @@ void DeclarationVisitor::CheckCommonBlockDerivedType(
       if (details) {
         if (const auto *type{details->type()}) {
           if (const auto *derived{type->AsDerived()}) {
-            CheckCommonBlockDerivedType(name, derived->typeSymbol());
+            const Symbol &derivedTypeSymbol{derived->typeSymbol()};
+            // Don't call this member function recursively if the derived type
+            // symbol is the same symbol that is already being processed.
+            // This can happen when a component is a pointer of the same type
+            // as its parent component, for instance.
+            if (derivedTypeSymbol != typeSymbol) {
+              CheckCommonBlockDerivedType(name, derivedTypeSymbol);
+            }
           }
         }
       }

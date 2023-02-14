@@ -49,7 +49,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeFuncletLayoutPass(Registry);
   initializeGCMachineCodeAnalysisPass(Registry);
   initializeGCModuleInfoPass(Registry);
-  initializeHardwareLoopsPass(Registry);
+  initializeHardwareLoopsLegacyPass(Registry);
   initializeIfConverterPass(Registry);
   initializeImplicitNullChecksPass(Registry);
   initializeIndirectBrExpandPassPass(Registry);

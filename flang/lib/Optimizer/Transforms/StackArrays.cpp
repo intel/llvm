@@ -431,12 +431,14 @@ void StackArraysAnalysisWrapper::analyseFunction(mlir::Operation *func) {
   }
 
   LatticePoint point{func};
-  func->walk([&](mlir::func::ReturnOp child) {
-    const LatticePoint *lattice = solver.lookupState<LatticePoint>(child);
+  auto joinOperationLattice = [&](mlir::Operation *op) {
+    const LatticePoint *lattice = solver.lookupState<LatticePoint>(op);
     // there will be no lattice for an unreachable block
     if (lattice)
       point.join(*lattice);
-  });
+  };
+  func->walk([&](mlir::func::ReturnOp child) { joinOperationLattice(child); });
+  func->walk([&](fir::UnreachableOp child) { joinOperationLattice(child); });
   llvm::DenseSet<mlir::Value> freedValues;
   point.appendFreedValues(freedValues);
 
@@ -496,41 +498,8 @@ AllocMemConversion::matchAndRewrite(fir::AllocMemOp allocmem,
   return mlir::success();
 }
 
-// TODO: use mlir::blockIsInLoop once D141401 is merged
 static bool isInLoop(mlir::Block *block) {
-  mlir::Operation *parent = block->getParentOp();
-
-  // The block could be inside a loop-like operation
-  if (mlir::isa<mlir::LoopLikeOpInterface>(parent) ||
-      parent->getParentOfType<mlir::LoopLikeOpInterface>())
-    return true;
-
-  // This block might be nested inside another block, which is in a loop
-  if (!mlir::isa<mlir::FunctionOpInterface>(parent))
-    if (isInLoop(parent->getBlock()))
-      return true;
-
-  // Or the block could be inside a control flow graph loop:
-  // A block is in a control flow graph loop if it can reach itself in a graph
-  // traversal
-  llvm::DenseSet<mlir::Block *> visited;
-  llvm::SmallVector<mlir::Block *> stack;
-  stack.push_back(block);
-  while (!stack.empty()) {
-    mlir::Block *current = stack.pop_back_val();
-    auto [it, inserted] = visited.insert(current);
-    if (!inserted) {
-      // loop detected
-      if (current == block)
-        return true;
-      continue;
-    }
-
-    stack.reserve(stack.size() + current->getNumSuccessors());
-    for (mlir::Block *successor : current->getSuccessors())
-      stack.push_back(successor);
-  }
-  return false;
+  return mlir::LoopLikeOpInterface::blockIsInLoop(block);
 }
 
 static bool isInLoop(mlir::Operation *op) {

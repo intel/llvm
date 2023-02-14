@@ -1866,7 +1866,7 @@ SDValue SITargetLowering::getPreloadedValue(SelectionDAG &DAG,
     return DAG.getUNDEF(VT);
   }
 
-  return CreateLiveInRegister(DAG, RC, Reg->getRegister(), VT);
+  return loadInputValue(DAG, RC, VT, SDLoc(DAG.getEntryNode()), *Reg);
 }
 
 static void processPSInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
@@ -2181,11 +2181,16 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
                                            SIMachineFunctionInfo &Info,
                                            CallingConv::ID CallConv,
                                            bool IsShader) const {
+  bool HasArchitectedSGPRs = Subtarget->hasArchitectedSGPRs();
   if (Subtarget->hasUserSGPRInit16Bug() && !IsShader) {
     // Note: user SGPRs are handled by the front-end for graphics shaders
     // Pad up the used user SGPRs with dead inputs.
-    unsigned CurrentUserSGPRs = Info.getNumUserSGPRs();
 
+    // TODO: NumRequiredSystemSGPRs computation should be adjusted appropriately
+    // before enabling architected SGPRs for workgroup IDs.
+    assert(!HasArchitectedSGPRs && "Unhandled feature for the subtarget");
+
+    unsigned CurrentUserSGPRs = Info.getNumUserSGPRs();
     // Note we do not count the PrivateSegmentWaveByteOffset. We do not want to
     // rely on it to reach 16 since if we end up having no stack usage, it will
     // not really be added.
@@ -2201,20 +2206,26 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
   }
 
   if (Info.hasWorkGroupIDX()) {
-    Register Reg = Info.addWorkGroupIDX();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDX(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
   if (Info.hasWorkGroupIDY()) {
-    Register Reg = Info.addWorkGroupIDY();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDY(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
   if (Info.hasWorkGroupIDZ()) {
-    Register Reg = Info.addWorkGroupIDZ();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDZ(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
@@ -4469,10 +4480,6 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
   default:
     return AMDGPUTargetLowering::EmitInstrWithCustomInserter(MI, BB);
   }
-}
-
-bool SITargetLowering::hasBitPreservingFPLogic(EVT VT) const {
-  return isTypeLegal(VT.getScalarType());
 }
 
 bool SITargetLowering::hasAtomicFaddRtnForTy(SDValue &Op) const {
@@ -9039,10 +9046,10 @@ SDValue SITargetLowering::lowerFDIV_FAST(SDValue Op, SelectionDAG &DAG) const {
 
   SDValue r1 = DAG.getNode(ISD::FABS, SL, MVT::f32, RHS);
 
-  const APFloat K0Val(BitsToFloat(0x6f800000));
+  const APFloat K0Val(llvm::bit_cast<float>(0x6f800000));
   const SDValue K0 = DAG.getConstantFP(K0Val, SL, MVT::f32);
 
-  const APFloat K1Val(BitsToFloat(0x2f800000));
+  const APFloat K1Val(llvm::bit_cast<float>(0x2f800000));
   const SDValue K1 = DAG.getConstantFP(K1Val, SL, MVT::f32);
 
   const SDValue One = DAG.getConstantFP(1.0, SL, MVT::f32);

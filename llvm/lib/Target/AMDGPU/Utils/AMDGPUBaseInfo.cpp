@@ -2368,15 +2368,15 @@ bool isInlinableLiteral64(int64_t Literal, bool HasInv2Pi) {
     return true;
 
   uint64_t Val = static_cast<uint64_t>(Literal);
-  return (Val == DoubleToBits(0.0)) ||
-         (Val == DoubleToBits(1.0)) ||
-         (Val == DoubleToBits(-1.0)) ||
-         (Val == DoubleToBits(0.5)) ||
-         (Val == DoubleToBits(-0.5)) ||
-         (Val == DoubleToBits(2.0)) ||
-         (Val == DoubleToBits(-2.0)) ||
-         (Val == DoubleToBits(4.0)) ||
-         (Val == DoubleToBits(-4.0)) ||
+  return (Val == llvm::bit_cast<uint64_t>(0.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(1.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(-1.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(0.5)) ||
+         (Val == llvm::bit_cast<uint64_t>(-0.5)) ||
+         (Val == llvm::bit_cast<uint64_t>(2.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(-2.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(4.0)) ||
+         (Val == llvm::bit_cast<uint64_t>(-4.0)) ||
          (Val == 0x3fc45f306dc9c882 && HasInv2Pi);
 }
 
@@ -2394,15 +2394,15 @@ bool isInlinableLiteral32(int32_t Literal, bool HasInv2Pi) {
   // floating-point, so it is a legal inline immediate.
 
   uint32_t Val = static_cast<uint32_t>(Literal);
-  return (Val == FloatToBits(0.0f)) ||
-         (Val == FloatToBits(1.0f)) ||
-         (Val == FloatToBits(-1.0f)) ||
-         (Val == FloatToBits(0.5f)) ||
-         (Val == FloatToBits(-0.5f)) ||
-         (Val == FloatToBits(2.0f)) ||
-         (Val == FloatToBits(-2.0f)) ||
-         (Val == FloatToBits(4.0f)) ||
-         (Val == FloatToBits(-4.0f)) ||
+  return (Val == llvm::bit_cast<uint32_t>(0.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(1.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(-1.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(0.5f)) ||
+         (Val == llvm::bit_cast<uint32_t>(-0.5f)) ||
+         (Val == llvm::bit_cast<uint32_t>(2.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(-2.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(4.0f)) ||
+         (Val == llvm::bit_cast<uint32_t>(-4.0f)) ||
          (Val == 0x3e22f983 && HasInv2Pi);
 }
 
@@ -2481,10 +2481,35 @@ bool isArgPassedInSGPR(const Argument *A) {
   case CallingConv::AMDGPU_PS:
   case CallingConv::AMDGPU_CS:
   case CallingConv::AMDGPU_Gfx:
-    // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
-    // Everything else is in VGPRs.
-    return F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::InReg) ||
-           F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::ByVal);
+    // For non-compute shaders, SGPR inputs are marked with either inreg or
+    // byval. Everything else is in VGPRs.
+    return A->hasAttribute(Attribute::InReg) ||
+           A->hasAttribute(Attribute::ByVal);
+  default:
+    // TODO: Should calls support inreg for SGPR inputs?
+    return false;
+  }
+}
+
+bool isArgPassedInSGPR(const CallBase *CB, unsigned ArgNo) {
+  // Arguments to compute shaders are never a source of divergence.
+  CallingConv::ID CC = CB->getCallingConv();
+  switch (CC) {
+  case CallingConv::AMDGPU_KERNEL:
+  case CallingConv::SPIR_KERNEL:
+    return true;
+  case CallingConv::AMDGPU_VS:
+  case CallingConv::AMDGPU_LS:
+  case CallingConv::AMDGPU_HS:
+  case CallingConv::AMDGPU_ES:
+  case CallingConv::AMDGPU_GS:
+  case CallingConv::AMDGPU_PS:
+  case CallingConv::AMDGPU_CS:
+  case CallingConv::AMDGPU_Gfx:
+    // For non-compute shaders, SGPR inputs are marked with either inreg or
+    // byval. Everything else is in VGPRs.
+    return CB->paramHasAttr(ArgNo, Attribute::InReg) ||
+           CB->paramHasAttr(ArgNo, Attribute::ByVal);
   default:
     // TODO: Should calls support inreg for SGPR inputs?
     return false;

@@ -842,19 +842,8 @@ llvm.mlir.global appending @non_array_type_global_appending_linkage() : i32
 
 module {
   llvm.func @loopOptions() {
-      // expected-error@below {{expected 'llvm.loop' to be a loop annotation attribute}}
-      llvm.br ^bb4 {llvm.loop = "test"}
-    ^bb4:
-      llvm.return
-  }
-}
-
-// -----
-
-module {
-  llvm.func @loopOptions() {
       // expected-error@below {{expected '@func1' to reference a metadata op}}
-      llvm.br ^bb4 {llvm.loop = #llvm.loop_annotation<parallelAccesses = @func1>}
+      llvm.br ^bb4 {loop_annotation = #llvm.loop_annotation<parallelAccesses = @func1>}
     ^bb4:
       llvm.return
   }
@@ -868,7 +857,7 @@ module {
 module {
   llvm.func @loopOptions() {
       // expected-error@below {{expected '@metadata' to reference an access_group op}}
-      llvm.br ^bb4 {llvm.loop = #llvm.loop_annotation<parallelAccesses = @metadata>}
+      llvm.br ^bb4 {loop_annotation = #llvm.loop_annotation<parallelAccesses = @metadata>}
     ^bb4:
       llvm.return
   }
@@ -1292,3 +1281,46 @@ func.func @extract_scalable_from_fixed_length_vector(%arg0 : vector<16xf32>) {
 #void = #llvm.di_void_result_type
 // expected-error@below {{expected subroutine to have non-void argument types}}
 #void_argument_type = #llvm.di_subroutine_type<types = #void, #void>
+
+// -----
+
+func.func @invalid_bitcast_ptr_to_i64(%arg : !llvm.ptr) {
+  // expected-error@+1 {{can only cast pointers from and to pointers}}
+  %1 = llvm.bitcast %arg : !llvm.ptr to i64
+}
+
+// -----
+
+func.func @invalid_bitcast_i64_to_ptr() {
+  %0 = llvm.mlir.constant(2 : i64) : i64
+  // expected-error@+1 {{can only cast pointers from and to pointers}}
+  %1 = llvm.bitcast %0 : i64 to !llvm.ptr
+}
+
+// -----
+
+func.func @invalid_bitcast_vec_to_ptr(%arg : !llvm.vec<4 x ptr>) {
+  // expected-error@+1 {{cannot cast vector of pointers to pointer}}
+  %0 = llvm.bitcast %arg : !llvm.vec<4 x ptr> to !llvm.ptr
+}
+
+// -----
+
+func.func @invalid_bitcast_ptr_to_vec(%arg : !llvm.ptr) {
+  // expected-error@+1 {{cannot cast pointer to vector of pointers}}
+  %0 = llvm.bitcast %arg : !llvm.ptr to !llvm.vec<4 x ptr>
+}
+
+// -----
+
+func.func @invalid_bitcast_addr_cast(%arg : !llvm.ptr<1>) {
+  // expected-error@+1 {{cannot cast pointers of different address spaces, use 'llvm.addrspacecast' instead}}
+  %0 = llvm.bitcast %arg : !llvm.ptr<1> to !llvm.ptr
+}
+
+// -----
+
+func.func @invalid_bitcast_addr_cast_vec(%arg : !llvm.vec<4 x ptr<1>>) {
+  // expected-error@+1 {{cannot cast pointers of different address spaces, use 'llvm.addrspacecast' instead}}
+  %0 = llvm.bitcast %arg : !llvm.vec<4 x ptr<1>> to !llvm.vec<4 x ptr>
+}
