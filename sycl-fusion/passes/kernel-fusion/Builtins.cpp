@@ -595,18 +595,6 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
   return Clone;
 }
 
-void jit_compiler::barrierCall(IRBuilderBase &Builder, int Flags) {
-  assert((Flags == 1 || Flags == 2 || Flags == 3) && "Invalid barrier flags");
-
-  // See
-  // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Memory_Semantics_-id-
-  createSPIRVCall(Builder, BarrierName,
-                  {Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
-                   Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
-                   Builder.getInt32(0x10 | (Flags % 2 == 1 ? 0x100 : 0x0) |
-                                    ((Flags >> 1 == 1 ? 0x200 : 0x0)))});
-}
-
 Value *jit_compiler::createSPIRVCall(IRBuilderBase &Builder,
                                      StringRef FunctionName,
                                      ArrayRef<Value *> Args) {

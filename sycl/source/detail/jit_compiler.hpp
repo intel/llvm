@@ -13,7 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 namespace jit_compiler {
-enum class BinaryFormat;
+enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;

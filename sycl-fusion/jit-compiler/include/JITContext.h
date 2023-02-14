@@ -88,7 +88,6 @@ private:
   mutable MutexT CacheMutex;
 
   std::unordered_map<CacheKeyT, SYCLKernelInfo> Cache;
-  
 };
 } // namespace jit_compiler
 

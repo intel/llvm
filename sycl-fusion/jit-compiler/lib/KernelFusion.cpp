@@ -56,6 +56,10 @@ FusionResult KernelFusion::fuseKernels(
     int BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
+  // Initialize the configuration helper to make the options for this invocation
+  // available (on a per-thread basis).
+  ConfigHelper::setConfig(std::move(JITConfig));
+
   const auto NDRanges = gatherNDRanges(KernelInformation);
 
   if (!isValidCombination(NDRanges)) {
@@ -64,9 +68,12 @@ FusionResult KernelFusion::fuseKernels(
         "different global sizes in dimensions [2, N) and non-zero offsets"};
   }
 
-  // Initialize the configuration helper to make the options for this invocation
-  // available (on a per-thread basis).
-  ConfigHelper::setConfig(std::move(JITConfig));
+  bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
+
+  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+  if (TargetFormat == BinaryFormat::PTX && IsHeterogeneousList) {
+    return FusionResult{"Heterogeneous ND ranges not supported for CUDA"};
+  }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
   CacheKeyT CacheKey{KernelsToFuse,
@@ -136,8 +143,6 @@ FusionResult KernelFusion::fuseKernels(
   }
 
   SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
-
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
 
   if (auto Error = translation::KernelTranslator::translateKernel(
           FusedKernelInfo, *NewMod, JITCtx, TargetFormat)) {

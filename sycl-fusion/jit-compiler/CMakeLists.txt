@@ -21,6 +21,7 @@ add_llvm_library(sycl-fusion
    ScalarOpts
    InstCombine
    Target
+   TargetParser
    NVPTX
    X86
    MC

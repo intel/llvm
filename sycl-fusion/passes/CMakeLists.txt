@@ -46,6 +46,7 @@ add_llvm_library(SYCLKernelFusionPasses
   Support
   TransformUtils
   Passes
+  TargetParser
 )
 
 target_include_directories(SYCLKernelFusionPasses
