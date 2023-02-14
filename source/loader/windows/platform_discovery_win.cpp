@@ -21,10 +21,6 @@
 
 namespace loader {
 
-static const char *knownAdaptersNames[] = {
-    MAKE_LIBRARY_NAME("ur_null", UR_VERSION),
-};
-
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
 
@@ -32,11 +28,7 @@ std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     char *altPlatforms = nullptr;
     _dupenv_s(&altPlatforms, NULL, "UR_ADAPTERS_FORCE_LOAD");
 
-    if (altPlatforms == nullptr) {
-        for (auto libName : knownAdaptersNames) {
-            enabledPlatforms.emplace_back(libName);
-        }
-    } else {
+    if (altPlatforms != nullptr) {
         std::stringstream ss(altPlatforms);
         while (ss.good()) {
             std::string substr;

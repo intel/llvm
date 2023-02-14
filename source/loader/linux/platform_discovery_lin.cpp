@@ -15,9 +15,7 @@
 
 namespace loader {
 
-static const char *knownPlatformNames[] = {
-    MAKE_LIBRARY_NAME("ur_null", UR_VERSION),
-};
+static constexpr char *knownPlatformNames[] = {};
 
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
