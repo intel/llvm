@@ -22,7 +22,7 @@ umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params,
   uma_memory_provider_handle_t provider =
       malloc(sizeof(struct uma_memory_provider_t));
   if (!provider) {
-    return UMA_RESULT_OUT_OF_HOST_MEMORY;
+    return UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
 
   assert(ops->version == UMA_VERSION_CURRENT);

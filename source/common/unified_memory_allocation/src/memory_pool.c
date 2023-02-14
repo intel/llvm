@@ -20,7 +20,7 @@ enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops, void *params,
                                 uma_memory_pool_handle_t *hPool) {
   uma_memory_pool_handle_t pool = malloc(sizeof(struct uma_memory_pool_t));
   if (!pool) {
-    return UMA_RESULT_OUT_OF_HOST_MEMORY;
+    return UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
 
   assert(ops->version == UMA_VERSION_CURRENT);
