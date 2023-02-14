@@ -100,6 +100,7 @@ static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 namespace {
+inline StringRef asRef(StringView S) { return {S.begin(), S.size()}; }
 class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
@@ -175,7 +176,7 @@ private:
   BumpPointerAllocator Alloc;
 };
 
-clang::QualType getBaseType(StringView Name, clang::ASTContext *AST,
+clang::QualType getBaseType(StringRef Name, clang::ASTContext *AST,
                             bool &IsVariadic) {
   clang::QualType Res;
   // First find the match against `QualType`...
@@ -249,8 +250,7 @@ clang::QualType getBaseType(StringView Name, clang::ASTContext *AST,
   else if (Name == "_BitInt")
     assert(false && "unhandled type name: _BitInt");
   else {
-    StringRef const N{Name.begin(), Name.size()};
-    auto &II = AST->Idents.get(N);
+    auto &II = AST->Idents.get(Name);
     auto *DC = AST->getTranslationUnitDecl();
     auto *ED = EnumDecl::Create(*AST, DC, SourceLocation(), SourceLocation(),
                                 &II, nullptr, false, false, true);
@@ -284,10 +284,10 @@ public:
     assert(MangleContext->shouldMangleDeclName(FD) &&
            "It should always be possible to mangle libclc func.");
 
-    SmallString<256> Buffer;
-    raw_svector_ostream Out(Buffer);
+    std::string Buf;
+    raw_string_ostream Out(Buf);
     MangleContext->mangleName(FD, Out);
-    return std::string{Out.str()};
+    return Buf;
   }
 
 private:
@@ -339,15 +339,14 @@ private:
         (Encoding->getName()->getKind() == Node::Kind::KNameType ||
          Encoding->getName()->getKind() == Node::Kind::KNameWithTemplateArgs) &&
         "Expected KNameType or KNameWithTemplateArgs node.");
-    std::string KernelNameStr;
+    StringRef KernelName;
     if (Encoding->getName()->getKind() == Node::Kind::KNameType) {
       auto *NT = static_cast<const NameType *>(Encoding->getName());
-      KernelNameStr.assign(NT->getBaseName().begin(), NT->getBaseName().size());
+      KernelName = asRef(NT->getBaseName());
     } else {
       auto *NT = static_cast<const NameWithTemplateArgs *>(Encoding->getName());
-      KernelNameStr.assign(NT->getBaseName().begin(), NT->getBaseName().size());
+      KernelName = asRef(NT->getBaseName());
     }
-    StringRef const KernelName(KernelNameStr);
     FD->setDeclName(&AST->Idents.get(KernelName));
 
     // Construct the argument list.
@@ -481,9 +480,12 @@ private:
       assert(VecType->getDimension()->getKind() == Node::Kind::KNameType);
       const auto *Dims = static_cast<const itanium_demangle::NameType *>(
           VecType->getDimension());
-      std::string const DN{Dims->getName().begin(), Dims->getName().size()};
-      auto D = std::atoi(DN.c_str());
-      PossibleKinds.push_back(NodeKindInfo(Kind, D));
+      size_t DimNum;
+      if (asRef(Dims->getName()).getAsInteger(10, DimNum) || !DimNum) {
+        assert(false && "invalid vector size specifier");
+        break;
+      }
+      PossibleKinds.push_back(NodeKindInfo(Kind, DimNum));
       return handleTypeNode(VecType->getBaseType(), PossibleKinds);
     }
     case Node::Kind::KBinaryFPType: {
@@ -493,27 +495,28 @@ private:
       const auto *NameTypeNode =
           static_cast<const itanium_demangle::NameType *>(
               BFPType->getDimension());
-      std::string const D{NameTypeNode->getBaseName().begin(),
-                          NameTypeNode->getBaseName().size()};
-      assert(D == "16" && "Unexpected binary floating point type.");
-      (void)D;
+      assert(asRef(NameTypeNode->getBaseName()) == "16" &&
+             "Unexpected binary floating point type.");
       // BinaryFPType is encoded as: BinaryFPType(NameType("16")), manually
       // construct "_Float16" NamedType node so we can pass it directly to
       // handleLeafTypeNode.
       NameType const FP16{"_Float16"};
-      return handleLeafTypeNode(&FP16, PossibleKinds);
+      return handleLeafTypeNode(FP16.getName(), PossibleKinds);
     }
     case Node::Kind::KVendorExtQualType: {
       const auto *ExtQualType =
           static_cast<const itanium_demangle::VendorExtQualType *>(TypeNode);
-      std::string const AS(ExtQualType->getExt().begin(),
-                           ExtQualType->getExt().size());
-      if (AS.rfind("AS", 0) != 0) {
+      StringRef AS = asRef(ExtQualType->getExt());
+      if (!AS.starts_with("AS")) {
         assert(false && "Unexpected ExtQualType.");
         break;
       }
-      auto ASVal = std::atoi(AS.c_str() + 2);
-      PossibleKinds.push_back(NodeKindInfo(Kind, ASVal));
+      size_t ASNum;
+      if (AS.drop_front(2).getAsInteger(10, ASNum)) {
+        assert(false && "Unexpected ExtQualType.");
+        break;
+      }
+      PossibleKinds.push_back({Kind, ASNum});
       return handleTypeNode(ExtQualType->getTy(), PossibleKinds);
     }
     case Node::Kind::KQualType: {
@@ -523,7 +526,7 @@ private:
     }
     case Node::Kind::KNameType: {
       auto *NT = static_cast<const itanium_demangle::NameType *>(TypeNode);
-      return handleLeafTypeNode(NT, PossibleKinds);
+      return handleLeafTypeNode(NT->getName(), PossibleKinds);
     }
     case Node::Kind::KNestedName: {
       const auto *NN =
@@ -531,9 +534,8 @@ private:
       OutputBuffer QB;
       NN->Qual->print(QB);
       PossibleKinds.push_back({Kind, QB.getBuffer(), QB.getCurrentPosition()});
-      const auto *TN =
-          static_cast<const itanium_demangle::NameType *>(NN->Name);
-      return handleLeafTypeNode(TN, PossibleKinds);
+      auto *NT = static_cast<const itanium_demangle::NameType *>(NN->Name);
+      return handleLeafTypeNode(NT->getName(), PossibleKinds);
     }
     default: {
       OutputBuffer ErrorTypeOut;
@@ -551,16 +553,20 @@ private:
   // Handle undecorated type that can be matched against `QualType`, also
   // returning if variadic.
   std::pair<clang::QualType, bool>
-  handleLeafTypeNode(const NameType *NT,
+  handleLeafTypeNode(StringView Name,
                      SmallVector<NodeKindInfo> &PossibleKinds) {
-    StringView Name = NT->getName();
+    return handleLeafTypeNode(asRef(Name), PossibleKinds);
+  }
+
+  std::pair<clang::QualType, bool>
+  handleLeafTypeNode(StringRef Name, SmallVector<NodeKindInfo> &PossibleKinds) {
 
     // When in test run, don't enable replacements and assert that re-mangled
     // name matches the original.
     if (!TestRun) {
       auto It = TypeReplacements.find(Name.begin());
       if (It != TypeReplacements.end())
-        Name = StringView(It->second);
+        Name = It->second;
     }
 
     bool IsVariadic = false;
@@ -584,7 +590,7 @@ private:
       std::string const N{KNN->DataStr + " " +
                           Res.getBaseTypeIdentifier()->getName().str()};
       if (NestedNamesQTMap.count(N) == 0) {
-        assert(KNN->DataStr.rfind("__spv::", 0) == 0 &&
+        assert(StringRef(KNN->DataStr).starts_with("__spv") &&
                "Unexpected nested prefix");
         SourceLocation const SL{};
         RecordDecl *RD = nullptr;
@@ -593,8 +599,8 @@ private:
               *AST, AST->getTranslationUnitDecl(), false, SL, SL,
               &AST->Idents.get("__spv", tok::TokenKind::identifier), nullptr,
               false);
-        std::string StructName{KNN->DataStr};
-        StructName.erase(0, StructName.find_first_not_of("__spv::"));
+        std::string StructName =
+            StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
         RD = RecordDecl::Create(*AST, TTK_Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
@@ -783,7 +789,7 @@ public:
   }
 
 private:
-  bool createClones(llvm::Module *M, std::string OriginalMangledName,
+  bool createClones(llvm::Module *M, StringRef OriginalMangledName,
                     std::string RemangledName,
                     const itanium_demangle::Node *FunctionTree,
                     TargetTypeReplacements &Replacements) {
@@ -799,7 +805,7 @@ private:
   }
 
   bool
-  createCloneFromMap(llvm::Module *M, std::string OriginalName,
+  createCloneFromMap(llvm::Module *M, StringRef OriginalName,
                      const itanium_demangle::Node *FunctionTree,
                      SmallDenseMap<const char *, const char *> TypeReplacements,
                      bool CloneeTypeReplacement = false) {
