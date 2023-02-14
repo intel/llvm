@@ -53,8 +53,7 @@
 #define MAKE_LAYER_NAME(NAME)                                                  \
     "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
 #if defined(SANITIZER_ANY)
-#define LOAD_DRIVER_LIBRARY(NAME)                                              \
-    dlopen(NAME, RTLD_LAZY | RTLD_LOCAL)
+#define LOAD_DRIVER_LIBRARY(NAME) dlopen(NAME, RTLD_LAZY | RTLD_LOCAL)
 #else
 #define LOAD_DRIVER_LIBRARY(NAME)                                              \
     dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
@@ -103,8 +102,9 @@ inline bool getenv_tobool(const char *name) {
     env = getenv(name);
 #endif
 
-    if (nullptr == env)
+    if (nullptr == env) {
         return false;
+    }
     return 0 == strcmp("1", env);
 }
 
