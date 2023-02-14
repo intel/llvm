@@ -449,8 +449,8 @@ public:
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
     // PI_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (MSupportOOO && Error == PI_ERROR_INVALID_QUEUE_PROPERTIES) {
-      MSupportOOO = false;
+    if (!MEmulateOOO && Error == PI_ERROR_INVALID_QUEUE_PROPERTIES) {
+      MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
       Plugin.checkPiResult(Error);
@@ -493,7 +493,7 @@ public:
   /// \return a raw PI queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getHandleRef() {
-    if (MSupportOOO)
+    if (!MEmulateOOO)
       return MQueues[0];
 
     return getExclusiveQueueHandleRef();
@@ -714,7 +714,7 @@ protected:
 
   const bool MHostQueue = false;
   // Assume OOO support by default.
-  bool MSupportOOO = true;
+  bool MEmulateOOO = false;
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
