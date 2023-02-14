@@ -1,3 +1,3 @@
 CXX_SOURCES := main.cpp
-
-include Makefile.rules
+                       
+include Makefile.rules 

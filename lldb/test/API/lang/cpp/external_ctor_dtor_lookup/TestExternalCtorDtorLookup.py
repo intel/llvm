@@ -13,7 +13,6 @@ from lldbsuite.test import lldbutil
 
 class ExternalCtorDtorLookupTestCase(TestBase):
 
-    @skipIf(debug_info="dwo")
     @skipIfWindows
     def test(self):
         self.build()

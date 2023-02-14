@@ -11,3 +11,4 @@ int main() {
   Bar b;
   return b.sinkWrapper(b.getWrapper());
 }
+
