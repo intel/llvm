@@ -712,22 +712,6 @@ struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
   }
 };
 
-// Specialization for restricted usm query
-template <>
-struct get_device_info_impl<bool,
-                            info::device::usm_restricted_shared_allocations> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    pi_usm_capabilities caps;
-    pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::usm_restricted_shared_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
-    // Check that we don't support any cross device sharing
-    return (Err != PI_SUCCESS)
-               ? false
-               : !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
-  }
-};
-
 // Specialization for system usm query
 template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
@@ -1426,12 +1410,6 @@ inline bool get_device_info_host<info::device::usm_host_allocations>() {
 
 template <>
 inline bool get_device_info_host<info::device::usm_shared_allocations>() {
-  return true;
-}
-
-template <>
-inline bool
-get_device_info_host<info::device::usm_restricted_shared_allocations>() {
   return true;
 }
 

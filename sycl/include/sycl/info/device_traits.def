@@ -181,8 +181,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, usm_host_allocations, bool,
                          PI_USM_HOST_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, usm_shared_allocations, bool,
                          PI_USM_SINGLE_SHARED_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_restricted_shared_allocations, bool,
-                         PI_USM_CROSS_SHARED_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, bool,
                          PI_USM_SYSTEM_SHARED_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,

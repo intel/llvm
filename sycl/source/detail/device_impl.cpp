@@ -296,6 +296,10 @@ bool device_impl::has(aspect Aspect) const {
     return is_accelerator();
   case aspect::custom:
     return false;
+  case aspect::emulated:
+    return false;
+  case aspect::host_debuggable:
+    return false;
   case aspect::fp16:
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
@@ -335,8 +339,6 @@ bool device_impl::has(aspect Aspect) const {
                 info::device::usm_shared_allocations>::get(MDevice,
                                                            getPlugin()) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
-  case aspect::usm_restricted_shared_allocations:
-    return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
     return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_device_id:
