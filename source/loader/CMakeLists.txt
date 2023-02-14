@@ -19,7 +19,10 @@ set_target_properties(loader PROPERTIES
 
 add_library(${PROJECT_NAME}::loader ALIAS loader)
 
-target_include_directories(loader PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(loader PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/layers
+)
 
 set_target_properties(loader PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
@@ -69,6 +72,8 @@ target_sources(loader
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_valddi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_validation_layer.cpp
 )
 
 if(WIN32)

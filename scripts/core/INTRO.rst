@@ -163,10 +163,10 @@ bits in bitfields. ABI is not guaranteed to be backward-compatible for API major
 modifying existing function signatures and structures, removing functions and structures, etc.
 
 ## --validate=off
-On platforms where Unified Runtime is provided as a shared library, library symbols beginning with "${x}", "${x}t" or "${x}s" 
-and followed by a digit or uppercase letter are reserved for use by the implementation. 
+On platforms where Unified Runtime is provided as a shared library, library symbols beginning with "${x}", "${x}t" or "${x}s"
+and followed by a digit or uppercase letter are reserved for use by the implementation.
 ## --validate=on
-Applications which use Unified Runtime must not provide definitions of these symbols. 
+Applications which use Unified Runtime must not provide definitions of these symbols.
 This allows the Unified Runtime shared library to be updated with additional symbols for new API versions or extensions without causing symbol conflicts with existing applications.
 
 Environment Variables
@@ -175,10 +175,26 @@ Environment Variables
 Specific environment variables can be set to control the behavior of unified runtime or enable certain features.
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
-  
-   Holds a comma-separated list of library names used by the loader for adapter discovery. By setting this value you can 
+
+   Holds a comma-separated list of library names used by the loader for adapter discovery. By setting this value you can
    force the loader to use specific adapter implementations from the libraries provided.
-   
-   .. note:: 
+
+   .. note::
 
     This environment variable should be used for development and debugging only.
+
+.. envvar:: UR_ENABLE_VALIDATION_LAYER
+
+   Holds the value '0' or '1'. By setting it to '1' you enable validation layer.
+
+   .. note::
+
+    This environment variable should be used for development and debugging only.
+
+.. envvar:: UR_ENABLE_PARAMETER_VALIDATION
+
+   Holds the value '0' or '1'. By setting it to '1' you enable parameter validation for Unified Runtime API calls.
+
+   .. note::
+
+    This environment variable should be used together with "UR_ENABLE_VALIDATION_LAYER".
