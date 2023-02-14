@@ -32,7 +32,7 @@ extern "C" {
 /// \brief Operation results
 enum uma_result_t {
     UMA_RESULT_SUCCESS = 0, ///< Success
-    UMA_RESULT_OUT_OF_HOST_MEMORY =
+    UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY =
         1, ///< Insufficient host memory to satisfy call,
     UMA_RESULT_ERROR_POOL_SPECIFIC =
         2, ///< A pool specific warning/error has been reported and can be
@@ -40,6 +40,9 @@ enum uma_result_t {
     UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC =
         3, ///< A provider specific warning/error has been reported and can be
            ///< Retrieved via the umaMemoryProviderGetLastResult entry point.
+    UR_RESULT_ERROR_INVALID_ARGUMENT =
+        4, ///< Generic error code for invalid arguments
+
     UMA_RESULT_ERROR_UNKNOWN = 0x7ffffffe ///< Unknown or internal error
 };
 
