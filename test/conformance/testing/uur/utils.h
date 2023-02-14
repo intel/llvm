@@ -45,7 +45,7 @@ inline std::string GetDeviceName(ur_device_handle_t device) {
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {
     return GetPlatformName(GetPlatform()) + "__" + GetDeviceName(device);
-};
+}
 
 } // namespace uur
 

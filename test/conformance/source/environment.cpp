@@ -104,7 +104,7 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
             return;
         }
     }
-};
+}
 
 void uur::PlatformEnvironment::SetUp() {
     if (!error.empty()) {
@@ -166,7 +166,7 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
         error = "urDeviceGet() failed to get devices.";
         return;
     }
-};
+}
 
 void DevicesEnvironment::SetUp() {
     PlatformEnvironment::SetUp();
