@@ -8,7 +8,7 @@
 // RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 -lm && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -debug-only=parallel-licm -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
