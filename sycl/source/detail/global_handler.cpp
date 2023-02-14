@@ -76,11 +76,11 @@ void GlobalHandler::InitXPTIStuff() {
   // Let subscribers know a new stream is being initialized
   getXPTIRegistry().initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer,
                                      GVerStr);
-  xpti::payload_t SYCLPayload("SYCL Interface Layer");
+  xpti::payload_t SYCLPayload("SYCL Runtime Exceptions");
   uint64_t SYCLInstanceNo;
-  GSYCLCallEvent =
-      xptiMakeEvent("SYCL API Layer", &SYCLPayload, xpti::trace_algorithm_event,
-                    xpti_at::active, &SYCLInstanceNo);
+  GSYCLCallEvent = xptiMakeEvent("SYCL Try-catch Exceptions", &SYCLPayload,
+                                 xpti::trace_algorithm_event, xpti_at::active,
+                                 &SYCLInstanceNo);
 #endif
 }
 
