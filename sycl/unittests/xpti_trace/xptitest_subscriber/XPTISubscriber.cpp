@@ -23,7 +23,8 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     const void *UserData) {
   if (TraceType == xpti::trace_diagnostics) {
     std::string AggregatedData;
-    if (Event && Event->reserved.payload) {
+    if (Event && Event->reserved.payload && Event->reserved.payload->name &&
+        Event->reserved.payload->source_file) {
       auto Payload = Event->reserved.payload;
       const char Delimiter[] = ";";
       AggregatedData.append(Payload->name);
