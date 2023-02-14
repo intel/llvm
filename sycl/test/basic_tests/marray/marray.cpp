@@ -23,7 +23,7 @@ using namespace sycl;
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 8)                               \
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 16)
 
-#define CHECK_BINOP(OP, LHS, RHS)                                           \
+#define CHECK_BINOP(OP, LHS, RHS)                                              \
   assert((LHS[0] * RHS) == (LHS * RHS) && (LHS * RHS[0]) == (LHS * RHS));
 
 struct NotDefaultConstructible {
