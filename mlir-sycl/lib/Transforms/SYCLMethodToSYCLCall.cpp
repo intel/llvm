@@ -51,6 +51,8 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
   const mlir::Type TargetElementType = MT.getElementType();
   const unsigned TargetMemSpace = MT.getMemorySpaceAsInt();
 
+  assert(MT.getLayout() == ThisType.getLayout() && "Invalid layout mismatch");
+
   if (TargetShape != ThisType.getShape()) {
     Original = Rewriter.create<memref::CastOp>(
         Loc,
@@ -73,7 +75,7 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
     Original = Rewriter.create<polygeist::Pointer2MemrefOp>(
         Loc,
         MemRefType::get(TargetShape, ThisType.getElementType(),
-                        MT.getLayout().getAffineMap(), TargetMemSpace),
+                        ThisType.getLayout().getAffineMap(), TargetMemSpace),
         Original);
     LLVM_DEBUG(llvm::dbgs()
                << "  Address space cast needed: " << Original << "\n");
