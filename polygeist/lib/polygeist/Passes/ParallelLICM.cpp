@@ -139,20 +139,20 @@ operator<<(llvm::raw_ostream &OS, const OperationSideEffects &ME) {
     OS << "\n";
   };
 
-  bool isSideEffectFree = ME.readsFromResource() && ME.writesToResource() &&
-                          ME.freesResource() && ME.allocatesResource();
+  bool isSideEffectFree = !ME.readsFromResource() && !ME.writesToResource() &&
+                          !ME.freesResource() && !ME.allocatesResource();
 
   OS << "Operation: " << ME.getOperation() << "\n";
   if (isSideEffectFree)
     OS.indent(2) << "is side effects free.\n";
   else {
-    if (!ME.readResources.empty())
+    if (ME.readsFromResource())
       printResources("read resources", ME.readResources);
-    if (!ME.writeResources.empty())
+    if (ME.writesToResource())
       printResources("write resources", ME.writeResources);
-    if (!ME.freeResources.empty())
+    if (ME.freesResource())
       printResources("free resources", ME.freeResources);
-    if (!ME.allocateResources.empty())
+    if (ME.allocatesResource())
       printResources("allocate resources", ME.allocateResources);
   }
 
@@ -654,13 +654,17 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
                                     AliasAnalysis &aliasAnalysis) {
+  Operation *loopOp = loop;
+  if (!isa<scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
+    return 0;
+
   SmallVector<Operation *, 8> opsToMove;
   collectHoistableOperations(loop, aliasAnalysis, opsToMove);
   if (opsToMove.empty())
     return 0;
 
   bool guardedLoop =
-      TypeSwitch<Operation *, bool>((Operation *)loop)
+      TypeSwitch<Operation *, bool>(loopOp)
           .Case<scf::ParallelOp, AffineParallelOp, AffineForOp>([&](auto loop) {
             createLoopGuard(loop);
             return true;
@@ -697,7 +701,7 @@ void ParallelLICM::runOnOperation() {
     });
 
     // First use MLIR LICM to hoist simple operations.
-    if (1) {
+    {
       size_t numOpHoisted = moveLoopInvariantCode(loop);
 
       LLVM_DEBUG({
@@ -712,7 +716,7 @@ void ParallelLICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
 
       LLVM_DEBUG({
         if (numOpHoisted)
