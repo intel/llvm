@@ -327,7 +327,6 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
-
 template <typename T, typename... Props>
 struct check_property_list : std::true_type {};
 
@@ -339,24 +338,21 @@ struct check_property_list<T, Prop, Props...>
                 "Property is invalid for the given type.");
 };
 
-
 //===----------------------------------------------------------------------===//
 //        Specific properties of annotated_ptr
 //===----------------------------------------------------------------------===//
 struct alignment_key {
-  template<int K>
+  template <int K>
   using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
 };
 
-template<int K>
-inline constexpr alignment_key::value_t<K> alignment;
+template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
-template<>
-struct is_property_key<alignment_key> : std::true_type {};
+template <> struct is_property_key<alignment_key> : std::true_type {};
 
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
 namespace detail {
 
@@ -371,8 +367,7 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
   static constexpr int value = N;
 };
 
-};
-
+} // namespace detail
 
 } // namespace experimental
 } // namespace oneapi
