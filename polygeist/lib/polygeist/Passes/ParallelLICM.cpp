@@ -170,61 +170,87 @@ protected:
   mutable OpBuilder builder;
 };
 
-class SCFForGuardBuilder : public LoopGuardBuilder {
+class SCFLoopGuardBuilder : public LoopGuardBuilder {
 public:
-  SCFForGuardBuilder(scf::ForOp loop) : LoopGuardBuilder(loop), loop(loop) {}
+  SCFLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+
+protected:
+  scf::IfOp guard(LoopLikeOpInterface loop) const;
+
+private:
+  virtual Value createGuardExpr() const = 0;
+  virtual scf::IfOp createGuard() const = 0;
+  virtual void replaceUsesOfLoopReturnValues(scf::IfOp &) const {}
+};
+
+class SCFForGuardBuilder : public SCFLoopGuardBuilder {
+public:
+  SCFForGuardBuilder(scf::ForOp loop) : SCFLoopGuardBuilder(loop), loop(loop) {}
 
   void guardLoop() const final;
 
 private:
-  Value createGuardExpr() const;
-  scf::IfOp createGuard() const;
-  void replaceUsesOfLoopReturnValues(scf::IfOp &) const;
+  Value createGuardExpr() const final;
+  scf::IfOp createGuard() const final;
+  void replaceUsesOfLoopReturnValues(scf::IfOp &) const final;
 
   mutable scf::ForOp loop;
 };
 
-class SCFParallelGuardBuilder : public LoopGuardBuilder {
+class SCFParallelGuardBuilder : public SCFLoopGuardBuilder {
 public:
   SCFParallelGuardBuilder(scf::ParallelOp loop)
-      : LoopGuardBuilder(loop), loop(loop) {}
+      : SCFLoopGuardBuilder(loop), loop(loop) {}
 
   void guardLoop() const final;
 
 private:
-  Value createGuardExpr() const;
-  scf::IfOp createGuard() const;
-  void replaceUsesOfLoopReturnValues(scf::IfOp &) const;
+  Value createGuardExpr() const final;
+  scf::IfOp createGuard() const final;
 
   mutable scf::ParallelOp loop;
 };
 
-class AffineForGuardBuilder : public LoopGuardBuilder {
+class AffineLoopGuardBuilder : public LoopGuardBuilder {
+public:
+  AffineLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+
+protected:
+  AffineIfOp guard(LoopLikeOpInterface loop) const;
+
+private:
+  virtual IntegerSet createGuardExpr() const = 0;
+  virtual AffineIfOp createGuard() const = 0;
+  virtual void yieldResults(AffineIfOp &) const {}
+  virtual void replaceUsesOfLoopReturnValues(AffineIfOp &) const {}
+};
+
+class AffineForGuardBuilder : public AffineLoopGuardBuilder {
 public:
   AffineForGuardBuilder(AffineForOp loop)
-      : LoopGuardBuilder(loop), loop(loop) {}
+      : AffineLoopGuardBuilder(loop), loop(loop) {}
 
   void guardLoop() const final;
 
 private:
-  IntegerSet createGuardExpr() const;
-  AffineIfOp createGuard() const;
-  void replaceUsesOfLoopReturnValues(AffineIfOp &) const;
+  IntegerSet createGuardExpr() const final;
+  AffineIfOp createGuard() const final;
+  void yieldResults(AffineIfOp &) const final;
+  void replaceUsesOfLoopReturnValues(AffineIfOp &) const final;
 
   mutable AffineForOp loop;
 };
 
-class AffineParallelGuardBuilder : public LoopGuardBuilder {
+class AffineParallelGuardBuilder : public AffineLoopGuardBuilder {
 public:
   AffineParallelGuardBuilder(AffineParallelOp loop)
-      : LoopGuardBuilder(loop), loop(loop) {}
+      : AffineLoopGuardBuilder(loop), loop(loop) {}
 
   void guardLoop() const final;
 
 private:
-  IntegerSet createGuardExpr() const;
-  AffineIfOp createGuard() const;
-  void replaceUsesOfLoopReturnValues(AffineIfOp &) const;
+  IntegerSet createGuardExpr() const final;
+  AffineIfOp createGuard() const final;
 
   mutable AffineParallelOp loop;
 };
@@ -272,10 +298,12 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
         };
 
     [[maybe_unused]] auto printConflictingSideEffects =
-        [](const MemoryEffects::EffectInstance &EI, AliasResult aliasRes) {
+        [](const MemoryEffects::EffectInstance &EI, AliasResult aliasRes,
+           const Operation &other) {
           llvm::dbgs() << "Found conflicting side effect: {"
                        << EI.getResource()->getName() << ", " << EI.getValue()
                        << "}\n";
+          llvm::dbgs().indent(2) << "with: " << other << "\n";
           llvm::dbgs().indent(2) << "aliasResult: " << aliasRes << "\n";
         };
 
@@ -293,7 +321,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
                 if (aliasRes.isNo())
                   return false;
 
-                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes));
+                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
                 return true;
               };
 
@@ -314,7 +342,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
                 if (aliasRes.isNo())
                   return false;
 
-                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes));
+                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
                 return true;
               };
 
@@ -323,7 +351,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
       return true;
     }
 
-    // Check whether the given operation 'other'  allocates, reads, writes or
+    // Check whether the given operation 'other' allocates, reads, writes or
     // frees a resource that is freed by the operation associated with this
     // class.
     if (llvm::any_of(
@@ -335,7 +363,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
                 if (aliasRes.isNo())
                   return false;
 
-                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes));
+                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
                 return true;
               };
 
@@ -398,14 +426,22 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 }
 
 //===----------------------------------------------------------------------===//
+// SCFLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+scf::IfOp SCFLoopGuardBuilder::guard(LoopLikeOpInterface loop) const {
+  scf::IfOp ifOp = createGuard();
+  loop->moveBefore(ifOp.thenYield());
+  replaceUsesOfLoopReturnValues(ifOp);
+  return ifOp;
+}
+
+//===----------------------------------------------------------------------===//
 // SCFForLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
 void SCFForGuardBuilder::guardLoop() const {
-  scf::IfOp ifOp = createGuard();
-  loop->moveBefore(ifOp.thenYield());
-  replaceUsesOfLoopReturnValues(ifOp);
-
+  scf::IfOp ifOp = guard(loop);
   bool yieldsResults = !loop->getResults().empty();
   if (!yieldsResults)
     ifOp.elseBlock()->erase();
@@ -445,11 +481,7 @@ void SCFForGuardBuilder::replaceUsesOfLoopReturnValues(scf::IfOp &ifOp) const {
 // SCFParallelLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFParallelGuardBuilder::guardLoop() const {
-  scf::IfOp ifOp = createGuard();
-  loop->moveBefore(ifOp.thenYield());
-  replaceUsesOfLoopReturnValues(ifOp);
-}
+void SCFParallelGuardBuilder::guardLoop() const { guard(loop); }
 
 Value SCFParallelGuardBuilder::createGuardExpr() const {
   Value cond;
@@ -468,40 +500,41 @@ Value SCFParallelGuardBuilder::createGuardExpr() const {
 }
 
 scf::IfOp SCFParallelGuardBuilder::createGuard() const {
-  return builder.create<scf::IfOp>(loop.getLoc(), TypeRange(),
-                                   createGuardExpr());
+  TypeRange types(loop->getResults());
+  return builder.create<scf::IfOp>(
+      loop.getLoc(), types, createGuardExpr(),
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getInitVals());
+      });
 }
 
-void SCFParallelGuardBuilder::replaceUsesOfLoopReturnValues(
-    scf::IfOp &ifOp) const {
-  // TODO
+//===----------------------------------------------------------------------===//
+// AffineLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+AffineIfOp AffineLoopGuardBuilder::guard(LoopLikeOpInterface loop) const {
+  AffineIfOp ifOp = createGuard();
+  yieldResults(ifOp);
+  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
+  replaceUsesOfLoopReturnValues(ifOp);
+  return ifOp;
 }
 
 //===----------------------------------------------------------------------===//
 // AffineForLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void AffineForGuardBuilder::guardLoop() const {
-  AffineIfOp ifOp = createGuard();
-
-  bool yieldsResults = !loop.getResults().empty();
-  if (yieldsResults) {
-    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    loop.getResults());
-    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    loop.getIterOperands());
-  }
-
-  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
-  replaceUsesOfLoopReturnValues(ifOp);
-}
+void AffineForGuardBuilder::guardLoop() const { guard(loop); }
 
 IntegerSet AffineForGuardBuilder::createGuardExpr() const {
   SmallVector<AffineExpr, 2> exprs;
   SmallVector<bool, 2> eqflags;
 
-  const AffineMap lbMap = loop.getLowerBoundMap();
-  const AffineMap ubMap = loop.getUpperBoundMap();
+  const AffineMap lbMap = loop.getLowerBoundMap(),
+                  ubMap = loop.getUpperBoundMap();
 
   for (AffineExpr ub : ubMap.getResults()) {
     SmallVector<AffineExpr, 4> symbols;
@@ -517,8 +550,8 @@ IntegerSet AffineForGuardBuilder::createGuardExpr() const {
     ub = ub.replaceDimsAndSymbols(dims, symbols);
 
     for (AffineExpr lb : lbMap.getResults()) {
-      // Bound is whether this expr >= 0, which since we want ub > lb,
-      // we rewrite as follows.
+      // Bound is whether this expr >= 0, which since we want ub > lb, we
+      // rewrite as follows.
       exprs.push_back(ub - lb - loop.getStep());
       eqflags.push_back(false);
     }
@@ -528,6 +561,16 @@ IntegerSet AffineForGuardBuilder::createGuardExpr() const {
       /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
       /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
       eqflags);
+}
+
+void AffineForGuardBuilder::yieldResults(AffineIfOp &ifOp) const {
+  bool yieldsResults = !loop.getResults().empty();
+  if (yieldsResults) {
+    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getResults());
+    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getIterOperands());
+  }
 }
 
 AffineIfOp AffineForGuardBuilder::createGuard() const {
@@ -567,28 +610,26 @@ void AffineForGuardBuilder::replaceUsesOfLoopReturnValues(
 // AffineParallelLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void AffineParallelGuardBuilder::guardLoop() const {
-  AffineIfOp ifOp = createGuard();
-  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
-  replaceUsesOfLoopReturnValues(ifOp);
-}
+void AffineParallelGuardBuilder::guardLoop() const { guard(loop); }
 
 IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
   SmallVector<AffineExpr, 2> exprs;
   SmallVector<bool, 2> eqflags;
 
+  const AffineMap lbMap = loop.getLowerBoundsMap(),
+                  ubMap = loop.getUpperBoundsMap();
+
   for (auto step : llvm::enumerate(loop.getSteps())) {
     for (AffineExpr ub : loop.getUpperBoundMap(step.index()).getResults()) {
       SmallVector<AffineExpr, 4> symbols;
-      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols();
-           ++idx)
-        symbols.push_back(getAffineSymbolExpr(
-            idx + loop.getLowerBoundsMap().getNumSymbols(), loop.getContext()));
+      for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
+        symbols.push_back(getAffineSymbolExpr(idx + lbMap.getNumSymbols(),
+                                              loop.getContext()));
 
       SmallVector<AffineExpr, 4> dims;
-      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
-        dims.push_back(getAffineDimExpr(
-            idx + loop.getLowerBoundsMap().getNumDims(), loop.getContext()));
+      for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
+        dims.push_back(
+            getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
 
       ub = ub.replaceDimsAndSymbols(dims, symbols);
 
@@ -602,11 +643,9 @@ IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
   }
 
   return IntegerSet::get(
-      /*dim*/ loop.getLowerBoundsMap().getNumDims() +
-          loop.getUpperBoundsMap().getNumDims(),
-      /*symbols*/ loop.getLowerBoundsMap().getNumSymbols() +
-          loop.getUpperBoundsMap().getNumSymbols(),
-      exprs, eqflags);
+      /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
+      /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
+      eqflags);
 }
 
 AffineIfOp AffineParallelGuardBuilder::createGuard() const {
@@ -628,11 +667,6 @@ AffineIfOp AffineParallelGuardBuilder::createGuard() const {
   return builder.create<AffineIfOp>(loop.getLoc(), TypeRange(),
                                     createGuardExpr(), values,
                                     /*else*/ false);
-}
-
-void AffineParallelGuardBuilder::replaceUsesOfLoopReturnValues(
-    AffineIfOp &ifOp) const {
-  // TODO
 }
 
 /// Determine whether any operation in the \p loop has a conflict with the
@@ -662,7 +696,7 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   if (conflictingOp.has_value()) {
     if (!willBeMoved.count(*conflictingOp))
       return true;
-    LLVM_DEBUG(llvm::dbgs() << "Related operation will be hoisted\n");
+    LLVM_DEBUG(llvm::dbgs() << "OK: related operation will be hoisted\n");
   }
 
   // Check whether the parent operation has conflicts on the loop.
@@ -759,7 +793,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
        sideEffects.freesResource()) &&
       hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis)) {
     LLVM_DEBUG(llvm::dbgs()
-               << "Cannot be hoisted: found conflicting operation\n");
+               << "cannot be hoisted: found conflicting operation\n");
     return false;
   }
 
@@ -778,7 +812,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Can be hoisted: no conflicts found\n");
+  LLVM_DEBUG(llvm::dbgs() << "can be hoisted: no conflicts found\n");
 
   return true;
 }
@@ -807,7 +841,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
                                     const AliasAnalysis &aliasAnalysis) {
   Operation *loopOp = loop;
-  if (!isa<scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
+  if (!isa<scf::ForOp, scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
     return 0;
 
   SmallVector<Operation *, 8> opsToMove;
@@ -842,8 +876,7 @@ void ParallelLICM::runOnOperation() {
     LLVM_DEBUG({
       llvm::dbgs() << "----------------\n";
       loop.print(llvm::dbgs() << "Original loop:\n");
-      llvm::dbgs() << "\n";
-      llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
+      llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
     });
 
     // First use MLIR LICM to hoist simple operations.
@@ -851,12 +884,14 @@ void ParallelLICM::runOnOperation() {
       size_t numOpHoisted = moveLoopInvariantCode(loop);
 
       LLVM_DEBUG({
-        if (numOpHoisted)
+        llvm::dbgs() << "\nMLIR LICM Hoisted " << numOpHoisted
+                     << " operation(s)\n";
+        if (numOpHoisted) {
           loop.print(llvm::dbgs() << "Loop after MLIR LICM:\n");
-        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+          llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
+          assert(mlir::verify(getParentFunction(loop)).succeeded());
+        }
         llvm::dbgs() << "----------------\n";
-        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
-        assert(mlir::verify(getParentFunction(loop)).succeeded());
       });
     }
 
@@ -865,12 +900,14 @@ void ParallelLICM::runOnOperation() {
       numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
 
       LLVM_DEBUG({
-        if (numOpHoisted)
+        llvm::dbgs() << "\nParallel LICM Hoisted " << numOpHoisted
+                     << " operation(s)\n";
+        if (numOpHoisted) {
           loop.print(llvm::dbgs() << "Loop after Parallel LICM:\n");
-        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+          llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
+          assert(mlir::verify(getParentFunction(loop)).succeeded());
+        }
         llvm::dbgs() << "----------------\n";
-        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
-        assert(mlir::verify(getParentFunction(loop)).succeeded());
       });
     }
   });
