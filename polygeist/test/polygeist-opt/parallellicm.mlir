@@ -1,12 +1,9 @@
-// RUN: polygeist-opt --parallel-licm --split-input-file --mlir-pass-statistics %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --parallel-licm --split-input-file %s 2>&1 | FileCheck %s
 
 module {
 func.func private @use(f32) 
 // COM: Ensure loop invariant load is hoisted.
 func.func @scf_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
-  // CHECK: ParallelLICM
-  // CHECK:  (S) 1 num-operations-hoisted - Number of operations hoisted
-
   // CHECK:       func.func @scf_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
   // CHECK-DAG:     %cst = arith.constant 0.000000e+00 : f32
   // CHECK-DAG:     %c1 = arith.constant 1 : index

@@ -393,8 +393,7 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
       })
       .Case<AffineParallelOp>([](auto loop) {
         return std::make_unique<AffineParallelGuardBuilder>(loop);
-      })
-      .Default([](auto) { return nullptr; });
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -412,11 +411,9 @@ void SCFForGuardBuilder::guardLoop() const {
 }
 
 Value SCFForGuardBuilder::createGuardExpr() const {
-  return builder.create<arith::CmpIOp>(
-      loop.getLoc(), arith::CmpIPredicate::sle,
-      builder.create<arith::AddIOp>(loop.getLoc(), loop.getLowerBound(),
-                                    loop.getStep()),
-      loop.getUpperBound());
+  return builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
+                                       loop.getLowerBound(),
+                                       loop.getUpperBound());
 }
 
 scf::IfOp SCFForGuardBuilder::createGuard() const {
@@ -500,8 +497,8 @@ IntegerSet AffineForGuardBuilder::createGuardExpr() const {
   SmallVector<AffineExpr, 2> exprs;
   SmallVector<bool, 2> eqflags;
 
-  const AffineMap lbMap = loop.getLowerBoundMap();
-  const AffineMap ubMap = loop.getUpperBoundMap();
+  const AffineMap lbMap = loop.getLowerBoundMap(),
+                  ubMap = loop.getUpperBoundMap();
 
   for (AffineExpr ub : ubMap.getResults()) {
     SmallVector<AffineExpr, 4> symbols;
@@ -519,7 +516,7 @@ IntegerSet AffineForGuardBuilder::createGuardExpr() const {
     for (AffineExpr lb : lbMap.getResults()) {
       // Bound is whether this expr >= 0, which since we want ub > lb,
       // we rewrite as follows.
-      exprs.push_back(ub - lb - loop.getStep());
+      exprs.push_back(ub - lb - 1);
       eqflags.push_back(false);
     }
   }
@@ -549,7 +546,7 @@ AffineIfOp AffineForGuardBuilder::createGuard() const {
   bool yieldsResults = !loop.getResults().empty();
   TypeRange types(loop.getResults());
   return builder.create<AffineIfOp>(loop.getLoc(), types, createGuardExpr(),
-                                    values, yieldsResults ? true : false);
+                                    values, yieldsResults);
 }
 
 void AffineForGuardBuilder::replaceUsesOfLoopReturnValues(
@@ -593,8 +590,8 @@ IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
       ub = ub.replaceDimsAndSymbols(dims, symbols);
 
       for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
-        // Bound is whether this expr >= 0, which since we want ub > lb,
-        // we rewrite as follows.
+        // Bound is whether this expr >= 0, which since we want ub > lb, we
+        // rewrite as follows.
         exprs.push_back(ub - lb - step.value());
         eqflags.push_back(false);
       }
@@ -848,29 +845,34 @@ void ParallelLICM::runOnOperation() {
 
     // First use MLIR LICM to hoist simple operations.
     {
-      size_t numOpHoisted = moveLoopInvariantCode(loop);
+      size_t OpHoisted = moveLoopInvariantCode(loop);
 
       LLVM_DEBUG({
-        if (numOpHoisted)
+        llvm::dbgs() << "\nMLIR LICM hoisted " << OpHoisted
+                     << " operation(s)\n";
+        if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after MLIR LICM:\n");
-        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+          llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
+          assert(mlir::verify(getParentFunction(loop)).succeeded());
+        }
         llvm::dbgs() << "----------------\n";
-        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
-        assert(mlir::verify(getParentFunction(loop)).succeeded());
       });
     }
 
     // Now use this pass to hoist more complex operations.
     {
-      numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({
-        if (numOpHoisted)
+        llvm::dbgs() << "\nParallel LICM hoisted " << OpHoisted
+                     << " operation(s)\n";
+        if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after Parallel LICM:\n");
-        llvm::dbgs() << "\nHoisted " << numOpHoisted << " operation(s)\n";
+          llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
+          assert(mlir::verify(getParentFunction(loop)).succeeded());
+        }
         llvm::dbgs() << "----------------\n";
-        llvm::dbgs() << "in function " << *getParentFunction(loop) << "\n";
-        assert(mlir::verify(getParentFunction(loop)).succeeded());
       });
     }
   });
