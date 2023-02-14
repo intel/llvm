@@ -14,10 +14,10 @@
 ;  }
 ;}
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -29,19 +29,19 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ;CHECK-LLVM-LABEL: @test_switch
-;CHECK-LLVM: switch i8 %0, label %sw.epilog
+;CHECK-LLVM: switch i8 %1, label %sw.epilog
 ;CHECK-LLVM: i8 0, label %sw.bb
 ;CHECK-LLVM: i8 1, label %sw.bb1
 ;CHECK-LLVM: i8 2, label %sw.bb2
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @test_switch(i32 addrspace(1)* %res, i8 zeroext %val) #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define spir_kernel void @test_switch(ptr addrspace(1) %res, i8 zeroext %val) #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
-  %res.addr = alloca i32 addrspace(1)*, align 4
+  %res.addr = alloca ptr addrspace(1), align 4
   %val.addr = alloca i8, align 1
-  store i32 addrspace(1)* %res, i32 addrspace(1)** %res.addr, align 4
-  store i8 %val, i8* %val.addr, align 1
-  %0 = load i8, i8* %val.addr, align 1
+  store ptr addrspace(1) %res, ptr %res.addr, align 4
+  store i8 %val, ptr %val.addr, align 1
+  %0 = load i8, ptr %val.addr, align 1
   switch i8 %0, label %sw.epilog [
     i8 0, label %sw.bb
     i8 1, label %sw.bb1
@@ -49,18 +49,18 @@ entry:
   ]
 
 sw.bb:                                            ; preds = %entry
-  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 4
-  store i32 1, i32 addrspace(1)* %1, align 4
+  %1 = load ptr addrspace(1), ptr %res.addr, align 4
+  store i32 1, ptr addrspace(1) %1, align 4
   br label %sw.epilog
 
 sw.bb1:                                           ; preds = %entry
-  %2 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 4
-  store i32 2, i32 addrspace(1)* %2, align 4
+  %2 = load ptr addrspace(1), ptr %res.addr, align 4
+  store i32 2, ptr addrspace(1) %2, align 4
   br label %sw.epilog
 
 sw.bb2:                                           ; preds = %entry
-  %3 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 4
-  store i32 3, i32 addrspace(1)* %3, align 4
+  %3 = load ptr addrspace(1), ptr %res.addr, align 4
+  store i32 3, ptr addrspace(1) %3, align 4
   br label %sw.epilog
 
 sw.epilog:                                        ; preds = %entry, %sw.bb2, %sw.bb1, %sw.bb
