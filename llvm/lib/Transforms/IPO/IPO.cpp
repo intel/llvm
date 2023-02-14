@@ -25,14 +25,12 @@ using namespace llvm;
 void llvm::initializeIPO(PassRegistry &Registry) {
   initializeAnnotation2MetadataLegacyPass(Registry);
   initializeConstantMergeLegacyPassPass(Registry);
-  initializeCrossDSOCFIPass(Registry);
   initializeDAEPass(Registry);
   initializeDAHPass(Registry);
   initializeDAESYCLPass(Registry);
   initializeForceFunctionAttrsLegacyPassPass(Registry);
   initializeGlobalDCELegacyPassPass(Registry);
   initializeGlobalOptLegacyPassPass(Registry);
-  initializeGlobalSplitPass(Registry);
   initializeAlwaysInlinerLegacyPassPass(Registry);
   initializeInferFunctionAttrsLegacyPassPass(Registry);
   initializeLoopExtractorLegacyPassPass(Registry);
