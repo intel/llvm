@@ -503,7 +503,7 @@ convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
 
 // TODO: This function is only a place holder. Returning for now a hard-code value
 // of the ULP error.
-StringRef getFPAccuracy(Function* F) { return "Float 2.5"; }
+StringRef getFPAccuracy(Function* F) { return "float 2.5"; }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
@@ -523,24 +523,18 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
     // have to use Target (may be?) in order to calculate the accuracy allowed
     // for the function F. For now the function is retruning a hard-coded string.
     StringRef AccuracyStr = getFPAccuracy(F);
-    auto *AccuracyMD = MDString::get(CGF.Builder.getContext(), FPAccuracyVal);
-    auto *Src1 = MetadataAsValue::get(CGF.Builder.getContext(), AccuracyMD);
-    // TODO: expecting a second argument for this intrinsic. For now keep the metada,
-    // but not sure what Andy wants here?
-    llvm::CallInst *CI = CGF.Builder.CreateCall(F, { Src0, Src1 });
+    auto *AccuracyMD = MDString::get(CGF.Builder.getContext(), AccuracyStr);
+    llvm::CallInst *CI = CGF.Builder.CreateCall(F, { Src0 });
     if (CGF.getLangOpts().getFPAccuracy() !=
         LangOptions::FPAccuracyKind::FPA_Default) {
-        // TODI: Do we want to mark the declaration of the new builtin
-        // with the attribute? See LIT test.
       llvm::AttrBuilder FuncAttrs(F->getContext());
       FuncAttrs.addAttribute("fpbuiltin-max-error", AccuracyStr);
       F->addFnAttrs(FuncAttrs);
-      // TODO: For now adding the attribute at the call site without the ULP value.
-      // Not sure how to do that yet. Will work on it.
-      llvm::AttributeList FPBuiltinMaxErrorAttr = llvm::AttributeList::get(
-          CGF.getLLVMContext(), llvm::AttributeList::FunctionIndex,
-          llvm::Attribute::FPBuiltinMaxError);
+      AttributeList FPBuiltinMaxErrorAttr = F->getAttributes().get(
+          CGF.getLLVMContext(), AttributeList::FunctionIndex,
+          Attribute::FPBuiltinMaxError);
       CI->setAttributes(FPBuiltinMaxErrorAttr);
+      AttributeList A = CI->getAttributes();
     }
     return CI;
   }

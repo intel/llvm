@@ -872,8 +872,7 @@ let IntrProperties = [IntrArgMemOnly, IntrWillReturn] in {
 //
 let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
 def int_experimental_fpaccuracy_cos  : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
-                                                 [ LLVMMatchType<0>,
-                                                   llvm_metadata_ty ]>;
+                                                    [ LLVMMatchType<0> ]>;
 // TODO: add entries for all math functions.
 }
 

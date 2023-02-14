@@ -2520,6 +2520,12 @@ def fveclib : Joined<["-"], "fveclib=">, Group<f_Group>, Flags<[CC1Option]>,
     NormalizedValues<["Accelerate", "LIBMVEC", "MASSV", "SVML",
                       "Darwin_libsystem_m", "NoLibrary"]>,
     MarshallingInfoEnum<CodeGenOpts<"VecLib">, "NoLibrary">;
+def falt_math_library : Joined<["-"], "falt-math-library=">, Group<f_Group>, Flags<[CC1Option]>,
+    HelpText<"Use an alternate function library">,
+    Values<"none,imf,test">,
+    NormalizedValuesScope<"CodeGenOptions">,
+    NormalizedValues<["NoAltMathLibrary", "ImfAltMathLibrary", "TestAltMathLibrary"]>,
+    MarshallingInfoEnum<CodeGenOpts<"AltMathLibrary">, "NoAltMathLibrary">;
 def fno_lax_vector_conversions : Flag<["-"], "fno-lax-vector-conversions">, Group<f_Group>,
   Alias<flax_vector_conversions_EQ>, AliasArgs<["none"]>;
 def fno_implicit_module_maps : Flag <["-"], "fno-implicit-module-maps">, Group<f_Group>,
