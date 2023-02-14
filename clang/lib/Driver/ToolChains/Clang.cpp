@@ -5110,6 +5110,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
+
+    if (Args.hasArg(options::OPT_fsycl_optimize_non_user_code)) {
+      const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
+      if (!OArg || !OArg->getOption().matches(options::OPT_O0)) {
+        bool isCLMode = C.getDriver().IsCLMode();
+        // Linux and Windows have different debug options.
+        const StringRef Option = isCLMode ? "-Od" : "-O0";
+        D.Diag(diag::err_drv_fsycl_wrong_optimization_options) << Option;
+      }
+
+      CmdArgs.push_back("-fsycl-optimize-non-user-code");
+    }
   }
 
   if (IsSYCL) {
