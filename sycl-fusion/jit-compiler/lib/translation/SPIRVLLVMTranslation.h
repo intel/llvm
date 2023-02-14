@@ -30,24 +30,10 @@ public:
   ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and
   /// return a pointer to its container.
-  static llvm::Expected<KernelBinary *> translateLLVMtoSPIRV(llvm::Module &Mod,
-                                                            JITContext &JITCtx);
+  static llvm::Expected<KernelBinary *>
+  translateLLVMtoSPIRV(llvm::Module &Mod, JITContext &JITCtx);
 
 private:
-  ///
-  /// Get an attribute value consisting of NumValues scalar constant integers
-  /// from the MDNode.
-  static void getAttributeValues(std::vector<std::string> &Values,
-                                 llvm::MDNode *MD, size_t NumValues);
-
-  ///
-  /// Restore kernel attributes for the kernel in Info from the metadata
-  /// attached to its kernel function in the LLVM module Mod.
-  /// Currently supported attributes:
-  ///   - reqd_work_group_size
-  ///   - work_group_size_hint
-  static void restoreKernelAttributes(llvm::Module *Mod, SYCLKernelInfo &Info);
-
   ///
   /// Default settings for the SPIRV translation options.
   static SPIRV::TranslatorOpts &translatorOpts();

@@ -933,6 +933,29 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
 
   Binary.addProperty(std::move(ArgMaskPropSet));
 
+  if (Format == ::jit_compiler::BinaryFormat::PTX) {
+    // Add a program metadata property with the reqd_work_group_size attribute.
+    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    auto ReqdWGS = std::find_if(
+        FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
+        [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
+          return Attr.AttributeName == "reqd_work_group_size";
+        });
+    if (ReqdWGS != FusedKernelInfo.Attributes.end()) {
+      auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
+      std::stringstream PropName;
+      PropName << FusedKernelInfo.Name;
+      PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+      PropertyContainer ReqdWorkGroupSizeProp{
+          PropName.str(), Encoded.data(), Encoded.size(),
+          pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+      PropertySetContainer ProgramMetadata{
+          __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+      ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
+      Binary.addProperty(std::move(ProgramMetadata));
+    }
+  }
+
   DeviceBinariesCollection Collection;
   Collection.addDeviceBinary(
       std::move(Binary), FusedKernelInfo.BinaryInfo.BinaryStart,
@@ -968,6 +991,23 @@ std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
       uint8_t &Byte = Encoded[NBytesForSize + (i / NBitsInElement)];
       Byte |= static_cast<uint8_t>((1 << (i % NBitsInElement)));
     }
+  }
+  return Encoded;
+}
+
+std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
+    const ::jit_compiler::SYCLKernelAttribute &Attr) const {
+  assert(Attr.AttributeName == "reqd_work_group_size");
+  size_t NumBytes = sizeof(uint64_t) + (Attr.Values.size() * sizeof(uint32_t));
+  std::vector<uint8_t> Encoded(NumBytes, 0u);
+  uint8_t *Ptr = Encoded.data();
+  // Skip 64-bit wide size argument with value 0 at the start of the data.
+  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  Ptr += sizeof(uint64_t);
+  for (const auto &Val : Attr.Values) {
+    uint32_t UVal = std::stoul(Val);
+    std::memcpy(Ptr, &UVal, sizeof(uint32_t));
+    Ptr += sizeof(uint32_t);
   }
   return Encoded;
 }

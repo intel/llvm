@@ -23,7 +23,7 @@ public:
   loadKernels(llvm::LLVMContext &LLVMCtx, std::vector<SYCLKernelInfo> &Kernels);
 
   static llvm::Error translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
-                              JITContext &JITCtx, BinaryFormat Format);
+                                     JITContext &JITCtx, BinaryFormat Format);
 
 private:
   ///

@@ -11,9 +11,7 @@
 #include "Kernel.h"
 #include "LLVMSPIRVLib.h"
 #include "helper/ErrorHandling.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
@@ -23,37 +21,6 @@
 using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
-
-void SPIRVLLVMTranslator::getAttributeValues(std::vector<std::string> &Values,
-                                             MDNode *MD, size_t NumValues) {
-  assert(MD->getNumOperands() == NumValues && "Incorrect number of values");
-  for (const auto &MDOp : MD->operands()) {
-    auto *ConstantMD = cast<ConstantAsMetadata>(MDOp);
-    auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
-    Values.push_back(std::to_string(ConstInt->getZExtValue()));
-  }
-}
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-static const char *REQD_WORK_GROUP_SIZE_ATTR = "reqd_work_group_size";
-// NOLINTNEXTLINE(readability-identifier-naming)
-static const char *WORK_GROUP_SIZE_HINT_ATTR = "work_group_size_hint";
-
-void SPIRVLLVMTranslator::restoreKernelAttributes(Module *Mod,
-                                                  SYCLKernelInfo &Info) {
-  auto *KernelFunction = Mod->getFunction(Info.Name);
-  assert(KernelFunction && "Kernel function not present in module");
-  if (auto *MD = KernelFunction->getMetadata(REQD_WORK_GROUP_SIZE_ATTR)) {
-    SYCLKernelAttribute ReqdAttr{REQD_WORK_GROUP_SIZE_ATTR};
-    getAttributeValues(ReqdAttr.Values, MD, 3);
-    Info.Attributes.push_back(ReqdAttr);
-  }
-  if (auto *MD = KernelFunction->getMetadata(WORK_GROUP_SIZE_HINT_ATTR)) {
-    SYCLKernelAttribute HintAttr{WORK_GROUP_SIZE_HINT_ATTR};
-    getAttributeValues(HintAttr.Values, MD, 3);
-    Info.Attributes.push_back(HintAttr);
-  }
-}
 
 SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
   static auto Opts = []() -> SPIRV::TranslatorOpts {
@@ -113,10 +80,6 @@ SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
   }
   std::unique_ptr<Module> NewMod{LLVMMod};
 
-  // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
-  // 'work_group_size_hint' from metadata attached to the kernel function and
-  // store it in the SYCLKernelInfo.
-  restoreKernelAttributes(NewMod.get(), Kernel);
   return std::move(NewMod);
 }
 

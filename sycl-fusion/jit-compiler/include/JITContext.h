@@ -65,8 +65,7 @@ public:
 
   llvm::LLVMContext *getLLVMContext();
 
-  KernelBinary &emplaceSPIRVBinary(std::string Binary,
-                                   BinaryFormat Format);
+  KernelBinary &emplaceSPIRVBinary(std::string Binary, BinaryFormat Format);
 
   std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
 

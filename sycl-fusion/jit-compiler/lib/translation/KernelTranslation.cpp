@@ -9,6 +9,7 @@
 #include "KernelTranslation.h"
 #include "SPIRVLLVMTranslation.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -20,6 +21,43 @@
 using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
+
+///
+/// Get an attribute value consisting of NumValues scalar constant integers
+/// from the MDNode.
+static void getAttributeValues(std::vector<std::string> &Values, MDNode *MD) {
+  for (const auto &MDOp : MD->operands()) {
+    auto *ConstantMD = cast<ConstantAsMetadata>(MDOp);
+    auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
+    Values.push_back(std::to_string(ConstInt->getZExtValue()));
+  }
+}
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+static const char *REQD_WORK_GROUP_SIZE_ATTR = "reqd_work_group_size";
+// NOLINTNEXTLINE(readability-identifier-naming)
+static const char *WORK_GROUP_SIZE_HINT_ATTR = "work_group_size_hint";
+
+///
+/// Restore kernel attributes for the kernel in Info from the metadata
+/// attached to its kernel function in the LLVM module Mod.
+/// Currently supported attributes:
+///   - reqd_work_group_size
+///   - work_group_size_hint
+static void restoreKernelAttributes(Module *Mod, SYCLKernelInfo &Info) {
+  auto *KernelFunction = Mod->getFunction(Info.Name);
+  assert(KernelFunction && "Kernel function not present in module");
+  if (auto *MD = KernelFunction->getMetadata(REQD_WORK_GROUP_SIZE_ATTR)) {
+    SYCLKernelAttribute ReqdAttr{REQD_WORK_GROUP_SIZE_ATTR};
+    getAttributeValues(ReqdAttr.Values, MD);
+    Info.Attributes.push_back(ReqdAttr);
+  }
+  if (auto *MD = KernelFunction->getMetadata(WORK_GROUP_SIZE_HINT_ATTR)) {
+    SYCLKernelAttribute HintAttr{WORK_GROUP_SIZE_HINT_ATTR};
+    getAttributeValues(HintAttr.Values, MD);
+    Info.Attributes.push_back(HintAttr);
+  }
+}
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
@@ -100,6 +138,10 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
             "Number of address bits between SPIR-V modules does not match");
       }
     }
+    // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
+    // 'work_group_size_hint' from metadata attached to the kernel function and
+    // store it in the SYCLKernelInfo.
+    restoreKernelAttributes(Result.get(), Kernel);
   }
   return std::move(Result);
 }
