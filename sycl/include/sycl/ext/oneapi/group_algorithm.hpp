@@ -531,8 +531,11 @@ detail::enable_if_t<
 }
 
 template <typename Group>
-detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-leader(Group g) {
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::leader free function is deprecated. Use member function "
+    "leader of the sycl::group/sycl::sub_group instead.")
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool> leader(
+    Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
       sycl::detail::get_local_linear_id(g);

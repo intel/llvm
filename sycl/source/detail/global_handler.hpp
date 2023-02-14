@@ -77,6 +77,7 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
+  void prepareSchedulerToRelease();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);

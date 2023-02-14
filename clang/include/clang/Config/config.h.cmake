@@ -29,9 +29,6 @@
 /* Default OpenMP runtime used by -fopenmp. */
 #define CLANG_DEFAULT_OPENMP_RUNTIME "${CLANG_DEFAULT_OPENMP_RUNTIME}"
 
-/* Default architecture for OpenMP offloading to Nvidia GPUs. */
-#define CLANG_OPENMP_NVPTX_DEFAULT_ARCH "${CLANG_OPENMP_NVPTX_DEFAULT_ARCH}"
-
 /* Default architecture for SystemZ. */
 #define CLANG_SYSTEMZ_DEFAULT_ARCH "${CLANG_SYSTEMZ_DEFAULT_ARCH}"
 
@@ -82,5 +79,8 @@
 
 /* Whether to enable opaque pointers by default */
 #cmakedefine01 CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
+
+/* Whether to enable opaque pointers for SPIR-V by default */
+#cmakedefine01 SPIRV_ENABLE_OPAQUE_POINTERS
 
 #endif

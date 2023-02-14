@@ -52,7 +52,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -84,6 +83,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/StatCacheFileSystem.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1502,9 +1502,6 @@ void CompilerInvocation::GenerateCodeGenArgs(
   else if (Opts.CFProtectionBranch)
     GenerateArg(Args, OPT_fcf_protection_EQ, "branch", SA);
 
-  if (Opts.IBTSeal)
-    GenerateArg(Args, OPT_mibt_seal, SA);
-
   if (Opts.FunctionReturnThunks)
     GenerateArg(Args, OPT_mfunction_return_EQ, "thunk-extern", SA);
 
@@ -1864,9 +1861,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Opts.FunctionReturnThunks = static_cast<unsigned>(Val);
   }
 
-  if (Opts.PrepareForLTO && Args.hasArg(OPT_mibt_seal))
-    Opts.IBTSeal = 1;
-
   for (auto *A :
        Args.filtered(OPT_mlink_bitcode_file, OPT_mlink_builtin_bitcode)) {
     CodeGenOptions::BitcodeFileToLink F;
@@ -2006,7 +2000,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsHotnessThreshold = *ResultOrErr;
       if ((!Opts.DiagnosticsHotnessThreshold ||
-           Opts.DiagnosticsHotnessThreshold.value() > 0) &&
+           *Opts.DiagnosticsHotnessThreshold > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_hotness_requires_pgo)
             << "-fdiagnostics-hotness-threshold=";
@@ -2023,7 +2017,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsMisExpectTolerance = *ResultOrErr;
       if ((!Opts.DiagnosticsMisExpectTolerance ||
-           Opts.DiagnosticsMisExpectTolerance.value() > 0) &&
+           *Opts.DiagnosticsMisExpectTolerance > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_misexpect_requires_pgo)
             << "-fdiagnostics-misexpect-tolerance=";
@@ -2529,7 +2523,8 @@ static const auto &getFrontendActionTable() {
 }
 
 /// Maps command line option to frontend action.
-static Optional<frontend::ActionKind> getFrontendAction(OptSpecifier &Opt) {
+static std::optional<frontend::ActionKind>
+getFrontendAction(OptSpecifier &Opt) {
   for (const auto &ActionOpt : getFrontendActionTable())
     if (ActionOpt.second == Opt.getID())
       return ActionOpt.first;
@@ -2538,7 +2533,7 @@ static Optional<frontend::ActionKind> getFrontendAction(OptSpecifier &Opt) {
 }
 
 /// Maps frontend action to command line option.
-static Optional<OptSpecifier>
+static std::optional<OptSpecifier>
 getProgramActionOpt(frontend::ActionKind ProgramAction) {
   for (const auto &ActionOpt : getFrontendActionTable())
     if (ActionOpt.first == ProgramAction)
@@ -2563,7 +2558,7 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
 #include "clang/Driver/Options.inc"
 #undef FRONTEND_OPTION_WITH_MARSHALLING
 
-  Optional<OptSpecifier> ProgramActionOpt =
+  std::optional<OptSpecifier> ProgramActionOpt =
       getProgramActionOpt(Opts.ProgramAction);
 
   // Generating a simple flag covers most frontend actions.
@@ -2742,7 +2737,7 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.ProgramAction = frontend::ParseSyntaxOnly;
   if (const Arg *A = Args.getLastArg(OPT_Action_Group)) {
     OptSpecifier Opt = OptSpecifier(A->getOption().getID());
-    Optional<frontend::ActionKind> ProgramAction = getFrontendAction(Opt);
+    std::optional<frontend::ActionKind> ProgramAction = getFrontendAction(Opt);
     assert(ProgramAction && "Option specifier not in Action_Group.");
 
     if (ProgramAction == frontend::ASTDump &&
@@ -3106,6 +3101,9 @@ static void GenerateHeaderSearchArgs(HeaderSearchOptions &Opts,
     GenerateArg(Args, Opt, P.Prefix, SA);
   }
 
+  for (const std::string &F : Opts.VFSStatCacheFiles)
+    GenerateArg(Args, OPT_ivfsstatcache, F, SA);
+
   for (const std::string &F : Opts.VFSOverlayFiles)
     GenerateArg(Args, OPT_ivfsoverlay, F, SA);
 }
@@ -3238,6 +3236,9 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
        Args.filtered(OPT_system_header_prefix, OPT_no_system_header_prefix))
     Opts.AddSystemHeaderPrefix(
         A->getValue(), A->getOption().matches(OPT_system_header_prefix));
+
+  for (const auto *A : Args.filtered(OPT_ivfsstatcache))
+    Opts.AddVFSStatCacheFile(A->getValue());
 
   for (const auto *A : Args.filtered(OPT_ivfsoverlay))
     Opts.AddVFSOverlayFile(A->getValue());
@@ -4871,12 +4872,31 @@ clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
+                                   CI.getHeaderSearchOpts().VFSStatCacheFiles,
                                    Diags, std::move(BaseFS));
 }
 
 IntrusiveRefCntPtr<llvm::vfs::FileSystem> clang::createVFSFromOverlayFiles(
-    ArrayRef<std::string> VFSOverlayFiles, DiagnosticsEngine &Diags,
+    ArrayRef<std::string> VFSOverlayFiles,
+    ArrayRef<std::string> VFSStatCacheFiles, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
+  for (const auto &File : VFSStatCacheFiles) {
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buffer =
+        BaseFS->getBufferForFile(File);
+    if (!Buffer) {
+      Diags.Report(diag::err_missing_vfs_stat_cache_file) << File;
+      continue;
+    }
+
+    auto StatCache =
+        llvm::vfs::StatCacheFileSystem::create(std::move(*Buffer), BaseFS);
+
+    if (errorToBool(StatCache.takeError()))
+      Diags.Report(diag::err_invalid_vfs_stat_cache) << File;
+    else
+      BaseFS = std::move(*StatCache);
+  }
+
   if (VFSOverlayFiles.empty())
     return BaseFS;
 
