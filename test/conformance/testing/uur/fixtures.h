@@ -315,7 +315,9 @@ struct urUSMDeviceAllocTest : urQueueTest {
         ur_usm_mem_flags_t flags;
         ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
-        ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        ASSERT_SUCCESS(
+            urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        EXPECT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));
     }
@@ -336,7 +338,9 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
         ur_usm_mem_flags_t flags;
         ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, &flags, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
-        ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0,
+                                          nullptr, &event));
+        EXPECT_SUCCESS(urQueueFlush(this->queue));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));
     }

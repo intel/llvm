@@ -22,13 +22,17 @@ TEST_P(urUSMHostAllocTest, Success) {
 
     // Set 0
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
     ASSERT_EQ(*ptr, 0);
 
     // Set 1, in all bytes of int
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 0, nullptr, &event));
+    EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
     // replicate it on host
