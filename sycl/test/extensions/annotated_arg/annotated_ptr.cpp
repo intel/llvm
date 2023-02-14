@@ -15,7 +15,7 @@ using annotated_ptr_t1 =
     annotated_ptr<int, decltype(properties(awidth<32>, dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int, decltype(properties(conduit, register_map))>;
+    annotated_ptr<int, decltype(properties(conduit, register_map, alignment<8>))>;
 
 using annotated_ptr_t3 = annotated_ptr<int, decltype(properties(awidth<32>))>;
 
@@ -28,10 +28,9 @@ struct MyIP {
 
   void operator()() const {
     // const int *p = a;  // ERR: converting to raw pointer not allowed
-    for (int i = 0; i < b; i++) {
-      a[i] = i;
+    for (int i = 0; i < b - 2; i++) {
+      a[i + 2] = a[i + 1] + a[i];
     }
-    *a += 1;
     *(a + 1) *= 5;
   }
 };
@@ -45,6 +44,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Create the SYCL device queue
   queue q(sycl::ext::intel::fpga_selector_v);
   auto raw = malloc_shared<int>(5, q);
+  for (int i = 0; i < 5; i++) {
+    *raw = i;
+  }
 
   // default ctor
   annotated_ptr_t3 a1;
@@ -111,15 +113,25 @@ void TestVectorAddWithAnnotatedMMHosts() {
     arg31[i] = arg31[i - 1];
   }
 
-  // has/get property
-  static_assert(annotated_ptr_t1::has_property<awidth_key>(), "has property 1");
-  static_assert(annotated_ptr_t1::get_property<awidth_key>() == awidth<32>,
-                "get property 1");
-  static_assert(annotated_ptr_t1::has_property<latency_key>() == false,
-                "has property 2");
+  // prefix/postfix increment/decrement
+  for (int i = 0; i < 5; i++) {
+    *arg31 = i;
+    arg31++;
+    --arg31;
+  }
 
-  static_assert(annotated_ptr_t3::has_property<dwidth_key>() == false,
-                "has property 3");
+  // has/get property
+  static_assert(annotated_ptr_t1::has_property<awidth_key>(), "has_property 1");
+  static_assert(annotated_ptr_t1::get_property<awidth_key>() == awidth<32>,
+                "get_property 1");
+  static_assert(annotated_ptr_t2::has_property<latency_key>() == false,
+                "has_property 2");
+
+  static_assert(annotated_ptr_t2::has_property<alignment_key>(),
+                "has_property 3");
+
+  static_assert(annotated_ptr_t2::get_property<alignment_key>() == alignment<8>,
+                "get_property 3");
   // auto dwidth_prop = annotated_ptr_t3::get_property<dwidth_key>();   // ERR
 
   q.submit([&](handler &h) { h.single_task(MyIP{raw, 5}); }).wait();

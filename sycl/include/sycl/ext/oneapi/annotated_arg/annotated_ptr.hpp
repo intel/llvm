@@ -153,8 +153,8 @@ public:
   explicit annotated_ptr(const annotated_ptr<T2, PropertyList2> &other) noexcept
       : ptr(other.ptr) {
     static_assert(std::is_convertible<T2 *, T *>::value,
-                  "The underlying data type of the input annotated_ptr is not "
-                  "compatible");
+                  "The underlying pointer type of the input annotated_ptr is not "
+                  "convertible to the target pointer type");
 
     static_assert(
         std::is_same<
@@ -174,8 +174,8 @@ public:
                          const PropertyListV &proplist) noexcept
       : ptr(other.ptr) {
     static_assert(std::is_convertible<T2 *, T *>::value,
-                  "The underlying data type of the input annotated_ptr is not "
-                  "compatible");
+                  "The underlying pointer type of the input annotated_ptr is not "
+                  "convertible to the target pointer type");
 
     static_assert(
         std::is_same<property_list_t, detail::merged_properties_t<
