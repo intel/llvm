@@ -14,13 +14,12 @@
 #include "ur_util.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////
-class __urdlllocal proxy_layer_context_t
-{
-    public:
-        ur_api_version_t version = UR_API_VERSION_0_9;
+class __urdlllocal proxy_layer_context_t {
+  public:
+    ur_api_version_t version = UR_API_VERSION_0_9;
 
-        virtual bool isEnabled() = 0;
-        virtual ur_result_t init(ur_dditable_t *dditable) = 0;
+    virtual bool isEnabled() = 0;
+    virtual ur_result_t init(ur_dditable_t *dditable) = 0;
 };
 
 #endif /* UR_PROXY_LAYER_H */
