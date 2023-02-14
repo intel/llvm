@@ -39,15 +39,15 @@ class OperationSideEffects {
                                        const OperationSideEffects &);
 
 public:
-  OperationSideEffects(const Operation &op) : op(op) {
+  OperationSideEffects(const Operation &op, const AliasAnalysis &aliasAnalysis)
+      : op(op), aliasAnalysis(aliasAnalysis) {
     if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
       SmallVector<MemoryEffects::EffectInstance, 1> effects;
       memEffect.getEffects(effects);
 
       // Classify the side effects of the operation.
       for (MemoryEffects::EffectInstance EI : effects) {
-        const MemoryEffects::Effect *effect = EI.getEffect();
-        TypeSwitch<const MemoryEffects::Effect *>(effect)
+        TypeSwitch<const MemoryEffects::Effect *>(EI.getEffect())
             .Case<MemoryEffects::Read>(
                 [&](auto) { readResources.push_back(EI); })
             .Case<MemoryEffects::Write>(
@@ -80,42 +80,36 @@ public:
   /// Returns true if the given operation \p other has side effects that
   /// conflict with the side effects summarized in this class, and false
   /// otherwise.
-  bool conflictsWith(const Operation &other,
-                     AliasAnalysis &aliasAnalysis) const;
+  bool conflictsWith(const Operation &other) const;
 
-  /// Returns the operation in the given block \p block with side effects that
-  /// conflict with the side effects summarized in this class, and a
-  /// std::nullopt if none is found.
-  /// If \p point is given, only operations that appear before the it are
-  /// considered.
+  /// Returns the first operation in the given block \p block with side effects
+  /// that conflict with the side effects summarized in this class, and a
+  /// std::nullopt if none is found. If \p point is given, only operations that
+  /// appear before it are considered.
   Optional<Operation *>
-  conflictsWithOperationInBlock(Block &block, AliasAnalysis &aliasAnalysis,
-                                Operation *point = nullptr) const;
+  conflictsWithOperationInBlock(Block &block, Operation *point = nullptr) const;
 
-  /// Returns the operation in the given region \p rgn with side effects that
-  /// conflict with the side effects summarized in this class, and a
+  /// Returns the first operation in the given region \p rgn with side effects
+  /// that conflict with the side effects summarized in this class, and a
   /// std::nullopt if none is found.
-  Optional<Operation *>
-  conflictsWithOperationInRegion(Region &rgn,
-                                 AliasAnalysis &aliasAnalysis) const;
+  Optional<Operation *> conflictsWithOperationInRegion(Region &rgn) const;
 
-  /// Returns the operation in the given loop \p loop with side effects that
-  /// conflict with the side effects summarized in this class, and a
+  /// Returns the first operation in the given loop \p loop with side effects
+  /// that conflict with the side effects summarized in this class, and a
   /// std::nullopt if none is found.
   Optional<Operation *>
-  conflictsWithOperationInLoop(LoopLikeOpInterface loop,
-                               AliasAnalysis &aliasAnalysis) const;
+  conflictsWithOperationInLoop(LoopLikeOpInterface loop) const;
 
 private:
-  // The operation associated with the side effects.
-  const Operation &op;
-  // Side effects associated with reading resources.
+  const Operation &op; /// Operation associated with the side effects.
+  const AliasAnalysis &aliasAnalysis; /// Alias Analysis reference.
+  /// Side effects associated with reading resources.
   SmallVector<MemoryEffects::EffectInstance> readResources;
-  // Side effects associated with writing resources.
+  /// Side effects associated with writing resources.
   SmallVector<MemoryEffects::EffectInstance> writeResources;
-  // Side effects associated with freeing resources.
+  /// Side effects associated with freeing resources.
   SmallVector<MemoryEffects::EffectInstance> freeResources;
-  // Side effects associated with allocating resources.
+  /// Side effects associated with allocating resources.
   SmallVector<MemoryEffects::EffectInstance> allocateResources;
 };
 
@@ -159,10 +153,89 @@ operator<<(llvm::raw_ostream &OS, const OperationSideEffects &ME) {
   return OS;
 }
 
+class LoopGuardBuilder {
+public:
+  static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface loop);
+
+  LoopGuardBuilder(LoopLikeOpInterface loop) : builder(loop){};
+  LoopGuardBuilder(const LoopGuardBuilder &) = delete;
+  LoopGuardBuilder(LoopGuardBuilder &&) = delete;
+  void operator=(const LoopGuardBuilder &) = delete;
+  void operator=(LoopGuardBuilder &&) = delete;
+  virtual ~LoopGuardBuilder() = default;
+
+  virtual void guardLoop() const = 0;
+
+protected:
+  mutable OpBuilder builder;
+};
+
+class SCFForGuardBuilder : public LoopGuardBuilder {
+public:
+  SCFForGuardBuilder(scf::ForOp loop) : LoopGuardBuilder(loop), loop(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  Value createGuardExpr() const;
+  scf::IfOp createGuard() const;
+  void replaceUsesOfLoopReturnValues(scf::IfOp &) const;
+
+  mutable scf::ForOp loop;
+};
+
+class SCFParallelGuardBuilder : public LoopGuardBuilder {
+public:
+  SCFParallelGuardBuilder(scf::ParallelOp loop)
+      : LoopGuardBuilder(loop), loop(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  Value createGuardExpr() const;
+  scf::IfOp createGuard() const;
+  void replaceUsesOfLoopReturnValues(scf::IfOp &) const;
+
+  mutable scf::ParallelOp loop;
+};
+
+class AffineForGuardBuilder : public LoopGuardBuilder {
+public:
+  AffineForGuardBuilder(AffineForOp loop)
+      : LoopGuardBuilder(loop), loop(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  IntegerSet createGuardExpr() const;
+  AffineIfOp createGuard() const;
+  void replaceUsesOfLoopReturnValues(AffineIfOp &) const;
+
+  mutable AffineForOp loop;
+};
+
+class AffineParallelGuardBuilder : public LoopGuardBuilder {
+public:
+  AffineParallelGuardBuilder(AffineParallelOp loop)
+      : LoopGuardBuilder(loop), loop(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  IntegerSet createGuardExpr() const;
+  AffineIfOp createGuard() const;
+  void replaceUsesOfLoopReturnValues(AffineIfOp &) const;
+
+  mutable AffineParallelOp loop;
+};
+
 } // namespace
 
-bool OperationSideEffects::conflictsWith(const Operation &other,
-                                         AliasAnalysis &aliasAnalysis) const {
+//===----------------------------------------------------------------------===//
+// OperationSideEffects
+//===----------------------------------------------------------------------===//
+
+bool OperationSideEffects::conflictsWith(const Operation &other) const {
   if (&op == &other)
     return false;
 
@@ -173,7 +246,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
   if (hasRecursiveEffects) {
     for (Region &region : const_cast<Operation &>(other).getRegions())
       for (Operation &innerOp : region.getOps())
-        if (conflictsWith(innerOp, aliasAnalysis))
+        if (conflictsWith(innerOp))
           return true;
     return false;
   }
@@ -181,7 +254,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
   // If the given operation has side effects, check whether they conflict with
   // the side effects summarized in this class.
   if (auto MEI = dyn_cast<MemoryEffectOpInterface>(other)) {
-    OperationSideEffects sideEffects(other);
+    OperationSideEffects sideEffects(other, aliasAnalysis);
 
     // Checks for a conflicts on the given resource 'res' by applying the
     // supplied predicate function 'hasConflict'.
@@ -215,7 +288,8 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
                   return false;
 
                 AliasResult aliasRes =
-                    aliasAnalysis.alias(EI.getValue(), readRes.getValue());
+                    const_cast<AliasAnalysis &>(aliasAnalysis)
+                        .alias(EI.getValue(), readRes.getValue());
                 if (aliasRes.isNo())
                   return false;
 
@@ -235,7 +309,8 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
             writeResources, [&](const MemoryEffects::EffectInstance &writeRes) {
               auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
                 AliasResult aliasRes =
-                    aliasAnalysis.alias(EI.getValue(), writeRes.getValue());
+                    const_cast<AliasAnalysis &>(aliasAnalysis)
+                        .alias(EI.getValue(), writeRes.getValue());
                 if (aliasRes.isNo())
                   return false;
 
@@ -255,7 +330,8 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
             freeResources, [&](const MemoryEffects::EffectInstance &freeRes) {
               auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
                 AliasResult aliasRes =
-                    aliasAnalysis.alias(EI.getValue(), freeRes.getValue());
+                    const_cast<AliasAnalysis &>(aliasAnalysis)
+                        .alias(EI.getValue(), freeRes.getValue());
                 if (aliasRes.isNo())
                   return false;
 
@@ -272,22 +348,22 @@ bool OperationSideEffects::conflictsWith(const Operation &other,
   return false;
 }
 
-Optional<Operation *> OperationSideEffects::conflictsWithOperationInBlock(
-    Block &block, AliasAnalysis &aliasAnalysis, Operation *point) const {
+Optional<Operation *>
+OperationSideEffects::conflictsWithOperationInBlock(Block &block,
+                                                    Operation *point) const {
   for (Operation &other : block) {
     if (point && !other.isBeforeInBlock(point))
       break;
-    if (conflictsWith(other, aliasAnalysis))
+    if (conflictsWith(other))
       return &other;
   }
   return std::nullopt;
 }
 
-Optional<Operation *> OperationSideEffects::conflictsWithOperationInRegion(
-    Region &rgn, AliasAnalysis &aliasAnalysis) const {
+Optional<Operation *>
+OperationSideEffects::conflictsWithOperationInRegion(Region &rgn) const {
   for (Block &block : rgn) {
-    Optional<Operation *> conflictingOp =
-        conflictsWithOperationInBlock(block, aliasAnalysis);
+    Optional<Operation *> conflictingOp = conflictsWithOperationInBlock(block);
     if (conflictingOp.has_value())
       return conflictingOp.value();
   }
@@ -295,18 +371,278 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInRegion(
 }
 
 Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
-    LoopLikeOpInterface loop, AliasAnalysis &aliasAnalysis) const {
-  return conflictsWithOperationInRegion(loop.getLoopBody(), aliasAnalysis);
+    LoopLikeOpInterface loop) const {
+  return conflictsWithOperationInRegion(loop.getLoopBody());
 }
 
-/// Determine whether any operation in the \p loop has a conflict with the given
-/// operation \p op that prevents hoisting the operation out of the loop.
-/// Operations that are already known to have no hoisting preventing conflicts
-/// in the loop are given in \p willBeMoved.
+//===----------------------------------------------------------------------===//
+// LoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+std::unique_ptr<LoopGuardBuilder>
+LoopGuardBuilder::create(LoopLikeOpInterface loop) {
+  return TypeSwitch<Operation *, std::unique_ptr<LoopGuardBuilder>>(
+             (Operation *)loop)
+      .Case<scf::ForOp>(
+          [](auto loop) { return std::make_unique<SCFForGuardBuilder>(loop); })
+      .Case<scf::ParallelOp>([](auto loop) {
+        return std::make_unique<SCFParallelGuardBuilder>(loop);
+      })
+      .Case<AffineForOp>([](auto loop) {
+        return std::make_unique<AffineForGuardBuilder>(loop);
+      })
+      .Case<AffineParallelOp>([](auto loop) {
+        return std::make_unique<AffineParallelGuardBuilder>(loop);
+      })
+      .Default([](auto) { return nullptr; });
+}
+
+//===----------------------------------------------------------------------===//
+// SCFForLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+void SCFForGuardBuilder::guardLoop() const {
+  scf::IfOp ifOp = createGuard();
+  loop->moveBefore(ifOp.thenYield());
+  replaceUsesOfLoopReturnValues(ifOp);
+
+  bool yieldsResults = !loop->getResults().empty();
+  if (!yieldsResults)
+    ifOp.elseBlock()->erase();
+}
+
+Value SCFForGuardBuilder::createGuardExpr() const {
+  return builder.create<arith::CmpIOp>(
+      loop.getLoc(), arith::CmpIPredicate::sle,
+      builder.create<arith::AddIOp>(loop.getLoc(), loop.getLowerBound(),
+                                    loop.getStep()),
+      loop.getUpperBound());
+}
+
+scf::IfOp SCFForGuardBuilder::createGuard() const {
+  TypeRange types(loop->getResults());
+  return builder.create<scf::IfOp>(
+      loop.getLoc(), types, createGuardExpr(),
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop.getInitArgs());
+      });
+}
+
+void SCFForGuardBuilder::replaceUsesOfLoopReturnValues(scf::IfOp &ifOp) const {
+  // Replace uses of the loop return value(s) with the value(s) yielded by the
+  // if operation.
+  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
+    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
+      Block *useBlock = op.getOwner()->getBlock();
+      return useBlock != ifOp.thenBlock();
+    });
+}
+
+//===----------------------------------------------------------------------===//
+// SCFParallelLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+void SCFParallelGuardBuilder::guardLoop() const {
+  scf::IfOp ifOp = createGuard();
+  loop->moveBefore(ifOp.thenYield());
+  replaceUsesOfLoopReturnValues(ifOp);
+}
+
+Value SCFParallelGuardBuilder::createGuardExpr() const {
+  Value cond;
+  for (auto pair :
+       llvm::zip(loop.getLowerBound(), loop.getUpperBound(), loop.getStep())) {
+    const Value val = builder.create<arith::CmpIOp>(
+        loop.getLoc(), arith::CmpIPredicate::sle,
+        builder.create<arith::AddIOp>(loop.getLoc(), std::get<0>(pair),
+                                      std::get<2>(pair)),
+        std::get<1>(pair));
+    cond = cond ? static_cast<Value>(
+                      builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
+                : val;
+  }
+  return cond;
+}
+
+scf::IfOp SCFParallelGuardBuilder::createGuard() const {
+  return builder.create<scf::IfOp>(loop.getLoc(), TypeRange(),
+                                   createGuardExpr());
+}
+
+void SCFParallelGuardBuilder::replaceUsesOfLoopReturnValues(
+    scf::IfOp &ifOp) const {
+  // TODO
+}
+
+//===----------------------------------------------------------------------===//
+// AffineForLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+void AffineForGuardBuilder::guardLoop() const {
+  AffineIfOp ifOp = createGuard();
+
+  bool yieldsResults = !loop.getResults().empty();
+  if (yieldsResults) {
+    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getResults());
+    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
+                                                    loop.getIterOperands());
+  }
+
+  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
+  replaceUsesOfLoopReturnValues(ifOp);
+}
+
+IntegerSet AffineForGuardBuilder::createGuardExpr() const {
+  SmallVector<AffineExpr, 2> exprs;
+  SmallVector<bool, 2> eqflags;
+
+  const AffineMap lbMap = loop.getLowerBoundMap();
+  const AffineMap ubMap = loop.getUpperBoundMap();
+
+  for (AffineExpr ub : ubMap.getResults()) {
+    SmallVector<AffineExpr, 4> symbols;
+    for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
+      symbols.push_back(
+          getAffineSymbolExpr(idx + lbMap.getNumSymbols(), loop.getContext()));
+
+    SmallVector<AffineExpr, 4> dims;
+    for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
+      dims.push_back(
+          getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
+
+    ub = ub.replaceDimsAndSymbols(dims, symbols);
+
+    for (AffineExpr lb : lbMap.getResults()) {
+      // Bound is whether this expr >= 0, which since we want ub > lb,
+      // we rewrite as follows.
+      exprs.push_back(ub - lb - loop.getStep());
+      eqflags.push_back(false);
+    }
+  }
+
+  return IntegerSet::get(
+      /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
+      /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
+      eqflags);
+}
+
+AffineIfOp AffineForGuardBuilder::createGuard() const {
+  SmallVector<Value> values;
+  OperandRange lb_ops = loop.getLowerBoundOperands(),
+               ub_ops = loop.getUpperBoundOperands();
+
+  std::copy(lb_ops.begin(),
+            lb_ops.begin() + loop.getLowerBoundMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin(),
+            ub_ops.begin() + loop.getUpperBoundMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(lb_ops.begin() + loop.getLowerBoundMap().getNumDims(), lb_ops.end(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin() + loop.getUpperBoundMap().getNumDims(), ub_ops.end(),
+            std::back_inserter(values));
+
+  bool yieldsResults = !loop.getResults().empty();
+  TypeRange types(loop.getResults());
+  return builder.create<AffineIfOp>(loop.getLoc(), types, createGuardExpr(),
+                                    values, yieldsResults ? true : false);
+}
+
+void AffineForGuardBuilder::replaceUsesOfLoopReturnValues(
+    AffineIfOp &ifOp) const {
+  // Replace uses of the loop return value(s) with the value(s) yielded by the
+  // if operation.
+  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
+    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
+      Block *useBlock = op.getOwner()->getBlock();
+      return useBlock != ifOp.getThenBlock();
+    });
+}
+
+//===----------------------------------------------------------------------===//
+// AffineParallelLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+void AffineParallelGuardBuilder::guardLoop() const {
+  AffineIfOp ifOp = createGuard();
+  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
+  replaceUsesOfLoopReturnValues(ifOp);
+}
+
+IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
+  SmallVector<AffineExpr, 2> exprs;
+  SmallVector<bool, 2> eqflags;
+
+  for (auto step : llvm::enumerate(loop.getSteps())) {
+    for (AffineExpr ub : loop.getUpperBoundMap(step.index()).getResults()) {
+      SmallVector<AffineExpr, 4> symbols;
+      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols();
+           ++idx)
+        symbols.push_back(getAffineSymbolExpr(
+            idx + loop.getLowerBoundsMap().getNumSymbols(), loop.getContext()));
+
+      SmallVector<AffineExpr, 4> dims;
+      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
+        dims.push_back(getAffineDimExpr(
+            idx + loop.getLowerBoundsMap().getNumDims(), loop.getContext()));
+
+      ub = ub.replaceDimsAndSymbols(dims, symbols);
+
+      for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
+        // Bound is whether this expr >= 0, which since we want ub > lb,
+        // we rewrite as follows.
+        exprs.push_back(ub - lb - step.value());
+        eqflags.push_back(false);
+      }
+    }
+  }
+
+  return IntegerSet::get(
+      /*dim*/ loop.getLowerBoundsMap().getNumDims() +
+          loop.getUpperBoundsMap().getNumDims(),
+      /*symbols*/ loop.getLowerBoundsMap().getNumSymbols() +
+          loop.getUpperBoundsMap().getNumSymbols(),
+      exprs, eqflags);
+}
+
+AffineIfOp AffineParallelGuardBuilder::createGuard() const {
+  SmallVector<Value> values;
+  OperandRange lb_ops = loop.getLowerBoundsOperands(),
+               ub_ops = loop.getUpperBoundsOperands();
+
+  std::copy(lb_ops.begin(),
+            lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin(),
+            ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
+            std::back_inserter(values));
+  std::copy(lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
+            lb_ops.end(), std::back_inserter(values));
+  std::copy(ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
+            ub_ops.end(), std::back_inserter(values));
+
+  return builder.create<AffineIfOp>(loop.getLoc(), TypeRange(),
+                                    createGuardExpr(), values,
+                                    /*else*/ false);
+}
+
+void AffineParallelGuardBuilder::replaceUsesOfLoopReturnValues(
+    AffineIfOp &ifOp) const {
+  // TODO
+}
+
+/// Determine whether any operation in the \p loop has a conflict with the
+/// given operation \p op that prevents hoisting the operation out of the
+/// loop. Operations that are already known to have no hoisting preventing
+/// conflicts in the loop are given in \p willBeMoved.
 static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
-                               AliasAnalysis &aliasAnalysis) {
-  const OperationSideEffects sideEffects(op);
+                               const AliasAnalysis &aliasAnalysis) {
+  const OperationSideEffects sideEffects(op, aliasAnalysis);
 
   Optional<Operation *> conflictingOp =
       TypeSwitch<Operation *, Optional<Operation *>>((Operation *)loop)
@@ -314,14 +650,13 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
             // Check for conflicts with (only) other previous operations
             // in the same block.
             Operation *point = &op;
-            return sideEffects.conflictsWithOperationInBlock(
-                *op.getBlock(), aliasAnalysis, point);
+            return sideEffects.conflictsWithOperationInBlock(*op.getBlock(),
+                                                             point);
           })
           .Default([&](auto loop) {
             // Check for conflicts with all other operations in the same
             // block.
-            return sideEffects.conflictsWithOperationInBlock(*op.getBlock(),
-                                                             aliasAnalysis);
+            return sideEffects.conflictsWithOperationInBlock(*op.getBlock());
           });
 
   if (conflictingOp.has_value()) {
@@ -341,8 +676,7 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   bool conflict = false;
   if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op)) {
     op.walk([&](Operation *in) {
-      if (!willBeMoved.count(in) &&
-          sideEffects.conflictsWith(*in, aliasAnalysis)) {
+      if (!willBeMoved.count(in) && sideEffects.conflictsWith(*in)) {
         LLVM_DEBUG(llvm::dbgs().indent(2)
                    << "conflicting operation: " << *in << "\n");
         conflict = true;
@@ -360,7 +694,7 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
 /// to be loop invariant (and therefore will be moved outside of the loop).
 static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
                          const SmallPtrSetImpl<Operation *> &willBeMoved,
-                         AliasAnalysis &aliasAnalysis) {
+                         const AliasAnalysis &aliasAnalysis) {
   // Returns true if the given value can be moved outside of the loop, and
   // false otherwise. A value cannot be moved outside of the loop if its
   // operands are not defined outside of the loop and cannot themselves be
@@ -407,7 +741,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   }
 
   // Do not hoist operations that allocate a resource.
-  const OperationSideEffects sideEffects(op);
+  const OperationSideEffects sideEffects(op, aliasAnalysis);
   if (sideEffects.allocatesResource()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
@@ -453,7 +787,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
 // loop \p loop.
 static void
 collectHoistableOperations(LoopLikeOpInterface loop,
-                           AliasAnalysis &aliasAnalysis,
+                           const AliasAnalysis &aliasAnalysis,
                            SmallVectorImpl<Operation *> &opsToMove) {
   // Do not use walk here, as we do not want to go into nested regions and
   // hoist operations from there. These regions might have semantics unknown
@@ -470,190 +804,8 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   }
 }
 
-/// Create a loop guard for an SCF parallel loop.
-[[maybe_unused]] static void createLoopGuard(scf::ParallelOp loop) {
-  OpBuilder b(loop);
-  Value cond;
-  for (auto pair :
-       llvm::zip(loop.getLowerBound(), loop.getUpperBound(), loop.getStep())) {
-    const Value val = b.create<arith::CmpIOp>(
-        loop.getLoc(), arith::CmpIPredicate::sle,
-        b.create<arith::AddIOp>(loop.getLoc(), std::get<0>(pair),
-                                std::get<2>(pair)),
-        std::get<1>(pair));
-    cond = cond ? static_cast<Value>(
-                      b.create<arith::AndIOp>(loop.getLoc(), cond, val))
-                : val;
-  }
-
-  auto ifOp = b.create<scf::IfOp>(loop.getLoc(), TypeRange(), cond);
-  loop->moveBefore(ifOp.thenYield());
-}
-
-/// Create a loop guard for an affine parallel loop.
-[[maybe_unused]] static void createLoopGuard(AffineParallelOp loop) {
-  OpBuilder b(loop);
-  SmallVector<AffineExpr, 2> exprs;
-  SmallVector<bool, 2> eqflags;
-
-  for (auto step : llvm::enumerate(loop.getSteps())) {
-    for (AffineExpr ub : loop.getUpperBoundMap(step.index()).getResults()) {
-      SmallVector<AffineExpr, 4> symbols;
-      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumSymbols();
-           ++idx)
-        symbols.push_back(getAffineSymbolExpr(
-            idx + loop.getLowerBoundsMap().getNumSymbols(), loop.getContext()));
-
-      SmallVector<AffineExpr, 4> dims;
-      for (unsigned idx = 0; idx < loop.getUpperBoundsMap().getNumDims(); ++idx)
-        dims.push_back(getAffineDimExpr(
-            idx + loop.getLowerBoundsMap().getNumDims(), loop.getContext()));
-
-      ub = ub.replaceDimsAndSymbols(dims, symbols);
-
-      for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
-        // Bound is whether this expr >= 0, which since we want ub > lb,
-        // we rewrite as follows.
-        exprs.push_back(ub - lb - step.value());
-        eqflags.push_back(false);
-      }
-    }
-  }
-
-  SmallVector<Value> values;
-  OperandRange lb_ops = loop.getLowerBoundsOperands(),
-               ub_ops = loop.getUpperBoundsOperands();
-
-  std::copy(lb_ops.begin(),
-            lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(ub_ops.begin(),
-            ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(lb_ops.begin() + loop.getLowerBoundsMap().getNumDims(),
-            lb_ops.end(), std::back_inserter(values));
-  std::copy(ub_ops.begin() + loop.getUpperBoundsMap().getNumDims(),
-            ub_ops.end(), std::back_inserter(values));
-
-  auto iset = IntegerSet::get(
-      /*dim*/ loop.getLowerBoundsMap().getNumDims() +
-          loop.getUpperBoundsMap().getNumDims(),
-      /*symbols*/ loop.getLowerBoundsMap().getNumSymbols() +
-          loop.getUpperBoundsMap().getNumSymbols(),
-      exprs, eqflags);
-  auto ifOp = b.create<AffineIfOp>(loop.getLoc(), TypeRange(), iset, values,
-                                   /*else*/ false);
-  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
-}
-
-[[maybe_unused]] static void createLoopGuard(scf::ForOp loop) {
-  OpBuilder b(loop);
-  Location loc = loop->getLoc();
-  auto cond = b.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sle,
-      b.create<arith::AddIOp>(loc, loop.getLowerBound(), loop.getStep()),
-      loop.getUpperBound());
-
-  bool yieldsResults = !loop->getResults().empty();
-  TypeRange types(loop->getResults());
-  auto ifOp = b.create<scf::IfOp>(
-      loc, types, cond,
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop.getResults());
-      },
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop.getInitArgs());
-      });
-
-  loop->moveBefore(ifOp.thenBlock()->getTerminator());
-
-  // Replace uses of the loop return value(s) with the value(s) yielded by the
-  // if operation.
-  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
-    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
-      Block *useBlock = op.getOwner()->getBlock();
-      return useBlock != ifOp.thenBlock();
-    });
-
-  if (!yieldsResults)
-    ifOp.elseBlock()->erase();
-}
-
-/// Create a loop guard for an affine 'for' loop.
-[[maybe_unused]] static void createLoopGuard(AffineForOp loop) {
-  OpBuilder b(loop);
-  SmallVector<AffineExpr, 2> exprs;
-  SmallVector<bool, 2> eqflags;
-
-  const AffineMap lbMap = loop.getLowerBoundMap();
-  const AffineMap ubMap = loop.getUpperBoundMap();
-
-  for (AffineExpr ub : ubMap.getResults()) {
-    SmallVector<AffineExpr, 4> symbols;
-    for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
-      symbols.push_back(
-          getAffineSymbolExpr(idx + lbMap.getNumSymbols(), loop.getContext()));
-
-    SmallVector<AffineExpr, 4> dims;
-    for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
-      dims.push_back(
-          getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
-
-    ub = ub.replaceDimsAndSymbols(dims, symbols);
-
-    for (AffineExpr lb : lbMap.getResults()) {
-      // Bound is whether this expr >= 0, which since we want ub > lb,
-      // we rewrite as follows.
-      exprs.push_back(ub - lb - loop.getStep());
-      eqflags.push_back(false);
-    }
-  }
-
-  SmallVector<Value> values;
-  OperandRange lb_ops = loop.getLowerBoundOperands(),
-               ub_ops = loop.getUpperBoundOperands();
-
-  std::copy(lb_ops.begin(),
-            lb_ops.begin() + loop.getLowerBoundMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(ub_ops.begin(),
-            ub_ops.begin() + loop.getUpperBoundMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(lb_ops.begin() + loop.getLowerBoundMap().getNumDims(), lb_ops.end(),
-            std::back_inserter(values));
-  std::copy(ub_ops.begin() + loop.getUpperBoundMap().getNumDims(), ub_ops.end(),
-            std::back_inserter(values));
-
-  auto iset = IntegerSet::get(
-      /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
-      /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
-      eqflags);
-
-  bool yieldsResults = !loop.getResults().empty();
-  TypeRange types(loop.getResults());
-  auto ifOp = b.create<AffineIfOp>(loop.getLoc(), types, iset, values,
-                                   yieldsResults ? true : false);
-
-  if (yieldsResults) {
-    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    loop.getResults());
-    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    loop.getIterOperands());
-  }
-
-  loop->moveBefore(ifOp.getThenBlock()->getTerminator());
-
-  // Replace uses of the loop return value(s) with the value(s) yielded by the
-  // if operation.
-  for (auto it : llvm::zip(loop.getResults(), ifOp.getResults()))
-    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
-      Block *useBlock = op.getOwner()->getBlock();
-      return useBlock != ifOp.getThenBlock();
-    });
-}
-
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
-                                    AliasAnalysis &aliasAnalysis) {
+                                    const AliasAnalysis &aliasAnalysis) {
   Operation *loopOp = loop;
   if (!isa<scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
     return 0;
@@ -663,20 +815,13 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (opsToMove.empty())
     return 0;
 
-  bool guardedLoop =
-      TypeSwitch<Operation *, bool>(loopOp)
-          .Case<scf::ParallelOp, AffineParallelOp, AffineForOp>([&](auto loop) {
-            createLoopGuard(loop);
-            return true;
-          })
-          .Default([](auto) { return false; });
+  LoopGuardBuilder::create(loop)->guardLoop();
 
   size_t numOpsHoisted = 0;
-  if (guardedLoop)
-    for (Operation *op : opsToMove) {
-      loop.moveOutOfLoop(op);
-      ++numOpsHoisted;
-    }
+  for (Operation *op : opsToMove) {
+    loop.moveOutOfLoop(op);
+    ++numOpsHoisted;
+  }
 
   return numOpsHoisted;
 }
@@ -689,6 +834,7 @@ void ParallelLICM::runOnOperation() {
     do {
       parentOp = parentOp->getParentOp();
     } while (parentOp && !isa<func::FuncOp>(parentOp));
+    assert(parentOp && "Failed to find parent function");
     return parentOp;
   };
 
