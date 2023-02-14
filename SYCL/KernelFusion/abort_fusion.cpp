@@ -80,25 +80,12 @@ int main() {
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
 
-  // Scenario: Fusing two kernels with different dimensionality should lead to
-  // fusion being aborted.
-  performFusion<class Kernel1_1, class Kernel2_1>(q, range<2>{32, 16},
-                                                  range<2>{1, 8});
-  // CHECK: WARNING: Cannot fuse kernels with different dimensionality
-  // CHECK-NEXT: COMPUTATION OK
-
-  // Scenario: Fusing two kernels with different global size should lead to
-  // fusion being aborted.
-  performFusion<class Kernel1_2, class Kernel2_2>(q, range<1>{256},
-                                                  range<1>{8});
-  // CHECK-NEXT: WARNING: Cannot fuse kerneles with different global size
-  // CHECK-NEXT: COMPUTATION OK
-
   // Scenario: Fusing two kernels with different local size should lead to
   // fusion being aborted.
   performFusion<class Kernel1_3, class Kernel2_3>(q, range<1>{dataSize},
                                                   range<1>{16});
-  // CHECK-NEXT: WARNING: Cannot fuse kernels with different local size
+  // CHECK:      ERROR: JIT compilation for kernel fusion failed with message:
+  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
   // CHECK-NEXT: COMPUTATION OK
 
   return 0;

@@ -147,7 +147,6 @@ int main() {
   // CHECK-NEXT: Local(0), Local(8)
   // CHECK-NEXT: WARNING: Work-group size for local promotion not specified, not performing internalization
   // CHECK-NEXT: WARNING: Not performing specified local promotion, due to previous mismatch or because previous accessor specified no promotion
-  // CHECK-NEXT: WARNING: Cannot fuse kernels with different local size
   // CHECK-NEXT: COMPUTATION OK
 
   // Scenario: Both accessor with local promotion, but the kernels specify
@@ -157,7 +156,8 @@ int main() {
   performFusion(q, Internalization::Local, 8, Internalization::Local, 16);
   // CHECK-NEXT: Local(8), Local(16)
   // CHECK-NEXT: WARNING: Not performing specified local promotion due to work-group size mismatch
-  // CHECK-NEXT: WARNING: Cannot fuse kernels with different local size
+  // CHECK-NEXT: ERROR: JIT compilation for kernel fusion failed with message:
+  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
   // CHECK-NEXT: COMPUTATION OK
 
   // Scenario: One accessor with local internalization, one with private
