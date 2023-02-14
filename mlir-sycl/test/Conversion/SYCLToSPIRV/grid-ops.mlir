@@ -26,7 +26,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_global_offset() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.global_offset() : () -> !sycl_id_1_
+      %0 = sycl.global_offset : !sycl_id_1_
       gpu.return
     }
 
@@ -53,7 +53,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_global_offset_dim(%i: i32) kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.global_offset(%i) : (i32) -> index
+      %0 = sycl.global_offset %i : index
       gpu.return
     }
 
@@ -77,7 +77,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_num_work_groups() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.num_work_groups() : () -> !sycl_range_2_
+      %0 = sycl.num_work_groups : !sycl_range_2_
       gpu.return
     }
 
@@ -104,7 +104,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_num_work_groups_dim(%i: i32) kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.num_work_groups(%i) : (i32) -> index
+      %0 = sycl.num_work_groups %i : index
       gpu.return
     }
 
@@ -115,7 +115,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_sub_group_max_size() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.sub_group_max_size : () -> i32
+      %0 = sycl.sub_group_max_size : i32
       gpu.return
     }
 
@@ -126,7 +126,7 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT           }
     gpu.func @test_sub_group_local_id() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.sub_group_local_id : () -> i32
+      %0 = sycl.sub_group_local_id : i32
       gpu.return
     }
   }
