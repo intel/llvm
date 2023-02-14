@@ -29,7 +29,7 @@ std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
 
     // UR_ADAPTERS_FORCE_LOAD  is for development/debug only
-    char* altPlatforms = nullptr;
+    char *altPlatforms = nullptr;
     _dupenv_s(&altPlatforms, NULL, "UR_ADAPTERS_FORCE_LOAD");
 
     if (altPlatforms == nullptr) {
