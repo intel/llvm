@@ -158,7 +158,7 @@ func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: f32) {
 // -----
 
 module {
-  // COM: Ensure reductions loops guards are correct.  
+// COM: Ensure reductions loops guards are correct.  
 func.func @affine_for_hoist2(%arg0: memref<?xi32>, %arg1: i32) -> (i32) {
   // CHECK:       #set = affine_set<() : (9 >= 0)>
   // CHECK:        func.func @affine_for_hoist2(%arg0: memref<?xi32>, %arg1: i32) -> i32 {
