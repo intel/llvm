@@ -273,6 +273,12 @@ etors:
       desc: $x_image_desc_t
     - name: PROGRAM_PROPERTIES
       desc: $x_program_properties_t
+    - name: USM_DESC
+      desc: $x_usm_desc_t
+    - name: USM_POOL_DESC
+      desc: $x_usm_pool_desc_t
+    - name: USM_POOL_LIMITS_DESC
+      desc: $x_usm_pool_limits_desc_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

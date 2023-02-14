@@ -45,6 +45,9 @@ using ur_sampler_factory_t = singleton_factory_t<ur_sampler_object_t, ur_sampler
 using ur_mem_object_t = object_t<ur_mem_handle_t>;
 using ur_mem_factory_t = singleton_factory_t<ur_mem_object_t, ur_mem_handle_t>;
 
+using ur_usm_pool_object_t = object_t<ur_usm_pool_handle_t>;
+using ur_usm_pool_factory_t = singleton_factory_t<ur_usm_pool_object_t, ur_usm_pool_handle_t>;
+
 } // namespace loader
 
 #endif /* UR_LOADER_LDRDDI_H */

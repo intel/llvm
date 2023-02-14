@@ -249,3 +249,12 @@ native handle to a driver handle. For example, OpenCL platform
 may expose an extension ${x}ProgramCreateWithNativeHandle to retrieve
 a cl_program.
 
+Memory Pooling
+----------------------------------
+
+The ${x}USMPoolCreate function explicitly creates memory pools and returns ${x}_usm_pool_handle_t.
+${x}_usm_pool_handle_t can be passed to ${x}USMDeviceAlloc, ${x}USMHostAlloc and ${x}USMSharedAlloc
+through ${x}_usm_desc_t structure. Allocations that specify different pool handles must be
+isolated and not reside on the same page. Memory pool is subject to limits specified during pool creation.
+
+Even if no ${x}_usm_pool_handle_t is provided to an allocation function, each adapter may still perform memory pooling.

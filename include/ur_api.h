@@ -228,8 +228,11 @@ typedef enum ur_result_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 0,         ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 1, ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 0,           ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 1,   ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 2,             ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 3,        ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 4, ///< ::ur_usm_pool_limits_desc_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1360,7 +1363,15 @@ urEnqueueUSMPrefetch(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory advice
 typedef enum ur_mem_advice_t {
-    UR_MEM_ADVICE_DEFAULT = 0, ///< The USM memory advice is default
+    UR_MEM_ADVICE_DEFAULT = 0,                  ///< The USM memory advice is default
+    UR_MEM_ADVICE_SET_READ_MOSTLY = 1,          ///< Hint that memory will be read from frequently and written to rarely
+    UR_MEM_ADVICE_CLEAR_READ_MOSTLY = 2,        ///< Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
+    UR_MEM_ADVICE_SET_PREFERRED_LOCATION = 3,   ///< Hint that the preferred memory location is the specified device
+    UR_MEM_ADVICE_CLEAR_PREFERRED_LOCATION = 4, ///< Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
+    UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY = 5,    ///< Hints that memory will mostly be accessed non-atomically
+    UR_MEM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY = 6,  ///< Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    UR_MEM_ADVICE_BIAS_CACHED = 7,              ///< Hints that memory should be cached
+    UR_MEM_ADVICE_BIAS_UNCACHED = 8,            ///< Hints that memory should be not be cached
     /// @cond
     UR_MEM_ADVICE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1379,7 +1390,7 @@ typedef enum ur_mem_advice_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_DEFAULT < advice`
+///         + `::UR_MEM_ADVICE_BIAS_UNCACHED < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2876,12 +2887,30 @@ urSamplerCreateWithNativeHandle(
 /// @brief USM memory property flags
 typedef uint32_t ur_usm_mem_flags_t;
 typedef enum ur_usm_mem_flag_t {
-    UR_USM_MEM_FLAG_ALLOC_FLAGS_INTEL = UR_BIT(0), ///< The USM memory allocation is from Intel USM
+    UR_USM_MEM_FLAG_BIAS_CACHED = UR_BIT(0),              ///< Allocation should be cached
+    UR_USM_MEM_FLAG_BIAS_UNCACHED = UR_BIT(1),            ///< Allocation should not be cached
+    UR_USM_MEM_FLAG_WRITE_COMBINED = UR_BIT(2),           ///< Memory should be allocated write-combined (WC)
+    UR_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE = UR_BIT(3), ///< Optimize shared allocation for first access on the device
+    UR_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST = UR_BIT(4),   ///< Optimize shared allocation for first access on the host
+    UR_USM_MEM_FLAG_DEVICE_READ_ONLY = UR_BIT(5),         ///< Memory is only possibly modified from the host, but read-only in all
+                                                          ///< device code
     /// @cond
     UR_USM_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_usm_mem_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM memory property flags
+typedef uint32_t ur_usm_pool_flags_t;
+typedef enum ur_usm_pool_flag_t {
+    UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK = UR_BIT(0), ///< All coarse-grain allocations (allocations from the driver) will be
+                                                        ///< zero-initialized.
+    /// @cond
+    UR_USM_POOL_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_usm_pool_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation type
@@ -2910,7 +2939,52 @@ typedef enum ur_usm_alloc_info_t {
 } ur_usm_alloc_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of USM pool
+typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM allocation descriptor type
+typedef struct ur_usm_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    ur_usm_mem_flags_t flags;  ///< [in] memory allocation flags
+    ur_mem_advice_t hints;     ///< [in] Memory advice hints
+
+} ur_usm_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool descriptor type
+typedef struct ur_usm_pool_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    ur_usm_pool_flags_t flags; ///< [in] memory allocation flags
+
+} ur_usm_pool_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool limits descriptor type
+typedef struct ur_usm_pool_limits_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    size_t maxPoolSize;        ///< [in] Maximum size of a memory pool
+    size_t maxPoolableSize;    ///< [in] Allocations up to this limit will be subject to pooling
+    size_t capacity;           ///< [in] When pooling, each bucket will hold a max of 4 unfreed slabs
+    size_t slabMinSize;        ///< [in] Minimum allocation size that will be requested from the driver
+
+} ur_usm_pool_limits_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate host memory
+///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2919,7 +2993,6 @@ typedef enum ur_usm_alloc_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMFlag`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2929,7 +3002,8 @@ typedef enum ur_usm_alloc_info_t {
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_mem_flags_t *pUSMFlag, ///< [in] USM memory allocation flags
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM host memory object
@@ -2937,6 +3011,16 @@ urUSMHostAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate device memory
+///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2946,7 +3030,6 @@ urUSMHostAlloc(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2957,7 +3040,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_mem_flags_t *pUSMProp, ///< [in] USM memory properties
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM device memory object
@@ -2965,6 +3049,16 @@ urUSMDeviceAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate shared memory
+///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2974,7 +3068,6 @@ urUSMDeviceAlloc(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2985,7 +3078,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_mem_flags_t *pUSMProp, ///< [in] USM memory properties
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM shared memory object
@@ -3035,6 +3129,56 @@ urUSMGetMemAllocInfo(
     size_t propValueSize,         ///< [in] size in bytes of the USM allocation property value
     void *pPropValue,             ///< [out][optional] value of the USM allocation property
     size_t *pPropValueSizeRet     ///< [out][optional] bytes returned in USM allocation property
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create USM memory pool with desired properties.
+///
+/// @details
+///     - UR can create multiple instances of the pool depending on allocation
+///       requests.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPoolDesc`
+///         + `NULL == ppPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `0x1 < pPoolDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolCreate(
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_usm_pool_desc_t *pPoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
+                                   ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *ppPool   ///< [out] pointer to USM memory pool
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy USM memory pool
+///
+/// @details
+///     - All allocation belonging to the pool should be freed before calling
+///       this function.
+///     - This functions returns all memory reserved by the pool to the driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolDestroy(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
 );
 
 #if !defined(__GNUC__)
@@ -7028,7 +7172,8 @@ typedef struct ur_enqueue_callbacks_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_usm_host_alloc_params_t {
     ur_context_handle_t *phContext;
-    ur_usm_mem_flags_t **ppUSMFlag;
+    ur_usm_desc_t **ppUSMDesc;
+    ur_usm_pool_handle_t *ppool;
     size_t *psize;
     uint32_t *palign;
     void ***pppMem;
@@ -7053,7 +7198,8 @@ typedef void(UR_APICALL *ur_pfnUSMHostAllocCb_t)(
 typedef struct ur_usm_device_alloc_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_usm_mem_flags_t **ppUSMProp;
+    ur_usm_desc_t **ppUSMDesc;
+    ur_usm_pool_handle_t *ppool;
     size_t *psize;
     uint32_t *palign;
     void ***pppMem;
@@ -7078,7 +7224,8 @@ typedef void(UR_APICALL *ur_pfnUSMDeviceAllocCb_t)(
 typedef struct ur_usm_shared_alloc_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_usm_mem_flags_t **ppUSMProp;
+    ur_usm_desc_t **ppUSMDesc;
+    ur_usm_pool_handle_t *ppool;
     size_t *psize;
     uint32_t *palign;
     void ***pppMem;
@@ -7143,6 +7290,49 @@ typedef void(UR_APICALL *ur_pfnUSMGetMemAllocInfoCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urUSMPoolCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_create_params_t {
+    ur_context_handle_t *phContext;
+    ur_usm_pool_desc_t **ppPoolDesc;
+    ur_usm_pool_handle_t **pppPool;
+} ur_usm_pool_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urUSMPoolCreate
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnUSMPoolCreateCb_t)(
+    ur_usm_pool_create_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urUSMPoolDestroy
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_destroy_params_t {
+    ur_context_handle_t *phContext;
+    ur_usm_pool_handle_t *ppPool;
+} ur_usm_pool_destroy_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urUSMPoolDestroy
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnUSMPoolDestroyCb_t)(
+    ur_usm_pool_destroy_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM callback functions pointers
 typedef struct ur_usm_callbacks_t {
     ur_pfnUSMHostAllocCb_t pfnHostAllocCb;
@@ -7150,6 +7340,8 @@ typedef struct ur_usm_callbacks_t {
     ur_pfnUSMSharedAllocCb_t pfnSharedAllocCb;
     ur_pfnUSMFreeCb_t pfnFreeCb;
     ur_pfnUSMGetMemAllocInfoCb_t pfnGetMemAllocInfoCb;
+    ur_pfnUSMPoolCreateCb_t pfnPoolCreateCb;
+    ur_pfnUSMPoolDestroyCb_t pfnPoolDestroyCb;
 } ur_usm_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
