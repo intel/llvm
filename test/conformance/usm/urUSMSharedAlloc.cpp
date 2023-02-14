@@ -33,10 +33,27 @@ TEST_P(urUSMSharedAllocTest, InvalidNullHandleDevice) {
 
 TEST_P(urUSMSharedAllocTest, InvalidNullPtrFlags) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urUSMDeviceAlloc(context, device, nullptr, sizeof(int), 0, &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urUSMSharedAlloc(context, device, nullptr, sizeof(int), 0, &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
     ur_usm_mem_flags_t flags;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urUSMSharedAlloc(context, device, &flags, sizeof(int), 0, nullptr));
+}
+
+TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
+    void *ptr = nullptr;
+    ur_usm_mem_flags_t flags;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
+                     urUSMSharedAlloc(context, device, &flags, 13, 0, &ptr));
+}
+
+TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
+    void *ptr = nullptr;
+    ur_usm_mem_flags_t flags;
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urUSMSharedAlloc(context, device, &flags, sizeof(int), 1, &ptr));
 }

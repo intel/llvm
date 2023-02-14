@@ -38,3 +38,11 @@ TEST_P(urUSMGetMemAllocInfoTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32, sizeof(ur_usm_type_t), &USMType, nullptr));
 }
+
+TEST_P(urUSMGetMemAllocInfoTest, InvalidValuePropValueSize) {
+    ur_usm_type_t USMType;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+                     urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_TYPE,
+                                          sizeof(ur_usm_type_t) - 1, &USMType,
+                                          nullptr));
+}
