@@ -45,7 +45,7 @@ def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {
   }];
   let constructor = "mlir::sycl::createSYCLMethodToSYCLCallPass()";
   let dependentDialects =
-    ["LLVM::LLVMDialect", "memref::MemRefDialect", "polygeist::PolygeistDialect"];
+    ["memref::MemRefDialect", "LLVM::LLVMDialect", "polygeist::PolygeistDialect"];
 }
 
 #endif // MLIR_DIALECT_SYCL_TRANSFORMS_PASSES
