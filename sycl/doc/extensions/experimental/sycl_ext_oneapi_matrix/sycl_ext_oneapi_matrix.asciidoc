@@ -52,14 +52,14 @@ that contain a matrix hardware, specifically Intel(R) Advanced Matrix
 Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R)
 XMX) and Nvidia(R) Tensor Cores.
 
-The joint_matrix type is an optional kernel feature as defined
+The `joint_matrix_mad` function is an optional kernel feature as defined
 in section 5.7 of the core SYCL specification.  Each device supports
-only certain values for the `Rows` and `Cols` template parameters and
-only certain types for the `T` template parameter.  Applications can
-use the query API in `tpu_params` or
+only certain values for the `M`, `N`, and `K` template parameters and
+only certain types for the `Ta`, `Tb`, and `Tc` template parameters.
+Applications can use the query API in `tpu_params` or
 `get_info<experimental::info::device::matrix>` to determine the set of
 legal parameters for each device.  If the application submits a kernel using
-an unsupported `joint_matrix` parameter, the implementation throws a
+an unsupported `joint_matrix_mad` combination, the implementation throws a
 synchronous exception with the `errc::kernel_not_supported` error code
 as described in section 5.7.
 
