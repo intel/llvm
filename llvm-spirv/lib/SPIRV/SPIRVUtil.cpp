@@ -472,8 +472,11 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-        .getAsInteger(10, Len);
+    if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+            .getAsInteger(10, Len)) {
+      SPIRVDBG(errs() << "Error in extracting integer value");
+      return false;
+    }
     DemangledName = Name.substr(Start, Len);
   } else {
     size_t Start = Name.find_first_not_of("0123456789", 2);
@@ -1383,8 +1386,10 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   auto GEP = cast<GEPOperator>(V);
   assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
   assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
+  [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
+  [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
+  assert(OP1->getZExtValue() == 0);
+  assert(OP2->getZExtValue() == 0);
   return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
 }
 

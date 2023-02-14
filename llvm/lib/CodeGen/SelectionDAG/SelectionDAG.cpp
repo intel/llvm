@@ -493,7 +493,7 @@ bool ISD::isVPReduction(unsigned Opcode) {
 }
 
 /// The operand position of the vector mask.
-Optional<unsigned> ISD::getVPMaskIdx(unsigned Opcode) {
+std::optional<unsigned> ISD::getVPMaskIdx(unsigned Opcode) {
   switch (Opcode) {
   default:
     return std::nullopt;
@@ -505,7 +505,7 @@ Optional<unsigned> ISD::getVPMaskIdx(unsigned Opcode) {
 }
 
 /// The operand position of the explicit vector length parameter.
-Optional<unsigned> ISD::getVPExplicitVectorLengthIdx(unsigned Opcode) {
+std::optional<unsigned> ISD::getVPExplicitVectorLengthIdx(unsigned Opcode) {
   switch (Opcode) {
   default:
     return std::nullopt;
@@ -2348,7 +2348,7 @@ SDValue SelectionDAG::CreateStackTemporary(TypeSize Bytes, Align Alignment) {
     StackID = TFI->getStackIDForScalableVectors();
   // The stack id gives an indication of whether the object is scalable or
   // not, so it's safe to pass in the minimum size here.
-  int FrameIdx = MFI.CreateStackObject(Bytes.getKnownMinSize(), Alignment,
+  int FrameIdx = MFI.CreateStackObject(Bytes.getKnownMinValue(), Alignment,
                                        false, nullptr, StackID);
   return getFrameIndex(FrameIdx, TLI->getFrameIndexTy(getDataLayout()));
 }
@@ -2366,8 +2366,9 @@ SDValue SelectionDAG::CreateStackTemporary(EVT VT1, EVT VT2) {
   assert(VT1Size.isScalable() == VT2Size.isScalable() &&
          "Don't know how to choose the maximum size when creating a stack "
          "temporary");
-  TypeSize Bytes =
-      VT1Size.getKnownMinSize() > VT2Size.getKnownMinSize() ? VT1Size : VT2Size;
+  TypeSize Bytes = VT1Size.getKnownMinValue() > VT2Size.getKnownMinValue()
+                       ? VT1Size
+                       : VT2Size;
 
   Type *Ty1 = VT1.getTypeForEVT(*getContext());
   Type *Ty2 = VT2.getTypeForEVT(*getContext());
@@ -2557,6 +2558,26 @@ bool SelectionDAG::MaskedValueIsAllOnes(SDValue V, const APInt &Mask,
   return Mask.isSubsetOf(computeKnownBits(V, Depth).One);
 }
 
+APInt SelectionDAG::computeVectorKnownZeroElements(SDValue Op,
+                                                   const APInt &DemandedElts,
+                                                   unsigned Depth) const {
+  EVT VT = Op.getValueType();
+  assert(VT.isVector() && !VT.isScalableVector() && "Only for fixed vectors!");
+
+  unsigned NumElts = VT.getVectorNumElements();
+  assert(DemandedElts.getBitWidth() == NumElts && "Unexpected demanded mask.");
+
+  APInt KnownZeroElements = APInt::getNullValue(NumElts);
+  for (unsigned EltIdx = 0; EltIdx != NumElts; ++EltIdx) {
+    if (!DemandedElts[EltIdx])
+      continue; // Don't query elements that are not demanded.
+    APInt Mask = APInt::getOneBitSet(NumElts, EltIdx);
+    if (MaskedVectorIsZero(Op, Mask, Depth))
+      KnownZeroElements.setBit(EltIdx);
+  }
+  return KnownZeroElements;
+}
+
 /// isSplatValue - Return true if the vector V has the same value
 /// across all DemandedElts. For scalable vectors, we don't know the
 /// number of lanes at compile time.  Instead, we use a 1 bit APInt
@@ -2607,7 +2628,8 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
   default:
     if (Opcode >= ISD::BUILTIN_OP_END || Opcode == ISD::INTRINSIC_WO_CHAIN ||
         Opcode == ISD::INTRINSIC_W_CHAIN || Opcode == ISD::INTRINSIC_VOID)
-      return TLI->isSplatValueForTargetNode(V, DemandedElts, UndefElts, Depth);
+      return TLI->isSplatValueForTargetNode(V, DemandedElts, UndefElts, *this,
+                                            Depth);
     break;
 }
 
@@ -2957,17 +2979,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
                             Depth + 1);
   case ISD::SPLAT_VECTOR: {
     SDValue SrcOp = Op.getOperand(0);
-    if (SrcOp.getValueSizeInBits() != BitWidth) {
-      assert(SrcOp.getValueSizeInBits() > BitWidth &&
-             "Expected SPLAT_VECTOR implicit truncation");
-      // FIXME: We should be able to truncate the known bits here to match
-      // the official semantics of SPLAT_VECTOR, but doing so exposes a
-      // Hexagon target bug which results in an infinite loop during
-      // DAGCombine.  (See D137140 for repo).  Once that's fixed, we can
-      // strengthen this.
-      break;
-    }
-    Known = computeKnownBits(SrcOp, Depth + 1);
+    assert(SrcOp.getValueSizeInBits() >= BitWidth &&
+           "Expected SPLAT_VECTOR implicit truncation");
+    // Implicitly truncate the bits to match the official semantics of
+    // SPLAT_VECTOR.
+    Known = computeKnownBits(SrcOp, Depth + 1).trunc(BitWidth);
     break;
   }
   case ISD::BUILD_VECTOR:
@@ -4736,6 +4752,7 @@ bool SelectionDAG::canCreateUndefOrPoison(SDValue Op, const APInt &DemandedElts,
   case ISD::SIGN_EXTEND_VECTOR_INREG:
   case ISD::ZERO_EXTEND_VECTOR_INREG:
   case ISD::BITCAST:
+  case ISD::BUILD_VECTOR:
     return false;
 
   case ISD::ADD:
@@ -5617,8 +5634,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   return V;
 }
 
-static llvm::Optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
-                                       const APInt &C2) {
+static std::optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
+                                      const APInt &C2) {
   switch (Opcode) {
   case ISD::ADD:  return C1 + C2;
   case ISD::SUB:  return C1 - C2;
@@ -5699,10 +5716,9 @@ static llvm::Optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
 
 // Handle constant folding with UNDEF.
 // TODO: Handle more cases.
-static llvm::Optional<APInt> FoldValueWithUndef(unsigned Opcode,
-                                                const APInt &C1, bool IsUndef1,
-                                                const APInt &C2,
-                                                bool IsUndef2) {
+static std::optional<APInt> FoldValueWithUndef(unsigned Opcode, const APInt &C1,
+                                               bool IsUndef1, const APInt &C2,
+                                               bool IsUndef2) {
   if (!(IsUndef1 || IsUndef2))
     return FoldValue(Opcode, C1, C2);
 
@@ -5787,7 +5803,7 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
         if (C1->isOpaque() || C2->isOpaque())
           return SDValue();
 
-        Optional<APInt> FoldAttempt =
+        std::optional<APInt> FoldAttempt =
             FoldValue(Opcode, C1->getAPIntValue(), C2->getAPIntValue());
         if (!FoldAttempt)
           return SDValue();
@@ -5832,7 +5848,7 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
           BV2->getConstantRawBits(IsLE, EltBits, RawBits2, UndefElts2)) {
         SmallVector<APInt> RawBits;
         for (unsigned I = 0, E = NumElts.getFixedValue(); I != E; ++I) {
-          Optional<APInt> Fold = FoldValueWithUndef(
+          std::optional<APInt> Fold = FoldValueWithUndef(
               Opcode, RawBits1[I], UndefElts1[I], RawBits2[I], UndefElts2[I]);
           if (!Fold)
             break;
@@ -6879,10 +6895,10 @@ SDValue SelectionDAG::getMemBasePlusOffset(SDValue Base, TypeSize Offset,
 
   if (Offset.isScalable())
     Index = getVScale(DL, Base.getValueType(),
-                      APInt(Base.getValueSizeInBits().getFixedSize(),
-                            Offset.getKnownMinSize()));
+                      APInt(Base.getValueSizeInBits().getFixedValue(),
+                            Offset.getKnownMinValue()));
   else
-    Index = getConstant(Offset.getFixedSize(), DL, VT);
+    Index = getConstant(Offset.getFixedValue(), DL, VT);
 
   return getMemBasePlusOffset(Base, Index, DL, Flags);
 }
@@ -11085,7 +11101,7 @@ MemSDNode::MemSDNode(unsigned Opc, unsigned Order, const DebugLoc &dl,
   // the MMO. This is because the MMO might indicate only a possible address
   // range instead of specifying the affected memory addresses precisely.
   // TODO: Make MachineMemOperands aware of scalable vectors.
-  assert(memvt.getStoreSize().getKnownMinSize() <= MMO->getSize() &&
+  assert(memvt.getStoreSize().getKnownMinValue() <= MMO->getSize() &&
          "Size mismatch!");
 }
 
@@ -11498,7 +11514,7 @@ bool SelectionDAG::areNonVolatileConsecutiveLoads(LoadSDNode *LD,
     return false;
   if (LD->getChain() != Base->getChain())
     return false;
-  EVT VT = LD->getValueType(0);
+  EVT VT = LD->getMemoryVT();
   if (VT.getSizeInBits() / 8 != Bytes)
     return false;
 
@@ -11967,7 +11983,7 @@ bool BuildVectorSDNode::isConstant() const {
   return true;
 }
 
-Optional<std::pair<APInt, APInt>>
+std::optional<std::pair<APInt, APInt>>
 BuildVectorSDNode::isConstantSequence() const {
   unsigned NumOps = getNumOperands();
   if (NumOps < 2)

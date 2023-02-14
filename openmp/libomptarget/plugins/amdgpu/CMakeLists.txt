@@ -74,6 +74,7 @@ add_llvm_library(omptarget.rtl.amdgpu SHARED
   ADDITIONAL_HEADER_DIRS
   ${LIBOMPTARGET_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/impl
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../plugins-nextgen/amdgpu/utils
 
   LINK_COMPONENTS
   Support
@@ -96,6 +97,7 @@ target_include_directories(
   PRIVATE
   ${LIBOMPTARGET_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/impl
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../plugins-nextgen/amdgpu/utils
 )
 
 
@@ -109,7 +111,8 @@ set_target_properties(omptarget.rtl.amdgpu PROPERTIES
 # This controls whether tests are run for the nvptx offloading target
 # Run them if libhsa is available, or if the user explicitly asked for dlopen
 # Otherwise this plugin is being built speculatively and there may be no hsa available
-if (${hsa-runtime64_FOUND} OR LIBOMPTARGET_FORCE_DLOPEN_LIBHSA)
+option(LIBOMPTARGET_FORCE_AMDGPU_TESTS "Build AMDGPU libomptarget tests" OFF)
+if (LIBOMPTARGET_FOUND_AMDGPU_GPU OR LIBOMPTARGET_FORCE_AMDGPU_TESTS)
   # Report to the parent scope that we are building a plugin for amdgpu
   set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-oldDriver" PARENT_SCOPE)
   set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-LTO" PARENT_SCOPE)

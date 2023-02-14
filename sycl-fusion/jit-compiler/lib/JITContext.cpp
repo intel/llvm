@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "JITContext.h"
+#include "llvm/IR/LLVMContext.h"
 
 using namespace jit_compiler;
 
@@ -31,4 +32,19 @@ SPIRVBinary &JITContext::emplaceSPIRVBinary(std::string Binary) {
   // following code would be even simpler.
   Binaries.emplace_back(std::move(Binary));
   return Binaries.back();
+}
+
+std::optional<SYCLKernelInfo>
+JITContext::getCacheEntry(CacheKeyT &Identifier) const {
+  ReadLockT ReadLock{CacheMutex};
+  auto Entry = Cache.find(Identifier);
+  if (Entry != Cache.end()) {
+    return Entry->second;
+  }
+  return {};
+}
+
+void JITContext::addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel) {
+  WriteLockT WriteLock{CacheMutex};
+  Cache.emplace(Identifier, Kernel);
 }

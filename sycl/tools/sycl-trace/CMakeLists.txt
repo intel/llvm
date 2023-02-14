@@ -32,13 +32,18 @@ add_library(sycl_pi_trace_collector SHARED
 find_package(Python3 REQUIRED)
 
 add_custom_target(pi-pretty-printers
+  DEPENDS 
+  ${CMAKE_CURRENT_BINARY_DIR}/pi_printers.def
+  ${CMAKE_CURRENT_BINARY_DIR}/pi_structs.hpp
+  )
+add_custom_command(
+  OUTPUT
+  ${CMAKE_CURRENT_BINARY_DIR}/pi_printers.def
+  ${CMAKE_CURRENT_BINARY_DIR}/pi_structs.hpp
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/generate_pi_pretty_printers.py
   ${sycl_inc_dir}/sycl/detail/pi.h
-  SOURCES ${sycl_inc_dir}/sycl/detail/pi.h
-  BYPRODUCTS
-    ${CMAKE_CURRENT_BINARY_DIR}/pi_structs.hpp
-    ${CMAKE_CURRENT_BINARY_DIR}/pi_printers.def
+  DEPENDS ${sycl_inc_dir}/sycl/detail/pi.h
   )
 
 # To get L0 loader
@@ -49,12 +54,17 @@ if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   target_compile_definitions(sycl_pi_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
 
   add_custom_target(ze-pretty-printers
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
+    )
+  add_custom_command(
+    OUTPUT
+    ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
     COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/generate_ze_pretty_printers.py
     ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
-    DEPENDS pi_level_zero
-    BYPRODUCTS
-      ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
+    DEPENDS
+    pi_level_zero
+    ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
     )
 
   add_dependencies(sycl_pi_trace_collector ze-pretty-printers)
@@ -113,13 +123,16 @@ if(SYCL_BUILD_PI_CUDA)
       NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
-  add_custom_target(cuda-pretty-printers
-    COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
-    ${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h
-    DEPENDS pi_cuda
-    BYPRODUCTS
-      ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def
+    add_custom_target(cuda-pretty-printers
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def)
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def
+      COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
+      ${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h
+      DEPENDS
+      pi_cuda
+      ${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h
     )
   else()
     message(WARNING "generated_cuda_meta.h not FOUND!")

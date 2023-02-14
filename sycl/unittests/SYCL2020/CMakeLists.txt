@@ -7,5 +7,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   KernelID.cpp
   HasExtension.cpp
   IsCompatible.cpp
+  DeviceGetInfoAspects.cpp
 )
 
