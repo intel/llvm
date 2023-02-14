@@ -38,9 +38,9 @@ class obj_traits:
             return obj['class']
         except:
             return None
-    
 
-    
+
+
 
 """
     Extracts traits from a class name
@@ -869,10 +869,26 @@ def make_pfncb_param_type(namespace, tags, obj):
 
     return "%s_params_t"%_camel_to_snake(make_func_name(namespace, tags, obj))
 
+"""
+Public:
+    returns a dict of auto-generated c++ parameter validation checks
+"""
+def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
+    checks = {}
+    for item in obj.get('returns', []):
+        for key, values in item.items():
+            key = subt(namespace, tags, key, False, cpp)
+            for val in values:
+                code = re.match(r"^\`(.*)\`$", val)
+                if code:
+                    if key not in checks:
+                        checks[key] = []
+                    checks[key].append(subt(namespace, tags, code.group(1), False, cpp))
+    return checks
 
 """
 Public:
-    returns a list of all function objs for the specified class. 
+    returns a list of all function objs for the specified class.
 """
 def get_class_function_objs(specs, cname, version = None):
     objects = []
@@ -904,10 +920,10 @@ def get_class_function_objs_exp(specs, cname):
                 else:
                     objects.append(obj)
     objects = sorted(objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))
-    exp_objects = sorted(exp_objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))              
+    exp_objects = sorted(exp_objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))
     return objects, exp_objects
 
-""" 
+"""
 Public:
     returns string name of table for function object
 """
@@ -950,7 +966,7 @@ def get_pfntables(specs, meta, namespace, tags):
             pfn = "%s_pfnGet%sProcAddrTable_t"%(namespace, name)
 
             tables.append({
-                'name': name, 
+                'name': name,
                 'type': table,
                 'export': export,
                 'pfn': pfn,
@@ -980,15 +996,15 @@ def get_pfntables(specs, meta, namespace, tags):
             pfn = "%s_pfnGet%sProcAddrTable_t"%(namespace, name)
 
             tables.append({
-                'name': name, 
+                'name': name,
                 'type': table,
                 'export': export,
                 'pfn': pfn,
                 'functions': exp_objs,
                 'experimental': True
             })
-        
-        
+
+
     return tables
 
 """
@@ -1020,7 +1036,7 @@ def get_pfncbtables(specs, meta, namespace, tags):
             print(name)
             table = "%s_%s_callbacks_t"%(namespace, _camel_to_snake(name))
             tables.append({
-                'name': name, 
+                'name': name,
                 'type': table,
                 'functions': objs
             })
