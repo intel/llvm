@@ -29,7 +29,7 @@ template <typename singleton_tn, typename key_tn> class singleton_factory_t {
 
     //////////////////////////////////////////////////////////////////////////
     /// extract the key from parameter list and if necessary, convert type
-    template <typename... Ts> key_t getKey(key_tn key, Ts &&... params) {
+    template <typename... Ts> key_t getKey(key_tn key, Ts &&...params) {
         return reinterpret_cast<key_t>(key);
     }
 
@@ -44,7 +44,7 @@ template <typename singleton_tn, typename key_tn> class singleton_factory_t {
     /// if no instance exists, then creates a new instance
     /// the params are forwarded to the ctor of the singleton
     /// the first parameter must be the unique identifier of the instance
-    template <typename... Ts> singleton_tn *getInstance(Ts &&... params) {
+    template <typename... Ts> singleton_tn *getInstance(Ts &&...params) {
         auto key = getKey(std::forward<Ts>(params)...);
 
         if (key == 0) { // No zero keys allowed in map

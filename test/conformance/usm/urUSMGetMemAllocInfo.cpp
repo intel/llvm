@@ -29,10 +29,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMGetMemAllocInfoTest);
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidNullHandleContext) {
     ur_usm_type_t USMType;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urUSMGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
-                             sizeof(ur_usm_type_t), &USMType, nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urUSMGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
+                                          sizeof(ur_usm_type_t), &USMType,
+                                          nullptr));
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidNullPointerMem) {

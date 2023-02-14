@@ -19,12 +19,15 @@ context_t::context_t() {
     urDdiTable.Platform.pfnGet = [](uint32_t NumEntries,
                                     ur_platform_handle_t *phPlatforms,
                                     uint32_t *pNumPlatforms) {
-        if (phPlatforms != nullptr && NumEntries != 1)
+        if (phPlatforms != nullptr && NumEntries != 1) {
             return UR_RESULT_ERROR_INVALID_SIZE;
-        if (pNumPlatforms != nullptr)
+        }
+        if (pNumPlatforms != nullptr) {
             *pNumPlatforms = 1;
-        if (nullptr != phPlatforms)
+        }
+        if (nullptr != phPlatforms) {
             *reinterpret_cast<void **>(phPlatforms) = d_context.get();
+        }
         return UR_RESULT_SUCCESS;
     };
 
@@ -76,16 +79,21 @@ context_t::context_t() {
            uint32_t NumEntries, ur_device_handle_t *phDevices,
            uint32_t *pNumDevices) {
             (void)DevicesType;
-            if (hPlatform == nullptr)
+            if (hPlatform == nullptr) {
                 return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-            if (UR_DEVICE_TYPE_VPU < DevicesType)
+            }
+            if (UR_DEVICE_TYPE_VPU < DevicesType) {
                 return UR_RESULT_ERROR_INVALID_ENUMERATION;
-            if (phDevices != nullptr && NumEntries != 1)
+            }
+            if (phDevices != nullptr && NumEntries != 1) {
                 return UR_RESULT_ERROR_INVALID_SIZE;
-            if (pNumDevices != nullptr)
+            }
+            if (pNumDevices != nullptr) {
                 *pNumDevices = 1;
-            if (nullptr != phDevices)
+            }
+            if (nullptr != phDevices) {
                 *reinterpret_cast<void **>(phDevices) = d_context.get();
+            }
             return UR_RESULT_SUCCESS;
         };
 
@@ -95,8 +103,9 @@ context_t::context_t() {
            size_t propSize, void *pDeviceInfo, size_t *pPropSizeRet) {
             switch (infoType) {
             case UR_DEVICE_INFO_TYPE:
-                if (pDeviceInfo && propSize != sizeof(ur_device_type_t))
+                if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {
                     return UR_RESULT_ERROR_INVALID_SIZE;
+                }
 
                 if (pDeviceInfo != nullptr) {
                     *reinterpret_cast<ur_device_type_t *>(pDeviceInfo) =
