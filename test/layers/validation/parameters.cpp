@@ -17,6 +17,6 @@ TEST_F(valPlatformsTest, testUrPlatformGetApiVersion) {
 
     for (auto p : platforms) {
         ASSERT_EQ(urPlatformGetApiVersion(p, nullptr),
-              UR_RESULT_ERROR_INVALID_NULL_POINTER);
+                  UR_RESULT_ERROR_INVALID_NULL_POINTER);
     }
 }

@@ -36,4 +36,3 @@ struct valPlatformsTest : urTest {
 };
 
 #endif // UR_VALIDATION_TEST_HELPERS_H
-
