@@ -1057,6 +1057,29 @@ extended either for the lifetime of the graph (including both modifiable graphs
 and the executable graphs created from them) or until the buffer is no longer
 required by the graph (such as after being replaced through executable graph update).
 
+Because of the extension of storage lifetimes, users should avoid the use of the
+buffer copy-back on destruction mechanism. If used in code intended to be
+executed as part of a graph, it may not perform as expected.
+
+=== Buffer Limtations for Record & Replay API
+
+Because of the delayed execution of a recorded graph it is not possible to support
+captured code which relies on the copy-back on destruction behaviour of buffers.
+Typically applications would rely on this behaviour to do work on the host which
+cannot inherently be captured inside a command graph. Thus when recording to a graph
+it is an error to submit a command which has an accessor on a buffer which would
+cause a write-back to happen. Using an incompatible buffer in this case will result
+in a synchronous error being thrown with error code `invalid`.
+
+The copy-back mechanism can be disabled explicitly for buffers with attached host
+storage using either `buffer::set_final_data(nullptr)` or
+`buffer::set_copy_back(false)`.
+
+It is also an error to create a host accessor to a buffer which is used in
+commands which are currently being recorded to a command graph. Attempting to
+construct a host accessor to an incompatible buffer will result in a
+synchronous error being thrown with error code `invalid`.
+
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
