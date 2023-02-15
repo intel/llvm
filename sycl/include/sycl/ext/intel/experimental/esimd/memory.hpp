@@ -556,12 +556,14 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 3, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 or DS is
+/// not set or set to \c lsc_data_size::default_size and the total amount of
+/// data i.e. \c sizeof(T) \c * \c NELTS is multiple of 8, the address must be
+/// 8-byte aligned, the address must be 8-byte aligned, otherwise - 4-bytes
+/// aligned. Allowed values for the data size are \c lsc_data_size::u32 and \c
+/// lsc_data_size::u64. Allowed NElts values are 1, 2, 3, 4, 8, 16, 32, 64. Note
+/// that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts must
+/// be 64.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -633,12 +635,13 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 3, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 or DS is
+/// not set or set to \c lsc_data_size::default_size and the total amount of
+/// data i.e. \c sizeof(T) \c * \c NELTS is multiple of 8, the address must be
+/// 8-byte aligned, otherwise - 4-bytes aligned. Allowed values for the data
+/// size are \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts
+/// values are 1, 2, 3, 4, 8, 16, 32, 64. Note that to access 512 bytes, DS must
+/// be \c lsc_data_size::u64 and \c NElts must be 64.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
