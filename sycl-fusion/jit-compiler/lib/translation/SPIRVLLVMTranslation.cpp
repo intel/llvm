@@ -59,8 +59,8 @@ void SPIRVLLVMTranslator::restoreKernelAttributes(Module *Mod,
 SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
   static auto Opts = []() -> SPIRV::TranslatorOpts {
     // Options for translation between SPIR-V and LLVM IR.
-    // Set SPIRV-V 1.2 as the maximum version number for now.
-    SPIRV::TranslatorOpts TransOpt{SPIRV::VersionNumber::SPIRV_1_2};
+    // Set SPIRV-V 1.4 as the maximum version number for now.
+    SPIRV::TranslatorOpts TransOpt{SPIRV::VersionNumber::SPIRV_1_4};
     // Enable attachment of kernel arg names as metadata.
     TransOpt.enableGenArgNameMD();
     // Enable mem2reg.
