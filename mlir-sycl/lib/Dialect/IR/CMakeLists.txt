@@ -9,6 +9,7 @@ if (TARGET MLIRArithmetic)
     MLIRVectorInterfaces
     MLIRStandard
     MLIRMemRef
+    MLIRPolygeist
     MLIRSCF
     )
 else()
@@ -22,6 +23,7 @@ else()
     MLIRVectorInterfaces
     MLIRLLVMDialect
     MLIRMemRefDialect
+    MLIRPolygeist
     MLIRSCFDialect
     )
 endif()
