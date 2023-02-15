@@ -309,9 +309,6 @@ void PassManagerBuilder::populateModulePassManager(
   if (OptLevel > 2)
     MPM.add(createCallSiteSplittingPass());
 
-  MPM.add(createIPSCCPPass());          // IP SCCP
-
-  MPM.add(createGlobalOptimizerPass()); // Optimize out global vars
   // Promote any localized global vars.
   MPM.add(createPromoteMemoryToRegisterPass());
 
@@ -363,7 +360,6 @@ void PassManagerBuilder::populateModulePassManager(
   // benefits generally outweight the cost, making the whole pipeline
   // faster.
   if (RunInliner) {
-    MPM.add(createGlobalOptimizerPass());
     MPM.add(createGlobalDCEPass());
   }
 
