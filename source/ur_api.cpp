@@ -476,34 +476,28 @@ urEnqueueMemBufferWrite(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
-    ur_queue_handle_t hQueue,      ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,       ///< [in] handle of the buffer object
-    bool blockingRead,             ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region,                   ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,        ///< [in] length of each row in bytes in the buffer
-                                  ///< object
-    size_t bufferSlicePitch,      ///< [in] length of each 2D slice in bytes in the
-                                  ///< buffer object being read
-    size_t hostRowPitch,          ///< [in] length of each row in bytes in the host
-                                  ///< memory region pointed by dst
-    size_t hostSlicePitch,        ///< [in] length of each 2D slice in bytes in the
-                                  ///< host memory region pointed by dst
-    void *pDst,                   ///< [in] pointer to host memory where data is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
+ur_result_t UR_APICALL
+urEnqueueMemBufferReadRect(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
+    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
+    size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
+    size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being read
+    size_t hostRowPitch,                      ///< [in] length of each row in bytes in the host memory region pointed by
+                                              ///< dst
+    size_t hostSlicePitch,                    ///< [in] length of each 2D slice in bytes in the host memory region
+                                              ///< pointed by dst
+    void *pDst,                               ///< [in] pointer to host memory where data is to be read into
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before this command can be executed.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
+                                              ///< command does not wait on any event to complete.
+    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
+                                              ///< particular command instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -537,36 +531,29 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,  ///< [in] handle of the buffer object
-    bool
-        blockingWrite,             ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region,              ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,   ///< [in] length of each row in bytes in the buffer
-                             ///< object
-    size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                             ///< buffer object being written
-    size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
-                             ///< memory region pointed by src
-    size_t hostSlicePitch,   ///< [in] length of each 2D slice in bytes in the
-                             ///< host memory region pointed by src
-    void
-        *pSrc,                    ///< [in] pointer to host memory where data is to be written from
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< points to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
+ur_result_t UR_APICALL
+urEnqueueMemBufferWriteRect(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
+    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
+    size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
+    size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being
+                                              ///< written
+    size_t hostRowPitch,                      ///< [in] length of each row in bytes in the host memory region pointed by
+                                              ///< src
+    size_t hostSlicePitch,                    ///< [in] length of each 2D slice in bytes in the host memory region
+                                              ///< pointed by src
+    void *pSrc,                               ///< [in] pointer to host memory where data is to be written from
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] points to a list of
+                                              ///< events that must be complete before this command can be executed.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
+                                              ///< command does not wait on any event to complete.
+    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
+                                              ///< particular command instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -725,28 +712,24 @@ urEnqueueMemBufferFill(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueMemImageRead(
-    ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
-    ur_mem_handle_t hImage,       ///< [in] handle of the image object
-    bool blockingRead,            ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t origin,      ///< [in] defines the (x,y,z) offset in pixels in
-                                  ///< the 1D, 2D, or 3D image
-    ur_rect_region_t region,      ///< [in] defines the (width, height, depth) in
-                                  ///< pixels of the 1D, 2D, or 3D image
-    size_t rowPitch,              ///< [in] length of each row in bytes
-    size_t slicePitch,            ///< [in] length of each 2D slice of the 3D image
-    void *pDst,                   ///< [in] pointer to host memory where image is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
+ur_result_t UR_APICALL
+urEnqueueMemImageRead(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_mem_handle_t hImage,                   ///< [in] handle of the image object
+    bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
+    ur_rect_offset_t origin,                  ///< [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
+    ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                                              ///< image
+    size_t rowPitch,                          ///< [in] length of each row in bytes
+    size_t slicePitch,                        ///< [in] length of each 2D slice of the 3D image
+    void *pDst,                               ///< [in] pointer to host memory where image is to be read into
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before this command can be executed.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
+                                              ///< command does not wait on any event to complete.
+    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
+                                              ///< particular command instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -778,29 +761,24 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t hImage,   ///< [in] handle of the image object
-    bool
-        blockingWrite,            ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t origin,      ///< [in] defines the (x,y,z) offset in pixels in
-                                  ///< the 1D, 2D, or 3D image
-    ur_rect_region_t region,      ///< [in] defines the (width, height, depth) in
-                                  ///< pixels of the 1D, 2D, or 3D image
-    size_t inputRowPitch,         ///< [in] length of each row in bytes
-    size_t inputSlicePitch,       ///< [in] length of each 2D slice of the 3D image
-    void *pSrc,                   ///< [in] pointer to host memory where image is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
+ur_result_t UR_APICALL
+urEnqueueMemImageWrite(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_mem_handle_t hImage,                   ///< [in] handle of the image object
+    bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
+    ur_rect_offset_t origin,                  ///< [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
+    ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                                              ///< image
+    size_t inputRowPitch,                     ///< [in] length of each row in bytes
+    size_t inputSlicePitch,                   ///< [in] length of each 2D slice of the 3D image
+    void *pSrc,                               ///< [in] pointer to host memory where image is to be read into
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before this command can be executed.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
+                                              ///< command does not wait on any event to complete.
+    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
+                                              ///< particular command instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -826,27 +804,24 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueMemImageCopy(
-    ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
-    ur_mem_handle_t hImageSrc,    ///< [in] handle of the src image object
-    ur_mem_handle_t hImageDst,    ///< [in] handle of the dest image object
-    ur_rect_offset_t srcOrigin,   ///< [in] defines the (x,y,z) offset in pixels
-                                  ///< in the source 1D, 2D, or 3D image
-    ur_rect_offset_t dstOrigin,   ///< [in] defines the (x,y,z) offset in pixels
-                                  ///< in the destination 1D, 2D, or 3D image
-    ur_rect_region_t region,      ///< [in] defines the (width, height, depth) in
-                                  ///< pixels of the 1D, 2D, or 3D image
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
+ur_result_t UR_APICALL
+urEnqueueMemImageCopy(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_mem_handle_t hImageSrc,                ///< [in] handle of the src image object
+    ur_mem_handle_t hImageDst,                ///< [in] handle of the dest image object
+    ur_rect_offset_t srcOrigin,               ///< [in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D
+                                              ///< image
+    ur_rect_offset_t dstOrigin,               ///< [in] defines the (x,y,z) offset in pixels in the destination 1D, 2D,
+                                              ///< or 3D image
+    ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                                              ///< image
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before this command can be executed.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
+                                              ///< command does not wait on any event to complete.
+    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
+                                              ///< particular command instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -1731,15 +1706,12 @@ ur_result_t UR_APICALL
 urMemGetInfo(
     ur_mem_handle_t hMemory,   ///< [in] handle to the memory object being queried.
     ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
-    size_t propSize,           ///< [in] the number of bytes of memory pointed to by
-                               ///< pMemInfo.
+    size_t propSize,           ///< [in] the number of bytes of memory pointed to by pMemInfo.
     void *pMemInfo,            ///< [out][optional] array of bytes holding the info.
-                               ///< If propSize is less than the real number of bytes
-                               ///< needed to return the info then the
-                               ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                               ///< If propSize is less than the real number of bytes needed to return
+                               ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                ///< pMemInfo is not used.
-    size_t *pPropSizeRet       ///< [out][optional] pointer to the actual size in
-                               ///< bytes of data queried by pMemInfo.
+    size_t *pPropSizeRet       ///< [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -1767,15 +1739,12 @@ ur_result_t UR_APICALL
 urMemImageGetInfo(
     ur_mem_handle_t hMemory,     ///< [in] handle to the image object being queried.
     ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
-    size_t propSize,             ///< [in] the number of bytes of memory pointer to by
-                                 ///< pImgInfo.
+    size_t propSize,             ///< [in] the number of bytes of memory pointer to by pImgInfo.
     void *pImgInfo,              ///< [out][optional] array of bytes holding the info.
-                                 ///< If propSize is less than the real number of bytes
-                                 ///< needed to return the info then the
-                                 ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                 ///< If propSize is less than the real number of bytes needed to return
+                                 ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                  ///< pImgInfo is not used.
-    size_t *pPropSizeRet         ///< [out][optional] pointer to the actual size in
-                                 ///< bytes of data queried by pImgInfo.
+    size_t *pPropSizeRet         ///< [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -1822,11 +1791,9 @@ ur_result_t UR_APICALL
 urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_queue_info_t propName, ///< [in] name of the queue property to query
-    size_t propValueSize,     ///< [in] size in bytes of the queue property value
-                              ///< provided
+    size_t propValueSize,     ///< [in] size in bytes of the queue property value provided
     void *pPropValue,         ///< [out][optional] value of the queue property
-    size_t *pPropSizeRet      ///< [out][optional] size in bytes returned in queue
-                              ///< property value
+    size_t *pPropSizeRet      ///< [out][optional] size in bytes returned in queue property value
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -1854,18 +1821,17 @@ urQueueGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urQueueCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_queue_property_t
-        *pProps, ///< [in][optional] specifies a list of queue properties and
-                 ///< their corresponding values. Each property name is
-                 ///< immediately followed by the corresponding desired value.
-                 ///< The list is terminated with a 0.
-                 ///< If a property value is not specified, then its default
-                 ///< value will be used.
-    ur_queue_handle_t
-        *phQueue ///< [out] pointer to handle of queue object created
+ur_result_t UR_APICALL
+urQueueCreate(
+    ur_context_handle_t hContext,      ///< [in] handle of the context object
+    ur_device_handle_t hDevice,        ///< [in] handle of the device object
+    const ur_queue_property_t *pProps, ///< [in][optional] specifies a list of queue properties and their
+                                       ///< corresponding values.
+                                       ///< Each property name is immediately followed by the corresponding
+                                       ///< desired value.
+                                       ///< The list is terminated with a 0.
+                                       ///< If a property value is not specified, then its default value will be used.
+    ur_queue_handle_t *phQueue         ///< [out] pointer to handle of queue object created
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -3093,20 +3059,16 @@ urKernelCreateWithNativeHandle(
 ///         + `NULL == pIL`
 ///         + `NULL == pOptions`
 ///         + `NULL == phModule`
-ur_result_t UR_APICALL urModuleCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context instance.
-    const void *pIL,              ///< [in] pointer to IL string.
-    size_t length,                ///< [in] length of IL in bytes.
-    const char
-        *pOptions, ///< [in] pointer to compiler options null-terminated string.
-    ur_modulecreate_callback_t
-        pfnNotify,   ///< [in][optional] A function pointer to a notification
-                     ///< routine that is called when program compilation is
-                     ///< complete.
-    void *pUserData, ///< [in][optional] Passed as an argument when pfnNotify is
-                     ///< called.
-    ur_module_handle_t
-        *phModule ///< [out] pointer to handle of Module object created.
+ur_result_t UR_APICALL
+urModuleCreate(
+    ur_context_handle_t hContext,         ///< [in] handle of the context instance.
+    const void *pIL,                      ///< [in] pointer to IL string.
+    size_t length,                        ///< [in] length of IL in bytes.
+    const char *pOptions,                 ///< [in] pointer to compiler options null-terminated string.
+    ur_modulecreate_callback_t pfnNotify, ///< [in][optional] A function pointer to a notification routine that is
+                                          ///< called when program compilation is complete.
+    void *pUserData,                      ///< [in][optional] Passed as an argument when pfnNotify is called.
+    ur_module_handle_t *phModule          ///< [out] pointer to handle of Module object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -3573,14 +3535,12 @@ urProgramGetInfo(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
     ur_program_info_t propName,   ///< [in] name of the Program property to query
     size_t propSize,              ///< [in] the size of the Program property.
-    void *pProgramInfo,           ///< [in,out][optional] array of bytes of holding the
-                                  ///< program info property. If propSize is not equal to
-                                  ///< or greater than the real number of bytes needed to
-                                  ///< return the info then the
-                                  ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned
-                                  ///< and pProgramInfo is not used.
-    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in
-                                  ///< bytes of data copied to propName.
+    void *pProgramInfo,           ///< [in,out][optional] array of bytes of holding the program info property.
+                                  ///< If propSize is not equal to or greater than the real number of bytes
+                                  ///< needed to return
+                                  ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                  ///< pProgramInfo is not used.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of data copied to propName.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
