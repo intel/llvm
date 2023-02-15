@@ -9,15 +9,14 @@
 #include "platform_discovery.hpp"
 
 #include "ur_util.hpp"
+#include <array>
 #include <iostream>
 #include <sstream>
 #include <string>
 
 namespace loader {
 
-static const char *knownPlatformNames[] = {
-    MAKE_LIBRARY_NAME("ur_null", UR_VERSION),
-};
+static constexpr std::array<char *, 0> knownPlatformNames{};
 
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
