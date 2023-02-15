@@ -1419,14 +1419,14 @@ __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 /// binaries), and not when they are emulated (AOT binaries).
 ///
 /// \param prog the program object which will use the value
+/// \param kernel is the pi_kernel to which an implicit argument for emulated
+/// specialisation constant would be added
 /// \param spec_id integer ID of the constant
 /// \param spec_size size of the value
 /// \param spec_value bytes of the value
-/// \param kernel is the pi_kernel to which an implicit argument for emulated
-/// specialisation constant would be added
 __SYCL_EXPORT pi_result piextProgramSetSpecializationConstant(
-    pi_program prog, pi_uint32 spec_id, size_t spec_size,
-    const void *spec_value, pi_kernel kernel);
+    pi_program prog, pi_kernel kernel, pi_uint32 spec_id, size_t spec_size,
+    const void *spec_value);
 
 /// Gets the native handle of a PI program object.
 ///

@@ -2275,8 +2275,8 @@ static pi_result SetKernelParamsAndLaunch(
         static unsigned SpecID = 0;
         auto &Blob = DeviceImageImpl->get_spec_const_blob_ref();
         Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-            DeviceImageImpl->get_program_ref(), SpecID++, Blob.size(),
-            Blob.data(), Kernel);
+            DeviceImageImpl->get_program_ref(), Kernel, SpecID++, Blob.size(),
+            Blob.data());
       }
 
       pi_mem_obj_property MemObjData{};

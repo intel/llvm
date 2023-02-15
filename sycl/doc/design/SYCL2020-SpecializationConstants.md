@@ -951,6 +951,7 @@ runtime iterates through the value map and invokes
 
 ```
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
+                                                pi_kernel kernel,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
                                                 const void *spec_value);
