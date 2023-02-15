@@ -1000,7 +1000,7 @@ struct NDRangeReduction<
 
     bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
     auto Rest = [&](auto NWorkGroupsFinished) {
-      local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
+      local_accessor<int, 0> DoReducePartialSumsInLastWG{CGH};
 
       using Name = __sycl_reduction_kernel<
           reduction::MainKrn, KernelName,
@@ -1045,11 +1045,11 @@ struct NDRangeReduction<
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
-          DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
+          DoReducePartialSumsInLastWG = ++NFinished == NWorkGroups;
         }
 
         workGroupBarrier();
-        if (DoReducePartialSumsInLastWG[0]) {
+        if (DoReducePartialSumsInLastWG) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
           for (int E = 0; E < NElements; ++E) {
@@ -1124,7 +1124,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
                                                                  CGH};
     auto NWorkGroupsFinished =
         Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
-    local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
+    local_accessor<int, 0> DoReducePartialSumsInLastWG{CGH};
 
     auto Identity = Redu.getIdentity();
     auto BOp = Redu.getBinaryOperation();
@@ -1163,12 +1163,12 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::global_space>(
                 NWorkGroupsFinished[0]);
-        DoReducePartialSumsInLastWG[0] =
+        DoReducePartialSumsInLastWG =
             ++NFinished == NWorkGroups && NWorkGroups > 1;
       }
 
       workGroupBarrier();
-      if (DoReducePartialSumsInLastWG[0]) {
+      if (DoReducePartialSumsInLastWG) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
