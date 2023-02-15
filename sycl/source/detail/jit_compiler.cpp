@@ -457,7 +457,10 @@ static ParamIterator preProcessArguments(
     // which will go out-of-scope before we execute the fused kernel. Therefore,
     // we need to copy the argument to a permant location and update the
     // argument.
-    Arg->Arg.MPtr = storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    if (Arg->Arg.MPtr) {
+      Arg->Arg.MPtr =
+          storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    }
     // Standard layout arguments do not participate in identical argument
     // detection, but we still add it to the list here. As the SYCL runtime can
     // only check the raw bytes for identical content, but is unaware of the
@@ -474,6 +477,7 @@ static ParamIterator preProcessArguments(
         ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
         Arg->Arg.MPtr, Arg->Arg.MSize);
     return ++Arg;
+    
   }
   // First check if there's already another parameter with identical
   // value.
