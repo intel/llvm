@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/Passes.h"
-#include "mlir/Conversion/PolygeistPasses.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -24,14 +23,15 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "polygeist/Dialect.h"
+#include "polygeist/Passes/Passes.h"
 
 using namespace mlir;
 
@@ -63,8 +63,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::polygeist::PolygeistDialect>();
   registry.insert<mlir::sycl::SYCLDialect>();
 
-  polygeist::registerPolygeistPasses();
-  polygeist::registerConvertPolygeistToLLVM();
+  mlir::registerpolygeistPasses();
 
   // Register the standard passes we want.
   mlir::registerCSEPass();

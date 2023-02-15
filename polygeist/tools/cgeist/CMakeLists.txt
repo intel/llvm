@@ -67,7 +67,6 @@ target_link_libraries(cgeist PRIVATE
   MLIRAffineToStandard
   MLIRMathToLLVM
   MLIRTargetLLVMIRImport
-  MLIRPolygeistToLLVM
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
   MLIRSCFToOpenMP
