@@ -2359,10 +2359,11 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
     // module.
     if (D && isa<VarDecl>(D)) {
       const auto *VD = cast<VarDecl>(D);
-      const RecordDecl *RD = VD->getType()->getAsRecordDecl();
-      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>() &&
-          VD->getFormalLinkage() == InternalLinkage)
-        addUsedOrCompilerUsedGlobal(GV);
+      if (VD->getFormalLinkage() == InternalLinkage)
+        if (const RecordDecl *RD = VD->getType()->getAsRecordDecl())
+          if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
+            if (Attr->getType() == SYCLTypeAttr::device_global)
+              addUsedOrCompilerUsedGlobal(GV);
     }
   }
 }
@@ -5516,8 +5517,9 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
         AddGlobalSYCLIRAttributes(GV, RD);
       // If VarDecl has a type decorated with SYCL device_global attribute 
       // emit IR attribute 'sycl-unique-id'.
-      if (RD->hasAttr<SYCLDeviceGlobalAttr>())
-        addSYCLUniqueID(GV, D, Context);
+      if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
+        if (Attr->getType() == SYCLTypeAttr::SYCLType::device_global)
+          addSYCLUniqueID(GV, D, Context);
       // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
       // 'sycl-unique-id'.
       if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())

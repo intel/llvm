@@ -40,7 +40,7 @@ private:
 };
 
 // check that we don't generate `sycl-unique-id` IR attribute if class does not use
-// [[__sycl_detail__::device_global]]
+// [[__sycl_detail__::sycl_type(device_global)]]
 only_global_var_allowed<int> no_device_global;
 // CHECK: @no_device_global = addrspace(1) global %class.only_global_var_allowed zeroinitializer, align 8{{$}}
 

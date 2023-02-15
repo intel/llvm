@@ -1331,12 +1331,12 @@ def SYCLType: InheritableAttr {
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler", "host_pipe"],
+                            "stream", "sampler", "host_pipe", "device_global"],
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler", "host_pipe"]>];
+                            "stream", "sampler", "host_pipe", "device_global"]>];
   // Only used internally by SYCL implementation
   let Documentation = [InternalOnly];
 }
@@ -1543,15 +1543,6 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
-}
-
-def SYCLDeviceGlobal: InheritableAttr {
-  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
-  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by SYCL implementation
-  let Documentation = [SYCLDeviceGlobalAttrDocs];
-  let SimpleHandler = 1;
 }
 
 def SYCLGlobalVariableAllowed : InheritableAttr {

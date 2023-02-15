@@ -13925,20 +13925,32 @@ public:
                                    SourceLocation BuiltinLoc,
                                    SourceLocation RParenLoc);
 
-  template <typename AttrTy>
-  bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
+  template <typename AttrTy> const AttrTy *getAttrTypeDecl(QualType Ty) {
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
-      return false;
+      return nullptr;
 
-    if (RecTy->hasAttr<AttrTy>())
-      return true;
+    if (const auto *A = RecTy->getAttr<AttrTy>())
+      return A;
 
     if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
       ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-        return RD->hasAttr<AttrTy>();
+      CXXRecordDecl *RD = Template->getTemplatedDecl();
+      return RD ? RD->getAttr<AttrTy>() : nullptr;
     }
+    return nullptr;
+  }
+
+  template <typename AttrTy>
+  bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
+    if (const auto *A = getAttrTypeDecl<AttrTy>(Ty))
+      return true;
+    return false;
+  }
+
+  bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
+    if (const auto *A = getAttrTypeDecl<SYCLTypeAttr>(Ty))
+      return A->getType() == TypeName;
     return false;
   }
 

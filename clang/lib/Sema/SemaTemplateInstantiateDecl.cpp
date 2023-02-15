@@ -1623,8 +1623,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
     if (SemaRef.getLangOpts().SYCLIsDevice &&
-        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            Var->getType())) {
+        SemaRef.isSyclType(Var->getType(), SYCLTypeAttr::device_global)) {
       if (!Var->hasGlobalStorage())
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope);
@@ -1647,8 +1646,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
       }
     }
     if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
-      if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              Var->getType()))
+      if (!SemaRef.isSyclType(Var->getType(), SYCLTypeAttr::device_global))
         SemaRef.Diag(SYCLDevice->getLoc(),
                      diag::err_sycl_attribute_not_device_global)
             << SYCLDevice;
@@ -1750,8 +1748,7 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
   // Static members are not processed here, so error out if we have a device
   // global without checking access modifier.
   if (SemaRef.getLangOpts().SYCLIsDevice) {
-    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            Field->getType())) {
+    if (SemaRef.isSyclType(Field->getType(), SYCLTypeAttr::device_global)) {
       SemaRef.Diag(D->getLocation(),
                    diag::err_sycl_device_global_incorrect_scope);
       Field->setInvalidDecl();

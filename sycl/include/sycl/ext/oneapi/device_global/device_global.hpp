@@ -101,7 +101,7 @@ template <typename T, typename PropertyListT = detail::empty_properties_t>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
-    [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global]]
+    __SYCL_TYPE(device_global) [[__sycl_detail__::global_variable_allowed]]
 #endif
     device_global {
   // This should always fail when instantiating the unspecialized version.
@@ -112,12 +112,14 @@ class
 template <typename T, typename... Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
-      __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size", detail::PropertyMetaInfo<Props>::name...,
-          sizeof(T), detail::PropertyMetaInfo<Props>::value...)]]
+    __SYCL_TYPE(device_global)
+        [[__sycl_detail__::global_variable_allowed,
+          __sycl_detail__::add_ir_attributes_global_variable(
+              "sycl-device-global-size",
+              detail::PropertyMetaInfo<Props>::name..., sizeof(T),
+              detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-    device_global<T, detail::properties_t<Props...>>
+        device_global<T, detail::properties_t<Props...>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;

@@ -67,26 +67,9 @@ static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
-static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
-  const auto *RD = Ty->getAsCXXRecordDecl();
-  if (!RD)
-    return false;
-
-  if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
-    return Attr->getType() == TypeName;
-
-  if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD))
-    if (CXXRecordDecl *TemplateDecl =
-            CTSD->getSpecializedTemplate()->getTemplatedDecl())
-      if (const auto *Attr = TemplateDecl->getAttr<SYCLTypeAttr>())
-        return Attr->getType() == TypeName;
-
-  return false;
-}
-
-static bool isSyclAccessorType(QualType Ty) {
-  return isSyclType(Ty, SYCLTypeAttr::accessor) ||
-         isSyclType(Ty, SYCLTypeAttr::local_accessor);
+static bool isSyclAccessorType(Sema &S, QualType Ty) {
+  return S.isSyclType(Ty, SYCLTypeAttr::accessor) ||
+         S.isSyclType(Ty, SYCLTypeAttr::local_accessor);
 }
 
 // FIXME: Accessor property lists should be modified to use compile-time
@@ -904,15 +887,16 @@ private:
 
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
-  MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
+  MarkWIScopeFnVisitor(Sema &S) : SemaRef(S) {}
 
   bool VisitCXXMemberCallExpr(CXXMemberCallExpr *Call) {
+    ASTContext &Ctx = SemaRef.getASTContext();
     FunctionDecl *Callee = Call->getDirectCallee();
     if (!Callee)
       // not a direct call - continue search
       return true;
     QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
-    if (!isSyclType(Ty, SYCLTypeAttr::group))
+    if (!SemaRef.isSyclType(Ty, SYCLTypeAttr::group))
       // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
@@ -928,14 +912,10 @@ public:
   }
 
 private:
-  ASTContext &Ctx;
+  Sema &SemaRef;
 };
 
-static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
-  return isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
-}
-
-static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
+static void addScopeAttrToLocalVars(Sema &S, CXXMethodDecl &F) {
   for (Decl *D : F.decls()) {
     VarDecl *VD = dyn_cast<VarDecl>(D);
 
@@ -948,9 +928,10 @@ static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
     // locals not declared in user code (lambda object parameter, byval
     // arguments) which will result in alloca w/o any attribute, so need WI
     // scope too.
-    SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
-                                 ? SYCLScopeAttr::Level::WorkItem
-                                 : SYCLScopeAttr::Level::WorkGroup;
+    SYCLScopeAttr::Level L =
+        S.isSyclType(VD->getType(), SYCLTypeAttr::private_memory)
+            ? SYCLScopeAttr::Level::WorkItem
+            : SYCLScopeAttr::Level::WorkGroup;
     VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
   }
 }
@@ -1009,9 +990,9 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 }
 
 /// \return the target of given SYCL accessor type
-static target getAccessTarget(QualType FieldTy,
+static target getAccessTarget(Sema &S, QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (S.isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
     return local;
 
   return static_cast<target>(
@@ -1052,11 +1033,12 @@ static bool isDefaultSPIRArch(ASTContext &Context) {
   return false;
 }
 
-static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
+static ParmVarDecl *getSyclKernelHandlerArg(Sema &S,
+                                            FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
-  auto IsHandlerLambda = [](ParmVarDecl *PVD) {
-    return isSyclType(PVD->getType(), SYCLTypeAttr::kernel_handler);
+  auto IsHandlerLambda = [&S](ParmVarDecl *PVD) {
+    return S.isSyclType(PVD->getType(), SYCLTypeAttr::kernel_handler);
   };
 
   assert(llvm::count_if(KernelCallerFunc->parameters(), IsHandlerLambda) <= 1 &&
@@ -1258,7 +1240,7 @@ class KernelObjVisitor {
                   QualType FieldTy, HandlerTys &... Handlers) {
     if (isSyclSpecialType(FieldTy, SemaRef))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-    else if (isSyclType(FieldTy, SYCLTypeAttr::spec_constant))
+    else if (SemaRef.isSyclType(FieldTy, SYCLTypeAttr::spec_constant))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
@@ -1584,7 +1566,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
     QualType PropListTy = PropList.getAsType();
-    if (!isSyclType(PropListTy, SYCLTypeAttr::accessor_property_list))
+    if (!SemaRef.isSyclType(PropListTy, SYCLTypeAttr::accessor_property_list))
       return SemaRef.Diag(
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
@@ -1648,15 +1630,15 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
     // Annotated pointers and annotated arguments must be captured
     // directly by the SYCL kernel.
-    if ((isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
-         isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
-         (StructFieldDepth > 0 || StructBaseDepth > 0))
+    if ((SemaRef.isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
+         SemaRef.isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
+        (StructFieldDepth > 0 || StructBaseDepth > 0))
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_bad_kernel_param_data_members)
              << Ty << /*Struct*/ 1;
 
     const RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (IsSIMD && !isSyclAccessorType(Ty))
+    if (IsSIMD && !isSyclAccessorType(SemaRef, Ty))
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_sycl_esimd_not_supported_for_type)
              << RecD;
@@ -2248,7 +2230,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
 
     // If "accessor" type check if read only
-    if (isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
+    if (SemaRef.isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
       // Get access mode of accessor.
       const auto *AccessorSpecializationDecl =
           cast<ClassTemplateSpecializationDecl>(RecordDecl);
@@ -2273,7 +2255,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                isSyclAccessorType(SemaRef, FieldTy)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2297,7 +2280,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
+      if (ParamTy.getTypePtr()->isPointerType() &&
+          isSyclAccessorType(SemaRef, FieldTy))
         handleAccessorType(FieldTy, RecordDecl, FD->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
@@ -2423,7 +2407,8 @@ public:
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                isSyclAccessorType(SemaRef, FieldTy)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2441,7 +2426,8 @@ public:
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
+      if (ParamTy.getTypePtr()->isPointerType() &&
+          isSyclAccessorType(SemaRef, FieldTy))
         handleAccessorType(FieldTy, RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
@@ -2566,9 +2552,9 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = (IsSIMD && isSyclAccessorType(FieldTy))
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
+    llvm::StringLiteral MethodName =
+        (IsSIMD && isSyclAccessorType(SemaRef, FieldTy)) ? InitESIMDMethodName
+                                                         : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -2854,7 +2840,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // to this argument in kernel body, to use the compiler generated local
     // clone
     if (ParmVarDecl *KernelHandlerParam =
-            getSyclKernelHandlerArg(KernelCallerFunc))
+            getSyclKernelHandlerArg(SemaRef, KernelCallerFunc))
       NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
                                       NewBody);
 
@@ -2901,11 +2887,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
           SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
       // Search and mark parallel_for_work_item calls:
-      MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+      MarkWIScopeFnVisitor MarkWIScope(SemaRef);
       MarkWIScope.TraverseDecl(WGLambdaFn);
       // Now mark local variables declared in the PFWG lambda with work group
       // scope attribute
-      addScopeAttrToLocalVars(*WGLambdaFn);
+      addScopeAttrToLocalVars(SemaRef, *WGLambdaFn);
     }
   }
 
@@ -3604,7 +3590,7 @@ public:
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-    int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
+    int Info = getAccessTarget(SemaRef, FieldTy, AccTy) | (Dims << 11);
     Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                         CurOffset +
                             offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
@@ -3614,29 +3600,29 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
-    if (isSyclAccessorType(FieldTy)) {
+    if (isSyclAccessorType(SemaRef, FieldTy)) {
       const auto *AccTy =
           cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-      int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
+      int Info = getAccessTarget(SemaRef, FieldTy, AccTy) | (Dims << 11);
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
-    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+    } else if (SemaRef.isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
-               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
-               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+    } else if (SemaRef.isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               SemaRef.isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               SemaRef.isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
       CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
       assert(InitMethod && "type must have __init method");
       const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
       assert(InitArg && "Init method must have arguments");
       QualType T = InitArg->getType();
       SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
-          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+          SemaRef.isSyclType(FieldTy, SYCLTypeAttr::sampler)
               ? SYCLIntegrationHeader::kind_sampler
               : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
                                     : SYCLIntegrationHeader::kind_std_layout);
@@ -4182,7 +4168,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   }
 
   if (ParmVarDecl *KernelHandlerArg =
-          getSyclKernelHandlerArg(KernelCallerFunc)) {
+          getSyclKernelHandlerArg(*this, KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
@@ -5376,10 +5362,9 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
   // Step 1: ensure that this is of the correct type template specialization.
-  if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
-      !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
-      !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-          VD->getType())) {
+  if (!S.isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+      !S.isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
+      !S.isSyclType(VD->getType(), SYCLTypeAttr::device_global)) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -5562,10 +5547,9 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
     // can happen if it was a deduced type.
-    if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
-        !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) && 
-        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            VD->getType()))
+    if (!S.isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+        !S.isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
+        !S.isSyclType(VD->getType(), SYCLTypeAttr::device_global))
       continue;
 
     // Skip if we've already visited this.
@@ -5579,8 +5563,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
-    if (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            VD->getType())) {
+    if (S.isSyclType(VD->getType(), SYCLTypeAttr::device_global)) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
       DeviceGlobOS << "(void *)&";
@@ -5594,7 +5577,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
                                                           VD);
       DeviceGlobOS << "\");\n";
-    } else if (isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
+    } else if (S.isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
       HostPipesEmitted = true;
       HostPipesOS << "host_pipe_map::add(";
       HostPipesOS << "(void *)&";

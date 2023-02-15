@@ -6229,8 +6229,7 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // Diagnose only for non-dependent types since dependent type don't have
     // attributes applied on them ATM.
     if (!VarType->isDependentType() &&
-        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            VD->getType())) {
+        !S.isSyclType(VD->getType(), SYCLTypeAttr::device_global)) {
       S.Diag(AL.getLoc(), diag::err_sycl_attribute_not_device_global) << AL;
       return;
     }
