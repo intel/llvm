@@ -33,6 +33,7 @@
 #include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <functional>
 #include <limits>
@@ -2468,13 +2469,28 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memcpy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // If the backends supports 2D copy we use that.
+    if (supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
-    else
+      return;
+    }
+
+    // Otherwise use fallback mechanisms based on the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Copies data from one 2D memory region to another, both pointed by
@@ -2502,14 +2518,35 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_copy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // If the backends supports 2D copy we use that.
+    if (supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
                                SrcPitch * sizeof(T), Width * sizeof(T), Height);
-    else
+      return;
+    }
+
+    // Otherwise use fallback mechanisms based on the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost) {
+      // As a special case, we allow host-to-device and device-to-host copies
+      // through as they need a more fragmented fallback mechanism, which we
+      // include as part of CGCopy2DUSM.
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
+                               SrcPitch * sizeof(T), Width * sizeof(T), Height);
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -2542,7 +2579,7 @@ public:
     if (supportsUSMMemset2D())
       ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
     else
-      commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
+      commonUSMFill2DFallback(Dest, DestPitch, CharVal, Width, Height);
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -2573,7 +2610,7 @@ public:
       ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
                              Height);
     else
-      commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
+      commonUSMFill2DFallback(Dest, DestPitch, Pattern, Width, Height);
   }
 
 private:
@@ -2706,6 +2743,8 @@ private:
         NumWorkItems, KernelFunc);
   }
 
+  const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();
   bool supportsUSMFill2D();
@@ -2720,6 +2759,8 @@ private:
   void commonUSMCopy2DFallbackKernel(const void *Src, size_t SrcPitch,
                                      void *Dest, size_t DestPitch, size_t Width,
                                      size_t Height) {
+    // Otherwise the data is accessible on the device so we do the operation
+    // there instead.
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
@@ -2739,28 +2780,64 @@ private:
         });
   }
 
-  // Common function for launching a 2D USM fill kernel to avoid redefinitions
-  // of the kernel from memset and fill.
+  // Common function for launching a 2D USM memcpy host-task to avoid
+  // redefinitions of the kernel from copy and memcpy.
   template <typename T>
-  void commonUSMFill2DFallbackKernel(void *Dest, size_t DestPitch,
-                                     const T &Pattern, size_t Width,
-                                     size_t Height) {
-    // Limit number of work items to be resistant to big fill operations.
-    id<2> Chunk = computeFallbackKernelBounds(Height, Width);
-    id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmfill2d<T>>(
-        range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
-          T *CastedDest = static_cast<T *>(Dest);
-          for (uint32_t I = 0; I < Iterations[0]; ++I) {
-            for (uint32_t J = 0; J < Iterations[1]; ++J) {
-              id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
-              if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
-                CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
-                    Pattern;
+  void commonUSMCopy2DFallbackHostTask(const void *Src, size_t SrcPitch,
+                                       void *Dest, size_t DestPitch,
+                                       size_t Width, size_t Height) {
+    // If both pointers are host USM or unknown (assumed non-USM) we use a
+    // host-task to satisfy dependencies.
+    host_task([=] {
+      const T *CastedSrc = static_cast<const T *>(Src);
+      T *CastedDest = static_cast<T *>(Dest);
+      for (size_t I = 0; I < Height; ++I) {
+        const T *SrcItBegin = CastedSrc + SrcPitch * I;
+        T *DestItBegin = CastedDest + DestPitch * I;
+        std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
+      }
+    });
+  }
+
+  // Common function for launching a 2D USM fill kernel or host_task to avoid
+  // redefinitions of the kernel from memset and fill.
+  template <typename T>
+  void commonUSMFill2DFallback(void *Dest, size_t DestPitch, const T &Pattern,
+                               size_t Width, size_t Height) {
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host) {
+      // If the pointer is host USM or unknown (assumed non-USM) we use a
+      // host-task to satisfy dependencies.
+      host_task([=] {
+        T *CastedDest = static_cast<T *>(Dest);
+        for (size_t I = 0; I < Height; ++I) {
+          T *ItBegin = CastedDest + DestPitch * I;
+          std::fill(ItBegin, ItBegin + Width, Pattern);
+        }
+      });
+    } else {
+      // Otherwise the data is accessible on the device so we do the operation
+      // there instead.
+      // Limit number of work items to be resistant to big fill operations.
+      id<2> Chunk = computeFallbackKernelBounds(Height, Width);
+      id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
+      parallel_for<class __usmfill2d<T>>(
+          range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
+            T *CastedDest = static_cast<T *>(Dest);
+            for (uint32_t I = 0; I < Iterations[0]; ++I) {
+              for (uint32_t J = 0; J < Iterations[1]; ++J) {
+                id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
+                if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
+                  CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
+                      Pattern;
+                }
               }
             }
-          }
-        });
+          });
+    }
   }
 
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.

@@ -835,5 +835,10 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+const std::shared_ptr<detail::context_impl> &
+handler::getContextImplPtr() const {
+  return MQueue->getContextImplPtr();
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
