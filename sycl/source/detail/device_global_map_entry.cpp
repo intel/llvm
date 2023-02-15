@@ -38,8 +38,7 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
          "MZeroInitEvent has not been cleaned up.");
 }
 
-OwnedPiEvent
-DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
+OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
   std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
   // If there is a zero-init event we can remove it if it is done.
   if (MZeroInitEvent.has_value()) {
