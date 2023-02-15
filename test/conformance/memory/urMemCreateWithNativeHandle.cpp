@@ -6,9 +6,8 @@
 using urMemCreateWithNativeHandleTest = uur::urMemBufferTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemCreateWithNativeHandleTest);
 
-// TODO - implement valid native handle test - #178
-TEST_P(urMemCreateWithNativeHandleTest, DISABLED_Success) {
-    ur_native_handle_t native_handle = nullptr;
+TEST_P(urMemCreateWithNativeHandleTest, InvalidNullHandleNativeMem) {
     ur_mem_handle_t mem = nullptr;
-    ASSERT_SUCCESS(urMemCreateWithNativeHandle(native_handle, context, &mem));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urMemCreateWithNativeHandle(nullptr, context, &mem));
 }
