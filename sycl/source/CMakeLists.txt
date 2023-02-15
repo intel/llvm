@@ -26,6 +26,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
+  # Setup install rpath on the SYCL library, this is helpful on some platforms
+  # to find the plugin shared libraries. Using the llvm helper function will
+  # give it the same rpath setup as clang++.
+  llvm_setup_rpath(${LIB_NAME})
+
   # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
   # so, we link LLVMSupport lib to matching sycl version only.
   if (SYCL_ENABLE_STACK_PRINTING)

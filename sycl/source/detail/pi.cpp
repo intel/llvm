@@ -420,15 +420,12 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  const std::string LibSYCLDir =
-      sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
-
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
         PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
                  /*Targets=*/nullptr, /*FunctionPointers=*/{}});
 
-    void *Library = loadPlugin(LibSYCLDir + PluginNames[I].first);
+    void *Library = loadPlugin(PluginNames[I].first);
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
