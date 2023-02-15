@@ -7,6 +7,8 @@
 
 namespace uur {
 
+constexpr char ERROR_NO_ADAPTER[] = "Could not load adapter";
+
 PlatformEnvironment *PlatformEnvironment::instance = nullptr;
 
 std::ostream &operator<<(std::ostream &out,
@@ -32,7 +34,13 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
     ur_device_init_flags_t device_flags = 0;
-    if (urInit(device_flags)) {
+    switch (urInit(device_flags)) {
+    case UR_RESULT_SUCCESS:
+        break;
+    case UR_RESULT_ERROR_UNINITIALIZED:
+        error = ERROR_NO_ADAPTER;
+        return;
+    default:
         error = "urInit() failed";
         return;
     }
@@ -100,11 +108,18 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
 
 void uur::PlatformEnvironment::SetUp() {
     if (!error.empty()) {
-        FAIL() << error;
+        if (error == ERROR_NO_ADAPTER) {
+            GTEST_SKIP() << error;
+        } else {
+            FAIL() << error;
+        }
     }
 }
 
 void uur::PlatformEnvironment::TearDown() {
+    if (error == ERROR_NO_ADAPTER) {
+        return;
+    }
     ur_tear_down_params_t tear_down_params{};
     if (urTearDown(&tear_down_params)) {
         FAIL() << "urTearDown() failed";
@@ -155,8 +170,21 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
 
 void DevicesEnvironment::SetUp() {
     PlatformEnvironment::SetUp();
+    if (error == ERROR_NO_ADAPTER) {
+        return;
+    }
     if (devices.empty() || !error.empty()) {
         FAIL() << error;
+    }
+}
+
+void DevicesEnvironment::TearDown() {
+    PlatformEnvironment::TearDown();
+    for (auto device : devices) {
+        if (urDeviceRelease(device)) {
+            error = "urDeviceRelease() failed";
+            return;
+        }
     }
 }
 } // namespace uur

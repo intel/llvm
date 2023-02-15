@@ -11,6 +11,7 @@
 
 #include <Windows.h>
 
+#include <array>
 #include <cassert>
 #include <cfgmgr32.h>
 #include <devguid.h>
@@ -21,9 +22,7 @@
 
 namespace loader {
 
-static const char *knownAdaptersNames[] = {
-    MAKE_LIBRARY_NAME("ur_null", UR_VERSION),
-};
+static constexpr std::array<char *, 0> knownAdaptersNames{};
 
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
