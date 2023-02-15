@@ -23,8 +23,7 @@ struct test_parameters_t {
 };
 
 template <typename T>
-inline std::string
-printRectTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
+inline std::string printRectTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, test_parameters_t>
     const auto device_handle = std::get<0>(info.param);
     const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
@@ -34,17 +33,13 @@ printRectTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
 
 // Performs host side equivalent of urEnqueueMemBufferReadRect,
 // urEnqueueMemBufferWriteRect and urEnqueueMemBufferCopyRect.
-inline void copyRect(std::vector<uint8_t> src, ur_rect_offset_t src_offset,
-                     ur_rect_offset_t dst_offset, ur_rect_region_t region,
-                     size_t src_row_pitch, size_t src_slice_pitch,
-                     size_t dst_row_pitch, size_t dst_slice_pitch,
+inline void copyRect(std::vector<uint8_t> src, ur_rect_offset_t src_offset, ur_rect_offset_t dst_offset, ur_rect_region_t region,
+                     size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch, size_t dst_slice_pitch,
                      std::vector<uint8_t> &dst) {
-    const auto src_linear_offset = src_offset.x + src_offset.y * src_row_pitch +
-                                   src_offset.z * src_slice_pitch;
+    const auto src_linear_offset = src_offset.x + src_offset.y * src_row_pitch + src_offset.z * src_slice_pitch;
     const auto src_start = src.data() + src_linear_offset;
 
-    const auto dst_linear_offset = dst_offset.x + dst_offset.y * dst_row_pitch +
-                                   dst_offset.z * dst_slice_pitch;
+    const auto dst_linear_offset = dst_offset.x + dst_offset.y * dst_row_pitch + dst_offset.z * dst_slice_pitch;
     const auto dst_start = dst.data() + dst_linear_offset;
 
     for (unsigned k = 0; k < region.depth; ++k) {

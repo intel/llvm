@@ -23,9 +23,7 @@ TEST_P(urEventRetainTest, CheckReferenceCount) {
 
 using urEventRetainNegativeTest = uur::urQueueTest;
 
-TEST_P(urEventRetainNegativeTest, InvalidNullHandle) {
-    ASSERT_EQ(urEventRetain(nullptr), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-}
+TEST_P(urEventRetainNegativeTest, InvalidNullHandle) { ASSERT_EQ(urEventRetain(nullptr), UR_RESULT_ERROR_INVALID_NULL_HANDLE); }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainTest);
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainNegativeTest);
