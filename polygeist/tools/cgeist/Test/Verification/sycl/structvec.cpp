@@ -79,7 +79,9 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-NEXT:  }
 
 // CHECK-LABEL: func.func @_ZN9structvecC1ESt16initializer_listIcE(%arg0: !llvm.ptr<struct<(vector<2xi8>)>, 4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}, %arg1: !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi8, 4>, i64)>, llvm.noundef})
-// CHECK-NEXT:    %c0_i8 = arith.constant 0 : i8
+// CHECK-DAG:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
 // CHECK-NEXT:    %0 = llvm.addrspacecast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> to !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>
 // CHECK-NEXT:    %1 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    affine.for %arg2 = 0 to 2 {
@@ -88,7 +90,7 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-NEXT:      %4 = arith.index_castui %2 : i32 to index
 // CHECK-NEXT:      %5 = memref.load %3[%4] : memref<?xi8, 4>
 // CHECK-NEXT:      %6 = arith.cmpi ne, %5, %c0_i8 : i8
-// CHECK-NEXT:      %7 = arith.extui %6 : i1 to i32
+// CHECK-NEXT:      %7 = arith.select %6, %c-1_i32, %c0_i32 : i32
 // CHECK-NEXT:      %8 = arith.trunci %7 : i32 to i8
 // CHECK-NEXT:      %9 = llvm.load %1 : !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:      %10 = vector.insertelement %8, %9[%2 : i32] : vector<2xi8>

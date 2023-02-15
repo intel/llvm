@@ -1173,7 +1173,9 @@ public:
       return failure();
 
     auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
-    if (MET.isa<LLVM::LLVMStructType>())
+    // SYCL types are lowered to LLVM struct type.
+    bool isSYCLTy = MET.getDialect().getNamespace().contains("sycl");
+    if (MET.isa<LLVM::LLVMStructType>() || isSYCLTy)
       return failure();
 
     Value idx[] = {src.getIndex()};
@@ -2043,33 +2045,33 @@ public:
 
   LogicalResult matchAndRewrite(arith::SelectOp op,
                                 PatternRewriter &rewriter) const override {
-    auto ty = op.getType().dyn_cast<IntegerType>();
-    if (!ty)
-      return failure();
-    if (ty.getWidth() == 1)
-      return failure();
-    IntegerAttr lhs, rhs;
-    Value lhs_v = nullptr, rhs_v = nullptr;
-    if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
-      lhs_v = ext.getIn();
-      if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
-    } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
-    } else
+    // Cannot extui i1 to i1, or i1 to f32
+    if (!op.getType().isa<IntegerType>() || op.getType().isInteger(1))
       return failure();
 
-    if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
-      rhs_v = ext.getIn();
-      if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
-    } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
-    } else
-      return failure();
+    // Determines whether the given value fits into a boolean type.
+    auto getI1 = [&op, &rewriter](Value val) -> Value {
+      constexpr int typeWidth = 1;
+      if (matchPattern(val, m_Op<arith::ExtUIOp>())) {
+        Value result = val.getDefiningOp()->getOperand(0);
+        if (result.getType().cast<IntegerType>().isInteger(typeWidth))
+          return result;
+      }
 
-    if (!lhs_v)
-      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
-    if (!rhs_v)
-      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+      IntegerAttr intAttr;
+      if (matchPattern(val, m_Constant(&intAttr))) {
+        if (intAttr.getInt() == 0 || intAttr.getInt() == 1)
+          return rewriter.create<ConstantIntOp>(op.getLoc(), intAttr.getInt(),
+                                                typeWidth);
+      }
+
+      return nullptr;
+    };
+
+    Value lhs_v = getI1(op.getTrueValue());
+    Value rhs_v = getI1(op.getFalseValue());
+    if (!lhs_v || !rhs_v)
+      return failure();
 
     rewriter.replaceOpWithNewOp<ExtUIOp>(
         op, op.getType(),
