@@ -653,7 +653,7 @@ int main() {
     }
   }
 
-  // placeholder accessor exception  // SYCL2020 4.7.6.9
+  // placeholder accessor exception (1)  // SYCL2020 4.7.6.9
   {
     sycl::queue q;
     // host device executes kernels via a different method and there
@@ -669,8 +669,8 @@ int main() {
       q.submit([&](sycl::handler &cgh) {
         // we do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
-        cgh.parallel_for<class ph>(r,
-                                   [=](sycl::id<1> index) { acc[index] = 0; });
+        cgh.parallel_for<class ph1>(r,
+                                    [=](sycl::id<1> index) { acc[index] = 0; });
       });
       q.wait_and_throw();
       assert(false && "we should not be here, missing exception");
@@ -678,7 +678,79 @@ int main() {
       std::cout << "exception received: " << e.what() << std::endl;
       assert(e.code() == sycl::errc::kernel_argument && "incorrect error code");
     } catch (...) {
-      std::cout << "some other exception" << std::endl;
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
+  // placeholder accessor exception (2) // SYCL2020 4.7.6.9
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    // is no good way to throw an exception at this time.
+    sycl::range<1> r(4);
+    sycl::buffer<int, 1> b(r);
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+                                  sycl::access::target::device,
+                                  sycl::access::placeholder::true_t>;
+      AccT acc(b);
+
+      q.submit([&](sycl::handler &cgh) {
+        // we do NOT call .require(acc) without which we should throw a
+        // synchronous exception with errc::kernel_argument
+        // The difference with the previous test is that the use of acc
+        // is usually optimized away for this particular scenario, but the
+        // exception should be thrown because of passing it, not because of
+        // using it
+        cgh.single_task<class ph2>([=] { int x = acc[0]; });
+      });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::kernel_argument && "incorrect error code");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
+  // placeholder accessor exception (3)  // SYCL2020 4.7.6.9
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    // is no good way to throw an exception at this time.
+    sycl::range<1> r(4);
+    sycl::buffer<int, 1> b(r);
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+                                  sycl::access::target::device,
+                                  sycl::access::placeholder::true_t>;
+      AccT acc(b);
+
+      q.submit([&](sycl::handler &cgh) {
+        AccT acc2(b, cgh);
+        // we do NOT call .require(acc) without which we should throw a
+        // synchronous exception with errc::kernel_argument
+        // The particularity of this test is that it passes to a command
+        // one bound accessor and one unbound accessor. In the past, this
+        // has led to throw the wrong exception.
+        cgh.single_task<class ph3>([=] {
+          volatile int x = acc[0];
+          volatile int y = acc2[0];
+        });
+      });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::kernel_argument && "incorrect error code");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
       return 1;
     }
   }
