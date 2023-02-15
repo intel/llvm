@@ -27,20 +27,15 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRAsyncDialect
   MLIRAffineUtils
   MLIRFuncDialect
-  MLIRFuncTransforms
   MLIRGPUOps
   MLIRIR
+  MLIRLLVMCommonConversion
   MLIRMathDialect
-  MLIRMathToLLVM
   MLIRMemRefDialect
   MLIRNVVMDialect
-  MLIROpenMPToLLVM
   MLIRPass
   MLIRPolygeist
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
-  MLIRSYCLDialect
-  MLIRSYCLToLLVM
   MLIRTransformUtils
-  MLIRVectorToLLVM
 )

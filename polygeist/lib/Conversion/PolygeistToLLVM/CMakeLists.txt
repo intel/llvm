@@ -11,5 +11,14 @@ add_mlir_conversion_library(MLIRPolygeistToLLVM
   Core
 
   LINK_LIBS PUBLIC
-  MLIRLLVMCommonConversion
+  MLIRAsyncDialect
+  MLIRFuncTransforms
+  MLIRMathToLLVM
+  MLIROpenMPToLLVM
+  MLIRPass
+  MLIRPolygeist
+  MLIRPolygeistTransforms
+  MLIRSCFToControlFlow
+  MLIRSYCLToLLVM
+  MLIRVectorToLLVM
 )
