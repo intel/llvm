@@ -25,7 +25,7 @@ OwnedPiEvent::OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin)
 
 OwnedPiEvent::~OwnedPiEvent() {
   // Release the event if the ownership was not transferred.
-  if (!IsOwnershipTransferred())
+  if (MEvent.has_value())
     MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
 }
 
@@ -38,7 +38,7 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
          "MZeroInitEvent has not been cleaned up.");
 }
 
-std::optional<OwnedPiEvent>
+OwnedPiEvent
 DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
   std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
   // If there is a zero-init event we can remove it if it is done.
@@ -47,13 +47,12 @@ DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
             *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
       Plugin.call<PiApiKind::piEventRelease>(*MZeroInitEvent);
       MZeroInitEvent = {};
-      return std::nullopt;
+      return OwnedPiEvent(Plugin);
     } else {
-      return std::optional<OwnedPiEvent>(
-          std::move(OwnedPiEvent(*MZeroInitEvent, Plugin)));
+      return std::move(OwnedPiEvent(*MZeroInitEvent, Plugin));
     }
   }
-  return std::nullopt;
+  return OwnedPiEvent(Plugin);
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(

@@ -30,6 +30,7 @@ class queue_impl;
 
 // RAII object for keeping ownership of a PI event.
 struct OwnedPiEvent {
+  OwnedPiEvent(const plugin &Plugin) : MEvent{std::nullopt}, MPlugin{Plugin} {}
   OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin);
   ~OwnedPiEvent();
 
@@ -42,8 +43,9 @@ struct OwnedPiEvent {
   // used. Implement if needed.
   OwnedPiEvent(const OwnedPiEvent &Other) = delete;
 
+  operator bool() { return MEvent.has_value(); }
+
   RT::PiEvent GetEvent() { return *MEvent; }
-  bool IsOwnershipTransferred() { return !MEvent.has_value(); }
 
   // Transfers the ownership of the event to the caller. The destructor will
   // no longer release the event.
@@ -63,7 +65,10 @@ struct DeviceGlobalUSMMem {
   ~DeviceGlobalUSMMem();
 
   void *getPtr() const noexcept { return MPtr; }
-  std::optional<OwnedPiEvent> getZeroInitEvent(const plugin &Plugin);
+
+  // Gets the zero-initialization event if it exists. If not the OwnedPiEvent
+  // will contain no event.
+  OwnedPiEvent getZeroInitEvent(const plugin &Plugin);
 
 private:
   void *MPtr;

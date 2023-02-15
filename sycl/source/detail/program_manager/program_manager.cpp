@@ -1639,7 +1639,7 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
   assert(compatibleWithDevice(BinImage, Dev));
 
   std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
-  // Collect kernel names for the image
+  // Collect kernel names for the image.
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     KernelIDs = m_BinImg2KernelIDs[BinImage];

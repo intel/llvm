@@ -332,10 +332,8 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        std::optional<OwnedPiEvent> ZIEvent =
-            DeviceGlobalUSM.getZeroInitEvent(Plugin);
-        if (ZIEvent.has_value())
-          InitEventsRef.push_back(ZIEvent->TransferOwnership());
+        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
+          InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
 
       // Write the pointer to the device global and store the event in the

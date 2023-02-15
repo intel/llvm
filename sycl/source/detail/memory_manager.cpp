@@ -1004,20 +1004,19 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration
   // of this function call.
-  std::optional<OwnedPiEvent> ZIEvent =
-      DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
+  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
   std::vector<RT::PiEvent> AuxDepEventsStorage;
   const std::vector<RT::PiEvent> &ActualDepEvents =
-      ZIEvent.has_value() ? AuxDepEventsStorage : DepEvents;
+      ZIEvent ? AuxDepEventsStorage : DepEvents;
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
-  if (ZIEvent.has_value()) {
+  if (ZIEvent) {
     AuxDepEventsStorage = DepEvents;
-    AuxDepEventsStorage.push_back(ZIEvent->GetEvent());
+    AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
   }
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
@@ -1039,20 +1038,19 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration
   // of this function call.
-  std::optional<OwnedPiEvent> ZIEvent =
-      DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
+  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
   std::vector<RT::PiEvent> AuxDepEventsStorage;
   const std::vector<RT::PiEvent> &ActualDepEvents =
-      ZIEvent.has_value() ? AuxDepEventsStorage : DepEvents;
+      ZIEvent ? AuxDepEventsStorage : DepEvents;
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
-  if (ZIEvent.has_value()) {
+  if (ZIEvent) {
     AuxDepEventsStorage = DepEvents;
-    AuxDepEventsStorage.push_back(ZIEvent->GetEvent());
+    AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
