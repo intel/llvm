@@ -587,3 +587,207 @@ func.func @test3(%mr: memref<?x!sycl_item_3_>) -> i64 {
   %0 = "sycl.item.get_linear_id"(%mr) { ArgumentTypes = [memref<?x!sycl_item_3_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_3_>) -> i64
   return %0 : i64
 }
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_id with id output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>) -> !sycl_id_1_ {
+  %0 = "sycl.group.get_group_id"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_id_1_
+  return %0 : !sycl_id_1_
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_id with scalar output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>, %off: i32) -> i64 {
+  %0 = "sycl.group.get_group_id"(%mr, %off) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_local_range with range output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>) -> !sycl_range_1_ {
+  %0 = "sycl.group.get_local_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_local_range with scalar output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>, %off: i32) -> i64 {
+  %0 = "sycl.group.get_local_range"(%mr, %off) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_range with range output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>) -> !sycl_range_1_ {
+  %0 = "sycl.group.get_group_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_range with scalar output
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>, %off: i32) -> i64 {
+  %0 = "sycl.group.get_group_range"(%mr, %off) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_max_local_range
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test(%mr: memref<?x!sycl_group_1_>) -> !sycl_range_1_ {
+  %0 = "sycl.group.get_max_local_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_max_local_range", MangledFunctionName = @"get_max_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_linear_id
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test1(%mr: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_id"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+
+func.func @test2(%mr: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_id"(%mr) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+func.func @test3(%mr: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_id"(%mr) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_group_linear_range
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test1(%mr: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+
+func.func @test2(%mr: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+func.func @test3(%mr: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = "sycl.group.get_group_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// sycl.group.get_local_linear_range
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test1(%mr: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = "sycl.group.get_local_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+
+func.func @test2(%mr: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = "sycl.group.get_local_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+func.func @test3(%mr: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = "sycl.group.get_local_linear_range"(%mr) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}

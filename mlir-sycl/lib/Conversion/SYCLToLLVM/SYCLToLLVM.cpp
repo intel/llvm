@@ -14,6 +14,7 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -87,6 +88,10 @@ struct AccessorGetMemRange : public OffsetTag {};
 struct ItemGetID : public OffsetTag {};
 struct ItemGetRange : public OffsetTag {};
 struct ItemGetOffset : public OffsetTag {};
+struct GroupGetID : public OffsetTag {};
+struct GroupGetGlobalRange : public OffsetTag {};
+struct GroupGetLocalRange : public OffsetTag {};
+struct GroupGetGroupRange : public OffsetTag {};
 
 /// Workaround to mimic static_assert(false), which is is illegal.
 template <typename Tag,
@@ -103,9 +108,11 @@ constexpr void initIndicesEach(Iter &it) {
   if constexpr (llvm::is_one_of<Tag, RangeGet, IDGet, ItemGetRange>::value) {
     *it++ = 0;
     *it++ = 0;
-  } else if constexpr (llvm::is_one_of<Tag, NDRangeGetGlobalRange>::value) {
+  } else if constexpr (llvm::is_one_of<Tag, NDRangeGetGlobalRange,
+                                       GroupGetGlobalRange>::value) {
     *it++ = 0;
-  } else if constexpr (llvm::is_one_of<Tag, NDRangeGetLocalRange>::value) {
+  } else if constexpr (llvm::is_one_of<Tag, NDRangeGetLocalRange,
+                                       GroupGetLocalRange>::value) {
     *it++ = 1;
   } else if constexpr (llvm::is_one_of<Tag, AccessorSubscript>::value) {
     *it++ = 1;
@@ -117,6 +124,10 @@ constexpr void initIndicesEach(Iter &it) {
   } else if constexpr (llvm::is_one_of<Tag, ItemGetOffset>::value) {
     *it++ = 0;
     *it++ = 2;
+  } else if constexpr (llvm::is_one_of<Tag, GroupGetGroupRange>::value) {
+    *it++ = 2;
+  } else if constexpr (llvm::is_one_of<Tag, GroupGetID>::value) {
+    *it++ = 3;
   } else {
     static_assert(unhandled_tag_v<Tag>, "Unhandled tag");
   }
@@ -161,6 +172,22 @@ template <> struct indices_size<NDRangeGetGlobalRange> {
 };
 
 template <> struct indices_size<NDRangeGetLocalRange> {
+  static constexpr std::size_t value{1};
+};
+
+template <> struct indices_size<GroupGetID> {
+  static constexpr std::size_t value{1};
+};
+
+template <> struct indices_size<GroupGetGlobalRange> {
+  static constexpr std::size_t value{1};
+};
+
+template <> struct indices_size<GroupGetLocalRange> {
+  static constexpr std::size_t value{1};
+};
+
+template <> struct indices_size<GroupGetGroupRange> {
   static constexpr std::size_t value{1};
 };
 
@@ -335,6 +362,63 @@ public:
                           getTypeConverter()->convertType(op.getType()),
                           addressSpace),
                       operands[0], operands[1]));
+  }
+};
+
+template <typename Op, typename GridOp, typename... Tags>
+class SPIRVInitPattern : public ConvertOpToLLVMPattern<Op>,
+                         public GetMemberPattern<Tags...> {
+protected:
+  using GetMemberPattern<Tags...>::getRef;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+public:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const override {
+    const auto loc = op.getLoc();
+    const auto elTy = getTypeConverter()->convertType(op.getType());
+    const auto ptrTy = LLVM::LLVMPointerType::get(elTy);
+    const Value arraySize =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), 1);
+    const Value alloca =
+        rewriter.create<LLVM::AllocaOp>(loc, ptrTy, elTy, arraySize);
+    const auto structMemberTy = rewriter.getI64Type();
+    const auto dimTy = rewriter.getIndexType();
+    const auto dimGetTy = rewriter.getI32Type();
+    const auto innerPtrTy = LLVM::LLVMPointerType::get(structMemberTy);
+    for (unsigned i = 0,
+                  dimensions = getDimensions(op->getOperand(0).getType());
+         i < dimensions; ++i) {
+      const auto ref = getRef(rewriter, loc, innerPtrTy, alloca, i);
+      const Value dim = rewriter.create<LLVM::ConstantOp>(loc, dimGetTy, i);
+      const Value val = rewriter.create<arith::IndexCastUIOp>(
+          loc, structMemberTy, rewriter.create<GridOp>(loc, dimTy, dim));
+      rewriter.create<LLVM::StoreOp>(loc, ref, val);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
+  }
+};
+
+template <typename Op, typename GridOp>
+class SPIRVInitDimPattern : public ConvertOpToLLVMPattern<Op> {
+protected:
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+
+public:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const override {
+    const Value id = rewriter.create<GridOp>(
+        op.getLoc(), rewriter.getIndexType(), adaptor.getOperands()[1]);
+    rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), id);
   }
 };
 
@@ -1369,6 +1453,377 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// GroupGetID - Converts `sycl.group.get_group_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupID with an ID return type to LLVM
+class GroupGetGroupIDPattern
+    : public LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID> {
+public:
+  using LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLGroupGetGroupID with a scalar return type to LLVM
+class GroupGetGroupIDDimPattern
+    : public LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID, IDGet> {
+public:
+  using LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID,
+                          IDGet>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalRange - Converts `sycl.group.get_local_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalRange with a range return type to LLVM
+class GroupGetLocalRangePattern
+    : public LoadMemberPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetLocalRangeOp,
+                          GroupGetLocalRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLGroupGetLocalRange with a scalar return type to LLVM
+class GroupGetLocalRangeDimPattern
+    : public LoadMemberDimPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange,
+                                  RangeGet> {
+public:
+  using LoadMemberDimPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange,
+                             RangeGet>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupRange - Converts `sycl.group.get_group_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupRange with a range return type to LLVM
+class GroupGetGroupRangePattern
+    : public LoadMemberPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetGroupRangeOp,
+                          GroupGetGroupRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLGroupGetGroupRange with a scalar return type to LLVM
+class GroupGetGroupRangeDimPattern
+    : public LoadMemberDimPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange,
+                                  RangeGet> {
+public:
+  using LoadMemberDimPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange,
+                             RangeGet>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetMaxLocalRange - Converts `sycl.group.get_max_local_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetMaxLocalRange
+class GroupGetMaxLocalRangePattern
+    : public LoadMemberPattern<SYCLGroupGetMaxLocalRangeOp,
+                               GroupGetLocalRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetMaxLocalRangeOp,
+                          GroupGetLocalRange>::LoadMemberPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalID - Converts `sycl.group.get_local_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalID with an ID return type to LLVM
+class GroupGetLocalIDPattern
+    : public SPIRVInitPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp, IDGet> {
+public:
+  using SPIRVInitPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp,
+                         IDGet>::SPIRVInitPattern;
+
+  LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLGroupGetLocalID with a scalar return type to LLVM
+class GroupGetLocalIDDimPattern
+    : public SPIRVInitDimPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp> {
+public:
+  using SPIRVInitDimPattern<SYCLGroupGetLocalIDOp,
+                            SYCLLocalIDOp>::SPIRVInitDimPattern;
+
+  LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupLinearID - Converts `sycl.group.get_group_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupLinearIDOp to LLVM
+class GroupGetGroupLinearIDPattern
+    : public ConvertOpToLLVMPattern<SYCLGroupGetGroupLinearIDOp>,
+      public GetMemberPattern<GroupGetGroupRange, RangeGet>,
+      public GetMemberPattern<GroupGetID, IDGet> {
+  template <typename... Args> Value getID(Args &&...args) const {
+    return GetMemberPattern<GroupGetID, IDGet>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+  template <typename... Args> Value getRange(Args &&...args) const {
+    return GetMemberPattern<GroupGetGroupRange, RangeGet>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLGroupGetGroupLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLGroupGetGroupLinearIDOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto addressSpace = opAdaptor.getGroup()
+                                  .getType()
+                                  .cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        getTypeConverter()->convertType(op.getType()), addressSpace);
+    const auto newValue =
+        [this, ptrTy, group = opAdaptor.getGroup(),
+         dimensions = getDimensions(op->getOperand(0).getType()),
+         loc = op.getLoc(), opAdaptor, &builder = rewriter]() -> Value {
+      switch (dimensions) {
+      case 1:
+        return getID(builder, loc, ptrTy, group, 0);
+      case 2: {
+        const auto id0 = getID(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const Value m0 = builder.create<LLVM::MulOp>(loc, id0, r1);
+        const auto id1 = getID(builder, loc, ptrTy, group, 1);
+        return builder.create<LLVM::AddOp>(loc, m0, id1);
+      }
+      case 3: {
+        const auto id0 = getID(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const auto r2 = getRange(builder, loc, ptrTy, group, 2);
+        const Value m0 = builder.create<LLVM::MulOp>(loc, id0, r1);
+        const Value m1 = builder.create<LLVM::MulOp>(loc, m0, r2);
+        const auto id1 = getID(builder, loc, ptrTy, group, 1);
+        const Value m2 = builder.create<LLVM::MulOp>(loc, id1, r2);
+        const Value add0 = builder.create<LLVM::AddOp>(loc, m1, m2);
+        const auto id2 = getID(builder, loc, ptrTy, group, 2);
+        return builder.create<LLVM::AddOp>(loc, add0, id2);
+      }
+      }
+      llvm_unreachable("Invalid number of dimensions");
+    }();
+    rewriter.replaceOp(op, newValue);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalLinearID - Converts `sycl.group.get_local_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalLinearIDOp to LLVM
+class GroupGetLocalLinearIDPattern
+    : public ConvertOpToLLVMPattern<SYCLGroupGetLocalLinearIDOp>,
+      public GetMemberPattern<GroupGetGroupRange, RangeGet> {
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value,
+              int32_t offset) const {
+    const Value dim =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI32Type(), offset);
+    const Value val =
+        builder.create<SYCLLocalIDOp>(loc, builder.getI64Type(), dim);
+    return builder.create<arith::IndexCastUIOp>(
+        loc, ptrTy.cast<LLVM::LLVMPointerType>().getElementType(), val);
+  }
+
+  template <typename... Args> Value getRange(Args &&...args) const {
+    return GetMemberPattern<GroupGetGroupRange, RangeGet>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLGroupGetLocalLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLGroupGetLocalLinearIDOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto addressSpace = opAdaptor.getGroup()
+                                  .getType()
+                                  .cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        getTypeConverter()->convertType(op.getType()), addressSpace);
+    const auto newValue =
+        [this, ptrTy, group = opAdaptor.getGroup(),
+         dimensions = getDimensions(op->getOperand(0).getType()),
+         loc = op.getLoc(), opAdaptor, &builder = rewriter]() -> Value {
+      switch (dimensions) {
+      case 1:
+        return getID(builder, loc, ptrTy, group, 0);
+      case 2: {
+        const auto id0 = getID(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const Value m0 = builder.create<LLVM::MulOp>(loc, id0, r1);
+        const auto id1 = getID(builder, loc, ptrTy, group, 1);
+        return builder.create<LLVM::AddOp>(loc, m0, id1);
+      }
+      case 3: {
+        const auto id0 = getID(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const auto r2 = getRange(builder, loc, ptrTy, group, 2);
+        const Value m0 = builder.create<LLVM::MulOp>(loc, id0, r1);
+        const Value m1 = builder.create<LLVM::MulOp>(loc, m0, r2);
+        const auto id1 = getID(builder, loc, ptrTy, group, 1);
+        const Value m2 = builder.create<LLVM::MulOp>(loc, id1, r2);
+        const Value add0 = builder.create<LLVM::AddOp>(loc, m1, m2);
+        const auto id2 = getID(builder, loc, ptrTy, group, 2);
+        return builder.create<LLVM::AddOp>(loc, add0, id2);
+      }
+      }
+      llvm_unreachable("Invalid number of dimensions");
+    }();
+    rewriter.replaceOp(op, newValue);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupLinearRange - Converts `sycl.group.get_group_linear_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupLinearRangeOp to LLVM
+class GroupGetGroupLinearRangePattern
+    : public ConvertOpToLLVMPattern<SYCLGroupGetGroupLinearRangeOp>,
+      public GetMemberPattern<GroupGetGroupRange, RangeGet> {
+
+  template <typename... Args> Value getRange(Args &&...args) const {
+    return GetMemberPattern<GroupGetGroupRange, RangeGet>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLGroupGetGroupLinearRangeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLGroupGetGroupLinearRangeOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto addressSpace = opAdaptor.getGroup()
+                                  .getType()
+                                  .cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        getTypeConverter()->convertType(op.getType()), addressSpace);
+    const auto newValue =
+        [this, ptrTy, group = opAdaptor.getGroup(),
+         dimensions = getDimensions(op->getOperand(0).getType()),
+         loc = op.getLoc(), opAdaptor, &builder = rewriter]() -> Value {
+      switch (dimensions) {
+      case 1:
+        return getRange(builder, loc, ptrTy, group, 0);
+      case 2: {
+        const auto r0 = getRange(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        return builder.create<LLVM::MulOp>(loc, r0, r1);
+      }
+      case 3: {
+        const auto r0 = getRange(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const Value m = builder.create<LLVM::MulOp>(loc, r0, r1);
+        const auto r2 = getRange(builder, loc, ptrTy, group, 2);
+        return builder.create<LLVM::MulOp>(loc, m, r2);
+      }
+      }
+      llvm_unreachable("Invalid number of dimensions");
+    }();
+    rewriter.replaceOp(op, newValue);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalLinearRange - Converts `sycl.group.get_local_linear_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalLinearRangeOp to LLVM
+class GroupGetLocalLinearRangePattern
+    : public ConvertOpToLLVMPattern<SYCLGroupGetLocalLinearRangeOp>,
+      public GetMemberPattern<GroupGetLocalRange, RangeGet> {
+  template <typename... Args> Value getRange(Args &&...args) const {
+    return GetMemberPattern<GroupGetLocalRange, RangeGet>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLGroupGetLocalLinearRangeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLGroupGetLocalLinearRangeOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto addressSpace = opAdaptor.getGroup()
+                                  .getType()
+                                  .cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        getTypeConverter()->convertType(op.getType()), addressSpace);
+    const auto newValue =
+        [this, ptrTy, group = opAdaptor.getGroup(),
+         dimensions = getDimensions(op->getOperand(0).getType()),
+         loc = op.getLoc(), opAdaptor, &builder = rewriter]() -> Value {
+      switch (dimensions) {
+      case 1:
+        return getRange(builder, loc, ptrTy, group, 0);
+      case 2: {
+        const auto r0 = getRange(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        return builder.create<LLVM::MulOp>(loc, r0, r1);
+      }
+      case 3: {
+        const auto r0 = getRange(builder, loc, ptrTy, group, 0);
+        const auto r1 = getRange(builder, loc, ptrTy, group, 1);
+        const Value m = builder.create<LLVM::MulOp>(loc, r0, r1);
+        const auto r2 = getRange(builder, loc, ptrTy, group, 2);
+        return builder.create<LLVM::MulOp>(loc, m, r2);
+      }
+      }
+      llvm_unreachable("Invalid number of dimensions");
+    }();
+    rewriter.replaceOp(op, newValue);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -1483,11 +1938,18 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<ConstructorPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv)
     patterns.add<AtomicSubscriptIDOffset, AtomicSubscriptScalarOffset,
-                 ItemGetIDDimPattern, ItemGetIDPattern, ItemGetRangeDimPattern,
-                 ItemGetRangePattern, ItemNoOffsetGetLinearIDPattern,
-                 ItemOffsetGetLinearIDPattern, NDRangeGetGlobalRangePattern,
-                 NDRangeGetGroupRangePattern, NDRangeGetLocalRangePattern,
-                 RangeGetPattern, RangeGetRefPattern, RangeSizePattern,
-                 SubscriptIDOffset, SubscriptScalarOffset1D,
-                 SubscriptScalarOffsetND>(typeConverter);
+                 GroupGetGroupIDPattern, GroupGetGroupIDDimPattern,
+                 GroupGetLocalIDPattern, GroupGetLocalIDDimPattern,
+                 GroupGetLocalRangePattern, GroupGetLocalRangeDimPattern,
+                 GroupGetGroupRangePattern, GroupGetGroupRangeDimPattern,
+                 GroupGetMaxLocalRangePattern, GroupGetGroupLinearIDPattern,
+                 GroupGetLocalLinearIDPattern, GroupGetGroupLinearRangePattern,
+                 GroupGetLocalLinearRangePattern, ItemGetIDDimPattern,
+                 ItemGetIDPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
+                 ItemNoOffsetGetLinearIDPattern, ItemOffsetGetLinearIDPattern,
+                 NDRangeGetGlobalRangePattern, NDRangeGetGroupRangePattern,
+                 NDRangeGetLocalRangePattern, RangeGetPattern,
+                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
+                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
+        typeConverter);
 }
