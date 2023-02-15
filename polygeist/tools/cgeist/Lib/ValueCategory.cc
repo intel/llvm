@@ -10,8 +10,8 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "polygeist/Ops.h"
 #include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
