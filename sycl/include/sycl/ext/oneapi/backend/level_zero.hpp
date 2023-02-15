@@ -33,7 +33,9 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                bool keep_ownership = false);
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
     const context &Context, const device &Device,
-    NativeHandleEnhanced InteropHandle, bool keep_ownership = false);
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+        InteropHandle,
+    bool keep_ownership = false);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);

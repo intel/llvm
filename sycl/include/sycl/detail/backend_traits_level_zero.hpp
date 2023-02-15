@@ -37,10 +37,6 @@ typedef struct _ze_image_handle_t *ze_image_handle_t;
 typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
-typedef std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-    queue_or_cmdlist;
-typedef queue_or_cmdlist NativeHandleEnhanced;
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -67,7 +63,8 @@ template <> struct interop<backend::ext_oneapi_level_zero, event> {
 
 template <> struct interop<backend::ext_oneapi_level_zero, queue> {
   using type = ze_command_queue_handle_t;
-  using type2 = NativeHandleEnhanced;
+  using type2 =
+      std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
@@ -149,12 +146,15 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
         : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
   };
   struct type2 {
-    NativeHandleEnhanced NativeHandle;
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+        NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
     device Device;
 
-    type2(NativeHandleEnhanced nativeHandle, device dev,
+    type2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+              nativeHandle,
+          device dev,
           ext::oneapi::level_zero::ownership ownership =
               ext::oneapi::level_zero::ownership::transfer)
         : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
@@ -179,7 +179,8 @@ struct BackendReturn<backend::ext_oneapi_level_zero,
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
   using type = ze_command_queue_handle_t;
-  using type2 = NativeHandleEnhanced;
+  using type2 =
+      std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, platform> {

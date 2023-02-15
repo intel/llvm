@@ -48,11 +48,13 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is a proposed update to an existing extension.  Interfaces defined in this
+specification may not be implemented yet or may be in a preliminary state.  The
+specification itself may also change in incompatible ways before it is
+finalized.  *Shipping software products should not rely on APIs defined in this
+specification.*  See
+link:../supported/sycl_ext_oneapi_backend_level_zero.md[here] for the existing
+extension, which is implemented.
 
 
 == Backend support status
@@ -78,18 +80,12 @@ is added to obtain the native handle being used by a SYCL queue.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO` to the value defined in the table
-below.  Applications can test the macro's value to determine if this extension
+macro `SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_EXPERIMENTAL` to the value 1.
+The APIs of this experimental extension are not versioned, so the feature-test
+macro always has the value 1.
+Applications can test the macro value to determine if this extension
 is supported.
 
-[%header,cols="1,5"]
-|===
-|Value
-|Description
-
-|4
-|The APIs of this experimental extension are supported.
-|===
 
 === New Types and Functions
 
@@ -97,20 +93,19 @@ This extensions adds a new input type for SYCL queue construction
 and a return type for obtaining a native handle from a SYCL queue.
 
 ```c++
-typedef std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-  _ze_queue_or_cmdlist;
-typedef _ze_queue_or_cmdlist *NativeHandleEnhanced_t;
+namespace sycl::ext::oneapi::level_zero::experimental {
 
 using backend_input_t2<backend::ext_oneapi_level_zero, queue> =
   struct {
-    NativeHandleEnhanced_t NativeHandle;
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+      NativeHandle;
     device Device;
     ext::oneapi::level_zero::ownership Ownership{
        ext::oneapi::level_zero::ownership::transfer};
   };
 
 using backend_return_t2<backend::ext_oneapi_level_zero, queue> =
-  _ze_queue_or_cmdlist;
+  std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 
 ext::oneapi::level_zero::experimental::
 make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
@@ -121,6 +116,7 @@ backend_return_t2<backend::ext_oneapi_level_zero, queue>
 ext::oneapi::level_zero::experimental::
 get_native_standard_or_immediate<backend::ext_oneapi_level_zero, queue>
     (const queue &)
+}
 ```
 
 
@@ -129,15 +125,17 @@ Here is an example of usage of these APIs:
 
 ```c++
 
+using namespace sycl;
+
 // Level-Zero objects needed for queue creation and query
 ze_command_list_handle_t ZeCommand_list = ...;
 context InteropContext = ...;
 device InteropDevice = ...;
 
 // Construct input from command list
-_ze_queue_or_cmdlist NativeHandle2{ZeCommand_list};
 backend_input_t2<backend::ext_oneapi_level_zero, queue> InteropQueueInput{
-  &NativeHandle2, InteropDevice,
+  {ZeCommand_list},
+  InteropDevice,
   ext::oneapi::level_zero::ownership::keep
 };
 

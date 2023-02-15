@@ -234,9 +234,10 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
-    NativeHandleEnhanced NativeHandle, const context &TargetContext,
-    const device *TargetDevice, bool KeepOwnership,
-    const async_handler &Handler, backend Backend);
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+        NativeHandle,
+    const context &TargetContext, const device *TargetDevice,
+    bool KeepOwnership, const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,

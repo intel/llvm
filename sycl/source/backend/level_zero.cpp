@@ -81,7 +81,9 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
 
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
     const context &Context, const device &Device,
-    NativeHandleEnhanced NativeHandle, bool KeepOwnership) {
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+        NativeHandle,
+    bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
   return detail::make_queue_standard_or_immediate(
       NativeHandle, Context, &Device, KeepOwnership,
