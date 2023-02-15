@@ -9,13 +9,14 @@
 #include "platform_discovery.hpp"
 
 #include "ur_util.hpp"
+#include <array>
 #include <iostream>
 #include <sstream>
 #include <string>
 
 namespace loader {
 
-static constexpr char *knownPlatformNames[] = {};
+static constexpr std::array<char *, 0> knownPlatformNames{};
 
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
