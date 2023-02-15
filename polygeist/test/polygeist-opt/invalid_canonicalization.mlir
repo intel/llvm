@@ -62,3 +62,20 @@ func.func @Memref2PointerIndex(%arg0: memref<?x!llvm.struct<(i32, i32)>>) -> !ll
 }
 
 // -----
+
+// CHECK:  func.func @Memref2PointerIndexSycl([[A0:%.*]]: memref<?x!sycl_array_1_, 4>) -> !llvm.ptr<i64, 4> {
+// CHECK-NEXT:    [[C1:%.*]] = arith.constant 1 : index
+// CHECK-NEXT:    [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C1]]) : (memref<?x!sycl_array_1_, 4>, index) -> memref<?xi64, 4>
+// CHECK-NEXT:    [[T1:%.*]] = "polygeist.memref2pointer"([[T0]]) : (memref<?xi64, 4>) -> !llvm.ptr<i64, 4>
+// CHECK-NEXT:    return [[T1]] : !llvm.ptr<i64, 4>
+// CHECK-NEXT:  }
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+func.func @Memref2PointerIndexSycl(%arg0: memref<?x!sycl_array_1_, 4>) -> !llvm.ptr<i64, 4> {
+  %c1 = arith.constant 1 : index
+  %0 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!sycl.array<[1], (memref<1xi64, 4>)>, 4>, index) -> memref<?xi64, 4>
+  %1 = "polygeist.memref2pointer"(%0) : (memref<?xi64, 4>) -> !llvm.ptr<i64, 4>
+  return %1 : !llvm.ptr<i64, 4>
+}
+
+// -----
