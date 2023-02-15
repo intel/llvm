@@ -80,8 +80,8 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
 }
 
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
-    const context &Context, const device &Device, pi_native_handle NativeHandle,
-    bool KeepOwnership) {
+    const context &Context, const device &Device,
+    NativeHandleEnhanced NativeHandle, bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
   return detail::make_queue_standard_or_immediate(
       NativeHandle, Context, &Device, KeepOwnership,

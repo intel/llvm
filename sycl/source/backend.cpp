@@ -126,18 +126,17 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 }
 
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
-    pi_native_handle NativeHandle, const context &Context, const device *Device,
-    bool KeepOwnership, const async_handler &Handler, backend Backend) {
-  NativeHandleEnhanced_t NativeHandle2 =
-      reinterpret_cast<NativeHandleEnhanced_t>(NativeHandle);
+    NativeHandleEnhanced NativeHandle, const context &Context,
+    const device *Device, bool KeepOwnership, const async_handler &Handler,
+    backend Backend) {
   bool IsImmCmdList =
-      std::holds_alternative<ze_command_list_handle_t>(*NativeHandle2);
+      std::holds_alternative<ze_command_list_handle_t>(NativeHandle);
   pi_native_handle Handle =
       IsImmCmdList
           ? reinterpret_cast<pi_native_handle>(
-                *(std::get_if<ze_command_list_handle_t>(NativeHandle2)))
+                *(std::get_if<ze_command_list_handle_t>(&NativeHandle)))
           : reinterpret_cast<pi_native_handle>(
-                *(std::get_if<ze_command_queue_handle_t>(NativeHandle2)));
+                *(std::get_if<ze_command_queue_handle_t>(&NativeHandle)));
   if (Device) {
     const auto &DeviceImpl = getSyclObjImpl(*Device);
     return make_queue_impl2(Handle, Context, DeviceImpl->getHandleRef(),

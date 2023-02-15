@@ -234,7 +234,7 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
-    pi_native_handle NativeHandle, const context &TargetContext,
+    NativeHandleEnhanced NativeHandle, const context &TargetContext,
     const device *TargetDevice, bool KeepOwnership,
     const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -310,8 +310,7 @@ make_queue_standard_or_immediate(
         &BackendObject,
     const context &TargetContext, const async_handler Handler = {}) {
   return sycl::detail::make_queue_standard_or_immediate(
-      sycl::detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
-      nullptr, false, Handler, Backend);
+      BackendObject, TargetContext, nullptr, false, Handler, Backend);
 }
 } // namespace ext::oneapi::level_zero::experimental
 

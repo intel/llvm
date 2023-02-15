@@ -33,7 +33,7 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                bool keep_ownership = false);
 __SYCL_EXPORT queue make_queue_standard_or_immediate(
     const context &Context, const device &Device,
-    pi_native_handle InteropHandle, bool keep_ownership = false);
+    NativeHandleEnhanced InteropHandle, bool keep_ownership = false);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -138,8 +138,7 @@ inline queue make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
   (void)Handler;
   const device Device = device{BackendObject.Device};
   return ext::oneapi::level_zero::make_queue_standard_or_immediate(
-      TargetContext, Device,
-      sycl::detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, Device, BackendObject.NativeHandle,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 } // namespace ext::oneapi::level_zero::experimental
