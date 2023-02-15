@@ -440,8 +440,10 @@ pi_native_handle2 queue_impl::getNative2() const {
   bool IsImmCmdList;
   Plugin.call<PiApiKind::piextQueueGetNativeHandle2>(MQueues[0], &Handle,
                                                      &IsImmCmdList);
-  pi_native_handle2 Handle2{Handle, IsImmCmdList};
-  return Handle2;
+  if (IsImmCmdList)
+    return pi_native_handle2{
+        reinterpret_cast<ze_command_list_handle_t>(Handle)};
+  return pi_native_handle2{reinterpret_cast<ze_command_queue_handle_t>(Handle)};
 }
 
 bool queue_impl::ext_oneapi_empty() const {

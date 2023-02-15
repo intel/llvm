@@ -141,6 +141,7 @@ auto get_native(const SyclObjectT &Obj)
       Obj.getNative());
 }
 
+namespace ext::oneapi::level_zero::experimental {
 template <backend BackendName, class SyclObjectT>
 auto get_native_standard_or_immediate(const SyclObjectT &Obj)
     -> backend_return_t2<BackendName, SyclObjectT> {
@@ -149,10 +150,9 @@ auto get_native_standard_or_immediate(const SyclObjectT &Obj)
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  return backend_return_t2<BackendName, SyclObjectT>{
-      reinterpret_cast<ze_command_queue_handle_t>(Obj.getNative2().handle),
-      Obj.getNative2().IsImmCmdList};
+  return Obj.getNative2();
 }
+} // namespace ext::oneapi::level_zero::experimental
 
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
@@ -300,17 +300,20 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
                             TargetContext, nullptr, false, Handler, Backend);
 }
 
+namespace ext::oneapi::level_zero::experimental {
 template <backend Backend>
 typename std::enable_if<
-    detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
+    sycl::detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
+    queue>::type
 make_queue_standard_or_immediate(
     const typename backend_traits<Backend>::template input_type2<queue>
         &BackendObject,
     const context &TargetContext, const async_handler Handler = {}) {
-  return detail::make_queue_standard_or_immediate(
-      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext, nullptr,
-      false, Handler, Backend);
+  return sycl::detail::make_queue_standard_or_immediate(
+      sycl::detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+      nullptr, false, Handler, Backend);
 }
+} // namespace ext::oneapi::level_zero::experimental
 
 template <backend Backend>
 typename std::enable_if<

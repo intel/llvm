@@ -129,6 +129,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
+namespace ext::oneapi::level_zero::experimental {
 template <>
 inline queue make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
     const backend_input_t2<backend::ext_oneapi_level_zero, queue>
@@ -138,9 +139,10 @@ inline queue make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
   const device Device = device{BackendObject.Device};
   return ext::oneapi::level_zero::make_queue_standard_or_immediate(
       TargetContext, Device,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      sycl::detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
+} // namespace ext::oneapi::level_zero::experimental
 
 // Specialization of sycl::make_event for Level-Zero backend.
 template <>

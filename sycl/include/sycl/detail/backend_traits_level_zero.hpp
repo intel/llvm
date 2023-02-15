@@ -25,6 +25,7 @@
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
+#include <variant>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
@@ -36,10 +37,9 @@ typedef struct _ze_image_handle_t *ze_image_handle_t;
 typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
-typedef struct _ze_queue_or_cmdlist {
-  void *LevelZeroHandle;
-  bool IsImmCmdList;
-} *NativeHandleEnhanced_t;
+typedef std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+    _ze_queue_or_cmdlist;
+typedef _ze_queue_or_cmdlist *NativeHandleEnhanced_t;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -179,7 +179,7 @@ struct BackendReturn<backend::ext_oneapi_level_zero,
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
   using type = ze_command_queue_handle_t;
-  using type2 = struct _ze_queue_or_cmdlist;
+  using type2 = _ze_queue_or_cmdlist;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, platform> {

@@ -2817,7 +2817,11 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-
+  // Cannot retrieve L0 queue from SYCL queue that uses imm command lists.
+  if (Queue->UsingImmCmdLists) {
+    *ZeQueue = nullptr;
+    return PI_SUCCESS;
+  }
   // Extract a Level Zero compute queue handle from the given PI queue
   uint32_t QueueGroupOrdinalUnused;
   auto TID = std::this_thread::get_id();

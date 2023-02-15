@@ -117,6 +117,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,10 +129,11 @@ using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
 using pi_native_handle = uintptr_t;
-using pi_native_handle2 = struct pi_native_handle2 {
-  pi_native_handle handle;
-  bool IsImmCmdList;
-};
+
+typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
+typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
+using pi_native_handle2 =
+    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
