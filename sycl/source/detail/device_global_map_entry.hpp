@@ -34,31 +34,28 @@ struct OwnedPiEvent {
   ~OwnedPiEvent();
 
   OwnedPiEvent(OwnedPiEvent &&Other)
-      : MEvent(Other.MEvent), MPlugin(Other.MPlugin),
-        MIsOwnershipTransferred(Other.MIsOwnershipTransferred) {
-    // Any ownership Other had has been transferred with the move, so set the
-    // marker accordingly.
-    Other.MIsOwnershipTransferred = true;
+      : MEvent(Other.MEvent), MPlugin(Other.MPlugin) {
+    Other.MEvent = std::nullopt;
   }
 
   // Copy constructor explicitly deleted for simplicity as it is not currently
   // used. Implement if needed.
   OwnedPiEvent(const OwnedPiEvent &Other) = delete;
 
-  RT::PiEvent GetEvent() { return MEvent; }
-  bool IsOwnershipTransferred() { return MIsOwnershipTransferred; }
+  RT::PiEvent GetEvent() { return *MEvent; }
+  bool IsOwnershipTransferred() { return !MEvent.has_value(); }
 
   // Transfers the ownership of the event to the caller. The destructor will
   // no longer release the event.
   RT::PiEvent TransferOwnership() {
-    MIsOwnershipTransferred = true;
-    return MEvent;
+    RT::PiEvent Event = *MEvent;
+    MEvent = std::nullopt;
+    return Event;
   }
 
 private:
-  RT::PiEvent MEvent;
+  std::optional<RT::PiEvent> MEvent;
   const plugin &MPlugin;
-  bool MIsOwnershipTransferred = false;
 };
 
 struct DeviceGlobalUSMMem {

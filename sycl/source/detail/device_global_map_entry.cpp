@@ -20,13 +20,13 @@ namespace detail {
 OwnedPiEvent::OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin)
     : MEvent(Event), MPlugin(Plugin) {
   // Retain the event to share ownership of it.
-  MPlugin.call<PiApiKind::piEventRetain>(MEvent);
+  MPlugin.call<PiApiKind::piEventRetain>(*MEvent);
 }
 
 OwnedPiEvent::~OwnedPiEvent() {
   // Release the event if the ownership was not transferred.
-  if (!MIsOwnershipTransferred)
-    MPlugin.call<PiApiKind::piEventRelease>(MEvent);
+  if (!IsOwnershipTransferred())
+    MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
 }
 
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
