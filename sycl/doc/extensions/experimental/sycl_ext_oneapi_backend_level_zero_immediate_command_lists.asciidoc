@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_myextension
+= sycl_ext_oneapi_backend_level_zero_immediate_command_lists
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -65,115 +65,96 @@ warn you if this happens.
 
 == Overview
 
-_Provide a brief overview of the extension here and explain the motivation if
-appropriate.  This is also a good place to show an example usage, but there is
-no need to exhaustively show all aspects of your extension.  Those details
-should be explained in the sections that follow.  This section is just an
-overview to introduce your readers to your extension._
-
-_Note that text should be wrapped at 80 columns as shown in this template.
-Extensions use AsciiDoc markup language (like this template).  If you need help
-with AsciiDoc syntax, see
-https://docs.asciidoctor.org/asciidoc/latest[the manual]._
-
-_GitHub understands most AsciiDoc syntax, so files with the `.asciidoc`
-extension are rendered nicely into HTML.  Occasionally, you will find an
-AsciiDoc feature that GitHub does not understand, though, so you should check
-that GitHub renders your extension document nicely before merging it.  If you
-find a feature that GitHub does not understand, *do not use it*.  We expect
-users to read these specifications directly in the GitHub UI, so make sure that
-your specification is nicely formatted when viewed this way._
-
+The Level Zero backend now supports low-latency submissions using
+a feature known as immediate commndlists. SYCL queues may be constructed
+to use either command queues or command lists. A new API
+`make_queue_standard_or_immediate` allows selecting the type of SYCL queue
+to construct. The companion API `get_native_standard_or_immediate`
+is added to obtain the native handle being used by a SYCL queue.
 
 == Specification
 
 === Feature test macro
 
-_All extensions should provide a feature-test macro, so that applications
-can use `#ifdef` to protect code that uses your extension.  Use this text
-for all extensions:_
-
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_MYEXTENSION` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features the implementation
-supports.
-
-_And follow the text with a table like this *unless the extension is
-"experimental"*.  Note that your table may have more than one row if it
-has multiple versions._
+macro `SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO` to the value defined in the table
+below.  Applications can test the macro's value to determine if this extension
+is supported.
 
 [%header,cols="1,5"]
 |===
 |Value
 |Description
 
-|1
-|Initial version of this extension.
+|4
+|The APIs of this experimental extension are supported.
 |===
 
-_If your extension is "experimental", use this table instead:_
+=== New Types and Functions
 
-[%header,cols="1,5"]
-|===
-|Value
-|Description
+This extensions adds a new input type for SYCL queue construction
+and a return type for obtaining a native handle from a SYCL queue.
 
-|1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
-|===
+```c++
+typedef std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+  _ze_queue_or_cmdlist;
+typedef _ze_queue_or_cmdlist *NativeHandleEnhanced_t;
 
-=== More sections at your discretion
+using backend_input_t2<backend::ext_oneapi_level_zero, queue> =
+  struct {
+    NativeHandleEnhanced_t NativeHandle;
+    device Device;
+    ext::oneapi::level_zero::ownership Ownership{
+       ext::oneapi::level_zero::ownership::transfer};
+  };
 
-_Your extension specification will certainly have more sections which describe
-the APIs of your extension.  Define these sections as you see fit._
+using backend_return_t2<backend::ext_oneapi_level_zero, queue> =
+  _ze_queue_or_cmdlist;
 
-_As a general rule, do not describe *how* you will change the core SYCL
-specification.  For example, there is no need to say something like "Add the
-following paragraph to section 4.6.7 of the core SYCL specification ..."
-Instead, just describe the semantics and APIs of the extension itself.  We will
-figure out later how to change the core SYCL specification if the extension is
-adopted._
+ext::oneapi::level_zero::experimental::
+make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>(
+    const backend_input_t2<backend::ext_oneapi_level_zero, queue> &,
+    const context &)
 
-_There may be times when an extension adds a new member function to an existing
-SYCL class or a new enumerator to an existing SYCL enumeration.  In cases like
-these, say something like:_
-
-> This extension adds the following new member function to the SYCL `queue`
-> class:
->
-> ```
-> class queue {
->   void ext_oneapi_myfunction();
-> };
-> ```
-
-_Avoid unnecessary duplication of core SYCL APIs.  For example, there is no
-need to list the existing member functions in `queue` if your extension adds a
-new member function.  Duplication like this can be troublesome if something in
-the core SYCL specification changes later._
+backend_return_t2<backend::ext_oneapi_level_zero, queue>
+ext::oneapi::level_zero::experimental::
+get_native_standard_or_immediate<backend::ext_oneapi_level_zero, queue>
+    (const queue &)
+```
 
 
-== Implementation notes
+== Example
+Here is an example of usage of these APIs:
 
-This non-normative section provides information about one possible
-implementation of this extension.  It is not part of the specification of the
-extension's API.
+```c++
 
-_This section is not normally needed, but occasionally a "proposed" extension
-will contains some notes about the intended implementation.  If so, add this
-section, and include the text in the first paragraph above indicating that the
-section is non-normative.  Follow that paragraph with whatever implementation
-notes you think are necessary.  Usually, this section will be removed by the
-time the extension is implemented, and a more detailed {dpcpp} design document
-will be written instead._
+// Level-Zero objects needed for queue creation and query
+ze_command_list_handle_t ZeCommand_list = ...;
+context InteropContext = ...;
+device InteropDevice = ...;
 
+// Construct input from command list
+_ze_queue_or_cmdlist NativeHandle2{ZeCommand_list};
+backend_input_t2<backend::ext_oneapi_level_zero, queue> InteropQueueInput{
+  &NativeHandle2, InteropDevice,
+  ext::oneapi::level_zero::ownership::keep
+};
 
-== Issues
+// Make a SYCL queue using an immediate command list
+queue Queue = ext::oneapi::level_zero::experimental::
+  make_queue_standard_or_immediate<backend::ext_oneapi_level_zero>
+    (InteropQueueInput, InteropContext);
 
-_Sometimes there will be unresolved issues in a "proposed" extension.  If this
-is the case, add an "Issues" section towards the end of the document, and list
-each issue._
+// Get a native handle from a SYCL queue
+auto QueueNativeHandle =
+  ext::oneapi::level_zero::experimental::
+    get_native_standard_or_immediate<backend::ext_oneapi_level_zero, queue>
+      (Queue);
+
+// Test the type of native handle obtained
+if (std::holds_alternative<ze_command_list_handle_t>(QueueNativeHandle)) {
+  // It is an immediate command list; extract it
+  auto List = std::get_if<ze_command_list_handle_t>(&QueueNativeHandle);
+}
+```
