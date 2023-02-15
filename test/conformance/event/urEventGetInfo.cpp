@@ -12,8 +12,7 @@ TEST_P(urEventGetInfoTest, Success) {
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
-    ASSERT_SUCCESS(
-        urEventGetInfo(event, info_type, size, data.data(), nullptr));
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, size, data.data(), nullptr));
 
     switch (info_type) {
     case UR_EVENT_INFO_COMMAND_QUEUE: {
@@ -22,8 +21,7 @@ TEST_P(urEventGetInfoTest, Success) {
         break;
     }
     case UR_EVENT_INFO_CONTEXT: {
-        auto returned_context =
-            reinterpret_cast<ur_context_handle_t>(data.data());
+        auto returned_context = reinterpret_cast<ur_context_handle_t>(data.data());
         ASSERT_EQ(context, returned_context);
         break;
     }
@@ -33,14 +31,12 @@ TEST_P(urEventGetInfoTest, Success) {
         break;
     }
     case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-        auto returned_status =
-            reinterpret_cast<ur_event_status_t *>(data.data());
+        auto returned_status = reinterpret_cast<ur_event_status_t *>(data.data());
         ASSERT_EQ(UR_EVENT_STATUS_COMPLETE, *returned_status);
         break;
     }
     case UR_EVENT_INFO_REFERENCE_COUNT: {
-        auto returned_reference_count =
-            reinterpret_cast<uint32_t *>(data.data());
+        auto returned_reference_count = reinterpret_cast<uint32_t *>(data.data());
         ASSERT_EQ(1, *returned_reference_count);
         break;
     }
@@ -50,11 +46,8 @@ TEST_P(urEventGetInfoTest, Success) {
 }
 
 UUR_TEST_SUITE_P(urEventGetInfoTest,
-                 ::testing::Values(UR_EVENT_INFO_COMMAND_QUEUE,
-                                   UR_EVENT_INFO_CONTEXT,
-                                   UR_EVENT_INFO_COMMAND_TYPE,
-                                   UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                                   UR_EVENT_INFO_REFERENCE_COUNT),
+                 ::testing::Values(UR_EVENT_INFO_COMMAND_QUEUE, UR_EVENT_INFO_CONTEXT, UR_EVENT_INFO_COMMAND_TYPE,
+                                   UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, UR_EVENT_INFO_REFERENCE_COUNT),
                  uur::deviceTestWithParamPrinter<ur_event_info_t>);
 
 using urEventGetInfoNegativeTest = uur::event::urEventTest;
@@ -67,16 +60,12 @@ TEST_P(urEventGetInfoNegativeTest, InvalidNullHandle) {
     std::vector<uint8_t> data(size);
 
     /* Invalid hEvent */
-    ASSERT_EQ(
-        urEventGetInfo(nullptr, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, &size),
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ(urEventGetInfo(nullptr, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEventGetInfoNegativeTest, InvalidEnumeration) {
     size_t size;
-    ASSERT_EQ(
-        urEventGetInfo(event, UR_EVENT_INFO_FORCE_UINT32, 0, nullptr, &size),
-        UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ASSERT_EQ(urEventGetInfo(event, UR_EVENT_INFO_FORCE_UINT32, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
@@ -87,9 +76,7 @@ TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
     std::vector<uint8_t> data(size);
 
     /* Invalid propValueSize */
-    ASSERT_EQ(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, data.data(),
-                             nullptr),
-              UR_RESULT_ERROR_INVALID_VALUE);
+    ASSERT_EQ(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, data.data(), nullptr), UR_RESULT_ERROR_INVALID_VALUE);
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoNegativeTest);

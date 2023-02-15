@@ -8,25 +8,22 @@
 #include <uur/environment.h>
 #include <uur/utils.h>
 
-#define UUR_RETURN_ON_FATAL_FAILURE(...)                                       \
-    __VA_ARGS__;                                                               \
-    if (this->HasFatalFailure() || this->IsSkipped()) {                        \
-        return;                                                                \
-    }                                                                          \
+#define UUR_RETURN_ON_FATAL_FAILURE(...)                \
+    __VA_ARGS__;                                        \
+    if (this->HasFatalFailure() || this->IsSkipped()) { \
+        return;                                         \
+    }                                                   \
     (void)0
 
 namespace uur {
 
 struct urPlatformTest : ::testing::Test {
-    void SetUp() override {
-        platform = uur::PlatformEnvironment::instance->platform;
-    }
+    void SetUp() override { platform = uur::PlatformEnvironment::instance->platform; }
 
     ur_platform_handle_t platform = nullptr;
 };
 
-inline std::pair<bool, std::vector<ur_device_handle_t>>
-GetDevices(ur_platform_handle_t platform) {
+inline std::pair<bool, std::vector<ur_device_handle_t>> GetDevices(ur_platform_handle_t platform) {
     uint32_t count = 0;
     if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
         return {false, {}};
@@ -35,29 +32,23 @@ GetDevices(ur_platform_handle_t platform) {
         return {false, {}};
     }
     std::vector<ur_device_handle_t> devices(count);
-    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
-                    nullptr)) {
+    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(), nullptr)) {
         return {false, {}};
     }
     return {true, devices};
 }
 
-inline bool
-hasDevicePartitionSupport(ur_device_handle_t device,
-                          const ur_device_partition_property_t property) {
+inline bool hasDevicePartitionSupport(ur_device_handle_t device, const ur_device_partition_property_t property) {
     size_t size = 0;
-    auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES,
-                                  0, nullptr, &size);
+    auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, 0, nullptr, &size);
     if (result != UR_RESULT_SUCCESS) {
         return false;
     }
     if (size == 0) {
         return false;
     }
-    std::vector<ur_device_partition_property_t> properties(
-        size / sizeof(ur_device_partition_property_t));
-    result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, size,
-                             properties.data(), nullptr);
+    std::vector<ur_device_partition_property_t> properties(size / sizeof(ur_device_partition_property_t));
+    result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, size, properties.data(), nullptr);
     if (result != UR_RESULT_SUCCESS) {
         return false;
     }
@@ -84,8 +75,7 @@ struct urAllDevicesTest : urPlatformTest {
     std::vector<ur_device_handle_t> devices;
 };
 
-struct urDeviceTest : urPlatformTest,
-                      ::testing::WithParamInterface<ur_device_handle_t> {
+struct urDeviceTest : urPlatformTest, ::testing::WithParamInterface<ur_device_handle_t> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
@@ -96,20 +86,15 @@ struct urDeviceTest : urPlatformTest,
 };
 } // namespace uur
 
-#define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
-    INSTANTIATE_TEST_SUITE_P(                                                  \
-        , FIXTURE,                                                             \
-        ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),       \
-        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) {         \
-            return uur::GetPlatformAndDeviceName(info.param);                  \
-        })
+#define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                                \
+    INSTANTIATE_TEST_SUITE_P(                                                       \
+        , FIXTURE, ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices), \
+        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) { return uur::GetPlatformAndDeviceName(info.param); })
 
 namespace uur {
 
 template <class T>
-struct urDeviceTestWithParam
-    : urPlatformTest,
-      ::testing::WithParamInterface<std::tuple<ur_device_handle_t, T>> {
+struct urDeviceTestWithParam : urPlatformTest, ::testing::WithParamInterface<std::tuple<ur_device_handle_t, T>> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = std::get<0>(this->GetParam());
@@ -138,8 +123,7 @@ struct urMemBufferTest : urContextTest {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096,
-                                         nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -155,17 +139,13 @@ struct urMemBufferTest : urContextTest {
 
 } // namespace uur
 
-#define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                             \
-    INSTANTIATE_TEST_SUITE_P(                                                  \
-        , FIXTURE,                                                             \
-        testing::Combine(                                                      \
-            ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),   \
-            VALUES),                                                           \
-        PRINTER)
+#define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER) \
+    INSTANTIATE_TEST_SUITE_P(, FIXTURE, testing::Combine(::testing::ValuesIn(uur::DevicesEnvironment::instance->devices), VALUES), PRINTER)
 
 namespace uur {
 
-template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
+template <class T>
+struct urContextTestWithParam : urDeviceTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urContextCreate(1, &this->device, &context));
@@ -178,11 +158,11 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
     ur_context_handle_t context;
 };
 
-template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
+template <class T>
+struct urMemBufferTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                         4096, nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE, 4096, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -212,7 +192,8 @@ struct urQueueTest : urContextTest {
     ur_queue_handle_t queue = nullptr;
 };
 
-template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
+template <class T>
+struct urQueueTestWithParam : urContextTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
@@ -257,8 +238,7 @@ struct urMultiDeviceContextTest : urPlatformTest {
         if (devices.size() <= 1) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urContextCreate(static_cast<uint32_t>(devices.size()),
-                                       devices.data(), &context));
+        ASSERT_SUCCESS(urContextCreate(static_cast<uint32_t>(devices.size()), devices.data(), &context));
     }
 
     void TearDown() override {
@@ -274,8 +254,7 @@ struct urMultiDeviceContextTest : urPlatformTest {
 struct urMultiDeviceMemBufferTest : urMultiDeviceContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
-                                         nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -315,8 +294,7 @@ struct urMultiDeviceMemBufferQueueTest : urMultiDeviceMemBufferTest {
 struct urMemBufferQueueTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
-                                         nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size, nullptr, &buffer));
     }
 
     void TearDown() override {
@@ -335,11 +313,9 @@ struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
         ur_usm_mem_flags_t flags;
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
-        ASSERT_SUCCESS(
-            urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));
     }
@@ -358,11 +334,9 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
         ur_usm_mem_flags_t flags;
-        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, &flags,
-                                        sizeof(int), 0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, &flags, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
-        ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0,
-                                          nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0, nullptr, &event));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));
     }
@@ -380,8 +354,7 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 /// @param info
 /// @return
 template <class T>
-std::string deviceTestWithParamPrinter(
-    const ::testing::TestParamInfo<std::tuple<ur_device_handle_t, T>> &info) {
+std::string deviceTestWithParamPrinter(const ::testing::TestParamInfo<std::tuple<ur_device_handle_t, T>> &info) {
     auto device = std::get<0>(info.param);
     auto param = std::get<1>(info.param);
 

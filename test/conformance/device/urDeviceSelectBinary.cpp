@@ -10,12 +10,10 @@ TEST_F(urDeviceSelectBinaryTest, Success) {
     const char *binaries[] = {"binary A", "binary B"};
     uint32_t num_binaries = 2;
     for (auto device : devices) {
-        ASSERT_SUCCESS(urDeviceSelectBinary(device, (const uint8_t **)binaries,
-                                            num_binaries, nullptr));
+        ASSERT_SUCCESS(urDeviceSelectBinary(device, (const uint8_t **)binaries, num_binaries, nullptr));
     }
 }
 
 TEST_F(urDeviceSelectBinaryTest, InvalidNullHandle) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urDeviceSelectBinary(nullptr, nullptr, 0, nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urDeviceSelectBinary(nullptr, nullptr, 0, nullptr));
 }

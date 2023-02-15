@@ -115,10 +115,6 @@ file(GLOB_RECURSE format_src
 # Exclude files from build directory to ensure they're not passed to the formatter
 list(FILTER format_src EXCLUDE REGEX "${CMAKE_CURRENT_BINARY_DIR}.")
 
-# Exclude files we do not want to format
-list(FILTER format_src EXCLUDE REGEX "${CMAKE_PROJECT_DIR}/include/ur_api.h")
-list(FILTER format_src EXCLUDE REGEX "${CMAKE_PROJECT_DIR}/include/ur_ddi.h")
-
 # Add code formatter target
 add_custom_target(cppformat)
 

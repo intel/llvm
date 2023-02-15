@@ -11,7 +11,4 @@ TEST_P(urContextRetainTest, Success) {
     EXPECT_SUCCESS(urContextRelease(context));
 }
 
-TEST_P(urContextRetainTest, InvalidNullHandleContext) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urContextRetain(nullptr));
-}
+TEST_P(urContextRetainTest, InvalidNullHandleContext) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urContextRetain(nullptr)); }
