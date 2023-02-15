@@ -3,4 +3,5 @@ Language:      Cpp
 BasedOnStyle:  LLVM
 IndentWidth:   4
 InsertBraces: true
+ReflowComments: false
 ...
