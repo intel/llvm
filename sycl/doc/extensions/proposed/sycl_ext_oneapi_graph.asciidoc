@@ -186,7 +186,7 @@ Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
 
-Table 1. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
+Table {counter: tableNumber}. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
 [%header,cols="1,5"]
 |===
 |Value |Description
@@ -197,7 +197,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
 
 :explicit-memory-ops: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:explicitmemory
 
-Table 2. Terminology.
+Table {counter: tableNumber}. Terminology.
 [%header,cols="1,3"]
 |===
 | Concept | Description
@@ -219,7 +219,7 @@ Table 2. Terminology.
 When using the explicit graph building API to construct a graph, nodes and
 edges are captured as follows.
 
-Table 3. Explicit Graph Definition.
+Table {counter: tableNumber}. Explicit Graph Definition.
 [%header,cols="1,3"]
 |===
 | Concept | Description
@@ -247,7 +247,7 @@ returned from a queue submission captured by a queue recording to the same graph
 When using the record & replay API to construct a graph by recording a queue,
 nodes and edges are captured as follows.
 
-Table 4. Recorded Graph Definition.
+Table {counter: tableNumber}. Recorded Graph Definition.
 [%header,cols="1,3"]
 |===
 | Concept | Description
@@ -468,7 +468,7 @@ create the executable graphs, with the nodes added in the same order.
 
 ==== Graph Member Functions
 
-Table 5. Constructor of the `command_graph` class.
+Table {counter: tableNumber}. Constructor of the `command_graph` class.
 [cols="2a,a"]
 |===
 |Constructor|Description
@@ -495,7 +495,7 @@ Parameters:
 
 |===
 
-Table 6. Member functions of the `command_graph` class.
+Table {counter: tableNumber}. Member functions of the `command_graph` class.
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -634,7 +634,7 @@ Memory that is allocated by the following functions is owned by the specific
 graph. When freed inside the graph, the memory is only accessible before the
 `free` node is executed and after the `malloc` node is executed.
 
-Table 7. Member functions of the `command_graph` class (memory operations).
+Table {counter: tableNumber}. Member functions of the `command_graph` class (memory operations).
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -697,7 +697,7 @@ Exceptions:
 
 |===
 
-Table 8. Member functions of the `command_graph` class for queue recording.
+Table {counter: tableNumber}. Member functions of the `command_graph` class for queue recording.
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -810,7 +810,7 @@ Exceptions:
 
 |===
 
-Table 9. Member functions of the `command_graph` class (executable graph update).
+Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -884,7 +884,7 @@ The state of a queue can be queried with `queue::get_info` using template
 parameter `info::queue::state`. The following entry is added to the
 {queue-info-table}[queue info table] to define this query:
 
-Table 10. Queue info query
+Table {counter: tableNumber}. Queue info query
 [cols="2a,a,a"]
 |===
 | Queue Descriptors | Return Type | Description
@@ -927,7 +927,7 @@ property and this graph extension.
 
 ==== New Queue Member Functions
 
-Table 11. Additional member functions of the `sycl::queue` class.
+Table {counter: tableNumber}. Additional member functions of the `sycl::queue` class.
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -969,7 +969,7 @@ containing `handler::depends_on(depEvents)` and
 
 ==== New Handler Member Functions
 
-Table 12. Additional member functions of the `sycl::handler` class.
+Table {counter: tableNumber}. Additional member functions of the `sycl::handler` class.
 [cols="2a,a"]
 |===
 |Member function|Description
