@@ -2972,6 +2972,8 @@ protected:
   }
 
 public:
+  using size_type = size_t;
+
   host_accessor() : AccessorT() {}
 
   // The list of host_accessor constructors with their arguments
