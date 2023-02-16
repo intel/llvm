@@ -2972,6 +2972,10 @@ protected:
   }
 
 public:
+  using value_type = typename std::conditional<AccessMode == access_mode::read,
+                                               const DataT, DataT>::type;
+  using reference = value_type&;
+  using const_reference = const DataT&;
   using size_type = size_t;
 
   host_accessor() : AccessorT() {}
