@@ -52,11 +52,15 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
-  if (Platform.get_backend() == sycl::backend::opencl) {
+  bool IsL0 = false;        // Backend is any OneAPI Level 0 version
+  auto Backend = Platform.get_backend();
+  if (Backend == sycl::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);
     IsOpenCLV20 = (VersionString.find("2.0") == 0);
+  } else if (Backend == sycl::backend::ext_oneapi_level_zero) {
+    IsL0 = true;
   }
 
   size_t CompileWGSize[3] = {0};
@@ -91,7 +95,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               std::to_string(CompileWGSize[0]) + "}",
           PI_ERROR_INVALID_WORK_GROUP_SIZE);
   }
-  if (IsOpenCL) {
     if (IsOpenCLV1x) {
       // OpenCL 1.x:
       // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
@@ -110,8 +113,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxWGSize),
             PI_ERROR_INVALID_WORK_GROUP_SIZE);
-    } else {
-      // OpenCL 2.x:
+    } else if (IsOpenCLV20 || IsL0) {
+      // OpenCL 2.x or OneAPI Level Zero:
       // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
       // the total number of work-items in the work-group computed as
       // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
@@ -128,10 +131,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(KernelWGSize) + " for this kernel",
             PI_ERROR_INVALID_WORK_GROUP_SIZE);
+    } else {
+      // TODO: Should probably have something similar for the other backends
     }
-  } else {
-    // TODO: Should probably have something similar for the other backends
-  }
 
   if (HasLocalSize) {
     // Is the global range size evenly divisible by the local workgroup size?
