@@ -39,7 +39,7 @@ enum uma_result_t nullGetLastResult(void *provider, const char** ppMsg) {
     return UMA_RESULT_SUCCESS;
 }
 
-uma_memory_provider_handle_t nullProviderCreate() {
+uma_memory_provider_handle_t nullProviderCreate(void) {
     struct uma_memory_provider_ops_t ops = {
         .version = UMA_VERSION_CURRENT,
         .initialize = nullInitialize,
