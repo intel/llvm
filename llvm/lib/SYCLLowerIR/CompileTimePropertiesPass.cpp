@@ -441,10 +441,10 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   SmallVector<Instruction *, 4> instList;
   // check if used by a load or store instructions
   for (auto val : IntrInst->users()) {
-    // if castInst, push sussessors
+    // if castInst, push successors
     if (auto cast = dyn_cast<CastInst>(val)) {
-      for (auto sussessor : cast->users())
-        userList.push_back(sussessor);
+      for (auto successor : cast->users())
+        userList.push_back(successor);
     } else {
       userList.push_back(val);
     }
