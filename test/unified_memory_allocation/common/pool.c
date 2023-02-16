@@ -62,7 +62,7 @@ enum uma_result_t nullGetLastResult(void *pool, const char** ppMsg) {
     return UMA_RESULT_SUCCESS;
 }
 
-uma_memory_pool_handle_t nullPoolCreate() {
+uma_memory_pool_handle_t nullPoolCreate(void) {
     struct uma_memory_pool_ops_t ops = {
         .version = UMA_VERSION_CURRENT,
         .initialize = nullInitialize,
