@@ -65,7 +65,7 @@ int main() {
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p1f64(double addrspace(1)* %{{.*}}, i32 8)
           //CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p1(ptr addrspace(1) %{{.*}}, i32 8)
           joint_matrix_load(sg, sub_b, accB.get_pointer(), N);
-          //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %2)
+          //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double {{.*}}
           //CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double {{.*}}, double {{.*}}, double {{.*}}, double {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p1f64(double addrspace(1)* %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8)
@@ -95,7 +95,7 @@ int main() {
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p1f64(double addrspace(1)* %{{.*}}, i32 4)
           //CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p1(ptr addrspace(1) %{{.*}}, i32 4)
           joint_matrix_load(sg, sub_b, accB.get_pointer(), K);
-          //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %2)
+          //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double {{.*}}
           //CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double {{.*}}, double {{.*}}, double {{.*}}, double {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p1f64(double addrspace(1)* %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8)
