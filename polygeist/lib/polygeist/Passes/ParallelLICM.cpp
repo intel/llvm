@@ -897,10 +897,9 @@ void LICM::runOnOperation() {
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({
-        llvm::dbgs() << "\nParallel LICM hoisted " << OpHoisted
-                     << " operation(s).\n";
+        llvm::dbgs() << "\nLICM hoisted " << OpHoisted << " operation(s).\n";
         if (OpHoisted) {
-          loop.print(llvm::dbgs() << "Loop after Parallel LICM:\n");
+          loop.print(llvm::dbgs() << "Loop after LICM:\n");
           llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
           assert(mlir::verify(getParentFunction(loop)).succeeded());
         }
