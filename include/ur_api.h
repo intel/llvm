@@ -227,7 +227,8 @@ typedef enum ur_result_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 0, ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 0,         ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 1, ///< ::ur_program_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4288,6 +4289,55 @@ urGetLastResult(
 #pragma region program
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Program metadata property type.
+typedef enum ur_program_metadata_type_t {
+    UR_PROGRAM_METADATA_TYPE_UINT32 = 0,     ///< type is a 32-bit integer.
+    UR_PROGRAM_METADATA_TYPE_UINT64 = 1,     ///< type is a 64-bit integer.
+    UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY = 2, ///< type is a byte array.
+    UR_PROGRAM_METADATA_TYPE_STRING = 3,     ///< type is a null-terminated string.
+    /// @cond
+    UR_PROGRAM_METADATA_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_program_metadata_type_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Program metadata value union.
+typedef union ur_program_metadata_value_t {
+    uint32_t data32; ///< [in] inline storage for the 32-bit data, type
+                     ///< ::UR_PROGRAM_METADATA_TYPE_UINT32.
+    uint64_t data64; ///< [in] inline storage for the 64-bit data, type
+                     ///< ::UR_PROGRAM_METADATA_TYPE_UINT64.
+    char *pString;   ///< [in] pointer to null-terminated string data, type
+                     ///< ::UR_PROGRAM_METADATA_TYPE_STRING.
+    void *pData;     ///< [in] pointer to binary data, type
+                     ///< ::UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY.
+
+} ur_program_metadata_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Program metadata property.
+typedef struct ur_program_metadata_t {
+    char *pName;                       ///< [in] null-terminated metadata name.
+    ur_program_metadata_type_t type;   ///< [in] the type of metadata value.
+    size_t size;                       ///< [in] size in bytes of the data pointed to by value.pData, or 0 when
+                                       ///< value size is less than 64-bits and is stored directly in value.data.
+    ur_program_metadata_value_t value; ///< [in] the metadata value storage.
+
+} ur_program_metadata_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Program creation properties.
+typedef struct ur_program_properties_t {
+    ur_structure_type_t stype;               ///< [in] type of this structure
+    void *pNext;                             ///< [in,out][optional] pointer to extension-specific structure
+    uint32_t count;                          ///< [in] the number of entries in pMetadatas, if count is greater than
+                                             ///< zero then pMetadatas must not be null.
+    const ur_program_metadata_t *pMetadatas; ///< [in][optional][range(0,count)] pointer to array of metadata entries.
+
+} ur_program_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create Program from input SPIR-V modules.
 ///
 /// @details
@@ -4306,17 +4356,21 @@ urGetLastResult(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phModules`
 ///         + `NULL == phProgram`
+///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreate(
-    ur_context_handle_t hContext,        ///< [in] handle of the context instance
-    uint32_t count,                      ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules, ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                ///< [in][optional] pointer to linker options null-terminated string.
-    ur_program_handle_t *phProgram       ///< [out] pointer to handle of program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    uint32_t count,                             ///< [in] number of module handles in module list.
+    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
+    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create program object from native binary.
+/// @brief Create a program object from device native binary.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
@@ -4335,13 +4389,17 @@ urProgramCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pBinary`
 ///         + `NULL == phProgram`
+///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithBinary(
-    ur_context_handle_t hContext,  ///< [in] handle of the context instance
-    ur_device_handle_t hDevice,    ///< [in] handle to device associated with binary.
-    size_t size,                   ///< [in] size in bytes.
-    const uint8_t *pBinary,        ///< [in] pointer to binary.
-    ur_program_handle_t *phProgram ///< [out] pointer to handle of Program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    ur_device_handle_t hDevice,                 ///< [in] handle to device associated with binary.
+    size_t size,                                ///< [in] size in bytes.
+    const uint8_t *pBinary,                     ///< [in] pointer to binary.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of Program object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5149,6 +5207,7 @@ typedef struct ur_program_create_params_t {
     uint32_t *pcount;
     const ur_module_handle_t **pphModules;
     const char **ppOptions;
+    const ur_program_properties_t **ppProperties;
     ur_program_handle_t **pphProgram;
 } ur_program_create_params_t;
 
@@ -5173,6 +5232,7 @@ typedef struct ur_program_create_with_binary_params_t {
     ur_device_handle_t *phDevice;
     size_t *psize;
     const uint8_t **ppBinary;
+    const ur_program_properties_t **ppProperties;
     ur_program_handle_t **pphProgram;
 } ur_program_create_with_binary_params_t;
 

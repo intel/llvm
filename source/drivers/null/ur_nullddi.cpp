@@ -2585,18 +2585,19 @@ urGetLastResult(
 /// @brief Intercept function for urProgramCreate
 __urdlllocal ur_result_t UR_APICALL
 urProgramCreate(
-    ur_context_handle_t hContext,        ///< [in] handle of the context instance
-    uint32_t count,                      ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules, ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                ///< [in][optional] pointer to linker options null-terminated string.
-    ur_program_handle_t *phProgram       ///< [out] pointer to handle of program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    uint32_t count,                             ///< [in] number of module handles in module list.
+    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
+    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnCreate = d_context.urDdiTable.Program.pfnCreate;
     if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, count, phModules, pOptions, phProgram);
+        result = pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
     } else {
         // generic implementation
         *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
@@ -2609,18 +2610,19 @@ urProgramCreate(
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL
 urProgramCreateWithBinary(
-    ur_context_handle_t hContext,  ///< [in] handle of the context instance
-    ur_device_handle_t hDevice,    ///< [in] handle to device associated with binary.
-    size_t size,                   ///< [in] size in bytes.
-    const uint8_t *pBinary,        ///< [in] pointer to binary.
-    ur_program_handle_t *phProgram ///< [out] pointer to handle of Program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    ur_device_handle_t hDevice,                 ///< [in] handle to device associated with binary.
+    size_t size,                                ///< [in] size in bytes.
+    const uint8_t *pBinary,                     ///< [in] pointer to binary.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of Program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnCreateWithBinary = d_context.urDdiTable.Program.pfnCreateWithBinary;
     if (nullptr != pfnCreateWithBinary) {
-        result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, phProgram);
+        result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
     } else {
         // generic implementation
         *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());

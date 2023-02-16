@@ -3881,24 +3881,28 @@ urGetLastResult(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phModules`
 ///         + `NULL == phProgram`
+///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
 ur_result_t UR_APICALL
 urProgramCreate(
-    ur_context_handle_t hContext,        ///< [in] handle of the context instance
-    uint32_t count,                      ///< [in] number of module handles in module list.
-    const ur_module_handle_t *phModules, ///< [in][range(0, count)] pointer to array of modules.
-    const char *pOptions,                ///< [in][optional] pointer to linker options null-terminated string.
-    ur_program_handle_t *phProgram       ///< [out] pointer to handle of program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    uint32_t count,                             ///< [in] number of module handles in module list.
+    const ur_module_handle_t *phModules,        ///< [in][range(0, count)] pointer to array of modules.
+    const char *pOptions,                       ///< [in][optional] pointer to linker options null-terminated string.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of program object created.
 ) {
     auto pfnCreate = ur_lib::context->urDdiTable.Program.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreate(hContext, count, phModules, pOptions, phProgram);
+    return pfnCreate(hContext, count, phModules, pOptions, pProperties, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create program object from native binary.
+/// @brief Create a program object from device native binary.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
@@ -3917,20 +3921,24 @@ urProgramCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pBinary`
 ///         + `NULL == phProgram`
+///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
 ur_result_t UR_APICALL
 urProgramCreateWithBinary(
-    ur_context_handle_t hContext,  ///< [in] handle of the context instance
-    ur_device_handle_t hDevice,    ///< [in] handle to device associated with binary.
-    size_t size,                   ///< [in] size in bytes.
-    const uint8_t *pBinary,        ///< [in] pointer to binary.
-    ur_program_handle_t *phProgram ///< [out] pointer to handle of Program object created.
+    ur_context_handle_t hContext,               ///< [in] handle of the context instance
+    ur_device_handle_t hDevice,                 ///< [in] handle to device associated with binary.
+    size_t size,                                ///< [in] size in bytes.
+    const uint8_t *pBinary,                     ///< [in] pointer to binary.
+    const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t *phProgram              ///< [out] pointer to handle of Program object created.
 ) {
     auto pfnCreateWithBinary = ur_lib::context->urDdiTable.Program.pfnCreateWithBinary;
     if (nullptr == pfnCreateWithBinary) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreateWithBinary(hContext, hDevice, size, pBinary, phProgram);
+    return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties, phProgram);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

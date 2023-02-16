@@ -10,6 +10,68 @@ type: header
 desc: "Intel $OneApi Level-Zero Runtime APIs for Program"
 ordinal: "2"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Program metadata property type."
+name: $x_program_metadata_type_t
+etors:
+    - name: UINT32
+      desc: "type is a 32-bit integer."
+    - name: UINT64
+      desc: "type is a 64-bit integer."
+    - name: BYTE_ARRAY
+      desc: "type is a byte array."
+    - name: STRING
+      desc: "type is a null-terminated string."
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Program metadata value union."
+class: $xProgram
+name: $x_program_metadata_value_t
+members:
+    - type: uint32_t
+      name: data32
+      desc: "[in] inline storage for the 32-bit data, type $X_PROGRAM_METADATA_TYPE_UINT32."
+    - type: uint64_t
+      name: data64
+      desc: "[in] inline storage for the 64-bit data, type $X_PROGRAM_METADATA_TYPE_UINT64."
+    - type: char*
+      name: pString
+      desc: "[in] pointer to null-terminated string data, type $X_PROGRAM_METADATA_TYPE_STRING."
+    - type: void*
+      name: pData
+      desc: "[in] pointer to binary data, type $X_PROGRAM_METADATA_TYPE_BYTE_ARRAY."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Program metadata property."
+class: $xProgram
+name: $x_program_metadata_t
+members:
+    - type: char*
+      name: pName
+      desc: "[in] null-terminated metadata name."
+    - type: $x_program_metadata_type_t
+      name: type
+      desc: "[in] the type of metadata value."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the data pointed to by value.pData, or 0 when value size is less than 64-bits and is stored directly in value.data."
+    - type: $x_program_metadata_value_t
+      name: value
+      desc: "[in] the metadata value storage."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Program creation properties."
+class: $xProgram
+name: $x_program_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: count
+      desc: "[in] the number of entries in pMetadatas, if count is greater than zero then pMetadatas must not be null."
+    - type: const $x_program_metadata_t*
+      name: pMetadatas
+      desc: "[in][optional][range(0,count)] pointer to array of metadata entries."
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create Program from input SPIR-V modules."
 class: $xProgram
@@ -33,12 +95,20 @@ params:
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: const $x_program_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to program creation properties."
     - type: $x_program_handle_t*
       name: phProgram
       desc: "[out] pointer to handle of program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Create program object from native binary."
+desc: "Create a program object from device native binary."
 class: $xProgram
 name: CreateWithBinary
 decl: static
@@ -60,9 +130,17 @@ params:
     - type: const uint8_t*
       name: pBinary
       desc: "[in] pointer to binary."
+    - type: const $x_program_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to program creation properties."
     - type: $x_program_handle_t*
       name: phProgram
       desc: "[out] pointer to handle of Program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the Program object."

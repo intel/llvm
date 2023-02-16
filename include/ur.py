@@ -205,6 +205,7 @@ class ur_result_t(c_int):
 ## @brief Defines structure types
 class ur_structure_type_v(IntEnum):
     IMAGE_DESC = 0                                  ## ::ur_image_desc_t
+    PROGRAM_PROPERTIES = 1                          ## ::ur_program_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1035,6 +1036,55 @@ class ur_api_version_t(c_int):
 
 
 ###############################################################################
+## @brief Program metadata property type.
+class ur_program_metadata_type_v(IntEnum):
+    UINT32 = 0                                      ## type is a 32-bit integer.
+    UINT64 = 1                                      ## type is a 64-bit integer.
+    BYTE_ARRAY = 2                                  ## type is a byte array.
+    STRING = 3                                      ## type is a null-terminated string.
+
+class ur_program_metadata_type_t(c_int):
+    def __str__(self):
+        return str(ur_program_metadata_type_v(self.value))
+
+
+###############################################################################
+## @brief Program metadata value union.
+class ur_program_metadata_value_t(Structure):
+    _fields_ = [
+        ("data32", c_ulong),                                            ## [in] inline storage for the 32-bit data, type
+                                                                        ## ::UR_PROGRAM_METADATA_TYPE_UINT32.
+        ("data64", c_ulonglong),                                        ## [in] inline storage for the 64-bit data, type
+                                                                        ## ::UR_PROGRAM_METADATA_TYPE_UINT64.
+        ("pString", c_char_p),                                          ## [in] pointer to null-terminated string data, type
+                                                                        ## ::UR_PROGRAM_METADATA_TYPE_STRING.
+        ("pData", c_void_p)                                             ## [in] pointer to binary data, type
+                                                                        ## ::UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY.
+    ]
+
+###############################################################################
+## @brief Program metadata property.
+class ur_program_metadata_t(Structure):
+    _fields_ = [
+        ("pName", c_char_p),                                            ## [in] null-terminated metadata name.
+        ("type", ur_program_metadata_type_t),                           ## [in] the type of metadata value.
+        ("size", c_size_t),                                             ## [in] size in bytes of the data pointed to by value.pData, or 0 when
+                                                                        ## value size is less than 64-bits and is stored directly in value.data.
+        ("value", ur_program_metadata_value_t)                          ## [in] the metadata value storage.
+    ]
+
+###############################################################################
+## @brief Program creation properties.
+class ur_program_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("count", c_ulong),                                             ## [in] the number of entries in pMetadatas, if count is greater than
+                                                                        ## zero then pMetadatas must not be null.
+        ("pMetadatas", POINTER(ur_program_metadata_t))                  ## [in][optional][range(0,count)] pointer to array of metadata entries.
+    ]
+
+###############################################################################
 ## @brief Get Program object information
 class ur_program_info_v(IntEnum):
     REFERENCE_COUNT = 0                             ## Program reference count info
@@ -1291,16 +1341,16 @@ class ur_event_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urProgramCreate
 if __use_win_types:
-    _urProgramCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+    _urProgramCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+    _urProgramCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_module_handle_t), c_char_p, POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramCreateWithBinary
 if __use_win_types:
-    _urProgramCreateWithBinary_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithBinary_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_properties_t), POINTER(ur_program_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramRetain
