@@ -101,13 +101,12 @@ static llvm::cl::opt<bool> SCFOpenMP("scf-openmp", llvm::cl::init(true),
 static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
 
-static llvm::cl::opt<bool>
-    ParallelLICM("parallel-licm", llvm::cl::init(true),
-                 llvm::cl::desc("Turn on parallel licm"));
+static llvm::cl::opt<bool> LICM("licm", llvm::cl::init(true),
+                                llvm::cl::desc("Turn on LICM"));
 
 static llvm::cl::opt<bool>
     InnerSerialize("inner-serialize", llvm::cl::init(false),
-                   llvm::cl::desc("Turn on parallel licm"));
+                   llvm::cl::desc("Turn on Inner Serialize"));
 
 static llvm::cl::opt<bool> ShowAST("show-ast", llvm::cl::init(false),
                                    llvm::cl::desc("Show AST"));

@@ -1,4 +1,4 @@
-//===- ParallelLICM.cpp - Parallel Loop Invariant Code Motion -------------===//
+//===- LICM.cpp - Loop Invariant Code Motion ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,13 +23,13 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
-#define DEBUG_TYPE "parallel-licm"
+#define DEBUG_TYPE "licm"
 
 using namespace mlir;
 using namespace polygeist;
 
 namespace {
-struct ParallelLICM : public ParallelLICMBase<ParallelLICM> {
+struct LICM : public LICMBase<LICM> {
   void runOnOperation() override;
 };
 
@@ -262,19 +262,20 @@ private:
 //===----------------------------------------------------------------------===//
 
 bool OperationSideEffects::conflictsWith(const Operation &other) const {
-  if (&op == &other)
+  if (&op == &other || isMemoryEffectFree(const_cast<Operation *>(&other)))
     return false;
 
-  // Check all the nested operations if 'other' has recursive side effects.
-  bool hasRecursiveEffects =
-      const_cast<Operation &>(other)
-          .hasTrait<OpTrait::HasRecursiveMemoryEffects>();
-  if (hasRecursiveEffects) {
-    for (Region &region : const_cast<Operation &>(other).getRegions())
-      for (Operation &innerOp : region.getOps())
-        if (conflictsWith(innerOp))
-          return true;
-    return false;
+  // Conservatively assume operations with unknown side effects might write to
+  // any memory.
+  if (!isa<MemoryEffectOpInterface>(other) &&
+      !const_cast<Operation &>(other)
+           .hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+    LLVM_DEBUG({
+      llvm::dbgs()
+          << "Found conflict due to operation with unknown side effects:\n";
+      llvm::dbgs().indent(2) << other << "\n";
+    });
+    return true;
   }
 
   // If the given operation has side effects, check whether they conflict with
@@ -421,8 +422,7 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
       })
       .Case<AffineParallelOp>([](auto loop) {
         return std::make_unique<AffineParallelGuardBuilder>(loop);
-      })
-      .Default([](auto) { return nullptr; });
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -448,11 +448,9 @@ void SCFForGuardBuilder::guardLoop() const {
 }
 
 Value SCFForGuardBuilder::createGuardExpr() const {
-  return builder.create<arith::CmpIOp>(
-      loop.getLoc(), arith::CmpIPredicate::sle,
-      builder.create<arith::AddIOp>(loop.getLoc(), loop.getLowerBound(),
-                                    loop.getStep()),
-      loop.getUpperBound());
+  return builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
+                                       loop.getLowerBound(),
+                                       loop.getUpperBound());
 }
 
 scf::IfOp SCFForGuardBuilder::createGuard() const {
@@ -487,11 +485,9 @@ Value SCFParallelGuardBuilder::createGuardExpr() const {
   Value cond;
   for (auto pair :
        llvm::zip(loop.getLowerBound(), loop.getUpperBound(), loop.getStep())) {
-    const Value val = builder.create<arith::CmpIOp>(
-        loop.getLoc(), arith::CmpIPredicate::sle,
-        builder.create<arith::AddIOp>(loop.getLoc(), std::get<0>(pair),
-                                      std::get<2>(pair)),
-        std::get<1>(pair));
+    const Value val =
+        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
+                                      std::get<0>(pair), std::get<1>(pair));
     cond = cond ? static_cast<Value>(
                       builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
                 : val;
@@ -550,9 +546,9 @@ IntegerSet AffineForGuardBuilder::createGuardExpr() const {
     ub = ub.replaceDimsAndSymbols(dims, symbols);
 
     for (AffineExpr lb : lbMap.getResults()) {
-      // Bound is whether this expr >= 0, which since we want ub > lb, we
-      // rewrite as follows.
-      exprs.push_back(ub - lb - loop.getStep());
+      // Bound is whether this expr >= 0, which since we want ub > lb,
+      // we rewrite as follows.
+      exprs.push_back(ub - lb - 1);
       eqflags.push_back(false);
     }
   }
@@ -592,7 +588,7 @@ AffineIfOp AffineForGuardBuilder::createGuard() const {
   bool yieldsResults = !loop.getResults().empty();
   TypeRange types(loop.getResults());
   return builder.create<AffineIfOp>(loop.getLoc(), types, createGuardExpr(),
-                                    values, yieldsResults ? true : false);
+                                    values, yieldsResults);
 }
 
 void AffineForGuardBuilder::replaceUsesOfLoopReturnValues(
@@ -634,8 +630,8 @@ IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
       ub = ub.replaceDimsAndSymbols(dims, symbols);
 
       for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
-        // Bound is whether this expr >= 0, which since we want ub > lb,
-        // we rewrite as follows.
+        // Bound is whether this expr >= 0, which since we want ub > lb, we
+        // rewrite as follows.
         exprs.push_back(ub - lb - step.value());
         eqflags.push_back(false);
       }
@@ -744,6 +740,16 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     return false;
   };
 
+  // Operations with unknown side effects cannot be hoisted.
+  if (!isa<MemoryEffectOpInterface>(op) &&
+      !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Operation: " << op << "\n";
+      llvm::dbgs().indent(2) << "cannot be hoisted: unknown side effects\n";
+    });
+    return false;
+  }
+
   // Ensure operands can be hoisted.
   if (llvm::any_of(op.getOperands(),
                    [&](Value value) { return !canBeMoved(value); })) {
@@ -762,16 +768,6 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
       llvm::dbgs().indent(2) << "can be hoisted: has no side effects\n";
     });
     return true;
-  }
-
-  // Operations with unknown side effects cannot be hoisted.
-  if (!isa<MemoryEffectOpInterface>(op) &&
-      !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "cannot be hoisted: unknown side effects\n";
-    });
-    return false;
   }
 
   // Do not hoist operations that allocate a resource.
@@ -860,7 +856,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   return numOpsHoisted;
 }
 
-void ParallelLICM::runOnOperation() {
+void LICM::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
 
   [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
@@ -881,12 +877,12 @@ void ParallelLICM::runOnOperation() {
 
     // First use MLIR LICM to hoist simple operations.
     {
-      size_t numOpHoisted = moveLoopInvariantCode(loop);
+      size_t OpHoisted = moveLoopInvariantCode(loop);
 
       LLVM_DEBUG({
-        llvm::dbgs() << "\nMLIR LICM Hoisted " << numOpHoisted
-                     << " operation(s)\n";
-        if (numOpHoisted) {
+        llvm::dbgs() << "\nMLIR LICM hoisted " << OpHoisted
+                     << " operation(s).\n";
+        if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after MLIR LICM:\n");
           llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
           assert(mlir::verify(getParentFunction(loop)).succeeded());
@@ -897,12 +893,13 @@ void ParallelLICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      numOpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({
-        llvm::dbgs() << "\nParallel LICM Hoisted " << numOpHoisted
-                     << " operation(s)\n";
-        if (numOpHoisted) {
+        llvm::dbgs() << "\nParallel LICM hoisted " << OpHoisted
+                     << " operation(s).\n";
+        if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after Parallel LICM:\n");
           llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
           assert(mlir::verify(getParentFunction(loop)).succeeded());
@@ -913,6 +910,6 @@ void ParallelLICM::runOnOperation() {
   });
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createParallelLICMPass() {
-  return std::make_unique<ParallelLICM>();
+std::unique_ptr<Pass> mlir::polygeist::createLICMPass() {
+  return std::make_unique<LICM>();
 }

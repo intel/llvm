@@ -1,32 +1,29 @@
-// RUN: polygeist-opt --parallel-licm --split-input-file %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --licm --split-input-file %s 2>&1 | FileCheck %s
 
 // COM: Test LICM on scf.for loops.
 module {
-func.func private @use(f32) 
-
-// COM: Ensure loop invariant load is hoisted.
-func.func @scf_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
-  // CHECK:       func.func @scf_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
-  // CHECK-DAG      %cst = arith.constant 0.000000e+00 : f32    
+// COM: Ensure loop invariant load/store is hoisted.
+func.func @scf_for_hoist1(%arg0: memref<f32>, %arg1: index, %arg2: index) {
+  // CHECK:       func.func @scf_for_hoist1(%arg0: memref<f32>, %arg1: index, %arg2: index) {
+  // CHECK-DAG      %cst = arith.constant 2.000000e+00 : f32    
   // CHECK-DAG:     %c1 = arith.constant 1 : index
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<f32>
   // CHECK-NEXT:    memref.store %cst, %alloca[] : memref<f32>
-  // CHECK-NEXT:    %0 = arith.addi %arg1, %c1 : index
-  // CHECK-NEXT:    %1 = arith.cmpi sle, %0, %arg2 : index
-  // CHECK-NEXT:    scf.if %1 {
-  // CHECK-NEXT:      %2 = memref.load %alloca[] : memref<f32>
+  // CHECK-NEXT:    %0 = arith.cmpi slt, %arg1, %arg2 : index
+  // CHECK-NEXT:    scf.if %0 {
+  // CHECK-NEXT:      %1 = memref.load %alloca[] : memref<f32>
+  // CHECK-NEXT:      memref.store %1, %arg0[] : memref<f32>  
   // CHECK-NEXT:      scf.for %arg3 = %arg1 to %arg2 step %c1 {
-  // CHECK-NEXT:        func.call @use(%2) : (f32) -> ()
   // CHECK-NEXT:      }
   // CHECK-NEXT:    }
 
-  %cst = arith.constant 0.000000e+00 : f32
+  %cst = arith.constant 2.000000e+00 : f32
   %c1 = arith.constant 1 : index 
   %a = memref.alloca() : memref<f32>
   memref.store %cst, %a[] : memref<f32>
   scf.for %arg3 = %arg1 to %arg2 step %c1 {
     %v = memref.load %a[] : memref<f32>
-    func.call @use(%v) : (f32) -> ()
+    memref.store %v, %arg0[] : memref<f32>
   }
   return
 }
@@ -37,14 +34,13 @@ func.func @scf_for_hoist2(%arg0: memref<f32>, %arg1: index, %arg2: index, %arg3:
   // CHECK-NEXT:    %c1 = arith.constant 1 : index
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<f32>
   // CHECK-NEXT:    memref.store %arg3, %alloca[] : memref<f32>
-  // CHECK-NEXT:    %0 = arith.addi %arg1, %c1 : index
-  // CHECK-NEXT:    %1 = arith.cmpi sle, %0, %arg2 : index  
-  // CHECK-NEXT:    scf.if %1 {
-  // CHECK-NEXT:      %2 = memref.load %alloca[] : memref<f32>
+  // CHECK-NEXT:    %0 = arith.cmpi slt, %arg1, %arg2 : index  
+  // CHECK-NEXT:    scf.if %0 {
+  // CHECK-NEXT:      %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:      scf.for %arg4 = %arg1 to %arg2 step %c1 {
-  // CHECK-NEXT:        %3 = memref.load %arg0[] : memref<f32>
-  // CHECK-NEXT:        %4 = arith.addf %3, %2 : f32
-  // CHECK-NEXT:        memref.store %4, %arg0[] : memref<f32>
+  // CHECK-NEXT:        %2 = memref.load %arg0[] : memref<f32>
+  // CHECK-NEXT:        %3 = arith.addf %2, %1 : f32
+  // CHECK-NEXT:        memref.store %3, %arg0[] : memref<f32>
   // CHECK-NEXT:      }
   // CHECK-NEXT:    }
 
@@ -66,19 +62,18 @@ func.func @scf_for_hoist3(%arg0: memref<f32>, %arg1: index, %arg2: index) -> (i3
   // CHECK-NEXT:    %c1 = arith.constant 1 : index    
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<i32>
   // CHECK-NEXT:    %c3_i32 = arith.constant 3 : i32      
-  // CHECK-NEXT:    %0 = arith.addi %arg1, %c1 : index
-  // CHECK-NEXT:    %1 = arith.cmpi sle, %0, %arg2 : index  
-  // CHECK-NEXT:    %2 = scf.if %1 -> (i32) {
-  // CHECK-NEXT:      %3 = memref.load %alloca[] : memref<i32>
-  // CHECK-NEXT:      %4 = scf.for %arg3 = %arg1 to %arg2 step %c1 iter_args(%arg4 = %c3_i32) -> (i32) {
-  // CHECK-NEXT:        %5 = arith.addi %arg4, %3 : i32
-  // CHECK-NEXT:        scf.yield %5 : i32
+  // CHECK-NEXT:    %0 = arith.cmpi slt, %arg1, %arg2 : index  
+  // CHECK-NEXT:    %1 = scf.if %0 -> (i32) {
+  // CHECK-NEXT:      %2 = memref.load %alloca[] : memref<i32>
+  // CHECK-NEXT:      %3 = scf.for %arg3 = %arg1 to %arg2 step %c1 iter_args(%arg4 = %c3_i32) -> (i32) {
+  // CHECK-NEXT:        %4 = arith.addi %arg4, %2 : i32
+  // CHECK-NEXT:        scf.yield %4 : i32
   // CHECK-NEXT:      }
-  // CHECK-NEXT:      scf.yield %4 : i32
+  // CHECK-NEXT:      scf.yield %3 : i32
   // CHECK-NEXT:    } else {
   // CHECK-NEXT:      scf.yield %c3_i32 : i32
   // CHECK-NEXT:    }
-  // CHECK-NEXT:    return %2 : i32
+  // CHECK-NEXT:    return %1 : i32
 
   %c1 = arith.constant 1 : index 
   %alloca = memref.alloca() : memref<i32>    
@@ -106,12 +101,11 @@ func.func @scf_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index)
   // CHECK-DAG:     %c1 = arith.constant 1 : index
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<f32>
   // CHECK-NEXT:    memref.store %cst, %alloca[] : memref<f32>
-  // CHECK-NEXT:    %0 = arith.addi %arg1, %c1 : index
-  // CHECK-NEXT:    %1 = arith.cmpi sle, %0, %arg2 : index
-  // CHECK-NEXT:    scf.if %1 {
-  // CHECK-NEXT:      %2 = memref.load %alloca[] : memref<f32>
+  // CHECK-NEXT:    %0 = arith.cmpi slt, %arg1, %arg2 : index
+  // CHECK-NEXT:    scf.if %0 {
+  // CHECK-NEXT:      %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:      scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
-  // CHECK-NEXT:        func.call @use(%2) : (f32) -> ()
+  // CHECK-NEXT:        func.call @use(%1) : (f32) -> ()
   // CHECK-NEXT:        scf.yield
   // CHECK-NEXT:      }
   // CHECK-NEXT:    }
@@ -133,13 +127,12 @@ func.func @scf_parallel_hoist2(%arg0: memref<?xf32>, %arg1: index, %arg2: index)
   // CHECK-DAG:     %cst = arith.constant 0.000000e+00 : f32
   // CHECK-DAG:     %c1 = arith.constant 1 : index
   // CHECK-NEXT:     %alloca = memref.alloca() : memref<f32>
-  // CHECK-NEXT:     %0 = arith.addi %arg1, %c1 : index
-  // CHECK-NEXT:     %1 = arith.cmpi sle, %0, %arg2 : index
-  // CHECK-NEXT:     scf.if %1 {
+  // CHECK-NEXT:     %0 = arith.cmpi slt, %arg1, %arg2 : index
+  // CHECK-NEXT:     scf.if %0 {
   // CHECK-NEXT:       memref.store %cst, %alloca[] : memref<f32>
-  // CHECK-NEXT:       %2 = memref.load %alloca[] : memref<f32>
+  // CHECK-NEXT:       %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:       scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
-  // CHECK-NEXT:         func.call @use(%2) : (f32) -> ()
+  // CHECK-NEXT:         func.call @use(%1) : (f32) -> ()
   // CHECK-NEXT:         scf.yield
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }
@@ -184,13 +177,39 @@ func.func @scf_parallel_nohoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: inde
 
 // COM: Test LICM on affine.for loops.
 module {
+// CHECK: #set = affine_set<()[s0, s1] : (s1 - s0 - 1 >= 0)>
+// CHECK: #set1 = affine_set<() : (9 >= 0)>
+
+func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
+  // CHECK:       func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
+  // CHECK-DAG      %cst = arith.constant 2.000000e+00 : f32    
+  // CHECK-DAG:     %c1 = arith.constant 1 : index
+  // CHECK-NEXT:    %alloca = memref.alloca() : memref<2xf32>
+  // CHECK-NEXT:    memref.store %cst, %alloca[%c1] : memref<2xf32>
+  // CHECK-NEXT:    affine.if #set()[%arg1, %arg2] {
+  // CHECK-NEXT:      %0 = affine.load %alloca[%c1] : memref<2xf32>
+  // CHECK-NEXT:      affine.store %0, %arg0[%c1] : memref<?xf32>
+  // CHECK-NEXT:      affine.for %arg3 = %arg1 to %arg2 {
+  // CHECK-NEXT:      }
+  // CHECK-NEXT:    }
+
+  %cst = arith.constant 2.000000e+00 : f32
+  %c1 = arith.constant 1 : index 
+  %a = memref.alloca() : memref<2xf32>
+  memref.store %cst, %a[%c1] : memref<2xf32>
+  affine.for %arg3 = %arg1 to %arg2 {
+    %v = affine.load %a[%c1] : memref<2xf32>
+    affine.store %v, %arg0[%c1] : memref<?xf32>
+  }
+  return
+}
+
 // COM: Ensure unaliased loop invariant load is hoisted, and reduction (load, op, store) is not hoisted.
-func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: f32) {
-  // CHECK:       #set = affine_set<() : (9 >= 0)>
-  // CHECK:       func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: f32) {
+func.func @affine_for_hoist2(%arg0: memref<?xf32>, %arg1: f32) {
+  // CHECK:       func.func @affine_for_hoist2(%arg0: memref<?xf32>, %arg1: f32) {
   // CHECK-NEXT:     %alloca = memref.alloca() : memref<f32>
   // CHECK-NEXT:     memref.store %arg1, %alloca[] : memref<f32>
-  // CHECK-NEXT:     affine.if #set() {
+  // CHECK-NEXT:     affine.if #set1() {
   // CHECK-NEXT:       %0 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:       affine.for %arg2 = 0 to 10 {
   // CHECK-NEXT:         %1 = affine.load %arg0[0] : memref<?xf32>
@@ -211,11 +230,11 @@ func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: f32) {
 }
 
 // COM: Ensure reductions loops guards are correct.  
-func.func @affine_for_hoist2(%arg0: memref<?xi32>, %arg1: i32) -> (i32) {
-  // CHECK:        func.func @affine_for_hoist2(%arg0: memref<?xi32>, %arg1: i32) -> i32 {
+func.func @affine_for_hoist3(%arg0: memref<?xi32>, %arg1: i32) -> (i32) {
+  // CHECK:        func.func @affine_for_hoist3(%arg0: memref<?xi32>, %arg1: i32) -> i32 {
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
   // CHECK-NEXT:    %c3_i32 = arith.constant 3 : i32
-  // CHECK-NEXT:    %0 = affine.if #set() -> i32 {
+  // CHECK-NEXT:    %0 = affine.if #set1() -> i32 {
   // CHECK-NEXT:      %1 = affine.load %alloca[0] : memref<1xi32>
   // CHECK-NEXT:      %2 = affine.for %arg2 = 0 to 10 iter_args(%arg3 = %c3_i32) -> (i32) {
   // CHECK-NEXT:        %3 = arith.addi %arg3, %1 : i32
