@@ -44,7 +44,7 @@ endif()
 
 # CXX flags setup
 if(NOT MSVC)
-    add_compile_options(-fPIC -Wall)
+    add_compile_options(-fPIC -Wall -Wpedantic)
     if(UR_DEVELOPER_MODE)
         add_compile_options(-fno-omit-frame-pointer)
         add_compile_options(-Werror)
