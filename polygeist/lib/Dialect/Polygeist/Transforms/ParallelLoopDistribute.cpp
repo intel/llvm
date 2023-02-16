@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"

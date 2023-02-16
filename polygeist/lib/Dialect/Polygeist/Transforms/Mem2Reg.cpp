@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===- Mem2Reg.cpp - MemRef DataFlow Optimization pass ------ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
