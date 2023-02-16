@@ -125,9 +125,16 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   return value;
 }
 
-
 class ScopedContext {
 public:
+  ScopedContext(ur_context_handle_t ctxt) {
+    if (!ctxt) {
+      throw UR_RESULT_ERROR_INVALID_CONTEXT;
+    }
+
+    set_context(ctxt->get());
+  }
+
   ScopedContext(CUcontext ctxt) { set_context(ctxt); }
 
   ~ScopedContext() {}
@@ -1236,4 +1243,102 @@ uint64_t ur_device_handle_t_::get_elapsed_time(CUevent ev) const {
   PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evBase_, ev));
 
   return static_cast<uint64_t>(miliSeconds * 1.0e6);
+}
+
+/// Create a UR CUDA context.
+///
+/// By default creates a scoped context and keeps the last active CUDA context
+/// on top of the CUDA context stack.
+/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
+/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
+/// stack.
+///
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
+                ur_context_handle_t *phContext) {
+  assert(phDevices != nullptr);
+  assert(DeviceCount == 1);
+  assert(phContext != nullptr);
+  ur_result_t errcode_ret = UR_RESULT_SUCCESS;
+
+  std::unique_ptr<ur_context_handle_t_> piContextPtr{nullptr};
+  try {
+    piContextPtr = std::unique_ptr<ur_context_handle_t_>(
+        new ur_context_handle_t_{*phDevices});
+    *phContext = piContextPtr.release();
+  } catch (ur_result_t err) {
+    errcode_ret = err;
+  } catch (...) {
+    errcode_ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+  return errcode_ret;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
+    ur_context_handle_t hContext, ur_context_info_t ContextInfoType,
+    size_t propSize, void *pContextInfo, size_t *pPropSizeRet) {
+  PI_ASSERT(hContext, UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
+
+  switch (uint32_t{ContextInfoType}) {
+  case UR_CONTEXT_INFO_NUM_DEVICES:
+    return ReturnValue(1);
+  case UR_CONTEXT_INFO_DEVICES:
+    return ReturnValue(hContext->get_device());
+  case UR_EXT_CONTEXT_INFO_REFERENCE_COUNT:
+    return ReturnValue(hContext->get_reference_count());
+  case UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    uint32_t capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+                            PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+    return ReturnValue(capabilities);
+  }
+  case UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    int major = 0;
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             hContext->get_device()->get()) == CUDA_SUCCESS);
+    uint32_t capabilities =
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+                           PI_MEMORY_SCOPE_SYSTEM
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
+    return ReturnValue(capabilities);
+  }
+  case UR_EXT_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    // 2D USM memcpy is supported.
+    return ReturnValue(static_cast<uint32_t>(true));
+  case UR_EXT_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case UR_EXT_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+    // 2D USM operations currently not supported.
+    return ReturnValue(static_cast<uint32_t>(false));
+
+  default:
+    break;
+  }
+  sycl::detail::ur::die("Context info request not implemented");
+  return {};
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(ur_context_handle_t ctxt) {
+  assert(ctxt != nullptr);
+
+  if (ctxt->decrement_reference_count() > 0) {
+    return UR_RESULT_SUCCESS;
+  }
+  ctxt->invoke_extended_deleters();
+
+  std::unique_ptr<ur_context_handle_t_> context{ctxt};
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
+  assert(ctxt != nullptr);
+  assert(ctxt->get_reference_count() > 0);
+
+  ctxt->increment_reference_count();
+  return UR_RESULT_SUCCESS;
 }

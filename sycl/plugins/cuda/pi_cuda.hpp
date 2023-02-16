@@ -124,54 +124,8 @@ struct _pi_device : ur_device_handle_t_ {
 ///  called upon destruction of the PI Context.
 ///  See proposal for details.
 ///
-struct _pi_context {
-
-  struct deleter_data {
-    pi_context_extended_deleter function;
-    void *user_data;
-
-    void operator()() { function(user_data); }
-  };
-
-  using native_type = CUcontext;
-
-  native_type cuContext_;
-  _pi_device *deviceId_;
-  std::atomic_uint32_t refCount_;
-
-  _pi_context(_pi_device *devId)
-      : cuContext_{devId->get_context()}, deviceId_{devId}, refCount_{1} {
-    cuda_piDeviceRetain(deviceId_);
-  };
-
-  ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
-
-  void invoke_extended_deleters() {
-    std::lock_guard<std::mutex> guard(mutex_);
-    for (auto &deleter : extended_deleters_) {
-      deleter();
-    }
-  }
-
-  void set_extended_deleter(pi_context_extended_deleter function,
-                            void *user_data) {
-    std::lock_guard<std::mutex> guard(mutex_);
-    extended_deleters_.emplace_back(deleter_data{function, user_data});
-  }
-
-  pi_device get_device() const noexcept { return deviceId_; }
-
-  native_type get() const noexcept { return cuContext_; }
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-private:
-  std::mutex mutex_;
-  std::vector<deleter_data> extended_deleters_;
+struct _pi_context : ur_context_handle_t_ {
+  using ur_context_handle_t_::ur_context_handle_t_;
 };
 
 /// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
@@ -876,7 +830,8 @@ struct _pi_kernel {
     cuda_piContextRetain(context_);
     /// Note: this code assumes that there is only one device per context
     pi_result retError = cuda_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        this, reinterpret_cast<pi_device>(ctxt->get_device()),
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
     (void)retError;
     assert(retError == PI_SUCCESS);
