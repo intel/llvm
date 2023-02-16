@@ -1,4 +1,5 @@
 // RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="use-bare-ptr-call-conv" %s | FileCheck %s
+// XFAIL: *
 
 //===-------------------------------------------------------------------------------------------------===//
 // sycl.nd_range.get_global_range

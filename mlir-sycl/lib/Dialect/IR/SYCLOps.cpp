@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -87,7 +88,11 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
 
   // Available only when: (AccessMode != access_mode::atomic && Dimensions == 1)
   // reference operator[](size_t index) const;
-  const auto AccessorTy = getOperand(0).getType().cast<AccessorType>();
+  const auto AccessorTy = getOperand(0)
+                              .getType()
+                              .cast<MemRefType>()
+                              .getElementType()
+                              .cast<AccessorType>();
 
   const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
@@ -122,7 +127,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
   };
 
   return TypeSwitch<Type, LogicalResult>(getOperand(1).getType())
-      .Case<IDType>([&](auto IDTy) {
+      .Case<MemRefType>([&](auto MT) {
+        const auto IDTy = MT.getElementType().template cast<IDType>();
         return (IDTy.getDimension() != Dimensions)
                    ? emitOpError(
                          "Both the index and the accessor must have the same "
