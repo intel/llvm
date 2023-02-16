@@ -614,7 +614,7 @@ class ur_name_t(Structure):
     + `version` will be used to define the minimum API version in which the param will appear; `default="1.0"` This will also affect the order in which the param appears within the function.
   - if `class` is specified and the function is not `decl: static`, then the first param **must** be the handle associated with the class
 * A function may take the following optional sequence of scalars: {`analogue`}
-  - 'analogue` will be used as the function's remarks comment
+  - `analogue` will be used as the function's remarks comment
 * A function may take the following optional sequence of scalars or scalars to sequences: {`details`, `returns`}
   - `detail` will be used as the function's detailed comment
   - `return` will be used as the function's returns comment

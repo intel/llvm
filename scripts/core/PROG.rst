@@ -188,7 +188,7 @@ are a collection of modules that are linked together.
 
     // Create program from module
     ${x}_program_handle_t hProgram;
-    ${x}ProgramCreate(hContext, 1, &hModule, nullptr, hProgram);
+    ${x}ProgramCreate(hContext, 1, &hModule, nullptr, nullptr, hProgram);
 
 
 Kernels

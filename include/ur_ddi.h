@@ -258,6 +258,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramCreate_t)(
     uint32_t,
     const ur_module_handle_t *,
     const char *,
+    const ur_program_properties_t *,
     ur_program_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -267,6 +268,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithBinary_t)(
     ur_device_handle_t,
     size_t,
     const uint8_t *,
+    const ur_program_properties_t *,
     ur_program_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

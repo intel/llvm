@@ -271,6 +271,8 @@ name: $x_structure_type_t
 etors:
     - name: IMAGE_DESC
       desc: $x_image_desc_t
+    - name: PROGRAM_PROPERTIES
+      desc: $x_program_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
