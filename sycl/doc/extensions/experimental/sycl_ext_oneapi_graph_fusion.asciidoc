@@ -1,0 +1,634 @@
+= sycl_ext_oneapi_graph_fusion
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:stem: asciimath
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== 1. Notice
+
+[%hardbreaks]
+Copyright (C) Codeplay Software Limited.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== 2. Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== 3. Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension builds on top of the proposed SYCL graphs
+https://github.com/reble/llvm/blob/sycl-graph-update/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
+proposal]. All references to the "graphs proposal" refer to this proposal.
+
+== 4. Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== 5. Overview
+
+The SYCL graph
+https://github.com/reble/llvm/blob/sycl-graph-update/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
+proposal] seeks to reduce the runtime overhead linked to SYCL kernel submission
+and expose additional optimization opportunities. 
+
+One of those further optimizations enabled by the graphs proposal is _kernel
+fusion_. Fusing two or more kernels executing on the same device into a single
+kernel launch can further reduce runtime overhead and enable futher kernel
+optimizations such as dataflow internalization discussed below.
+
+This proposal is a continuation of many of the ideas of the initial
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc[experimental
+kernel fusion proposal] for SYCL. However, instead of defining its own
+SYCL-based API to record a sequence of kernels to fuse, this proposal builds on
+top of the graphs proposal to allow the fusion of graphs. This not only unifies
+the APIs, making sure users only need to familiarize themselves with a single
+API, but also provides additional advantages. 
+
+The graph proposal defines two APIs to create graphs: a proposal using a
+recording mechanism, similar to the initial kernel fusion proposal; and another
+one using explicit graph building. Thus, future users will be able to choose
+from two different mechanisms to construct the sequence of kernels to fuse. As
+there is an explicit step for finalization of graphs before being submitted for
+execution, the fusion step can happen asynchronously and also eliminates many of
+the synchronization concerns that needed to be covered in the experimental
+kernel fusion proposal.
+
+The aim of this document is to propose a mechanism for users to request the
+fusion of two or more kernels in a SYCL graph into a single kernel **at
+runtime**. This requires the extension of the runtime with some sort of JIT
+compiler to allow for the fusion of kernel functions at runtime.
+
+== 6. Specification
+
+=== 6.1. Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GRAPH_FUSION` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== 6.2. API modifications
+
+==== 6.2.1. Properties
+
+===== 6.2.1.1. Graph Fusion Property
+
+The API for `command_graph<graph_state::modifiable>::finalize()` includes a
+`property_list` parameter. The following property, defined by this extension,
+can be added to the property list to indicate that the kernels in the
+command-graph should be fused. 
+
+```c++
+sycl::ext::oneapi::experimental::property::command_graph::perform_fusion 
+```
+
+The property is not prescriptive. Implementations are free to not perform fusion
+if it is not possible (see below section <<_6_5_limitations>>), fusion is not
+supported by the implementation, or the implementation decides not to perform
+fusion for other reasons. It is not an error if an implementation does not
+perform fusion even though the property is passed. 
+
+Implementations can provide a diagnostic message in case fusion was not
+performed through an implementation-specified mechanism, but are not required to
+do so.
+
+===== 6.2.1.2. Barrier property
+
+The following property can be added to the `property_list` of the
+`command_graph<graph_state::modifiable>::finalize()` API.
+
+```c++
+sycl::ext::oneapi::experimental::property::command_graph::no_barriers
+```
+
+If the property list contains this property, no barriers are introduced between
+kernels in the fused kernel (see below section on synchronization on kernels). 
+
+The property only takes effect if the
+`sycl::ext::oneapi::experimental::property::command_graph::perform_fusion`
+property is also part of the `property_list` of the same invocation of
+`command_graph<...>::finalize()`. 
+
+===== 6.2.1.3. Local internalization property
+
+The following property can be passed to three different APIs, namely:
+
+* The `accessor` constructor, giving a more granular control
+* The `buffer` constructor, in which case all the `accessors` derived from 
+this buffer will inherit this property (unless overridden).
+* The `property_list` parameter of 
+`command_graph<graph_state::modifiable>::add_malloc_device()` to apply the 
+property to an USM pointer.
+
+```c++ 
+sycl::ext::oneapi::experimental::property::promote_local 
+```
+
+This property is an assertion by the application that each element in the buffer
+or allocated device memory is accessed by no more than one work-group in the
+kernel submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the graph (in case the property is specified on a
+buffer or an USM pointer). Implementations may treat this as a hint to promote
+the elements of the buffer or allocated device memory to local memory (see below
+section on local and private internalization).
+
+The application also asserts that the updates made to the buffer or allocated
+device memory by the kernel submitted by this command-group (in case the
+property is specified on an accessor) or in any kernel in the graph (in case the
+property is specified on a buffer or an USM pointer) may not be available for
+use after the fused kernel completes execution. Implementations may treat this
+as a hint to not initialize or write back the final result to global memory.
+
+If different properties (local or private) are applied to accessors to the same
+buffer, the resolution rules specified below apply. The property is not
+prescriptive, implementations are free to not perform internalization and it is
+no error if they do not perform internalization. Implementations can provide a
+diagnostic message in case internalization was not performed through an
+implementation-specified mechanism, but are not required to do so.
+
+===== 6.2.1.4. Private internalization property
+
+The following property can be passed to three different APIs, namely:
+
+* The `accessor` constructor, giving a more granular control
+* The `buffer` constructor, in which case all the `accessors` derived from 
+this buffer will inherit this property (unless overridden).
+* The `property_list` parameter of 
+`command_graph<graph_state::modifiable>::add_malloc_device()` to apply the 
+property to an USM pointer.
+
+```c++ 
+sycl::ext::oneapi::experimental::property::promote_private 
+```
+
+This property is an assertion by the application that each element in the buffer
+or allocated device memory is accessed by no more than one work-item in the
+kernel submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the graph (in case the property is specified on a
+buffer or an USM pointer). Implementations may treat this as a hint to promote
+the elements of the buffer or allocated device memory to private memory (see below
+section on local and private internalization).
+
+The application also asserts that the updates made to the buffer or allocated
+device memory by the kernel submitted by this command-group (in case the
+property is specified on an accessor) or in any kernel in the graph (in case the
+property is specified on a buffer or an USM pointer) may not be available for
+use after the fused kernel completes execution. Implementations may treat this
+as a hint to not initialize or write back the final result to global memory.
+
+If different properties (local or private) are applied to accessors to the same
+buffer, the resolution rules specified below apply. The property is not
+prescriptive, implementations are free to not perform internalization and it is
+no error if they do not perform internalization. Implementations can provide a
+diagnostic message in case internalization was not performed through an
+implementation-specified mechanism, but are not required to do so.
+
+==== 6.2.2. Device information descriptors
+
+To support querying whether a SYCL device and the underlying platform support
+kernel fusion for graphs, the following device information descriptor is added
+as part of this extension proposal. 
+
+```c++
+sycl::ext::oneapi::experimental::info::device::supports_fusion
+```
+
+When passed to `device::get_info<...>()`, the function returns `true` if the
+SYCL `device` and the underlying `platform` support kernel fusion for graphs.
+
+
+=== 6.3. Linearization
+
+In order to be able to perform kernel fusion, the commands in a graph must be
+arranged in a valid sequential order. 
+
+A valid _linearization_ of the graph is an order of the commands in the graph
+such that each command in the linearization depends only on commands that appear
+in the sequence before the command itself. 
+
+The exact linearization of the dependency DAG (which generally only implies a
+partial order) is implementation defined. The linearization should be
+deterministic, i.e. it should yield the same sequence when presented with the
+same DAG.
+
+=== 6.4. Synchronization in kernels
+
+Group barriers semantics do not change in the fused kernel and barriers already
+in the unfused kernels are preserved in the fused kernel. Despite this, it is
+worth noting that, in order to introduce synchronization between work items in a
+same work-group executing a fused kernel, a barrier is added between each of the
+kernels being fused. This automatic insertion of additional barriers can be
+deactivated through the property defined above.
+
+=== 6.5. Limitations
+
+Some scenarios might require fusion to be cancelled if some undesired scenarios
+arise.
+
+As the fusion property is not prescriptive, it is not an error for an
+implementation to cancel fusion in those scenarios. A valid recovery from such a
+scenario is to not perform fusion and rather maintain the original graph,
+executing the kernels individually rather than in a single fused kernel. 
+
+Implementations can provide a diagnostic message in case fusion was cancelled
+through an implementation-specified mechanism, but are not required to do so.
+
+The following sections describe a number of scenarios that might require to
+cancel fusion. Note that some implementations might be more capable/permissive
+and might not abort fusion in all of these cases.
+
+==== 6.5.1. Hierarchical Parallelism
+
+The extension does not support kernels using hierarchical parallelism. Although
+some implementations might want to add support for this kind of kernels.
+
+==== 6.5.2. Incompatible ND-ranges of the kernels to fuse
+
+Incompatibility of ND-ranges will be determined by the kernel fusion
+implementation. All implementations should support fusing kernels with the exact
+same ND-ranges, but implementations might cancel fusion as soon as a kernel with
+a different ND-range is submitted.
+
+==== 6.5.3. Kernels with different dimensions
+
+Similar to the previous one, it is implementation-defined whether or not to
+support fusing kernels with different dimensionality.
+
+==== 6.5.4. No intermediate representation
+
+In case any of the kernels to be fused does not come with an accessible
+suitable intermediate representation, kernel fusion is canceled.
+
+==== 6.5.5. Explicit memory operations and host tasks
+
+The graph proposal allows graphs to contain, next to device kernels, explicit
+memory operations and host tasks. As both of these types of commands cannot be
+integrated into a fused kernel, fusion must be cancelled, unless there is a
+valid linearization (see above section on linearization) that allows all memory
+operations and host tasks to execute either before or after all device kernels.
+It is valid to execute some memory operations and host tasks before all device
+kernels and some after all device kernels, as long as that sequence is a valid
+linearization.
+
+==== 6.5.6. Multi-device graph
+
+Attempting to fuse a graph containing device kernels for more than one device
+may lead to fusion being cancelled, as kernel fusion across multiple devices
+and/or backends is generally not possible. 
+
+=== 6.6. Internalization
+
+While avoiding repeated kernel launch overheads will most likely already improve
+application performance, kernel fusion can deliver even higher performance gains
+when internalizing dataflows.
+
+In a situation where data produced by one kernel is consumed by another kernel
+and the two kernels are fused, the dataflow from the first kernel to the second
+kernel can be made internal to the fused kernel. Instead of using time-consuming
+reads and writes to/from global memory, the fused kernel can use much faster
+mechanisms, e.g., registers or private memory to "communicate" the result.
+
+To achieve this result during fusion, a fusion compiler must be aware of some
+additional information and context:
+
+* The compiler must know that two arguments refer to the same underlying memory.
+* As internalized buffers or memories are not initialized, elements of the internalized
+  buffer or memory being read by a kernel must have been written before (either in the
+  same kernel or in a previous one in the same graph).
+* Values stored to an internalized buffer/memory must not be used by any other kernel
+  not part of the graph, as the data becomes unavailable to consumers through
+  internalization. This is knowledge that the compiler cannot deduce. Instead,
+  the fact that the values stored to an internalized buffer/memory are not used
+  outside the fused kernel must be provided by the user.
+* If these conditions hold, depending on the memory access pattern of the fused
+  kernel, we can say that a buffer is:
+** _Privately internalizable_: If not a single element of the buffer/memory is to be
+   accessed by more than one work-item;
+** _Locally internalizable_: If not a single element of the buffer/memory is to be
+   accessed by work items of different work groups.
+
+As the compiler can reason about the access behavior of the different kernels
+only in a very limited fashion, **it's the user's responsibility to make sure no
+data races occur in the fused kernel**. Data races could in particular be
+introduced because the implicit inter-work-group synchronization between the
+execution of two separate kernels is eliminated by fusion. The user must ensure
+that the kernels combined during fusion do not rely on this synchronization.
+
+The properties `sycl::ext::oneapi::experimental::property::promote_local` and
+`sycl::ext::oneapi::experimental::property::promote_local` defined by this
+proposal serve a dual purpose. For one, by adding the properties to an accessor,
+buffer or USM pointer, the user asserts that internalization of the underlying
+memory to private or local memory, respectively, will not cause a data race. 
+
+Additionally, the user asserts that no command executing after the fused graph
+requires access to the data that would be stored into the internalized memory if
+no internalization were to happen.
+
+In sum this allows users to trigger internalization of a buffer or allocated
+device memory by just specifying a single property.
+
+==== 6.6.1. Buffer internalization
+
+In some cases, the user will specify different internalization targets for a
+buffer and accessors to such buffer. When incompatible combinations are used, an
+`exception` with `errc::invalid` error code is thrown. Otherwise, these
+properties must be combined as follows:
+
+[options="header"]
+|===
+|Accessor Internalization Target|Buffer Internalization Target|Resulting Internalization Target
+
+.3+.^|None
+|None
+|None
+
+|Local
+|Local
+
+|Private
+|Private
+
+.3+.^|Local
+|None
+|Local
+
+|Local
+|Local
+
+|Private
+|*Error*
+
+.3+.^|Private
+|None
+|Private
+
+|Local
+|*Error*
+
+|Private
+|Private
+|===
+
+In case different internalization targets are used for accessors to the same
+buffer, the following (commutative and associative) rules are followed:
+
+[options="header"]
+|===
+|Accessor~1~ Internalization Target|Accessor~2~ Internalization Target|Resulting Internalization Target
+
+|None
+|_Any_
+|None
+
+.2+.^|Local
+|Local
+|Local
+
+|Private
+|None
+
+|Private
+|Private
+|Private
+|===
+
+If no work-group size is specified or two accessors specify different
+work-group sizes when using local internalization for any of the
+kernels involved in the fusion, no internalization will be
+performed. If there is a mismatch between the two accessors (access
+range, access offset, number of dimensions, data type), no
+internalization is performed.
+
+== 7. Examples
+
+=== 7.1. Buffer-based example
+
+```c++
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+
+struct AddKernel {
+  accessor<int, 1> accIn1;
+  accessor<int, 1> accIn2;
+  accessor<int, 1> accOut;
+
+  void operator()(id<1> i) const { accOut[i] = accIn1[i] + accIn2[i]; }
+};
+
+int main() {
+  constexpr size_t dataSize = 512;
+  int in1[dataSize], in2[dataSize], in3[dataSize], tmp1[dataSize],
+      tmp2[dataSize], tmp3[dataSize], out[dataSize];
+
+  queue q{default_selector_v};
+
+  ext::oneapi::experimental::command_graph graph;
+  {
+    buffer<int> bIn1{in1, range{dataSize}};
+    buffer<int> bIn2{in2, range{dataSize}};
+    buffer<int> bIn3{in3, range{dataSize}};
+    buffer<int> bTmp1{tmp1, range{dataSize}};
+    // Internalization specified on the buffer
+    buffer<int> bTmp2{tmp2, range{dataSize}, 
+      {sycl::ext::oneapi::experimental::property::promote_private{}}};
+    // Internalization specified on the buffer
+    buffer<int> bTmp3{tmp3, range{dataSize}, 
+      {sycl::ext::oneapi::experimental::property::promote_private{}}};
+    buffer<int> bOut{out, range{dataSize}};
+
+    graph.begin_recording(q);
+
+    q.submit([&](handler &cgh) {
+      auto accIn1 = bIn1.get_access(cgh);
+      auto accIn2 = bIn2.get_access(cgh);
+      // Internalization specified on each accessor. 
+      auto accTmp1 = bTmp1.get_access(
+          cgh, sycl::ext::oneapi::experimental::property::promote_private{});
+      cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
+    });
+
+    q.submit([&](handler &cgh) {
+      // Internalization specified on each accessor. 
+      auto accTmp1 = bTmp1.get_access(
+          cgh, sycl::ext::oneapi::experimental::property::promote_private{});
+      auto accIn3 = bIn3.get_access(cgh);
+      auto accTmp2 = bTmp2.get_access(cgh);
+      cgh.parallel_for<class KernelOne>(
+          dataSize, [=](id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
+    });
+
+    q.submit([&](handler &cgh) {
+      // Internalization specified on each accessor. 
+      auto accTmp1 = bTmp1.get_access(
+          cgh, sycl::ext::oneapi::experimental::property::promote_private{});
+      auto accTmp3 = bTmp3.get_access(cgh);
+      cgh.parallel_for<class KernelTwo>(
+          dataSize, [=](id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
+    });
+
+    q.submit([&](handler &cgh) {
+      auto accTmp2 = bTmp2.get_access(cgh);
+      auto accTmp3 = bTmp3.get_access(cgh);
+      auto accOut = bOut.get_access(cgh);
+      cgh.parallel_for<AddKernel>(dataSize,
+                                  AddKernel{accTmp2, accTmp3, accOut});
+    });
+
+    graph.end_recording();
+
+    // Trigger fusion during finalization.
+    auto exec_graph = graph.finalize(q.get_context(), 
+      {sycl::ext::oneapi::experimental::property::command_graph::perform_fusion});
+
+    q.submit([&](handler& cgh) {
+      cgh.ext_oneapi_graph(exec_graph);
+    });
+  }
+  return 0;
+}
+```
+
+=== 7.2. USM-based example
+
+```c++
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+int main() {
+  constexpr size_t dataSize = 512;
+  constexpr size_t numBytes = dataSize * sizeof(int);
+
+  int in1[dataSize], in2[dataSize], in3[dataSize], out[dataSize];
+
+  queue q{default_selector_v};
+
+  sycl_ext::command_graph graph;
+
+  int *dIn1, dIn2, dIn3, dTmp, dOut;
+
+  auto node_in1 = graph.add_malloc_device(dIn1, numBytes);
+  auto node_in2 = graph.add_malloc_device(dIn2, numBytes);
+  auto node_in3 = graph.add_malloc_device(dIn3, numBytes);
+  auto node_out = graph.add_malloc_device(dOut, numBytes);
+
+  // Specify internalization for an USM pointer
+  auto node_tmp = graph.add_malloc_device(
+      dTmp, numBytes,
+      {sycl::ext::oneapi::experimental::property::promote_private});
+
+  // This explicit memory operation is compatible with fusion, as it can be
+  // linearized before any device kernel in the graph.
+  auto copy_in1 =
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn1, in1, numBytes); },
+                {sycl_ext::property::node::depends_on(node_in1)});
+
+  // This explicit memory operation is compatible with fusion, as it can be
+  // linearized before any device kernel in the graph.
+  auto copy_in2 =
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn2, in2, numBytes); },
+                {sycl_ext::property::node::depends_on(node_in2)});
+
+  auto kernel1 = graph.add(
+      [&](handler &cgh) {
+        cgh.parallel_for<class KernelOne>(
+            dataSize, [=](id<1> i) { tmp[i] = in1[i] + in2[i]; });
+      },
+      {sycl_ext::property::node::depends_on(copy_in1, copy_in2, node_tmp)});
+
+  // This explicit memory operation is compatible with fusion, as it can be
+  // linearized before any device kernel in the graph.
+  auto copy_in3 =
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn3, in3, numBytes); },
+                {sycl_ext::property::node::depends_on(node_in3)});
+
+  auto kernel2 = graph.add(
+      [&](handler &cgh) {
+        cgh.parallel_for<class KernelTwo>(
+            dataSize, [=](id<1> i) { out[i] = tmp[i] * in3[i]; });
+      },
+      {sycl_ext::property::node::depends_on(copy_in3, kernel1)});
+
+  // This explicit memory operation is compatible with fusion, as it can be
+  // linearized after any device kernel in the graph.
+  auto copy_out =
+      graph.add([&](handler &cgh) { cgh.memcpy(out, dOut, numBytes); },
+                {sycl_ext::property::node::depends_on(kernel2)});
+
+  graph.add_free(dIn1, {sycl_ext::property::node::depends_on(copy_out)});
+  graph.add_free(dIn2, {sycl_ext::property::node::depends_on(copy_out)});
+  graph.add_free(dIn3, {sycl_ext::property::node::depends_on(copy_out)});
+  graph.add_free(dTmp, {sycl_ext::property::node::depends_on(copy_out)});
+  graph.add_free(dOut, {sycl_ext::property::node::depends_on(copy_out)});
+
+  // Trigger fusion during finalization.
+  auto exec = graph.finalize(q.get_context(),
+                             {sycl::ext::oneapi::experimental::property::
+                                  command_graph::perform_fusion});
+
+  // use queue shortcut for graph submission
+  q.ext_oneapi_graph(exec).wait();
+
+  return 0;
+}
+```
+
+== 8. Contributors
+
+Lukas Sommer, Codeplay +
+Victor Lomüller, Codeplay +
+Victor Perez, Codeplay +
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Authors|Changes
+|1|2023-02-16|Lukas Sommer|*Initial draft*
+|========================================
