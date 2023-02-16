@@ -60,7 +60,6 @@ add_sycl_plugin(cuda
   LIBRARIES
     cudadrv
     ${XPTI_LIBS}
-  HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 
 if (SYCL_ENABLE_XPTI_TRACING)

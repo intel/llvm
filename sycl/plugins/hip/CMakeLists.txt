@@ -24,8 +24,6 @@ add_sycl_plugin(hip
     "pi_hip.cpp"
   INCLUDE_DIRS
     ${sycl_plugin_dir}
-  HEADER
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp
 )
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
