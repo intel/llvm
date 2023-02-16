@@ -1058,3 +1058,31 @@ the translator will generate `OpSpecConstant` SPIR-V instructions with proper
               OpReturnValue %struct
               OpFunctionEnd
 ```
+
+### Specialization constant to CUDA symbol optimization
+
+CUDA backend uses a hybrid approach in which the specialization constants are
+still bundled into one memory buffer (as per emulated support), however the
+implicit kernel argument is replaced by a global symbol.
+
+#### Compiler support
+
+`sycl-post-link` detects if the compilation targets CUDA backend and if the
+kernel makes use of specialization constants and if so adds
+`CUDASpecConstantToSymbolPass` to the optimization pipeline. The purpose of the
+pass is as follows:
+* to allocate a global symbol of the same size as the accumulated size of all the specialization constants,
+* to rewrite the kernel signature in order to remove the implicit argument,
+* to replace all uses of the implicit kernel argument with corresponding uses of the global variable.
+The global variable allocated by the pass follows a naming convention of
+`sycl_specialization_constants_kernel_` + kernel name, the convention is
+important, as it allows the runtime to query for the symbol, at the time of
+setting its value.
+
+#### RT symbol setup
+
+PI CUDA plugin implements `piextProgramSetSpecializationConstant` API entry, in
+which it uses the `kernel` argument to construct the name of the pre-allocated
+global variable. The name is passed to `cuModuleGetGlobal` that retrieves the
+address of the global, finally a call to `cuMemcpyHtoD` is issued to transfer
+the data corresponding to bundled specialization constants.
