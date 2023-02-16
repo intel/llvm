@@ -1145,6 +1145,18 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataType, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder Placeholder,
+            typename PropListT>
+  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
+                          PropListT> &other,
+           std::enable_if_t<(AccMode == access_mode::read) &&
+                            !(std::is_same<DataType, DataT>::value) &&
+                            std::is_same<std::remove_const_t<DataType>,
+                                         std::remove_const_t<DataT>>::value> * =
+               nullptr)
+      : impl(other.impl) {}
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -1222,6 +1234,20 @@ public:
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
             /*IsPlaceH=*/true,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
+
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataType, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder Placeholder,
+            typename PropListT>
+  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
+                          PropListT> &other,
+           std::enable_if_t<(AccMode == access_mode::read) &&
+                            !(std::is_same<DataType, DataT>::value) &&
+                            std::is_same<std::remove_const_t<DataType>,
+                                         std::remove_const_t<DataT>>::value> * =
+               nullptr)
+      : accessor<DataT, Dim, AccMode, AccTarget, Placeholder, PropListT>(
+            other.impl) {}
 
 #endif // __SYCL_DEVICE_ONLY__
 
