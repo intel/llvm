@@ -11197,6 +11197,10 @@ public:
                                          MutableArrayRef<Expr *> Args);
   void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *XDim, Expr *YDim, Expr *ZDim);
+  bool CheckReqdWorkGroupSizeCommonConflict(const Decl *D,
+                                            const AttributeCommonInfo &CI,
+                                            const Expr *XDim, const Expr *YDim,
+                                            const Expr *ZDim);
   SYCLReqdWorkGroupSizeAttr *
   MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
 

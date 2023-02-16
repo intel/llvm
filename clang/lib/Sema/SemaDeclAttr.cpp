@@ -3291,6 +3291,12 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
+  // Some conflicts apply to both SYCL and non-sycl reqd_work_group_size.
+  if constexpr (std::is_same_v<WorkGroupAttr, ReqdWorkGroupSizeAttr>)
+    if (S.CheckReqdWorkGroupSizeCommonConflict(
+            D, AL, AL.getArgAsExpr(0), AL.getArgAsExpr(1), AL.getArgAsExpr(2)))
+      return;
+
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
   if (Existing && !(Existing->getXDim() == WGSize[0] &&
                     Existing->getYDim() == WGSize[1] &&
@@ -3792,47 +3798,9 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   YDim = YDimConvert.value();
   ZDim = ZDimConvert.value();
 
-  // If the declaration has a ReqdWorkGroupSizeAttr, check to see if
-  // the attribute holds values equal to (1, 1, 1) in case the value of
-  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), XDim, YDim,
-                                  ZDim)) {
-      Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-          << CI << DeclAttr;
-    }
-  }
-
-  // If the 'max_work_group_size' attribute is specified on a declaration along
-  // with 'reqd_work_group_size' attribute, check to see if values of
-  // 'reqd_work_group_size' attribute arguments are equal to or less than values
-  // of 'max_work_group_size' attribute arguments.
-  //
-  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (CheckMaxAllowedWorkGroupSize(XDim, YDim, ZDim, DeclAttr->getXDim(),
-                                     DeclAttr->getYDim(),
-                                     DeclAttr->getZDim())) {
-      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << CI << DeclAttr;
-      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
-      return;
-    }
-  }
-
-  // If the 'reqd_work_group_size' attribute is specified on a declaration
-  // along with 'num_simd_work_items' attribute, the required work group size
-  // specified by 'num_simd_work_items' attribute must evenly divide the index
-  // that increments fastest in the 'reqd_work_group_size' attribute.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), XDim, YDim, ZDim)) {
-      Diag(DeclAttr->getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-          << DeclAttr << CI;
-      Diag(CI.getLoc(), diag::note_conflicting_attribute);
-      return;
-    }
-  }
+  // Some conflicts apply to both SYCL and non-sycl reqd_work_group_size.
+  if (CheckReqdWorkGroupSizeCommonConflict(D, CI, XDim, YDim, ZDim))
+    return;
 
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
@@ -3856,6 +3824,59 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
 
   D->addAttr(::new (Context)
                  SYCLReqdWorkGroupSizeAttr(Context, CI, XDim, YDim, ZDim));
+}
+
+// Checks addtional common conflicts for both variants of reqd_work_group_size.
+// Returns true if a conflict is found.
+bool Sema::CheckReqdWorkGroupSizeCommonConflict(const Decl *D,
+                                                const AttributeCommonInfo &CI,
+                                                const Expr *XDim,
+                                                const Expr *YDim,
+                                                const Expr *ZDim) {
+  // If the declaration has a ReqdWorkGroupSizeAttr, check to see if
+  // the attribute holds values equal to (1, 1, 1) in case the value of
+  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), XDim, YDim,
+                                  ZDim)) {
+      Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+          << CI << DeclAttr;
+      return true;
+    }
+  }
+
+  // If the 'max_work_group_size' attribute is specified on a declaration along
+  // with 'reqd_work_group_size' attribute, check to see if values of
+  // 'reqd_work_group_size' attribute arguments are equal to or less than values
+  // of 'max_work_group_size' attribute arguments.
+  //
+  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    if (CheckMaxAllowedWorkGroupSize(XDim, YDim, ZDim, DeclAttr->getXDim(),
+                                     DeclAttr->getYDim(),
+                                     DeclAttr->getZDim())) {
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << CI << DeclAttr;
+      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
+      return true;
+    }
+  }
+
+  // If the 'reqd_work_group_size' attribute is specified on a declaration
+  // along with 'num_simd_work_items' attribute, the required work group size
+  // specified by 'num_simd_work_items' attribute must evenly divide the index
+  // that increments fastest in the 'reqd_work_group_size' attribute.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), XDim, YDim, ZDim)) {
+      Diag(DeclAttr->getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+          << DeclAttr << CI;
+      Diag(CI.getLoc(), diag::note_conflicting_attribute);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 SYCLReqdWorkGroupSizeAttr *
