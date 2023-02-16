@@ -163,6 +163,19 @@ if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
 
+# Configure backend macros
+list(FIND LLVM_TARGETS_TO_BUILD "NVPTX" HAS_NVPTX)
+list(FIND LIBCLC_TARGETS_TO_BUILD "nvptx64--nvidiacl" HAS_PTX_LIBCLC)
+if(${HAS_NVPTX} AND ${HAS_PTX_LIBCLC})
+  set(SYCL_HAS_DPCPP_NVPTX TRUE)
+endif()
+
+list(FIND LLVM_TARGETS_TO_BUILD "AMDGCN" HAS_AMDGCN)
+list(FIND LIBCLC_TARGETS_TO_BUILD "amdgcn--amdhsa" HAS_GCN_LIBCLC)
+if(${HAS_AMDGCN} AND ${HAS_GCN_LIBCLC} AND TARGET lld)
+  set(SYCL_HAS_DPCPP_AMDGCN TRUE)
+endif()
+
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
