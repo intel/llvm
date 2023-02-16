@@ -39,9 +39,9 @@
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 ur_result_t UR_APICALL
 urContextCreate(
-    uint32_t DeviceCount,          ///< [in] the number of devices given in phDevices
-    ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
-    ur_context_handle_t *phContext ///< [out] pointer to handle of context object created
+    uint32_t DeviceCount,                ///< [in] the number of devices given in phDevices
+    const ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
+    ur_context_handle_t *phContext       ///< [out] pointer to handle of context object created
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
