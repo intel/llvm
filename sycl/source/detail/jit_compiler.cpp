@@ -550,7 +550,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<detail::AccessorImplPtr> AccStorage;
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
-  NDRDescT NDRDesc;
+  std::vector<::jit_compiler::NDRange> Ranges;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -661,14 +661,24 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         translateBinaryImageFormat(DeviceImage->getFormat()), 0,
         RawDeviceImage.BinaryStart, DeviceImageSize};
 
-    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, BinInfo);
+    constexpr auto SYCLTypeToIndices = [](auto Val) -> ::jit_compiler::Indices {
+      return {Val.get(0), Val.get(1), Val.get(2)};
+    };
+
+    auto &CurrentNDR = KernelCG->MNDRDesc;
+    const ::jit_compiler::NDRange JITCompilerNDR{
+        static_cast<int>(CurrentNDR.Dims),
+        SYCLTypeToIndices(CurrentNDR.GlobalSize),
+        SYCLTypeToIndices(CurrentNDR.LocalSize),
+        SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
+
+    Ranges.push_back(JITCompilerNDR);
+    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, JITCompilerNDR,
+                                 BinInfo);
     InputKernelNames.push_back(KernelName);
 
     // Collect information for the fused kernel
 
-    // TODO(Lukas, ONNX-399): Currently assuming the NDRDesc is identical for
-    // all input kernels. Actually verify this here or in the graph_builder.
-    auto &CurrentNDR = KernelCG->MNDRDesc;
     if (CurrentNDR.GlobalSize[0] == 0 && CurrentNDR.NumWorkGroups[0] != 0) {
       // Some overloads of parallel_for_work_group only specify the number of
       // work-groups, so this can be used to identify hierarchical parallel
@@ -682,31 +692,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // TODO(Lukas, CRD-6): Find a more reliable way to detect hierarchical
       // parallelism.
     }
-    if (KernelIndex == 0) {
-      NDRDesc = CurrentNDR;
-    } else {
-      if (CurrentNDR.Dims != NDRDesc.Dims) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different dimensionality");
-        return nullptr;
-      }
-      if (CurrentNDR.GlobalOffset != NDRDesc.GlobalOffset) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different global offset");
-        return nullptr;
-      }
-      if (CurrentNDR.GlobalSize != NDRDesc.GlobalSize) {
-        printPerformanceWarning(
-            "Cannot fuse kerneles with different global size");
-        return nullptr;
-      }
-      if (CurrentNDR.LocalSize[0] != 0 &&
-          CurrentNDR.LocalSize != NDRDesc.LocalSize) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different local size");
-        return nullptr;
-      }
-    }
+
     // We need to copy the storages here. The input CGs might be eliminated
     // before the fused kernel gets executed, so we need to copy the storages
     // here to make sure the arguments don't die on us before executing the
@@ -751,7 +737,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
-  // TODO: Enable caching in a separate PR.
+  JITConfig.set<::jit_compiler::option::JITEnableCaching>(
+      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
@@ -779,6 +766,17 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   // Update the kernel arguments for internalized accessors.
+  const auto NDRDesc = [](const auto &ND) -> NDRDescT {
+    constexpr auto ToSYCLType = [](const auto &Indices) -> sycl::range<3> {
+      return {Indices[0], Indices[1], Indices[2]};
+    };
+    NDRDescT NDRDesc;
+    NDRDesc.Dims = ND.getDimensions();
+    NDRDesc.GlobalSize = ToSYCLType(ND.getGlobalSize());
+    NDRDesc.LocalSize = ToSYCLType(ND.getLocalSize());
+    NDRDesc.GlobalOffset = ToSYCLType(ND.getOffset());
+    return NDRDesc;
+  }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
   if (!FusionResult.cached()) {

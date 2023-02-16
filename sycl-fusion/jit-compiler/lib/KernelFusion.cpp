@@ -9,6 +9,7 @@
 #include "KernelFusion.h"
 #include "Kernel.h"
 #include "KernelIO.h"
+#include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
 #include "fusion/FusionPipeline.h"
@@ -36,6 +37,16 @@ static FusionResult errorToFusionResult(llvm::Error &&Err,
   return FusionResult{ErrMsg.str()};
 }
 
+static std::vector<jit_compiler::NDRange>
+gatherNDRanges(llvm::ArrayRef<SYCLKernelInfo> KernelInformation) {
+  std::vector<jit_compiler::NDRange> NDRanges;
+  NDRanges.reserve(KernelInformation.size());
+  std::transform(KernelInformation.begin(), KernelInformation.end(),
+                 std::back_inserter(NDRanges),
+                 [](const auto &I) { return I.NDR; });
+  return NDRanges;
+}
+
 FusionResult KernelFusion::fuseKernels(
     JITContext &JITCtx, Config &&JITConfig,
     const std::vector<SYCLKernelInfo> &KernelInformation,
@@ -44,10 +55,35 @@ FusionResult KernelFusion::fuseKernels(
     int BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
+  const auto NDRanges = gatherNDRanges(KernelInformation);
+
+  if (!isValidCombination(NDRanges)) {
+    return FusionResult{
+        "Cannot fuse kernels with different offsets or local sizes"};
+  }
 
   // Initialize the configuration helper to make the options for this invocation
   // available (on a per-thread basis).
   ConfigHelper::setConfig(std::move(JITConfig));
+
+  bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
+  CacheKeyT CacheKey{KernelsToFuse,
+                     Identities,
+                     BarriersFlags,
+                     Internalization,
+                     Constants,
+                     jit_compiler::isHeterogeneousList(NDRanges)
+                         ? std::optional<std::vector<NDRange>>{NDRanges}
+                         : std::optional<std::vector<NDRange>>{std::nullopt}};
+  if (CachingEnabled) {
+    std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
+    if (CachedKernel) {
+      helper::printDebugMessage("Re-using cached JIT kernel");
+      return FusionResult{*CachedKernel, /*Cached*/ true};
+    }
+    helper::printDebugMessage(
+        "Compiling new kernel, no suitable cached kernel found");
+  }
 
   SYCLModuleInfo ModuleInfo;
   // Copy the kernel information for the input kernels to the module
@@ -69,8 +105,9 @@ FusionResult KernelFusion::fuseKernels(
 
   // Add information about the kernel that should be fused as metadata into the
   // LLVM module.
-  FusedFunction FusedKernel{FusedKernelName, KernelsToFuse,
-                            std::move(Identities), Internalization, Constants};
+  FusedFunction FusedKernel{
+      FusedKernelName, KernelsToFuse, std::move(Identities),
+      Internalization, Constants,     NDRanges};
   FusedFunctionList FusedKernelList;
   FusedKernelList.push_back(FusedKernel);
   llvm::Expected<std::unique_ptr<llvm::Module>> NewModOrError =
@@ -103,6 +140,8 @@ FusionResult KernelFusion::fuseKernels(
   }
   jit_compiler::SPIRVBinary *SPIRVBin = *BinaryOrError;
 
+  FusedKernelInfo.NDR = FusedKernel.FusedNDRange;
+
   // Update the KernelInfo for the fused kernel with the address and size of the
   // SPIR-V binary resulting from translation.
   SYCLKernelBinaryInfo &FusedBinaryInfo = FusedKernelInfo.BinaryInfo;
@@ -114,6 +153,10 @@ FusionResult KernelFusion::fuseKernels(
       ModuleInfo.kernels().front().BinaryInfo.AddressBits;
   FusedBinaryInfo.BinaryStart = SPIRVBin->address();
   FusedBinaryInfo.BinarySize = SPIRVBin->size();
+
+  if (CachingEnabled) {
+    JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
+  }
 
   return FusionResult{FusedKernelInfo};
 }

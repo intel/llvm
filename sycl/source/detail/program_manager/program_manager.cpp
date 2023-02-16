@@ -10,10 +10,12 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
@@ -46,8 +48,6 @@ namespace detail {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
-
-enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
@@ -119,27 +119,6 @@ ProgramManager::getDeviceImage(OSModuleHandle M, const std::string &KernelName,
   return getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
 }
 
-template <typename ExceptionT, typename RetT>
-RetT *waitUntilBuilt(KernelProgramCache &Cache,
-                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
-  // any thread which will find nullptr in cache will wait until the pointer
-  // is not null anymore
-  Cache.waitUntilBuilt(*BuildResult, [BuildResult]() {
-    int State = BuildResult->State.load();
-
-    return State == BS_Done || State == BS_Failed;
-  });
-
-  if (BuildResult->Error.isFilledIn()) {
-    const KernelProgramCache::BuildError &Error = BuildResult->Error;
-    throw ExceptionT(Error.Msg, Error.Code);
-  }
-
-  RetT *Result = BuildResult->Ptr.load();
-
-  return Result;
-}
-
 /// Try to fetch entity (kernel or program) from cache. If there is no such
 /// entity try to build it. Throw any exception build process may throw.
 /// This method eliminates unwanted builds by employing atomic variable with
@@ -159,38 +138,28 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 ///         cache. Accepts nothing. Return pointer to built entity.
 ///
 /// \return a pointer to cached build result, return value must not be nullptr.
-template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
-          typename GetCacheFT, typename BuildFT>
+template <typename RetT, typename ExceptionT, typename GetCachedBuildFT,
+          typename BuildFT>
 KernelProgramCache::BuildResult<RetT> *
-getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
-           GetCacheFT &&GetCache, BuildFT &&Build) {
-  bool InsertionTookPlace;
-  KernelProgramCache::BuildResult<RetT> *BuildResult;
+getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
+           BuildFT &&Build) {
+  using BuildState = KernelProgramCache::BuildState;
 
-  {
-    auto LockedCache = Acquire(KPCache);
-    auto &Cache = GetCache(LockedCache);
-    auto Inserted =
-        Cache.emplace(std::piecewise_construct, std::forward_as_tuple(CacheKey),
-                      std::forward_as_tuple(nullptr, BS_InProgress));
-
-    InsertionTookPlace = Inserted.second;
-    BuildResult = &Inserted.first->second;
-  }
+  auto [BuildResult, InsertionTookPlace] = GetCachedBuild();
 
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
     for (;;) {
-      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
+      RetT *Result = KPCache.waitUntilBuilt<ExceptionT>(BuildResult);
 
       if (Result)
         return BuildResult;
 
       // Previous build is failed. There was no SYCL exception though.
       // We might try to build once more.
-      int Expected = BS_Failed;
-      int Desired = BS_InProgress;
+      BuildState Expected = BuildState::BS_Failed;
+      BuildState Desired = BuildState::BS_InProgress;
 
       if (BuildResult->State.compare_exchange_strong(Expected, Desired))
         break; // this thread is the building thread now
@@ -215,7 +184,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
       // Even if shared variable is atomic, it must be modified under the mutex
       // in order to correctly publish the modification to the waiting thread
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Done);
+      BuildResult->State.store(BuildState::BS_Done);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -227,7 +196,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Failed);
+      BuildResult->State.store(BuildState::BS_Failed);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -236,7 +205,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
   } catch (...) {
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Failed);
+      BuildResult->State.store(BuildState::BS_Failed);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -523,16 +492,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   using PiProgramT = KernelProgramCache::PiProgramT;
-  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireCachedPrograms();
-  };
-  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
-    return LockedCache.get();
-  };
 
   std::string CompileOpts;
   std::string LinkOpts;
@@ -663,14 +624,18 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
-  const RT::PiDevice PiDevice = Dev->getHandleRef();
-
   uint32_t ImgId = Img.getImageID();
-  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache,
+  const RT::PiDevice PiDevice = Dev->getHandleRef();
+  auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      AcquireF, GetF, BuildF);
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+
+  auto GetCachedBuildF = [&Cache, &CacheKey]() {
+    return Cache.getOrInsertProgram(CacheKey);
+  };
+
+  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   return BuildResult->Ptr.load();
@@ -689,8 +654,6 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   }
 
   using PiKernelT = KernelProgramCache::PiKernelT;
-  using KernelCacheT = KernelProgramCache::KernelCacheT;
-  using KernelByNameT = KernelProgramCache::KernelByNameT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
@@ -712,13 +675,6 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   RT::PiProgram Program =
       getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireKernelsPerProgramCache();
-  };
-  auto GetF =
-      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
-    return LockedCache.get()[Program];
-  };
   auto BuildF = [&Program, &KernelName, &ContextImpl] {
     PiKernelT *Result = nullptr;
 
@@ -734,8 +690,12 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return Result;
   };
 
+  auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
+    return Cache.getOrInsertKernel(Program, KernelName);
+  };
+
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, KernelName, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   auto ret_val = std::make_tuple(BuildResult->Ptr.load(),
@@ -980,7 +940,10 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     debugPrintBinaryImages();
   }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
+  auto It = m_DeviceImages.find(KSId);
+  assert(It != m_DeviceImages.end() &&
+         "No device image found for the given kernel set id");
+  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *It->second;
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
@@ -1843,6 +1806,30 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
+static void
+setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
+                           RT::PiProgram Prog, const plugin &Plugin) {
+  // Set ITT annotation specialization constant if needed.
+  enableITTAnnotationsIfNeeded(Prog, Plugin);
+
+  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+  const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
+      &SpecConstData = InputImpl->get_spec_const_data_ref();
+  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
+
+  // Set all specialization IDs from descriptors in the input device image.
+  for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
+    std::ignore = SpecConstNames;
+    for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
+      if (SpecIDDesc.IsSet) {
+        Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
+            SpecConsts.data() + SpecIDDesc.BlobOffset);
+      }
+    }
+  }
+}
+
 device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
@@ -1873,7 +1860,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                                        InputImpl->get_context(), Devs[0]);
 
   if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
-    enableITTAnnotationsIfNeeded(Prog, Plugin);
+    setSpecializationConstants(InputImpl, Prog, Plugin);
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -1885,8 +1872,6 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   PIDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
-  // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
@@ -1954,12 +1939,48 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   }
 
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
+  std::vector<unsigned char> NewSpecConstBlob;
+  device_image_impl::SpecConstMapT NewSpecConstMap;
   for (const device_image_plain &DeviceImage : DeviceImages) {
+    std::shared_ptr<device_image_impl> DeviceImageImpl =
+        getSyclObjImpl(DeviceImage);
+
     // Duplicates are not expected here, otherwise piProgramLink should fail
-    KernelIDs->insert(
-        KernelIDs->end(),
-        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->begin(),
-        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->end());
+    KernelIDs->insert(KernelIDs->end(),
+                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                      DeviceImageImpl->get_kernel_ids_ptr()->end());
+
+    // To be able to answer queries about specialziation constants, the new
+    // device image should have the specialization constants from all the linked
+    // images.
+    {
+      const std::lock_guard<std::mutex> SpecConstLock(
+          DeviceImageImpl->get_spec_const_data_lock());
+
+      // Copy all map entries to the new map. Since the blob will be copied to
+      // the end of the new blob we need to move the blob offset of each entry.
+      for (const auto &SpecConstIt :
+           DeviceImageImpl->get_spec_const_data_ref()) {
+        std::vector<device_image_impl::SpecConstDescT> &NewDescEntries =
+            NewSpecConstMap[SpecConstIt.first];
+        assert(NewDescEntries.empty() &&
+               "Specialization constant already exists in the map.");
+        NewDescEntries.reserve(SpecConstIt.second.size());
+        for (const device_image_impl::SpecConstDescT &SpecConstDesc :
+             SpecConstIt.second) {
+          device_image_impl::SpecConstDescT NewSpecConstDesc = SpecConstDesc;
+          NewSpecConstDesc.BlobOffset += NewSpecConstBlob.size();
+          NewDescEntries.push_back(std::move(NewSpecConstDesc));
+        }
+      }
+
+      // Copy the blob from the device image into the new blob. This moves the
+      // offsets of the following blobs.
+      NewSpecConstBlob.insert(
+          NewSpecConstBlob.end(),
+          DeviceImageImpl->get_spec_const_blob_ref().begin(),
+          DeviceImageImpl->get_spec_const_blob_ref().end());
+    }
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
@@ -1967,7 +1988,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
-          std::move(KernelIDs), LinkedProg);
+          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
+          std::move(NewSpecConstBlob));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -1991,16 +2013,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
   using PiProgramT = KernelProgramCache::PiProgramT;
-  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireCachedPrograms();
-  };
-  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
-    return LockedCache.get();
-  };
 
   std::string CompileOpts;
   std::string LinkOpts;
@@ -2033,25 +2047,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         Img, Context, Devs[0], CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache &&
-        InputImpl->get_bin_image_ref()->supportsSpecConstants()) {
-      enableITTAnnotationsIfNeeded(NativePrg, Plugin);
-
-      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
-      const std::map<std::string,
-                     std::vector<device_image_impl::SpecConstDescT>>
-          &SpecConstData = InputImpl->get_spec_const_data_ref();
-
-      for (const auto &DescPair : SpecConstData) {
-        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-             DescPair.second) {
-          if (SpecIDDesc.IsSet) {
-            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
-                SpecConsts.data() + SpecIDDesc.BlobOffset);
-          }
-        }
-      }
-    }
+        InputImpl->get_bin_image_ref()->supportsSpecConstants())
+      setSpecializationConstants(InputImpl, NativePrg, Plugin);
 
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
@@ -2092,9 +2089,16 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts));
+
+  // CacheKey is captured by reference so when we overwrite it later we can
+  // reuse this function.
+  auto GetCachedBuildF = [&Cache, &CacheKey]() {
+    return Cache.getOrInsertProgram(CacheKey);
+  };
+
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache, CacheKey, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2117,8 +2121,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second.first = PiDeviceAdd;
-    getOrBuild<PiProgramT, compile_program_error>(Cache, CacheKey, AcquireF,
-                                                  GetF, CacheOtherDevices);
+    getOrBuild<PiProgramT, compile_program_error>(Cache, GetCachedBuildF,
+                                                  CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2146,18 +2150,9 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
-  using KernelCacheT = KernelProgramCache::KernelCacheT;
-  using KernelByNameT = KernelProgramCache::KernelByNameT;
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireKernelsPerProgramCache();
-  };
-  auto GetF =
-      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
-    return LockedCache.get()[Program];
-  };
   auto BuildF = [&Program, &KernelName, &Ctx] {
     PiKernelT *Result = nullptr;
 
@@ -2171,8 +2166,12 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
     return Result;
   };
 
+  auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
+    return Cache.getOrInsertKernel(Program, KernelName);
+  };
+
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, KernelName, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   return std::make_pair(BuildResult->Ptr.load(),

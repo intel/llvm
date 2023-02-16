@@ -33,6 +33,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TensorEncoding.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::sparse_tensor;
@@ -345,8 +346,8 @@ static bool topSortOptimal(CodegenEnv &env, unsigned n,
 /// tidx < a = (i0 + i1) => tidx < i0, tidx < i1.
 static void addAffineOrderings(std::vector<std::vector<bool>> &adjM,
                                std::vector<unsigned> &inDegree, AffineExpr a,
-                               AffineExpr b, Optional<unsigned> fidx,
-                               Optional<unsigned> tidx) {
+                               AffineExpr b, std::optional<unsigned> fidx,
+                               std::optional<unsigned> tidx) {
   if (!a && !b) {
     // Recursion leaf.
     assert(fidx && tidx);
@@ -386,9 +387,9 @@ static void addAffineOrderings(std::vector<std::vector<bool>> &adjM,
 }
 
 static void tryLoosenAffineDenseConstraints(linalg::GenericOp op,
-                                            Optional<unsigned> &fldx,
+                                            std::optional<unsigned> &fldx,
                                             AffineExpr &fa,
-                                            Optional<unsigned> &tldx,
+                                            std::optional<unsigned> &tldx,
                                             AffineExpr &ta) {
   // We use a heuristic here to only pick one dim expression from each
   // compound affine expression to establish the order between two dense
@@ -448,7 +449,7 @@ static bool computeIterationGraph(CodegenEnv &env, unsigned mask,
     // on the loop indices if no explicit dimension ordering is given.
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
       AffineExpr ta = map.getResult(toOrigDim(enc, d));
-      Optional<unsigned> tldx =
+      std::optional<unsigned> tldx =
           env.merger().getLoopIdx(t.getOperandNumber(), d);
 
       // Filter loops should be constructed after all the dependent loops,
@@ -472,7 +473,7 @@ static bool computeIterationGraph(CodegenEnv &env, unsigned mask,
 
       if (d > 0) {
         AffineExpr fa = map.getResult(toOrigDim(enc, d - 1));
-        Optional<unsigned> fldx =
+        std::optional<unsigned> fldx =
             env.merger().getLoopIdx(t.getOperandNumber(), d - 1);
 
         // Applying order constraints on every pair of dimExpr between two
@@ -611,7 +612,7 @@ static void genBuffers(CodegenEnv &env, OpBuilder &builder) {
   Location loc = op.getLoc();
   assert(op.getNumOperands() == op.getNumDpsInputs() + 1);
 
-  env.emitter()->initializeLoopEmit(
+  env.emitter().initializeLoopEmit(
       builder, loc,
       /// Generates buffer for the output tensor.
       /// Note that all sparse kernels assume that when all elements are written
@@ -666,16 +667,16 @@ static Value genSubscript(CodegenEnv &env, OpBuilder &builder, OpOperand *t,
   auto enc = getSparseTensorEncoding(t->get().getType());
   unsigned rank = map.getNumResults();
   if (enc) {
-    Value pidx = env.emitter()->getPidxs()[tensor].back();
+    Value pidx = env.emitter().getPidxs()[tensor].back();
     assert(pidx);
     args.push_back(pidx); // position index
   } else {
     for (unsigned d = 0; d < rank; d++) {
       AffineExpr a = map.getResult(d);
-      args.push_back(env.emitter()->genAffine(builder, a, op.getLoc()));
+      args.push_back(env.emitter().genAffine(builder, a, op.getLoc()));
     }
   }
-  return env.emitter()->getValBuffer()[tensor];
+  return env.emitter().getValBuffer()[tensor];
 }
 
 /// Generates insertion code to implement dynamic tensor load.
@@ -721,8 +722,8 @@ static void genInsertionStore(CodegenEnv &env, OpBuilder &builder, OpOperand *t,
     unsigned rank = op.getRank(t);
     SmallVector<Value> indices;
     for (unsigned i = 0; i < rank; i++) {
-      assert(env.emitter()->getLoopIV(i));
-      indices.push_back(env.emitter()->getLoopIV(i));
+      assert(env.emitter().getLoopIV(i));
+      indices.push_back(env.emitter().getLoopIV(i));
     }
     Value chain = env.getInsertionChain();
     env.updateInsertionChain(
@@ -915,7 +916,7 @@ static void genInvariants(CodegenEnv &env, OpBuilder &builder, unsigned exp,
     auto enc = getSparseTensorEncoding(t.get().getType());
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
       AffineExpr a = map.getResult(toOrigDim(enc, d));
-      Optional<unsigned> sldx =
+      std::optional<unsigned> sldx =
           env.merger().getLoopIdx(t.getOperandNumber(), d);
       if (sldx && env.merger().isFilterLoop(*sldx)) {
         if (!env.getLoopIdxValue(*sldx))
@@ -988,7 +989,7 @@ static void genExpand(CodegenEnv &env, OpBuilder &builder, unsigned at,
   } else {
     SmallVector<Value> indices;
     for (unsigned i = 0; i < at; i++)
-      indices.push_back(env.emitter()->getLoopIV(i));
+      indices.push_back(env.emitter().getLoopIV(i));
     Value values = env.getExpandValues();
     Value filled = env.getExpandFilled();
     Value added = env.getExpandAdded();
@@ -1052,11 +1053,11 @@ static Operation *genFor(CodegenEnv &env, OpBuilder &builder, bool isOuter,
       // Retrieves the affine expression for the filter loop.
       AffineExpr a =
           op.getMatchingIndexingMap(t).getResult(toOrigDim(enc, dim));
-      return env.emitter()->enterFilterLoopOverTensorAtDim(builder, loc, tid,
-                                                           dim, a, reduc);
+      return env.emitter().enterFilterLoopOverTensorAtDim(builder, loc, tid,
+                                                          dim, a, reduc);
     }
-    return env.emitter()->enterLoopOverTensorAtDim(builder, loc, tids, dims,
-                                                   reduc, isParallel);
+    return env.emitter().enterLoopOverTensorAtDim(builder, loc, tids, dims,
+                                                  reduc, isParallel);
   });
   assert(loop);
   return loop;
@@ -1069,7 +1070,7 @@ static Operation *genWhile(CodegenEnv &env, OpBuilder &builder, unsigned idx,
   Operation *loop = *env.genLoopBoundary([&](MutableArrayRef<Value> reduc) {
     // Construct the while-loop with a parameter for each
     // index.
-    return env.emitter()->enterCoIterationOverTensorsAtDims(
+    return env.emitter().enterCoIterationOverTensorsAtDims(
         builder, env.op().getLoc(), tids, dims, needsUniv, reduc);
   });
   assert(loop);
@@ -1136,7 +1137,7 @@ static scf::IfOp genIf(CodegenEnv &env, OpBuilder &builder, unsigned idx,
     Value clause;
     if (isCompressedDLT(env.dlt(b)) || isSingletonDLT(env.dlt(b))) {
       auto dim = *env.merger().getDimNum(tensor, idx);
-      Value op1 = env.emitter()->getCoord()[tensor][dim];
+      Value op1 = env.emitter().getCoord()[tensor][dim];
       Value op2 = env.getLoopIdxValue(idx);
       clause = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, op1,
                                              op2);
@@ -1201,8 +1202,8 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, unsigned exp,
   SmallVector<size_t> tids;
   SmallVector<size_t> dims;
   env.merger().foreachTidDimPairInBits(
-      env.lat(l0).bits,
-      [&](unsigned b, unsigned tid, Optional<unsigned> dim, DimLevelType dlt) {
+      env.lat(l0).bits, [&](unsigned b, unsigned tid,
+                            std::optional<unsigned> dim, DimLevelType dlt) {
         assert(env.merger().index(b) == idx);
         if (isDenseDLT(dlt) || isUndefDLT(dlt)) {
           needsUniv = true;
@@ -1213,7 +1214,7 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, unsigned exp,
         }
       });
 
-  env.emitter()->enterNewLoopSeq(builder, env.op().getLoc(), tids, dims);
+  env.emitter().enterNewLoopSeq(builder, env.op().getLoc(), tids, dims);
 
   // Maintain the universal index only if it is actually
   // consumed by a subsequent lattice point.
@@ -1242,7 +1243,7 @@ static void genConstantDenseAddressFromLevel(CodegenEnv &env,
       AffineExpr affine = affines[toOrigDim(enc, i)];
       if (isDenseDLT(getDimLevelType(enc, i)) &&
           affine.isa<AffineConstantExpr>())
-        env.emitter()->genDenseAffineAddressAtCurLevel(
+        env.emitter().genDenseAffineAddressAtCurLevel(
             builder, op.getLoc(), input->getOperandNumber(), i, affine);
       else
         return; // break on first non-dense non-constant level
@@ -1270,9 +1271,10 @@ static bool translateBitsToTidDimPairs(
 
   unsigned numloopCond = 0;
   // Converts bits to array + dim pair
-  env.merger().foreachTidDimPairInBits(all, [&, idx](unsigned b, unsigned tid,
-                                                     Optional<unsigned> dim,
-                                                     DimLevelType dlt) {
+  env.merger().foreachTidDimPairInBits(all, [&,
+                                             idx](unsigned b, unsigned tid,
+                                                  std::optional<unsigned> dim,
+                                                  DimLevelType dlt) {
     if (simple.test(b)) {
       if (isUndefDLT(dlt)) {
         // An undefined dlt in the lattices, we probably mean to iterate based
@@ -1367,8 +1369,8 @@ static Operation *startLoop(CodegenEnv &env, OpBuilder &builder, unsigned at,
   // Emit the for/while-loop control.
   Operation *loop = genLoop(env, builder, at, needsUniv, tids, dims, isFor);
   for (auto [tid, dim, exp] : llvm::zip(affineTids, affineDims, affines)) {
-    env.emitter()->genDenseAffineAddressAtCurLevel(builder, env.op().getLoc(),
-                                                   tid, dim, exp);
+    env.emitter().genDenseAffineAddressAtCurLevel(builder, env.op().getLoc(),
+                                                  tid, dim, exp);
   }
 
   // Until now, we have entered every <tid, dim> pair in {cond, extra,
@@ -1395,7 +1397,7 @@ static bool endLoop(CodegenEnv &env, RewriterBase &rewriter, Operation *loop,
   }
 
   env.genLoopBoundary([&](MutableArrayRef<Value> reduc) {
-    env.emitter()->exitCurrentLoop(rewriter, env.op().getLoc(), reduc);
+    env.emitter().exitCurrentLoop(rewriter, env.op().getLoc(), reduc);
     return std::nullopt;
   });
 
@@ -1406,7 +1408,7 @@ static bool endLoop(CodegenEnv &env, RewriterBase &rewriter, Operation *loop,
 static void endLoopSeq(CodegenEnv &env, OpBuilder &builder, unsigned exp,
                        unsigned at, unsigned idx, unsigned ldx) {
   assert(env.getLoopIdxValue(idx) == nullptr);
-  env.emitter()->exitCurrentLoopSeq();
+  env.emitter().exitCurrentLoopSeq();
   // Unmark bookkeeping of invariants and loop index.
   genInvariants(env, builder, exp, ldx, /*atStart=*/false);
   // Finalize access pattern expansion for sparse tensor output.
@@ -1492,7 +1494,7 @@ static void genResult(CodegenEnv &env, RewriterBase &rewriter) {
   } else {
     // To rematerialize an non-annotated tensor, simply load it
     // from the bufferized value.
-    Value val = env.emitter()->getValBuffer().back(); // value array
+    Value val = env.emitter().getValBuffer().back(); // value array
     rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(op, resType, val);
   }
 }
@@ -1527,7 +1529,7 @@ public:
       return failure();
 
     // Builds the tensor expression for the Linalg operation in SSA form.
-    Optional<unsigned> optExp = env.merger().buildTensorExpFromLinalg(op);
+    std::optional<unsigned> optExp = env.merger().buildTensorExpFromLinalg(op);
     if (!optExp)
       return failure();
     unsigned exp = *optExp;
@@ -1559,20 +1561,8 @@ public:
     if (!isAdmissible)
       return failure(); // inadmissible expression, reject
 
-    // Updates environment with a loop emitter.
-    // TODO: refactor so that emitter can be constructed earlier
-    //       and updating is made easy, i.e. remove this whole block?
-    SmallVector<Value> tensors;
-    for (OpOperand &t : op->getOpOperands())
-      tensors.push_back(t.get());
-    LoopEmitter lpe(
-        tensors,
-        StringAttr::get(op.getContext(), linalg::GenericOp::getOperationName()),
-        /*hasOutput=*/true, /*isSparseOut=*/sparseOut != nullptr,
-        env.topSortRef());
-    env.startEmit(sparseOut, outerParNest, &lpe);
-
     // Recursively generates code if admissible.
+    env.startEmit(sparseOut, outerParNest);
     genBuffers(env, rewriter);
     genInitConstantDenseAddress(env, rewriter);
     genStmt(env, rewriter, exp, 0);

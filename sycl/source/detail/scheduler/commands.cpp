@@ -1978,10 +1978,8 @@ static pi_result SetKernelParamsAndLaunch(
       Requirement *Req = (Requirement *)(Arg.MPtr);
       if (Req->MAccessRange == range<3>({0, 0, 0}))
         break;
-      if (getMemAllocationFunc == nullptr)
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
+      assert(getMemAllocationFunc != nullptr &&
+             "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
@@ -2147,6 +2145,14 @@ pi_int32 enqueueImpKernel(
               OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
               SyclProg.get());
       assert(FoundKernel == Kernel);
+    } else {
+      // Non-cacheable kernels use mutexes from kernel_impls.
+      // TODO this can still result in a race condition if multiple SYCL
+      // kernels are created with the same native handle. To address this,
+      // we need to either store and use a pi_native_handle -> mutex map or
+      // reuse and return existing SYCL kernels from make_native to avoid
+      // their duplication in such cases.
+      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     }
   } else {
     std::tie(Kernel, KernelMutex, Program) =
@@ -2179,18 +2185,13 @@ pi_int32 enqueueImpKernel(
         detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
             OSModuleHandle, Program, KernelName);
   }
-  if (KernelMutex != nullptr) {
-    // For cacheable kernels, we use per-kernel mutex
+  {
+    assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
-  } else {
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEvent,
-                                     EliminatedArgMask, getMemAllocationFunc);
   }
-
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong

@@ -88,18 +88,6 @@ struct MemAllocRecord : _pi_object {
 struct _pi_platform : public _ur_platform_handle_t {
   using _ur_platform_handle_t::_ur_platform_handle_t;
 
-  // Cache pi_devices for reuse
-  std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
-  pi_shared_mutex PiDevicesCacheMutex;
-  bool DeviceCachePopulated = false;
-
-  // Check the device cache and load it if necessary.
-  pi_result populateDeviceCacheIfNeeded();
-
-  // Return the PI device from cache that represents given native device.
-  // If not found, then nullptr is returned.
-  pi_device getDeviceFromNativeHandle(ze_device_handle_t);
-
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
   // with indirect access.
@@ -118,7 +106,6 @@ protected:
   // type
   virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
                                  pi_uint32 Alignment) = 0;
-  virtual MemType getMemTypeImpl() = 0;
 
 public:
   USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
@@ -126,7 +113,6 @@ public:
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
   void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
-  MemType getMemType() override final;
 };
 
 // Allocation routines for shared memory type
@@ -134,7 +120,6 @@ class USMSharedMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override;
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -146,7 +131,6 @@ class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override { return MemType::SharedReadOnly; }
 
 public:
   USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -158,7 +142,6 @@ class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override;
 
 public:
   USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -170,7 +153,6 @@ class USMHostMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override;
 
 public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
@@ -191,115 +173,8 @@ enum EventsScope {
   LastCommandInBatchHostVisible
 };
 
-struct _pi_device : _pi_object {
-  _pi_device(ze_device_handle_t Device, pi_platform Plt,
-             pi_device ParentDevice = nullptr)
-      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ImmCommandListsPreferred{false}, ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
-    // NOTE: one must additionally call initialize() to complete
-    // PI device creation.
-  }
-
-  // The helper structure that keeps info about a command queue groups of the
-  // device. It is not changed after it is initialized.
-  struct queue_group_info_t {
-    enum type {
-      MainCopy,
-      LinkCopy,
-      Compute,
-      Size // must be last
-    };
-
-    // Keep the ordinal of the commands group as returned by
-    // zeDeviceGetCommandQueueGroupProperties. A value of "-1" means that
-    // there is no such queue group available in the Level Zero runtime.
-    int32_t ZeOrdinal{-1};
-
-    // Keep the index of the specific queue in this queue group where
-    // all the command enqueues of the corresponding type should go to.
-    // The value of "-1" means that no hard binding is defined and
-    // implementation can choose specific queue index on its own.
-    int32_t ZeIndex{-1};
-
-    // Keeps the queue group properties.
-    ZeStruct<ze_command_queue_group_properties_t> ZeProperties;
-  };
-
-  std::vector<queue_group_info_t> QueueGroup =
-      std::vector<queue_group_info_t>(queue_group_info_t::Size);
-
-  // This returns "true" if a main copy engine is available for use.
-  bool hasMainCopyEngine() const {
-    return QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal >= 0;
-  }
-
-  // This returns "true" if a link copy engine is available for use.
-  bool hasLinkCopyEngine() const {
-    return QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal >= 0;
-  }
-
-  // This returns "true" if a main or link copy engine is available for use.
-  bool hasCopyEngine() const {
-    return hasMainCopyEngine() || hasLinkCopyEngine();
-  }
-
-  // Initialize the entire PI device.
-  // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
-  // command queue ordinal and index respectively, used to initialize
-  // sub-sub-devices.
-  pi_result initialize(int SubSubDeviceOrdinal = -1,
-                       int SubSubDeviceIndex = -1);
-
-  // Level Zero device handle.
-  // This field is only set at _pi_device creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_device.
-  const ze_device_handle_t ZeDevice;
-
-  // Keep the subdevices that are partitioned from this pi_device for reuse
-  // The order of sub-devices in this vector is repeated from the
-  // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
-  // call, which will always return sub-devices in the fixed same order.
-  std::vector<pi_device> SubDevices;
-
-  // PI platform to which this device belongs.
-  // This field is only set at _pi_device creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_device.
-  const pi_platform Platform;
-
-  // Root-device of a sub-device, null if this is not a sub-device.
-  // This field is only set at _pi_device creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_device.
-  const pi_device RootDevice;
-
-  // Whether to use immediate commandlists for queues on this device.
-  // For some devices (e.g. PVC) immediate commandlists are preferred.
-  bool ImmCommandListsPreferred;
-
-  // Return whether to use immediate commandlists for this device.
-  int useImmediateCommandLists();
-
-  bool isSubDevice() { return RootDevice != nullptr; }
-
-  // Is this a Data Center GPU Max series (aka PVC).
-  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
-
-  // Does this device represent a single compute slice?
-  bool isCCS() const {
-    return QueueGroup[_pi_device::queue_group_info_t::Compute].ZeIndex >= 0;
-  }
-
-  // Cache of the immutable device properties.
-  ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
-  ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
-  ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
-  ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
-  ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
-                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
-      ZeDeviceMemoryProperties;
-  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
-      ZeDeviceMemoryAccessProperties;
-  ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+struct _pi_device : _ur_device_handle_t {
+  using _ur_device_handle_t::_ur_device_handle_t;
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -357,7 +232,7 @@ struct _pi_context : _pi_object {
   pi_result finalize();
 
   // Return the Platform, which is the same for all devices in the context
-  pi_platform getPlatform() const { return Devices[0]->Platform; }
+  pi_platform getPlatform() const;
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -376,14 +251,7 @@ struct _pi_context : _pi_object {
 
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
-  bool isValidDevice(pi_device Device) const {
-    while (Device) {
-      if (std::find(Devices.begin(), Devices.end(), Device) != Devices.end())
-        return true;
-      Device = Device->RootDevice;
-    }
-    return false;
-  }
+  bool isValidDevice(pi_device Device) const;
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
@@ -462,9 +330,12 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
-  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      DeviceMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      SharedMemAllocContexts;
+  std::unordered_map<ze_device_handle_t, USMAllocContext>
+      SharedReadOnlyMemAllocContexts;
 
   // Since L0 native runtime does not distinguisg "shared device_read_only"
   // vs regular "shared" allocations, we have keep track of it to use
@@ -802,7 +673,7 @@ struct _pi_queue : _pi_object {
   struct active_barriers {
     std::vector<pi_event> Events;
     void add(pi_event &Event);
-    void clear();
+    pi_result clear();
     bool empty() { return Events.empty(); }
     std::vector<pi_event> &vector() { return Events; }
   };

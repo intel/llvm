@@ -1331,12 +1331,12 @@ def SYCLType: InheritableAttr {
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler"],
+                            "stream", "sampler", "host_pipe"],
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler"]>];
+                            "stream", "sampler", "host_pipe"]>];
   // Only used internally by SYCL implementation
   let Documentation = [InternalOnly];
 }
@@ -4838,11 +4838,11 @@ def OMPDeclareTargetDecl : InheritableAttr {
   ];
   let AdditionalMembers = [{
     void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
-    static llvm::Optional<MapTypeTy>
+    static std::optional<MapTypeTy>
     isDeclareTargetDeclaration(const ValueDecl *VD);
-    static llvm::Optional<OMPDeclareTargetDeclAttr*> getActiveAttr(const ValueDecl *VD);
-    static llvm::Optional<DevTypeTy> getDeviceType(const ValueDecl *VD);
-    static llvm::Optional<SourceLocation> getLocation(const ValueDecl *VD);
+    static std::optional<OMPDeclareTargetDeclAttr*> getActiveAttr(const ValueDecl *VD);
+    static std::optional<DevTypeTy> getDeviceType(const ValueDecl *VD);
+    static std::optional<SourceLocation> getLocation(const ValueDecl *VD);
   }];
 }
 

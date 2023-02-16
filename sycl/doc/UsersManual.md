@@ -92,6 +92,7 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 
