@@ -30,7 +30,7 @@ params:
       name: DeviceCount
       desc: |
             [in] the number of devices given in phDevices
-    - type: "$x_device_handle_t*"
+    - type: "const $x_device_handle_t*"
       name: phDevices
       desc: |
             [in][range(0, DeviceCount)] array of handle of devices.

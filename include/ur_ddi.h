@@ -88,7 +88,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetPlatformProcAddrTable_t)(
 /// @brief Function-pointer for urContextCreate
 typedef ur_result_t(UR_APICALL *ur_pfnContextCreate_t)(
     uint32_t,
-    ur_device_handle_t *,
+    const ur_device_handle_t *,
     ur_context_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -299,9 +299,9 @@ typedef struct ur_rect_region_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(
-    uint32_t DeviceCount,          ///< [in] the number of devices given in phDevices
-    ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
-    ur_context_handle_t *phContext ///< [out] pointer to handle of context object created
+    uint32_t DeviceCount,                ///< [in] the number of devices given in phDevices
+    const ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
+    ur_context_handle_t *phContext       ///< [out] pointer to handle of context object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4610,7 +4610,7 @@ typedef struct ur_platform_callbacks_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_context_create_params_t {
     uint32_t *pDeviceCount;
-    ur_device_handle_t **pphDevices;
+    const ur_device_handle_t **pphDevices;
     ur_context_handle_t **pphContext;
 } ur_context_create_params_t;
 

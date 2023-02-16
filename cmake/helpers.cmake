@@ -31,6 +31,7 @@ function(add_cppformat name)
                 --style=file
                 --i
                 ${ARGN}
+            COMMENT "Format CXX source files"
             )
     endif()
 
