@@ -855,11 +855,7 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
 }
 
 pi_result cuda_piContextRetain(pi_context context) {
-  assert(context != nullptr);
-  assert(context->get_reference_count() > 0);
-
-  context->increment_reference_count();
-  return PI_SUCCESS;
+  return pi2ur::piContextRetain(context);
 }
 
 pi_result cuda_piextContextSetExtendedDeleter(
@@ -998,64 +994,8 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 }
 
 /* Context APIs */
-
-/// Create a PI CUDA context.
-///
-/// By default creates a scoped context and keeps the last active CUDA context
-/// on top of the CUDA context stack.
-/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
-/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
-/// stack.
-///
-/// \param[in] properties 0 terminated array of key/id-value combinations. Can
-/// be nullptr. Only accepts property key/id
-/// __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY with a pi_bool value.
-/// \param[in] num_devices Number of devices to create the context for.
-/// \param[in] devices Devices to create the context for.
-/// \param[in] pfn_notify Callback, currently unused.
-/// \param[in] user_data User data for callback.
-/// \param[out] retcontext Set to created context on success.
-///
-/// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result cuda_piContextCreate(const pi_context_properties *properties,
-                               pi_uint32 num_devices, const pi_device *devices,
-                               void (*pfn_notify)(const char *errinfo,
-                                                  const void *private_info,
-                                                  size_t cb, void *user_data),
-                               void *user_data, pi_context *retcontext) {
-
-  assert(devices != nullptr);
-  // TODO: How to implement context callback?
-  assert(pfn_notify == nullptr);
-  assert(user_data == nullptr);
-  assert(num_devices == 1);
-  // Need input context
-  assert(retcontext != nullptr);
-  pi_result errcode_ret = PI_SUCCESS;
-
-  std::unique_ptr<_pi_context> piContextPtr{nullptr};
-  try {
-    piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{*devices});
-    *retcontext = piContextPtr.release();
-  } catch (pi_result err) {
-    errcode_ret = err;
-  } catch (...) {
-    errcode_ret = PI_ERROR_OUT_OF_RESOURCES;
-  }
-  return errcode_ret;
-}
-
 pi_result cuda_piContextRelease(pi_context ctxt) {
-  assert(ctxt != nullptr);
-
-  if (ctxt->decrement_reference_count() > 0) {
-    return PI_SUCCESS;
-  }
-  ctxt->invoke_extended_deleters();
-
-  std::unique_ptr<_pi_context> context{ctxt};
-
-  return PI_SUCCESS;
+  return pi2ur::piContextRelease(ctxt);
 }
 
 /// Gets the native CUDA handle of a PI context object
@@ -1566,7 +1506,7 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   *queue = new _pi_queue{std::move(computeCuStreams),
                          std::move(transferCuStreams),
                          context,
-                         context->get_device(),
+                         reinterpret_cast<pi_device>(context->get_device()),
                          properties,
                          flags,
                          /*backend_owns*/ false};
@@ -4024,7 +3964,8 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
-  pi_device device = queue->get_context()->get_device();
+  pi_device device =
+      reinterpret_cast<pi_device>(queue->get_context()->get_device());
 
   // Certain cuda devices and Windows do not have support for some Unified
   // Memory features. cuMemPrefetchAsync requires concurrent memory access
@@ -4094,7 +4035,8 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       advice == PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY ||
       advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY ||
       advice == PI_MEM_ADVICE_RESET) {
-    pi_device device = queue->get_context()->get_device();
+    pi_device device =
+        reinterpret_cast<pi_device>(queue->get_context()->get_device());
     if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
       setErrorMessage("Mem advise ignored as device does not support "
                       "concurrent managed access",
@@ -4529,10 +4471,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextDeviceCreateWithNativeHandle)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
-  _PI_CL(piContextCreate, cuda_piContextCreate)
-  _PI_CL(piContextGetInfo, cuda_piContextGetInfo)
-  _PI_CL(piContextRetain, cuda_piContextRetain)
-  _PI_CL(piContextRelease, cuda_piContextRelease)
+  _PI_CL(piContextCreate, pi2ur::piContextCreate)
+  _PI_CL(piContextGetInfo, pi2ur::piContextGetInfo)
+  _PI_CL(piContextRetain, pi2ur::piContextRetain)
+  _PI_CL(piContextRelease, pi2ur::piContextRelease)
   _PI_CL(piextContextGetNativeHandle, cuda_piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle,
          cuda_piextContextCreateWithNativeHandle)
