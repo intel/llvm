@@ -148,39 +148,12 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
   return structTy;
 }
 
-/// Converts SYCL AssertHappened type to LLVM type.
-static Optional<Type> convertAssertHappenedType(sycl::AssertHappenedType type,
-                                                LLVMTypeConverter &converter) {
-  return convertBodyType("struct.sycl::_V1::detail::AssertHappened",
-                         type.getBody(), converter);
-}
-
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
   // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
   // the conversion done in ConvertTOLLVMABI pass
   return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
-}
-
-/// Converts SYCL bfloat16 type to LLVM type.
-static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
-                                          LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::ext::oneapi::bfloat16",
-                         type.getBody(), converter);
-}
-
-/// Converts SYCL GetOp type to LLVM type.
-static Optional<Type> convertGetOpType(sycl::GetOpType type,
-                                       LLVMTypeConverter &converter) {
-  return getI8Struct("class.sycl::_V1::detail::GetOp", converter);
-}
-
-/// Converts SYCL GetScalarOp type to LLVM type.
-static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
-                                             LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::detail::GetScalarOp", type.getBody(),
-                         converter);
 }
 
 /// Converts SYCL group type to LLVM type.
@@ -327,24 +300,6 @@ static Optional<Type> convertSwizzledVecType(sycl::SwizzledVecType type,
   return convertBodyType("class.sycl::_V1::detail::SwizzleOp", type.getBody(),
                          converter);
 }
-
-/// Converts SYCL TupleCopyAssignableValueHolder type to LLVM type.
-static Optional<Type> convertTupleCopyAssignableValueHolderType(
-    sycl::TupleCopyAssignableValueHolderType type,
-    LLVMTypeConverter &converter) {
-  return convertBodyType(
-      "struct.sycl::_V1::detail::TupleCopyAssignableValueHolder",
-      type.getBody(), converter);
-}
-
-/// Converts SYCL TupleValueHolder type to LLVM type.
-static Optional<Type>
-convertTupleValueHolderType(sycl::TupleValueHolderType type,
-                            LLVMTypeConverter &converter) {
-  return convertBodyType("struct.sycl::_V1::detail::TupleValueHolder",
-                         type.getBody(), converter);
-}
-
 /// Converts SYCL vec type to LLVM type.
 static Optional<Type> convertVecType(sycl::VecType type,
                                      LLVMTypeConverter &converter) {
@@ -550,20 +505,8 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::ArrayType type) {
     return convertArrayType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::AssertHappenedType type) {
-    return convertAssertHappenedType(type, typeConverter);
-  });
   typeConverter.addConversion([&](sycl::AtomicType type) {
     return convertAtomicType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::BFloat16Type type) {
-    return convertBFloat16Type(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::GetOpType type) {
-    return convertGetOpType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::GetScalarOpType type) {
-    return convertGetScalarOpType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::GroupType type) {
     return convertGroupType(type, typeConverter);
@@ -620,13 +563,6 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::SwizzledVecType type) {
     return convertSwizzledVecType(type, typeConverter);
-  });
-  typeConverter.addConversion(
-      [&](sycl::TupleCopyAssignableValueHolderType type) {
-        return convertTupleCopyAssignableValueHolderType(type, typeConverter);
-      });
-  typeConverter.addConversion([&](sycl::TupleValueHolderType type) {
-    return convertTupleValueHolderType(type, typeConverter);
   });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });

@@ -60,10 +60,6 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
         return InputElemType
             .hasTrait<SYCLInheritanceTypeTrait<OwnerLessBaseType>::Trait>();
       })
-      .template Case<TupleValueHolderType>([&](auto) {
-        return InputElemType
-            .hasTrait<SYCLInheritanceTypeTrait<TupleValueHolderType>::Trait>();
-      })
       .Default(false);
 }
 

@@ -106,12 +106,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     AccessorImplDevice,
     Accessor,
     AccessorSubscript,
-    AssertHappened,
     Array,
     Atomic,
-    BFloat16,
-    GetScalarOp,
-    GetOp,
     Group,
     HItem,
     ID,
@@ -131,8 +127,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     Stream,
     SubGroup,
     SwizzleOp,
-    TupleCopyAssignableValueHolder,
-    TupleValueHolder,
     Vec
   };
 
@@ -142,12 +136,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"AccessorImplDevice", TypeEnum::AccessorImplDevice},
       {"accessor", TypeEnum::Accessor},
       {"AccessorSubscript", TypeEnum::AccessorSubscript},
-      {"AssertHappened", AssertHappened},
       {"array", TypeEnum::Array},
       {"atomic", TypeEnum::Atomic},
-      {"bfloat16", BFloat16},
-      {"GetScalarOp", TypeEnum::GetScalarOp},
-      {"GetOp", TypeEnum::GetOp},
       {"group", TypeEnum::Group},
       {"h_item", TypeEnum::HItem},
       {"id", TypeEnum::ID},
@@ -167,8 +157,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"stream", TypeEnum::Stream},
       {"sub_group", SubGroup},
       {"SwizzleOp", SwizzleOp},
-      {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
-      {"TupleValueHolder", TypeEnum::TupleValueHolder},
       {"vec", TypeEnum::Vec},
   };
 
@@ -233,17 +221,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::AtomicType::get(
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
-    }
-    case TypeEnum::GetOp: {
-      const auto Type =
-          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
-    }
-    case TypeEnum::GetScalarOp: {
-      const auto Type =
-          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
-                                              Type, Body);
     }
     case TypeEnum::Group: {
       const auto Dim =
@@ -347,21 +324,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
-    case TypeEnum::TupleCopyAssignableValueHolder: {
-      const auto Type =
-          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      const auto IsTriviallyCopyAssignable =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
-      return mlir::sycl::TupleCopyAssignableValueHolderType::get(
-          CGT.getModule()->getContext(), Type, IsTriviallyCopyAssignable, Body);
-    }
-    case TypeEnum::TupleValueHolder: {
-      const auto Type =
-          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::TupleValueHolderType::get(
-          CGT.getModule()->getContext(), Type, Body);
-    }
     case TypeEnum::Vec: {
       const auto ElemType =
           CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
@@ -392,11 +354,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   if (const auto *CXXRD = llvm::dyn_cast<clang::CXXRecordDecl>(RD)) {
     switch (StrToTypeEnum[CXXRD->getName().str()]) {
     // Keep in alphabetical order.
-    case TypeEnum::AssertHappened:
-      return mlir::sycl::AssertHappenedType::get(CGT.getModule()->getContext(),
-                                                 Body);
-    case TypeEnum::BFloat16:
-      return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
     case TypeEnum::KernelHandler:
       return mlir::sycl::KernelHandlerType::get(CGT.getModule()->getContext(),
                                                 Body);
