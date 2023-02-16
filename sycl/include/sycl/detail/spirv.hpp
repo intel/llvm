@@ -497,36 +497,37 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-// TODO: edit this
 // Native shuffles map directly to a shuffle intrinsic:
-// - The Intel SPIR-V extension natively supports all arithmetic types
+// - The Intel SPIR-V extension natively supports all arithmetic types.
+//   However, OpenCL extension natively supports float vectors,
+//   integer vectors, half scalar and double scalar.
+//   For double vectors we perform emulation with scalar version.
 // - The CUDA shfl intrinsics do not support vectors, and we use the _i32
 //   variants for all scalar types
 #ifndef __NVPTX__
 
 template <typename T>
-struct TypeIsProhibitedForShuffle
-    : bool_constant<std::is_same_v<vector_element_t<T>, sycl::half> ||
-                    std::is_same_v<vector_element_t<T>, double> ||
-                    std::is_same_v<vector_element_t<T>, long long> ||
-                    std::is_same_v<vector_element_t<T>, unsigned long long>> {};
+struct TypeIsProhibitedForShuffleEmulation
+    : bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
 
-// TODO: describe all details.
 template <typename T>
-struct VecTypeIsProhibitedForShuffle
-    : bool_constant<(detail::get_vec_size<T>::size > 1) &&
-                    TypeIsProhibitedForShuffle<vector_element_t<T>>::value> {};
+struct VecTypeIsProhibitedForShuffleEmulation
+    : bool_constant<
+          (detail::get_vec_size<T>::size > 1) &&
+          TypeIsProhibitedForShuffleEmulation<vector_element_t<T>>::value> {};
 
 template <typename T>
 using EnableIfNativeShuffle =
     detail::enable_if_t<detail::is_arithmetic<T>::value &&
-                            !VecTypeIsProhibitedForShuffle<T>::value,
+                            !VecTypeIsProhibitedForShuffleEmulation<T>::value,
                         T>;
 
 template <typename T>
 using EnableIfVectorShuffle =
-    detail::enable_if_t<VecTypeIsProhibitedForShuffle<T>::value, T>;
+    detail::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
+
 #else  // ifndef __NVPTX__
+
 template <typename T>
 using EnableIfNativeShuffle = detail::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
