@@ -1157,6 +1157,21 @@ public:
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
       : impl(other.impl) {}
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataType, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder Placeholder,
+            typename PropListT>
+  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
+                          PropListT> &other,
+           std::enable_if_t<(AccMode == access_mode::read_write) &&
+                            (AccessMode == access_mode::read) &&
+                            std::is_same<std::remove_const_t<DataType>,
+                                         std::remove_const_t<DataT>>::value> * =
+               nullptr)
+      : impl(other.impl) {}
+
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -1248,6 +1263,21 @@ public:
                nullptr)
       : accessor<DataT, Dim, AccMode, AccTarget, Placeholder, PropListT>(
             other.impl) {}
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataType, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder Placeholder,
+            typename PropListT>
+  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
+                          PropListT> &other,
+           std::enable_if_t<(AccMode == access_mode::read_write) &&
+                            (AccessMode == access_mode::read) &&
+                            std::is_same<std::remove_const_t<DataType>,
+                                         std::remove_const_t<DataT>>::value> * =
+               nullptr)
+      : accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+                 PropertyListT>(other.impl) {}
 
 #endif // __SYCL_DEVICE_ONLY__
 
