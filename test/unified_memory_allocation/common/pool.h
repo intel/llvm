@@ -11,8 +11,7 @@ extern "C" {
 #endif
 
 uma_memory_pool_handle_t nullPoolCreate();
-uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
-                                         void (*trace)(const char *));
+uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool, void (*trace)(const char *));
 
 #if defined(__cplusplus)
 }

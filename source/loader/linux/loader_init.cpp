@@ -10,9 +10,7 @@
 
 namespace loader {
 
-void __attribute__((constructor)) createLoaderContext() {
-    context = new context_t;
-}
+void __attribute__((constructor)) createLoaderContext() { context = new context_t; }
 
 void __attribute__((destructor)) deleteLoaderContext() { delete context; }
 

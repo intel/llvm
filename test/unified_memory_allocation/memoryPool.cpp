@@ -12,8 +12,7 @@ TEST_F(umaTest, memoryPoolTrace) {
     auto trace = [](const char *name) { calls[name]++; };
 
     auto nullPool = uma::wrapPoolUnique(nullPoolCreate());
-    auto tracingPool =
-        uma::wrapPoolUnique(tracePoolCreate(nullPool.get(), trace));
+    auto tracingPool = uma::wrapPoolUnique(tracePoolCreate(nullPool.get(), trace));
 
     size_t call_count = 0;
 

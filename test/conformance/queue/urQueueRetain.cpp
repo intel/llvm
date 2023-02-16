@@ -10,7 +10,4 @@ TEST_P(urQueueRetainTest, Success) {
     EXPECT_SUCCESS(urQueueRelease(queue));
 }
 
-TEST_P(urQueueRetainTest, InvalidNullHandleQueue) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urQueueRetain(nullptr));
-}
+TEST_P(urQueueRetainTest, InvalidNullHandleQueue) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urQueueRetain(nullptr)); }
