@@ -19,18 +19,15 @@ __urdlllocal ur_result_t context_t::urInit() {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetGlobalProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Global);
+        result = urGetGlobalProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetContextProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Context);
+        result = urGetContextProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetEnqueueProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Enqueue);
+        result = urGetEnqueueProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
@@ -38,8 +35,7 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetKernelProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Kernel);
+        result = urGetKernelProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
@@ -47,18 +43,15 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetModuleProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Module);
+        result = urGetModuleProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Module);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urGetPlatformProcAddrTable(UR_API_VERSION_0_9,
-                                            &urDdiTable.Platform);
+        result = urGetPlatformProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetProgramProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Program);
+        result = urGetProgramProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
@@ -66,8 +59,7 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetSamplerProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Sampler);
+        result = urGetSamplerProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
@@ -75,8 +67,7 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetDeviceProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Device);
+        result = urGetDeviceProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Device);
     }
 
     return result;

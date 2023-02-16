@@ -11,27 +11,23 @@ constexpr char ERROR_NO_ADAPTER[] = "Could not load adapter";
 
 PlatformEnvironment *PlatformEnvironment::instance = nullptr;
 
-std::ostream &operator<<(std::ostream &out,
-                         const ur_platform_handle_t &platform) {
+std::ostream &operator<<(std::ostream &out, const ur_platform_handle_t &platform) {
     size_t size;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr, &size);
     std::vector<char> name(size);
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, size, name.data(),
-                      nullptr);
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, size, name.data(), nullptr);
     out << name.data();
     return out;
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const std::vector<ur_platform_handle_t> &platforms) {
+std::ostream &operator<<(std::ostream &out, const std::vector<ur_platform_handle_t> &platforms) {
     for (auto platform : platforms) {
         out << "\n  * \"" << platform << "\"";
     }
     return out;
 }
 
-uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
-    : platform_options{parsePlatformOptions(argc, argv)} {
+uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv) : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
     ur_device_init_flags_t device_flags = 0;
     switch (urInit(device_flags)) {
@@ -77,14 +73,12 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     } else {
         for (auto candidate : platforms) {
             size_t size;
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0, nullptr,
-                                  &size)) {
+            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0, nullptr, &size)) {
                 error = "urPlatformGetInfoFailed";
                 return;
             }
             std::vector<char> platform_name(size);
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size,
-                                  platform_name.data(), nullptr)) {
+            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size, platform_name.data(), nullptr)) {
                 error = "urPlatformGetInfo() failed";
                 return;
             }
@@ -126,18 +120,15 @@ void uur::PlatformEnvironment::TearDown() {
     }
 }
 
-PlatformEnvironment::PlatformOptions
-PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
+PlatformEnvironment::PlatformOptions PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
     PlatformOptions options;
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
         if (!(std::strcmp(arg, "-h") && std::strcmp(arg, "--help"))) {
             // TODO - print help
             break;
-        } else if (std::strncmp(
-                       arg, "--platform=", sizeof("--platform=") - 1) == 0) {
-            options.platform_name =
-                std::string(&arg[std::strlen("--platform=")]);
+        } else if (std::strncmp(arg, "--platform=", sizeof("--platform=") - 1) == 0) {
+            options.platform_name = std::string(&arg[std::strlen("--platform=")]);
         }
     }
     return options;
@@ -145,8 +136,7 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
 
 DevicesEnvironment *DevicesEnvironment::instance = nullptr;
 
-DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
-    : PlatformEnvironment(argc, argv) {
+DevicesEnvironment::DevicesEnvironment(int argc, char **argv) : PlatformEnvironment(argc, argv) {
     instance = this;
     if (!error.empty()) {
         return;
@@ -161,8 +151,7 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
         return;
     }
     devices.resize(count);
-    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
-                    nullptr)) {
+    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(), nullptr)) {
         error = "urDeviceGet() failed to get devices.";
         return;
     }

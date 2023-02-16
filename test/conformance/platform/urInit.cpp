@@ -11,7 +11,6 @@ TEST(urInitTest, Success) {
 }
 
 TEST(urInitTest, ErrorInvalidEnumerationDeviceFlags) {
-    const ur_device_init_flags_t device_flags =
-        UR_DEVICE_INIT_FLAG_FORCE_UINT32;
+    const ur_device_init_flags_t device_flags = UR_DEVICE_INIT_FLAG_FORCE_UINT32;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION, urInit(device_flags));
 }

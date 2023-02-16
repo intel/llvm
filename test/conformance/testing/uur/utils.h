@@ -14,24 +14,19 @@ namespace uur {
 inline std::string GTestSanitizeString(const std::string &str) {
     auto str_cpy = str;
     std::replace_if(
-        str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); },
-        '_');
+        str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); }, '_');
     return str_cpy;
 }
 
-inline ur_platform_handle_t GetPlatform() {
-    return PlatformEnvironment::instance->platform;
-}
+inline ur_platform_handle_t GetPlatform() { return PlatformEnvironment::instance->platform; }
 
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
     size_t name_len = 0;
     urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, 0, nullptr, &name_len);
     std::string platform_name(name_len, '\0');
-    urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, name_len,
-                      &platform_name[0], nullptr);
+    urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, name_len, &platform_name[0], nullptr);
     platform_name.resize(platform_name.find_first_of('\0'));
-    return GTestSanitizeString(
-        std::string(platform_name.data(), platform_name.size()));
+    return GTestSanitizeString(std::string(platform_name.data(), platform_name.size()));
 }
 
 inline std::string GetDeviceName(ur_device_handle_t device) {

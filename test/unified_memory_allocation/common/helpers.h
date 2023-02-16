@@ -19,14 +19,11 @@ struct umaTest : ::testing::Test {
 namespace uma {
 
 auto wrapPoolUnique(uma_memory_pool_handle_t hPool) {
-    return std::unique_ptr<uma_memory_pool_t, decltype(&umaPoolDestroy)>(
-        hPool, &umaPoolDestroy);
+    return std::unique_ptr<uma_memory_pool_t, decltype(&umaPoolDestroy)>(hPool, &umaPoolDestroy);
 }
 
 auto wrapProviderUnique(uma_memory_provider_handle_t hProvider) {
-    return std::unique_ptr<uma_memory_provider_t,
-                           decltype(&umaMemoryProviderDestroy)>(
-        hProvider, &umaMemoryProviderDestroy);
+    return std::unique_ptr<uma_memory_provider_t, decltype(&umaMemoryProviderDestroy)>(hProvider, &umaMemoryProviderDestroy);
 }
 
 } // namespace uma

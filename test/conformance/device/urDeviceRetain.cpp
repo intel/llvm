@@ -12,7 +12,4 @@ TEST_F(urDeviceRetainTest, Success) {
     }
 }
 
-TEST_F(urDeviceRetainTest, InvalidNullHandle) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urDeviceRetain(nullptr));
-}
+TEST_F(urDeviceRetainTest, InvalidNullHandle) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urDeviceRetain(nullptr)); }

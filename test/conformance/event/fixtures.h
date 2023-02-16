@@ -15,17 +15,15 @@ namespace event {
  * - Execution Status: UR_EVENT_STATUS_COMPLETE
  * - Reference Count: 1
  */
-template <class T> struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
+template <class T>
+struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_WRITE_ONLY,
-                                         size, nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_WRITE_ONLY, size, nullptr, &buffer));
 
         input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(this->queue, buffer, false, 0,
-                                               size, input.data(), 0, nullptr,
-                                               &event));
+        ASSERT_SUCCESS(urEnqueueMemBufferWrite(this->queue, buffer, false, 0, size, input.data(), 0, nullptr, &event));
         ASSERT_SUCCESS(urEventWait(1, &event));
     }
 
@@ -55,12 +53,10 @@ struct urEventReferenceTest : uur::urQueueTest {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
-                                         nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size, nullptr, &buffer));
 
         input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(
-            queue, buffer, false, 0, size, input.data(), 0, nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, false, 0, size, input.data(), 0, nullptr, &event));
     }
 
     void TearDown() override {
@@ -72,8 +68,7 @@ struct urEventReferenceTest : uur::urQueueTest {
 
     bool checkEventReferenceCount(uint32_t expected_value) {
         uint32_t reference_count{};
-        urEventGetInfo(event, ur_event_info_t::UR_EVENT_INFO_REFERENCE_COUNT,
-                       sizeof(uint32_t), &reference_count, nullptr);
+        urEventGetInfo(event, ur_event_info_t::UR_EVENT_INFO_REFERENCE_COUNT, sizeof(uint32_t), &reference_count, nullptr);
         return reference_count == expected_value;
     }
 

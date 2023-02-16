@@ -10,6 +10,4 @@ TEST_P(urMemRetainTest, Success) {
     EXPECT_SUCCESS(urMemRelease(buffer));
 }
 
-TEST_P(urMemRetainTest, InvalidNullHandleMem) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urMemRetain(nullptr));
-}
+TEST_P(urMemRetainTest, InvalidNullHandleMem) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urMemRetain(nullptr)); }

@@ -12,8 +12,7 @@ TEST_F(umaTest, memoryProviderTrace) {
     auto trace = [](const char *name) { calls[name]++; };
 
     auto nullProvider = uma::wrapProviderUnique(nullProviderCreate());
-    auto tracingProvider =
-        uma::wrapProviderUnique(traceProviderCreate(nullProvider.get(), trace));
+    auto tracingProvider = uma::wrapProviderUnique(traceProviderCreate(nullProvider.get(), trace));
 
     size_t call_count = 0;
 

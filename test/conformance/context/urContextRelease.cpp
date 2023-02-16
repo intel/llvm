@@ -11,7 +11,4 @@ TEST_P(urContextReleaseTest, Success) {
     ASSERT_SUCCESS(urContextRelease(context));
 }
 
-TEST_P(urContextReleaseTest, InvalidNullHandleContext) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urContextRelease(nullptr));
-}
+TEST_P(urContextReleaseTest, InvalidNullHandleContext) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urContextRelease(nullptr)); }
