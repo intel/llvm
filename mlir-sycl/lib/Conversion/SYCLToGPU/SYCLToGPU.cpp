@@ -66,7 +66,8 @@ using gpu_counterpart_operation_t =
 Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
                   Value res, Value index, ArrayAttr argumentTypes,
                   FlatSymbolRefAttr functionName) {
-  return TypeSwitch<Type, Value>(res.getType())
+  return TypeSwitch<Type, Value>(
+             res.getType().cast<MemRefType>().getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
         // `this` type
         using ArgTy = decltype(arg);
@@ -143,13 +144,11 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
       MemRefType::get(dimensions, targetIndexTy, {}, genericAddressSpace);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
-  const auto alloca = static_cast<Value>(
-      rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy)));
+  const Value res =
+      rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy));
   // Load
   const auto zero =
       static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  const auto res = static_cast<Value>(
-      rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, zero));
   const auto argumentTypes = rewriter.getTypeArrayAttr(
       {MemRefType::get(1, resTy, {}, genericAddressSpace), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
@@ -164,6 +163,7 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
                                  argumentTypes, functionName);
     rewriter.create<AffineStoreOp>(loc, val, ptr, zero);
   }
+  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, res, zero);
 }
 
 template <typename OpTy, typename GPUOpTy = gpu_counterpart_operation_t<OpTy>>

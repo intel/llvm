@@ -46,25 +46,6 @@ Operation *trackCasts(Value Val) {
 }
 } // namespace
 
-SmallVector<Value> mlir::sycl::adaptSYCLMethodOpArguments(OpBuilder &Builder,
-                                                          Location Loc,
-                                                          ValueRange Original) {
-  SmallVector<Value> Transformed;
-  Transformed.reserve(Original.size());
-  std::transform(
-      Original.begin(), Original.end(), std::back_inserter(Transformed),
-      [&](auto Val) {
-        return TypeSwitch<Type, Value>(Val.getType())
-            .Case<MemRefType>([&](auto MT) -> Value {
-              return Builder.createOrFold<memref::LoadOp>(
-                  Loc, Val,
-                  Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0));
-            })
-            .Default([Val](Type) { return Val; });
-      });
-  return Transformed;
-}
-
 Value mlir::sycl::abstractCasts(Value Original) {
   Operation *Cast = trackCasts(Original);
   return Cast ? Cast->getOperand(0) : Original;
