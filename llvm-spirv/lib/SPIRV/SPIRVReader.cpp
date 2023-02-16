@@ -3355,6 +3355,8 @@ void generateIntelFPGAAnnotation(
   }
   if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (E->hasDecorate(DecorationBufferLocationINTEL, 0, &Result))
+    Out << "{sycl-buffer-location:" << Result << '}';
 
   unsigned LSUParamsBitmask = 0;
   llvm::SmallString<32> AdditionalParamsStr;
