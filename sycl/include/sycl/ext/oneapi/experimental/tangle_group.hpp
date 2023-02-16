@@ -104,7 +104,8 @@ public:
 
   bool leader() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() == Mask.find_low();
+    uint32_t Lowest = static_cast<uint32_t>(Mask.find_low());
+    return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
