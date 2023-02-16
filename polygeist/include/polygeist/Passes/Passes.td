@@ -68,6 +68,10 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
 def ParallelLICM : Pass<"parallel-licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let constructor = "mlir::polygeist::createParallelLICMPass()";
+
+  let statistics = [
+    Statistic<"numOpHoisted", "num-operations-hoisted", "Number of operations hoisted">
+  ];
 }
 
 def OpenMPOptPass : Pass<"openmp-opt"> {
