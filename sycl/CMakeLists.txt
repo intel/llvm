@@ -486,3 +486,6 @@ add_custom_target(deploy-sycl-toolchain
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
+
+# SYCL End-to-End tests (former intel/llvm-test-suite).
+add_subdirectory(test-e2e)

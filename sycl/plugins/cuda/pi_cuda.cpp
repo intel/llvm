@@ -188,7 +188,7 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// contexts to be restored by SYCL.
 class ScopedContext {
 public:
-  ScopedContext(pi_context ctxt) : device(nullptr) {
+  ScopedContext(pi_context ctxt) {
     if (!ctxt) {
       throw PI_ERROR_INVALID_CONTEXT;
     }
@@ -196,22 +196,9 @@ public:
     set_context(ctxt->get());
   }
 
-  ScopedContext(CUcontext ctxt) : device(nullptr) { set_context(ctxt); }
+  ScopedContext(CUcontext ctxt) { set_context(ctxt); }
 
-  // Creating a scoped context from a device will simply use the primary
-  // context, this should be used when there is no other appropriate context,
-  // such as for the device infos.
-  ScopedContext(pi_device device) : device(device) {
-    CUcontext ctxt;
-    cuDevicePrimaryCtxRetain(&ctxt, device->get());
-
-    set_context(ctxt);
-  }
-
-  ~ScopedContext() {
-    if (device)
-      cuDevicePrimaryCtxRelease(device->get());
-  }
+  ~ScopedContext() {}
 
 private:
   void set_context(CUcontext desired) {
@@ -225,8 +212,6 @@ private:
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
     }
   }
-
-  pi_device device;
 };
 
 /// \cond NODOXY
@@ -581,31 +566,27 @@ bool _pi_event::is_completed() const noexcept {
   return true;
 }
 
-pi_uint64 _pi_event::get_queued_time() const {
+pi_uint64 _pi_device::get_elapsed_time(CUevent ev) const {
   float miliSeconds = 0.0f;
-  assert(is_started());
 
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evQueued_));
+  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evBase_, ev));
+
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+}
+
+pi_uint64 _pi_event::get_queued_time() const {
+  assert(is_started());
+  return queue_->get_device()->get_elapsed_time(evQueued_);
 }
 
 pi_uint64 _pi_event::get_start_time() const {
-  float miliSeconds = 0.0f;
   assert(is_started());
-
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+  return queue_->get_device()->get_elapsed_time(evStart_);
 }
 
 pi_uint64 _pi_event::get_end_time() const {
-  float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
-
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+  return queue_->get_device()->get_elapsed_time(evEnd_);
 }
 
 pi_result _pi_event::record() {
@@ -789,81 +770,6 @@ std::string getKernelNames(pi_program) {
   return {};
 }
 
-/// RAII object that calls the reference count release function on the held PI
-/// object on destruction.
-///
-/// The `dismiss` function stops the release from happening on destruction.
-template <typename T> class ReleaseGuard {
-private:
-  T Captive;
-
-  static pi_result callRelease(pi_device Captive) {
-    return cuda_piDeviceRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_context Captive) {
-    return cuda_piContextRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_mem Captive) {
-    return cuda_piMemRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_program Captive) {
-    return cuda_piProgramRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_kernel Captive) {
-    return cuda_piKernelRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_queue Captive) {
-    return cuda_piQueueRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_event Captive) {
-    return cuda_piEventRelease(Captive);
-  }
-
-public:
-  ReleaseGuard() = delete;
-  /// Obj can be `nullptr`.
-  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
-  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
-    Other.Captive = nullptr;
-  }
-
-  ReleaseGuard(const ReleaseGuard &) = delete;
-
-  /// Calls the related PI object release function if the object held is not
-  /// `nullptr` or if `dismiss` has not been called.
-  ~ReleaseGuard() {
-    if (Captive != nullptr) {
-      pi_result ret = callRelease(Captive);
-      if (ret != PI_SUCCESS) {
-        // A reported CUDA error is either an implementation or an asynchronous
-        // CUDA error for which it is unclear if the function that reported it
-        // succeeded or not. Either way, the state of the program is compromised
-        // and likely unrecoverable.
-        sycl::detail::pi::die(
-            "Unrecoverable program state reached in cuda_piMemRelease");
-      }
-    }
-  }
-
-  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
-
-  ReleaseGuard &operator=(ReleaseGuard &&Other) {
-    Captive = Other.Captive;
-    Other.Captive = nullptr;
-    return *this;
-  }
-
-  /// End the guard and do not release the reference count of the held
-  /// PI object.
-  void dismiss() { Captive = nullptr; }
-};
-
 //-- PI API implementation
 extern "C" {
 
@@ -920,8 +826,15 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
               CUcontext context;
               err = PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&context, device));
 
+              ScopedContext active(context);
+              CUevent evBase;
+              err = PI_CHECK_ERROR(cuEventCreate(&evBase, CU_EVENT_DEFAULT));
+
+              // Use default stream to record base event counter
+              err = PI_CHECK_ERROR(cuEventRecord(evBase, 0));
+
               platformIds[i].devices_.emplace_back(
-                  new _pi_device{device, context, &platformIds[i]});
+                  new _pi_device{device, context, evBase, &platformIds[i]});
 
               {
                 const auto &dev = platformIds[i].devices_.back().get();
@@ -2151,18 +2064,6 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
     piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{*devices});
-
-    static std::once_flag initFlag;
-    std::call_once(
-        initFlag,
-        [](pi_result &err) {
-          // Use default stream to record base event counter
-          PI_CHECK_ERROR(
-              cuEventCreate(&_pi_platform::evBase_, CU_EVENT_DEFAULT));
-          PI_CHECK_ERROR(cuEventRecord(_pi_platform::evBase_, 0));
-        },
-        errcode_ret);
-
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {
     errcode_ret = err;
@@ -2407,8 +2308,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
               bufferRegion.origin;
   }
 
-  ReleaseGuard<pi_mem> releaseGuard(parent_buffer);
-
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
     retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
@@ -2421,7 +2320,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  releaseGuard.dismiss();
   *memObj = retMemObj.release();
   return PI_SUCCESS;
 }
@@ -5630,11 +5528,7 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
   if (DeviceTime) {
     PI_CHECK_ERROR(cuEventSynchronize(event));
-
-    float elapsedTime = 0.0f;
-    PI_CHECK_ERROR(
-        cuEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
-    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
+    *DeviceTime = Device->get_elapsed_time(event);
   }
 
   return PI_SUCCESS;
@@ -5801,5 +5695,3 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 }
 
 } // extern "C"
-
-CUevent _pi_platform::evBase_{nullptr};
