@@ -31,9 +31,9 @@ database in the integration headers and footers.
 
 #### Attributes attached to the class
 
-The `pipe` class uses a new C++ attribute `[[__sycl_detail__::host_pipe]]` on the 
+The `pipe` class uses a new C++ attribute `[[__sycl_detail__::sycl_type(host_pipe)]]` on the
 `pipe::__pipeType` type to identify the `static const __pipeType` member `__pipe`
-as a host pipe. Similar to `[[__sycl_detail__::device_global]]`, this will inform
+as a host pipe. Similar to `[[__sycl_detail__::sycl_type(device_global)]]`, this will inform
 the front end to generate a `sycl-unique-id` for each `__pipe`. The `pipe` class
 also introduces the global variable attribute `sycl-host-pipe` attribute to inform the sycl-post-link tool
 to generate the SPIR-V decoration `HostAccessINTEL` for each `__pipe` using the
@@ -62,7 +62,7 @@ class pipe
     nullptr,
     Props::meta_value...
     )]]
-  [[__sycl_detail__::host_pipe]]
+  [[__sycl_detail__::sycl_type(host_pipe)]]
   [[__sycl_detail__::global_variable_allowed]] // may not be needed
 #endif
   __pipeType { const char __p; };
