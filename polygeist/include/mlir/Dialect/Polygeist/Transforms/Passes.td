@@ -17,12 +17,13 @@ def AffineCFG : Pass<"affine-cfg"> {
 }
 
 def Mem2Reg : Pass<"mem2reg"> {
-  let summary = "Replace scf.if and similar with affine.if";
+  let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
-  let summary = "Replace scf.if and similar with affine.if";
+  let summary =
+    "Lower NVVM/GPU dialects into a generic parallel for representation.";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
@@ -44,7 +45,7 @@ def SCFCPUify : Pass<"cpuify"> {
 }
 
 def InnerSerialization : Pass<"inner-serialize"> {
-  let summary = "remove scf.barrier";
+  let summary = "Serialize scf.parallel operations";
   let constructor = "mlir::polygeist::createInnerSerializationPass()";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];

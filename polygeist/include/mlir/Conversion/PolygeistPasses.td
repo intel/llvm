@@ -12,32 +12,7 @@
 include "mlir/Pass/PassBase.td"
 
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
-  let summary = "Convert scalar and vector operations from the Standard to the "
-                "LLVM dialect";
-  let description = [{
-    Convert standard operations into the LLVM IR dialect operations.
-
-    #### Input invariant
-
-    -   operations including: arithmetic on integers and floats, constants,
-        direct calls, returns and branches;
-    -   no `tensor` types;
-    -   all `vector` are one-dimensional;
-    -   all blocks are reachable by following the successors of the first basic
-        block;
-
-    If other operations are present and their results are required by the LLVM
-    IR dialect operations, the pass will fail.  Any LLVM IR operations or types
-    already present in the IR will be kept as is.
-
-    #### Output IR
-
-    Functions converted to LLVM IR. Function arguments types are converted
-    one-to-one. Function results are converted one-to-one and, in case more than
-    1 value is returned, packed into an LLVM IR struct type. Function calls and
-    returns are updated accordingly. Block argument types are updated to use
-    LLVM IR types.
-  }];
+  let summary = "Convert Polygeist dialect to LLVM dialect";
   let constructor = "mlir::createConvertPolygeistToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
