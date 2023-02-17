@@ -372,17 +372,28 @@ void SYCLKernelFusion::fuseKernel(
     unsigned ParamIndex = 0;
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
+      int IdenticalIdx = -1;
       if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
-        // There is another parameter with identical value. Use the existing
-        // mapping of that other parameter and do not add this argument to the
-        // fused function. Because ParamIdentity is constructed such that LHS >
-        // RHS, the other parameter must already have been processed.
+        // Because ParamIdentity is constructed such that LHS > RHS, the other
+        // parameter must already have been processed.
         assert(ParamMapping.count(
             {ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}));
         unsigned Idx =
             ParamMapping[{ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}];
-        ParamMapping.insert({{FuncIndex, ParamIndex}, Idx});
+        // The SYCL runtime is unaware of the actual type of the parameter and
+        // simply compares size and raw bytes to determine identical parameters.
+        // In case the value is identical, but the underlying LLVM type is
+        // different, ignore the identical parameter.
+        if (FusedArguments[Idx] == Arg.getType()) {
+          IdenticalIdx = Idx;
+        }
+      }
+      if (IdenticalIdx >= 0) {
+        // There is another parameter with identical value. Use the existing
+        // mapping of that other parameter and do not add this argument to the
+        // fused function.
+        ParamMapping.insert({{FuncIndex, ParamIndex}, IdenticalIdx});
         ++ParamFront;
         UsedArgsMask.push_back(false);
       } else {
