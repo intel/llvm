@@ -590,8 +590,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -650,8 +651,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -714,8 +716,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -779,8 +782,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -1214,8 +1218,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using StoreElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using StoreElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -1275,8 +1280,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using StoreElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using StoreElemT = std::conditional_t<
+      std::is_floating_point<T>::value, T,
+      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
