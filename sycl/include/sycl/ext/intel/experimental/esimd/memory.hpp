@@ -1209,7 +1209,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
 __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                                  __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
@@ -1271,7 +1271,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred);
 #else
   detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
