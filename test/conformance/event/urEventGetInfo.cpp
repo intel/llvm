@@ -60,12 +60,14 @@ TEST_P(urEventGetInfoNegativeTest, InvalidNullHandle) {
     std::vector<uint8_t> data(size);
 
     /* Invalid hEvent */
-    ASSERT_EQ(urEventGetInfo(nullptr, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ_RESULT(urEventGetInfo(nullptr, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, &size),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEventGetInfoNegativeTest, InvalidEnumeration) {
     size_t size;
-    ASSERT_EQ(urEventGetInfo(event, UR_EVENT_INFO_FORCE_UINT32, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_FORCE_UINT32, 0, nullptr, &size),
+                     UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
@@ -76,7 +78,8 @@ TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
     std::vector<uint8_t> data(size);
 
     /* Invalid propValueSize */
-    ASSERT_EQ(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, data.data(), nullptr), UR_RESULT_ERROR_INVALID_VALUE);
+    ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, data.data(), nullptr),
+                     UR_RESULT_ERROR_INVALID_VALUE);
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoNegativeTest);

@@ -9,7 +9,8 @@ struct urEventWaitTest : uur::urQueueTest {
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size, nullptr, &src_buffer));
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size, nullptr, &dst_buffer));
         input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, src_buffer, false, 0, size, input.data(), 0, nullptr, &event));
+        ASSERT_SUCCESS(
+            urEnqueueMemBufferWrite(queue, src_buffer, false, 0, size, input.data(), 0, nullptr, &event));
         ASSERT_SUCCESS(urEventWait(1, &event));
     }
 
@@ -54,7 +55,9 @@ using urEventWaitNegativeTest = uur::urQueueTest;
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitNegativeTest);
 
-TEST_P(urEventWaitNegativeTest, ZeroSize) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE, urEventWait(0, nullptr)); }
+TEST_P(urEventWaitNegativeTest, ZeroSize) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE, urEventWait(0, nullptr));
+}
 
 TEST_P(urEventWaitNegativeTest, InvalidNullPointerEventList) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urEventWait(1, nullptr));

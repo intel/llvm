@@ -20,7 +20,8 @@ TEST_P(urEventSetCallbackTest, Success) {
     };
 
     bool didRun = false;
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE, Callback::callback, &didRun));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE,
+                                      Callback::callback, &didRun));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
     ASSERT_SUCCESS(urEventRelease(event));
@@ -48,8 +49,8 @@ TEST_P(urEventSetCallbackTest, ValidateParameters) {
 
     CallbackParameters parameters{};
 
-    ASSERT_SUCCESS(
-        urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE, Callback::callback, &parameters));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE,
+                                      Callback::callback, &parameters));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
     ASSERT_SUCCESS(urEventRelease(event));
@@ -99,10 +100,14 @@ TEST_P(urEventSetCallbackTest, AllStates) {
 
     CallbackStatus status{};
 
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED, Callback::callback, &status));
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED, Callback::callback, &status));
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING, Callback::callback, &status));
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE, Callback::callback, &status));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
+                                      Callback::callback, &status));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED,
+                                      Callback::callback, &status));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING,
+                                      Callback::callback, &status));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE,
+                                      Callback::callback, &status));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
     ASSERT_SUCCESS(urEventRelease(event));
@@ -131,7 +136,8 @@ TEST_P(urEventSetCallbackTest, EventAlreadyCompleted) {
 
     bool didRun = false;
 
-    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE, Callback::callback, &didRun));
+    ASSERT_SUCCESS(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE,
+                                      Callback::callback, &didRun));
 
     ASSERT_SUCCESS(urEventRelease(event));
     ASSERT_TRUE(didRun);
@@ -146,16 +152,19 @@ void emptyCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus, voi
 
 TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandle) {
 
-    ASSERT_EQ(urEventSetCallback(nullptr, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED, emptyCallback, nullptr),
-              UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ_RESULT(urEventSetCallback(nullptr, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
+                                        emptyCallback, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-    ASSERT_EQ(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED, nullptr, nullptr),
-              UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ_RESULT(
+        urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEventSetCallbackNegativeTest, InvalidEnumeration) {
-    ASSERT_EQ(urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_FORCE_UINT32, emptyCallback, nullptr),
-              UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ASSERT_EQ_RESULT(
+        urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_FORCE_UINT32, emptyCallback, nullptr),
+        UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventSetCallbackNegativeTest);

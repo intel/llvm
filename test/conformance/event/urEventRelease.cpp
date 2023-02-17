@@ -19,7 +19,9 @@ TEST_P(urEventReleaseTest, CheckReferenceCount) {
 
 using urEventReleaseNegativeTest = uur::urQueueTest;
 
-TEST_P(urEventReleaseNegativeTest, InvalidNullHandle) { ASSERT_EQ(urEventRelease(nullptr), UR_RESULT_ERROR_INVALID_NULL_HANDLE); }
+TEST_P(urEventReleaseNegativeTest, InvalidNullHandle) {
+    ASSERT_EQ_RESULT(urEventRelease(nullptr), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventReleaseTest);
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventReleaseNegativeTest);
