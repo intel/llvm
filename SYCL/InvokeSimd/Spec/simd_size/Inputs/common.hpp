@@ -6,15 +6,6 @@
 #include <iostream>
 #include <type_traits>
 
-/* Subgroup size attribute is optional
- * In case it is absent compiler decides what subgroup size to use
- */
-#ifdef IMPL_SUBGROUP
-#define SUBGROUP_ATTR
-#else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
-#endif
-
 using namespace sycl::ext::oneapi::experimental;
 namespace esimd = sycl::ext::intel::esimd;
 
@@ -77,7 +68,7 @@ template <int Size, int VL, class QueueTY> bool test(QueueTY q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class TestID<Size, VL>>(
-          Range, [=](nd_item<1> ndi) SUBGROUP_ATTR {
+          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             group<1> g = ndi.get_group();
             uint32_t i = sg.get_group_linear_id() * VL +

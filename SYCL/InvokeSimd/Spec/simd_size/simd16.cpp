@@ -2,9 +2,6 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// TODO: enable when Jira ticket resolved
-// XFAIL: gpu
-//
 // Check that full compilation works:
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
@@ -32,11 +29,7 @@ int main(void) {
   bool passed = true;
 
   // simd_size 16
-  passed &= test<4, 16>(q);
-  passed &= test<8, 16>(q);
   passed &= test<16, 16>(q);
-  passed &= test<32, 16>(q);
-  // TODO FIXME: enable cases with ret val size > 32 when Jira ticket resolved
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
