@@ -79,9 +79,9 @@ together with specializations for each aspect:
 ```c++
 namespace sycl {
 template <aspect Aspect> all_devices_have;
-template<> all_devices_have<aspect::host> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_0__ + 0> {};
-template<> all_devices_have<aspect::cpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_1__ + 0> {};
-template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_2__ + 0> {};
+template<> all_devices_have<aspect::host> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_0__> {};
+template<> all_devices_have<aspect::cpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_1__> {};
+template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_2__> {};
 ...
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
@@ -89,9 +89,9 @@ template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES
 template <aspect Aspect> any_device_has : std::true_t {};
 #else
 template <aspect Aspect> any_device_has;
-template<> any_device_has<aspect::host> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_0__ + 0> {};
-template<> any_device_has<aspect::cpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_1__ + 0> {};
-template<> any_device_has<aspect::gpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_2__ + 0> {};
+template<> any_device_has<aspect::host> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_0__> {};
+template<> any_device_has<aspect::cpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_1__> {};
+template<> any_device_has<aspect::gpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_2__> {};
 ...
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
@@ -100,9 +100,10 @@ template <aspect Aspect> constexpr bool any_device_has_v = any_device_has<Aspect
 } // namespace sycl
 ```
 
-Note that the driver may not define macros for all aspects, so the `+ 0` is
-used to ensure the boolean constant value of the specializations become `false`
-when the corresponding macro is undefined.
+Note that the driver may not define macros for all aspects as it only knows the
+specified subset from the configuration file. As such the device headers will
+have to define any undefined `__SYCL_ANY_DEVICE_HAS_`$i$`__` and
+`__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `0` for all aspect values $i$.
 
 Since the specializations need to be explicitly specified, there is a high
 probability of mistakes when new aspects are added. To avoid such mistakes, a
