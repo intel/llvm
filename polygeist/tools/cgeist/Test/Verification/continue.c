@@ -26,8 +26,8 @@ int checkCmdLineFlag(const int argc) {
 // CHECK-NEXT:       %2 = func.call @get() : () -> i32
 // CHECK-NEXT:       %3 = arith.cmpi ne, %2, %c0_i32 : i32
 // CHECK-NEXT:       %4 = arith.select %3, %c1_i32, %arg2 : i32
-// CHECK-NEXT:       scf.if %3 {
-// CHECK-NEXT:       } else {
+// CHECK-NEXT:       %5 = arith.cmpi eq, %2, %c0_i32 : i32
+// CHECK-NEXT:       scf.if %5 {
 // CHECK-NEXT:         call @other() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.yield %4 : i32

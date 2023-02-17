@@ -59,11 +59,11 @@ module {
 // CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
 // CHECK-DAG:       %[[i1:.+]] = memref.alloca() : memref<2xi8>
 // CHECK-DAG:       %[[i2:.+]] = memref.alloca() : memref<2xi8>
-// CHECK-NEXT:       %alloca_1 = memref.alloca() : memref<i1>
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:         memref.store %c1_i8, %[[i1]][%arg1] : memref<2xi8>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
+// CHECK-NEXT:       %alloca_1 = memref.alloca() : memref<i1>
 // CHECK-NEXT:       scf.while : () -> () {
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:           %2 = memref.load %[[i1]][%arg1] : memref<2xi8>

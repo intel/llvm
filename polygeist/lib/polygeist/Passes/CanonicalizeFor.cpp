@@ -3,8 +3,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -177,7 +177,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
 };
 
 /// Remove unused iterator operands.
-// TODO: BlockAndValueMapping for indvar.
+// TODO: IRMapping for indvar.
 struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
@@ -698,7 +698,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     for (auto oldYieldArg : oldYield.getResults())
       yieldOperands.push_back(oldYieldArg);
 
-    BlockAndValueMapping outmap;
+    IRMapping outmap;
     outmap.map(loop.getBefore().getArguments(), yieldOperands);
     for (auto arg : condOp.getArgs())
       yieldOperands.push_back(outmap.lookupOrDefault(arg));
@@ -762,7 +762,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       SmallVector<BlockArgument, 2> origAfterArgs(
           loop.getAfterArguments().begin(), loop.getAfterArguments().end());
 
-      BlockAndValueMapping preMap;
+      IRMapping preMap;
       for (auto tup : llvm::zip(origBeforeArgs, loop.getInits()))
         preMap.map(std::get<0>(tup), std::get<1>(tup));
       for (auto &op : loop.getBefore().front()) {
@@ -813,7 +813,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       newBeforeYieldArgs.push_back(trueInd);
 
       {
-        BlockAndValueMapping postMap;
+        IRMapping postMap;
         postMap.map(helper.indVar, trueInd);
         auto newCmp = cast<CmpIOp>(rewriter.clone(*helper.cmpIOp, postMap));
         rewriter.create<ConditionOp>(condOp.getLoc(), newCmp,
@@ -845,7 +845,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       rewriter.mergeBlocks(post, guard.thenBlock());
 
       {
-        BlockAndValueMapping postMap;
+        IRMapping postMap;
         for (auto tup : llvm::zip(origBeforeArgs, oldYield.getOperands())) {
           postMap.map(std::get<0>(tup), std::get<1>(tup));
         }
@@ -870,7 +870,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
 
       rewriter.setInsertionPointToEnd(&nop.getAfter().front());
       SmallVector<Value> postAfter(guard.getResults());
-      BlockAndValueMapping postMap;
+      IRMapping postMap;
       postMap.map(helper.indVar, trueInd);
       postMap.map(postElseYields[helper.afterArgIdx], trueInd);
       assert(helper.addIOp.getLhs() == postElseYields[helper.afterArgIdx] ||

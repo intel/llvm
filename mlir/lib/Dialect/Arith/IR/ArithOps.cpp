@@ -1229,7 +1229,8 @@ LogicalResult arith::ExtSIOp::verify() {
 //===----------------------------------------------------------------------===//
 
 /// Always fold extension of FP constants.
-OpFoldResult arith::ExtFOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult arith::ExtFOp::fold(FoldAdaptor adaptor) {
+  ArrayRef<Attribute> operands = adaptor.getOperands();
   assert(operands.size() == 1 && "unary operation takes one operand");
 
   auto constOperand = operands.front().dyn_cast_or_null<FloatAttr>();

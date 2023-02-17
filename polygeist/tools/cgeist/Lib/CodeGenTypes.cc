@@ -2084,7 +2084,7 @@ bool CodeGenTypes::getCPUAndFeaturesAttributes(
 }
 
 QualType CodeGenTypes::getPromotionType(QualType Ty) const {
-  if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
+  if (Ty.UseExcessPrecision(CGM.getContext())) {
     if (Ty->isAnyComplexType()) {
       QualType ElementType = Ty->castAs<clang::ComplexType>()->getElementType();
       if (ElementType->isFloat16Type())

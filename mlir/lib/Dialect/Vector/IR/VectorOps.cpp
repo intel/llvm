@@ -271,7 +271,7 @@ struct VectorInlinerInterface : public DialectInlinerInterface {
 
   /// All operations can be inlined.
   bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     return true;
   }
 };
