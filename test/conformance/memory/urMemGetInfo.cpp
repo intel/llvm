@@ -15,3 +15,17 @@ TEST_P(urMemGetInfoTest, Success) {
     std::vector<uint8_t> info_data(size);
     ASSERT_SUCCESS(urMemGetInfo(buffer, info, size, info_data.data(), nullptr));
 }
+
+TEST_P(urMemGetInfoTest, InvalidNullHandleMemory) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urMemGetInfo(nullptr, UR_MEM_INFO_SIZE, sizeof(size_t),
+                                  &mem_size, nullptr));
+}
+
+TEST_P(urMemGetInfoTest, InvalidEnumerationMemInfoType) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
+                     urMemGetInfo(buffer, UR_MEM_INFO_FORCE_UINT32,
+                                  sizeof(size_t), &mem_size, nullptr));
+}
