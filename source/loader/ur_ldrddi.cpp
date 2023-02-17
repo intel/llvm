@@ -5295,5 +5295,5 @@ urGetDeviceProcAddrTable(
 }
 
 #if defined(__cplusplus)
-};
+}
 #endif

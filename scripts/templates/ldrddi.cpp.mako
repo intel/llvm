@@ -288,5 +288,5 @@ ${tbl['export']['name']}(
 %endfor
 
 #if defined(__cplusplus)
-};
+}
 #endif
