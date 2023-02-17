@@ -3,10 +3,10 @@ name: SYCL Post Commit
 on:
   push:
     branches:
-    - sycl
+    - sycl-e2e
   pull_request:
     branches:
-    - sycl
+    - sycl-e2e
     paths:
     - .github/workflows/sycl_post_commit.yml
     - .github/workflows/sycl_gen_test_matrix.yml
@@ -39,7 +39,7 @@ jobs:
       build_configure_extra_args: --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
   linux_no_assert:
     name: Linux (no assert)
-    if: github.repository == 'intel/llvm'
+    if: false && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -51,7 +51,7 @@ jobs:
     # TODO use nightly images when Docker containers are available
     name: Linux + Clang + Shared libs
     runs-on: ubuntu-20.04
-    if: github.repository == 'intel/llvm'
+    if: false && github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v3
       with:
@@ -120,10 +120,10 @@ jobs:
 
   windows_default:
     name: Windows
-    if: github.repository == 'intel/llvm'
+    if: false && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
 
   macos_default:
     name: macOS
-    if: github.repository == 'intel/llvm'
+    if: false && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_macos_build_and_test.yml
