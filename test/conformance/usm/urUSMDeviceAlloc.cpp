@@ -13,7 +13,9 @@ TEST_P(urUSMDeviceAllocTest, Success) {
     ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_SUCCESS(urUSMFree(context, ptr));
@@ -40,4 +42,19 @@ TEST_P(urUSMDeviceAllocTest, InvalidNullPtrProps) {
 TEST_P(urUSMDeviceAllocTest, InvalidNullPtrResult) {
     ur_usm_mem_flags_t flags;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, nullptr));
+}
+
+TEST_P(urUSMDeviceAllocTest, InvalidUSMSize) {
+    void *ptr = nullptr;
+    ur_usm_mem_flags_t flags;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
+                     urUSMDeviceAlloc(context, device, &flags, 13, 0, &ptr));
+}
+
+TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {
+    void *ptr = nullptr;
+    ur_usm_mem_flags_t flags;
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urUSMDeviceAlloc(context, device, &flags, sizeof(int), 1, &ptr));
 }

@@ -2247,9 +2247,6 @@ typedef enum ur_queue_properties_t {
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_QUEUE_INFO_SIZE < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-///         + `NULL == pPropSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -2259,8 +2256,8 @@ urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_queue_info_t propName, ///< [in] name of the queue property to query
     size_t propValueSize,     ///< [in] size in bytes of the queue property value provided
-    void *pPropValue,         ///< [out] value of the queue property
-    size_t *pPropSizeRet      ///< [out] size in bytes returned in queue property value
+    void *pPropValue,         ///< [out][optional] value of the queue property
+    size_t *pPropSizeRet      ///< [out][optional] size in bytes returned in queue property value
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2278,7 +2275,6 @@ urQueueGetInfo(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pProps`
 ///         + `NULL == phQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -2290,7 +2286,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(
     ur_context_handle_t hContext,      ///< [in] handle of the context object
     ur_device_handle_t hDevice,        ///< [in] handle of the device object
-    const ur_queue_property_t *pProps, ///< [in] specifies a list of queue properties and their corresponding values.
+    const ur_queue_property_t *pProps, ///< [in][optional] specifies a list of queue properties and their
+                                       ///< corresponding values.
                                        ///< Each property name is immediately followed by the corresponding
                                        ///< desired value.
                                        ///< The list is terminated with a 0.

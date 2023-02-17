@@ -1,4 +1,4 @@
-// Copyright (C) $(year) Intel Corporation
+// Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include <uur/fixtures.h>
@@ -12,7 +12,9 @@ TEST_P(urUSMFreeTest, Success) {
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, &ptr));
 
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_NE(ptr, nullptr);
