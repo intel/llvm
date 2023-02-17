@@ -14,9 +14,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
     # Author: "Gorban, Igor" <igor.gorban@intel.com>
-    # Date: Wed, 21 Dec 2022 23:00:51 +0000
-    # Fix build against llvm tot
-    set(LLVMGenXIntrinsics_GIT_TAG dd72efa3b4aafdbbf599e6f3c6f8c55450e348de)
+    # Date: Wed Feb 15 09:37:04 2023 +0000
+    # Fix module globals accessors
+    set(LLVMGenXIntrinsics_GIT_TAG 3ac855c9253d608a36d10b8ff87e62aa413bbf23)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
