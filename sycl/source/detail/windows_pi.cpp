@@ -20,7 +20,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
-void *loadOsLibrary(const std::string &PluginPath) {
+void *loadOsPluginLibrary(const std::string &PluginPath) {
   // We fetch the preloaded plugin from the win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
@@ -28,7 +28,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return Result;
 }
 
-int unloadOsLibrary(void *Library) {
+int unloadOsPluginLibrary(void *Library) {
   // The mock plugin does not have an associated library, so we allow nullptr
   // here to avoid it trying to free a non-existent library.
   if (!Library)

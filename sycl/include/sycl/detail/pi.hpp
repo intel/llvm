@@ -152,11 +152,11 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 
 // Function to load the shared library
 // Implementation is OS dependent.
-void *loadOsLibrary(const std::string &Library);
+void *loadOsPluginLibrary(const std::string &Library);
 
 // Function to unload the shared library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
-int unloadOsLibrary(void *Library);
+int unloadOsPluginLibrary(void *Library);
 
 // OS agnostic function to unload the shared library
 int unloadPlugin(void *Library);

@@ -138,9 +138,9 @@ void preloadLibraries() {
 __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
 
   auto match = dllMap.find(
-      PluginPath); // result might be nullptr, which is perfectly valid.
+      PluginPath); // result might be nullptr (not found), which is perfectly valid.
   if (match == dllMap.end()) {
-    // unit testing? Just return nullptr.
+    // unit testing? return nullptr (not found) rather than risk asserting below
     if (PluginPath.find("unittests") != std::string::npos)
       return nullptr;
 
