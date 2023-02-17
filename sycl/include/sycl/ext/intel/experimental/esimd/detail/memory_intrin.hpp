@@ -1177,7 +1177,8 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
     for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
          ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
-      *((StoreType *)(BaseAddr + ByteDistance)) = vals[VecIdx];
+      *((StoreType *)(BaseAddr + ByteDistance)) =
+          reinterpret_cast<StoreType &>(vals[VecIdx]);
     }
   }
 }
