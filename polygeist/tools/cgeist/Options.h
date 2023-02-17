@@ -101,8 +101,8 @@ static llvm::cl::opt<bool> SCFOpenMP("scf-openmp", llvm::cl::init(true),
 static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
 
-static llvm::cl::opt<bool> LICM("licm", llvm::cl::init(true),
-                                llvm::cl::desc("Turn on LICM"));
+static llvm::cl::opt<bool> EnableLICM("licm", llvm::cl::init(true),
+                                      llvm::cl::desc("Turn on LICM"));
 
 static llvm::cl::opt<bool>
     InnerSerialize("inner-serialize", llvm::cl::init(false),

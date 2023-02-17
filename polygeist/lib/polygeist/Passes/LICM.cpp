@@ -278,6 +278,18 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
     return true;
   }
 
+  // Check all the nested operations if 'other' has recursive side effects.
+  bool hasRecursiveEffects =
+      const_cast<Operation &>(other)
+          .hasTrait<OpTrait::HasRecursiveMemoryEffects>();
+  if (hasRecursiveEffects) {
+    for (Region &region : const_cast<Operation &>(other).getRegions())
+      for (Operation &innerOp : region.getOps())
+        if (conflictsWith(innerOp))
+          return true;
+    return false;
+  }
+
   // If the given operation has side effects, check whether they conflict with
   // the side effects summarized in this class.
   if (auto MEI = dyn_cast<MemoryEffectOpInterface>(other)) {
