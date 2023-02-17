@@ -9,10 +9,10 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
+#include <sycl/bit_cast.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/type_traits.hpp>
 
 #include <functional>
 #include <limits>
@@ -33,6 +33,10 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail::half_impl {
+class half;
+}
+using half = detail::half_impl::half;
 
 namespace ext::intel::esimd::detail {
 class WrapperElementTypeProxy;
@@ -248,8 +252,20 @@ using BIsRepresentationT = half;
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
 template <int NumElements> struct half_vec {
-  alignas(detail::vector_alignment<StorageT, NumElements>::value)
-      StorageT s[NumElements];
+  alignas(
+      // TODO This is copied verbatim from detail/type_traits.h to avoid a
+      // circular dependency because detail/type_traits.h includes
+      // sycl/half_type.h as it templates on sycl::half
+      std::conditional<
+          NumElements == 3,
+          std::integral_constant<
+              int, sizeof(std::remove_cv<
+                          std::remove_reference<StorageT>::type>::type) *
+                       4>,
+          std::integral_constant<
+              int, sizeof(std::remove_cv<
+                          std::remove_reference<StorageT>::type>::type) *
+                       NumElements>>::type::value) StorageT s[NumElements];
 
   __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
   constexpr void initialize_data() {
