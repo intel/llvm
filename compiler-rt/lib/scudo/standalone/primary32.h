@@ -204,11 +204,14 @@ public:
     }
   }
 
-  template <typename F>
-  void iterateOverBlocks(F Callback) NO_THREAD_SAFETY_ANALYSIS {
+  template <typename F> void iterateOverBlocks(F Callback) {
     uptr MinRegionIndex = NumRegions, MaxRegionIndex = 0;
     for (uptr I = 0; I < NumClasses; I++) {
       SizeClassInfo *Sci = getSizeClassInfo(I);
+      // TODO: The call of `iterateOverBlocks` requires disabling
+      // SizeClassAllocator32. We may consider locking each region on demand
+      // only.
+      Sci->Mutex.assertHeld();
       if (Sci->MinRegionIndex < MinRegionIndex)
         MinRegionIndex = Sci->MinRegionIndex;
       if (Sci->MaxRegionIndex > MaxRegionIndex)
@@ -338,7 +341,7 @@ private:
       else
         MapSize = RegionSize;
     } else {
-      Region = roundUpTo(MapBase, RegionSize);
+      Region = roundUp(MapBase, RegionSize);
       unmap(reinterpret_cast<void *>(MapBase), Region - MapBase);
       MapSize = RegionSize;
     }

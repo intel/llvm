@@ -39,7 +39,7 @@ bool isPrimaryAllocation(scudo::uptr Size, scudo::uptr Alignment) {
   if (Alignment < MinAlignment)
     Alignment = MinAlignment;
   const scudo::uptr NeededSize =
-      scudo::roundUpTo(Size, MinAlignment) +
+      scudo::roundUp(Size, MinAlignment) +
       ((Alignment > MinAlignment) ? Alignment : scudo::Chunk::getHeaderSize());
   return AllocatorT::PrimaryT::canAllocate(NeededSize);
 }
@@ -48,7 +48,7 @@ template <class AllocatorT>
 void checkMemoryTaggingMaybe(AllocatorT *Allocator, void *P, scudo::uptr Size,
                              scudo::uptr Alignment) {
   const scudo::uptr MinAlignment = 1UL << SCUDO_MIN_ALIGNMENT_LOG;
-  Size = scudo::roundUpTo(Size, MinAlignment);
+  Size = scudo::roundUp(Size, MinAlignment);
   if (Allocator->useMemoryTaggingTestOnly())
     EXPECT_DEATH(
         {
@@ -447,9 +447,9 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, CacheDrain) NO_THREAD_SAFETY_ANALYSIS {
 
   bool UnlockRequired;
   auto *TSD = Allocator->getTSDRegistry()->getTSDAndLock(&UnlockRequired);
-  EXPECT_TRUE(!TSD->Cache.isEmpty());
-  TSD->Cache.drain();
-  EXPECT_TRUE(TSD->Cache.isEmpty());
+  EXPECT_TRUE(!TSD->getCache().isEmpty());
+  TSD->getCache().drain();
+  EXPECT_TRUE(TSD->getCache().isEmpty());
   if (UnlockRequired)
     TSD->unlock();
 }
@@ -738,7 +738,7 @@ TEST(ScudoCombinedTest, BasicTrustyConfig) {
 
   bool UnlockRequired;
   auto *TSD = Allocator->getTSDRegistry()->getTSDAndLock(&UnlockRequired);
-  TSD->Cache.drain();
+  TSD->getCache().drain();
 
   Allocator->releaseToOS();
 }

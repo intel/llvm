@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 
+#include <optional>
 #include <type_traits>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -150,7 +151,8 @@ static SmallVector<IntType> extractVector(ArrayAttr arrayAttr) {
 static std::optional<Value>
 createContractArithOp(Location loc, Value x, Value y, Value acc,
                       vector::CombiningKind kind, PatternRewriter &rewriter,
-                      bool isInt, Optional<Value> maybeMask = std::nullopt) {
+                      bool isInt,
+                      std::optional<Value> maybeMask = std::nullopt) {
   using vector::CombiningKind;
   Value mul;
 
@@ -264,7 +266,7 @@ public:
   LogicalResult matchAndRewrite(vector::BroadcastOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
-    VectorType dstType = op.getVectorType();
+    VectorType dstType = op.getResultVectorType();
     VectorType srcType = op.getSourceType().dyn_cast<VectorType>();
     Type eltType = dstType.getElementType();
 
@@ -402,8 +404,8 @@ public:
     auto loc = op.getLoc();
 
     Value input = op.getVector();
-    VectorType inputType = op.getVectorType();
-    VectorType resType = op.getResultType();
+    VectorType inputType = op.getSourceVectorType();
+    VectorType resType = op.getResultVectorType();
 
     // Set up convenience transposition table.
     SmallVector<int64_t> transp;
@@ -490,7 +492,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    VectorType srcType = op.getVectorType();
+    VectorType srcType = op.getSourceVectorType();
     if (srcType.getRank() != 2)
       return rewriter.notifyMatchFailure(op, "Not a 2D transpose");
 
@@ -516,8 +518,8 @@ public:
 
     Value shuffled =
         rewriter.create<vector::ShuffleOp>(loc, casted, casted, mask);
-    rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(op, op.getResultType(),
-                                                     shuffled);
+    rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(
+        op, op.getResultVectorType(), shuffled);
 
     return success();
   }
@@ -550,7 +552,7 @@ public:
 
     VectorType lhsType = op.getOperandVectorTypeLHS();
     VectorType rhsType = op.getOperandTypeRHS().dyn_cast<VectorType>();
-    VectorType resType = op.getVectorType();
+    VectorType resType = op.getResultVectorType();
     Type eltType = resType.getElementType();
     bool isInt = eltType.isa<IntegerType, IndexType>();
     Value acc = (op.getAcc().empty()) ? nullptr : op.getAcc()[0];
@@ -1206,15 +1208,16 @@ struct CombineContractBroadcast
         continue;
       // contractionOp can only take vector as operands.
       auto srcType = broadcast.getSourceType().dyn_cast<VectorType>();
-      if (!srcType || srcType.getRank() == broadcast.getVectorType().getRank())
+      if (!srcType ||
+          srcType.getRank() == broadcast.getResultVectorType().getRank())
         continue;
       int64_t rankDiff =
-          broadcast.getVectorType().getRank() - srcType.getRank();
+          broadcast.getResultVectorType().getRank() - srcType.getRank();
       bool innerDimBroadcast = false;
       SmallVector<AffineExpr> originalDims;
       for (const auto &dim : llvm::enumerate(srcType.getShape())) {
-        if (dim.value() !=
-            broadcast.getVectorType().getDimSize(rankDiff + dim.index())) {
+        if (dim.value() != broadcast.getResultVectorType().getDimSize(
+                               rankDiff + dim.index())) {
           innerDimBroadcast = true;
           break;
         }
@@ -1230,7 +1233,7 @@ struct CombineContractBroadcast
       // of non-unit size.
       bool nonUnitDimReductionBroadcast = false;
       for (int64_t i = 0; i < rankDiff; ++i) {
-        if (broadcast.getVectorType().getDimSize(i) != 1 &&
+        if (broadcast.getResultVectorType().getDimSize(i) != 1 &&
             isReductionIterator(contractOp.getIteratorTypes()
                                     .getValue()[map.getDimPosition(i)])) {
           nonUnitDimReductionBroadcast = true;
@@ -1241,8 +1244,8 @@ struct CombineContractBroadcast
         continue;
 
       AffineMap broadcastMap =
-          AffineMap::get(broadcast.getVectorType().getRank(), 0, originalDims,
-                         contractOp.getContext());
+          AffineMap::get(broadcast.getResultVectorType().getRank(), 0,
+                         originalDims, contractOp.getContext());
       map = broadcastMap.compose(map);
       *operand = broadcast.getSource();
       changed = true;
@@ -1361,7 +1364,7 @@ struct ReorderElementwiseOpsOnTranspose final
       auto transposeOp = operand.getDefiningOp<vector::TransposeOp>();
       if (transposeOp) {
         transposeMaps.push_back(transposeOp.getTransp());
-        srcType = transposeOp.getVectorType();
+        srcType = transposeOp.getSourceVectorType();
       } else if (!matchPattern(operand, m_Constant())) {
         return failure();
       }
@@ -1584,7 +1587,7 @@ struct UnrolledOuterProductGenerator
   }
 
   FailureOr<Value> outerProd(Value lhs, Value rhs, Value res, int reductionSize,
-                             Optional<Value> maybeMask = std::nullopt) {
+                             std::optional<Value> maybeMask = std::nullopt) {
     assert(reductionSize > 0);
     // Incremental support for masking.
     if (mask && !maybeMask.has_value())
@@ -2374,7 +2377,7 @@ struct BubbleDownVectorBitCastForExtract
   LogicalResult matchAndRewrite(vector::ExtractOp extractOp,
                                 PatternRewriter &rewriter) const override {
     // Only support extracting scalars for now.
-    if (extractOp.getVectorType().getRank() != 1)
+    if (extractOp.getSourceVectorType().getRank() != 1)
       return failure();
 
     auto castOp = extractOp.getVector().getDefiningOp<vector::BitCastOp>();
@@ -2466,7 +2469,7 @@ struct BubbleDownBitCastForStridedSliceExtract
                      [](const APInt &val) { return !val.isOneValue(); }))
       return failure();
 
-    unsigned rank = extractOp.getVectorType().getRank();
+    unsigned rank = extractOp.getSourceVectorType().getRank();
     assert(castDstLastDim % castSrcLastDim == 0);
     int64_t expandRatio = castDstLastDim / castSrcLastDim;
 

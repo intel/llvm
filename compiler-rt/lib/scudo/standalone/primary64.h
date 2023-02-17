@@ -55,7 +55,7 @@ public:
 
   static uptr getSizeByClassId(uptr ClassId) {
     return (ClassId == SizeClassMap::BatchClassId)
-               ? roundUpTo(sizeof(TransferBatch), 1U << CompactPtrScale)
+               ? roundUp(sizeof(TransferBatch), 1U << CompactPtrScale)
                : SizeClassMap::getSizeByClassId(ClassId);
   }
 
@@ -226,12 +226,15 @@ public:
     }
   }
 
-  template <typename F>
-  void iterateOverBlocks(F Callback) NO_THREAD_SAFETY_ANALYSIS {
+  template <typename F> void iterateOverBlocks(F Callback) {
     for (uptr I = 0; I < NumClasses; I++) {
       if (I == SizeClassMap::BatchClassId)
         continue;
       RegionInfo *Region = getRegionInfo(I);
+      // TODO: The call of `iterateOverBlocks` requires disabling
+      // SizeClassAllocator64. We may consider locking each region on demand
+      // only.
+      Region->Mutex.assertHeld();
       const uptr BlockSize = getSizeByClassId(I);
       const uptr From = Region->RegionBeg;
       const uptr To = From + Region->AllocatedUser;
@@ -635,7 +638,7 @@ private:
     if (TotalUserBytes > MappedUser) {
       // Do the mmap for the user memory.
       const uptr MapSize =
-          roundUpTo(TotalUserBytes - MappedUser, MapSizeIncrement);
+          roundUp(TotalUserBytes - MappedUser, MapSizeIncrement);
       const uptr RegionBase = RegionBeg - getRegionBaseByClassId(ClassId);
       if (UNLIKELY(RegionBase + MappedUser + MapSize > RegionSize)) {
         Region->Exhausted = true;
