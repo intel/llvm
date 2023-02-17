@@ -6,10 +6,10 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertPolygeistToLLVM.cpp  
   InnerSerialization.cpp  
   LegalizeForSPIRV.cpp  
+  LICM.cpp
   LoopRestructure.cpp
   Mem2Reg.cpp
   OpenMPOpt.cpp
-  ParallelLICM.cpp
   ParallelLoopDistribute.cpp
   ParallelLower.cpp
   RaiseToAffine.cpp

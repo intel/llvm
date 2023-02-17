@@ -288,8 +288,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (ScalarReplacement)
     PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
-  if (ParallelLICM)
-    OptPM.addPass(polygeist::createParallelLICMPass());
+  if (EnableLICM)
+    OptPM.addPass(polygeist::createLICMPass());
   else
     OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -298,8 +298,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   if (RaiseToAffine) {
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      OptPM.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      OptPM.addPass(polygeist::createLICMPass());
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -362,8 +362,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     OptPM2.addPass(polygeist::replaceAffineCFGPass());
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM2.addPass(mlir::createCSEPass());
-    if (ParallelLICM)
-      OptPM2.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      OptPM2.addPass(polygeist::createLICMPass());
     else
       OptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -416,16 +416,16 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
   NOptPM2.addPass(polygeist::createCanonicalizeForPass());
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   NOptPM2.addPass(mlir::createCSEPass());
-  if (ParallelLICM)
-    NOptPM2.addPass(polygeist::createParallelLICMPass());
+  if (EnableLICM)
+    NOptPM2.addPass(polygeist::createLICMPass());
   else
     NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (RaiseToAffine) {
     NOptPM2.addPass(polygeist::createCanonicalizeForPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      NOptPM2.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      NOptPM2.addPass(polygeist::createLICMPass());
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -438,8 +438,8 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(mlir::createCSEPass());
     NOptPM2.addPass(polygeist::createMem2RegPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      NOptPM2.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      NOptPM2.addPass(polygeist::createLICMPass());
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -490,8 +490,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
   if (RaiseToAffine) {
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      OptPM.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      OptPM.addPass(polygeist::createLICMPass());
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -515,8 +515,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
   if (RaiseToAffine) {
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      OptPM.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      OptPM.addPass(polygeist::createLICMPass());
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -529,8 +529,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
     OptPM.addPass(mlir::createCSEPass());
     OptPM.addPass(polygeist::createMem2RegPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    if (ParallelLICM)
-      OptPM.addPass(polygeist::createParallelLICMPass());
+    if (EnableLICM)
+      OptPM.addPass(polygeist::createLICMPass());
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());

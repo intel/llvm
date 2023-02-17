@@ -9,7 +9,7 @@ class PatternRewriter;
 class DominanceInfo;
 class LLVMTypeConverter;
 namespace polygeist {
-std::unique_ptr<Pass> createParallelLICMPass();
+std::unique_ptr<Pass> createLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
 std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createInnerSerializationPass();
