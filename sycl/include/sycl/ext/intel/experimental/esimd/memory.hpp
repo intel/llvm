@@ -590,8 +590,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<SmallIntFactor == 1, T, uint32_t>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -604,7 +603,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
       __esimd_lsc_load_stateless<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
                                  _DS, _VS, _Transposed, N>(pred.data(),
                                                            Addrs.data());
-  return Result.template bit_cast_view<T>();
+  return sycl::bit_cast<__ESIMD_DNS::vector_type_t<T, NElts>>(Result.data());
 }
 
 /// USM pointer transposed gather with 1 channel.
@@ -650,8 +649,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<SmallIntFactor == 1, T, uint32_t>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -666,7 +664,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
       __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L3H, _AddressScale,
                                        _ImmOffset, _DS, _VS, _Transposed, N>(
           pred.data(), Addrs.data(), OldVals.data());
-  return Result.template bit_cast_view<T>();
+  return sycl::bit_cast<__ESIMD_DNS::vector_type_t<T, NElts>>(Result.data());
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -714,8 +712,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<SmallIntFactor == 1, T, uint32_t>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -729,7 +726,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
       __esimd_lsc_load_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                            _VS, _Transposed, N>(pred.data(), Offsets.data(),
                                                 SI);
-  return Result.template bit_cast_view<T>();
+  return sycl::bit_cast<__ESIMD_DNS::vector_type_t<T, NElts>>(Result.data());
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
@@ -779,8 +776,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>;
+  using LoadElemT = std::conditional_t<SmallIntFactor == 1, T, uint32_t>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
@@ -796,7 +792,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
       __esimd_lsc_load_merge_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
                                  _DS, _VS, _Transposed, N>(
           pred.data(), Offsets.data(), SI, OldVals.data());
-  return Result.template bit_cast_view<T>();
+  return sycl::bit_cast<__ESIMD_DNS::vector_type_t<T, NElts>>(Result.data());
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 

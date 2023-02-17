@@ -185,20 +185,28 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 }
 
 template <typename T> struct lsc_expand_type {
-  using type = std::conditional_t<
+  /*using type = std::conditional_t<
       sizeof(T) <= 4,
       std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
-      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
+      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;*/
+  using type = std::conditional_t<sizeof(T) < 4, uint32_t, T>;
 };
 
 template <typename T> struct lsc_bitcast_type {
+private:
+  using _type1 = std::conditional_t<sizeof(T) == 2, uint16_t, T>;
+  using _type2 = std::conditional_t<sizeof(T) == 1, uint8_t, T>;
+
 public:
-  using type = std::conditional_t<
-      sizeof(T) == 1, uint8_t,
-      std::conditional_t<
-          sizeof(T) == 2, uint16_t,
-          std::conditional_t<sizeof(T) == 4, uint32_t,
-                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  using type = std::conditional_t<sizeof(_type2) == 1, _type2, _type1>;
+  /*
+    using type = std::conditional_t<
+        sizeof(T) == 1, uint8_t,
+        std::conditional_t<
+            sizeof(T) == 2, uint16_t,
+            std::conditional_t<sizeof(T) == 4, uint32_t,
+                               std::conditional_t<sizeof(T) == 8, uint64_t,
+    T>>>>;*/
 };
 
 } // namespace detail
