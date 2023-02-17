@@ -165,7 +165,7 @@ jobs:
     name: Start AWS
     needs: build
     if: ${{ inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script
@@ -288,7 +288,7 @@ jobs:
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script

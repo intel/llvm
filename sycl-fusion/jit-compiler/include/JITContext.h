@@ -12,8 +12,12 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
+#include <tuple>
 #include <unordered_map>
+#include <vector>
 
+#include "Hashing.h"
 #include "Kernel.h"
 #include "Parameter.h"
 
@@ -22,6 +26,14 @@ class LLVMContext;
 } // namespace llvm
 
 namespace jit_compiler {
+
+using CacheKeyT =
+    std::tuple<std::vector<std::string>, ParamIdentList, int,
+               std::vector<ParameterInternalization>, std::vector<JITConstant>,
+               // This field of the cache is optional because, if all of the
+               // ranges are equal, we will perform no remapping, so that fused
+               // kernels can be reused with different lists of equal nd-ranges.
+               std::optional<std::vector<NDRange>>>;
 
 ///
 /// Wrapper around a SPIR-V binary.
@@ -51,6 +63,10 @@ public:
 
   SPIRVBinary &emplaceSPIRVBinary(std::string Binary);
 
+  std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
+
+  void addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel);
+
 private:
   // FIXME: Change this to std::shared_mutex after switching to C++17.
   using MutexT = std::shared_timed_mutex;
@@ -64,6 +80,10 @@ private:
   MutexT BinariesMutex;
 
   std::vector<SPIRVBinary> Binaries;
+
+  mutable MutexT CacheMutex;
+
+  std::unordered_map<CacheKeyT, SYCLKernelInfo> Cache;
 };
 } // namespace jit_compiler
 

@@ -97,37 +97,33 @@ APInt MULHU(APInt X, APInt Y) {
   return (X.zext(WideBits) * Y.zext(WideBits)).lshr(Bits).trunc(Bits);
 }
 
-APInt UnsignedDivideUsingMagic(APInt Numerator, APInt Divisor,
+APInt UnsignedDivideUsingMagic(const APInt &Numerator, const APInt &Divisor,
+                               bool LZOptimization,
                                bool AllowEvenDivisorOptimization, bool ForceNPQ,
                                UnsignedDivisionByConstantInfo Magics) {
+  assert(!Divisor.isOne() && "Division by 1 is not supported using Magic.");
+
   unsigned Bits = Numerator.getBitWidth();
 
-  unsigned PreShift = 0;
-  if (AllowEvenDivisorOptimization) {
-    // If the divisor is even, we can avoid using the expensive fixup by
-    // shifting the divided value upfront.
-    if (Magics.IsAdd && !Divisor[0]) {
-      PreShift = Divisor.countTrailingZeros();
-      // Get magic number for the shifted divisor.
-      Magics =
-          UnsignedDivisionByConstantInfo::get(Divisor.lshr(PreShift), PreShift);
+  if (LZOptimization) {
+    unsigned LeadingZeros = Numerator.countLeadingZeros();
+    // Clip to the number of leading zeros in the divisor.
+    LeadingZeros = std::min(LeadingZeros, Divisor.countLeadingZeros());
+    if (LeadingZeros > 0) {
+      Magics = UnsignedDivisionByConstantInfo::get(
+          Divisor, LeadingZeros, AllowEvenDivisorOptimization);
       assert(!Magics.IsAdd && "Should use cheap fixup now");
     }
   }
 
-  unsigned PostShift = 0;
-  bool UseNPQ = false;
-  if (!Magics.IsAdd || Divisor.isOne()) {
-    assert(Magics.ShiftAmount < Divisor.getBitWidth() &&
-           "We shouldn't generate an undefined shift!");
-    PostShift = Magics.ShiftAmount;
-    UseNPQ = false;
-  } else {
-    PostShift = Magics.ShiftAmount - 1;
-    assert(PostShift < Divisor.getBitWidth() &&
-           "We shouldn't generate an undefined shift!");
-    UseNPQ = true;
-  }
+  assert(Magics.PreShift < Divisor.getBitWidth() &&
+         "We shouldn't generate an undefined shift!");
+  assert(Magics.PostShift < Divisor.getBitWidth() &&
+         "We shouldn't generate an undefined shift!");
+  assert((!Magics.IsAdd || Magics.PreShift == 0) && "Unexpected pre-shift");
+  unsigned PreShift = Magics.PreShift;
+  unsigned PostShift = Magics.PostShift;
+  bool UseNPQ = Magics.IsAdd;
 
   APInt NPQFactor =
       UseNPQ ? APInt::getSignedMinValue(Bits) : APInt::getZero(Bits);
@@ -152,33 +148,39 @@ APInt UnsignedDivideUsingMagic(APInt Numerator, APInt Divisor,
 
   Q = Q.lshr(PostShift);
 
-  return Divisor.isOne() ? Numerator : Q;
+  return Q;
 }
 
 TEST(UnsignedDivisionByConstantTest, Test) {
   for (unsigned Bits = 1; Bits <= 32; ++Bits) {
     if (Bits < 2)
       continue; // Not supported by `UnsignedDivisionByConstantInfo::get()`.
-    if (Bits > 11)
+    if (Bits > 10)
       continue; // Unreasonably slow.
     EnumerateAPInts(Bits, [Bits](const APInt &Divisor) {
       if (Divisor.isZero())
         return; // Division by zero is undefined behavior.
+      if (Divisor.isOne())
+        return; // Division by one is the numerator.
+
       const UnsignedDivisionByConstantInfo Magics =
           UnsignedDivisionByConstantInfo::get(Divisor);
       EnumerateAPInts(Bits, [Divisor, Magics, Bits](const APInt &Numerator) {
         APInt NativeResult = Numerator.udiv(Divisor);
-        for (bool AllowEvenDivisorOptimization : {true, false}) {
-          for (bool ForceNPQ : {false, true}) {
-            APInt MagicResult = UnsignedDivideUsingMagic(
-                Numerator, Divisor, AllowEvenDivisorOptimization, ForceNPQ,
-                Magics);
-            ASSERT_EQ(MagicResult, NativeResult)
-                << " ... given the operation:  urem i" << Bits << " "
-                << Numerator << ", " << Divisor
-                << " (allow even divisior optimization = "
-                << AllowEvenDivisorOptimization << ", force NPQ = " << ForceNPQ
-                << ")";
+        for (bool LZOptimization : {true, false}) {
+          for (bool AllowEvenDivisorOptimization : {true, false}) {
+            for (bool ForceNPQ : {false, true}) {
+              APInt MagicResult = UnsignedDivideUsingMagic(
+                  Numerator, Divisor, LZOptimization,
+                  AllowEvenDivisorOptimization, ForceNPQ, Magics);
+              ASSERT_EQ(MagicResult, NativeResult)
+                    << " ... given the operation:  urem i" << Bits << " "
+                    << Numerator << ", " << Divisor
+                    << " (allow LZ optimization = "
+                    << LZOptimization << ", allow even divisior optimization = "
+                    << AllowEvenDivisorOptimization << ", force NPQ = "
+                    << ForceNPQ << ")";
+            }
           }
         }
       });

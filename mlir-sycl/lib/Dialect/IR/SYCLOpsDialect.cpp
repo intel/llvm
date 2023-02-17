@@ -48,7 +48,7 @@ public:
   /// \p Dest region. All operations in the SYCL dialect are legal to inline.
   bool isLegalToInline(mlir::Operation *Op, mlir::Region *Dest,
                        bool WouldBeCloned,
-                       mlir::BlockAndValueMapping &ValueMapping) const final {
+                       mlir::IRMapping &ValueMapping) const final {
     return true;
   }
 

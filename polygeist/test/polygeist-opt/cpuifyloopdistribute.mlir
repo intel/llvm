@@ -223,12 +223,10 @@ module {
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c9 = arith.constant 9 : index
-// CHECK-NEXT:    memref.alloca_scope  {
-// CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:        %0 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:        func.call @use(%0) : (i32) -> ()
-// CHECK-NEXT:        scf.yield
-// CHECK-NEXT:      }
+// CHECK-NEXT:    scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:      %0 = arith.index_cast %arg2 : index to i32
+// CHECK-NEXT:      func.call @use(%0) : (i32) -> ()
+// CHECK-NEXT:      scf.yield
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }

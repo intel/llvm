@@ -73,6 +73,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GCStrategy.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -729,6 +730,9 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
                        GV.getName() == "llvm.global_dtors")) {
     Check(!GV.hasInitializer() || GV.hasAppendingLinkage(),
           "invalid linkage for intrinsic global variable", &GV);
+    Check(GV.materialized_use_empty(),
+          "invalid uses of intrinsic global variable", &GV);
+
     // Don't worry about emitting an error for it not being an array,
     // visitGlobalValue will complain on appending non-array.
     if (ArrayType *ATy = dyn_cast<ArrayType>(GV.getValueType())) {
@@ -755,6 +759,9 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
                        GV.getName() == "llvm.compiler.used")) {
     Check(!GV.hasInitializer() || GV.hasAppendingLinkage(),
           "invalid linkage for intrinsic global variable", &GV);
+    Check(GV.materialized_use_empty(),
+          "invalid uses of intrinsic global variable", &GV);
+
     Type *GVType = GV.getValueType();
     if (ArrayType *ATy = dyn_cast<ArrayType>(GVType)) {
       PointerType *PTy = dyn_cast<PointerType>(ATy->getElementType());
@@ -5085,19 +5092,6 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::memmove:
   case Intrinsic::memset:
   case Intrinsic::memset_inline: {
-    const auto *MI = cast<MemIntrinsic>(&Call);
-    auto IsValidAlignment = [&](unsigned Alignment) -> bool {
-      return Alignment == 0 || isPowerOf2_32(Alignment);
-    };
-    Check(IsValidAlignment(MI->getDestAlignment()),
-          "alignment of arg 0 of memory intrinsic must be 0 or a power of 2",
-          Call);
-    if (const auto *MTI = dyn_cast<MemTransferInst>(MI)) {
-      Check(IsValidAlignment(MTI->getSourceAlignment()),
-            "alignment of arg 1 of memory intrinsic must be 0 or a power of 2",
-            Call);
-    }
-
     break;
   }
   case Intrinsic::memcpy_element_unordered_atomic:
@@ -5113,15 +5107,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           "must be a power of 2",
           Call);
 
-    auto IsValidAlignment = [&](uint64_t Alignment) {
-      return isPowerOf2_64(Alignment) && ElementSizeVal.ule(Alignment);
+    auto IsValidAlignment = [&](MaybeAlign Alignment) {
+      return Alignment && ElementSizeVal.ule(Alignment->value());
     };
-    uint64_t DstAlignment = AMI->getDestAlignment();
-    Check(IsValidAlignment(DstAlignment),
+    Check(IsValidAlignment(AMI->getDestAlign()),
           "incorrect alignment of the destination argument", Call);
     if (const auto *AMT = dyn_cast<AtomicMemTransferInst>(AMI)) {
-      uint64_t SrcAlignment = AMT->getSourceAlignment();
-      Check(IsValidAlignment(SrcAlignment),
+      Check(IsValidAlignment(AMT->getSourceAlign()),
             "incorrect alignment of the source argument", Call);
     }
     break;
@@ -5244,8 +5236,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   case Intrinsic::localescape: {
     BasicBlock *BB = Call.getParent();
-    Check(BB == &BB->getParent()->front(),
-          "llvm.localescape used outside of entry block", Call);
+    Check(BB->isEntryBlock(), "llvm.localescape used outside of entry block",
+          Call);
     Check(!SawFrameEscape, "multiple calls to llvm.localescape in one function",
           Call);
     for (Value *Arg : Call.args()) {
@@ -5370,11 +5362,15 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     // relocated pointer. It can be casted to the correct type later if it's
     // desired. However, they must have the same address space and 'vectorness'
     GCRelocateInst &Relocate = cast<GCRelocateInst>(Call);
-    Check(Relocate.getDerivedPtr()->getType()->isPtrOrPtrVectorTy(),
-          "gc.relocate: relocated value must be a gc pointer", Call);
+    auto *ResultType = Call.getType();
+    auto *DerivedType = Relocate.getDerivedPtr()->getType();
+    auto *BaseType = Relocate.getBasePtr()->getType();
 
-    auto ResultType = Call.getType();
-    auto DerivedType = Relocate.getDerivedPtr()->getType();
+    Check(BaseType->isPtrOrPtrVectorTy(),
+          "gc.relocate: relocated value must be a pointer", Call);
+    Check(DerivedType->isPtrOrPtrVectorTy(),
+          "gc.relocate: relocated value must be a pointer", Call);
+
     Check(ResultType->isVectorTy() == DerivedType->isVectorTy(),
           "gc.relocate: vector relocates to vector and pointer to pointer",
           Call);
@@ -5383,6 +5379,20 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
             DerivedType->getPointerAddressSpace(),
         "gc.relocate: relocating a pointer shouldn't change its address space",
         Call);
+
+    auto GC = llvm::getGCStrategy(Relocate.getFunction()->getGC());
+    Check(GC, "gc.relocate: calling function must have GCStrategy",
+          Call.getFunction());
+    if (GC) {
+      auto isGCPtr = [&GC](Type *PTy) {
+        return GC->isGCManagedPointer(PTy->getScalarType()).value_or(true);
+      };
+      Check(isGCPtr(ResultType), "gc.relocate: must return gc pointer", Call);
+      Check(isGCPtr(BaseType),
+            "gc.relocate: relocated value must be a gc pointer", Call);
+      Check(isGCPtr(DerivedType),
+            "gc.relocate: relocated value must be a gc pointer", Call);
+    }
     break;
   }
   case Intrinsic::eh_exceptioncode:
@@ -6055,9 +6065,12 @@ void Verifier::visitDbgIntrinsic(StringRef Kind, DbgVariableIntrinsic &DII) {
     CheckDI(isa<DIAssignID>(DAI->getRawAssignID()),
             "invalid llvm.dbg.assign intrinsic DIAssignID", &DII,
             DAI->getRawAssignID());
-    CheckDI(isa<ValueAsMetadata>(DAI->getRawAddress()),
-            "invalid llvm.dbg.assign intrinsic address)", &DII,
-            DAI->getRawAddress());
+    const auto *RawAddr = DAI->getRawAddress();
+    CheckDI(
+        isa<ValueAsMetadata>(RawAddr) ||
+            (isa<MDNode>(RawAddr) && !cast<MDNode>(RawAddr)->getNumOperands()),
+        "invalid llvm.dbg.assign intrinsic address", &DII,
+        DAI->getRawAddress());
     CheckDI(isa<DIExpression>(DAI->getRawAddressExpression()),
             "invalid llvm.dbg.assign intrinsic address expression", &DII,
             DAI->getRawAddressExpression());
@@ -6230,7 +6243,7 @@ void Verifier::verifyDeoptimizeCallingConvs() {
     return;
 
   const Function *First = DeoptimizeDeclarations[0];
-  for (const auto *F : makeArrayRef(DeoptimizeDeclarations).slice(1)) {
+  for (const auto *F : ArrayRef(DeoptimizeDeclarations).slice(1)) {
     Check(First->getCallingConv() == F->getCallingConv(),
           "All llvm.experimental.deoptimize declarations must have the same "
           "calling convention",

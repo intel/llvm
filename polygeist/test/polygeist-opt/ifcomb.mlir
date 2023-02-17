@@ -27,10 +27,9 @@ module {
 // CHECK-NEXT:     %0 = arith.cmpi sge, %arg3, %arg1 : i32
 // CHECK-NEXT:     %1 = arith.cmpi sle, %arg3, %arg2 : i32
 // CHECK-NEXT:     %2 = arith.andi %0, %1 : i1
-// CHECK-NEXT:     %3 = arith.andi %0, %1 : i1
-// CHECK-NEXT:     %4 = arith.extui %3 : i1 to i8
+// CHECK-NEXT:     %3 = arith.extui %2 : i1 to i8
 // CHECK-NEXT:     scf.if %2 {
 // CHECK-NEXT:       affine.store %cst, %arg0[] : memref<f32>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %4 : i8
+// CHECK-NEXT:     return %3 : i8
 // CHECK-NEXT:   }

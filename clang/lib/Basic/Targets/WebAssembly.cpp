@@ -96,6 +96,11 @@ void WebAssemblyTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__wasm_reference_types__");
   if (HasExtendedConst)
     Builder.defineMacro("__wasm_extended_const__");
+
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 }
 
 void WebAssemblyTargetInfo::setSIMDLevel(llvm::StringMap<bool> &Features,
@@ -263,8 +268,8 @@ bool WebAssemblyTargetInfo::handleTargetFeatures(
 }
 
 ArrayRef<Builtin::Info> WebAssemblyTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::WebAssembly::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo, clang::WebAssembly::LastTSBuiltin -
+                                         Builtin::FirstTSBuiltin);
 }
 
 void WebAssemblyTargetInfo::adjust(DiagnosticsEngine &Diags,

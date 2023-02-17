@@ -27,7 +27,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 
 using namespace mlir;
 using namespace polygeist;
@@ -1734,7 +1734,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
 
       {
         SmallVector<Value> elseVals = otherYield.getOperands();
-        BlockAndValueMapping elseMapping;
+        IRMapping elseMapping;
         elseMapping.map(prevIf.getResults(), otherYield.getOperands());
         SmallVector<Value> nextElseVals;
         for (auto v : nextIf.elseYield().getOperands())
@@ -2278,7 +2278,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
     if (toHoist.empty())
       return failure();
     rewriter.setInsertionPoint(lastParentWithoutScope);
-    BlockAndValueMapping map;
+    IRMapping map;
     for (auto *op : toHoist) {
       auto *cloned = rewriter.clone(*op, map);
       rewriter.replaceOp(op, cloned->getResults());

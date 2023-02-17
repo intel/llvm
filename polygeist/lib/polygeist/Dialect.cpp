@@ -30,7 +30,7 @@ struct PolygeistInlinerInterface : public DialectInlinerInterface {
 
   // Operations in the Polygeist dialect are legal to inline.
   bool isLegalToInline(Operation *Op, Region *Dest, bool WouldBeCloned,
-                       BlockAndValueMapping &ValueMapping) const final {
+                       IRMapping &ValueMapping) const final {
     return true;
   }
 };

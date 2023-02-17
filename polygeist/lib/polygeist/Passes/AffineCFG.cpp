@@ -4,9 +4,9 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -540,7 +540,7 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
 void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI) {
-  BlockAndValueMapping indexMap;
+  IRMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
     auto idx0 = op.getDefiningOp<IndexCastOp>();
@@ -593,7 +593,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
                                         IntegerSet *set,
                                         SmallVectorImpl<Value> *operands,
                                         DominanceInfo &DI) {
-  BlockAndValueMapping indexMap;
+  IRMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
     auto idx0 = op.getDefiningOp<IndexCastOp>();
