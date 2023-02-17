@@ -8,7 +8,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMMemsetTest);
 TEST_P(urEnqueueUSMMemsetTest, Success) {
     bool host_usm{false};
     size_t size{sizeof(bool)};
-    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_HOST_UNIFIED_MEMORY, size, &host_usm, nullptr));
+    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_USM_HOST_SUPPORT, size, &host_usm, nullptr));
 
     ur_event_handle_t event = nullptr;
     if (host_usm) { // Only test host USM if device supports it
