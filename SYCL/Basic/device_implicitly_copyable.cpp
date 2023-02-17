@@ -27,7 +27,8 @@ template <> struct sycl::is_device_copyable<ACopyable> : std::true_type {};
 template <typename DataT, size_t ArrSize>
 void CaptureAndCopy(const DataT *data_arr, const DataT &data_scalar,
                     DataT *result_arr, DataT *result_scalar, sycl::queue &q) {
-  // We need to copy data_arr, otherwise when using a device it tries to use the host memory
+  // We need to copy data_arr, otherwise when using a device it tries to use the
+  // host memory.
   DataT cpy_data_arr[ArrSize];
   std::memcpy(cpy_data_arr, data_arr, sizeof(cpy_data_arr));
   sycl::buffer<DataT, 1> buf_arr{result_arr, sycl::range<1>(ArrSize)};
