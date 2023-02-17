@@ -159,51 +159,6 @@ struct ReducerTraits<reducer<T, BinaryOperation, Dims, Extent, View, Subst>> {
   static constexpr size_t extent = Extent;
 };
 
-/// Helper class for accessing internal reducer member functions.
-template <typename ReducerT> class ReducerAccess {
-public:
-  ReducerAccess(ReducerT &ReducerRef) : MReducerRef(ReducerRef) {}
-
-  template <typename ReducerRelayT = ReducerT> auto &getElement(size_t E) {
-    return MReducerRef.getElement(E);
-  }
-
-  template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                        typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type> constexpr getIdentity() {
-    return getIdentityStatic();
-  }
-
-  template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      !IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                         typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type>
-  getIdentity() {
-    return MReducerRef.identity();
-  }
-
-  // MSVC does not like static overloads of non-static functions, even if they
-  // are made mutually exclusive through SFINAE. Instead we use a new static
-  // function to be used when a static function is needed.
-  template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                        typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type> static constexpr getIdentityStatic() {
-    return ReducerT::getIdentity();
-  }
-
-private:
-  ReducerT &MReducerRef;
-};
-
-// Deduction guide to simplify the use of ReducerAccess.
-template <typename ReducerT>
-ReducerAccess(ReducerT &) -> ReducerAccess<ReducerT>;
-
 /// Use CRTP to avoid redefining shorthand operators in terms of combine
 ///
 /// Also, for many types with known identity the operation 'atomic_combine()'
@@ -283,7 +238,7 @@ private:
       auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
                                         getMemoryScope<Space>(), Space>(
           address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
-      Functor(std::move(AtomicRef), ReducerAccess{*reducer}.getElement(E));
+      Functor(std::move(AtomicRef), reducer->getElement(E));
     }
   }
 
@@ -400,15 +355,13 @@ public:
     return *this;
   }
 
-  T identity() const { return MIdentity; }
-
-private:
-  template <typename ReducerT> friend class detail::ReducerAccess;
+  T getIdentity() const { return MIdentity; }
 
   T &getElement(size_t) { return MValue; }
   const T &getElement(size_t) const { return MValue; }
-
   T MValue;
+
+private:
   const T MIdentity;
   BinaryOperation MBinaryOp;
 };
@@ -439,12 +392,7 @@ public:
     return *this;
   }
 
-  T identity() const { return getIdentity(); }
-
-private:
-  template <typename ReducerT> friend class detail::ReducerAccess;
-
-  static constexpr T getIdentity() {
+  static T getIdentity() {
     return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
@@ -471,8 +419,6 @@ public:
   }
 
 private:
-  template <typename ReducerT> friend class detail::ReducerAccess;
-
   T &MElement;
   BinaryOperation MBinaryOp;
 };
@@ -498,14 +444,11 @@ public:
     return {MValue[Index], MBinaryOp};
   }
 
-  T identity() const { return MIdentity; }
-
-private:
-  template <typename ReducerT> friend class detail::ReducerAccess;
-
+  T getIdentity() const { return MIdentity; }
   T &getElement(size_t E) { return MValue[E]; }
   const T &getElement(size_t E) const { return MValue[E]; }
 
+private:
   marray<T, Extent> MValue;
   const T MIdentity;
   BinaryOperation MBinaryOp;
@@ -534,18 +477,14 @@ public:
     return {MValue[Index], BinaryOperation()};
   }
 
-  T identity() const { return getIdentity(); }
-
-private:
-  template <typename ReducerT> friend class detail::ReducerAccess;
-
-  static constexpr T getIdentity() {
+  static T getIdentity() {
     return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
   const T &getElement(size_t E) const { return MValue[E]; }
 
+private:
   marray<T, Extent> MValue;
 };
 
@@ -830,7 +769,8 @@ private:
     // list of known operations does not break the existing programs.
     if constexpr (is_known_identity) {
       (void)Identity;
-      return ReducerAccess<reducer_type>::getIdentityStatic();
+      return reducer_type::getIdentity();
+
     } else {
       return Identity;
     }
@@ -848,8 +788,8 @@ public:
   template <typename _self = self,
             enable_if_t<_self::is_known_identity> * = nullptr>
   reduction_impl(RedOutVar Var, bool InitializeToIdentity = false)
-      : algo(ReducerAccess<reducer_type>::getIdentityStatic(),
-             BinaryOperation(), InitializeToIdentity, Var) {
+      : algo(reducer_type::getIdentity(), BinaryOperation(),
+             InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
         throw sycl::runtime_error(errc::invalid,
@@ -956,7 +896,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
         // Work-group cooperates to initialize multiple reduction variables
         auto LID = NDId.get_local_id(0);
         for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
-          GroupSum[E] = ReducerAccess(Reducer).getIdentity();
+          GroupSum[E] = Reducer.getIdentity();
         }
         workGroupBarrier();
 
@@ -969,7 +909,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
         workGroupBarrier();
         if (LID == 0) {
           for (size_t E = 0; E < NElements; ++E) {
-            ReducerAccess{Reducer}.getElement(E) = GroupSum[E];
+            Reducer.getElement(E) = GroupSum[E];
           }
           Reducer.template atomic_combine(&Out[0]);
         }
@@ -1019,7 +959,7 @@ struct NDRangeReduction<
         // reduce_over_group is only defined for each T, not for span<T, ...>
         size_t LID = NDId.get_local_id(0);
         for (int E = 0; E < NElements; ++E) {
-          auto &RedElem = ReducerAccess{Reducer}.getElement(E);
+          auto &RedElem = Reducer.getElement(E);
           RedElem = reduce_over_group(Group, RedElem, BOp);
           if (LID == 0) {
             if (NWorkGroups == 1) {
@@ -1030,7 +970,7 @@ struct NDRangeReduction<
               Out[E] = RedElem;
             } else {
               PartialSums[NDId.get_group_linear_id() * NElements + E] =
-                  ReducerAccess{Reducer}.getElement(E);
+                  Reducer.getElement(E);
             }
           }
         }
@@ -1053,7 +993,7 @@ struct NDRangeReduction<
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
           for (int E = 0; E < NElements; ++E) {
-            auto LocalSum = ReducerAccess{Reducer}.getIdentity();
+            auto LocalSum = Reducer.getIdentity();
             for (size_t I = LID; I < NWorkGroups; I += WGSize)
               LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
             auto Result = reduce_over_group(Group, LocalSum, BOp);
@@ -1143,7 +1083,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       for (int E = 0; E < NElements; ++E) {
 
         // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = ReducerAccess{Reducer}.getElement(E);
+        LocalReds[LID] = Reducer.getElement(E);
 
         doTreeReduction(WGSize, LID, false, Identity, LocalReds, BOp,
                         [&]() { workGroupBarrier(); });
@@ -1218,8 +1158,8 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
 
         typename Reduction::binary_operation BOp;
         for (int E = 0; E < NElements; ++E) {
-          ReducerAccess{Reducer}.getElement(E) = reduce_over_group(
-              NDIt.get_group(), ReducerAccess{Reducer}.getElement(E), BOp);
+          Reducer.getElement(E) =
+              reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
         }
         if (NDIt.get_local_linear_id() == 0)
           Reducer.atomic_combine(&Out[0]);
@@ -1267,15 +1207,14 @@ struct NDRangeReduction<
         for (int E = 0; E < NElements; ++E) {
 
           // Copy the element to local memory to prepare it for tree-reduction.
-          LocalReds[LID] = ReducerAccess{Reducer}.getElement(E);
+          LocalReds[LID] = Reducer.getElement(E);
 
           typename Reduction::binary_operation BOp;
-          doTreeReduction(WGSize, LID, IsPow2WG,
-                          ReducerAccess{Reducer}.getIdentity(), LocalReds, BOp,
-                          [&]() { NDIt.barrier(); });
+          doTreeReduction(WGSize, LID, IsPow2WG, Reducer.getIdentity(),
+                          LocalReds, BOp, [&]() { NDIt.barrier(); });
 
           if (LID == 0) {
-            ReducerAccess{Reducer}.getElement(E) =
+            Reducer.getElement(E) =
                 IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
           }
 
@@ -1343,7 +1282,7 @@ struct NDRangeReduction<
       typename Reduction::binary_operation BOp;
       for (int E = 0; E < NElements; ++E) {
         typename Reduction::result_type PSum;
-        PSum = ReducerAccess{Reducer}.getElement(E);
+        PSum = Reducer.getElement(E);
         PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
         if (NDIt.get_local_linear_id() == 0) {
           if (IsUpdateOfUserVar)
@@ -1407,8 +1346,7 @@ struct NDRangeReduction<
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? In[GID * NElements + E]
-                    : ReducerAccess<typename Reduction::reducer_type>::
-                          getIdentityStatic();
+                    : Reduction::reducer_type::getIdentity();
             PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
             if (NDIt.get_local_linear_id() == 0) {
               if (IsUpdateOfUserVar)
@@ -1482,7 +1420,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       for (int E = 0; E < NElements; ++E) {
 
         // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = ReducerAccess{Reducer}.getElement(E);
+        LocalReds[LID] = Reducer.getElement(E);
 
         doTreeReduction(WGSize, LID, IsPow2WG, ReduIdentity, LocalReds, BOp,
                         [&]() { NDIt.barrier(); });
@@ -1755,8 +1693,7 @@ void reduCGFuncImplScalar(
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
 
-  ((std::get<Is>(LocalAccsTuple)[LID] =
-        ReducerAccess{std::get<Is>(ReducersTuple)}.getElement(0)),
+  ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(ReducersTuple).MValue),
    ...);
 
   // For work-groups, which size is not power of two, local accessors have
@@ -1807,7 +1744,7 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
   for (size_t E = 0; E < NElements; ++E) {
 
     // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = ReducerAccess{Reducer}.getElement(E);
+    LocalReds[LID] = Reducer.getElement(E);
 
     doTreeReduction(WGSize, LID, Pow2WG, Identity, LocalReds, BOp,
                     [&]() { NDIt.barrier(); });
