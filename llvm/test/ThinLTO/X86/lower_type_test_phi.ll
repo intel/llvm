@@ -7,7 +7,7 @@
 ; RUN: opt -opaque-pointers -thinlto-bc y.ll -o y.bc
 ; RUN: opt -opaque-pointers -thinlto-bc z.ll -o z.bc
 
-; RUN: llvm-lto2 run y.bc z.bc -opaque-pointers -o out \
+; RUN: llvm-lto2 run -lto-opaque-pointers y.bc z.bc -opaque-pointers -o out \
 ; RUN:	-r y.bc,main,plx \
 ; RUN:	-r y.bc,_Z2b1v, \
 ; RUN:	-r y.bc,_Z2b2v, \

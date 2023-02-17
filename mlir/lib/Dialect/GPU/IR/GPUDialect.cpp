@@ -16,6 +16,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -121,14 +122,13 @@ struct GPUInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
 
   /// All gpu dialect ops can be inlined.
-  bool isLegalToInline(Operation *op, Region *, bool,
-                       BlockAndValueMapping &) const final {
+  bool isLegalToInline(Operation *op, Region *, bool, IRMapping &) const final {
     return !isa<gpu::ReturnOp>(op);
   }
 
   /// Allows inlining any region (other than a gpu.func) in a gpu.func region.
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-                       BlockAndValueMapping &valueMapping) const final {
+                       IRMapping &valueMapping) const final {
     return !isa<gpu::GPUFuncOp>(src->getParentOp());
   }
 };
@@ -692,6 +692,8 @@ struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
       // Check if size is trivially one.
       if (!matchPattern(size, m_One()))
         return;
+      if (id.getUses().empty())
+        return;
       if (!simplified) {
         // Create a zero value the first time.
         OpBuilder::InsertionGuard guard(rewriter);
@@ -699,7 +701,7 @@ struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
         zero =
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), /*value=*/0);
       }
-      id.replaceAllUsesWith(zero);
+      rewriter.replaceAllUsesWith(id, zero);
       simplified = true;
     };
     constPropIdUses(op.getBlockIds().x, op.getGridSizeX());
@@ -797,15 +799,13 @@ static ParseResult parseLaunchFuncOperands(
   if (parser.parseOptionalKeyword("args"))
     return success();
 
-  SmallVector<OpAsmParser::Argument> args;
-  if (parser.parseArgumentList(args, OpAsmParser::Delimiter::Paren,
-                               /*allowType=*/true))
-    return failure();
-  for (auto &arg : args) {
-    argNames.push_back(arg.ssaName);
-    argTypes.push_back(arg.type);
-  }
-  return success();
+  auto parseElement = [&]() -> ParseResult {
+    return failure(parser.parseOperand(argNames.emplace_back()) ||
+                   parser.parseColonType(argTypes.emplace_back()));
+  };
+
+  return parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren,
+                                        parseElement, " in argument list");
 }
 
 static void printLaunchFuncOperands(OpAsmPrinter &printer, Operation *,
@@ -1019,16 +1019,22 @@ LogicalResult GPUFuncOp::verifyType() {
 
 static LogicalResult verifyAttributions(Operation *op,
                                         ArrayRef<BlockArgument> attributions,
-                                        unsigned memorySpace) {
+                                        gpu::AddressSpace memorySpace) {
   for (Value v : attributions) {
     auto type = v.getType().dyn_cast<MemRefType>();
     if (!type)
       return op->emitOpError() << "expected memref type in attribution";
 
-    if (type.getMemorySpaceAsInt() != memorySpace) {
+    // We can only verify the address space if it hasn't already been lowered
+    // from the AddressSpaceAttr to a target-specific numeric value.
+    auto addressSpace =
+        type.getMemorySpace().dyn_cast_or_null<gpu::AddressSpaceAttr>();
+    if (!addressSpace)
+      continue;
+    if (addressSpace.getValue() != memorySpace)
       return op->emitOpError()
-             << "expected memory space " << memorySpace << " in attribution";
-    }
+             << "expected memory space " << stringifyAddressSpace(memorySpace)
+             << " in attribution";
   }
   return success();
 }
@@ -1060,6 +1066,27 @@ LogicalResult GPUFuncOp::verifyBody() {
                                 GPUDialect::getPrivateAddressSpace())))
     return failure();
 
+  return success();
+}
+
+static LogicalResult verifyKnownLaunchSizeAttr(gpu::GPUFuncOp op,
+                                               StringRef attrName) {
+  auto maybeAttr = op->getAttr(attrName);
+  if (!maybeAttr)
+    return success();
+  auto array = maybeAttr.dyn_cast<DenseI32ArrayAttr>();
+  if (!array)
+    return op.emitOpError(attrName + " must be a dense i32 array");
+  if (array.size() != 3)
+    return op.emitOpError(attrName + " must contain exactly 3 elements");
+  return success();
+}
+
+LogicalResult GPUFuncOp::verify() {
+  if (failed(verifyKnownLaunchSizeAttr(*this, getKnownBlockSizeAttrName())))
+    return failure();
+  if (failed(verifyKnownLaunchSizeAttr(*this, getKnownGridSizeAttrName())))
+    return failure();
   return success();
 }
 
@@ -1268,12 +1295,12 @@ LogicalResult SubgroupMmaComputeOp::verify() {
   return success();
 }
 
-LogicalResult MemcpyOp::fold(ArrayRef<Attribute> operands,
+LogicalResult MemcpyOp::fold(FoldAdaptor adaptor,
                              SmallVectorImpl<::mlir::OpFoldResult> &results) {
   return memref::foldMemRefCast(*this);
 }
 
-LogicalResult MemsetOp::fold(ArrayRef<Attribute> operands,
+LogicalResult MemsetOp::fold(FoldAdaptor adaptor,
                              SmallVectorImpl<::mlir::OpFoldResult> &results) {
   return memref::foldMemRefCast(*this);
 }
