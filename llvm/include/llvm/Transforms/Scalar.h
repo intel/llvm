@@ -185,12 +185,6 @@ Pass *createSimpleLoopUnrollPass(int OptLevel = 2, bool OnlyWhenForced = false,
 
 //===----------------------------------------------------------------------===//
 //
-// LoopUnrollAndJam - This pass is a simple loop unroll and jam pass.
-//
-Pass *createLoopUnrollAndJamPass(int OptLevel = 2);
-
-//===----------------------------------------------------------------------===//
-//
 // LoopReroll - This pass is a simple loop rerolling pass.
 //
 Pass *createLoopRerollPass();
@@ -206,12 +200,6 @@ Pass *createLoopRotatePass(int MaxHeaderSize = -1, bool PrepareForLTO = false);
 // LoopIdiom - This pass recognizes and replaces idioms in loops.
 //
 Pass *createLoopIdiomPass();
-
-//===----------------------------------------------------------------------===//
-//
-// LoopVersioningLICM - This pass is a loop versioning pass for LICM.
-//
-Pass *createLoopVersioningLICMPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -477,30 +465,6 @@ FunctionPass *createFloat2IntPass();
 // NaryReassociate - Simplify n-ary operations by reassociation.
 //
 FunctionPass *createNaryReassociatePass();
-
-//===----------------------------------------------------------------------===//
-//
-// LoopDistribute - Distribute loops.
-//
-FunctionPass *createLoopDistributePass();
-
-//===----------------------------------------------------------------------===//
-//
-// LoopFuse - Fuse loops.
-//
-FunctionPass *createLoopFusePass();
-
-//===----------------------------------------------------------------------===//
-//
-// LoopLoadElimination - Perform loop-aware load elimination.
-//
-FunctionPass *createLoopLoadEliminationPass();
-
-//===----------------------------------------------------------------------===//
-//
-// LoopVersioning - Perform loop multi-versioning.
-//
-FunctionPass *createLoopVersioningPass();
 
 //===----------------------------------------------------------------------===//
 //
