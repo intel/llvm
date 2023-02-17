@@ -39,10 +39,12 @@ TEST_F(urDeviceGetTest, InvalidEnumerationDevicesType) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION, urDeviceGet(platform, UR_DEVICE_TYPE_FORCE_UINT32, 0, nullptr, &count));
 }
 
-TEST_F(urDeviceGetTest, InvalidNumEntries) {
+TEST_F(urDeviceGetTest, InvalidValueNumEntries) {
     uint32_t count = 0;
     ASSERT_SUCCESS(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
     ASSERT_NE(count, 0);
     std::vector<ur_device_handle_t> devices(count);
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE, urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, devices.data(), nullptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, devices.data(), nullptr));
 }
