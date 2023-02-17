@@ -22,8 +22,8 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
 }
 
 UUR_TEST_SUITE_P(urEventGetProfilingInfoTest,
-                 ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED, UR_PROFILING_INFO_COMMAND_SUBMIT, UR_PROFILING_INFO_COMMAND_START,
-                                   UR_PROFILING_INFO_COMMAND_END),
+                 ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED, UR_PROFILING_INFO_COMMAND_SUBMIT,
+                                   UR_PROFILING_INFO_COMMAND_START, UR_PROFILING_INFO_COMMAND_END),
                  uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
 
 using urEventGetProfilingInfoNegativeTest = uur::event::urEventTest;
@@ -36,12 +36,14 @@ TEST_P(urEventGetProfilingInfoNegativeTest, InvalidNullHandle) {
     std::vector<uint8_t> data(size);
 
     /* Invalid hEvent */
-    ASSERT_EQ(urEventGetProfilingInfo(nullptr, info_type, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ_RESULT(urEventGetProfilingInfo(nullptr, info_type, 0, nullptr, &size),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEventGetProfilingInfoNegativeTest, InvalidEnumeration) {
     size_t size;
-    ASSERT_EQ(urEventGetProfilingInfo(event, UR_PROFILING_INFO_FORCE_UINT32, 0, nullptr, &size), UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ASSERT_EQ_RESULT(urEventGetProfilingInfo(event, UR_PROFILING_INFO_FORCE_UINT32, 0, nullptr, &size),
+                     UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
@@ -52,7 +54,8 @@ TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
     std::vector<uint8_t> data(size);
 
     /* Invalid propValueSize */
-    ASSERT_EQ(urEventGetProfilingInfo(event, info_type, 0, data.data(), nullptr), UR_RESULT_ERROR_INVALID_VALUE);
+    ASSERT_EQ_RESULT(urEventGetProfilingInfo(event, info_type, 0, data.data(), nullptr),
+                     UR_RESULT_ERROR_INVALID_VALUE);
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoNegativeTest);
