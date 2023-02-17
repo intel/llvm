@@ -169,6 +169,11 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_" << Ty.getType();
         return AliasResult::FinalAlias;
       })
+      .Case<mlir::sycl::MaximumType, mlir::sycl::MinimumType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_";
+        return AliasResult::FinalAlias;
+      })
       .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
@@ -180,11 +185,6 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
            << VecTy.getDataType() << "_" << VecTy.getNumElements() << "_";
         return AliasResult::OverridableAlias;
-      })
-      .Case<mlir::sycl::MinimumType, mlir::sycl::MaximumType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_";
-        return AliasResult::FinalAlias;
       })
       .Case<mlir::sycl::VecType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
