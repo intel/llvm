@@ -160,6 +160,8 @@ jobs:
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
     - name: Pack LIT
       run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
+    - name: Pack End-to-End LIT tests
+      run: tar -cJf e2e_tests.tar.xz -C $GITHUB_WORKSPACE/src/sycl/test-e2e .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
@@ -170,6 +172,11 @@ jobs:
       with:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
+    - name: Upload End-to-End LIT tests
+      uses: actions/upload-artifact@v3
+      with:
+        name: sycl_e2e_tests_${{ inputs.build_artifact_suffix }}
+        path: e2e_tests.tar.xz
 
   aws-start:
     name: Start AWS
@@ -229,21 +236,40 @@ jobs:
         fi
     # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v3
+      id: checkout
       with:
         persist-credentials: false
         path: llvm
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
+      name: Run LLVM Test Suite In-Tree
       with:
         test_ref: ${{ inputs.lts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
         lit_artifact: sycl_lit_${{ inputs.build_artifact_suffix }}
         lit_archive: lit.tar.xz
+        e2e_tests_artifact: sycl_e2e_tests_${{ inputs.build_artifact_suffix }}
+        e2e_tests_archive: e2e_tests.tar.xz
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        in_tree_e2e: true
+    - uses: ./llvm/devops/actions/llvm_test_suite
+      name: Run LLVM Test Suite
+      if: ${{ always() && !cancelled() && steps.checkout.outcome == 'success' }}
+      with:
+        test_ref: ${{ inputs.lts_ref }}
+        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        lit_artifact: sycl_lit_${{ inputs.build_artifact_suffix }}
+        lit_archive: lit.tar.xz
+        e2e_tests_artifact: sycl_e2e_tests_${{ inputs.build_artifact_suffix }}
+        e2e_tests_archive: e2e_tests.tar.xz
+        check_sycl_all: ${{ matrix.check_sycl_all }}
+        results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        in_tree_e2e: false
 
   khronos_sycl_cts:
     needs: build
