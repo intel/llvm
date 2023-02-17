@@ -27,7 +27,7 @@ class SparseTensor_Op<string mnemonic, list<Trait> traits = []>
 //===----------------------------------------------------------------------===//
 
 def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
-    Arguments<(ins AnyType:$source, UnitAttr:$expandSymmetry)>,
+    Arguments<(ins AnyType:$source)>,
     Results<(outs AnySparseTensor:$result)> {
   string summary = "Materializes a new sparse tensor from given source";
   string description = [{
@@ -40,12 +40,9 @@ def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
     code. The operation is provided as an anchor that materializes a properly
     typed sparse tensor with inital contents into a computation.
 
-    An optional attribute `expandSymmetry` can be used to extend this operation
-    to make symmetry in external formats explicit in the storage. That is, when
-    the attribute presents and a non-zero value is discovered at (i, j) where
-    i!=j, we add the same value to (j, i). This claims more storage than a pure
-    symmetric storage, and thus may cause a bad performance hit. True symmetric
-    storage is planned for the future.
+    Reading in a symmetric matrix will result in just the lower/upper triangular
+    part of the matrix (so that only relevant information is stored). Proper
+    symmetry support for operating on symmetric matrices is still TBD.
 
     Example:
 
@@ -53,9 +50,7 @@ def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
     sparse_tensor.new %source : !Source to tensor<1024x1024xf64, #CSR>
     ```
   }];
-  let assemblyFormat = "(`expand_symmetry` $expandSymmetry^)? $source attr-dict"
-                       "`:` type($source) `to` type($result)";
-  let hasVerifier = 1;
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
 }
 
 def SparseTensor_PackOp : SparseTensor_Op<"pack", [Pure]>,
@@ -1152,12 +1147,19 @@ def SparseTensor_YieldOp : SparseTensor_Op<"yield", [Pure, Terminator]>,
 def SparseTensor_ForeachOp : SparseTensor_Op<"foreach",
     [SingleBlockImplicitTerminator<"YieldOp">]>,
      Arguments<(ins AnyTensor:$tensor,
-                    Variadic<AnyType>:$initArgs)>,
+                    Variadic<AnyType>:$initArgs,
+                    OptionalAttr<AffineMapAttr>:$order)>,
      Results<(outs Variadic<AnyType>:$results)> {
   let summary = "Iterates over elements in a tensor";
   let description = [{
      Iterates over stored elements in a tensor (which are typically, but not always,
      non-zero for sparse tensors) and executes the block.
+
+     `tensor`: the input tensor to iterate over.
+     `initArgs`: the initial loop argument to carry and update during each iteration.
+     `order`: an optional permutation affine map that specifies the order in which
+     the dimensions are visited (e.g., row first or column first). This is only
+     applicable when the input tensor is a non-annotated dense tensor.
 
      For an input tensor with rank n, the block must take n + 1 (and additional loop
      carried variables as described below) arguments. The first n arguments must be
@@ -1213,15 +1215,33 @@ def SparseTensor_ForeachOp : SparseTensor_Op<"foreach",
          // [%row, %col] -> [0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]
      }
 
+     // foreach on a row-major dense tensor but visit column first
+     sparse_tensor.foreach in %0 {order=affine_map<(i,j)->(j,i)>}: tensor<2x3xf64> do {
+      ^bb0(%row: index, %col: index, %arg3: f64):
+         // [%row, %col] -> [0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]
+     }
+
      ```
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$tensor,
+    OpBuilder<(ins "Value":$tensor, "ValueRange":$iterArgs, "AffineMapAttr":$order,
       "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>")>,
+    OpBuilder<(ins "Value":$tensor, "AffineMapAttr":$order,
+      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>":$bodyBuilder),
+    [{
+      build($_builder, $_state, tensor, ValueRange(), order, bodyBuilder);
+    }]>,
     OpBuilder<(ins "Value":$tensor,
-      "ValueRange":$iterArgs,
-      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>")>
+      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>":$bodyBuilder),
+    [{
+      build($_builder, $_state, tensor, ValueRange(), nullptr, bodyBuilder);
+    }]>,
+    OpBuilder<(ins "Value":$tensor, "ValueRange":$iterArgs,
+      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>":$bodyBuilder),
+    [{
+      build($_builder, $_state, tensor, iterArgs, nullptr, bodyBuilder);
+    }]>
   ];
 
   let regions = (region SizedRegion<1>:$region);

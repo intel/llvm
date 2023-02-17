@@ -395,7 +395,8 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "structurizecfg",
       "fix-irreducible",
       "expand-large-fp-convert",
-      "fpbuiltin-fn-selection"
+      "fpbuiltin-fn-selection",
+      "callbrprepare"
   };
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
@@ -447,6 +448,7 @@ int main(int argc, char **argv) {
   initializeExpandMemCmpPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
+  initializeCallBrPreparePass(Registry);
   initializeCodeGenPreparePass(Registry);
   initializeAtomicExpandPass(Registry);
   initializeRewriteSymbolsLegacyPassPass(Registry);

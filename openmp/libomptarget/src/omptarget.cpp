@@ -52,7 +52,7 @@ void *&AsyncInfoTy::getVoidPtrLocation() {
 }
 
 std::optional<bool> AsyncInfoTy::isDone() {
-  if (int Result = synchronize())
+  if (synchronize() == OFFLOAD_FAIL)
     return std::nullopt;
 
   // The async info operations are completed when the internal queue is empty.

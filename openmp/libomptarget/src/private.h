@@ -252,7 +252,8 @@ public:
 
     auto DoneOrErr = AsyncInfo->isDone();
     if (!DoneOrErr)
-      FATAL_MESSAGE0(1, "Error while synchronizing the async queue\n");
+      FATAL_MESSAGE0(1,
+                     "Error while querying the async queue for completion.\n");
     // If the are device operations still pending, return immediately without
     // deallocating the handle.
     if (!*DoneOrErr)
