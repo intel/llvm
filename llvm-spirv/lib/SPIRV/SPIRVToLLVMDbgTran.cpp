@@ -129,9 +129,8 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
   unsigned SourceLang = convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
   auto Producer = findModuleProducer();
-  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), Producer,
-                                 false, "", 0);
-  return CU;
+  return Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]),
+                                   Producer, false, "", 0);
 }
 
 DIBasicType *SPIRVToLLVMDbgTran::transTypeBasic(const SPIRVExtInst *DebugInst) {

@@ -221,6 +221,13 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
+  /// Calling this function queries the current device timestamp and sets it as
+  /// submission time for the command associated with this event.
+  void setSubmissionTime();
+
+  /// @return Submission time for command associated with this event
+  uint64_t getSubmissionTime();
+
   QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
 
   /// Checks if an event is in a fully intialized state. Default-constructed
@@ -257,6 +264,8 @@ protected:
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
+  // Stores submission time of command associated with event
+  uint64_t MSubmitTime = 0;
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

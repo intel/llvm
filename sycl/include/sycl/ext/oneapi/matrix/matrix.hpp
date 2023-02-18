@@ -14,9 +14,7 @@
 
 #pragma once
 
-#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 1
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+#include <sycl/detail/defines.hpp>
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>

@@ -67,6 +67,7 @@ enum class architecture {
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
   amd_gpu_gfx1032,
+  amd_gpu_gfx1034,
   // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -88,7 +89,7 @@ enum class architecture {
 namespace detail {
 
 static constexpr ext::oneapi::experimental::architecture max_architecture =
-    ext::oneapi::experimental::architecture::amd_gpu_gfx1032;
+    ext::oneapi::experimental::architecture::amd_gpu_gfx1034;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -264,6 +265,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
 #define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1034__
+#define __SYCL_TARGET_AMD_GPU_GFX1034__ 0
+#endif
 
 // This is true when the translation unit is compiled in AOT mode with target
 // names that supports the "if_architecture_is" features.  If an unsupported
@@ -328,7 +332,8 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1013__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1);
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of
@@ -451,6 +456,8 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
         __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1034)] =
+        __SYCL_TARGET_AMD_GPU_GFX1034__ == 1;
   }
 };
 
@@ -505,16 +512,16 @@ namespace ext::oneapi::experimental {
 
 template <architecture... Archs, typename T, typename... Args>
 constexpr static auto if_architecture_is(T fnTrue, Args... args) {
-  static_assert(detail::allowable_aot_mode<Archs...>(),
+  static_assert(sycl::detail::allowable_aot_mode<Archs...>(),
                 "The if_architecture_is function may only be used when AOT "
                 "compiling with '-fsycl-targets=spir64_x86_64' or "
                 "'-fsycl-targets=*_gpu_*'");
-  if constexpr (detail::device_architecture_is<Archs...>()) {
+  if constexpr (sycl::detail::device_architecture_is<Archs...>()) {
     fnTrue(args...);
-    return detail::if_architecture_helper<false>{};
+    return sycl::detail::if_architecture_helper<false>{};
   } else {
     (void)fnTrue;
-    return detail::if_architecture_helper<true>{};
+    return sycl::detail::if_architecture_helper<true>{};
   }
 }
 

@@ -39,14 +39,4 @@
 #define DEVICE_EXTERN_C EXTERN_C
 #define DEVICE_EXTERN_C_INLINE DEVICE_EXTERN_C __attribute__((always_inline))
 #endif // __LIBDEVICE_HOST_IMPL__
-
-// Rounding mode are used internally by type convert functions in imf libdevice
-//  and we don't want to include system's fenv.h, so we define ourselves'.
-typedef enum {
-  __IML_RTE, // round to nearest-even
-  __IML_RTZ, // round to zero
-  __IML_RTP, // round to +inf
-  __IML_RTN, // round to -inf
-} __iml_rounding_mode;
-
 #endif // __LIBDEVICE_DEVICE_H__

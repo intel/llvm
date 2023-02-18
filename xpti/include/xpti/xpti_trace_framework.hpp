@@ -21,12 +21,14 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
-#include <strsafe.h>
 // Windows.h defines min and max macros, that interfere with C++ std::min and
 // std::max. The following definition disables that feature.
 #define NOMINMAX
 #include <windows.h>
 #undef NOMINMAX
+// strsafe.h must be included after all other includes as per official
+// documentation
+#include <strsafe.h>
 typedef HINSTANCE xpti_plugin_handle_t;
 typedef FARPROC xpti_plugin_function_t;
 #define XPTI_PLUGIN_STRING "*.dll"

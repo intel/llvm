@@ -9,6 +9,10 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <sycl/feature_test.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -16,6 +20,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -928,7 +933,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
-  const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
+  std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
@@ -941,44 +946,50 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
   if (isInFusionMode(QUniqueID) && !NewCmd->isHostTask()) {
     auto *FusionCmd = findFusionList(QUniqueID)->second.get();
-    FusionCmd->addToFusionList(NewCmd.get());
+
+    bool dependsOnFusion = false;
+    for (auto Ev = Events.begin(); Ev != Events.end();) {
+      auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
+      if (!EvDepCmd) {
+        continue;
+      }
+      // Handle event dependencies on any commands part of another active
+      // fusion.
+      if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
+        printFusionWarning("Aborting fusion because of event dependency from a "
+                           "different fusion");
+        cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
+      }
+      // Check if this command depends on the placeholder command for the fusion
+      // itself participates in.
+      if (EvDepCmd == FusionCmd) {
+        Ev = Events.erase(Ev);
+        dependsOnFusion = true;
+      } else {
+        ++Ev;
+      }
+    }
+
+    // If this command has an explicit event dependency on the placeholder
+    // command for this fusion (because it used depends_on on the event returned
+    // by submitting another kernel to this fusion earlier), add a dependency on
+    // all the commands in the fusion list so far.
+    if (dependsOnFusion) {
+      for (auto *Cmd : FusionCmd->getFusionList()) {
+        Events.push_back(Cmd->getEvent());
+      }
+    }
+
     // Add the kernel to the graph, but delay the enqueue of any auxiliary
     // commands (e.g., allocations) resulting from that process by adding them
     // to the list of auxiliary commands of the fusion command.
     createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
                           isInteropHostTask(NewCmd.get()), Reqs, Events, Queue,
                           FusionCmd->auxiliaryCommands());
-    // We need to check the commands that this kernel depends on for any other
-    // commands that have been submitted to another queue which is also in
-    // fusion mode. If we detect such another command, we cancel fusion for that
-    // other queue to avoid circular dependencies.
-    // Handle requirements on any commands part of another active fusion.
-    for (auto &Dep : NewCmd->MDeps) {
-      auto *DepCmd = Dep.MDepCommand;
-      if (!DepCmd) {
-        continue;
-      }
-      if (DepCmd->getQueue() != Queue && isPartOfActiveFusion(DepCmd)) {
-        printFusionWarning("Aborting fusion because of requirement from a "
-                           "different fusion process");
-        cancelFusion(DepCmd->getQueue(), ToEnqueue);
-      }
-    }
-    // Handle event dependencies on any commands part of another active fusion.
-    for (auto &Ev : Events) {
-      auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-      if (!EvDepCmd) {
-        continue;
-      }
-      if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
-        printFusionWarning("Aborting fusion because of event dependency from a "
-                           "different fusion");
-        cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
-      }
-    }
 
     // Set the fusion command, so we recognize when another command depends on a
     // kernel in the fusion list.
+    FusionCmd->addToFusionList(NewCmd.get());
     NewCmd->MFusionCmd = FusionCmd;
     std::vector<Command *> ToCleanUp;
     // Add an event dependency from the fusion placeholder command to the new
@@ -1405,6 +1416,63 @@ void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
   PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::CANCELLED);
 }
 
+static bool isPartOfFusion(Command *Cmd, KernelFusionCommand *Fusion) {
+  if (Cmd->getType() == Command::RUN_CG) {
+    return static_cast<ExecCGCommand *>(Cmd)->MFusionCmd == Fusion;
+  }
+  return false;
+}
+
+static bool checkForCircularDependency(Command *, bool, KernelFusionCommand *);
+
+static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
+                                      KernelFusionCommand *Fusion) {
+  if (isPartOfFusion(Cmd, Fusion)) {
+    // If this is part of the fusion and the predecessor also was, we can stop
+    // the traversal here. A direct dependency between two kernels in the same
+    // fusion will never form a cyclic dependency and by iterating over all
+    // commands in a fusion, we will detect any cycles originating from the
+    // current command.
+    // If the predecessor was not part of the fusion, but the current command
+    // is, we have found a potential cycle in the dependency graph.
+    return !PredPartOfFusion;
+  }
+  return checkForCircularDependency(Cmd, false, Fusion);
+}
+
+static bool checkForCircularDependency(Command *Cmd, bool IsPartOfFusion,
+                                       KernelFusionCommand *Fusion) {
+  // Check the requirement dependencies.
+  for (auto &Dep : Cmd->MDeps) {
+    auto *DepCmd = Dep.MDepCommand;
+    if (!DepCmd) {
+      continue;
+    }
+    if (createsCircularDependency(DepCmd, IsPartOfFusion, Fusion)) {
+      return true;
+    }
+  }
+  for (auto &Ev : Cmd->getPreparedDepsEvents()) {
+    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
+    if (!EvDepCmd) {
+      continue;
+    }
+    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
+      return true;
+    }
+  }
+  for (auto &Ev : Cmd->getPreparedHostDepsEvents()) {
+    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
+    if (!EvDepCmd) {
+      continue;
+    }
+    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 EventImplPtr
 Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                                         std::vector<Command *> &ToEnqueue,
@@ -1425,9 +1493,28 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   auto *PlaceholderCmd = FusionList->second.get();
   auto &CmdList = PlaceholderCmd->getFusionList();
 
-  // TODO: The logic to invoke the JIT compiler to create a fused kernel from
-  // the list will be added in a later PR.
-  auto FusedCG = nullptr;
+  // We need to check if fusing the kernel would create a circular dependency. A
+  // circular dependency would arise, if a kernel in the fusion list
+  // *indirectly* depends on another kernel in the fusion list. Here, indirectly
+  // means, that the dependency is created through a third command not part of
+  // the fusion, on which this kernel depends and which in turn depends on
+  // another kernel in fusion list.
+  bool CreatesCircularDep =
+      std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
+        return checkForCircularDependency(Cmd, true, PlaceholderCmd);
+      });
+  if (CreatesCircularDep) {
+    // If fusing would create a fused kernel, cancel the fusion.
+    printFusionWarning(
+        "Aborting fusion because it would create a circular dependency");
+    auto LastEvent = PlaceholderCmd->getEvent();
+    this->cancelFusion(Queue, ToEnqueue);
+    return LastEvent;
+  }
+
+  // Call the JIT compiler to generate a new fused kernel.
+  auto FusedCG = detail::jit_compiler::get_instance().fuseKernels(
+      Queue, CmdList, PropList);
 
   if (!FusedCG) {
     // If the JIT compiler returns a nullptr, JIT compilation of the fused

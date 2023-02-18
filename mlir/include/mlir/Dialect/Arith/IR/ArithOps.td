@@ -268,7 +268,7 @@ def Arith_AddUIExtendedOp : Arith_Op<"addui_extended", [Pure, Commutative,
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    Optional<SmallVector<int64_t, 4>> getShapeForUnroll();
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
   }];
 }
 
@@ -330,7 +330,7 @@ def Arith_MulSIExtendedOp : Arith_Op<"mulsi_extended", [Pure, Commutative,
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    Optional<SmallVector<int64_t, 4>> getShapeForUnroll();
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
   }];
 }
 
@@ -373,7 +373,7 @@ def Arith_MulUIExtendedOp : Arith_Op<"mului_extended", [Pure, Commutative,
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    Optional<SmallVector<int64_t, 4>> getShapeForUnroll();
+    std::optional<SmallVector<int64_t, 4>> getShapeForUnroll();
   }];
 }
 
@@ -1071,6 +1071,7 @@ def Arith_TruncIOp : Arith_IToICastOp<"trunci"> {
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -1304,13 +1305,6 @@ def Arith_CmpIOp
                        SignlessIntegerLikeOfAnyRank:$lhs,
                        SignlessIntegerLikeOfAnyRank:$rhs);
 
-  let builders = [
-    OpBuilder<(ins "CmpIPredicate":$predicate, "Value":$lhs, "Value":$rhs), [{
-      build($_builder, $_state, ::getI1SameShape(lhs.getType()),
-            predicate, lhs, rhs);
-    }]>
-  ];
-
   let extraClassDeclaration = [{
     static arith::CmpIPredicate getPredicateByName(StringRef name);
   }];
@@ -1354,13 +1348,6 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
   let arguments = (ins Arith_CmpFPredicateAttr:$predicate,
                        FloatLike:$lhs,
                        FloatLike:$rhs);
-
-  let builders = [
-    OpBuilder<(ins "CmpFPredicate":$predicate, "Value":$lhs, "Value":$rhs), [{
-      build($_builder, $_state, ::getI1SameShape(lhs.getType()),
-            predicate, lhs, rhs);
-    }]>
-  ];
 
   let extraClassDeclaration = [{
     static arith::CmpFPredicate getPredicateByName(StringRef name);
