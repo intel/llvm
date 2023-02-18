@@ -17,6 +17,7 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FortranVariableInterface.h"
 #include "flang/Optimizer/HLFIR/HLFIRDialect.h"
+#include <optional>
 
 namespace fir {
 class FirOpBuilder;
@@ -111,12 +112,14 @@ public:
       return false;
     if (isMutableBox())
       return true;
-    if (auto varIface = getIfVariableInterface())
+    if (auto varIface = getIfVariableInterface()) {
       if (auto shape = varIface.getShape()) {
         auto shapeTy = shape.getType();
         return shapeTy.isa<fir::ShiftType>() ||
                shapeTy.isa<fir::ShapeShiftType>();
       }
+      return false;
+    }
     return true;
   }
 
@@ -162,7 +165,7 @@ public:
 /// In that case, a cleanup function is provided to generate the finalization
 /// code after the end of the fir::ExtendedValue use.
 using CleanupFunction = std::function<void()>;
-std::pair<fir::ExtendedValue, llvm::Optional<CleanupFunction>>
+std::pair<fir::ExtendedValue, std::optional<CleanupFunction>>
 translateToExtendedValue(mlir::Location loc, fir::FirOpBuilder &builder,
                          Entity entity);
 
@@ -223,6 +226,10 @@ hlfir::Entity getElementAt(mlir::Location loc, fir::FirOpBuilder &builder,
 /// Compute the lower and upper bounds of an entity.
 llvm::SmallVector<std::pair<mlir::Value, mlir::Value>>
 genBounds(mlir::Location loc, fir::FirOpBuilder &builder, Entity entity);
+/// Compute the lower and upper bounds given a fir.shape or fir.shape_shift
+/// (fir.shift is not allowed here).
+llvm::SmallVector<std::pair<mlir::Value, mlir::Value>>
+genBounds(mlir::Location loc, fir::FirOpBuilder &builder, mlir::Value shape);
 
 /// Compute fir.shape<> (no lower bounds) for an entity.
 mlir::Value genShape(mlir::Location loc, fir::FirOpBuilder &builder,

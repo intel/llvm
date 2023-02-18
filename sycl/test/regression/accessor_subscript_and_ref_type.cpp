@@ -81,13 +81,14 @@ template <typename DataT, access::mode AccessMode> void CheckAccAllDims() {
 }
 
 template <typename DataT> void CheckAccAllAccessModesAndDims() {
-  CheckAccAllDims<DataT, access::mode::write>();
-  CheckAccAllDims<DataT, access::mode::read_write>();
-  CheckAccAllDims<DataT, access::mode::discard_write>();
-  CheckAccAllDims<DataT, access::mode::discard_read_write>();
   CheckAccAllDims<DataT, access::mode::read>();
-  if constexpr (!std::is_const_v<DataT>)
+  if constexpr (!std::is_const_v<DataT>) {
+    CheckAccAllDims<DataT, access::mode::write>();
+    CheckAccAllDims<DataT, access::mode::read_write>();
+    CheckAccAllDims<DataT, access::mode::discard_write>();
+    CheckAccAllDims<DataT, access::mode::discard_read_write>();
     CheckAccAllDims<DataT, access::mode::atomic>();
+  }
 }
 
 int main() {

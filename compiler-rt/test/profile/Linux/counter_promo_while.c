@@ -12,7 +12,7 @@
 // RUN: %run %t.nopromo.gen
 // RUN: llvm-profdata merge -o %t.nopromo.profdata %t.nopromo.prof/
 // RUN: llvm-profdata show --counts --all-functions %t.nopromo.profdata  > %t.nopromo.dump
-// RUN: diff %t.promo.profdata %t.nopromo.profdata
+// RUN: diff <(llvm-profdata show %t.promo.profdata) <(llvm-profdata show %t.nopromo.profdata)
 int g;
 __attribute__((noinline)) void bar(int i) { g += i; }
 __attribute__((noinline)) void foo(int n, int N) {
@@ -41,7 +41,7 @@ __attribute__((noinline)) void foo(int n, int N) {
   while (i < N) {
     if (i < n + 1)
       bar(1);
-    else if (i < n - 1)
+    else if (i == n - 1)
       bar(2);
     else
       bar(3);
