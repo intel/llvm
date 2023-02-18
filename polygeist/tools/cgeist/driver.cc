@@ -23,6 +23,7 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVMPass.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
@@ -58,8 +59,8 @@
 #include "llvm/Support/WithColor.h"
 
 #include "Options.h"
-#include "polygeist/Dialect.h"
-#include "polygeist/Passes/Passes.h"
+#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include <fstream>
 
@@ -612,7 +613,7 @@ static int finalize(mlir::MLIRContext &Ctx,
       LowerToLLVMOptions Options(&Ctx);
       Options.dataLayout = DL;
       Options.useBarePtrCallConv = true;
-      PM3.addPass(polygeist::createConvertPolygeistToLLVMPass(Options));
+      PM3.addPass(createConvertPolygeistToLLVMPass(Options));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
