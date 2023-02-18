@@ -342,32 +342,32 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
   }
 }
 
-template<typename PtrT>
-void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type, CUdeviceptr *out_dev_ptr, PtrT* out_host_ptr) {
-    // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
-    // checks with PI_CHECK_ERROR are not suggested
-    CUresult ret = cuPointerGetAttribute(out_mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
-					 (CUdeviceptr)usm_ptr);
-    assert(
-        (*out_mem_type != CU_MEMORYTYPE_ARRAY && *out_mem_type != CU_MEMORYTYPE_UNIFIED) &&
-        "ARRAY, UNIFIED types are not supported!");
+template <typename PtrT>
+void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
+                           CUdeviceptr *out_dev_ptr, PtrT *out_host_ptr) {
+  // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+  // checks with PI_CHECK_ERROR are not suggested
+  CUresult ret = cuPointerGetAttribute(
+      out_mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)usm_ptr);
+  assert((*out_mem_type != CU_MEMORYTYPE_ARRAY &&
+          *out_mem_type != CU_MEMORYTYPE_UNIFIED) &&
+         "ARRAY, UNIFIED types are not supported!");
 
-    // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
-    if (ret == CUDA_ERROR_INVALID_VALUE) {
-	*out_mem_type = CU_MEMORYTYPE_HOST;
-	*out_dev_ptr = 0;
-	*out_host_ptr = usm_ptr;
+  // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+  if (ret == CUDA_ERROR_INVALID_VALUE) {
+    *out_mem_type = CU_MEMORYTYPE_HOST;
+    *out_dev_ptr = 0;
+    *out_host_ptr = usm_ptr;
 
-	// todo: resets the above "non-stick" error
-    } else if (ret == CUDA_SUCCESS) {
-	*out_dev_ptr = (*out_mem_type == CU_MEMORYTYPE_DEVICE)
-	    ? reinterpret_cast<CUdeviceptr>(usm_ptr)
-	    : 0;
-	*out_host_ptr = (*out_mem_type == CU_MEMORYTYPE_HOST) ? usm_ptr : nullptr;
-    } else {
-	PI_CHECK_ERROR(ret);
-    }
-
+    // todo: resets the above "non-stick" error
+  } else if (ret == CUDA_SUCCESS) {
+    *out_dev_ptr = (*out_mem_type == CU_MEMORYTYPE_DEVICE)
+                       ? reinterpret_cast<CUdeviceptr>(usm_ptr)
+                       : 0;
+    *out_host_ptr = (*out_mem_type == CU_MEMORYTYPE_HOST) ? usm_ptr : nullptr;
+  } else {
+    PI_CHECK_ERROR(ret);
+  }
 }
 
 } // anonymous namespace
@@ -5292,8 +5292,10 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     // for both the src_ptr and dst_ptr
     CUDA_MEMCPY2D cpyDesc = {0};
 
-    getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice, &cpyDesc.srcHost);
-    getUSMHostOrDevicePtr(dst_ptr, &cpyDesc.dstMemoryType, &cpyDesc.dstDevice, &cpyDesc.dstHost);
+    getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
+                          &cpyDesc.srcHost);
+    getUSMHostOrDevicePtr(dst_ptr, &cpyDesc.dstMemoryType, &cpyDesc.dstDevice,
+                          &cpyDesc.dstHost);
 
     cpyDesc.dstPitch = dst_pitch;
     cpyDesc.srcPitch = src_pitch;
