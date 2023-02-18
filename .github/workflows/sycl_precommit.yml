@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
