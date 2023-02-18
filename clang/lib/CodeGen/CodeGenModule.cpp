@@ -2162,6 +2162,23 @@ CodeGenModule::GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr) {
   return FTRTTIProxy;
 }
 
+/// Function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl"
+static bool checkIfDeclaredInSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  if (!ND)
+    return false;
+
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
+
 void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B(F->getContext());
@@ -2283,6 +2300,12 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   }
 
   F->addFnAttrs(B);
+
+  if (getLangOpts().SYCLIsDevice && getCodeGenOpts().OptimizeSYCLFramework &&
+      checkIfDeclaredInSYCLNamespace(D)) {
+    F->removeFnAttr(llvm::Attribute::OptimizeNone);
+    F->removeFnAttr(llvm::Attribute::NoInline);
+  }
 
   unsigned alignment = D->getMaxAlignment() / Context.getCharWidth();
   if (alignment)
@@ -5508,14 +5531,22 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
-    // Add IR attributes if add_ir_attribute_global_variable is attached to
-    // type.
-    if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
-      AddGlobalSYCLIRAttributes(GV, RD);
-    // If VarDecl has a type decorated with SYCL device_global attribute, emit
-    // IR attribute 'sycl-unique-id'.
-    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
-      addSYCLUniqueID(GV, D, Context);
+
+    if (RD) {
+      // Add IR attributes if add_ir_attribute_global_variable is attached to
+      // type.
+      if (RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
+        AddGlobalSYCLIRAttributes(GV, RD);
+      // If VarDecl has a type decorated with SYCL device_global attribute 
+      // emit IR attribute 'sycl-unique-id'.
+      if (RD->hasAttr<SYCLDeviceGlobalAttr>())
+        addSYCLUniqueID(GV, D, Context);
+      // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
+      // 'sycl-unique-id'.
+      if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
+        if (Attr->getType() == SYCLTypeAttr::SYCLType::host_pipe)
+          addSYCLUniqueID(GV, D, Context);
+    }
   }
 
   if (D->getType().isRestrictQualified()) {
