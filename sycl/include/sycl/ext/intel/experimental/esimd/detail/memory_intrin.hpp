@@ -388,20 +388,6 @@ void __esimd_emu_lsc_offset_write(
   static_assert(ImmOffset == 0);
   static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
 
-  using StoreType = typename std::conditional_t<
-      DS == __ESIMD_ENS::lsc_data_size::u8, uint8_t,
-      std::conditional_t<
-          DS == __ESIMD_ENS::lsc_data_size::u16, uint16_t,
-          std::conditional_t<
-              DS == __ESIMD_ENS::lsc_data_size::u32, uint32_t,
-              std::conditional_t<
-                  DS == __ESIMD_ENS::lsc_data_size::u64, uint64_t,
-                  std::conditional_t<
-                      DS == __ESIMD_ENS::lsc_data_size::u8u32, uint8_t,
-                      std::conditional_t<DS ==
-                                             __ESIMD_ENS::lsc_data_size::u16u32,
-                                         uint16_t, void>>>>>>;
-
   for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
     if (Pred[OffsetIdx] == 0) {
       // Skip input vector elements correpsonding to
@@ -420,7 +406,7 @@ void __esimd_emu_lsc_offset_write(
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
-        *((StoreType *)(WriteBase + ByteDistance)) = vals[VecIdx];
+        *((Ty *)(WriteBase + ByteDistance)) = vals[VecIdx];
       }
     }
   }
