@@ -1,6 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='builtin.module(func.func(canonicalize))' -split-input-file -allow-unregistered-dialect | FileCheck %s
-
-// -----
+// RUN: mlir-opt %s -canonicalize="test-convergence" -split-input-file -allow-unregistered-dialect | FileCheck %s
 
 // CHECK-LABEL: create_vector_mask_to_constant_mask
 func.func @create_vector_mask_to_constant_mask() -> (vector<4x3xi1>) {
@@ -515,6 +513,18 @@ func.func @fold_extract_transpose(
 //       CHECK:   return %[[A]] : f32
 func.func @fold_extract_broadcast(%a : f32) -> f32 {
   %b = vector.broadcast %a : f32 to vector<1x2x4xf32>
+  %r = vector.extract %b[0, 1, 2] : vector<1x2x4xf32>
+  return %r : f32
+}
+
+// -----
+
+// CHECK-LABEL: fold_extract_broadcast_0dvec
+//  CHECK-SAME:   %[[A:.*]]: vector<f32>
+//       CHECK:   %[[B:.+]] = vector.extractelement %[[A]][] : vector<f32>
+//       CHECK:   return %[[B]] : f32
+func.func @fold_extract_broadcast_0dvec(%a : vector<f32>) -> f32 {
+  %b = vector.broadcast %a : vector<f32> to vector<1x2x4xf32>
   %r = vector.extract %b[0, 1, 2] : vector<1x2x4xf32>
   return %r : f32
 }
