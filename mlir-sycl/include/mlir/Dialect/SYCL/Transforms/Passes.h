@@ -17,8 +17,7 @@
 
 #include "mlir/Pass/Pass.h"
 
-#include "polygeist/Dialect.h"
-#include "polygeist/Passes/Passes.h"
+#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
 
 namespace mlir {
 namespace sycl {

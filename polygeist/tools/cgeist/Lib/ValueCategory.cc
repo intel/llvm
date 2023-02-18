@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===- ValueCategory.cc ------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,8 +8,8 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "polygeist/Ops.h"
 #include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
