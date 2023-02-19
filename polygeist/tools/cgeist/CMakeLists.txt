@@ -1,5 +1,3 @@
-# Copyright (C) Codeplay Software Limited
-
 set( LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Analysis
@@ -67,6 +65,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRAffineToStandard
   MLIRMathToLLVM
   MLIRTargetLLVMIRImport
+  MLIRPolygeistToLLVM
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
   MLIRSCFToOpenMP

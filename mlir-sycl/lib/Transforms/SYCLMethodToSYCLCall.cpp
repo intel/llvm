@@ -24,7 +24,7 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "polygeist/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-method-to-sycl-call"
