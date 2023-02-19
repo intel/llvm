@@ -286,7 +286,7 @@ func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
   return
 }  
 
-// COM: Ensure aliased store dominating load can be hoisted.
+// COM: Ensure aliased store after dominating load cannot be hoisted.
 func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
   // CHECK:        func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
@@ -308,8 +308,8 @@ func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
   affine.for %arg2 = 0 to 10 {    
     // Cannot hoist the load because the loop has a store that can change the loaded result. 
     %c3_1 = affine.load %alloca[0] : memref<1xi32>
-    // Cannot hoist the store because it changes the value loaded by the previos operation, 
-    // (the store does not dominates the load).
+    // Cannot hoist the store because it changes the value loaded by the previous operation, 
+    // (the store does not dominates the load %c3_1).
     affine.store %c4, %alloca[0] : memref<1xi32>
     %arr = affine.load %arg0[0] : memref<?xi32>
     %add = arith.addi %arr, %c3_1 : i32

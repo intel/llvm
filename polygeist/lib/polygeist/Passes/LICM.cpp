@@ -104,7 +104,7 @@ public:
 private:
   const Operation &op; /// Operation associated with the side effects.
   const AliasAnalysis &aliasAnalysis; /// Alias Analysis reference.
-  const DominanceInfo &domInfo;       // Dominance information reference.
+  const DominanceInfo &domInfo;       /// Dominance information reference.
 
   /// Side effects associated with reading resources.
   SmallVector<MemoryEffects::EffectInstance> readResources;
