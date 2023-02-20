@@ -299,7 +299,7 @@ DynamicOpDefinition::DynamicOpDefinition(
     : Impl(StringAttr::get(dialect->getContext(),
                            (dialect->getNamespace() + "." + name).str()),
            dialect, dialect->allocateTypeID(),
-           /*interfaceMap=*/detail::InterfaceMap(std::nullopt)),
+           /*interfaceMap=*/detail::InterfaceMap()),
       verifyFn(std::move(verifyFn)), verifyRegionFn(std::move(verifyRegionFn)),
       parseFn(std::move(parseFn)), printFn(std::move(printFn)),
       foldHookFn(std::move(foldHookFn)),
@@ -407,9 +407,10 @@ void ExtensibleDialect::registerDynamicType(
   assert(registered &&
          "Trying to create a new dynamic type with an existing name");
 
-  auto abstractType =
-      AbstractType::get(*dialect, DynamicAttr::getInterfaceMap(),
-                        DynamicType::getHasTraitFn(), typeID);
+  auto abstractType = AbstractType::get(
+      *dialect, DynamicAttr::getInterfaceMap(), DynamicType::getHasTraitFn(),
+      DynamicType::getWalkImmediateSubElementsFn(),
+      DynamicType::getReplaceImmediateSubElementsFn(), typeID);
 
   /// Add the type to the dialect and the type uniquer.
   addType(typeID, std::move(abstractType));
@@ -436,9 +437,10 @@ void ExtensibleDialect::registerDynamicAttr(
   assert(registered &&
          "Trying to create a new dynamic attribute with an existing name");
 
-  auto abstractAttr =
-      AbstractAttribute::get(*dialect, DynamicAttr::getInterfaceMap(),
-                             DynamicAttr::getHasTraitFn(), typeID);
+  auto abstractAttr = AbstractAttribute::get(
+      *dialect, DynamicAttr::getInterfaceMap(), DynamicAttr::getHasTraitFn(),
+      DynamicAttr::getWalkImmediateSubElementsFn(),
+      DynamicAttr::getReplaceImmediateSubElementsFn(), typeID);
 
   /// Add the type to the dialect and the type uniquer.
   addAttribute(typeID, std::move(abstractAttr));

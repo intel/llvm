@@ -153,7 +153,7 @@ protected:
                            SmallVectorImpl<OpFoldResult> &) final;
     void getCanonicalizationPatterns(RewritePatternSet &, MLIRContext *) final;
     bool hasTrait(TypeID) final;
-    virtual OperationName::ParseAssemblyFn getParseAssemblyFn() final;
+    OperationName::ParseAssemblyFn getParseAssemblyFn() final;
     void populateDefaultAttrs(const OperationName &, NamedAttrList &) final;
     void printAssembly(Operation *, OpAsmPrinter &, StringRef) final;
     LogicalResult verifyInvariants(Operation *) final;
@@ -284,8 +284,9 @@ public:
 
   /// Attach the given models as implementations of the corresponding
   /// interfaces for the concrete operation.
-  template <typename... Models> void attachInterface() {
-    getImpl()->getInterfaceMap().insert<Models...>();
+  template <typename... Models>
+  void attachInterface() {
+    getImpl()->getInterfaceMap().insertModels<Models...>();
   }
 
   /// Returns true if this operation has the given interface registered to it.
@@ -320,6 +321,9 @@ public:
 
   /// Return the operation name with dialect name stripped, if it has one.
   StringRef stripDialect() const { return getStringRef().split('.').second; }
+
+  /// Return the context this operation is associated with.
+  MLIRContext *getContext() { return getIdentifier().getContext(); }
 
   /// Return the name of this operation. This always succeeds.
   StringRef getStringRef() const { return getIdentifier(); }
@@ -378,7 +382,8 @@ class RegisteredOperationName : public OperationName {
 public:
   /// Implementation of the InterfaceConcept for operation APIs that forwarded
   /// to a concrete op implementation.
-  template <typename ConcreteOp> struct Model : public Impl {
+  template <typename ConcreteOp>
+  struct Model : public Impl {
     Model(Dialect *dialect)
         : Impl(ConcreteOp::getOperationName(), dialect,
                TypeID::get<ConcreteOp>(), ConcreteOp::getInterfaceMap()) {}
@@ -418,7 +423,8 @@ public:
   /// Register a new operation in a Dialect object.
   /// This constructor is used by Dialect objects when they register the list
   /// of operations they contain.
-  template <typename T> static void insert(Dialect &dialect) {
+  template <typename T>
+  static void insert(Dialect &dialect) {
     insert(std::make_unique<Model<T>>(&dialect), T::getAttributeNames());
   }
   /// The use of this method is in general discouraged in favor of
@@ -920,24 +926,36 @@ struct OperationEquivalence {
   /// operands/result mapping.
   static llvm::hash_code directHashValue(Value v) { return hash_value(v); }
 
-  /// Compare two operations and return if they are equivalent.
-  /// `mapOperands` and `mapResults` are optional callbacks that allows the
-  /// caller to check the mapping of SSA value between the lhs and rhs
-  /// operations. It is expected to return success if the mapping is valid and
-  /// failure if it conflicts with a previous mapping.
+  /// Compare two operations (including their regions) and return if they are
+  /// equivalent.
+  ///
+  /// * `checkEquivalent` is a callback to check if two values are equivalent.
+  ///   For two operations to be equivalent, their operands must be the same SSA
+  ///   value or this callback must return `success`.
+  /// * `markEquivalent` is a callback to inform the caller that the analysis
+  ///   determined that two values are equivalent.
+  ///
+  /// Note: Additional information regarding value equivalence can be injected
+  /// into the analysis via `checkEquivalent`. Typically, callers may want
+  /// values that were determined to be equivalent as per `markEquivalent` to be
+  /// reflected in `checkEquivalent`, unless `exactValueMatch` or a different
+  /// equivalence relationship is desired.
   static bool
   isEquivalentTo(Operation *lhs, Operation *rhs,
-                 function_ref<LogicalResult(Value, Value)> mapOperands,
-                 function_ref<LogicalResult(Value, Value)> mapResults,
+                 function_ref<LogicalResult(Value, Value)> checkEquivalent,
+                 function_ref<void(Value, Value)> markEquivalent = nullptr,
                  Flags flags = Flags::None);
 
-  /// Helper that can be used with `isEquivalentTo` above to ignore operation
-  /// operands/result mapping.
+  /// Compare two operations and return if they are equivalent.
+  static bool isEquivalentTo(Operation *lhs, Operation *rhs, Flags flags);
+
+  /// Helper that can be used with `isEquivalentTo` above to consider ops
+  /// equivalent even if their operands are not equivalent.
   static LogicalResult ignoreValueEquivalence(Value lhs, Value rhs) {
     return success();
   }
-  /// Helper that can be used with `isEquivalentTo` above to ignore operation
-  /// operands/result mapping.
+  /// Helper that can be used with `isEquivalentTo` above to consider ops
+  /// equivalent only if their operands are the exact same SSA values.
   static LogicalResult exactValueMatch(Value lhs, Value rhs) {
     return success(lhs == rhs);
   }

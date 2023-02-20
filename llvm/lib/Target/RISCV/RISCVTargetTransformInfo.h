@@ -76,9 +76,9 @@ public:
   bool shouldExpandReduction(const IntrinsicInst *II) const;
   bool supportsScalableVectors() const { return ST->hasVInstructions(); }
   bool enableScalableVectorization() const { return ST->hasVInstructions(); }
-  PredicationStyle emitGetActiveLaneMask() const {
-    return ST->hasVInstructions() ? PredicationStyle::Data
-                                  : PredicationStyle::None;
+  TailFoldingStyle getPreferredTailFoldingStyle() const {
+    return ST->hasVInstructions() ? TailFoldingStyle::Data
+                                  : TailFoldingStyle::DataWithoutLaneMask;
   }
   std::optional<unsigned> getMaxVScale() const;
   std::optional<unsigned> getVScaleForTuning() const;
@@ -157,8 +157,9 @@ public:
                                      const Instruction *I = nullptr);
 
   using BaseT::getVectorInstrCost;
-  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index,
-                                     Value *Op0, Value *Op1);
+  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
 
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
@@ -177,12 +178,6 @@ public:
 
     // Only support fixed vectors if we know the minimum vector size.
     if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
-      return false;
-
-    // Don't allow elements larger than the ELEN.
-    // FIXME: How to limit for scalable vectors?
-    if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <
@@ -205,12 +200,6 @@ public:
 
     // Only support fixed vectors if we know the minimum vector size.
     if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
-      return false;
-
-    // Don't allow elements larger than the ELEN.
-    // FIXME: How to limit for scalable vectors?
-    if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <
@@ -335,6 +324,9 @@ public:
     }
     llvm_unreachable("unknown register class");
   }
+
+  bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
+                     const TargetTransformInfo::LSRCost &C2);
 };
 
 } // end namespace llvm

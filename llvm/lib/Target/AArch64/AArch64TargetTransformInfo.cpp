@@ -1436,7 +1436,7 @@ static std::optional<Instruction *> instCombineSVESDIV(InstCombiner &IC,
   return std::nullopt;
 }
 
-bool SimplifyValuePattern(SmallVector<Value *> &Vec) {
+bool SimplifyValuePattern(SmallVector<Value *> &Vec, bool AllowPoison) {
   size_t VecSize = Vec.size();
   if (VecSize == 1)
     return true;
@@ -1446,13 +1446,20 @@ bool SimplifyValuePattern(SmallVector<Value *> &Vec) {
 
   for (auto LHS = Vec.begin(), RHS = Vec.begin() + HalfVecSize;
        RHS != Vec.end(); LHS++, RHS++) {
-    if (*LHS != nullptr && *RHS != nullptr && *LHS == *RHS)
-      continue;
-    return false;
+    if (*LHS != nullptr && *RHS != nullptr) {
+      if (*LHS == *RHS)
+        continue;
+      else
+        return false;
+    }
+    if (!AllowPoison)
+      return false;
+    if (*LHS == nullptr && *RHS != nullptr)
+      *LHS = *RHS;
   }
 
   Vec.resize(HalfVecSize);
-  SimplifyValuePattern(Vec);
+  SimplifyValuePattern(Vec, AllowPoison);
   return true;
 }
 
@@ -1476,7 +1483,9 @@ static std::optional<Instruction *> instCombineSVEDupqLane(InstCombiner &IC,
     CurrentInsertElt = InsertElt->getOperand(0);
   }
 
-  if (!SimplifyValuePattern(Elts))
+  bool AllowPoison =
+      isa<PoisonValue>(CurrentInsertElt) && isa<PoisonValue>(Default);
+  if (!SimplifyValuePattern(Elts, AllowPoison))
     return std::nullopt;
 
   // Rebuild the simplified chain of InsertElements. e.g. (a, b, a, b) as (a, b)
@@ -1484,9 +1493,13 @@ static std::optional<Instruction *> instCombineSVEDupqLane(InstCombiner &IC,
   Builder.SetInsertPoint(&II);
   Value *InsertEltChain = PoisonValue::get(CurrentInsertElt->getType());
   for (size_t I = 0; I < Elts.size(); I++) {
+    if (Elts[I] == nullptr)
+      continue;
     InsertEltChain = Builder.CreateInsertElement(InsertEltChain, Elts[I],
                                                  Builder.getInt64(I));
   }
+  if (InsertEltChain == nullptr)
+    return std::nullopt;
 
   // Splat the simplified sequence, e.g. (f16 a, f16 b, f16 c, f16 d) as one i64
   // value or (f16 a, f16 b) as one i32 value. This requires an InsertSubvector
@@ -2118,14 +2131,14 @@ InstructionCost AArch64TTIImpl::getExtractWithExtendCost(unsigned Opcode,
 
   // Get the cost for the extract. We compute the cost (if any) for the extend
   // below.
+  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
   InstructionCost Cost = getVectorInstrCost(Instruction::ExtractElement, VecTy,
-                                            Index, nullptr, nullptr);
+                                            CostKind, Index, nullptr, nullptr);
 
   // Legalize the types.
   auto VecLT = getTypeLegalizationCost(VecTy);
   auto DstVT = TLI->getValueType(DL, Dst);
   auto SrcVT = TLI->getValueType(DL, Src);
-  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
 
   // If the resulting type is still a vector and the destination type is legal,
   // we may get the extension for free. If not, get the default cost for the
@@ -2171,7 +2184,8 @@ InstructionCost AArch64TTIImpl::getCFInstrCost(unsigned Opcode,
   return 0;
 }
 
-InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
+InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(const Instruction *I,
+                                                         Type *Val,
                                                          unsigned Index,
                                                          bool HasRealUse) {
   assert(Val->isVectorTy() && "This must be a vector type");
@@ -2197,14 +2211,21 @@ InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
     // needed. So it has non-zero cost.
     // - For the rest of cases (virtual instruction or element type is float),
     // consider the instruction free.
-    //
+    if (Index == 0 && (!HasRealUse || !Val->getScalarType()->isIntegerTy()))
+      return 0;
+
+    // This is recognising a LD1 single-element structure to one lane of one
+    // register instruction. I.e., if this is an `insertelement` instruction,
+    // and its second operand is a load, then we will generate a LD1, which
+    // are expensive instructions.
+    if (I && dyn_cast<LoadInst>(I->getOperand(1)))
+      return ST->getVectorInsertExtractBaseCost() + 1;
+
     // FIXME:
     // If the extract-element and insert-element instructions could be
     // simplified away (e.g., could be combined into users by looking at use-def
     // context), they have no cost. This is not done in the first place for
     // compile-time considerations.
-    if (Index == 0 && (!HasRealUse || !Val->getScalarType()->isIntegerTy()))
-      return 0;
   }
 
   // All other insert/extracts cost this much.
@@ -2212,14 +2233,17 @@ InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
+                                                   TTI::TargetCostKind CostKind,
                                                    unsigned Index, Value *Op0,
                                                    Value *Op1) {
-  return getVectorInstrCostHelper(Val, Index, false /* HasRealUse */);
+  return getVectorInstrCostHelper(nullptr, Val, Index, false /* HasRealUse */);
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(const Instruction &I,
-                                                   Type *Val, unsigned Index) {
-  return getVectorInstrCostHelper(Val, Index, true /* HasRealUse */);
+                                                   Type *Val,
+                                                   TTI::TargetCostKind CostKind,
+                                                   unsigned Index) {
+  return getVectorInstrCostHelper(&I, Val, Index, true /* HasRealUse */);
 }
 
 InstructionCost AArch64TTIImpl::getArithmeticInstrCost(

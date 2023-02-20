@@ -574,7 +574,7 @@ public:
     // performs the initialization too late (once both target and language
     // options are read).
     PP.getFileManager().setVirtualFileSystem(createVFSFromOverlayFiles(
-        HSOpts.VFSOverlayFiles, HSOpts.VFSStatCacheFiles, PP.getDiagnostics(),
+        HSOpts.VFSOverlayFiles, PP.getDiagnostics(),
         PP.getFileManager().getVirtualFileSystemPtr()));
 
     InitializedHeaderSearchPaths = true;
@@ -876,6 +876,10 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   AST->OriginalSourceFile = std::string(AST->Reader->getOriginalSourceFile());
 
   PP.setCounterValue(Counter);
+
+  Module *M = HeaderInfo.lookupModule(AST->getLangOpts().CurrentModule);
+  if (M && AST->getLangOpts().isCompilingModule() && M->isModulePurview())
+    AST->Ctx->setNamedModuleForCodeGen(M);
 
   // Create an AST consumer, even though it isn't used.
   if (ToLoad >= LoadASTOnly)

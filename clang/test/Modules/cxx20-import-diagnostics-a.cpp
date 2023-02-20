@@ -70,7 +70,7 @@ module;
 
 module AOK1;
 
-export import C; // expected-error {{export declaration can only be used within a module interface unit}}
+export import C; // expected-error {{export declaration can only be used within a module purview}}
 
 int theAnswer () { return 42; }
 
@@ -95,14 +95,13 @@ import C; // expected-error {{imports must immediately follow the module declara
 //--- import-diags-tu7.cpp
 
 module;
-// We can only have preprocessor directives here, which permits an include-
-// translated header unit.  However those are identified specifically by the
-// preprocessor; non-preprocessed user code should not contain an 'import' here.
-import B; // expected-error {{module imports cannot be in the global module fragment}}
-
+// We can only have preprocessor directives here, which permits
+// header units (include-translated or not) and named modules.
+import B;
 export module D;
 
 int delta ();
+// expected-no-diagnostics
 
 //--- import-diags-tu8.cpp
 
@@ -112,7 +111,7 @@ int delta ();
 
 module :private;
 
-import B; // expected-error {{module imports cannot be in the private module fragment}}
+import B; // expected-error {{imports must immediately follow the module declaration}}
 
 //--- import-diags-tu9.cpp
 

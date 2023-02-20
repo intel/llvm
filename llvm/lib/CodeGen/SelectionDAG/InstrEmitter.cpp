@@ -218,7 +218,7 @@ void InstrEmitter::CreateVirtualRegisters(SDNode *Node,
         RC = VTRC;
     }
 
-    if (II.OpInfo != nullptr && II.OpInfo[i].isOptionalDef()) {
+    if (!II.operands().empty() && II.operands()[i].isOptionalDef()) {
       // Optional def must be a physical register.
       VRBase = cast<RegisterSDNode>(Node->getOperand(i-NumResults))->getReg();
       assert(VRBase.isPhysical());
@@ -304,7 +304,7 @@ InstrEmitter::AddRegisterOperand(MachineInstrBuilder &MIB,
 
   const MCInstrDesc &MCID = MIB->getDesc();
   bool isOptDef = IIOpNum < MCID.getNumOperands() &&
-    MCID.OpInfo[IIOpNum].isOptionalDef();
+                  MCID.operands()[IIOpNum].isOptionalDef();
 
   // If the instruction requires a register in a different class, create
   // a new virtual register and copy the value into it, but first attempt to
@@ -1021,8 +1021,8 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
     countOperands(Node, II.getNumOperands() - NumDefs, NumImpUses);
   bool HasVRegVariadicDefs = !MF->getTarget().usesPhysRegsForValues() &&
                              II.isVariadic() && II.variadicOpsAreDefs();
-  bool HasPhysRegOuts = NumResults > NumDefs &&
-                        II.getImplicitDefs() != nullptr && !HasVRegVariadicDefs;
+  bool HasPhysRegOuts = NumResults > NumDefs && !II.implicit_defs().empty() &&
+                        !HasVRegVariadicDefs;
 #ifndef NDEBUG
   unsigned NumMIOperands = NodeOperands + NumResults;
   if (II.isVariadic())
@@ -1030,8 +1030,8 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
            "Too few operands for a variadic node!");
   else
     assert(NumMIOperands >= II.getNumOperands() &&
-           NumMIOperands <= II.getNumOperands() + II.getNumImplicitDefs() +
-                            NumImpUses &&
+           NumMIOperands <=
+               II.getNumOperands() + II.implicit_defs().size() + NumImpUses &&
            "#operands for dag node doesn't match .td file!");
 #endif
 
@@ -1128,7 +1128,7 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
   // Additional results must be physical register defs.
   if (HasPhysRegOuts) {
     for (unsigned i = NumDefs; i < NumResults; ++i) {
-      Register Reg = II.getImplicitDefs()[i - NumDefs];
+      Register Reg = II.implicit_defs()[i - NumDefs];
       if (!Node->hasAnyUseOfValue(i))
         continue;
       // This implicitly defined physreg has a use.
@@ -1149,8 +1149,7 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
       }
       // Collect declared implicit uses.
       const MCInstrDesc &MCID = TII->get(F->getMachineOpcode());
-      UsedRegs.append(MCID.getImplicitUses(),
-                      MCID.getImplicitUses() + MCID.getNumImplicitUses());
+      append_range(UsedRegs, MCID.implicit_uses());
       // In addition to declared implicit uses, we must also check for
       // direct RegisterSDNode operands.
       for (unsigned i = 0, e = F->getNumOperands(); i != e; ++i)
@@ -1162,8 +1161,15 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
     }
   }
 
+  // Add rounding control registers as implicit def for function call.
+  if (II.isCall() && MF->getFunction().hasFnAttribute(Attribute::StrictFP)) {
+    ArrayRef<MCPhysReg> RCRegs = TLI->getRoundingControlRegisters();
+    for (MCPhysReg Reg : RCRegs)
+      UsedRegs.push_back(Reg);
+  }
+
   // Finally mark unused registers as dead.
-  if (!UsedRegs.empty() || II.getImplicitDefs() || II.hasOptionalDef())
+  if (!UsedRegs.empty() || !II.implicit_defs().empty() || II.hasOptionalDef())
     MIB->setPhysRegsDeadExcept(UsedRegs, *TRI);
 
   // STATEPOINT is too 'dynamic' to have meaningful machine description.
@@ -1395,12 +1401,11 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
 /// InstrEmitter - Construct an InstrEmitter and set it to start inserting
 /// at the given position in the given block.
 InstrEmitter::InstrEmitter(const TargetMachine &TM, MachineBasicBlock *mbb,
-                           MachineBasicBlock::iterator insertpos,
-                           bool UseInstrRefDebugInfo)
+                           MachineBasicBlock::iterator insertpos)
     : MF(mbb->getParent()), MRI(&MF->getRegInfo()),
       TII(MF->getSubtarget().getInstrInfo()),
       TRI(MF->getSubtarget().getRegisterInfo()),
       TLI(MF->getSubtarget().getTargetLowering()), MBB(mbb),
       InsertPos(insertpos) {
-  EmitDebugInstrRefs = UseInstrRefDebugInfo;
+  EmitDebugInstrRefs = mbb->getParent()->useDebugInstrRef();
 }

@@ -60,11 +60,10 @@ void genDeallocateBox(AbstractConverter &converter,
 /// Create a MutableBoxValue for an allocatable or pointer entity.
 /// If the variables is a local variable that is not a dummy, it will be
 /// initialized to unallocated/diassociated status.
-fir::MutableBoxValue createMutableBox(AbstractConverter &converter,
-                                      mlir::Location loc,
-                                      const pft::Variable &var,
-                                      mlir::Value boxAddr,
-                                      mlir::ValueRange nonDeferredParams);
+fir::MutableBoxValue
+createMutableBox(AbstractConverter &converter, mlir::Location loc,
+                 const pft::Variable &var, mlir::Value boxAddr,
+                 mlir::ValueRange nonDeferredParams, bool alwaysUseBox);
 
 /// Assign a boxed value to a boxed variable, \p box (known as a
 /// MutableBoxValue). Expression \p source will be lowered to build the
@@ -89,7 +88,7 @@ mlir::Value getAssumedCharAllocatableOrPointerLen(
 
 /// Retrieve the address of a type descriptor from its derived type spec.
 mlir::Value
-getTypeDescAddr(fir::FirOpBuilder &builder, mlir::Location loc,
+getTypeDescAddr(AbstractConverter &converter, mlir::Location loc,
                 const Fortran::semantics::DerivedTypeSpec &typeSpec);
 
 } // namespace lower

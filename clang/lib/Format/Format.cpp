@@ -443,6 +443,7 @@ struct ScalarEnumerationTraits<FormatStyle::PackConstructorInitializersStyle> {
     IO.enumCase(Value, "BinPack", FormatStyle::PCIS_BinPack);
     IO.enumCase(Value, "CurrentLine", FormatStyle::PCIS_CurrentLine);
     IO.enumCase(Value, "NextLine", FormatStyle::PCIS_NextLine);
+    IO.enumCase(Value, "NextLineOnly", FormatStyle::PCIS_NextLineOnly);
   }
 };
 
@@ -603,6 +604,21 @@ struct ScalarEnumerationTraits<FormatStyle::SortJavaStaticImportOptions> {
                           FormatStyle::SortJavaStaticImportOptions &Value) {
     IO.enumCase(Value, "Before", FormatStyle::SJSIO_Before);
     IO.enumCase(Value, "After", FormatStyle::SJSIO_After);
+  }
+};
+
+template <>
+struct ScalarEnumerationTraits<FormatStyle::SortUsingDeclarationsOptions> {
+  static void enumeration(IO &IO,
+                          FormatStyle::SortUsingDeclarationsOptions &Value) {
+    IO.enumCase(Value, "Never", FormatStyle::SUD_Never);
+    IO.enumCase(Value, "Lexicographic", FormatStyle::SUD_Lexicographic);
+    IO.enumCase(Value, "LexicographicNumeric",
+                FormatStyle::SUD_LexicographicNumeric);
+
+    // For backward compatibility.
+    IO.enumCase(Value, "false", FormatStyle::SUD_Never);
+    IO.enumCase(Value, "true", FormatStyle::SUD_LexicographicNumeric);
   }
 };
 
@@ -1404,7 +1420,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.ShortNamespaceLines = 1;
   LLVMStyle.SortIncludes = FormatStyle::SI_CaseSensitive;
   LLVMStyle.SortJavaStaticImport = FormatStyle::SJSIO_Before;
-  LLVMStyle.SortUsingDeclarations = true;
+  LLVMStyle.SortUsingDeclarations = FormatStyle::SUD_LexicographicNumeric;
   LLVMStyle.SpaceAfterCStyleCast = false;
   LLVMStyle.SpaceAfterLogicalNot = false;
   LLVMStyle.SpaceAfterTemplateKeyword = true;
@@ -1772,7 +1788,7 @@ FormatStyle getNoStyle() {
   FormatStyle NoStyle = getLLVMStyle();
   NoStyle.DisableFormat = true;
   NoStyle.SortIncludes = FormatStyle::SI_Never;
-  NoStyle.SortUsingDeclarations = false;
+  NoStyle.SortUsingDeclarations = FormatStyle::SUD_Never;
   return NoStyle;
 }
 
@@ -2987,13 +3003,10 @@ tooling::Replacements sortCppIncludes(const FormatStyle &Style, StringRef Code,
     if (Trimmed.contains(RawStringTermination))
       FormattingOff = false;
 
-    if (Trimmed == "// clang-format off" ||
-        Trimmed == "/* clang-format off */") {
+    if (isClangFormatOff(Trimmed))
       FormattingOff = true;
-    } else if (Trimmed == "// clang-format on" ||
-               Trimmed == "/* clang-format on */") {
+    else if (isClangFormatOn(Trimmed))
       FormattingOff = false;
-    }
 
     const bool EmptyLineSkipped =
         Trimmed.empty() &&
@@ -3170,9 +3183,9 @@ tooling::Replacements sortJavaImports(const FormatStyle &Style, StringRef Code,
         Code.substr(Prev, (Pos != StringRef::npos ? Pos : Code.size()) - Prev);
 
     StringRef Trimmed = Line.trim();
-    if (Trimmed == "// clang-format off")
+    if (isClangFormatOff(Trimmed))
       FormattingOff = true;
-    else if (Trimmed == "// clang-format on")
+    else if (isClangFormatOn(Trimmed))
       FormattingOff = false;
 
     if (ImportRegex.match(Line, &Matches)) {
@@ -3480,7 +3493,7 @@ reformat(const FormatStyle &Style, StringRef Code,
       });
     }
 
-    if (Style.SortUsingDeclarations) {
+    if (Style.SortUsingDeclarations != FormatStyle::SUD_Never) {
       Passes.emplace_back([&](const Environment &Env) {
         return UsingDeclarationsSorter(Env, Expanded).process();
       });
@@ -3876,6 +3889,26 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
   }
 
   return FallbackStyle;
+}
+
+static bool isClangFormatOnOff(StringRef Comment, bool On) {
+  if (Comment == (On ? "/* clang-format on */" : "/* clang-format off */"))
+    return true;
+
+  static const char ClangFormatOn[] = "// clang-format on";
+  static const char ClangFormatOff[] = "// clang-format off";
+  const unsigned Size = (On ? sizeof ClangFormatOn : sizeof ClangFormatOff) - 1;
+
+  return Comment.startswith(On ? ClangFormatOn : ClangFormatOff) &&
+         (Comment.size() == Size || Comment[Size] == ':');
+}
+
+bool isClangFormatOn(StringRef Comment) {
+  return isClangFormatOnOff(Comment, /*On=*/true);
+}
+
+bool isClangFormatOff(StringRef Comment) {
+  return isClangFormatOnOff(Comment, /*On=*/false);
 }
 
 } // namespace format

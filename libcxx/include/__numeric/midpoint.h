@@ -11,8 +11,18 @@
 #define _LIBCPP___NUMERIC_MIDPOINT_H
 
 #include <__config>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_floating_point.h>
+#include <__type_traits/is_integral.h>
+#include <__type_traits/is_null_pointer.h>
+#include <__type_traits/is_object.h>
+#include <__type_traits/is_pointer.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_void.h>
+#include <__type_traits/make_unsigned.h>
+#include <__type_traits/remove_pointer.h>
+#include <cstddef>
 #include <limits>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -23,7 +33,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 template <class _Tp>
 _LIBCPP_INLINE_VISIBILITY constexpr
 enable_if_t<is_integral_v<_Tp> && !is_same_v<bool, _Tp> && !is_null_pointer_v<_Tp>, _Tp>
@@ -76,7 +86,7 @@ midpoint(_Fp __a, _Fp __b) noexcept
       __a/2 + __b/2;                                         // otherwise correctly rounded
 }
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

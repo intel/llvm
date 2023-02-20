@@ -50,7 +50,7 @@ llvm::Error loadHSA() {
       llvm::sys::DynamicLibrary::getPermanentLibrary(DynamicHSAPath, &ErrMsg));
   if (!DynlibHandle->isValid()) {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Failed to 'dlopen' %s\n", DynamicHSAPath);
+                                   "Failed to 'dlopen' %s", DynamicHSAPath);
   }
 #define DYNAMIC_INIT(SYMBOL)                                                   \
   {                                                                            \
@@ -75,7 +75,6 @@ llvm::Error loadHSA() {
 #elif __has_include("hsa.h")
 #include "hsa.h"
 #endif
-#include "hsa/hsa.h"
 #endif
 
 llvm::Error loadHSA() { return llvm::Error::success(); }

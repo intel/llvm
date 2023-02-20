@@ -17,9 +17,9 @@
 #include "X86ISelLowering.h"
 #include "X86InstrInfo.h"
 #include "X86SelectionDAGInfo.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/CallingConv.h"
+#include "llvm/TargetParser/Triple.h"
 #include <climits>
 #include <memory>
 
@@ -253,6 +253,10 @@ public:
   // disable them in the legalizer.
   bool useAVX512Regs() const {
     return hasAVX512() && (canExtendTo512DQ() || RequiredVectorWidth > 256);
+  }
+
+  bool useLight256BitInstructions() const {
+    return getPreferVectorWidth() >= 256 || AllowLight256Bit;
   }
 
   bool useBWIRegs() const {

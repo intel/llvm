@@ -14,13 +14,16 @@
 #include "flang/Evaluate/shape.h"
 #include "flang/Lower/AbstractConverter.h"
 #include "flang/Lower/CallInterface.h"
+#include "flang/Lower/ConvertArrayConstructor.h"
 #include "flang/Lower/ConvertCall.h"
 #include "flang/Lower/ConvertConstant.h"
+#include "flang/Lower/ConvertProcedureDesignator.h"
 #include "flang/Lower/ConvertType.h"
-#include "flang/Lower/IntrinsicCall.h"
+#include "flang/Lower/ConvertVariable.h"
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/SymbolMap.h"
 #include "flang/Optimizer/Builder/Complex.h"
+#include "flang/Optimizer/Builder/IntrinsicCall.h"
 #include "flang/Optimizer/Builder/MutableBox.h"
 #include "flang/Optimizer/Builder/Runtime/Character.h"
 #include "flang/Optimizer/Builder/Todo.h"
@@ -81,7 +84,7 @@ private:
   /// part ref. It contains the lowered pieces of the part-ref that will
   /// become the operands of an hlfir.declare.
   struct PartInfo {
-    fir::FortranVariableOpInterface base;
+    std::optional<hlfir::Entity> base;
     std::string componentName{};
     mlir::Value componentShape;
     hlfir::DesignateOp::Subscripts subscripts;
@@ -136,12 +139,17 @@ private:
                                                const T &designatorNode) {
     mlir::Type designatorType =
         computeDesignatorType(resultValueType, partInfo, designatorNode);
+    return genDesignate(designatorType, partInfo, /*attributes=*/{});
+  }
+  fir::FortranVariableOpInterface
+  genDesignate(mlir::Type designatorType, PartInfo &partInfo,
+               fir::FortranVariableFlagsAttr attributes) {
     std::optional<bool> complexPart;
     auto designate = getBuilder().create<hlfir::DesignateOp>(
-        getLoc(), designatorType, partInfo.base.getBase(),
+        getLoc(), designatorType, partInfo.base.value().getBase(),
         partInfo.componentName, partInfo.componentShape, partInfo.subscripts,
         partInfo.substring, complexPart, partInfo.resultShape,
-        partInfo.typeParams);
+        partInfo.typeParams, attributes);
     return mlir::cast<fir::FortranVariableOpInterface>(
         designate.getOperation());
   }
@@ -156,6 +164,8 @@ private:
 
   fir::FortranVariableOpInterface
   gen(const Fortran::evaluate::Component &component) {
+    if (Fortran::semantics::IsAllocatableOrPointer(component.GetLastSymbol()))
+      return genWholeAllocatableOrPointerComponent(component);
     PartInfo partInfo;
     mlir::Type resultType = visit(component, partInfo);
     return genDesignate(resultType, partInfo, component);
@@ -242,6 +252,19 @@ private:
         .Default([newEleTy](mlir::Type t) -> mlir::Type { return newEleTy; });
   }
 
+  fir::FortranVariableOpInterface genWholeAllocatableOrPointerComponent(
+      const Fortran::evaluate::Component &component) {
+    // Generate whole allocatable or pointer component reference. The
+    // hlfir.designate result will be a pointer/allocatable.
+    PartInfo partInfo;
+    mlir::Type componentType = visitComponentImpl(component, partInfo).second;
+    mlir::Type designatorType = fir::ReferenceType::get(componentType);
+    fir::FortranVariableFlagsAttr attributes =
+        Fortran::lower::translateSymbolAttributes(getBuilder().getContext(),
+                                                  component.GetLastSymbol());
+    return genDesignate(designatorType, partInfo, attributes);
+  }
+
   mlir::Type visit(const Fortran::evaluate::DataRef &dataRef,
                    PartInfo &partInfo) {
     return std::visit([&](const auto &x) { return visit(x, partInfo); },
@@ -265,24 +288,39 @@ private:
         builder.getContext(), fir::FortranVariableFlagsEnum::parameter);
     partInfo.base = hlfir::genDeclare(loc, builder, exv, ".stringlit", flags);
     partInfo.typeParams.push_back(fir::getLen(exv));
-    return partInfo.base.getElementOrSequenceType();
+    return partInfo.base->getElementOrSequenceType();
   }
 
   mlir::Type visit(const Fortran::evaluate::SymbolRef &symbolRef,
                    PartInfo &partInfo) {
-    partInfo.base = gen(symbolRef);
-    hlfir::genLengthParameters(getLoc(), getBuilder(), partInfo.base,
+    // A symbol is only visited if there is a following array, substring, or
+    // complex reference. If the entity is a pointer or allocatable, this
+    // reference designates the target, so the pointer, allocatable must be
+    // dereferenced here.
+    partInfo.base =
+        hlfir::derefPointersAndAllocatables(loc, getBuilder(), gen(symbolRef));
+    hlfir::genLengthParameters(loc, getBuilder(), *partInfo.base,
                                partInfo.typeParams);
-    return partInfo.base.getElementOrSequenceType();
+    return partInfo.base->getElementOrSequenceType();
   }
 
   mlir::Type visit(const Fortran::evaluate::ArrayRef &arrayRef,
                    PartInfo &partInfo) {
     mlir::Type baseType;
-    if (const auto *component = arrayRef.base().UnwrapComponent())
-      baseType = visitComponentImpl(*component, partInfo).second;
-    else
+    if (const auto *component = arrayRef.base().UnwrapComponent()) {
+      // Pointers and allocatable components must be dereferenced since the
+      // array ref designates the target (this is done in "visit"). Other
+      // components need special care to deal with the array%array_comp(indices)
+      // case.
+      if (Fortran::semantics::IsAllocatableOrPointer(
+              component->GetLastSymbol()))
+        baseType = visit(*component, partInfo);
+      else
+        baseType = hlfir::getFortranElementOrSequenceType(
+            visitComponentImpl(*component, partInfo).second);
+    } else {
       baseType = visit(arrayRef.base().GetLastSymbol(), partInfo);
+    }
 
     fir::FirOpBuilder &builder = getBuilder();
     mlir::Location loc = getLoc();
@@ -291,7 +329,7 @@ private:
     auto getBaseBounds = [&](unsigned i) {
       if (bounds.empty()) {
         if (partInfo.componentName.empty()) {
-          bounds = hlfir::genBounds(loc, builder, partInfo.base);
+          bounds = hlfir::genBounds(loc, builder, partInfo.base.value());
         } else {
           assert(
               partInfo.componentShape &&
@@ -360,13 +398,14 @@ private:
       assert(!partInfo.resultShape &&
              "Fortran designator can only have one ranked part");
       partInfo.resultShape = builder.genShape(loc, resultExtents);
-    } else if (!partInfo.componentName.empty() && partInfo.base.isArray()) {
+    } else if (!partInfo.componentName.empty() &&
+               partInfo.base.value().isArray()) {
       // This is an array%array_comp(indices) reference. Keep the
       // shape of the base array and not the array_comp.
-      auto compBaseTy = partInfo.base.getElementOrSequenceType();
+      auto compBaseTy = partInfo.base->getElementOrSequenceType();
       resultType = changeElementType(compBaseTy, resultType);
       assert(!partInfo.resultShape && "should not have been computed already");
-      partInfo.resultShape = hlfir::genShape(loc, builder, partInfo.base);
+      partInfo.resultShape = hlfir::genShape(loc, builder, *partInfo.base);
     }
     return resultType;
   }
@@ -423,26 +462,38 @@ private:
 
   mlir::Type visit(const Fortran::evaluate::Component &component,
                    PartInfo &partInfo) {
-    // Called from contexts where the component is not the base of an ArrayRef.
-    // In these cases, the component cannot be an array if the base is an
-    // array. The code below determines the shape of the component reference if
-    // any.
+    if (Fortran::semantics::IsAllocatableOrPointer(component.GetLastSymbol())) {
+      // In a visit, the following reference will address the target. Insert
+      // the dereference here.
+      partInfo.base = genWholeAllocatableOrPointerComponent(component);
+      partInfo.base = hlfir::derefPointersAndAllocatables(loc, getBuilder(),
+                                                          *partInfo.base);
+      hlfir::genLengthParameters(loc, getBuilder(), *partInfo.base,
+                                 partInfo.typeParams);
+      return partInfo.base->getElementOrSequenceType();
+    }
+    // This function must be called from contexts where the component is not the
+    // base of an ArrayRef. In these cases, the component cannot be an array
+    // if the base is an array. The code below determines the shape of the
+    // component reference if any.
     auto [baseType, componentType] = visitComponentImpl(component, partInfo);
-    if (partInfo.base.isArray()) {
+    mlir::Type componentBaseType =
+        hlfir::getFortranElementOrSequenceType(componentType);
+    if (partInfo.base.value().isArray()) {
       // For array%scalar_comp, the result shape is
       // the one of the base. Compute it here. Note that the lower bounds of the
       // base are not the ones of the resulting reference (that are default
       // ones).
-      partInfo.resultShape = hlfir::genShape(loc, getBuilder(), partInfo.base);
+      partInfo.resultShape = hlfir::genShape(loc, getBuilder(), *partInfo.base);
       assert(!partInfo.componentShape &&
              "Fortran designators can only have one ranked part");
-      return changeElementType(baseType, componentType);
+      return changeElementType(baseType, componentBaseType);
     }
     // scalar%array_comp or scalar%scalar. In any case the shape of this
     // part-ref is coming from the component.
     partInfo.resultShape = partInfo.componentShape;
     partInfo.componentShape = {};
-    return componentType;
+    return componentBaseType;
   }
 
   // Returns the <BaseType, ComponentType> pair, computes partInfo.base,
@@ -459,24 +510,32 @@ private:
     // part-ref.
     partInfo.base =
         std::visit([&](const auto &x) { return gen(x); }, component.base().u);
+    // If the base is an allocatable/pointer, dereference it here since the
+    // component ref designates its target.
+    partInfo.base =
+        hlfir::derefPointersAndAllocatables(loc, builder, *partInfo.base);
     assert(partInfo.typeParams.empty() && "should not have been computed yet");
-    hlfir::genLengthParameters(getLoc(), getBuilder(), partInfo.base,
+
+    hlfir::genLengthParameters(getLoc(), getBuilder(), *partInfo.base,
                                partInfo.typeParams);
-    mlir::Type baseType = partInfo.base.getElementOrSequenceType();
+    mlir::Type baseType = partInfo.base->getElementOrSequenceType();
 
     // Lower the information about the component (type, length parameters and
     // shape).
     const Fortran::semantics::Symbol &componentSym = component.GetLastSymbol();
+    if (componentSym.test(Fortran::semantics::Symbol::Flag::ParentComp))
+      TODO(getLoc(), "Parent component reference in HLFIR");
     partInfo.componentName = componentSym.name().ToString();
     auto recordType =
         hlfir::getFortranElementType(baseType).cast<fir::RecordType>();
     if (recordType.isDependentType())
       TODO(getLoc(), "Designate derived type with length parameters in HLFIR");
     mlir::Type fieldType = recordType.getType(partInfo.componentName);
-    fieldType = hlfir::getFortranElementOrSequenceType(fieldType);
-    partInfo.componentShape = genComponentShape(componentSym, fieldType);
+    mlir::Type fieldBaseType =
+        hlfir::getFortranElementOrSequenceType(fieldType);
+    partInfo.componentShape = genComponentShape(componentSym, fieldBaseType);
 
-    mlir::Type fieldEleType = hlfir::getFortranElementType(fieldType);
+    mlir::Type fieldEleType = hlfir::getFortranElementType(fieldBaseType);
     if (fir::isRecordWithTypeParameters(fieldEleType))
       TODO(loc,
            "lower a component that is a parameterized derived type to HLFIR");
@@ -492,13 +551,6 @@ private:
       // Otherwise, the length of the component is deferred and will only
       // be read when the component is dereferenced.
     }
-
-    // For pointers and allocatables, if there is a substring, complex part or
-    // array ref, the designator should be broken here and the pointer or
-    // allocatable dereferenced.
-    if (Fortran::semantics::IsAllocatableOrPointer(componentSym))
-      TODO(loc, "lowering ref to allocatable or pointer component to HLFIR");
-
     return {baseType, fieldType};
   }
 
@@ -564,8 +616,7 @@ struct BinaryOp<Fortran::evaluate::Power<Fortran::evaluate::Type<TC, KIND>>> {
                                          hlfir::Entity lhs, hlfir::Entity rhs) {
     mlir::Type ty = Fortran::lower::getFIRType(builder.getContext(), TC, KIND,
                                                /*params=*/std::nullopt);
-    return hlfir::EntityWithAttributes{
-        Fortran::lower::genPow(builder, loc, ty, lhs, rhs)};
+    return hlfir::EntityWithAttributes{fir::genPow(builder, loc, ty, lhs, rhs)};
   }
 };
 
@@ -579,8 +630,7 @@ struct BinaryOp<
                                          hlfir::Entity lhs, hlfir::Entity rhs) {
     mlir::Type ty = Fortran::lower::getFIRType(builder.getContext(), TC, KIND,
                                                /*params=*/std::nullopt);
-    return hlfir::EntityWithAttributes{
-        Fortran::lower::genPow(builder, loc, ty, lhs, rhs)};
+    return hlfir::EntityWithAttributes{fir::genPow(builder, loc, ty, lhs, rhs)};
   }
 };
 
@@ -594,8 +644,8 @@ struct BinaryOp<
                                          hlfir::Entity rhs) {
     llvm::SmallVector<mlir::Value, 2> args{lhs, rhs};
     fir::ExtendedValue res = op.ordering == Fortran::evaluate::Ordering::Greater
-                                 ? Fortran::lower::genMax(builder, loc, args)
-                                 : Fortran::lower::genMin(builder, loc, args);
+                                 ? fir::genMax(builder, loc, args)
+                                 : fir::genMin(builder, loc, args);
     return hlfir::EntityWithAttributes{fir::getBase(res)};
   }
 };
@@ -976,9 +1026,11 @@ private:
   }
 
   hlfir::EntityWithAttributes
-  gen(const Fortran::evaluate::ProcedureDesignator &expr) {
-    TODO(getLoc(), "lowering ProcDes to HLFIR");
+  gen(const Fortran::evaluate::ProcedureDesignator &proc) {
+    return Fortran::lower::convertProcedureDesignatorToHLFIR(
+        getLoc(), getConverter(), proc, getSymMap(), getStmtCtx());
   }
+
   hlfir::EntityWithAttributes gen(const Fortran::evaluate::ProcedureRef &expr) {
     TODO(getLoc(), "lowering ProcRef to HLFIR");
   }
@@ -1023,8 +1075,9 @@ private:
 
   template <typename T>
   hlfir::EntityWithAttributes
-  gen(const Fortran::evaluate::ArrayConstructor<T> &expr) {
-    TODO(getLoc(), "lowering ArrayCtor to HLFIR");
+  gen(const Fortran::evaluate::ArrayConstructor<T> &arrayCtor) {
+    return Fortran::lower::ArrayConstructorBuilder<T>::gen(
+        getLoc(), getConverter(), arrayCtor, getSymMap(), getStmtCtx());
   }
 
   template <typename D, typename R, typename O>
@@ -1141,9 +1194,11 @@ private:
     case Fortran::evaluate::DescriptorInquiry::Field::Len:
       return castResult(hlfir::genCharLength(loc, builder, entity));
     case Fortran::evaluate::DescriptorInquiry::Field::LowerBound:
-      TODO(loc, "lower bound inquiry in HLFIR");
+      return castResult(
+          hlfir::genLBound(loc, builder, entity, desc.dimension()));
     case Fortran::evaluate::DescriptorInquiry::Field::Extent:
-      TODO(loc, "extent inquiry in HLFIR");
+      return castResult(
+          hlfir::genExtent(loc, builder, entity, desc.dimension()));
     case Fortran::evaluate::DescriptorInquiry::Field::Rank:
       TODO(loc, "rank inquiry on assumed rank");
     case Fortran::evaluate::DescriptorInquiry::Field::Stride:
@@ -1155,7 +1210,9 @@ private:
 
   hlfir::EntityWithAttributes
   gen(const Fortran::evaluate::ImpliedDoIndex &var) {
-    TODO(getLoc(), "lowering implied do index to HLFIR");
+    mlir::Value value = symMap.lookupImpliedDo(toStringRef(var.name));
+    assert(value && "impled do was not mapped");
+    return hlfir::EntityWithAttributes{value};
   }
 
   hlfir::EntityWithAttributes
@@ -1206,77 +1263,57 @@ hlfir::EntityWithAttributes Fortran::lower::convertExprToHLFIR(
   return HlfirBuilder(loc, converter, symMap, stmtCtx).gen(expr);
 }
 
-fir::BoxValue Fortran::lower::convertToBox(
+fir::ExtendedValue Fortran::lower::convertToBox(
     mlir::Location loc, Fortran::lower::AbstractConverter &converter,
-    hlfir::Entity entity, Fortran::lower::StatementContext &stmtCtx) {
-  auto exv = Fortran::lower::translateToExtendedValue(
-      loc, converter.getFirOpBuilder(), entity, stmtCtx);
-  if (fir::isa_trivial(fir::getBase(exv).getType()))
-    TODO(loc, "place trivial in memory");
-  return fir::factory::createBoxValue(converter.getFirOpBuilder(), loc, exv);
+    hlfir::Entity entity, Fortran::lower::StatementContext &stmtCtx,
+    mlir::Type fortranType) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  auto [exv, cleanup] = hlfir::convertToBox(loc, builder, entity, fortranType);
+  if (cleanup)
+    stmtCtx.attachCleanup(*cleanup);
+  return exv;
 }
-fir::BoxValue Fortran::lower::convertExprToBox(
+
+fir::ExtendedValue Fortran::lower::convertExprToBox(
     mlir::Location loc, Fortran::lower::AbstractConverter &converter,
     const Fortran::lower::SomeExpr &expr, Fortran::lower::SymMap &symMap,
     Fortran::lower::StatementContext &stmtCtx) {
   hlfir::EntityWithAttributes loweredExpr =
       HlfirBuilder(loc, converter, symMap, stmtCtx).gen(expr);
-  return convertToBox(loc, converter, loweredExpr, stmtCtx);
+  return convertToBox(loc, converter, loweredExpr, stmtCtx,
+                      converter.genType(expr));
 }
 
-fir::ExtendedValue
-Fortran::lower::convertToAddress(mlir::Location loc,
-                                 Fortran::lower::AbstractConverter &converter,
-                                 hlfir::Entity entity, bool isSimplyContiguous,
-                                 Fortran::lower::StatementContext &stmtCtx) {
-  if (!isSimplyContiguous)
-    TODO(loc, "genExprAddr of non contiguous variables in HLFIR");
-  fir::ExtendedValue exv = Fortran::lower::translateToExtendedValue(
-      loc, converter.getFirOpBuilder(), entity, stmtCtx);
-  if (fir::isa_trivial(fir::getBase(exv).getType()))
-    TODO(loc, "place trivial in memory");
-  if (const auto *mutableBox = exv.getBoxOf<fir::MutableBoxValue>())
-    exv = fir::factory::genMutableBoxRead(converter.getFirOpBuilder(), loc,
-                                          *mutableBox);
+fir::ExtendedValue Fortran::lower::convertToAddress(
+    mlir::Location loc, Fortran::lower::AbstractConverter &converter,
+    hlfir::Entity entity, Fortran::lower::StatementContext &stmtCtx,
+    mlir::Type fortranType) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  auto [exv, cleanup] =
+      hlfir::convertToAddress(loc, builder, entity, fortranType);
+  if (cleanup)
+    stmtCtx.attachCleanup(*cleanup);
   return exv;
 }
+
 fir::ExtendedValue Fortran::lower::convertExprToAddress(
     mlir::Location loc, Fortran::lower::AbstractConverter &converter,
     const Fortran::lower::SomeExpr &expr, Fortran::lower::SymMap &symMap,
     Fortran::lower::StatementContext &stmtCtx) {
   hlfir::EntityWithAttributes loweredExpr =
       HlfirBuilder(loc, converter, symMap, stmtCtx).gen(expr);
-  bool isSimplyContiguous =
-      expr.Rank() == 0 || Fortran::evaluate::IsSimplyContiguous(
-                              expr, converter.getFoldingContext());
-  return convertToAddress(loc, converter, loweredExpr, isSimplyContiguous,
-                          stmtCtx);
+  return convertToAddress(loc, converter, loweredExpr, stmtCtx,
+                          converter.genType(expr));
 }
 
 fir::ExtendedValue Fortran::lower::convertToValue(
     mlir::Location loc, Fortran::lower::AbstractConverter &converter,
     hlfir::Entity entity, Fortran::lower::StatementContext &stmtCtx) {
   auto &builder = converter.getFirOpBuilder();
-  fir::ExtendedValue exv =
-      Fortran::lower::translateToExtendedValue(loc, builder, entity, stmtCtx);
-  // Load scalar references to integer, logical, real, or complex value
-  // to an mlir value, dereference allocatable and pointers, and get rid
-  // of fir.box that are not needed or create a copy into contiguous memory.
-  return exv.match(
-      [&](const fir::UnboxedValue &box) -> fir::ExtendedValue {
-        if (mlir::Type elementType = fir::dyn_cast_ptrEleTy(box.getType()))
-          if (fir::isa_trivial(elementType))
-            return builder.create<fir::LoadOp>(loc, box);
-        return box;
-      },
-      [&](const fir::CharBoxValue &box) -> fir::ExtendedValue { return box; },
-      [&](const fir::ArrayBoxValue &box) -> fir::ExtendedValue { return box; },
-      [&](const fir::CharArrayBoxValue &box) -> fir::ExtendedValue {
-        return box;
-      },
-      [&](const auto &) -> fir::ExtendedValue {
-        TODO(loc, "lower descriptor designator to HLFIR value");
-      });
+  auto [exv, cleanup] = hlfir::convertToValue(loc, builder, entity);
+  if (cleanup)
+    stmtCtx.attachCleanup(*cleanup);
+  return exv;
 }
 
 fir::ExtendedValue Fortran::lower::convertExprToValue(
@@ -1286,4 +1323,21 @@ fir::ExtendedValue Fortran::lower::convertExprToValue(
   hlfir::EntityWithAttributes loweredExpr =
       HlfirBuilder(loc, converter, symMap, stmtCtx).gen(expr);
   return convertToValue(loc, converter, loweredExpr, stmtCtx);
+}
+
+fir::MutableBoxValue Fortran::lower::convertExprToMutableBox(
+    mlir::Location loc, Fortran::lower::AbstractConverter &converter,
+    const Fortran::lower::SomeExpr &expr, Fortran::lower::SymMap &symMap) {
+  // Pointers and Allocatable cannot be temporary expressions. Temporaries may
+  // be created while lowering it (e.g. if any indices expression of a
+  // designator create temporaries), but they can be destroyed before using the
+  // lowered pointer or allocatable;
+  Fortran::lower::StatementContext localStmtCtx;
+  hlfir::EntityWithAttributes loweredExpr =
+      HlfirBuilder(loc, converter, symMap, localStmtCtx).gen(expr);
+  fir::ExtendedValue exv = Fortran::lower::translateToExtendedValue(
+      loc, converter.getFirOpBuilder(), loweredExpr, localStmtCtx);
+  auto *mutableBox = exv.getBoxOf<fir::MutableBoxValue>();
+  assert(mutableBox && "expression could not be lowered to mutable box");
+  return *mutableBox;
 }

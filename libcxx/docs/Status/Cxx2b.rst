@@ -39,8 +39,9 @@ Paper Status
 
 .. note::
 
-   .. [#note-P2273] P2273: ``make_unique_for_overwrite`` isn't done yet since `P1020` hasn't been implemented yet.
    .. [#note-P0533R9] P0533R9: ``isfinite``, ``isinf``, ``isnan`` and ``isnormal`` are implemented.
+   .. [#note-P1413R3] P1413R3: ``std::aligned_storage_t`` and ``std::aligned_union_t`` are marked deprecated, but
+      clang doesn't issue a diagnostic for deprecated using template declarations.
 
 .. _issues-status-cxx2b:
 
@@ -51,3 +52,7 @@ Library Working Group Issues Status
    :file: Cxx2bIssues.csv
    :header-rows: 1
    :widths: auto
+
+.. note::
+
+   .. [#note-LWG3798] LWG3798: ``join_with_view``, ``zip_transform_view``, and ``adjacent_transform_view`` haven't been done yet since these types aren't implemented yet.

@@ -24,6 +24,7 @@
 #include "kmp_wait_release.h"
 #include "kmp_wrapper_getpid.h"
 #include "kmp_dispatch.h"
+#include <cstdio>
 #if KMP_USE_HIER_SCHED
 #include "kmp_dispatch_hier.h"
 #endif
@@ -1011,6 +1012,12 @@ static void __kmp_fork_team_threads(kmp_root_t *root, kmp_team_t *team,
       __kmp_partition_places(team);
     }
 #endif
+
+    if (team->t.t_nproc > 1 &&
+        __kmp_barrier_gather_pattern[bs_forkjoin_barrier] == bp_dist_bar) {
+      team->t.b->update_num_threads(team->t.t_nproc);
+      __kmp_add_threads_to_team(team, team->t.t_nproc);
+    }
   }
 
   if (__kmp_display_affinity && team->t.t_display_affinity != 1) {
@@ -2479,12 +2486,6 @@ void __kmp_join_call(ident_t *loc, int gtid
       parent_team->t.t_stack_id = NULL;
     }
 #endif
-
-    if (team->t.t_nproc > 1 &&
-        __kmp_barrier_gather_pattern[bs_forkjoin_barrier] == bp_dist_bar) {
-      team->t.b->update_num_threads(team->t.t_nproc);
-      __kmp_add_threads_to_team(team, team->t.t_nproc);
-    }
   }
 
   KMP_MB();
@@ -2673,6 +2674,12 @@ void __kmp_join_call(ident_t *loc, int gtid
       master_th->th.th_task_state =
           master_th->th
               .th_task_state_memo_stack[master_th->th.th_task_state_top];
+    } else if (team != root->r.r_hot_team) {
+      // Reset the task state of primary thread if we are not hot team because
+      // in this case all the worker threads will be free, and their task state
+      // will be reset. If not reset the primary's, the task state will be
+      // inconsistent.
+      master_th->th.th_task_state = 0;
     }
     // Copy the task team from the parent team to the primary thread
     master_th->th.th_task_team =
@@ -5438,21 +5445,10 @@ __kmp_allocate_team(kmp_root_t *root, int new_nproc, int max_nproc,
         __kmp_initialize_info(team->t.t_threads[f], team, f,
                               __kmp_gtid_from_tid(f, team));
 
-      if (level) { // set th_task_state for new threads in nested hot team
-        // __kmp_initialize_info() no longer zeroes th_task_state, so we should
-        // only need to set the th_task_state for the new threads. th_task_state
-        // for primary thread will not be accurate until after this in
-        // __kmp_fork_call(), so we look to the primary thread's memo_stack to
-        // get the correct value.
-        for (f = old_nproc; f < team->t.t_nproc; ++f)
-          team->t.t_threads[f]->th.th_task_state =
-              team->t.t_threads[0]->th.th_task_state_memo_stack[level];
-      } else { // set th_task_state for new threads in non-nested hot team
-        // copy primary thread's state
-        kmp_uint8 old_state = team->t.t_threads[0]->th.th_task_state;
-        for (f = old_nproc; f < team->t.t_nproc; ++f)
-          team->t.t_threads[f]->th.th_task_state = old_state;
-      }
+      // set th_task_state for new threads in hot team with older thread's state
+      kmp_uint8 old_state = team->t.t_threads[old_nproc - 1]->th.th_task_state;
+      for (f = old_nproc; f < team->t.t_nproc; ++f)
+        team->t.t_threads[f]->th.th_task_state = old_state;
 
 #ifdef KMP_DEBUG
       for (f = 0; f < team->t.t_nproc; ++f) {
@@ -6733,6 +6729,11 @@ static inline char *__kmp_reg_status_name() {
 #endif
 } // __kmp_reg_status_get
 
+#if defined(KMP_USE_SHM)
+// If /dev/shm is not accessible, we will create a temporary file under /tmp.
+char *temp_reg_status_file_name = nullptr;
+#endif
+
 void __kmp_register_library_startup(void) {
 
   char *name = __kmp_reg_status_name(); // Name of the environment variable.
@@ -6774,11 +6775,19 @@ void __kmp_register_library_startup(void) {
         // able to open existing file
         shm_preexist = 1;
       }
-    } else if (fd1 == -1) { // SHM didn't open; it was due to error other than
-      // already exists.
-      // error out here.
-      __kmp_fatal(KMP_MSG(FunctionError, "Can't open SHM2"), KMP_ERR(errno),
-                  __kmp_msg_null);
+    } else if (fd1 == -1) {
+      // SHM didn't open; it was due to error other than already exists. Try to
+      // create a temp file under /tmp.
+      // TODO: /tmp might not always be the temporary directory. For now we will
+      // not consider TMPDIR. If /tmp is not accessible, we simply error out.
+      char *temp_file_name = __kmp_str_format("/tmp/%sXXXXXX", name);
+      fd1 = mkstemp(temp_file_name);
+      if (fd1 == -1) {
+        // error out here.
+        __kmp_fatal(KMP_MSG(FunctionError, "Can't open TEMP"), KMP_ERR(errno),
+                    __kmp_msg_null);
+      }
+      temp_reg_status_file_name = temp_file_name;
     }
     if (shm_preexist == 0) {
       // we created SHM now set size
@@ -6890,11 +6899,19 @@ void __kmp_unregister_library(void) {
   char *value = NULL;
 
 #if defined(KMP_USE_SHM)
+  bool use_shm = true;
   char *shm_name = __kmp_str_format("/%s", name);
   int fd1 = shm_open(shm_name, O_RDONLY, 0666);
   if (fd1 == -1) {
-    // file did not open. return.
-    return;
+    // File did not open. Try the temporary file.
+    use_shm = false;
+    KMP_DEBUG_ASSERT(temp_reg_status_file_name);
+    FILE *tf = fopen(temp_reg_status_file_name, O_RDONLY);
+    if (!tf) {
+      // give it up now.
+      return;
+    }
+    fd1 = fileno(tf);
   }
   char *data1 = (char *)mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, fd1, 0);
   if (data1 != MAP_FAILED) {
@@ -6911,7 +6928,12 @@ void __kmp_unregister_library(void) {
   if (value != NULL && strcmp(value, __kmp_registration_str) == 0) {
 //  Ok, this is our variable. Delete it.
 #if defined(KMP_USE_SHM)
-    shm_unlink(shm_name); // this removes file in /dev/shm
+    if (use_shm) {
+      shm_unlink(shm_name); // this removes file in /dev/shm
+    } else {
+      KMP_DEBUG_ASSERT(temp_reg_status_file_name);
+      unlink(temp_reg_status_file_name); // this removes the temp file
+    }
 #else
     __kmp_env_unset(name);
 #endif
@@ -6919,6 +6941,10 @@ void __kmp_unregister_library(void) {
 
 #if defined(KMP_USE_SHM)
   KMP_INTERNAL_FREE(shm_name);
+  if (!use_shm) {
+    KMP_DEBUG_ASSERT(temp_reg_status_file_name);
+    KMP_INTERNAL_FREE(temp_reg_status_file_name);
+  }
 #endif
 
   KMP_INTERNAL_FREE(__kmp_registration_str);

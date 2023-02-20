@@ -56,6 +56,18 @@ TypeResult Parser::ParseTypeName(SourceRange *Range, DeclaratorContext Context,
   if (OwnedType)
     *OwnedType = DS.isTypeSpecOwned() ? DS.getRepAsDecl() : nullptr;
 
+  // Move declspec attributes to ParsedAttributes
+  if (Attrs) {
+    llvm::SmallVector<ParsedAttr *, 1> ToBeMoved;
+    for (ParsedAttr &AL : DS.getAttributes()) {
+      if (AL.isDeclspecAttribute())
+        ToBeMoved.push_back(&AL);
+    }
+
+    for (ParsedAttr *AL : ToBeMoved)
+      Attrs->takeOneFrom(DS.getAttributes(), AL);
+  }
+
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, ParsedAttributesView::none(), Context);
   ParseDeclarator(DeclaratorInfo);
@@ -5389,7 +5401,9 @@ Parser::DeclGroupPtrTy Parser::ParseTopLevelStmtDecl() {
   // Parse a top-level-stmt.
   Parser::StmtVector Stmts;
   ParsedStmtContext SubStmtCtx = ParsedStmtContext();
+  Actions.PushFunctionScope();
   StmtResult R = ParseStatementOrDeclaration(Stmts, SubStmtCtx);
+  Actions.PopFunctionScopeInfo();
   if (!R.isUsable())
     return nullptr;
 
@@ -6988,6 +7002,15 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
         continue;
       DeclsInPrototype.push_back(ND);
     }
+    // Sort DeclsInPrototype based on raw encoding of the source location.
+    // Scope::decls() is iterating over a SmallPtrSet so sort the Decls before
+    // moving to DeclContext. This provides a stable ordering for traversing
+    // Decls in DeclContext, which is important for tasks like ASTWriter for
+    // deterministic output.
+    llvm::sort(DeclsInPrototype, [](Decl *D1, Decl *D2) {
+      return D1->getLocation().getRawEncoding() <
+             D2->getLocation().getRawEncoding();
+    });
   }
 
   // Remember that we parsed a function type, and remember the attributes.

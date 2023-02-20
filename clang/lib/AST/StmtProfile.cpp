@@ -903,6 +903,12 @@ void OMPClauseProfiler::VisitOMPAffinityClause(const OMPAffinityClause *C) {
 }
 void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
 void OMPClauseProfiler::VisitOMPBindClause(const OMPBindClause *C) {}
+void OMPClauseProfiler::VisitOMPXDynCGroupMemClause(
+    const OMPXDynCGroupMemClause *C) {
+  VistOMPClauseWithPreInit(C);
+  if (Expr *Size = C->getSize())
+    Profiler->VisitStmt(Size);
+}
 } // namespace
 
 void
@@ -1505,7 +1511,7 @@ void StmtProfiler::VisitInitListExpr(const InitListExpr *S) {
 void StmtProfiler::VisitDesignatedInitExpr(const DesignatedInitExpr *S) {
   VisitExpr(S);
   ID.AddBoolean(S->usesGNUSyntax());
-  for (const DesignatedInitExpr::Designator &D : S->designators()) {
+  for (const Designator &D : S->designators()) {
     if (D.isFieldDesignator()) {
       ID.AddInteger(0);
       VisitName(D.getFieldName());

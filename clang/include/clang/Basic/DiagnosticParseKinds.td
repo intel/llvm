@@ -1362,13 +1362,16 @@ def err_omp_unknown_map_type : Error<
   "incorrect map type, expected one of 'to', 'from', 'tofrom', 'alloc', 'release', or 'delete'">;
 def err_omp_unknown_map_type_modifier : Error<
   "incorrect map type modifier, expected one of: 'always', 'close', 'mapper'"
-  "%select{|, 'present'}0%select{|, 'ompx_hold'}1">;
+  "%select{|, 'present'|, 'present', 'iterator'}0%select{|, 'ompx_hold'}1">;
 def err_omp_map_type_missing : Error<
   "missing map type">;
 def err_omp_map_type_modifier_missing : Error<
   "missing map type modifier">;
 def err_omp_declare_simd_inbranch_notinbranch : Error<
   "unexpected '%0' clause, '%1' is specified already">;
+def err_omp_expected_clause_argument
+    : Error<"expected '%0' clause with an argument on '#pragma omp %1' "
+            "construct">;
 def err_expected_end_declare_target_or_variant : Error<
   "expected '#pragma omp end declare %select{target|variant}0'">;
 def err_expected_begin_declare_variant
@@ -1606,11 +1609,6 @@ def err_import_in_wrong_fragment : Error<
 
 def err_export_empty : Error<"export declaration cannot be empty">;
 }
-
-def ext_offsetof_member_designator : Extension<
-  "using %select{a member access expression|an array subscript expression}0 "
-  "within '%select{__builtin_offsetof|offsetof}1' is a Clang extension">,
-  InGroup<GNUOffsetofExtensions>;
 
 let CategoryName = "Generics Issue" in {
 

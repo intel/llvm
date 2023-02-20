@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <unordered_map>
 #include <vector>
@@ -89,8 +90,6 @@ std::optional<AttrInfo> findAttributeInfo(const DWARFDie DIE,
 
 const DebugLineTableRowRef DebugLineTableRowRef::NULL_ROW{0, 0};
 
-namespace {
-
 LLVM_ATTRIBUTE_UNUSED
 static void printLE64(const std::string &S) {
   for (uint32_t I = 0, Size = S.size(); I < Size; ++I) {
@@ -105,9 +104,10 @@ static void printLE64(const std::string &S) {
 // the form (begin address, range size), otherwise (begin address, end address).
 // Terminates the list by writing a pair of two zeroes.
 // Returns the number of written bytes.
-uint64_t writeAddressRanges(raw_svector_ostream &Stream,
-                            const DebugAddressRangesVector &AddressRanges,
-                            const bool WriteRelativeRanges = false) {
+static uint64_t
+writeAddressRanges(raw_svector_ostream &Stream,
+                   const DebugAddressRangesVector &AddressRanges,
+                   const bool WriteRelativeRanges = false) {
   for (const DebugAddressRange &Range : AddressRanges) {
     support::endian::write(Stream, Range.LowPC, support::little);
     support::endian::write(
@@ -119,8 +119,6 @@ uint64_t writeAddressRanges(raw_svector_ostream &Stream,
   support::endian::write(Stream, 0ULL, support::little);
   return AddressRanges.size() * 16 + 16;
 }
-
-} // namespace
 
 DebugRangesSectionWriter::DebugRangesSectionWriter() {
   RangesBuffer = std::make_unique<DebugBufferVector>();
@@ -206,45 +204,52 @@ getDWARF5Header(const LocListsRangelistsHeader &Header) {
   return HeaderBuffer;
 }
 
-static bool emitWithBase(raw_ostream &OS,
-                         const DebugAddressRangesVector &Ranges,
+struct OffsetEntry {
+  uint32_t Index;
+  uint32_t StartOffset;
+  uint32_t EndOffset;
+};
+template <typename DebugVector, typename ListEntry, typename DebugAddressEntry>
+static bool emitWithBase(raw_ostream &OS, const DebugVector &Entries,
                          DebugAddrWriter &AddrWriter, DWARFUnit &CU,
-                         uint32_t &Index) {
-  if (Ranges.size() < 2)
+                         uint32_t &Index, const ListEntry BaseAddressx,
+                         const ListEntry OffsetPair, const ListEntry EndOfList,
+                         const std::function<void(uint32_t)> &Func) {
+  if (Entries.size() < 2)
     return false;
-  uint64_t Base = Ranges[Index].LowPC;
-  std::vector<std::pair<uint16_t, uint16_t>> RangeOffsets;
+  uint64_t Base = Entries[Index].LowPC;
+  std::vector<OffsetEntry> Offsets;
   uint8_t TempBuffer[64];
-  while (Index < Ranges.size()) {
-    const DebugAddressRange &Range = Ranges[Index];
-    if (Range.LowPC == 0)
+  while (Index < Entries.size()) {
+    const DebugAddressEntry &Entry = Entries[Index];
+    if (Entry.LowPC == 0)
       break;
-    assert(Base <= Range.LowPC && "Range base is higher than low PC");
-    uint32_t StartOffset = Range.LowPC - Base;
-    uint32_t EndOffset = Range.HighPC - Base;
+    assert(Base <= Entry.LowPC && "Entry base is higher than low PC");
+    uint32_t StartOffset = Entry.LowPC - Base;
+    uint32_t EndOffset = Entry.HighPC - Base;
     if (encodeULEB128(EndOffset, TempBuffer) > 2)
       break;
-    RangeOffsets.emplace_back(StartOffset, EndOffset);
+    Offsets.push_back({Index, StartOffset, EndOffset});
     ++Index;
   }
 
-  if (RangeOffsets.size() < 2) {
-    Index -= RangeOffsets.size();
+  if (Offsets.size() < 2) {
+    Index -= Offsets.size();
     return false;
   }
 
-  support::endian::write(OS, static_cast<uint8_t>(dwarf::DW_RLE_base_addressx),
+  support::endian::write(OS, static_cast<uint8_t>(BaseAddressx),
                          support::little);
   uint32_t BaseIndex = AddrWriter.getIndexFromAddress(Base, CU);
   encodeULEB128(BaseIndex, OS);
-  for (auto &Offset : RangeOffsets) {
-    support::endian::write(OS, static_cast<uint8_t>(dwarf::DW_RLE_offset_pair),
+  for (auto &OffsetEntry : Offsets) {
+    support::endian::write(OS, static_cast<uint8_t>(OffsetPair),
                            support::little);
-    encodeULEB128(Offset.first, OS);
-    encodeULEB128(Offset.second, OS);
+    encodeULEB128(OffsetEntry.StartOffset, OS);
+    encodeULEB128(OffsetEntry.EndOffset, OS);
+    Func(OffsetEntry.Index);
   }
-  support::endian::write(OS, static_cast<uint8_t>(dwarf::DW_RLE_end_of_list),
-                         support::little);
+  support::endian::write(OS, static_cast<uint8_t>(EndOfList), support::little);
   return true;
 }
 
@@ -261,8 +266,13 @@ DebugRangeListsSectionWriter::addRanges(DebugAddressRangesVector &Ranges) {
       });
   for (unsigned I = 0; I < Ranges.size();) {
     WrittenStartxLength = false;
-    if (emitWithBase(*CUBodyStream, Ranges, *AddrWriter, *CU, I))
+    if (emitWithBase<DebugAddressRangesVector, dwarf::RnglistEntries,
+                     DebugAddressRange>(
+            *CUBodyStream, Ranges, *AddrWriter, *CU, I,
+            dwarf::DW_RLE_base_addressx, dwarf::DW_RLE_offset_pair,
+            dwarf::DW_RLE_end_of_list, [](uint32_t Index) -> void {}))
       continue;
+
     const DebugAddressRange &Range = Ranges[I];
     support::endian::write(*CUBodyStream,
                            static_cast<uint8_t>(dwarf::DW_RLE_startx_length),
@@ -467,6 +477,7 @@ AddressSectionBuffer DebugAddrWriterDwarf5::finalize() {
   DWARFDebugAddrTable AddrTable;
   DIDumpOptions DumpOpts;
   constexpr uint32_t HeaderSize = 8;
+  DenseMap<uint64_t, uint64_t> UnmodifiedAddressOffsets;
   for (std::unique_ptr<DWARFUnit> &CU : BC->DwCtx->compile_units()) {
     const uint64_t CUID = getCUID(*CU.get());
     const uint8_t AddrSize = CU->getAddressByteSize();
@@ -481,11 +492,18 @@ AddressSectionBuffer DebugAddrWriterDwarf5::finalize() {
       // Address base offset is to the first entry.
       // The size of header is 8 bytes.
       uint64_t Offset = *BaseOffset - HeaderSize;
+      auto Iter = UnmodifiedAddressOffsets.find(Offset);
+      if (Iter != UnmodifiedAddressOffsets.end()) {
+        DWOIdToOffsetMap[CUID] = Iter->getSecond();
+        continue;
+      }
+      UnmodifiedAddressOffsets[Offset] = Buffer.size() + HeaderSize;
       if (Error Err = AddrTable.extract(AddrData, &Offset, 5, AddrSize,
                                         DumpOpts.WarningHandler)) {
         DumpOpts.RecoverableErrorHandler(std::move(Err));
         continue;
       }
+
       uint32_t Index = 0;
       for (uint64_t Addr : AddrTable.getAddressEntries())
         AMIter->second.insert(Addr, Index++);
@@ -664,20 +682,38 @@ static void writeDWARF5LocList(
   }
 
   std::vector<uint64_t> OffsetsArray;
-  for (const DebugLocationEntry &Entry : LocList) {
+  bool WrittenStartxLength = false;
+  auto writeExpression = [&](uint32_t Index) -> void {
+    const DebugLocationEntry &Entry = LocList[Index];
+    encodeULEB128(Entry.Expr.size(), LocBodyStream);
+    LocBodyStream << StringRef(
+        reinterpret_cast<const char *>(Entry.Expr.data()), Entry.Expr.size());
+  };
+  for (unsigned I = 0; I < LocList.size();) {
+    WrittenStartxLength = false;
+    if (emitWithBase<DebugLocationsVector, dwarf::LoclistEntries,
+                     DebugLocationEntry>(
+            LocBodyStream, LocList, AddrWriter, CU, I,
+            dwarf::DW_LLE_base_addressx, dwarf::DW_LLE_offset_pair,
+            dwarf::DW_LLE_end_of_list, writeExpression))
+      continue;
+
+    const DebugLocationEntry &Entry = LocList[I];
     support::endian::write(LocBodyStream,
                            static_cast<uint8_t>(dwarf::DW_LLE_startx_length),
                            support::little);
     const uint32_t Index = AddrWriter.getIndexFromAddress(Entry.LowPC, CU);
     encodeULEB128(Index, LocBodyStream);
     encodeULEB128(Entry.HighPC - Entry.LowPC, LocBodyStream);
-    encodeULEB128(Entry.Expr.size(), LocBodyStream);
-    LocBodyStream << StringRef(
-        reinterpret_cast<const char *>(Entry.Expr.data()), Entry.Expr.size());
+    writeExpression(I);
+    ++I;
+    WrittenStartxLength = true;
   }
-  support::endian::write(LocBodyStream,
-                         static_cast<uint8_t>(dwarf::DW_LLE_end_of_list),
-                         support::little);
+
+  if (WrittenStartxLength)
+    support::endian::write(LocBodyStream,
+                           static_cast<uint8_t>(dwarf::DW_LLE_end_of_list),
+                           support::little);
 }
 
 void DebugLoclistWriter::addList(AttrInfo &AttrVal,

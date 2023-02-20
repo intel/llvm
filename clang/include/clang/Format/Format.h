@@ -2929,6 +2929,21 @@ struct FormatStyle {
     ///          cccccccccccccccccccc()
     /// \endcode
     PCIS_NextLine,
+    /// Put all constructor initializers on the next line if they fit.
+    /// Otherwise, put each one on its own line.
+    /// \code
+    ///    Constructor()
+    ///        : a(), b()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(), ddddddddddddd()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(),
+    ///          bbbbbbbbbbbbbbbbbbbb(),
+    ///          cccccccccccccccccccc()
+    /// \endcode
+    PCIS_NextLineOnly,
   };
 
   /// The pack constructor initializers style to use.
@@ -3510,22 +3525,49 @@ struct FormatStyle {
   /// \version 12
   SortJavaStaticImportOptions SortJavaStaticImport;
 
-  /// If ``true``, clang-format will sort using declarations.
-  ///
-  /// The order of using declarations is defined as follows:
-  /// Split the strings by "::" and discard any initial empty strings. The last
-  /// element of each list is a non-namespace name; all others are namespace
-  /// names. Sort the lists of names lexicographically, where the sort order of
-  /// individual names is that all non-namespace names come before all namespace
-  /// names, and within those groups, names are in case-insensitive
-  /// lexicographic order.
-  /// \code
-  ///    false:                                 true:
-  ///    using std::cout;               vs.     using std::cin;
-  ///    using std::cin;                        using std::cout;
-  /// \endcode
+  /// Using declaration sorting options.
+  enum SortUsingDeclarationsOptions : int8_t {
+    /// Using declarations are never sorted.
+    /// \code
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::string;
+    /// \endcode
+    SUD_Never,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. Sort
+    /// the lists of names lexicographically, and within those groups, names are
+    /// in case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using std::string;
+    /// \endcode
+    SUD_Lexicographic,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. The
+    /// last element of each list is a non-namespace name; all others are
+    /// namespace names. Sort the lists of names lexicographically, where the
+    /// sort order of individual names is that all non-namespace names come
+    /// before all namespace names, and within those groups, names are in
+    /// case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::move;
+    ///    using std::string;
+    ///    using std::chrono::duration_cast;
+    /// \endcode
+    SUD_LexicographicNumeric,
+  };
+
+  /// Controls if and how clang-format will sort using declarations.
   /// \version 5
-  bool SortUsingDeclarations;
+  SortUsingDeclarationsOptions SortUsingDeclarations;
 
   /// If ``true``, a space is inserted after C style casts.
   /// \code
@@ -4571,6 +4613,9 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "Unknown";
   }
 }
+
+bool isClangFormatOn(StringRef Comment);
+bool isClangFormatOff(StringRef Comment);
 
 } // end namespace format
 } // end namespace clang

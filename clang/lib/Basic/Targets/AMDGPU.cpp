@@ -89,9 +89,9 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
 
 static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsAMDGPU.def"
 };
 
@@ -193,11 +193,11 @@ bool AMDGPUTargetInfo::initFeatureMap(
     case GK_GFX1100:
       IsWave32Capable = true;
       Features["ci-insts"] = true;
-      Features["dot1-insts"] = true;
       Features["dot5-insts"] = true;
-      Features["dot6-insts"] = true;
       Features["dot7-insts"] = true;
       Features["dot8-insts"] = true;
+      Features["dot9-insts"] = true;
+      Features["dot10-insts"] = true;
       Features["dl-insts"] = true;
       Features["16-bit-insts"] = true;
       Features["dpp"] = true;
@@ -221,6 +221,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot5-insts"] = true;
       Features["dot6-insts"] = true;
       Features["dot7-insts"] = true;
+      Features["dot10-insts"] = true;
       Features["dl-insts"] = true;
       Features["16-bit-insts"] = true;
       Features["dpp"] = true;
@@ -238,6 +239,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot5-insts"] = true;
       Features["dot6-insts"] = true;
       Features["dot7-insts"] = true;
+      Features["dot10-insts"] = true;
       [[fallthrough]];
     case GK_GFX1013:
     case GK_GFX1010:
@@ -271,6 +273,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot1-insts"] = true;
       Features["dot2-insts"] = true;
       Features["dot7-insts"] = true;
+      Features["dot10-insts"] = true;
       [[fallthrough]];
     case GK_GFX90C:
     case GK_GFX909:

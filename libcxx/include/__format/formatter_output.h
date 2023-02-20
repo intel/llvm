@@ -23,6 +23,8 @@
 #include <__format/parser_std_format_spec.h>
 #include <__format/unicode.h>
 #include <__iterator/back_insert_iterator.h>
+#include <__iterator/concepts.h>
+#include <__iterator/readable_traits.h> // iter_value_t
 #include <__type_traits/make_unsigned.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
@@ -37,7 +39,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -102,6 +104,10 @@ _LIBCPP_HIDE_FROM_ABI auto __copy(basic_string_view<_CharT> __str, output_iterat
   if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_OutCharT>>>) {
     __out_it.__get_container()->__copy(__str);
     return __out_it;
+  } else if constexpr (_VSTD::same_as<decltype(__out_it),
+                                      typename __format::__retarget_buffer<_OutCharT>::__iterator>) {
+    __out_it.__buffer_->__copy(__str);
+    return __out_it;
   } else {
     return std::ranges::copy(__str, _VSTD::move(__out_it)).out;
   }
@@ -132,6 +138,10 @@ __transform(const _CharT* __first,
   if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_OutCharT>>>) {
     __out_it.__get_container()->__transform(__first, __last, _VSTD::move(__operation));
     return __out_it;
+  } else if constexpr (_VSTD::same_as<decltype(__out_it),
+                                      typename __format::__retarget_buffer<_OutCharT>::__iterator>) {
+    __out_it.__buffer_->__transform(__first, __last, _VSTD::move(__operation));
+    return __out_it;
   } else {
     return std::ranges::transform(__first, __last, _VSTD::move(__out_it), __operation).out;
   }
@@ -144,6 +154,9 @@ template <__fmt_char_type _CharT, output_iterator<const _CharT&> _OutIt>
 _LIBCPP_HIDE_FROM_ABI _OutIt __fill(_OutIt __out_it, size_t __n, _CharT __value) {
   if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_CharT>>>) {
     __out_it.__get_container()->__fill(__n, __value);
+    return __out_it;
+  } else if constexpr (_VSTD::same_as<decltype(__out_it), typename __format::__retarget_buffer<_CharT>::__iterator>) {
+    __out_it.__buffer_->__fill(__n, __value);
     return __out_it;
   } else {
     return std::ranges::fill_n(_VSTD::move(__out_it), __n, __value);
@@ -250,11 +263,11 @@ __write(basic_string_view<_CharT> __str,
   return __formatter::__fill(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
 }
 
-template <class _CharT, class _ParserCharT>
+template <contiguous_iterator _Iterator, class _ParserCharT>
 _LIBCPP_HIDE_FROM_ABI auto
-__write(const _CharT* __first,
-        const _CharT* __last,
-        output_iterator<const _CharT&> auto __out_it,
+__write(_Iterator __first,
+        _Iterator __last,
+        output_iterator<const iter_value_t<_Iterator>&> auto __out_it,
         __format_spec::__parsed_specifications<_ParserCharT> __specs,
         ptrdiff_t __size) -> decltype(__out_it) {
   _LIBCPP_ASSERT(__first <= __last, "Not a valid range");
@@ -264,11 +277,11 @@ __write(const _CharT* __first,
 /// \overload
 ///
 /// Calls the function above where \a __size = \a __last - \a __first.
-template <class _CharT, class _ParserCharT>
+template <contiguous_iterator _Iterator, class _ParserCharT>
 _LIBCPP_HIDE_FROM_ABI auto
-__write(const _CharT* __first,
-        const _CharT* __last,
-        output_iterator<const _CharT&> auto __out_it,
+__write(_Iterator __first,
+        _Iterator __last,
+        output_iterator<const iter_value_t<_Iterator>&> auto __out_it,
         __format_spec::__parsed_specifications<_ParserCharT> __specs) -> decltype(__out_it) {
   _LIBCPP_ASSERT(__first <= __last, "Not a valid range");
   return __formatter::__write(__first, __last, _VSTD::move(__out_it), __specs, __last - __first);
@@ -348,7 +361,7 @@ _LIBCPP_HIDE_FROM_ABI auto __write_string_no_precision(
 
 template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI int __truncate(basic_string_view<_CharT>& __str, int __precision) {
-  __format_spec::__column_width_result<_CharT> __result =
+  __format_spec::__column_width_result __result =
       __format_spec::__estimate_column_width(__str, __precision, __format_spec::__column_width_rounding::__down);
   __str = basic_string_view<_CharT>{__str.begin(), __result.__last_};
   return __result.__width_;
@@ -371,7 +384,7 @@ _LIBCPP_HIDE_FROM_ABI auto __write_string(
   return __formatter::__write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __size);
 }
 
-#  if _LIBCPP_STD_VER > 20
+#  if _LIBCPP_STD_VER >= 23
 
 struct __nul_terminator {};
 
@@ -490,7 +503,7 @@ __escape(basic_string<_CharT>& __str, basic_string_view<_CharT> __values, __esca
   __unicode::__code_point_view<_CharT> __view{__values.begin(), __values.end()};
 
   while (!__view.__at_end()) {
-    const _CharT* __first                               = __view.__position();
+    auto __first                                        = __view.__position();
     typename __unicode::__consume_p2286_result __result = __view.__consume_p2286();
     if (__result.__ill_formed_size == 0) {
       if (!__formatter::__is_escaped_sequence_written(__str, __result.__value, __mark))
@@ -548,11 +561,11 @@ __format_escaped_string(basic_string_view<_CharT> __values,
   return __formatter::__write_string(basic_string_view{__str}, _VSTD::move(__out_it), __specs);
 }
 
-#  endif // _LIBCPP_STD_VER > 20
+#  endif // _LIBCPP_STD_VER >= 23
 
 } // namespace __formatter
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

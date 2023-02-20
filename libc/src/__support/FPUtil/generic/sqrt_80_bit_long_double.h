@@ -14,12 +14,13 @@
 #include "src/__support/FPUtil/PlatformDefs.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/builtin_wrappers.h"
+#include "src/__support/common.h"
 
 namespace __llvm_libc {
 namespace fputil {
 namespace x86 {
 
-inline void normalize(int &exponent, UInt128 &mantissa) {
+LIBC_INLINE void normalize(int &exponent, UInt128 &mantissa) {
   const int shift =
       unsafe_clz(static_cast<uint64_t>(mantissa)) -
       (8 * sizeof(uint64_t) - 1 - MantissaWidth<long double>::VALUE);
@@ -29,12 +30,12 @@ inline void normalize(int &exponent, UInt128 &mantissa) {
 
 // if constexpr statement in sqrt.h still requires x86::sqrt to be declared
 // even when it's not used.
-static inline long double sqrt(long double x);
+LIBC_INLINE long double sqrt(long double x);
 
 // Correctly rounded SQRT for all rounding modes.
 // Shift-and-add algorithm.
 #if defined(SPECIAL_X86_LONG_DOUBLE)
-static inline long double sqrt(long double x) {
+LIBC_INLINE long double sqrt(long double x) {
   using UIntType = typename FPBits<long double>::UIntType;
   constexpr UIntType ONE = UIntType(1)
                            << int(MantissaWidth<long double>::VALUE);

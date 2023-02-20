@@ -60,8 +60,8 @@ enum PrimType : unsigned;
 ///                     Base
 class Pointer {
 private:
-  static constexpr unsigned PastEndMark = (unsigned)-1;
-  static constexpr unsigned RootPtrMark = (unsigned)-1;
+  static constexpr unsigned PastEndMark = ~0u;
+  static constexpr unsigned RootPtrMark = ~0u;
 
 public:
   Pointer() {}
@@ -225,6 +225,10 @@ public:
     return Offset - Base - Adjust;
   }
 
+  /// Whether this array refers to an array, but not
+  /// to the first element.
+  bool isArrayRoot() const { return inArray() && Offset == Base; }
+
   /// Checks if the innermost field is an array.
   bool inArray() const { return getFieldDesc()->IsArray; }
   /// Checks if the structure is a primitive array.
@@ -242,6 +246,8 @@ public:
 
   /// Returns the record descriptor of a class.
   Record *getRecord() const { return getFieldDesc()->ElemRecord; }
+  // Returns the element record type, if this is a non-primive array.
+  Record *getElemRecord() const { return getFieldDesc()->ElemDesc->ElemRecord; }
   /// Returns the field information.
   const FieldDecl *getField() const { return getFieldDesc()->asFieldDecl(); }
 
@@ -258,7 +264,9 @@ public:
   bool isStaticTemporary() const { return isStatic() && isTemporary(); }
 
   /// Checks if the field is mutable.
-  bool isMutable() const { return Base != 0 && getInlineDesc()->IsMutable; }
+  bool isMutable() const {
+    return Base != 0 && getInlineDesc()->IsFieldMutable;
+  }
   /// Checks if an object was initialized.
   bool isInitialized() const;
   /// Checks if the object is active.
@@ -302,6 +310,10 @@ public:
   /// Dereferences the pointer, if it's live.
   template <typename T> T &deref() const {
     assert(isLive() && "Invalid pointer");
+    if (isArrayRoot())
+      return *reinterpret_cast<T *>(Pointee->rawData() + Base +
+                                    sizeof(InitMap *));
+
     return *reinterpret_cast<T *>(Pointee->rawData() + Offset);
   }
 

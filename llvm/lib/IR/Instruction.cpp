@@ -17,6 +17,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
 using namespace llvm;
 
@@ -137,9 +138,10 @@ Instruction *Instruction::getInsertionPointAfterDef() {
   } else if (auto *II = dyn_cast<InvokeInst>(this)) {
     InsertBB = II->getNormalDest();
     InsertPt = InsertBB->getFirstInsertionPt();
-  } else if (auto *CB = dyn_cast<CallBrInst>(this)) {
-    InsertBB = CB->getDefaultDest();
-    InsertPt = InsertBB->getFirstInsertionPt();
+  } else if (isa<CallBrInst>(this)) {
+    // Def is available in multiple successors, there's no single dominating
+    // insertion point.
+    return nullptr;
   } else {
     assert(!isTerminator() && "Only invoke/callbr terminators return value");
     InsertBB = getParent();
@@ -208,6 +210,18 @@ void Instruction::dropPoisonGeneratingFlags() {
   }
 
   assert(!hasPoisonGeneratingFlags() && "must be kept in sync");
+}
+
+bool Instruction::hasPoisonGeneratingMetadata() const {
+  return hasMetadata(LLVMContext::MD_range) ||
+         hasMetadata(LLVMContext::MD_nonnull) ||
+         hasMetadata(LLVMContext::MD_align);
+}
+
+void Instruction::dropPoisonGeneratingMetadata() {
+  eraseMetadata(LLVMContext::MD_range);
+  eraseMetadata(LLVMContext::MD_nonnull);
+  eraseMetadata(LLVMContext::MD_align);
 }
 
 void Instruction::dropUndefImplyingAttrsAndUnknownMetadata(
@@ -855,13 +869,8 @@ Instruction *Instruction::cloneImpl() const {
 }
 
 void Instruction::swapProfMetadata() {
-  MDNode *ProfileData = getMetadata(LLVMContext::MD_prof);
-  if (!ProfileData || ProfileData->getNumOperands() != 3 ||
-      !isa<MDString>(ProfileData->getOperand(0)))
-    return;
-
-  MDString *MDName = cast<MDString>(ProfileData->getOperand(0));
-  if (MDName->getString() != "branch_weights")
+  MDNode *ProfileData = getBranchWeightMDNode(*this);
+  if (!ProfileData || ProfileData->getNumOperands() != 3)
     return;
 
   // The first operand is the name. Fetch them backwards and build a new one.

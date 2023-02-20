@@ -88,6 +88,9 @@ Symbol *Scope::FindSymbol(const SourceName &name) const {
   auto it{find(name)};
   if (it != end()) {
     return &*it->second;
+  } else if (IsSubmodule()) {
+    const Scope *parent{symbol_->get<ModuleDetails>().parent()};
+    return parent ? parent->FindSymbol(name) : nullptr;
   } else if (CanImport(name)) {
     return parent_.FindSymbol(name);
   } else {
@@ -272,7 +275,7 @@ std::optional<parser::MessageFixedText> Scope::SetImportKind(ImportKind kind) {
         ? "IMPORT,NONE must be the only IMPORT statement in a scope"_err_en_US
         : "IMPORT,ALL must be the only IMPORT statement in a scope"_err_en_US;
   } else if (kind != *importKind_ &&
-      (kind != ImportKind::Only || kind != ImportKind::Only)) {
+      (kind != ImportKind::Only && *importKind_ != ImportKind::Only)) {
     return "Every IMPORT must have ONLY specifier if one of them does"_err_en_US;
   } else {
     return std::nullopt;
