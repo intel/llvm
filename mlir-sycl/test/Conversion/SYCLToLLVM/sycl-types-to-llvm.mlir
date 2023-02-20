@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="use-bare-ptr-call-conv" -verify-diagnostics %s | FileCheck %s
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
@@ -72,7 +72,7 @@ func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_gb) {
 func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_gb) {
   return
 }
-// CHECK: llvm.func @test_accessor.5(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", (struct<"class.sycl::_V1::local_accessor_base{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+// CHECK: llvm.func @test_accessor.5(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", (struct<"class.sycl::_V1::local_accessor_base{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], ptr<i32, 3>
 func.func @test_accessor.5(%arg0: !sycl_accessor_1_i32_rw_1) {
   return
 }
@@ -97,7 +97,7 @@ func.func @test_assert_happened(%arg0: !sycl_assert_happened_) {
 
 !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
 !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
-// CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(struct<\(ptr<f32, 3>, ptr<f32, 3>, i64, array<1 x i64>, array<1 x i64>\)>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(struct<\(ptr<i32, 1>, ptr<i32, 1>, i64, array<1 x i64>, array<1 x i64>\)>\)>]]) {
+// CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(ptr<f32, 3>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(ptr<i32, 1>\)>]]) {
 func.func @test_atomic(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) {
   return
 }
@@ -189,7 +189,7 @@ func.func @test_local_accessor_base_device(%arg0: !sycl_LocalAccessorBaseDevice_
 func.func @test_local_accessor_base(%arg0: !sycl_local_accessor_base_1_i32_rw) {
   return
 }
-// CHECK: llvm.func @test_local_accessor(%arg0: !llvm.[[LOCAL_ACCESSOR:struct<"class.sycl::_V1::local_accessor.*", \(]][[LOCAL_ACCESSOR_BASE]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+// CHECK: llvm.func @test_local_accessor(%arg0: !llvm.[[LOCAL_ACCESSOR:struct<"class.sycl::_V1::local_accessor.*", \(]][[LOCAL_ACCESSOR_BASE]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], ptr<i32, 3>
 func.func @test_local_accessor(%arg0: !sycl_local_accessor_1_i32_) {
   return
 }
@@ -210,7 +210,7 @@ func.func @test_minimum(%arg0: !sycl_minimum_i32_) {
 // -----
 
 !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
-// CHECK: llvm.func @test_multi_ptr(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::multi_ptr", \(struct<\(ptr<i32, 1>, ptr<i32, 1>, i64, array<1 x i64>, array<1 x i64>\)>\)>]]) {
+// CHECK: llvm.func @test_multi_ptr(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::multi_ptr", \(ptr<i32, 1>\)>]]) {
 func.func @test_multi_ptr(%arg0: !sycl_multi_ptr_i32_1_) {
     return
 }
@@ -274,7 +274,7 @@ func.func @test_vec(%arg0: !sycl_vec_f32_4_) {
   return
 }
 !sycl_swizzled_vec_f32_4_ = !sycl.swizzled_vec<[!sycl_vec_f32_4_, 0, 2], (memref<?x!sycl_vec_f32_4_, 4>, !sycl.get_op<i8>, !sycl.get_op<i8>)>
-// CHECK: llvm.func @test_swizzled_vec(%arg0: !llvm.[[SWIZZLED_VEC:struct<"class.sycl::_V1::detail::SwizzleOp"]], (struct<(ptr<[[VEC]], 4>, ptr<[[VEC]], 4>, i64, array<1 x i64>, array<1 x i64>)>, [[GET_OP]], [[GET_OP]][[SUFFIX]]) {
+// CHECK: llvm.func @test_swizzled_vec(%arg0: !llvm.[[SWIZZLED_VEC:struct<"class.sycl::_V1::detail::SwizzleOp"]], (ptr<[[VEC]], 4>, [[GET_OP]], [[GET_OP]][[SUFFIX]]) {
 func.func @test_swizzled_vec(%arg0: !sycl_swizzled_vec_f32_4_) {
   return
 }
