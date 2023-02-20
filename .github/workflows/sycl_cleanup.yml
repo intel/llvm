@@ -10,7 +10,7 @@ on:
 
 jobs:
   cleanup:
-    runs-on: Linux
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/github-script@v6
       with:
