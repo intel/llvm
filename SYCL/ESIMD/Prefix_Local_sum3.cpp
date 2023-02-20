@@ -236,6 +236,8 @@ double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
                            unsigned thrd_stride, unsigned n_entries,
                            unsigned entry_per_th) {
   double kernel_times = 0;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
   try {
     if (n_entries <= REMAINING_ENTRIES) {
 #ifdef DEBUG_DUMPS
@@ -252,7 +254,8 @@ double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
             });
       });
       e.wait();
-      kernel_times += esimd_test::report_time("kernel1 time", e, e);
+      if (profiling)
+        kernel_times += esimd_test::report_time("kernel1 time", e, e);
       return kernel_times;
     }
 
@@ -272,7 +275,8 @@ double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
             });
       });
       e.wait();
-      kernel_times += esimd_test::report_time("kernel2 time", e, e);
+      if (profiling)
+        kernel_times += esimd_test::report_time("kernel2 time", e, e);
     } else {
       auto e = q.submit([&](handler &cgh) {
         cgh.parallel_for<class Accum_iterative2>(
@@ -283,7 +287,8 @@ double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
             });
       });
       e.wait();
-      kernel_times += esimd_test::report_time("kernel3 time", e, e);
+      if (profiling)
+        kernel_times += esimd_test::report_time("kernel3 time", e, e);
     }
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -324,8 +329,7 @@ int main(int argc, char *argv[]) {
 
   sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
@@ -353,22 +357,24 @@ int main(int argc, char *argv[]) {
 
   double kernel_times = 0;
   unsigned num_iters = 10;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   for (int iter = 0; iter <= num_iters; ++iter) {
     memcpy(pDeviceOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));
     double etime = hierarchical_prefix(q, pDeviceOutputs, 1, PREFIX_ENTRIES,
                                        size, PREFIX_ENTRIES);
-    if (iter > 0)
+    if (profiling && iter > 0)
       kernel_times += etime;
-    else
+    if (iter == 0)
       start = timer.Elapsed();
   }
 
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
 
   compute_local_prefixsum(pExpectOutputs, size, 1, PREFIX_ENTRIES,
                           PREFIX_ENTRIES);

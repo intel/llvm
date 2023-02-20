@@ -125,10 +125,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  sycl::property_list props{property::queue::enable_profiling{},
-                            property::queue::in_order()};
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          props);
+  queue q = esimd_test::createQueue(/*inOrder*/ true);
 
   auto points4 = malloc_shared<Point4>(NUM_POINTS / SIMD_SIZE, q);
   memset(points4, 0, NUM_POINTS / SIMD_SIZE * sizeof(Point4));
@@ -216,6 +213,8 @@ int main(int argc, char *argv[]) {
 
   double kernel1_time_in_ms = 0;
   double kernel2_time_in_ms = 0;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   //----
   // Actual execution goes here
@@ -326,7 +325,8 @@ int main(int argc, char *argv[]) {
     });
 
     e.wait();
-    kernel1_time_in_ms += esimd_test::report_time("kernel1", e, e);
+    if (profiling)
+      kernel1_time_in_ms += esimd_test::report_time("kernel1", e, e);
 
     // printf("Done with kmeans\n");
 
@@ -370,7 +370,8 @@ int main(int argc, char *argv[]) {
           });
     });
     e2.wait();
-    kernel2_time_in_ms += esimd_test::report_time("kernel2", e2, e2);
+    if (profiling)
+      kernel2_time_in_ms += esimd_test::report_time("kernel2", e2, e2);
   };
 
   try {
@@ -404,14 +405,16 @@ int main(int argc, char *argv[]) {
   printf("NUMBER_OF_ITERATIONS: %d\n", NUM_ITERATIONS);
   printf("POINTS_PER_THREAD: %d\n", POINTS_PER_THREAD);
 
-  printf("Average kernel1 time: %f ms\n", kernel1_time / NUM_ITERATIONS);
-  printf("Total kernel1 time: %f ms\n\n", kernel1_time);
+  if (profiling) {
+    printf("Average kernel1 time: %f ms\n", kernel1_time / NUM_ITERATIONS);
+    printf("Total kernel1 time: %f ms\n\n", kernel1_time);
 
-  printf("Average kernel2 time: %f ms\n", kernel2_time / NUM_ITERATIONS);
-  printf("Total kernel2 time: %f ms\n\n", kernel2_time);
+    printf("Average kernel2 time: %f ms\n", kernel2_time / NUM_ITERATIONS);
+    printf("Total kernel2 time: %f ms\n\n", kernel2_time);
 
-  printf("Average kernel time: %f ms\n", kernel_time / NUM_ITERATIONS);
-  printf("Total kernel time: %f ms\n\n", kernel_time);
+    printf("Average kernel time: %f ms\n", kernel_time / NUM_ITERATIONS);
+    printf("Total kernel time: %f ms\n\n", kernel_time);
+  }
 
   printf("--- ESIMD Kernel execution stats end ---\n\n");
 

@@ -109,8 +109,7 @@ int main(int argc, char *argv[]) {
   // Read in image luma plane
 
   // Allocate Input Buffer
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          sycl::property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
 
   auto dev = q.get_device();
   auto ctxt = q.get_context();
@@ -173,6 +172,8 @@ int main(int argc, char *argv[]) {
 
   double kernel_times = 0;
   unsigned num_iters = 10;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
   try {
     // num_iters + 1, iteration#0 is for warmup
     for (int iter = 0; iter <= num_iters; ++iter) {
@@ -250,10 +251,12 @@ int main(int argc, char *argv[]) {
             });
       });
       e.wait();
-      etime = esimd_test::report_time("kernel time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
-      else
+      if (profiling) {
+        etime = esimd_test::report_time("kernel time", e, e);
+        if (iter > 0)
+          kernel_times += etime;
+      }
+      if (iter == 0)
         start = timer.Elapsed();
     }
 
@@ -268,8 +271,8 @@ int main(int argc, char *argv[]) {
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
 
   writeHist(bins);
   writeHist(cpuHistogram);

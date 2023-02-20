@@ -14,6 +14,9 @@
 
 #include <CL/sycl.hpp>
 #include <ext/intel/esimd.hpp>
+
+#include "../esimd_test_utils.hpp"
+
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
@@ -90,10 +93,10 @@ int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_rol,
 }
 
 int main(int argc, char *argv[]) {
-  sycl::property_list properties{sycl::property::queue::enable_profiling()};
-  auto q = sycl::queue(properties);
+  sycl::device dev{sycl::default_selector_v};
+  sycl::queue q{esimd_test::createQueuePropertyList(
+      dev.has(sycl::aspect::queue_profiling))};
 
-  auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
   int test_result = 0;

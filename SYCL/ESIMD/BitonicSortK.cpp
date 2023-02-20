@@ -606,6 +606,9 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     num_iters = 2;
   }
 
+  const bool profiling =
+      pQueue_->has_property<property::queue::enable_profiling>();
+
   // num_iters + 1, iteration#0 is for warmup
   for (int iter = 0; iter <= num_iters; ++iter) {
     try {
@@ -622,9 +625,11 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
             });
       });
       e.wait();
-      double etime = esimd_test::report_time("kernel1 time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
+      if (profiling) {
+        double etime = esimd_test::report_time("kernel1 time", e, e);
+        if (iter > 0)
+          kernel_times += etime;
+      }
     } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return 0;
@@ -673,19 +678,21 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     }
 
     mergeEvent[k - 1].wait();
-    double etime = esimd_test::report_time("kernel2 time", mergeEvent[0],
-                                           mergeEvent[k - 1]);
-    if (iter > 0)
-      kernel_times += etime;
-    else
+    if (profiling) {
+      double etime = esimd_test::report_time("kernel2 time", mergeEvent[0],
+                                             mergeEvent[k - 1]);
+      if (iter > 0)
+        kernel_times += etime;
+    }
+    if (iter == 0)
       start = timer.Elapsed();
   }
 
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
   return 1;
 }
 
@@ -700,8 +707,7 @@ int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
 
   BitonicSort bitonicSort;
 

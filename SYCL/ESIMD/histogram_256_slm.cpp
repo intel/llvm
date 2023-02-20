@@ -104,8 +104,7 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 }
 
 int main() {
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          sycl::property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
 
   const char *input_file = nullptr;
   unsigned int width = 1024;
@@ -159,6 +158,8 @@ int main() {
   // Launches the task on the GPU.
   double kernel_times = 0;
   unsigned num_iters = 10;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
   try {
     for (int iter = 0; iter <= num_iters; ++iter) {
       double etime = 0;
@@ -171,10 +172,12 @@ int main() {
             });
       });
       e.wait();
-      etime = esimd_test::report_time("kernel time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
-      else
+      if (profiling) {
+        etime = esimd_test::report_time("kernel time", e, e);
+        if (iter > 0)
+          kernel_times += etime;
+      }
+      if (iter == 0)
         start = timer.Elapsed();
     }
   } catch (sycl::exception const &e) {
@@ -185,8 +188,8 @@ int main() {
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
 
   std::cout << "finish GPU histogram\n";
 

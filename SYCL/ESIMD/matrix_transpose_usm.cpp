@@ -263,6 +263,8 @@ bool runTest(queue &q, unsigned MZ, unsigned block_size, unsigned num_iters,
   // Start timer.
   esimd_test::Timer timer;
   double start;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   // Launches the task on the GPU.
 
@@ -278,7 +280,8 @@ bool runTest(queue &q, unsigned MZ, unsigned block_size, unsigned num_iters,
               });
         });
         e.wait();
-        etime = esimd_test::report_time("kernel time", e, e);
+        if (profiling)
+          etime = esimd_test::report_time("kernel time", e, e);
       } else if (block_size == 8) {
         auto e = q.submit([&](handler &cgh) {
           cgh.parallel_for<class Transpose08>(
@@ -287,7 +290,8 @@ bool runTest(queue &q, unsigned MZ, unsigned block_size, unsigned num_iters,
               });
         });
         e.wait();
-        etime = esimd_test::report_time("kernel time", e, e);
+        if (profiling)
+          etime = esimd_test::report_time("kernel time", e, e);
       }
 
       if (i > 0)
@@ -320,8 +324,7 @@ int main(int argc, char *argv[]) {
     MZ = (MZ < (1U << 12)) ? MZ : (1U << 12);
   }
 
-  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue Q = esimd_test::createQueue();
 
   unsigned num_iters = 10;
   double kernel_times = 0;
@@ -341,7 +344,10 @@ int main(int argc, char *argv[]) {
     // total_times);
   }
 
-  esimd_test::display_timing_stats(kernel_times, num_iters, total_times);
+  const bool profiling =
+      Q.has_property<sycl::property::queue::enable_profiling>();
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, total_times);
 
   cerr << (success ? "PASSED\n" : "FAILED\n");
   return !success;

@@ -243,8 +243,7 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 
 bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
              double &kernel_times, double &total_times) {
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
   int *M = malloc_shared<int>(MZ * MZ, q);
 
   initMatrix(M, MZ);
@@ -276,6 +275,8 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
   // Start timer.
   esimd_test::Timer timer;
   double start;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   // Launches the task on the GPU.
 
@@ -291,7 +292,8 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
               });
         });
         e.wait();
-        etime = esimd_test::report_time("kernel time", e, e);
+        if (profiling)
+          etime = esimd_test::report_time("kernel time", e, e);
       } else if (block_size == 8) {
         auto e = q.submit([&](handler &cgh) {
           cgh.parallel_for<class Transpose08>(
@@ -300,12 +302,13 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
               });
         });
         e.wait();
-        etime = esimd_test::report_time("kernel time", e, e);
+        if (profiling)
+          etime = esimd_test::report_time("kernel time", e, e);
       }
 
-      if (i > 0)
+      if (profiling && i > 0)
         kernel_times += etime;
-      else
+      if (i == 0)
         start = timer.Elapsed();
     }
   } catch (sycl::exception const &e) {
@@ -350,7 +353,10 @@ int main(int argc, char *argv[]) {
     // success &= runTest(1U << 13, 16, num_iters, kernel_times, total_times);
   }
 
-  esimd_test::display_timing_stats(kernel_times, num_iters, total_times);
+  const bool profiling =
+      device(esimd_test::ESIMDSelector).has(aspect::queue_profiling);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, total_times);
 
   cerr << (success ? "PASSED\n" : "FAILED\n");
   return !success;

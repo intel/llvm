@@ -516,6 +516,8 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   // Start Timer
   esimd_test::Timer timer;
   double start;
+  const bool profiling =
+      pQueue_->has_property<sycl::property::queue::enable_profiling>();
 
   // Launches the task on the GPU.
   double kernel_times = 0;
@@ -539,9 +541,11 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
             });
       });
       e.wait();
-      double etime = esimd_test::report_time("kernel1 time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
+      if (profiling) {
+        double etime = esimd_test::report_time("kernel1 time", e, e);
+        if (iter > 0)
+          kernel_times += etime;
+      }
     } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return 0;
@@ -589,19 +593,21 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     }
 
     mergeEvent[k - 1].wait();
-    double etime = esimd_test::report_time("kernel2 time", mergeEvent[0],
-                                           mergeEvent[k - 1]);
-    if (iter > 0)
-      kernel_times += etime;
-    else
+    if (profiling) {
+      double etime = esimd_test::report_time("kernel2 time", mergeEvent[0],
+                                             mergeEvent[k - 1]);
+      if (iter > 0)
+        kernel_times += etime;
+    }
+    if (iter == 0)
       start = timer.Elapsed();
   }
 
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
   return 1;
 }
 
@@ -617,11 +623,7 @@ int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
-  sycl::property_list props{sycl::property::queue::enable_profiling{},
-                            sycl::property::queue::in_order()};
-
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          props);
+  queue q = esimd_test::createQueue(/*inOrder*/ true);
 
   BitonicSort bitonicSort;
 

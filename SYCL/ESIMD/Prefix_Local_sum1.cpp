@@ -125,8 +125,7 @@ int main(int argc, char *argv[]) {
 
   sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
@@ -157,6 +156,8 @@ int main(int argc, char *argv[]) {
 
   double kernel_times = 0;
   unsigned num_iters = 10;
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   try {
     for (int iter = 0; iter <= num_iters; ++iter) {
@@ -168,10 +169,12 @@ int main(int argc, char *argv[]) {
             });
       });
       e0.wait();
-      double etime = esimd_test::report_time("kernel time", e0, e0);
-      if (iter > 0)
-        kernel_times += etime;
-      else
+      if (profiling) {
+        double etime = esimd_test::report_time("kernel time", e0, e0);
+        if (iter > 0)
+          kernel_times += etime;
+      }
+      if (iter == 0)
         start = timer.Elapsed();
     }
   } catch (sycl::exception const &e) {
@@ -185,8 +188,8 @@ int main(int argc, char *argv[]) {
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
 
   bool pass = memcmp(pDeviceOutputs, pExpectOutputs,
                      size * TUPLE_SZ * sizeof(unsigned int)) == 0;

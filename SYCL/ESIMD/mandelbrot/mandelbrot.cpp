@@ -96,8 +96,9 @@ int main(int argc, char *argv[]) {
   double kernel_times = 0;
   unsigned num_iters = 10;
 
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q = esimd_test::createQueue();
+  const bool profiling =
+      q.has_property<sycl::property::queue::enable_profiling>();
 
   try {
     sycl::image<2> imgOutput((unsigned int *)buf, image_channel_order::rgba,
@@ -130,10 +131,12 @@ int main(int argc, char *argv[]) {
             });
       });
       e.wait();
-      double etime = esimd_test::report_time("kernel time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
-      else
+      if (profiling) {
+        double etime = esimd_test::report_time("kernel time", e, e);
+        if (iter > 0)
+          kernel_times += etime;
+      }
+      if (iter == 0)
         start = timer.Elapsed();
     }
   } catch (sycl::exception const &e) {
@@ -145,8 +148,8 @@ int main(int argc, char *argv[]) {
   // End timer.
   double end = timer.Elapsed();
 
-  esimd_test::display_timing_stats(kernel_times, num_iters,
-                                   (end - start) * 1000);
+  esimd_test::display_timing_stats(profiling ? &kernel_times : nullptr,
+                                   num_iters, (end - start) * 1000);
 
   char *out_file = argv[1];
   FILE *dumpfile = fopen(out_file, "wb");
