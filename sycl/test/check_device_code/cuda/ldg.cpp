@@ -74,9 +74,9 @@ int main() {
       //CHECK: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0v4f32(<4 x float>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0(ptr %{{.*}}, i32 16)
       auto cached_f4 = ldg(&in_f4[0]);
-    
 
-      // Unsigned variants are identical to signed variants, but this leads to correct behavior.
+      // Unsigned variants are identical to signed variants, but this leads to
+      // correct behavior.
 
       //CHECK: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0i8(i8* %{{.*}}, i32 1)
       //CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
@@ -153,7 +153,6 @@ int main() {
       //CHECK: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0v4i32(<4 x i32>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr %28, i32 16)
       auto cached_ui4 = ldg(&in_ui4[0]);
-
     });
   });
 
