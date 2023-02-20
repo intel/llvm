@@ -339,9 +339,10 @@ urContextRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported context info
 typedef enum ur_context_info_t {
-    UR_CONTEXT_INFO_NUM_DEVICES = 1,          ///< [uint32_t] The number of the devices in the context
-    UR_CONTEXT_INFO_DEVICES = 2,              ///< [::ur_context_handle_t...] The array of the device handles in the
+    UR_CONTEXT_INFO_NUM_DEVICES = 0,          ///< [uint32_t] The number of the devices in the context
+    UR_CONTEXT_INFO_DEVICES = 1,              ///< [::ur_context_handle_t...] The array of the device handles in the
                                               ///< context
+    UR_CONTEXT_INFO_REFERENCE_COUNT = 2,      ///< [uint32_t] Reference count of the context object.
     UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT = 3, ///< [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
                                               ///< supported.
     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,   ///< [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is

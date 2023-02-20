@@ -249,9 +249,10 @@ class ur_rect_region_t(Structure):
 ###############################################################################
 ## @brief Supported context info
 class ur_context_info_v(IntEnum):
-    NUM_DEVICES = 1                                 ## [uint32_t] The number of the devices in the context
-    DEVICES = 2                                     ## [::ur_context_handle_t...] The array of the device handles in the
+    NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
+    DEVICES = 1                                     ## [::ur_context_handle_t...] The array of the device handles in the
                                                     ## context
+    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
     USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
                                                     ## supported.
     USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
