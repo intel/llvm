@@ -105,6 +105,9 @@ private:
   SPIRVEntry *transDbgPointerType(const DIDerivedType *PT);
   SPIRVEntry *transDbgQualifiedType(const DIDerivedType *QT);
   SPIRVEntry *transDbgArrayType(const DICompositeType *AT);
+  SPIRVEntry *transDbgArrayTypeOpenCL(const DICompositeType *AT);
+  SPIRVEntry *transDbgArrayTypeNonSemantic(const DICompositeType *AT);
+  SPIRVEntry *transDbgSubrangeType(const DISubrange *ST);
   SPIRVEntry *transDbgTypeDef(const DIDerivedType *D);
   SPIRVEntry *transDbgSubroutineType(const DISubroutineType *FT);
   SPIRVEntry *transDbgEnumType(const DICompositeType *ET);

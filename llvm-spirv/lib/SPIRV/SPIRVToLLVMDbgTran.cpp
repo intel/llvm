@@ -91,7 +91,8 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   if (isa<OpExtInst>(E)) {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
     if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug ||
-        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100 ||
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
       return EI;
   }
   return nullptr;
@@ -192,6 +193,14 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
 
 DICompositeType *
 SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+    return transTypeArrayNonSemantic(DebugInst);
+
+  return transTypeArrayOpenCL(DebugInst);
+}
+
+DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayOpenCL(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeArray;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
@@ -247,6 +256,28 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
 }
 
 DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeArray;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  DIType *BaseTy =
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+  size_t TotalCount = 1;
+  SmallVector<llvm::Metadata *, 8> Subscripts;
+  if (DebugInst->getExtOp() == SPIRVDebug::TypeArray) {
+    for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
+      auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
+      if (auto *Count = SR->getCount().get<ConstantInt *>())
+        TotalCount *= Count->getZExtValue() > 0 ? Count->getZExtValue() : 0;
+      Subscripts.push_back(SR);
+    }
+  }
+  DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
+  return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray);
+}
+
+DICompositeType *
 SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeVector;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
@@ -286,6 +317,8 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   SPIRVEntry *SizeEntry = BM->getEntry(Ops[SizeIdx]);
   if (!(SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone) ||
         SizeEntry->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                             SPIRVDebug::DebugInfoNone) ||
+        SizeEntry->isExtInst(SPIRVEIS_NonSemantic_Kernel_DebugInfo_100,
                              SPIRVDebug::DebugInfoNone))) {
     Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   }
@@ -339,6 +372,36 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   Builder.replaceArrays(CT, Elements);
   assert(CT && "Composite type translation failed.");
   return CT;
+}
+
+DISubrange *
+SPIRVToLLVMDbgTran::transTypeSubrange(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeSubrange;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() == OperandCount && "Invalid number of operands");
+  std::vector<Metadata *> TranslatedOps(OperandCount, nullptr);
+  auto TransOperand = [&Ops, &TranslatedOps, this](int Idx) -> void {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
+      if (auto *GlobalVar = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx])) {
+        TranslatedOps[Idx] =
+            cast<Metadata>(transDebugInst<DIGlobalVariable>(GlobalVar));
+      } else if (auto *LocalVar =
+                     getDbgInst<SPIRVDebug::LocalVariable>(Ops[Idx])) {
+        TranslatedOps[Idx] =
+            cast<Metadata>(transDebugInst<DILocalVariable>(LocalVar));
+      } else if (auto *Expr = getDbgInst<SPIRVDebug::Expression>(Ops[Idx])) {
+        TranslatedOps[Idx] = cast<Metadata>(transDebugInst<DIExpression>(Expr));
+      } else if (auto *Const = BM->get<SPIRVConstant>(Ops[Idx])) {
+        int64_t ConstantAsInt = static_cast<int64_t>(Const->getZExtIntValue());
+        TranslatedOps[Idx] = cast<Metadata>(ConstantAsMetadata::get(
+            ConstantInt::get(M->getContext(), APInt(64, ConstantAsInt))));
+      }
+    }
+  };
+  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+    TransOperand(Idx);
+  return Builder.getOrCreateSubrange(TranslatedOps[0], TranslatedOps[1],
+                                     TranslatedOps[2], TranslatedOps[3]);
 }
 
 DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst) {
@@ -886,6 +949,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::TypeArray:
     return transTypeArray(DebugInst);
+
+  case SPIRVDebug::TypeSubrange:
+    return transTypeSubrange(DebugInst);
 
   case SPIRVDebug::TypeVector:
     return transTypeVector(DebugInst);

@@ -80,7 +80,11 @@ enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
 enum class FPContractMode : uint32_t { On, Off, Fast };
 
-enum class DebugInfoEIS : uint32_t { SPIRV_Debug, OpenCL_DebugInfo_100 };
+enum class DebugInfoEIS : uint32_t {
+  SPIRV_Debug,
+  OpenCL_DebugInfo_100,
+  NonSemantic_Kernel_DebugInfo_100
+};
 
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {

@@ -50,7 +50,8 @@ enum Instruction {
   ImportedEntity                = 34,
   Source                        = 35,
   ModuleINTEL                   = 36,
-  InstCount                     = 37
+  InstCount                     = 37,
+  TypeSubrange                  = 110
 };
 
 enum Flag {
@@ -323,11 +324,22 @@ namespace TypeArray {
 enum {
   BaseTypeIdx       = 0,
   ComponentCountIdx = 1,
+  SubrangesIdx      = 1,
   MinOperandCount   = 2
 };
 }
 
 namespace TypeVector = TypeArray;
+
+namespace TypeSubrange {
+enum {
+  CountIdx        = 0,
+  LowerBoundIdx   = 1,
+  UpperBoundIdx   = 2,
+  StrideIdx       = 3,
+  OperandCount    = 4
+};
+}
 
 namespace Typedef {
 enum {

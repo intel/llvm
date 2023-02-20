@@ -277,6 +277,12 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
     case dwarf::DW_TAG_array_type:
       return transDbgArrayType(cast<DICompositeType>(DIEntry));
 
+    case dwarf::DW_TAG_subrange_type:
+      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+        return transDbgSubrangeType(cast<DISubrange>(DIEntry));
+      else
+        return getDebugInfoNone();
+
     case dwarf::DW_TAG_const_type:
     case dwarf::DW_TAG_restrict_type:
     case dwarf::DW_TAG_volatile_type:
@@ -552,6 +558,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgQualifiedType(const DIDerivedType *QT) {
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+    return transDbgArrayTypeNonSemantic(AT);
+
+  return transDbgArrayTypeOpenCL(AT);
+}
+
+SPIRVEntry *
+LLVMToSPIRVDbgTran::transDbgArrayTypeOpenCL(const DICompositeType *AT) {
   using namespace SPIRVDebug::Operand::TypeArray;
   SPIRVWordVec Ops(MinOperandCount);
   SPIRVEntry *Base = transDbgEntry(AT->getBaseType());
@@ -592,6 +606,80 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
   }
   Ops.insert(Ops.end(), LowerBounds.begin(), LowerBounds.end());
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
+}
+
+SPIRVEntry *
+LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
+  using namespace SPIRVDebug::Operand::TypeArray;
+  SPIRVWordVec Ops(MinOperandCount);
+  SPIRVEntry *Base = transDbgEntry(AT->getBaseType());
+  Ops[BaseTypeIdx] = Base->getId();
+
+  DINodeArray AR(AT->getElements());
+  // For N-dimensianal arrays AR.getNumElements() == N
+  const unsigned N = AR.size();
+  Ops.resize(SubrangesIdx + N);
+  for (unsigned I = 0; I < N; ++I) {
+    DISubrange *SR = cast<DISubrange>(AR[I]);
+    ConstantInt *Count = SR->getCount().get<ConstantInt *>();
+    if (AT->isVector()) {
+      assert(N == 1 && "Multidimensional vector is not expected!");
+      Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
+      return BM->addDebugInfo(SPIRVDebug::TypeVector, getVoidTy(), Ops);
+    }
+    Ops[SubrangesIdx + I] = transDbgEntry(SR)->getId();
+  }
+  return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
+  using namespace SPIRVDebug::Operand::TypeSubrange;
+  SPIRVWordVec Ops(OperandCount);
+  auto TransOperand = [&Ops, this, ST](int Idx) -> void {
+    Metadata *RawNode = nullptr;
+    switch (Idx) {
+    case LowerBoundIdx:
+      RawNode = ST->getRawLowerBound();
+      break;
+    case UpperBoundIdx:
+      RawNode = ST->getRawUpperBound();
+      break;
+    case CountIdx:
+      RawNode = ST->getRawCountNode();
+      break;
+    case StrideIdx:
+      RawNode = ST->getRawStride();
+      break;
+    }
+    if (!RawNode) {
+      Ops[Idx] = getDebugInfoNoneId();
+      return;
+    }
+    if (auto *Node = dyn_cast<MDNode>(RawNode)) {
+      Ops[Idx] = transDbgEntry(Node)->getId();
+    } else {
+      ConstantInt *IntNode = nullptr;
+      switch (Idx) {
+      case LowerBoundIdx:
+        IntNode = ST->getLowerBound().get<ConstantInt *>();
+        break;
+      case UpperBoundIdx:
+        IntNode = ST->getUpperBound().get<ConstantInt *>();
+        break;
+      case CountIdx:
+        IntNode = ST->getCount().get<ConstantInt *>();
+        break;
+      case StrideIdx:
+        IntNode = ST->getStride().get<ConstantInt *>();
+        break;
+      }
+      Ops[Idx] = IntNode ? SPIRVWriter->transValue(IntNode, nullptr)->getId()
+                         : getDebugInfoNoneId();
+    }
+  };
+  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+    TransOperand(Idx);
+  return BM->addDebugInfo(SPIRVDebug::TypeSubrange, getVoidTy(), Ops);
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgTypeDef(const DIDerivedType *DT) {
