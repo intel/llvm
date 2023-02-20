@@ -21,7 +21,7 @@ TEST_P(urEventReleaseTest, Success) {
     ASSERT_GT(prevRefCount.first, refCount.first);
 }
 
-TEST(urEventReleaseTest, InvalidNullHandle) {
+TEST_P(urEventReleaseTest, InvalidNullHandle) {
     ASSERT_EQ_RESULT(urEventRelease(nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }

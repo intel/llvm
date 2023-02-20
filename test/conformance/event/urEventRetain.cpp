@@ -20,7 +20,7 @@ TEST_P(urEventRetainTest, Success) {
     ASSERT_SUCCESS(urEventRelease(event));
 }
 
-TEST(urEventRetainTest, InvalidNullHandle) {
+TEST_P(urEventRetainTest, InvalidNullHandle) {
     ASSERT_EQ_RESULT(urEventRetain(nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }

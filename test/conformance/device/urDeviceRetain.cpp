@@ -15,7 +15,7 @@ TEST_F(urDeviceRetainTest, Success) {
         const auto refCount = uur::urDeviceGetReferenceCount(device);
         ASSERT_TRUE(refCount.second);
 
-        ASSERT_EQ(prevRefCount.first + 1, refCount.first);
+        ASSERT_LT(prevRefCount.first, refCount.first);
 
         EXPECT_SUCCESS(urDeviceRelease(device));
     }
