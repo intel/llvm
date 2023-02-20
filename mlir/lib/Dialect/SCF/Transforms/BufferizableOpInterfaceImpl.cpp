@@ -120,7 +120,7 @@ struct ExecuteRegionOpInterface
     auto yieldOp = dyn_cast<scf::YieldOp>(
         executeRegionOp.getRegion().front().getTerminator());
     assert(yieldOp && "expected scf.yield terminator in scf.execute_region");
-    return {&yieldOp->getOpOperand(resultNum)};
+    return {{&yieldOp->getOpOperand(resultNum), BufferRelation::Equivalent}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -154,11 +154,6 @@ struct ExecuteRegionOpInterface
 
     return success();
   }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    return BufferRelation::Equivalent;
-  }
 };
 
 /// Bufferization of scf.if. Replace with a new scf.if that yields memrefs.
@@ -174,8 +169,10 @@ struct IfOpInterface
     auto ifOp = cast<scf::IfOp>(op);
     size_t resultNum = std::distance(op->getOpResults().begin(),
                                      llvm::find(op->getOpResults(), opResult));
-    return {&ifOp.thenYield()->getOpOperand(resultNum),
-            &ifOp.elseYield()->getOpOperand(resultNum)};
+    OpOperand *thenOperand = &ifOp.thenYield()->getOpOperand(resultNum);
+    OpOperand *elseOperand = &ifOp.elseYield()->getOpOperand(resultNum);
+    return {{thenOperand, BufferRelation::Equivalent, /*isDefinite=*/false},
+            {elseOperand, BufferRelation::Equivalent, /*isDefinite=*/false}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -257,20 +254,6 @@ struct IfOpInterface
     // Layout maps are different: Promote to fully dynamic layout map.
     return getMemRefTypeWithFullyDynamicLayout(
         opResult.getType().cast<TensorType>(), thenBufferType.getMemorySpace());
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    // IfOp results are equivalent to their corresponding yield values if both
-    // yield values are equivalent to each other.
-    auto bufferizableOp = cast<BufferizableOpInterface>(op);
-    SmallVector<OpOperand *> yieldValues =
-        bufferizableOp.getAliasingOpOperands(opResult, state);
-    assert(yieldValues.size() == 2 && "expected 2 yield values");
-    bool equivalentYields = state.areEquivalentBufferizedValues(
-        yieldValues[0]->get(), yieldValues[1]->get());
-    return equivalentYields ? BufferRelation::Equivalent
-                            : BufferRelation::Unknown;
   }
 };
 
@@ -446,7 +429,10 @@ struct ForOpInterface
   AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
     auto forOp = cast<scf::ForOp>(op);
-    return {forOp.getResultForOpOperand(opOperand)};
+    OpResult opResult = forOp.getResultForOpOperand(opOperand);
+    BufferRelation relation = bufferRelation(op, opResult, state);
+    return {{opResult, relation,
+             /*isDefinite=*/relation == BufferRelation::Equivalent}};
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -669,7 +655,10 @@ struct WhileOpInterface
       return {};
 
     // The only aliasing OpResult may be the one at the same index.
-    return {whileOp->getResult(idx)};
+    OpResult opResult = whileOp->getResult(idx);
+    BufferRelation relation = bufferRelation(op, opResult, state);
+    return {{opResult, relation,
+             /*isDefinite=*/relation == BufferRelation::Equivalent}};
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -954,10 +943,13 @@ struct YieldOpInterface
 
   AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
-    if (isa<scf::IfOp>(op->getParentOp()))
-      return {op->getParentOp()->getResult(opOperand.getOperandNumber())};
+    if (auto ifOp = dyn_cast<scf::IfOp>(op->getParentOp())) {
+      return {{op->getParentOp()->getResult(opOperand.getOperandNumber()),
+               BufferRelation::Equivalent, /*isDefinite=*/false}};
+    }
     if (isa<scf::ExecuteRegionOp>(op->getParentOp()))
-      return {op->getParentOp()->getResult(opOperand.getOperandNumber())};
+      return {{op->getParentOp()->getResult(opOperand.getOperandNumber()),
+               BufferRelation::Equivalent}};
     return {};
   }
 
@@ -1011,55 +1003,50 @@ struct YieldOpInterface
 };
 
 /// Return `true` if the given loop may have 0 iterations.
-bool mayHaveZeroIterations(scf::ForeachThreadOp foreachThreadOp) {
-  int64_t p = 1;
-  for (Value v : foreachThreadOp.getNumThreads()) {
-    if (std::optional<int64_t> c = getConstantIntValue(v)) {
-      p *= *c;
-    } else {
+bool mayHaveZeroIterations(scf::ForallOp forallOp) {
+  for (auto [lb, ub] : llvm::zip(forallOp.getMixedLowerBound(),
+                                 forallOp.getMixedUpperBound())) {
+    std::optional<int64_t> lbConst = getConstantIntValue(lb);
+    std::optional<int64_t> ubConst = getConstantIntValue(ub);
+    if (!lbConst.has_value() || !ubConst.has_value() || *lbConst >= *ubConst)
       return true;
-    }
   }
-  return p == 0;
+  return false;
 }
 
-/// Bufferization of ForeachThreadOp. This also bufferizes the terminator of the
-/// region. There are op interfaces for the terminators (PerformConcurrentlyOp
+/// Bufferization of ForallOp. This also bufferizes the terminator of the
+/// region. There are op interfaces for the terminators (InParallelOp
 /// and ParallelInsertSliceOp), but these are only used during analysis. Not
 /// for bufferization.
-struct ForeachThreadOpInterface
-    : public BufferizableOpInterface::ExternalModel<ForeachThreadOpInterface,
-                                                    ForeachThreadOp> {
+struct ForallOpInterface
+    : public BufferizableOpInterface::ExternalModel<ForallOpInterface,
+                                                    ForallOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    auto foreachThreadOp = cast<ForeachThreadOp>(op);
+    auto forallOp = cast<ForallOp>(op);
 
     // If the loop has zero iterations, the results of the op are their
     // corresponding shared_outs, meaning that the shared_outs bufferize to a
     // read.
-    if (mayHaveZeroIterations(foreachThreadOp))
+    if (mayHaveZeroIterations(forallOp))
       return true;
 
-    // scf::ForeachThreadOp alone doesn't bufferize to a memory read, one of the
+    // scf::ForallOp alone doesn't bufferize to a memory read, one of the
     // uses of its matching bbArg may.
-    return state.isValueRead(foreachThreadOp.getTiedBlockArgument(&opOperand));
+    return state.isValueRead(forallOp.getTiedBlockArgument(&opOperand));
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
                                const AnalysisState &state) const {
-    // Outputs of scf::ForeachThreadOps are always considered as a write.
+    // Outputs of scf::ForallOps are always considered as a write.
     return true;
   }
 
   AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
-    auto foreachThreadOp = cast<ForeachThreadOp>(op);
-    return {foreachThreadOp.getTiedOpResult(&opOperand)};
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    return BufferRelation::Equivalent;
+    auto forallOp = cast<ForallOp>(op);
+    return {
+        {{forallOp.getTiedOpResult(&opOperand), BufferRelation::Equivalent}}};
   }
 
   bool isWritable(Operation *op, Value value,
@@ -1070,12 +1057,12 @@ struct ForeachThreadOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     OpBuilder::InsertionGuard guard(rewriter);
-    auto foreachThreadOp = cast<ForeachThreadOp>(op);
-    int64_t rank = foreachThreadOp.getRank();
+    auto forallOp = cast<ForallOp>(op);
+    int64_t rank = forallOp.getRank();
 
     // Get buffers for all output operands.
     SmallVector<Value> buffers;
-    for (Value out : foreachThreadOp.getOutputs()) {
+    for (Value out : forallOp.getOutputs()) {
       FailureOr<Value> buffer = getBuffer(rewriter, out, options);
       if (failed(buffer))
         return failure();
@@ -1083,35 +1070,34 @@ struct ForeachThreadOpInterface
     }
 
     // Use buffers instead of block arguments.
-    rewriter.setInsertionPointToStart(foreachThreadOp.getBody());
-    for (const auto &it :
-         llvm::zip(foreachThreadOp.getBody()->getArguments().drop_front(rank),
-                   buffers)) {
+    rewriter.setInsertionPointToStart(forallOp.getBody());
+    for (const auto &it : llvm::zip(
+             forallOp.getBody()->getArguments().drop_front(rank), buffers)) {
       BlockArgument bbArg = std::get<0>(it);
       Value buffer = std::get<1>(it);
       Value bufferAsTensor =
-          rewriter.create<ToTensorOp>(foreachThreadOp.getLoc(), buffer);
+          rewriter.create<ToTensorOp>(forallOp.getLoc(), buffer);
       bbArg.replaceAllUsesWith(bufferAsTensor);
     }
 
-    // Create new ForeachThreadOp without any results and drop the automatically
+    // Create new ForallOp without any results and drop the automatically
     // introduced terminator.
-    rewriter.setInsertionPoint(foreachThreadOp);
-    ForeachThreadOp newForeachThreadOp;
-    newForeachThreadOp = rewriter.create<ForeachThreadOp>(
-        foreachThreadOp.getLoc(), /*outputs=*/ValueRange(),
-        foreachThreadOp.getNumThreads(), foreachThreadOp.getMapping());
+    rewriter.setInsertionPoint(forallOp);
+    ForallOp newForallOp;
+    newForallOp = rewriter.create<ForallOp>(
+        forallOp.getLoc(), forallOp.getMixedLowerBound(),
+        forallOp.getMixedUpperBound(), forallOp.getMixedStep(),
+        /*outputs=*/ValueRange(), forallOp.getMapping());
 
-    newForeachThreadOp.getBody()->getTerminator()->erase();
+    newForallOp.getBody()->getTerminator()->erase();
 
     // Move over block contents of the old op.
     SmallVector<Value> replacementBbArgs;
-    replacementBbArgs.append(
-        newForeachThreadOp.getBody()->getArguments().begin(),
-        newForeachThreadOp.getBody()->getArguments().end());
-    replacementBbArgs.append(foreachThreadOp.getOutputs().size(), Value());
-    rewriter.mergeBlocks(foreachThreadOp.getBody(),
-                         newForeachThreadOp.getBody(), replacementBbArgs);
+    replacementBbArgs.append(newForallOp.getBody()->getArguments().begin(),
+                             newForallOp.getBody()->getArguments().end());
+    replacementBbArgs.append(forallOp.getOutputs().size(), Value());
+    rewriter.mergeBlocks(forallOp.getBody(), newForallOp.getBody(),
+                         replacementBbArgs);
 
     // Remove the old op and replace all of its uses.
     replaceOpWithBufferizedValues(rewriter, op, buffers);
@@ -1122,34 +1108,52 @@ struct ForeachThreadOpInterface
   FailureOr<BaseMemRefType>
   getBufferType(Operation *op, Value value, const BufferizationOptions &options,
                 const DenseMap<Value, BaseMemRefType> &fixedTypes) const {
-    auto foreachThreadOp = cast<ForeachThreadOp>(op);
+    auto forallOp = cast<ForallOp>(op);
 
     if (auto bbArg = value.dyn_cast<BlockArgument>())
       // A tensor block argument has the same bufferized type as the
       // corresponding output operand.
       return bufferization::getBufferType(
-          foreachThreadOp.getTiedOpOperand(bbArg)->get(), options, fixedTypes);
+          forallOp.getTiedOpOperand(bbArg)->get(), options, fixedTypes);
 
     // The bufferized result type is the same as the bufferized type of the
     // corresponding output operand.
     return bufferization::getBufferType(
-        foreachThreadOp.getOutputs()[value.cast<OpResult>().getResultNumber()],
+        forallOp.getOutputs()[value.cast<OpResult>().getResultNumber()],
         options, fixedTypes);
   }
 
   bool isRepetitiveRegion(Operation *op, unsigned index) const {
-    auto foreachThreadOp = cast<ForeachThreadOp>(op);
-    // This op is not repetitive if it has just a single thread.
-    return !llvm::all_of(foreachThreadOp.getNumThreads(), [](Value v) {
-      return getConstantIntValue(v) == static_cast<int64_t>(1);
-    });
+    auto forallOp = cast<ForallOp>(op);
+
+    // This op is repetitive if it has 1 or more steps.
+    // If the control variables are dynamic, it is also considered so.
+    for (auto [lb, ub, step] :
+         llvm::zip(forallOp.getMixedLowerBound(), forallOp.getMixedUpperBound(),
+                   forallOp.getMixedStep())) {
+      std::optional<int64_t> lbConstant = getConstantIntValue(lb);
+      if (!lbConstant)
+        return true;
+
+      std::optional<int64_t> ubConstant = getConstantIntValue(ub);
+      if (!ubConstant)
+        return true;
+
+      std::optional<int64_t> stepConstant = getConstantIntValue(step);
+      if (!stepConstant)
+        return true;
+
+      if (*lbConstant + *stepConstant < *ubConstant)
+        return true;
+    }
+    return false;
   }
 };
 
-/// Nothing to do for PerformConcurrentlyOp.
-struct PerformConcurrentlyOpInterface
-    : public BufferizableOpInterface::ExternalModel<
-          PerformConcurrentlyOpInterface, PerformConcurrentlyOp> {
+/// Nothing to do for InParallelOp.
+struct InParallelOpInterface
+    : public BufferizableOpInterface::ExternalModel<InParallelOpInterface,
+                                                    InParallelOp> {
   LogicalResult bufferize(Operation *op, RewriterBase &b,
                           const BufferizationOptions &options) const {
     llvm_unreachable("op does not have any tensor OpOperands / OpResults");
@@ -1168,9 +1172,8 @@ void mlir::scf::registerBufferizableOpInterfaceExternalModels(
     ExecuteRegionOp::attachInterface<ExecuteRegionOpInterface>(*ctx);
     ForOp::attachInterface<ForOpInterface>(*ctx);
     IfOp::attachInterface<IfOpInterface>(*ctx);
-    ForeachThreadOp::attachInterface<ForeachThreadOpInterface>(*ctx);
-    PerformConcurrentlyOp::attachInterface<PerformConcurrentlyOpInterface>(
-        *ctx);
+    ForallOp::attachInterface<ForallOpInterface>(*ctx);
+    InParallelOp::attachInterface<InParallelOpInterface>(*ctx);
     WhileOp::attachInterface<WhileOpInterface>(*ctx);
     YieldOp::attachInterface<YieldOpInterface>(*ctx);
   });

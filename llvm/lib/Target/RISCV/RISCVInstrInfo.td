@@ -1195,7 +1195,8 @@ class PatGprUimmLog2XLen<SDPatternOperator OpNode, RVInstIShift Inst>
 def assertsexti32 : PatFrag<(ops node:$src), (assertsext node:$src), [{
   return cast<VTSDNode>(N->getOperand(1))->getVT().bitsLE(MVT::i32);
 }]>;
-def sexti32 : ComplexPattern<i64, 1, "selectSExti32">;
+def sexti16 : ComplexPattern<XLenVT, 1, "selectSExtBits<16>">;
+def sexti32 : ComplexPattern<i64, 1, "selectSExtBits<32>">;
 def assertzexti32 : PatFrag<(ops node:$src), (assertzext node:$src), [{
   return cast<VTSDNode>(N->getOperand(1))->getVT().bitsLE(MVT::i32);
 }]>;
@@ -1468,6 +1469,26 @@ let Predicates = [HasStdExtC, OptForMinSize] in {
   def : BrccCompessOpt<SETEQ, BEQ>;
   def : BrccCompessOpt<SETNE, BNE>;
 }
+
+class LongBccPseudo : Pseudo<(outs),
+                             (ins GPR:$rs1, GPR:$rs2, simm21_lsb0_jal:$imm20),
+                             []> {
+  let Size = 8;
+  let isBarrier = 1;
+  let isBranch = 1;
+  let hasSideEffects = 0;
+  let mayStore = 0;
+  let mayLoad = 0;
+  let isAsmParserOnly = 1;
+  let hasNoSchedulingInfo = 1;
+}
+
+def PseudoLongBEQ : LongBccPseudo;
+def PseudoLongBNE : LongBccPseudo;
+def PseudoLongBLT : LongBccPseudo;
+def PseudoLongBGE : LongBccPseudo;
+def PseudoLongBLTU : LongBccPseudo;
+def PseudoLongBGEU : LongBccPseudo;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
@@ -1862,6 +1883,7 @@ include "RISCVInstrInfoZb.td"
 include "RISCVInstrInfoZc.td"
 include "RISCVInstrInfoZk.td"
 include "RISCVInstrInfoV.td"
+include "RISCVInstrInfoZfa.td"
 include "RISCVInstrInfoZfh.td"
 include "RISCVInstrInfoZicbo.td"
 

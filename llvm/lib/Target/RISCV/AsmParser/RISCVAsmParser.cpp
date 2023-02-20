@@ -483,6 +483,7 @@ public:
 
   /// Return true if the operand is a valid floating point rounding mode.
   bool isFRMArg() const { return Kind == KindTy::FRM; }
+  bool isRTZArg() const { return isFRMArg() && FRM.FRM == RISCVFPRndMode::RTZ; }
 
   bool isImmXLenLI() const {
     int64_t Imm;
@@ -563,7 +564,8 @@ public:
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     int64_t Imm;
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isInt<5>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
+    return IsConstantImm && isInt<5>(fixImmediateForRV32(Imm, isRV64Imm())) &&
+           VK == RISCVMCExpr::VK_RISCV_None;
   }
 
   bool isSImm6() const {
@@ -572,7 +574,8 @@ public:
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     int64_t Imm;
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isInt<6>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
+    return IsConstantImm && isInt<6>(fixImmediateForRV32(Imm, isRV64Imm())) &&
+           VK == RISCVMCExpr::VK_RISCV_None;
   }
 
   bool isSImm6NonZero() const {
@@ -581,7 +584,8 @@ public:
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     int64_t Imm;
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isInt<6>(Imm) && (Imm != 0) &&
+    return IsConstantImm && Imm != 0 &&
+           isInt<6>(fixImmediateForRV32(Imm, isRV64Imm())) &&
            VK == RISCVMCExpr::VK_RISCV_None;
   }
 
@@ -658,6 +662,14 @@ public:
            VK == RISCVMCExpr::VK_RISCV_None;
   }
 
+  // If this a RV32 and the immediate is a uimm32, sign extend it to 32 bits.
+  // This allows writing 'addi a0, a0, 0xffffffff'.
+  static int64_t fixImmediateForRV32(int64_t Imm, bool IsRV64Imm) {
+    if (IsRV64Imm || !isUInt<32>(Imm))
+      return Imm;
+    return SignExtend64<32>(Imm);
+  }
+
   bool isSImm12() const {
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     int64_t Imm;
@@ -668,7 +680,7 @@ public:
     if (!IsConstantImm)
       IsValid = RISCVAsmParser::classifySymbolRef(getImm(), VK);
     else
-      IsValid = isInt<12>(Imm);
+      IsValid = isInt<12>(fixImmediateForRV32(Imm, isRV64Imm()));
     return IsValid && ((IsConstantImm && VK == RISCVMCExpr::VK_RISCV_None) ||
                        VK == RISCVMCExpr::VK_RISCV_LO ||
                        VK == RISCVMCExpr::VK_RISCV_PCREL_LO ||
@@ -756,7 +768,8 @@ public:
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     int64_t Imm;
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isInt<5>(Imm - 1) &&
+    return IsConstantImm &&
+           isInt<5>(fixImmediateForRV32(Imm, isRV64Imm()) - 1) &&
            VK == RISCVMCExpr::VK_RISCV_None;
   }
 
@@ -908,14 +921,15 @@ public:
     return Op;
   }
 
-  void addExpr(MCInst &Inst, const MCExpr *Expr) const {
+  static void addExpr(MCInst &Inst, const MCExpr *Expr, bool IsRV64Imm) {
     assert(Expr && "Expr shouldn't be null!");
     int64_t Imm = 0;
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
     bool IsConstant = evaluateConstantImm(Expr, Imm, VK);
 
     if (IsConstant)
-      Inst.addOperand(MCOperand::createImm(Imm));
+      Inst.addOperand(
+          MCOperand::createImm(fixImmediateForRV32(Imm, IsRV64Imm)));
     else
       Inst.addOperand(MCOperand::createExpr(Expr));
   }
@@ -928,7 +942,7 @@ public:
 
   void addImmOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
+    addExpr(Inst, getImm(), isRV64Imm());
   }
 
   void addFenceArgOperands(MCInst &Inst, unsigned N) const {
@@ -1252,6 +1266,10 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidTPRelAddSymbol: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
     return Error(ErrorLoc, "operand must be a symbol with %tprel_add modifier");
+  }
+  case Match_InvalidRTZArg: {
+    SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+    return Error(ErrorLoc, "operand must be 'rtz' floating-point rounding mode");
   }
   case Match_InvalidVTypeI: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
@@ -2108,34 +2126,28 @@ bool RISCVAsmParser::parseDirectiveOption() {
   MCAsmParser &Parser = getParser();
   // Get the option token.
   AsmToken Tok = Parser.getTok();
+
   // At the moment only identifiers are supported.
-  if (Tok.isNot(AsmToken::Identifier))
-    return Error(Parser.getTok().getLoc(),
-                 "unexpected token, expected identifier");
+  if (parseToken(AsmToken::Identifier, "expected identifier"))
+    return true;
 
   StringRef Option = Tok.getIdentifier();
 
   if (Option == "push") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionPush();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     pushFeatureBits();
     return false;
   }
 
   if (Option == "pop") {
     SMLoc StartLoc = Parser.getTok().getLoc();
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionPop();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     if (popFeatureBits())
       return Error(StartLoc, ".option pop with no .option push");
 
@@ -2143,74 +2155,56 @@ bool RISCVAsmParser::parseDirectiveOption() {
   }
 
   if (Option == "rvc") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionRVC();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     setFeatureBits(RISCV::FeatureStdExtC, "c");
     return false;
   }
 
   if (Option == "norvc") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionNoRVC();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     clearFeatureBits(RISCV::FeatureStdExtC, "c");
     clearFeatureBits(RISCV::FeatureExtZca, "+experimental-zca");
     return false;
   }
 
   if (Option == "pic") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionPIC();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     ParserOptions.IsPicEnabled = true;
     return false;
   }
 
   if (Option == "nopic") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionNoPIC();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     ParserOptions.IsPicEnabled = false;
     return false;
   }
 
   if (Option == "relax") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionRelax();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     setFeatureBits(RISCV::FeatureRelax, "relax");
     return false;
   }
 
   if (Option == "norelax") {
+    if (Parser.parseEOL())
+      return true;
+
     getTargetStreamer().emitDirectiveOptionNoRelax();
-
-    Parser.Lex();
-    if (Parser.getTok().isNot(AsmToken::EndOfStatement))
-      return Error(Parser.getTok().getLoc(),
-                   "unexpected token, expected end of statement");
-
     clearFeatureBits(RISCV::FeatureRelax, "relax");
     return false;
   }
@@ -2255,7 +2249,7 @@ bool RISCVAsmParser::parseDirectiveAttribute() {
     Tag = CE->getValue();
   }
 
-  if (Parser.parseToken(AsmToken::Comma, "comma expected"))
+  if (Parser.parseComma())
     return true;
 
   StringRef StringValue;

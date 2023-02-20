@@ -25,7 +25,7 @@ def uimmlog2xlennonzero : Operand<XLenVT>, ImmLeaf<XLenVT, [{
 }]> {
   let ParserMatchClass = UImmLog2XLenNonZeroAsmOperand;
   // TODO: should ensure invalid shamt is rejected when decoding.
-  let DecoderMethod = "decodeUImmOperand<6>";
+  let DecoderMethod = "decodeUImmNonZeroOperand<6>";
   let OperandType = "OPERAND_UIMMLOG2XLEN_NONZERO";
   let OperandNamespace = "RISCVOp";
   let MCOperandPredicate = [{
@@ -56,7 +56,7 @@ def simm6nonzero : Operand<XLenVT>,
                    ImmLeaf<XLenVT, [{return (Imm != 0) && isInt<6>(Imm);}]> {
   let ParserMatchClass = SImmAsmOperand<6, "NonZero">;
   let EncoderMethod = "getImmOpValue";
-  let DecoderMethod = "decodeSImmOperand<6>";
+  let DecoderMethod = "decodeSImmNonZeroOperand<6>";
   let OperandType = "OPERAND_SIMM6_NONZERO";
   let OperandNamespace = "RISCVOp";
   let MCOperandPredicate = [{
@@ -93,6 +93,8 @@ def c_lui_imm : Operand<XLenVT>,
   let ParserMatchClass = CLUIImmAsmOperand;
   let EncoderMethod = "getImmOpValue";
   let DecoderMethod = "decodeCLUIImmOperand";
+  let OperandType = "OPERAND_CLUI_IMM";
+  let OperandNamespace = "RISCVOp";
   let MCOperandPredicate = [{
     int64_t Imm;
     if (MCOp.evaluateAsConstantImm(Imm))
@@ -173,6 +175,8 @@ def uimm9_lsb000 : Operand<XLenVT>,
   let ParserMatchClass = UImmAsmOperand<9, "Lsb000">;
   let EncoderMethod = "getImmOpValue";
   let DecoderMethod = "decodeUImmOperand<9>";
+  let OperandType = "OPERAND_UIMM9_LSB000";
+  let OperandNamespace = "RISCVOp";
   let MCOperandPredicate = [{
     int64_t Imm;
     if (!MCOp.evaluateAsConstantImm(Imm))
@@ -189,6 +193,8 @@ def uimm10_lsb00nonzero : Operand<XLenVT>,
   let ParserMatchClass = UImmAsmOperand<10, "Lsb00NonZero">;
   let EncoderMethod = "getImmOpValue";
   let DecoderMethod = "decodeUImmNonZeroOperand<10>";
+  let OperandType = "OPERAND_UIMM10_LSB00_NONZERO";
+  let OperandNamespace = "RISCVOp";
   let MCOperandPredicate = [{
     int64_t Imm;
     if (!MCOp.evaluateAsConstantImm(Imm))
@@ -611,17 +617,6 @@ let rd = 0 in
 def C_NOP_HINT : RVInst16CI<0b000, 0b01, (outs), (ins simm6nonzero:$imm),
                             "c.nop", "$imm">, Sched<[WriteNop]> {
   let Inst{6-2} = imm{4-0};
-  let DecoderMethod = "decodeRVCInstrSImm";
-}
-
-// Just a different syntax for the c.nop hint: c.addi x0, simm6 vs c.nop simm6.
-def C_ADDI_HINT_X0 : RVInst16CI<0b000, 0b01, (outs GPRX0:$rd_wb),
-                                (ins GPRX0:$rd, simm6nonzero:$imm),
-                                "c.addi", "$rd, $imm">,
-                     Sched<[WriteIALU, ReadIALU]> {
-  let Constraints = "$rd = $rd_wb";
-  let Inst{6-2} = imm{4-0};
-  let isAsmParserOnly = 1;
 }
 
 def C_ADDI_HINT_IMM_ZERO : RVInst16CI<0b000, 0b01, (outs GPRNoX0:$rd_wb),
@@ -629,8 +624,9 @@ def C_ADDI_HINT_IMM_ZERO : RVInst16CI<0b000, 0b01, (outs GPRNoX0:$rd_wb),
                                       "c.addi", "$rd, $imm">,
                            Sched<[WriteIALU, ReadIALU]> {
   let Constraints = "$rd = $rd_wb";
+  let Inst{12} = 0;
   let Inst{6-2} = 0;
-  let isAsmParserOnly = 1;
+  let DecoderMethod = "decodeRVCInstrRdRs1ImmZero";
 }
 
 def C_LI_HINT : RVInst16CI<0b010, 0b01, (outs GPRX0:$rd), (ins simm6:$imm),
@@ -710,6 +706,11 @@ def C_SRAI64_HINT : RVInst16CI<0b100, 0b01, (outs GPRC:$rd_wb),
 //===----------------------------------------------------------------------===//
 // Assembler Pseudo Instructions
 //===----------------------------------------------------------------------===//
+
+let Predicates = [HasStdExtCOrZca, HasRVCHints] in {
+// Just a different syntax for the c.nop hint: c.addi x0, simm6 vs c.nop simm6.
+def : InstAlias<"c.addi x0, $imm", (C_NOP_HINT simm6nonzero:$imm), 0>;
+}
 
 let Predicates = [HasStdExtC, HasRVCHints, HasStdExtZihintntl] in {
 def : InstAlias<"c.ntl.p1", (C_ADD_HINT X0, X2)>;

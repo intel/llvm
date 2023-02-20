@@ -18,6 +18,8 @@ include "flang/Optimizer/HLFIR/HLFIROpBase.td"
 include "flang/Optimizer/Dialect/FIRTypes.td"
 include "flang/Optimizer/Dialect/FIRAttr.td"
 include "flang/Optimizer/Dialect/FortranVariableInterface.td"
+include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/IR/BuiltinAttributes.td"
 
 // Base class for FIR operations.
@@ -254,6 +256,54 @@ def hlfir_SetLengthOp : hlfir_Op<"set_length", []> {
   }];
 
   let builders = [OpBuilder<(ins "mlir::Value":$string,"mlir::Value":$len)>];
+}
+
+def hlfir_SumOp : hlfir_Op<"sum", [AttrSizedOperandSegments,
+    DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let summary = "SUM transformational intrinsic";
+  let description = [{
+    Sums the elements of an array, optionally along a particular dimension,
+    optionally if a mask is true.
+  }];
+
+  let arguments = (ins
+    AnyFortranNumericalArrayObject:$array,
+    Optional<AnyIntegerType>:$dim,
+    Optional<AnyFortranLogicalOrI1ArrayObject>:$mask,
+    DefaultValuedAttr<Arith_FastMathAttr,
+                      "::mlir::arith::FastMathFlags::none">:$fastmath
+  );
+
+  let results = (outs hlfir_ExprType);
+
+  let assemblyFormat = [{
+    $array (`dim` $dim^)? (`mask` $mask^)? attr-dict `:` functional-type(operands, results)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def hlfir_MatmulOp : hlfir_Op<"matmul",
+    [DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let summary = "MATMUL transformational intrinsic";
+  let description = [{
+    Matrix multiplication
+  }];
+
+  let arguments = (ins
+    AnyFortranNumericalOrLogicalArrayObject:$lhs,
+    AnyFortranNumericalOrLogicalArrayObject:$rhs,
+    DefaultValuedAttr<Arith_FastMathAttr,
+                      "::mlir::arith::FastMathFlags::none">:$fastmath
+  );
+
+  let results = (outs hlfir_ExprType);
+
+  let assemblyFormat = [{
+    $lhs $rhs attr-dict `:` functional-type(operands, results)
+  }];
+
+  let hasVerifier = 1;
 }
 
 def hlfir_AssociateOp : hlfir_Op<"associate", [AttrSizedOperandSegments,

@@ -302,6 +302,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl
+    libc.src.math.scalbn
+    libc.src.math.scalbnf
+    libc.src.math.scalbnl
     libc.src.math.sin
     libc.src.math.sincosf
     libc.src.math.sinhf
@@ -327,6 +330,10 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.dirent.dirfd
     libc.src.dirent.opendir
     libc.src.dirent.readdir
+
+    # network.h entrypoints
+    libc.src.network.htonl
+    libc.src.network.htons
 
     # pthread.h entrypoints
     libc.src.pthread.pthread_atfork

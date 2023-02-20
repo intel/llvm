@@ -24,7 +24,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+#if _LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 namespace __format_spec {
 
@@ -214,6 +214,7 @@ private:
     case _CharT('p'): // TODO FMT does the formater require an hour or a time?
     case _CharT('H'):
     case _CharT('I'):
+      __parser_.__hour_ = true;
       __validate_hour(__flags);
       break;
 
@@ -221,6 +222,7 @@ private:
     case _CharT('R'):
     case _CharT('T'):
     case _CharT('X'):
+      __parser_.__hour_ = true;
       __format_spec::__validate_time(__flags);
       break;
 
@@ -313,6 +315,7 @@ private:
 
     switch (*__begin) {
     case _CharT('X'):
+      __parser_.__hour_ = true;
       __format_spec::__validate_time(__flags);
       break;
 
@@ -361,6 +364,7 @@ private:
 
     case _CharT('I'):
     case _CharT('H'):
+      __parser_.__hour_ = true;
       __format_spec::__validate_hour(__flags);
       break;
 
@@ -405,7 +409,7 @@ private:
 
 } // namespace __format_spec
 
-#endif //_LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+#endif //_LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 _LIBCPP_END_NAMESPACE_STD
 

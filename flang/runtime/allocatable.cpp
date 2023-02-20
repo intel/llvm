@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Runtime/allocatable.h"
-#include "assign.h"
+#include "assign-impl.h"
 #include "derived.h"
 #include "stat.h"
 #include "terminator.h"
@@ -85,7 +85,7 @@ void RTNAME(AllocatableSetDerivedLength)(
 }
 
 void RTNAME(AllocatableApplyMold)(
-    Descriptor &descriptor, const Descriptor &mold) {
+    Descriptor &descriptor, const Descriptor &mold, int rank) {
   if (descriptor.IsAllocated()) {
     // 9.7.1.3 Return so the error can be emitted by AllocatableAllocate.
     return;
@@ -93,6 +93,14 @@ void RTNAME(AllocatableApplyMold)(
   descriptor = mold;
   descriptor.set_base_addr(nullptr);
   descriptor.raw().attribute = CFI_attribute_allocatable;
+  descriptor.raw().rank = rank;
+  if (auto *descAddendum{descriptor.Addendum()}) {
+    if (const auto *moldAddendum{mold.Addendum()}) {
+      if (const auto *derived{moldAddendum->derivedType()}) {
+        descAddendum->set_derivedType(derived);
+      }
+    }
+  }
 }
 
 int RTNAME(AllocatableAllocate)(Descriptor &descriptor, bool hasStat,

@@ -1139,6 +1139,14 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_lto_whole_program_visibility,
                    OPT_no_lto_whole_program_visibility, false);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("invalid optimization level for LTO: " + Twine(config->ltoo));
+  unsigned ltoCgo =
+      args::getInteger(args, OPT_lto_CGO, args::getCGOptLevel(config->ltoo));
+  if (auto level = CodeGenOpt::getLevel(ltoCgo))
+    config->ltoCgo = *level;
+  else
+    error("invalid codegen optimization level for LTO: " + Twine(ltoCgo));
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
@@ -1397,8 +1405,6 @@ static void readConfigs(opt::InputArgList &args) {
     config->thinLTOJobs = arg->getValue();
   config->threadCount = parallel::strategy.compute_thread_count();
 
-  if (config->ltoo > 3)
-    error("invalid optimization level for LTO: " + Twine(config->ltoo));
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");
   if (!get_threadpool_strategy(config->thinLTOJobs))
@@ -2792,10 +2798,10 @@ void LinkerDriver::link(opt::InputArgList &args) {
     ctx.inputSections.push_back(createCommentSection());
 
   // Split SHF_MERGE and .eh_frame sections into pieces in preparation for garbage collection.
-  invokeELFT(splitSections);
+  invokeELFT(splitSections,);
 
   // Garbage collection and removal of shared symbols from unused shared objects.
-  invokeELFT(markLive);
+  invokeELFT(markLive,);
   demoteSharedAndLazySymbols();
 
   // Make copies of any input sections that need to be copied into each
@@ -2804,7 +2810,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // Create synthesized sections such as .got and .plt. This is called before
   // processSectionCommands() so that they can be placed by SECTIONS commands.
-  invokeELFT(createSyntheticSections);
+  invokeELFT(createSyntheticSections,);
 
   // Some input sections that are used for exception handling need to be moved
   // into synthetic sections. Do that now so that they aren't assigned to
@@ -2845,7 +2851,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // ICF runs after processSectionCommands() so that we know the output sections.
   if (config->icf != ICFLevel::None) {
     invokeELFT(findKeepUniqueSections, args);
-    invokeELFT(doIcf);
+    invokeELFT(doIcf,);
   }
 
   // Read the callgraph now that we know what was gced or icfed
@@ -2853,9 +2859,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
     if (auto *arg = args.getLastArg(OPT_call_graph_ordering_file))
       if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
         readCallGraph(*buffer);
-    invokeELFT(readCallGraphsFromObjectFiles);
+    invokeELFT(readCallGraphsFromObjectFiles,);
   }
 
   // Write the result to the file.
-  invokeELFT(writeResult);
+  invokeELFT(writeResult,);
 }

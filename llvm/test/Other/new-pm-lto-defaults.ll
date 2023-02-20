@@ -62,7 +62,6 @@
 ; CHECK-O-NEXT: Running analysis: TypeBasedAA
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O-NEXT: Running pass: ReversePostOrderFunctionAttrsPass
-; CHECK-O-NEXT: Running analysis: CallGraphAnalysis
 ; CHECK-O-NEXT: Running pass: GlobalSplitPass
 ; CHECK-O-NEXT: Running pass: WholeProgramDevirtPass
 ; CHECK-O1-NEXT: Running pass: LowerTypeTestsPass
@@ -84,6 +83,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: DeadArgumentEliminationPass
 ; CHECK-O23SZ-NEXT: Running pass: InstCombinePass
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass
+; CHECK-O23SZ-NEXT: Running pass: ConstraintEliminationPass
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass
 ; CHECK-O23SZ-NEXT: Running analysis: LazyValueAnalysis
 ; CHECK-O23SZ-NEXT: Running pass: SROAPass on foo
@@ -91,6 +91,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: PostOrderFunctionAttrsPass on (foo)
 ; CHECK-O23SZ-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
 ; CHECK-O23SZ-NEXT: Running analysis: GlobalsAA on [module]
+; CHECK-O23SZ-NEXT: Running analysis: CallGraphAnalysis on [module]
 ; CHECK-O23SZ-NEXT: Running pass: InvalidateAnalysisPass<{{.*}}AAManager
 ; CHECK-O23SZ-NEXT: Invalidating analysis: AAManager on foo
 ; CHECK-O23SZ-NEXT: Running pass: OpenMPOptCGSCCPass on (foo)

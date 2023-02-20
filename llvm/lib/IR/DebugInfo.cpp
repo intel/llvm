@@ -870,7 +870,7 @@ bool llvm::stripNonLineTableDebugInfo(Module &M) {
 
   // Create a new llvm.dbg.cu, which is equivalent to the one
   // -gline-tables-only would have created.
-  for (auto &NMD : M.getNamedMDList()) {
+  for (auto &NMD : M.named_metadata()) {
     SmallVector<MDNode *, 8> Ops;
     for (MDNode *Op : NMD.operands())
       Ops.push_back(remap(Op));
@@ -1506,6 +1506,10 @@ LLVMMetadataRef
 LLVMDIBuilderCreateArtificialType(LLVMDIBuilderRef Builder,
                                   LLVMMetadataRef Type) {
   return wrap(unwrap(Builder)->createArtificialType(unwrapDI<DIType>(Type)));
+}
+
+uint16_t LLVMGetDINodeTag(LLVMMetadataRef MD) {
+  return unwrapDI<DINode>(MD)->getTag();
 }
 
 const char *LLVMDITypeGetName(LLVMMetadataRef DType, size_t *Length) {

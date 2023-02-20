@@ -535,7 +535,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
 
   // For non power-of-2 types, they will very likely be legalized into multiple
   // loads. Don't bother trying to match them into extending loads.
-  if (!isPowerOf2_32(LoadValueTy.getSizeInBits()))
+  if (!llvm::has_single_bit<uint32_t>(LoadValueTy.getSizeInBits()))
     return false;
 
   // Find the preferred type aside from the any-extends (unless it's the only
@@ -1763,6 +1763,15 @@ void CombinerHelper::applyCombineUnmergeMergeToPlainValues(
   for (unsigned Idx = 0; Idx < NumElems; ++Idx) {
     Register DstReg = MI.getOperand(Idx).getReg();
     Register SrcReg = Operands[Idx];
+
+    // This combine may run after RegBankSelect, so we need to be aware of
+    // register banks.
+    const auto &DstCB = MRI.getRegClassOrRegBank(DstReg);
+    if (!DstCB.isNull() && DstCB != MRI.getRegClassOrRegBank(SrcReg)) {
+      SrcReg = Builder.buildCopy(MRI.getType(SrcReg), SrcReg).getReg(0);
+      MRI.setRegClassOrRegBank(SrcReg, DstCB);
+    }
+
     if (CanReuseInputDirectly)
       replaceRegWith(MRI, DstReg, SrcReg);
     else

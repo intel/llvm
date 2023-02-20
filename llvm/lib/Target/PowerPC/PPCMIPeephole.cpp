@@ -641,6 +641,32 @@ bool PPCMIPeephole::simplifyCode() {
           DefMI->getOperand(0).setReg(MI.getOperand(0).getReg());
           LLVM_DEBUG(dbgs() << "Removing redundant splat: ");
           LLVM_DEBUG(MI.dump());
+        } else if (Immed == 2 &&
+                   (DefOpc == PPC::VSPLTB || DefOpc == PPC::VSPLTH ||
+                    DefOpc == PPC::VSPLTW || DefOpc == PPC::XXSPLTW)) {
+          // Swap of various vector splats, convert to copy.
+          ToErase = &MI;
+          Simplified = true;
+          LLVM_DEBUG(dbgs() << "Optimizing swap(vsplt[b|h|w]|xxspltw) => "
+                               "copy(vsplt[b|h|w]|xxspltw): ");
+          LLVM_DEBUG(MI.dump());
+          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(PPC::COPY),
+                  MI.getOperand(0).getReg())
+              .add(MI.getOperand(1));
+        } else if ((Immed == 0 || Immed == 3 || Immed == 2) &&
+                   TII->isLoadFromConstantPool(DefMI)) {
+          const Constant *C = TII->getConstantFromConstantPool(DefMI);
+          if (C && C->getType()->isVectorTy() && C->getSplatValue()) {
+            ToErase = &MI;
+            Simplified = true;
+            LLVM_DEBUG(dbgs()
+                       << "Optimizing swap(splat pattern from constant-pool) "
+                          "=> copy(splat pattern from constant-pool): ");
+            LLVM_DEBUG(MI.dump());
+            BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(PPC::COPY),
+                    MI.getOperand(0).getReg())
+                .add(MI.getOperand(1));
+          }
         }
         break;
       }

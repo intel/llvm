@@ -115,9 +115,6 @@ static DecodeStatus decodeBoolReg(MCInst &Inst, unsigned Val, uint64_t Addr,
     return addOperand(Inst, DAsm->DecoderName(Imm));                           \
   }
 
-#define DECODE_OPERAND_REG(RegClass) \
-DECODE_OPERAND(Decode##RegClass##RegisterClass, decodeOperand_##RegClass)
-
 // Decoder for registers, decode directly using RegClassID. Imm(8-bit) is
 // number of register. Used by VGPR only and AGPR only operands.
 #define DECODE_OPERAND_REG_8(RegClass)                                         \
@@ -248,6 +245,7 @@ DECODE_OPERAND_SRC_REG_OR_IMM_9(VS_32_Lo128, OPW16, 16)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VS_32, OPW32, 16)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VS_32, OPW32, 32)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VS_64, OPW64, 64)
+DECODE_OPERAND_SRC_REG_OR_IMM_9(VS_64, OPW64, 32)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VReg_64, OPW64, 64)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VReg_128, OPW128, 32)
 DECODE_OPERAND_SRC_REG_OR_IMM_9(VReg_256, OPW256, 64)
@@ -1181,21 +1179,21 @@ MCOperand AMDGPUDisassembler::decodeIntImmed(unsigned Imm) {
 static int64_t getInlineImmVal32(unsigned Imm) {
   switch (Imm) {
   case 240:
-    return FloatToBits(0.5f);
+    return llvm::bit_cast<uint32_t>(0.5f);
   case 241:
-    return FloatToBits(-0.5f);
+    return llvm::bit_cast<uint32_t>(-0.5f);
   case 242:
-    return FloatToBits(1.0f);
+    return llvm::bit_cast<uint32_t>(1.0f);
   case 243:
-    return FloatToBits(-1.0f);
+    return llvm::bit_cast<uint32_t>(-1.0f);
   case 244:
-    return FloatToBits(2.0f);
+    return llvm::bit_cast<uint32_t>(2.0f);
   case 245:
-    return FloatToBits(-2.0f);
+    return llvm::bit_cast<uint32_t>(-2.0f);
   case 246:
-    return FloatToBits(4.0f);
+    return llvm::bit_cast<uint32_t>(4.0f);
   case 247:
-    return FloatToBits(-4.0f);
+    return llvm::bit_cast<uint32_t>(-4.0f);
   case 248: // 1 / (2 * PI)
     return 0x3e22f983;
   default:
@@ -1206,21 +1204,21 @@ static int64_t getInlineImmVal32(unsigned Imm) {
 static int64_t getInlineImmVal64(unsigned Imm) {
   switch (Imm) {
   case 240:
-    return DoubleToBits(0.5);
+    return llvm::bit_cast<uint64_t>(0.5);
   case 241:
-    return DoubleToBits(-0.5);
+    return llvm::bit_cast<uint64_t>(-0.5);
   case 242:
-    return DoubleToBits(1.0);
+    return llvm::bit_cast<uint64_t>(1.0);
   case 243:
-    return DoubleToBits(-1.0);
+    return llvm::bit_cast<uint64_t>(-1.0);
   case 244:
-    return DoubleToBits(2.0);
+    return llvm::bit_cast<uint64_t>(2.0);
   case 245:
-    return DoubleToBits(-2.0);
+    return llvm::bit_cast<uint64_t>(-2.0);
   case 246:
-    return DoubleToBits(4.0);
+    return llvm::bit_cast<uint64_t>(4.0);
   case 247:
-    return DoubleToBits(-4.0);
+    return llvm::bit_cast<uint64_t>(-4.0);
   case 248: // 1 / (2 * PI)
     return 0x3fc45f306dc9c882;
   default:
@@ -1913,7 +1911,7 @@ AMDGPUDisassembler::decodeKernelDescriptorDirective(
                       KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
     }
 
-    if (AMDGPU::getAmdhsaCodeObjectVersion() >= 5)
+    if (AMDGPU::getAmdhsaCodeObjectVersion() >= AMDGPU::AMDHSA_COV5)
       PRINT_DIRECTIVE(".amdhsa_uses_dynamic_stack",
                       KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK);
 

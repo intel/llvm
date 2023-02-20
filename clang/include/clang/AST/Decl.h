@@ -3073,6 +3073,10 @@ public:
   /// [[no_unique_address]] attribute.
   bool isZeroSize(const ASTContext &Ctx) const;
 
+  /// Determine if this field is of potentially-overlapping class type, that
+  /// is, subobject with the [[no_unique_address]] attribute
+  bool isPotentiallyOverlapping() const;
+
   /// Get the kind of (C++11) default member initializer that this field has.
   InClassInitStyle getInClassInitStyle() const {
     InitStorageKind storageKind = InitStorage.getInt();
@@ -4708,7 +4712,7 @@ public:
   static bool classofKind(Kind K) { return K == Import; }
 };
 
-/// Represents a C++ Modules TS module export declaration.
+/// Represents a standard C++ module export declaration.
 ///
 /// For example:
 /// \code

@@ -16,7 +16,7 @@ if (NOT LIBOMPTARGET_BUILD_CUDA_PLUGIN)
   return()
 endif()
 
-if (NOT(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(ppc64le)|(aarch64)$" AND CMAKE_SYSTEM_NAME MATCHES "Linux"))
+if (NOT (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(ppc64le)|(aarch64)$" AND CMAKE_SYSTEM_NAME MATCHES "Linux"))
   libomptarget_say("Not building CUDA offloading plugin: only support CUDA in Linux x86_64, ppc64le, or aarch64 hosts.")
   return()
 endif()
@@ -50,7 +50,6 @@ else()
   target_include_directories(omptarget.rtl.cuda PRIVATE dynamic_cuda)
   target_sources(omptarget.rtl.cuda PRIVATE dynamic_cuda/cuda.cpp)
 endif()
-add_dependencies(omptarget.rtl.cuda omptarget.devicertl.nvptx)
 
 # Define the suffix for the runtime messaging dumps.
 target_compile_definitions(omptarget.rtl.cuda PRIVATE TARGET_NAME="CUDA")

@@ -21,12 +21,12 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include <system_error>
 
 using namespace clang::driver;
@@ -450,15 +450,8 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   std::string OutputFileName = TC.getInputFilename(Output);
 
   // If we are invoking `nvlink` internally we need to output a `.cubin` file.
-  // Checking if the output is a temporary is the cleanest way to determine
-  // this. Putting this logic in `getInputFilename` isn't an option because it
-  // relies on the compilation.
   // FIXME: This should hopefully be removed if NVIDIA updates their tooling.
-  auto findName = find_if(C.getTempFiles().begin(), C.getTempFiles().end(),
-                          [&Output](const auto &TempPair) {
-                            return TempPair.first == Output.getFilename();
-                          });
-  if (Output.isFilename() && findName != C.getTempFiles().end()) {
+  if (!C.getInputArgs().getLastArg(options::OPT_c)) {
     SmallString<256> Filename(Output.getFilename());
     llvm::sys::path::replace_extension(Filename, "cubin");
     OutputFileName = Filename.str();

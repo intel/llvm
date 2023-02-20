@@ -25,7 +25,7 @@ namespace bufferization {
 class AnalysisState;
 class BufferizableOpInterface;
 
-/// Specify fine-grain relationship between buffers to enable more analysis.
+/// Specifies a fine-grain relationship between buffers to enable more analysis.
 enum class BufferRelation {
   Unknown,
   // TODO: ResultContainsOperand,
@@ -33,13 +33,65 @@ enum class BufferRelation {
   Equivalent
 };
 
+/// A maybe aliasing OpOperand. If `isDefinite` is `true`, the OpOperand is
+/// guaranteed to alias at runtime.
+struct AliasingOpOperand {
+  AliasingOpOperand(OpOperand *opOperand, BufferRelation relation,
+                    bool isDefinite = true)
+      : opOperand(opOperand), relation(relation), isDefinite(isDefinite) {}
+
+  OpOperand *opOperand;
+  BufferRelation relation;
+  bool isDefinite;
+};
+
+/// A maybe aliasing OpResult. If `isDefinite` is `true`, the OpResult is
+/// guaranteed to alias at runtime.
+struct AliasingOpResult {
+  AliasingOpResult(OpResult opResult, BufferRelation relation,
+                   bool isDefinite = true)
+      : opResult(opResult), relation(relation), isDefinite(isDefinite) {}
+
+  OpResult opResult;
+  BufferRelation relation;
+  bool isDefinite;
+};
+
+template <typename T> class AliasList {
+public:
+  /// Create an empty list of aliases.
+  AliasList<T>() = default;
+
+  /// Create a list of aliases.
+  AliasList<T>(std::initializer_list<T> elems) {
+    for (T alias : elems)
+      addAlias(alias);
+  }
+
+  /// Create a list of aliases.
+  AliasList<T>(SmallVector<T> &&aliases) : aliases(std::move(aliases)) {}
+
+  ArrayRef<T> getAliases() const { return aliases; }
+
+  size_t getNumAliases() const { return aliases.size(); }
+
+  void addAlias(T alias) { aliases.push_back(alias); }
+
+  auto begin() const { return aliases.begin(); }
+  auto end() const { return aliases.end(); }
+
+private:
+  /// The list of aliases.
+  SmallVector<T> aliases;
+};
+
 /// A list of possible aliasing OpOperands. This list models the runtime
 /// aliasing relationship for an OpResult.
-using AliasingOpOperandList = SmallVector<OpOperand *>;
+using AliasingOpOperandList = AliasList<AliasingOpOperand>;
 
 /// A list of possible aliasing OpResults. This list models the runtime
 /// aliasing relationship for an OpOperand.
-using AliasingOpResultList = SmallVector<OpResult>;
+using AliasingOpResultList = AliasList<AliasingOpResult>;
 
 class OpFilter {
 public:
@@ -412,14 +464,16 @@ public:
   /// in the operands) because their defining ops do not define the contents of
   /// the tensor.
   ///
+  /// Example:
+  /// %a = tensor.empty() : tensor<10xf32>
+  /// %b = arith.constant ... : tensor<10xf32>
+  /// %r = arith.select %cond, %a, %b : tensor<10xf32>
+  /// findDefinitions(%r) = {%b}. %a is excluded because it does not define the
+  /// contents of the tensor.
+  ///
   /// Note: OpResults of unknown ops are handled conservatively and assumed to
   /// be definitions.
-  ///
-  /// Note: When reaching an end of the reverse SSA use-def chain, that value
-  /// is included regardless of whether it is a definition or not unless
-  /// `alwaysIncludeLeaves` is unset.
-  SetVector<Value> findDefinitions(Value value,
-                                   bool alwaysIncludeLeaves = true) const;
+  SetVector<Value> findDefinitions(Value value) const;
 
   /// Return `true` if the given OpResult has been decided to bufferize inplace.
   virtual bool isInPlace(OpOperand &opOperand) const;
@@ -572,6 +626,11 @@ Region *getEnclosingRepetitiveRegion(Value value,
 /// Return the closest enclosing repetitive region around the given block.
 Region *getEnclosingRepetitiveRegion(Block *block,
                                      const BufferizationOptions &options);
+
+/// Assuming that the given region is repetitive, find the next enclosing
+/// repetitive region.
+Region *getNextEnclosingRepetitiveRegion(Region *region,
+                                         const BufferizationOptions &options);
 
 namespace detail {
 /// This is the default implementation of

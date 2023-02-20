@@ -1251,6 +1251,20 @@ llvm.func @complexintconstantarray() -> !llvm.array<2 x !llvm.array<2 x !llvm.st
   llvm.return %1 : !llvm.array<2 x !llvm.array<2 x !llvm.struct<(i32, i32)>>>
 }
 
+// CHECK-LABEL: @indexconstantsplat
+llvm.func @indexconstantsplat() -> vector<3xi32> {
+  %1 = llvm.mlir.constant(dense<42> : vector<3xindex>) : vector<3xi32>
+  // CHECK: ret <3 x i32> <i32 42, i32 42, i32 42>
+  llvm.return %1 : vector<3xi32>
+}
+
+// CHECK-LABEL: @indexconstantarray
+llvm.func @indexconstantarray() -> vector<3xi32> {
+  %1 = llvm.mlir.constant(dense<[0, 1, 2]> : vector<3xindex>) : vector<3xi32>
+  // CHECK: ret <3 x i32> <i32 0, i32 1, i32 2>
+  llvm.return %1 : vector<3xi32>
+}
+
 llvm.func @noreach() {
 // CHECK:    unreachable
   llvm.unreachable
@@ -1406,28 +1420,41 @@ llvm.func @atomicrmw(
   %0 = llvm.atomicrmw fadd %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
   // CHECK: atomicrmw fsub ptr %{{.*}}, float %{{.*}} monotonic
   %1 = llvm.atomicrmw fsub %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
+  // CHECK: atomicrmw fmax ptr %{{.*}}, float %{{.*}} monotonic
+  %2 = llvm.atomicrmw fmax %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
+  // CHECK: atomicrmw fmin ptr %{{.*}}, float %{{.*}} monotonic
+  %3 = llvm.atomicrmw fmin %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
   // CHECK: atomicrmw xchg ptr %{{.*}}, float %{{.*}} monotonic
-  %2 = llvm.atomicrmw xchg %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
+  %4 = llvm.atomicrmw xchg %f32_ptr, %f32 monotonic : !llvm.ptr<f32>, f32
   // CHECK: atomicrmw add ptr %{{.*}}, i32 %{{.*}} acquire
-  %3 = llvm.atomicrmw add %i32_ptr, %i32 acquire : !llvm.ptr<i32>, i32
+  %5 = llvm.atomicrmw add %i32_ptr, %i32 acquire : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw sub ptr %{{.*}}, i32 %{{.*}} release
-  %4 = llvm.atomicrmw sub %i32_ptr, %i32 release : !llvm.ptr<i32>, i32
+  %6 = llvm.atomicrmw sub %i32_ptr, %i32 release : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw and ptr %{{.*}}, i32 %{{.*}} acq_rel
-  %5 = llvm.atomicrmw _and %i32_ptr, %i32 acq_rel : !llvm.ptr<i32>, i32
+  %7 = llvm.atomicrmw _and %i32_ptr, %i32 acq_rel : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw nand ptr %{{.*}}, i32 %{{.*}} seq_cst
-  %6 = llvm.atomicrmw nand %i32_ptr, %i32 seq_cst : !llvm.ptr<i32>, i32
+  %8 = llvm.atomicrmw nand %i32_ptr, %i32 seq_cst : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw or ptr %{{.*}}, i32 %{{.*}} monotonic
-  %7 = llvm.atomicrmw _or %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %9 = llvm.atomicrmw _or %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw xor ptr %{{.*}}, i32 %{{.*}} monotonic
-  %8 = llvm.atomicrmw _xor %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %10 = llvm.atomicrmw _xor %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw max ptr %{{.*}}, i32 %{{.*}} monotonic
-  %9 = llvm.atomicrmw max %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %11 = llvm.atomicrmw max %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw min ptr %{{.*}}, i32 %{{.*}} monotonic
-  %10 = llvm.atomicrmw min %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %12 = llvm.atomicrmw min %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw umax ptr %{{.*}}, i32 %{{.*}} monotonic
-  %11 = llvm.atomicrmw umax %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %13 = llvm.atomicrmw umax %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
   // CHECK: atomicrmw umin ptr %{{.*}}, i32 %{{.*}} monotonic
-  %12 = llvm.atomicrmw umin %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  %14 = llvm.atomicrmw umin %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  // CHECK: atomicrmw uinc_wrap ptr %{{.*}}, i32 %{{.*}} monotonic
+  %15 = llvm.atomicrmw uinc_wrap %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+  // CHECK: atomicrmw udec_wrap ptr %{{.*}}, i32 %{{.*}} monotonic
+  %16 = llvm.atomicrmw udec_wrap %i32_ptr, %i32 monotonic : !llvm.ptr<i32>, i32
+
+  // CHECK: atomicrmw volatile
+  // CHECK-SAME:  syncscope("singlethread")
+  // CHECK-SAME:  align 8
+  %17 = llvm.atomicrmw volatile udec_wrap %i32_ptr, %i32 syncscope("singlethread") monotonic {alignment = 8 : i64} : !llvm.ptr<i32>, i32
   llvm.return
 }
 
@@ -1439,6 +1466,11 @@ llvm.func @cmpxchg(%ptr : !llvm.ptr<i32>, %cmp : i32, %val: i32) {
   %1 = llvm.extractvalue %0[0] : !llvm.struct<(i32, i1)>
   // CHECK: %{{[0-9]+}} = extractvalue { i32, i1 } %{{[0-9]+}}, 1
   %2 = llvm.extractvalue %0[1] : !llvm.struct<(i32, i1)>
+
+  // CHECK:  cmpxchg weak volatile
+  // CHECK-SAME:  syncscope("singlethread")
+  // CHECK-SAME:  align 8
+  %3 = llvm.cmpxchg weak volatile %ptr, %cmp, %val syncscope("singlethread") acq_rel monotonic {alignment = 8 : i64} : !llvm.ptr<i32>, i32
   llvm.return
 }
 
@@ -1748,6 +1780,18 @@ llvm.func @nontemporal_store_and_load() {
 
 // -----
 
+llvm.func @atomic_load(%ptr : !llvm.ptr) {
+  // CHECK: load atomic
+  // CHECK-SAME:  monotonic, align 4
+  %1 = llvm.load %ptr atomic monotonic {alignment = 4 : i64} : !llvm.ptr -> f32
+  // CHECK: load atomic
+  // CHECK-SAME:  syncscope("singlethread") monotonic, align 4
+  %2 = llvm.load %ptr atomic syncscope("singlethread") monotonic {alignment = 4 : i64} : !llvm.ptr -> f32
+  llvm.return
+}
+
+// -----
+
 // Check that the translation does not crash in absence of a data layout.
 module {
   // CHECK: declare void @module_default_layout
@@ -1920,44 +1964,6 @@ llvm.func @switch_weights(%arg0: i32) -> i32 {
 }
 
 // CHECK: ![[SWITCH_WEIGHT_NODE]] = !{!"branch_weights", i32 13, i32 17, i32 19}
-
-// -----
-
-module {
-  llvm.func @loopOptions(%arg1 : i32, %arg2 : i32) {
-      %0 = llvm.mlir.constant(0 : i32) : i32
-      %4 = llvm.alloca %arg1 x i32 : (i32) -> (!llvm.ptr<i32>)
-      llvm.br ^bb3(%0 : i32)
-    ^bb3(%1: i32):
-      %2 = llvm.icmp "slt" %1, %arg1 : i32
-      // CHECK: br i1 {{.*}} !llvm.loop ![[LOOP_NODE:[0-9]+]]
-      llvm.cond_br %2, ^bb4, ^bb5 {llvm.loop = {parallel_access = [@metadata::@group1, @metadata::@group2], options = #llvm.loopopts<disable_licm = true, disable_unroll = true, interleave_count = 1, disable_pipeline = true, pipeline_initiation_interval = 2>}}
-    ^bb4:
-      %3 = llvm.add %1, %arg2  : i32
-      // CHECK: = load i32, ptr %{{.*}} !llvm.access.group ![[ACCESS_GROUPS_NODE:[0-9]+]]
-      %5 = llvm.load %4 { access_groups = [@metadata::@group1, @metadata::@group2] } : !llvm.ptr<i32>
-      // CHECK: br label {{.*}} !llvm.loop ![[LOOP_NODE]]
-      llvm.br ^bb3(%3 : i32) {llvm.loop = {parallel_access = [@metadata::@group1, @metadata::@group2], options = #llvm.loopopts<disable_unroll = true, disable_licm = true, interleave_count = 1, disable_pipeline = true, pipeline_initiation_interval = 2>}}
-    ^bb5:
-      llvm.return
-  }
-
-  llvm.metadata @metadata {
-    llvm.access_group @group1
-    llvm.access_group @group2
-  }
-}
-
-// CHECK: ![[LOOP_NODE]] = distinct !{![[LOOP_NODE]], ![[PA_NODE:[0-9]+]], ![[UNROLL_DISABLE_NODE:[0-9]+]], ![[LICM_DISABLE_NODE:[0-9]+]], ![[INTERLEAVE_NODE:[0-9]+]], ![[PIPELINE_DISABLE_NODE:[0-9]+]], ![[II_NODE:[0-9]+]]}
-// CHECK: ![[PA_NODE]] = !{!"llvm.loop.parallel_accesses", ![[GROUP_NODE1:[0-9]+]], ![[GROUP_NODE2:[0-9]+]]}
-// CHECK: ![[GROUP_NODE1]] = distinct !{}
-// CHECK: ![[GROUP_NODE2]] = distinct !{}
-// CHECK: ![[UNROLL_DISABLE_NODE]] = !{!"llvm.loop.unroll.disable", i1 true}
-// CHECK: ![[LICM_DISABLE_NODE]] = !{!"llvm.licm.disable", i1 true}
-// CHECK: ![[INTERLEAVE_NODE]] = !{!"llvm.loop.interleave.count", i32 1}
-// CHECK: ![[PIPELINE_DISABLE_NODE]] = !{!"llvm.loop.pipeline.disable", i1 true}
-// CHECK: ![[II_NODE]] = !{!"llvm.loop.pipeline.initiationinterval", i32 2}
-// CHECK: ![[ACCESS_GROUPS_NODE]] = !{![[GROUP_NODE1]], ![[GROUP_NODE2]]}
 
 // -----
 

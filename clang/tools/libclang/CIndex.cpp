@@ -1632,8 +1632,6 @@ bool CursorVisitor::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
-#define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/WebAssemblyReferenceTypes.def"
 #define BUILTIN_TYPE(Id, SingletonId)
 #define SIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:
 #define UNSIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:
@@ -2859,8 +2857,7 @@ void EnqueueVisitor::VisitDeclStmt(const DeclStmt *S) {
 }
 void EnqueueVisitor::VisitDesignatedInitExpr(const DesignatedInitExpr *E) {
   AddStmt(E->getInit());
-  for (const DesignatedInitExpr::Designator &D :
-       llvm::reverse(E->designators())) {
+  for (const Designator &D : llvm::reverse(E->designators())) {
     if (D.isFieldDesignator()) {
       if (FieldDecl *Field = D.getField())
         AddMemberRef(Field, D.getFieldLoc());
@@ -8122,7 +8119,6 @@ CXLinkageKind clang_getCursorLinkage(CXCursor cursor) {
     case NoLinkage:
     case VisibleNoLinkage:
       return CXLinkage_NoLinkage;
-    case ModuleInternalLinkage:
     case InternalLinkage:
       return CXLinkage_Internal;
     case UniqueExternalLinkage:

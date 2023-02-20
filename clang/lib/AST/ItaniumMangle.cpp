@@ -422,7 +422,7 @@ public:
   CXXNameMangler(ItaniumMangleContextImpl &C, raw_ostream &Out_,
                  bool NormalizeIntegers_)
       : Context(C), Out(Out_), NormalizeIntegers(NormalizeIntegers_),
-        NullOut(false), AbiTagsRoot(AbiTags) {}
+        NullOut(false), Structor(nullptr), AbiTagsRoot(AbiTags) {}
   CXXNameMangler(CXXNameMangler &Outer, raw_ostream &Out_)
       : Context(Outer.Context), Out(Out_), Structor(Outer.Structor),
         StructorType(Outer.StructorType), SeqID(Outer.SeqID),
@@ -3239,12 +3239,6 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     Out << 'u' << type_name.size() << type_name;                               \
     break;
 #include "clang/Basic/RISCVVTypes.def"
-#define WASM_REF_TYPE(InternalName, MangledName, Id, SingletonId, AS)          \
-  case BuiltinType::Id:                                                        \
-    type_name = MangledName;                                                   \
-    Out << 'u' << type_name.size() << type_name;                               \
-    break;
-#include "clang/Basic/WebAssemblyReferenceTypes.def"
   }
 }
 

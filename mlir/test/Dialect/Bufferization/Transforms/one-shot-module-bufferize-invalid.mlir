@@ -1,16 +1,5 @@
 // RUN: mlir-opt %s -allow-unregistered-dialect -one-shot-bufferize="bufferize-function-boundaries=1" -split-input-file -verify-diagnostics
 
-func.func private @foo() -> tensor<?xf32>
-
-func.func @bar() -> tensor<?xf32> {
-  %foo = constant @foo : () -> (tensor<?xf32>)
-// expected-error @+1 {{expected a CallOp}}
-  %res = call_indirect %foo() : () -> (tensor<?xf32>)
-  return %res : tensor<?xf32>
-}
-
-// -----
-
 // expected-error @+2 {{cannot bufferize bodiless function that returns a tensor}}
 // expected-error @+1 {{failed to bufferize op}}
 func.func private @foo() -> tensor<?xf32>
@@ -242,14 +231,11 @@ func.func @main() -> tensor<4xi32> {
 
 // -----
 
-func.func @to_memref_op_is_writing(
+func.func @to_memref_op_unsupported(
     %t1: tensor<?xf32> {bufferization.writable = true}, %idx1: index,
     %idx2: index, %idx3: index, %v1: vector<5xf32>) -> (vector<5xf32>, vector<5xf32>) {
-  // This is a RaW conflict because to_memref is an inplace write and %t1 is
-  // read further down. This will likely have to change with partial
-  // bufferization.
 
-  // expected-error @+1 {{to_memref ops not supported during One-Shot Analysis}}
+  // expected-error @+1 {{to_memref ops are not supported by One-Shot Analysis}}
   %0 = bufferization.to_memref %t1 : memref<?xf32>
 
   // Read from both.
@@ -258,6 +244,16 @@ func.func @to_memref_op_is_writing(
   %r2 = vector.transfer_read %0[%idx3], %cst : memref<?xf32>, vector<5xf32>
 
   return %r1, %r2 : vector<5xf32>, vector<5xf32>
+}
+
+// -----
+
+func.func @to_tensor_op_unsupported(%m: memref<?xf32>, %idx: index) -> (f32) {
+  // expected-error @+1 {{to_tensor ops without `restrict` are not supported by One-Shot Analysis}}
+  %0 = bufferization.to_tensor %m : memref<?xf32>
+
+  %1 = tensor.extract %0[%idx] : tensor<?xf32>
+  return %1 : f32
 }
 
 // -----

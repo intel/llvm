@@ -671,6 +671,12 @@ public:
     PSK_Pop_Set   = PSK_Pop | PSK_Set,  // #pragma (pop[, id], value)
   };
 
+  struct PragmaPackInfo {
+    PragmaMsStackAction Action;
+    StringRef SlotLabel;
+    Token Alignment;
+  };
+
   // #pragma pack and align.
   class AlignPackInfo {
   public:
@@ -2544,8 +2550,6 @@ private:
     SourceLocation BeginLoc;
     clang::Module *Module = nullptr;
     bool ModuleInterface = false;
-    bool IsPartition = false;
-    bool ImplicitGlobalModuleFragment = false;
     VisibleModuleSet OuterVisibleModules;
   };
   /// The modules we're currently parsing.
@@ -13925,9 +13929,6 @@ private:
                                      CallExpr *TheCall);
   bool CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID, CallExpr *TheCall);
-  bool CheckWebAssemblyBuiltinFunctionCall(const TargetInfo &TI,
-                                           unsigned BuiltinID,
-                                           CallExpr *TheCall);
 
   bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
   bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
@@ -14003,6 +14004,8 @@ private:
   bool PrepareBuiltinElementwiseMathOneArgCall(CallExpr *TheCall);
   bool PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall);
 
+  bool SemaBuiltinNonDeterministicValue(CallExpr *TheCall);
+
   // Matrix builtin handling.
   ExprResult SemaBuiltinMatrixTranspose(CallExpr *TheCall,
                                         ExprResult CallResult);
@@ -14010,9 +14013,6 @@ private:
                                               ExprResult CallResult);
   ExprResult SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
                                                ExprResult CallResult);
-
-  // WebAssembly builtin handling.
-  bool BuiltinWasmRefNullExtern(CallExpr *TheCall);
 
 public:
   enum FormatStringType {

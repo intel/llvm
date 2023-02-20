@@ -2,12 +2,11 @@
 // since __config may be included from C headers which may create an
 // include cycle.
 module std_config [system] [extern_c] {
-  header "__config"
+  textual header "__config"
   export *
 }
 
 module std [system] {
-  export std_config
   // FIXME: The standard does not require that each of these submodules
   // re-exports its imported modules. We should provide an alternative form of
   // export that issues a warning if a name from the submodule is used, and
@@ -62,23 +61,21 @@ module std [system] {
     module stdbool_h {
       // <stdbool.h>'s __bool_true_false_are_defined macro requires textual inclusion.
       textual header "stdbool.h"
+      export *
     }
     module stddef_h {
       // <stddef.h>'s __need_* macros require textual inclusion.
       textual header "stddef.h"
+      export *
     }
     module stdint_h {
       header "stdint.h"
       export *
-      // FIXME: This module only exists on OS X and for some reason the
-      // wildcard above doesn't export it.
-      export Darwin.C.stdint
     }
     module stdio_h {
       // <stdio.h>'s __need_* macros require textual inclusion.
       textual header "stdio.h"
       export *
-      export Darwin.C.stdio
     }
     module stdlib_h {
       // <stdlib.h>'s __need_* macros require textual inclusion.
@@ -289,6 +286,9 @@ module std [system] {
         export *
       }
       module lexicographical_compare         { private header "__algorithm/lexicographical_compare.h" }
+      module lexicographical_compare_three_way {
+        private header "__algorithm/lexicographical_compare_three_way.h"
+      }
       module lower_bound                     { private header "__algorithm/lower_bound.h" }
       module make_heap                       { private header "__algorithm/make_heap.h" }
       module make_projected                  { private header "__algorithm/make_projected.h" }
@@ -599,6 +599,7 @@ module std [system] {
       module stable_partition                { private header "__algorithm/stable_partition.h" }
       module stable_sort                     { private header "__algorithm/stable_sort.h" }
       module swap_ranges                     { private header "__algorithm/swap_ranges.h" }
+      module three_way_comp_ref_type         { private header "__algorithm/three_way_comp_ref_type.h" }
       module transform                       { private header "__algorithm/transform.h" }
       module unique                          { private header "__algorithm/unique.h" }
       module unique_copy                     { private header "__algorithm/unique_copy.h" }
@@ -621,6 +622,23 @@ module std [system] {
   module atomic {
     header "atomic"
     export *
+
+    module __atomic {
+      module aliases             { private header "__atomic/aliases.h" }
+      module atomic              { private header "__atomic/atomic.h" }
+      module atomic_base         { private header "__atomic/atomic_base.h" }
+      module atomic_flag         { private header "__atomic/atomic_flag.h" }
+      module atomic_init         { private header "__atomic/atomic_init.h" }
+      module atomic_lock_free    { private header "__atomic/atomic_lock_free.h" }
+      module atomic_sync         { private header "__atomic/atomic_sync.h" }
+      module check_memory_order  { private header "__atomic/check_memory_order.h" }
+      module contention_t        { private header "__atomic/contention_t.h" }
+      module cxx_atomic_impl     { private header "__atomic/cxx_atomic_impl.h" }
+      module fence               { private header "__atomic/fence.h" }
+      module is_always_lock_free { private header "__atomic/is_always_lock_free.h" }
+      module kill_dependency     { private header "__atomic/kill_dependency.h" }
+      module memory_order        { private header "__atomic/memory_order.h" }
+    }
   }
   module barrier {
     @requires_LIBCXX_ENABLE_THREADS@
@@ -673,6 +691,7 @@ module std [system] {
 
     module __chrono {
       module calendar               { private header "__chrono/calendar.h" }
+      module concepts               { private header "__chrono/concepts.h" }
       module convert_to_timespec    { private header "__chrono/convert_to_timespec.h" }
       module convert_to_tm          { private header "__chrono/convert_to_tm.h" }
       module day                    { private header "__chrono/day.h" }
@@ -860,7 +879,10 @@ module std [system] {
         export locale
       }
       module format_error                    { private header "__format/format_error.h" }
-      module format_functions                { private header "__format/format_functions.h" }
+      module format_functions                {
+        private header "__format/format_functions.h"
+        export string
+      }
       module format_fwd                      { private header "__format/format_fwd.h" }
       module format_parse_context            { private header "__format/format_parse_context.h" }
       module format_string                   { private header "__format/format_string.h" }
@@ -1087,7 +1109,10 @@ module std [system] {
       module auto_ptr                        { private header "__memory/auto_ptr.h" }
       module builtin_new_allocator           { private header "__memory/builtin_new_allocator.h" }
       module compressed_pair                 { private header "__memory/compressed_pair.h" }
-      module concepts                        { private header "__memory/concepts.h" }
+      module concepts                        {
+        private header "__memory/concepts.h"
+        export type_traits.remove_reference
+      }
       module construct_at                    { private header "__memory/construct_at.h" }
       module destruct_n                      { private header "__memory/destruct_n.h" }
       module pointer_traits                  { private header "__memory/pointer_traits.h" }
@@ -1550,7 +1575,11 @@ module std [system] {
     module strip_signature                     { private header "__type_traits/strip_signature.h" }
     module type_identity                       { private header "__type_traits/type_identity.h" }
     module type_list                           { private header "__type_traits/type_list.h" }
-    module underlying_type                     { private header "__type_traits/underlying_type.h" }
+    module underlying_type                     {
+      private header "__type_traits/underlying_type.h"
+
+      export type_traits
+    }
     module void_t                              { private header "__type_traits/void_t.h" }
   }
   module typeindex {

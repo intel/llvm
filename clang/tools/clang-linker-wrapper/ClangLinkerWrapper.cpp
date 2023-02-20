@@ -39,7 +39,6 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Parallel.h"
@@ -52,6 +51,7 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Host.h"
 #include <atomic>
 #include <optional>
 
@@ -185,7 +185,8 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   OffloadingImage Image{};
   Image.TheImageKind = IMG_Bitcode;
   Image.TheOffloadKind = getOffloadKind(Kind);
-  Image.StringData = {{"triple", Triple}, {"arch", Arch}};
+  Image.StringData["triple"] = Triple;
+  Image.StringData["arch"] = Arch;
   Image.Image = std::move(*ImageOrError);
 
   std::unique_ptr<MemoryBuffer> Binary = OffloadBinary::write(Image);
@@ -866,6 +867,19 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
 
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << M;
+  if (Args.hasArg(OPT_save_temps)) {
+    int FD = -1;
+    auto TempFileOrErr =
+        createOutputFile(sys::path::filename(ExecutableName) + "." +
+                             getOffloadKindName(Kind) + ".image.wrapper",
+                         "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
+      return errorCodeToError(EC);
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+  }
 
   auto FileOrErr = compileModule(M);
   if (!FileOrErr)
@@ -1058,11 +1072,10 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
       TheImage.TheImageKind =
           Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
       TheImage.TheOffloadKind = Kind;
-      TheImage.StringData = {
-          {"triple",
-           Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ))},
-          {"arch",
-           Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ))}};
+      TheImage.StringData["triple"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      TheImage.StringData["arch"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
       TheImage.Image = std::move(*FileOrErr);
 
       Images[Kind].emplace_back(std::move(TheImage));

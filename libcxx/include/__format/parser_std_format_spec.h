@@ -31,7 +31,6 @@
 #include <__iterator/concepts.h>
 #include <__iterator/readable_traits.h> // iter_value_t
 #include <__variant/monostate.h>
-#include <bit>
 #include <cstdint>
 #include <string_view>
 #include <type_traits>
@@ -45,7 +44,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __format_spec {
 
@@ -140,7 +139,7 @@ inline constexpr __fields __fields_floating_point{
 inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true};
 inline constexpr __fields __fields_pointer{.__type_ = true};
 
-#  if _LIBCPP_STD_VER > 20
+#  if _LIBCPP_STD_VER >= 23
 inline constexpr __fields __fields_tuple{.__type_ = false, .__allow_colon_in_fill_ = true};
 inline constexpr __fields __fields_range{.__type_ = false, .__allow_colon_in_fill_ = true};
 #  endif
@@ -199,6 +198,7 @@ struct __std {
 struct __chrono {
   __alignment __alignment_ : 3;
   bool __locale_specific_form_ : 1;
+  bool __hour_                 : 1;
   bool __weekday_name_ : 1;
   bool __weekday_              : 1;
   bool __day_of_year_          : 1;
@@ -329,6 +329,7 @@ public:
         .__chrono_ =
             __chrono{.__alignment_            = __alignment_,
                      .__locale_specific_form_ = __locale_specific_form_,
+                     .__hour_                 = __hour_,
                      .__weekday_name_         = __weekday_name_,
                      .__weekday_              = __weekday_,
                      .__day_of_year_          = __day_of_year_,
@@ -348,6 +349,8 @@ public:
 
   // These flags are only used for formatting chrono. Since the struct has
   // padding space left it's added to this structure.
+  bool __hour_ : 1 {false};
+
   bool __weekday_name_ : 1 {false};
   bool __weekday_      : 1 {false};
 
@@ -356,7 +359,7 @@ public:
 
   bool __month_name_ : 1 {false};
 
-  uint8_t __reserved_1_ : 3 {0};
+  uint8_t __reserved_1_ : 2 {0};
   uint8_t __reserved_2_ : 6 {0};
   // These two flags are only used internally and not part of the
   // __parsed_specifications. Therefore put them at the end.
@@ -578,7 +581,7 @@ private:
     case 'x':
       __type_ = __type::__hexadecimal_lower_case;
       break;
-#  if _LIBCPP_STD_VER > 20
+#  if _LIBCPP_STD_VER >= 23
     case '?':
       __type_ = __type::__debug;
       break;
@@ -955,7 +958,7 @@ __estimate_column_width(basic_string_view<_CharT> __str, size_t __maximum, __col
 
 } // namespace __format_spec
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

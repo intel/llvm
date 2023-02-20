@@ -292,31 +292,39 @@ transform.sequence failures(propagate) {
 
 #map0 = affine_map<(d0) -> (d0)>
 
-func.func @vectorize_affine_apply(%arg0: tensor<32xf32>, %arg3: index) -> tensor<32xi32> {
-  %0 = tensor.empty() : tensor<32xi32>
+func.func @vectorize_affine_apply(%arg0: tensor<5xf32>, %arg3: index) -> tensor<5xi32> {
+  %0 = tensor.empty() : tensor<5xi32>
   %1 = linalg.generic {indexing_maps = [#map0, #map0],
                        iterator_types = ["parallel"]}
-    ins(%arg0 : tensor<32xf32>)
-    outs(%0 : tensor<32xi32>) {
+    ins(%arg0 : tensor<5xf32>)
+    outs(%0 : tensor<5xi32>) {
   ^bb0(%arg1: f32, %arg2: i32):
     %2 = linalg.index 0 : index
-    %12 = affine.apply affine_map<(d0, d1) -> (d0 + d1)>(%2, %arg3)
-    %3 = arith.index_cast %12 : index to i32
+    %11 = affine.apply affine_map<() -> (123)>()
+    %12 = affine.apply affine_map<(d0, d1) -> (d0 + d1)>(%2, %11)
+    %13 = affine.apply affine_map<(d0)[s0] -> (d0 + s0)>(%12)[%arg3]
+    %14 = affine.apply affine_map<(d0) -> (d0 + 1)>(%13)
+    %15 = affine.apply affine_map<(d0, d1, d2) -> (d0 + d1 + d2)>(%13, %14, %12)
+    %3 = arith.index_cast %15 : index to i32
     linalg.yield %3 : i32
-  } -> tensor<32xi32>
-  return %1 : tensor<32xi32>
+  } -> tensor<5xi32>
+  return %1 : tensor<5xi32>
 }
 
 // CHECK-LABEL:  func.func @vectorize_affine_apply
-// CHECK-SAME: %arg0: tensor<32xf32>
+// CHECK-SAME: %arg0: tensor<5xf32>
 // CHECK-SAME: %[[ARG1:.*]]: index
-// CHECK:   %[[CST:.*]] = arith.constant dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]> : vector<32xindex>
+// CHECK:   %[[CST:.*]] = arith.constant dense<[123, 124, 125, 126, 127]> : vector<5xindex>
+// CHECK:   %[[CST_0:.*]] = arith.constant dense<1> : vector<5xindex>
 // CHECK:   %[[C0:.*]] = arith.constant 0 : index
-// CHECK:   %[[EMPTY:.*]] = tensor.empty() : tensor<32xi32>
-// CHECK:   %[[BCAST:.*]] = vector.broadcast %[[ARG1]] : index to vector<32xindex>
-// CHECK:   %[[ADDI:.*]] = arith.addi %[[BCAST]], %[[CST]] : vector<32xindex>
-// CHECK:   %[[CAST:.*]] = arith.index_cast %[[ADDI]] : vector<32xindex> to vector<32xi32>
-// CHECK:   vector.transfer_write %[[CAST]], %[[EMPTY]][%[[C0:.*]]] {in_bounds = [true]} : vector<32xi32>, tensor<32xi32>
+// CHECK:   %[[EMPTY:.*]] = tensor.empty() : tensor<5xi32>
+// CHECK:   %[[BCAST:.*]] = vector.broadcast %[[ARG1]] : index to vector<5xindex>
+// CHECK:   %[[ADDI_1:.*]] = arith.addi %[[BCAST]], %[[CST]] : vector<5xindex>
+// CHECK:   %[[ADDI_2:.*]] = arith.addi %[[ADDI_1]], %[[CST_0]] : vector<5xindex>
+// CHECK:   %[[ADDI_3:.*]] = arith.addi %[[ADDI_1]], %[[ADDI_2]] : vector<5xindex>
+// CHECK:   %[[ADDI_4:.*]] = arith.addi %[[ADDI_3]], %[[CST]] : vector<5xindex>
+// CHECK:   %[[CAST:.*]] = arith.index_cast %[[ADDI_4]] : vector<5xindex> to vector<5xi32>
+// CHECK:   vector.transfer_write %[[CAST]], %[[EMPTY]][%[[C0:.*]]] {in_bounds = [true]} : vector<5xi32>, tensor<5xi32>
 
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !pdl.operation):
@@ -2041,3 +2049,137 @@ transform.sequence failures(propagate) {
 // CHECK-LABEL: @wrong_reduction_detection
 // CHECK:         vector.broadcast
 // CHECK:         vector.transfer_write
+
+// -----
+
+// Don't vectorize tensor<0xf32>
+// CHECK-LABEL: @tensor_size0
+// CHECK:         linalg.generic
+func.func @tensor_size0(%arg0: tensor<0xf32>,
+                        %arg1: tensor<f32>) -> tensor<f32> {
+  %0 = linalg.generic
+  {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>],
+  iterator_types = ["reduction"]}
+  ins(%arg0 : tensor<0xf32>) outs(%arg1 : tensor<f32>) {
+    ^bb0(%in: f32, %out: f32):
+    %12 = arith.addf %out, %in : f32
+    linalg.yield %12 : f32
+  } -> tensor<f32>
+  return %0 : tensor<f32>
+}
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  %1 = get_closest_isolated_parent %0 : (!pdl.operation) -> !pdl.operation
+  %2 = transform.structured.vectorize %1
+}
+
+// -----
+
+func.func @vectorize_partial_dynamic_identity(%arg0: tensor<8x?xf32>,
+                                              %arg1: tensor<8x?xf32>,
+                                              %arg2: tensor<8x?xf32>) -> tensor<8x?xf32> {
+  %0 = linalg.generic { indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>],
+                   iterator_types = ["parallel", "parallel"] }
+    ins(%arg0, %arg1 : tensor<8x?xf32>, tensor<8x?xf32>)
+    outs(%arg2 : tensor<8x?xf32>) {
+    ^bb(%in0: f32, %in1: f32, %out: f32) :
+      %0 = arith.addf %in0, %in1 : f32
+      linalg.yield %0 : f32
+    } -> tensor<8x?xf32>
+  return %0 : tensor<8x?xf32>
+}
+
+// CHECK-LABEL:   func.func @vectorize_partial_dynamic_identity(
+// CHECK-SAME:      %[[VAL_0:.*]]: tensor<8x?xf32>, %[[VAL_1:.*]]: tensor<8x?xf32>, %[[VAL_2:.*]]: tensor<8x?xf32>) -> tensor<8x?xf32> {
+// CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_4:.*]] = tensor.dim %[[VAL_0]], %[[VAL_3]] : tensor<8x?xf32>
+// CHECK:           %[[VAL_5:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_6:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_7:.*]] = arith.constant 8 : index
+// CHECK:           %[[VAL_8:.*]] = vector.create_mask %[[VAL_7]], %[[VAL_4]] : vector<8x32xi1>
+// CHECK:           %[[VAL_9:.*]] = vector.mask %[[VAL_8]] { vector.transfer_read %[[VAL_0]][%[[VAL_5]], %[[VAL_5]]], %[[VAL_6]] {in_bounds = [true, true]} : tensor<8x?xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_10:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_11:.*]] = vector.mask %[[VAL_8]] { vector.transfer_read %[[VAL_1]][%[[VAL_5]], %[[VAL_5]]], %[[VAL_10]] {in_bounds = [true, true]} : tensor<8x?xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_12:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_13:.*]] = vector.mask %[[VAL_8]] { vector.transfer_read %[[VAL_2]][%[[VAL_5]], %[[VAL_5]]], %[[VAL_12]] {in_bounds = [true, true]} : tensor<8x?xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_14:.*]] = arith.addf %[[VAL_9]], %[[VAL_11]] : vector<8x32xf32>
+// CHECK:           %[[VAL_15:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_16:.*]] = vector.mask %[[VAL_8]] { vector.transfer_write %[[VAL_14]], %[[VAL_2]][%[[VAL_15]], %[[VAL_15]]] {in_bounds = [true, true]} : vector<8x32xf32>, tensor<8x?xf32> } : vector<8x32xi1> -> tensor<8x?xf32>
+
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  transform.structured.masked_vectorize %0 vector_sizes [8, 32]
+}
+
+// -----
+
+func.func @do_not_generate_masks(%arg0: tensor<8x32xf32>,
+                                 %arg1: tensor<8x32xf32>,
+                                 %arg2: tensor<8x32xf32>) -> tensor<8x32xf32> {
+  %0 = linalg.generic { indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>],
+                   iterator_types = ["parallel", "parallel"] }
+    ins(%arg0, %arg1 : tensor<8x32xf32>, tensor<8x32xf32>)
+    outs(%arg2 : tensor<8x32xf32>) {
+    ^bb(%in0: f32, %in1: f32, %out: f32) :
+      %0 = arith.addf %in0, %in1 : f32
+      linalg.yield %0 : f32
+    } -> tensor<8x32xf32>
+  return %0 : tensor<8x32xf32>
+}
+
+// CHECK-LABEL: func.func @do_not_generate_masks
+// CHECK-NOT: vector.mask
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  transform.structured.masked_vectorize %0 vector_sizes [8, 32]
+}
+
+// -----
+
+func.func @vectorize_static_shape_with_mask(%arg0: tensor<8x30xf32>,
+                                            %arg1: tensor<8x30xf32>,
+                                            %arg2: tensor<8x30xf32>) -> tensor<8x30xf32> {
+  %0 = linalg.generic { indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>],
+                   iterator_types = ["parallel", "parallel"] }
+    ins(%arg0, %arg1 : tensor<8x30xf32>, tensor<8x30xf32>)
+    outs(%arg2 : tensor<8x30xf32>) {
+    ^bb(%in0: f32, %in1: f32, %out: f32) :
+      %0 = arith.addf %in0, %in1 : f32
+      linalg.yield %0 : f32
+    } -> tensor<8x30xf32>
+  return %0 : tensor<8x30xf32>
+}
+
+// CHECK-LABEL:   func.func @vectorize_static_shape_with_mask(
+// CHECK-SAME:      %[[VAL_0:.*]]: tensor<8x30xf32>, %[[VAL_1:.*]]: tensor<8x30xf32>, %[[VAL_2:.*]]: tensor<8x30xf32>) -> tensor<8x30xf32> {
+// CHECK:           %[[VAL_3:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_4:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_5:.*]] = arith.constant 8 : index
+// CHECK:           %[[VAL_6:.*]] = arith.constant 30 : index
+// CHECK:           %[[VAL_7:.*]] = vector.create_mask %[[VAL_5]], %[[VAL_6]] : vector<8x32xi1>
+// CHECK:           %[[VAL_8:.*]] = vector.mask %[[VAL_7]] { vector.transfer_read %[[VAL_0]][%[[VAL_3]], %[[VAL_3]]], %[[VAL_4]] {in_bounds = [true, true]} : tensor<8x30xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_9:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_10:.*]] = vector.mask %[[VAL_7]] { vector.transfer_read %[[VAL_1]][%[[VAL_3]], %[[VAL_3]]], %[[VAL_9]] {in_bounds = [true, true]} : tensor<8x30xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_11:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_12:.*]] = vector.mask %[[VAL_7]] { vector.transfer_read %[[VAL_2]][%[[VAL_3]], %[[VAL_3]]], %[[VAL_11]] {in_bounds = [true, true]} : tensor<8x30xf32>, vector<8x32xf32> } : vector<8x32xi1> -> vector<8x32xf32>
+// CHECK:           %[[VAL_13:.*]] = arith.addf %[[VAL_8]], %[[VAL_10]] : vector<8x32xf32>
+// CHECK:           %[[VAL_14:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_15:.*]] = vector.mask %[[VAL_7]] { vector.transfer_write %[[VAL_13]], %[[VAL_2]][%[[VAL_14]], %[[VAL_14]]] {in_bounds = [true, true]} : vector<8x32xf32>, tensor<8x30xf32> } : vector<8x32xi1> -> tensor<8x30xf32>
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  transform.structured.masked_vectorize %0 vector_sizes [8, 32]
+}

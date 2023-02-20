@@ -37,7 +37,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/CodeGen/CallingConvLower.h"
@@ -104,6 +103,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -14089,7 +14089,7 @@ static SDValue PerformMULCombine(SDNode *N,
   MulAmt >>= ShiftAmt;
 
   if (MulAmt >= 0) {
-    if (isPowerOf2_32(MulAmt - 1)) {
+    if (llvm::has_single_bit<uint32_t>(MulAmt - 1)) {
       // (mul x, 2^N + 1) => (add (shl x, N), x)
       Res = DAG.getNode(ISD::ADD, DL, VT,
                         V,
@@ -14097,7 +14097,7 @@ static SDValue PerformMULCombine(SDNode *N,
                                     V,
                                     DAG.getConstant(Log2_32(MulAmt - 1), DL,
                                                     MVT::i32)));
-    } else if (isPowerOf2_32(MulAmt + 1)) {
+    } else if (llvm::has_single_bit<uint32_t>(MulAmt + 1)) {
       // (mul x, 2^N - 1) => (sub (shl x, N), x)
       Res = DAG.getNode(ISD::SUB, DL, VT,
                         DAG.getNode(ISD::SHL, DL, VT,
@@ -14109,7 +14109,7 @@ static SDValue PerformMULCombine(SDNode *N,
       return SDValue();
   } else {
     uint64_t MulAmtAbs = -MulAmt;
-    if (isPowerOf2_32(MulAmtAbs + 1)) {
+    if (llvm::has_single_bit<uint32_t>(MulAmtAbs + 1)) {
       // (mul x, -(2^N - 1)) => (sub x, (shl x, N))
       Res = DAG.getNode(ISD::SUB, DL, VT,
                         V,
@@ -14117,7 +14117,7 @@ static SDValue PerformMULCombine(SDNode *N,
                                     V,
                                     DAG.getConstant(Log2_32(MulAmtAbs + 1), DL,
                                                     MVT::i32)));
-    } else if (isPowerOf2_32(MulAmtAbs - 1)) {
+    } else if (llvm::has_single_bit<uint32_t>(MulAmtAbs - 1)) {
       // (mul x, -(2^N + 1)) => - (add (shl x, N), x)
       Res = DAG.getNode(ISD::ADD, DL, VT,
                         V,
@@ -15468,51 +15468,6 @@ static SDValue PerformSignExtendInregCombine(SDNode *N, SelectionDAG &DAG) {
   return SDValue();
 }
 
-// When lowering complex nodes that we recognize, like VQDMULH and MULH, we
-// can end up with shuffle(binop(shuffle, shuffle)), that can be simplified to
-// binop as the shuffles cancel out.
-static SDValue FlattenVectorShuffle(ShuffleVectorSDNode *N, SelectionDAG &DAG) {
-  EVT VT = N->getValueType(0);
-  if (!N->getOperand(1).isUndef() || N->getOperand(0).getValueType() != VT)
-    return SDValue();
-  SDValue Op = N->getOperand(0);
-
-  // Looking for binary operators that will have been folded from
-  // truncates/extends.
-  switch (Op.getOpcode()) {
-  case ARMISD::VQDMULH:
-  case ISD::MULHS:
-  case ISD::MULHU:
-  case ISD::ABDS:
-  case ISD::ABDU:
-  case ISD::AVGFLOORS:
-  case ISD::AVGFLOORU:
-  case ISD::AVGCEILS:
-  case ISD::AVGCEILU:
-    break;
-  default:
-    return SDValue();
-  }
-
-  ShuffleVectorSDNode *Op0 = dyn_cast<ShuffleVectorSDNode>(Op.getOperand(0));
-  ShuffleVectorSDNode *Op1 = dyn_cast<ShuffleVectorSDNode>(Op.getOperand(1));
-  if (!Op0 || !Op1 || !Op0->getOperand(1).isUndef() ||
-      !Op1->getOperand(1).isUndef() || Op0->getMask() != Op1->getMask() ||
-      Op0->getOperand(0).getValueType() != VT)
-    return SDValue();
-
-  // Check the mask turns into an identity shuffle.
-  ArrayRef<int> NMask = N->getMask();
-  ArrayRef<int> OpMask = Op0->getMask();
-  for (int i = 0, e = NMask.size(); i != e; i++) {
-    if (NMask[i] > 0 && OpMask[NMask[i]] > 0 && OpMask[NMask[i]] != i)
-      return SDValue();
-  }
-
-  return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(),
-                     Op0->getOperand(0), Op1->getOperand(0));
-}
-
 static SDValue
 PerformInsertSubvectorCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   SDValue Vec = N->getOperand(0);
@@ -15581,8 +15536,6 @@ static SDValue PerformShuffleVMOVNCombine(ShuffleVectorSDNode *N,
 /// PerformVECTOR_SHUFFLECombine - Target-specific dag combine xforms for
 /// ISD::VECTOR_SHUFFLE.
 static SDValue PerformVECTOR_SHUFFLECombine(SDNode *N, SelectionDAG &DAG) {
-  if (SDValue R = FlattenVectorShuffle(cast<ShuffleVectorSDNode>(N), DAG))
-    return R;
   if (SDValue R = PerformShuffleVMOVNCombine(cast<ShuffleVectorSDNode>(N), DAG))
     return R;
 
@@ -17171,6 +17124,42 @@ static SDValue PerformVECREDUCE_ADDCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Looks for vaddv(shuffle) or vmlav(shuffle, shuffle), with a shuffle where all
+// the lanes are used. Due to the reduction being commutative the shuffle can be
+// removed.
+static SDValue PerformReduceShuffleCombine(SDNode *N, SelectionDAG &DAG) {
+  unsigned VecOp = N->getOperand(0).getValueType().isVector() ? 0 : 2;
+  auto *Shuf = dyn_cast<ShuffleVectorSDNode>(N->getOperand(VecOp));
+  if (!Shuf || !Shuf->getOperand(1).isUndef())
+    return SDValue();
+
+  // Check all elements are used once in the mask.
+  ArrayRef<int> Mask = Shuf->getMask();
+  APInt SetElts(Mask.size(), 0);
+  for (int E : Mask) {
+    if (E < 0 || E >= (int)Mask.size())
+      return SDValue();
+    SetElts.setBit(E);
+  }
+  if (!SetElts.isAllOnes())
+    return SDValue();
+
+  if (N->getNumOperands() != VecOp + 1) {
+    auto *Shuf2 = dyn_cast<ShuffleVectorSDNode>(N->getOperand(VecOp + 1));
+    if (!Shuf2 || !Shuf2->getOperand(1).isUndef() || Shuf2->getMask() != Mask)
+      return SDValue();
+  }
+
+  SmallVector<SDValue> Ops;
+  for (SDValue Op : N->ops()) {
+    if (Op.getValueType().isVector())
+      Ops.push_back(Op.getOperand(0));
+    else
+      Ops.push_back(Op);
+  }
+  return DAG.getNode(N->getOpcode(), SDLoc(N), N->getVTList(), Ops);
+}
+
 static SDValue PerformVMOVNCombine(SDNode *N,
                                    TargetLowering::DAGCombinerInfo &DCI) {
   SDValue Op0 = N->getOperand(0);
@@ -17224,6 +17213,27 @@ static SDValue PerformVQMOVNCombine(SDNode *N,
   const TargetLowering &TLI = DCI.DAG.getTargetLoweringInfo();
   if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, DCI))
     return SDValue(N, 0);
+  return SDValue();
+}
+
+static SDValue PerformVQDMULHCombine(SDNode *N,
+                                     TargetLowering::DAGCombinerInfo &DCI) {
+  EVT VT = N->getValueType(0);
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+
+  auto *Shuf0 = dyn_cast<ShuffleVectorSDNode>(LHS);
+  auto *Shuf1 = dyn_cast<ShuffleVectorSDNode>(RHS);
+  // Turn VQDMULH(shuffle, shuffle) -> shuffle(VQDMULH)
+  if (Shuf0 && Shuf1 && Shuf0->getMask().equals(Shuf1->getMask()) &&
+      LHS.getOperand(1).isUndef() && RHS.getOperand(1).isUndef() &&
+      (LHS.hasOneUse() || RHS.hasOneUse() || LHS == RHS)) {
+    SDLoc DL(N);
+    SDValue NewBinOp = DCI.DAG.getNode(N->getOpcode(), DL, VT,
+                                       LHS.getOperand(0), RHS.getOperand(0));
+    SDValue UndefV = LHS.getOperand(1);
+    return DCI.DAG.getVectorShuffle(VT, DL, NewBinOp, UndefV, Shuf0->getMask());
+  }
   return SDValue();
 }
 
@@ -18750,11 +18760,26 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
     return PerformVCMPCombine(N, DCI.DAG, Subtarget);
   case ISD::VECREDUCE_ADD:
     return PerformVECREDUCE_ADDCombine(N, DCI.DAG, Subtarget);
+  case ARMISD::VADDVs:
+  case ARMISD::VADDVu:
+  case ARMISD::VADDLVs:
+  case ARMISD::VADDLVu:
+  case ARMISD::VADDLVAs:
+  case ARMISD::VADDLVAu:
+  case ARMISD::VMLAVs:
+  case ARMISD::VMLAVu:
+  case ARMISD::VMLALVs:
+  case ARMISD::VMLALVu:
+  case ARMISD::VMLALVAs:
+  case ARMISD::VMLALVAu:
+    return PerformReduceShuffleCombine(N, DCI.DAG);
   case ARMISD::VMOVN:
     return PerformVMOVNCombine(N, DCI);
   case ARMISD::VQMOVNs:
   case ARMISD::VQMOVNu:
     return PerformVQMOVNCombine(N, DCI);
+  case ARMISD::VQDMULH:
+    return PerformVQDMULHCombine(N, DCI);
   case ARMISD::ASRL:
   case ARMISD::LSRL:
   case ARMISD::LSLL:

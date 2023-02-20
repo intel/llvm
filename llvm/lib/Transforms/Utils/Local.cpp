@@ -1423,6 +1423,12 @@ static Align tryEnforceAlignment(Value *V, Align PrefAlign,
     if (!GO->canIncreaseAlignment())
       return CurrentAlign;
 
+    if (GO->isThreadLocal()) {
+      unsigned MaxTLSAlign = GO->getParent()->getMaxTLSAlignment() / CHAR_BIT;
+      if (MaxTLSAlign && PrefAlign > Align(MaxTLSAlign))
+        PrefAlign = Align(MaxTLSAlign);
+    }
+
     GO->setAlignment(PrefAlign);
     return PrefAlign;
   }
@@ -2713,6 +2719,11 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
       case LLVMContext::MD_preserve_access_index:
         // Preserve !preserve.access.index in K.
         break;
+      case LLVMContext::MD_noundef:
+        // If K does move, keep noundef if it is present in both instructions.
+        if (DoesKMove)
+          K->setMetadata(Kind, JMD);
+        break;
     }
   }
   // Set !invariant.group from J if J has it. If both instructions have it
@@ -2819,7 +2830,8 @@ void llvm::patchReplacementInstruction(Instruction *I, Value *Repl) {
       LLVMContext::MD_noalias,         LLVMContext::MD_range,
       LLVMContext::MD_fpmath,          LLVMContext::MD_invariant_load,
       LLVMContext::MD_invariant_group, LLVMContext::MD_nonnull,
-      LLVMContext::MD_access_group,    LLVMContext::MD_preserve_access_index};
+      LLVMContext::MD_access_group,    LLVMContext::MD_preserve_access_index,
+      LLVMContext::MD_noundef};
   combineMetadata(ReplInst, I, KnownIDs, false);
 }
 

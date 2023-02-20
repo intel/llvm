@@ -56,7 +56,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // TODO FMT Evaluate which templates should be external templates. This
 // improves the efficiency of the header. However since the header is still
@@ -261,10 +261,12 @@ __handle_replacement_field(_Iterator __begin, _Iterator __end,
 
   if constexpr (same_as<_Ctx, __compile_time_basic_format_context<_CharT>>) {
     __arg_t __type = __ctx.arg(__r.__value);
-    if (__type == __arg_t::__handle)
+    if (__type == __arg_t::__none)
+      std::__throw_format_error("Argument index out of bounds");
+    else if (__type == __arg_t::__handle)
       __ctx.__handle(__r.__value).__parse(__parse_ctx);
-    else
-        __format::__compile_time_visit_format_arg(__parse_ctx, __ctx, __type);
+    else if (__parse)
+      __format::__compile_time_visit_format_arg(__parse_ctx, __ctx, __type);
   } else
     _VSTD::__visit_format_arg(
         [&](auto __arg) {
@@ -655,7 +657,7 @@ formatted_size(locale __loc, wformat_string<_Args...> __fmt, _Args&&... __args) 
 #endif // _LIBCPP_HAS_NO_LOCALIZATION
 
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

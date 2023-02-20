@@ -843,6 +843,8 @@ void MicrosoftCXXNameMangler::mangleFloat(llvm::APFloat Number) {
   case APFloat::S_PPCDoubleDouble: Out << 'Z'; break;
   case APFloat::S_Float8E5M2:
   case APFloat::S_Float8E4M3FN:
+  case APFloat::S_Float8E5M2FNUZ:
+  case APFloat::S_Float8E4M3FNUZ:
     llvm_unreachable("Tried to mangle unexpected APFloat semantics");
   }
 
@@ -2501,13 +2503,6 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
     mangleArtificialTagType(TTK_Struct, "__bf16", {"__clang"});
     break;
 
-#define WASM_REF_TYPE(InternalName, MangledName, Id, SingletonId, AS)          \
-  case BuiltinType::Id:                                                        \
-    mangleArtificialTagType(TTK_Struct, MangledName);                          \
-    mangleArtificialTagType(TTK_Struct, MangledName, {"__clang"});             \
-    break;
-
-#include "clang/Basic/WebAssemblyReferenceTypes.def"
 #define SVE_TYPE(Name, Id, SingletonId) \
   case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"

@@ -58,12 +58,12 @@ inline _LIBCPP_HIDE_FROM_ABI pair<_InputIterator, _ForwardIterator>
 __uninitialized_copy(_InputIterator __ifirst, _Sentinel1 __ilast,
                      _ForwardIterator __ofirst, _Sentinel2 __olast) {
   _ForwardIterator __idx = __ofirst;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   try {
 #endif
     for (; __ifirst != __ilast && __idx != __olast; ++__ifirst, (void)++__idx)
       ::new (_VSTD::__voidify(*__idx)) _ValueType(*__ifirst);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   } catch (...) {
     _VSTD::__destroy(__ofirst, __idx);
     throw;
@@ -90,12 +90,12 @@ inline _LIBCPP_HIDE_FROM_ABI pair<_InputIterator, _ForwardIterator>
 __uninitialized_copy_n(_InputIterator __ifirst, _Size __n,
                        _ForwardIterator __ofirst, _Sentinel __olast) {
   _ForwardIterator __idx = __ofirst;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   try {
 #endif
     for (; __n > 0 && __idx != __olast; ++__ifirst, (void)++__idx, (void)--__n)
       ::new (_VSTD::__voidify(*__idx)) _ValueType(*__ifirst);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   } catch (...) {
     _VSTD::__destroy(__ofirst, __idx);
     throw;
@@ -121,13 +121,13 @@ inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_fill(_ForwardIterator __first, _Sentinel __last, const _Tp& __x)
 {
     _ForwardIterator __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try
     {
 #endif
         for (; __idx != __last; ++__idx)
             ::new (_VSTD::__voidify(*__idx)) _ValueType(__x);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     }
     catch (...)
     {
@@ -154,13 +154,13 @@ inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_fill_n(_ForwardIterator __first, _Size __n, const _Tp& __x)
 {
     _ForwardIterator __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try
     {
 #endif
         for (; __n > 0; ++__idx, (void) --__n)
             ::new (_VSTD::__voidify(*__idx)) _ValueType(__x);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     }
     catch (...)
     {
@@ -180,7 +180,7 @@ _ForwardIterator uninitialized_fill_n(_ForwardIterator __first, _Size __n, const
     return _VSTD::__uninitialized_fill_n<_ValueType>(__first, __n, __x);
 }
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 // uninitialized_default_construct
 
@@ -188,12 +188,12 @@ template <class _ValueType, class _ForwardIterator, class _Sentinel>
 inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_default_construct(_ForwardIterator __first, _Sentinel __last) {
     auto __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try {
 #endif
     for (; __idx != __last; ++__idx)
         ::new (_VSTD::__voidify(*__idx)) _ValueType;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     } catch (...) {
         _VSTD::__destroy(__first, __idx);
         throw;
@@ -217,12 +217,12 @@ template <class _ValueType, class _ForwardIterator, class _Size>
 inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_default_construct_n(_ForwardIterator __first, _Size __n) {
     auto __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try {
 #endif
     for (; __n > 0; ++__idx, (void) --__n)
         ::new (_VSTD::__voidify(*__idx)) _ValueType;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     } catch (...) {
         _VSTD::__destroy(__first, __idx);
         throw;
@@ -245,12 +245,12 @@ template <class _ValueType, class _ForwardIterator, class _Sentinel>
 inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_value_construct(_ForwardIterator __first, _Sentinel __last) {
     auto __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try {
 #endif
     for (; __idx != __last; ++__idx)
         ::new (_VSTD::__voidify(*__idx)) _ValueType();
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     } catch (...) {
         _VSTD::__destroy(__first, __idx);
         throw;
@@ -274,12 +274,12 @@ template <class _ValueType, class _ForwardIterator, class _Size>
 inline _LIBCPP_HIDE_FROM_ABI
 _ForwardIterator __uninitialized_value_construct_n(_ForwardIterator __first, _Size __n) {
     auto __idx = __first;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try {
 #endif
     for (; __n > 0; ++__idx, (void) --__n)
         ::new (_VSTD::__voidify(*__idx)) _ValueType();
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     } catch (...) {
         _VSTD::__destroy(__first, __idx);
         throw;
@@ -304,13 +304,13 @@ inline _LIBCPP_HIDE_FROM_ABI pair<_InputIterator, _ForwardIterator>
 __uninitialized_move(_InputIterator __ifirst, _Sentinel1 __ilast,
                      _ForwardIterator __ofirst, _Sentinel2 __olast, _IterMove __iter_move) {
   auto __idx = __ofirst;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   try {
 #endif
     for (; __ifirst != __ilast && __idx != __olast; ++__idx, (void)++__ifirst) {
       ::new (_VSTD::__voidify(*__idx)) _ValueType(__iter_move(__ifirst));
     }
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   } catch (...) {
     _VSTD::__destroy(__ofirst, __idx);
     throw;
@@ -338,12 +338,12 @@ inline _LIBCPP_HIDE_FROM_ABI pair<_InputIterator, _ForwardIterator>
 __uninitialized_move_n(_InputIterator __ifirst, _Size __n,
                        _ForwardIterator __ofirst, _Sentinel __olast, _IterMove __iter_move) {
   auto __idx = __ofirst;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   try {
 #endif
     for (; __n > 0 && __idx != __olast; ++__idx, (void)++__ifirst, --__n)
       ::new (_VSTD::__voidify(*__idx)) _ValueType(__iter_move(__ifirst));
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   } catch (...) {
     _VSTD::__destroy(__ofirst, __idx);
     throw;
@@ -512,7 +512,7 @@ __uninitialized_allocator_value_construct_n_multidimensional(_Alloc& __alloc, _B
     __guard.__complete();
 }
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 // Destroy all elements in [__first, __last) from left to right using allocator destruction.
 template <class _Alloc, class _Iter, class _Sent>
@@ -600,7 +600,7 @@ _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 _Iter2 __uninitialized_alloc
   auto __guard =
       std::__make_exception_guard(_AllocatorDestroyRangeReverse<_Alloc, _Iter2>(__alloc, __destruct_first, __first2));
   while (__first1 != __last1) {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     allocator_traits<_Alloc>::construct(__alloc, std::__to_address(__first2), std::move_if_noexcept(*__first1));
 #else
     allocator_traits<_Alloc>::construct(__alloc, std::__to_address(__first2), std::move(*__first1));

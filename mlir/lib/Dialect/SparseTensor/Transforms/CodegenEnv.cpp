@@ -10,7 +10,9 @@
 
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensorType.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+
 #include <optional>
 
 using namespace mlir;
@@ -37,7 +39,7 @@ CodegenEnv::CodegenEnv(linalg::GenericOp linop, SparsificationOptions opts,
       latticeMerger(numTensors, numLoops, numFilterLoops), loopEmitter(),
       topSort(), sparseOut(nullptr), outerParNest(-1u), insChain(), expValues(),
       expFilled(), expAdded(), expCount(), redVal(), redExp(-1u),
-      redCustom(-1u) {}
+      redCustom(-1u), redValidLexInsert() {}
 
 LogicalResult CodegenEnv::initTensorExp() {
   // Builds the tensor expression for the Linalg operation in SSA form.
@@ -70,16 +72,24 @@ std::optional<Operation *> CodegenEnv::genLoopBoundary(
     function_ref<std::optional<Operation *>(MutableArrayRef<Value> parameters)>
         callback) {
   SmallVector<Value> params;
-  if (isReduc())
+  if (isReduc()) {
     params.push_back(redVal);
+    if (redValidLexInsert)
+      params.push_back(redValidLexInsert);
+  } else {
+    assert(!redValidLexInsert);
+  }
   if (isExpand())
     params.push_back(expCount);
   if (insChain != nullptr)
     params.push_back(insChain);
   auto r = callback(params); // may update parameters
   unsigned i = 0;
-  if (isReduc())
+  if (isReduc()) {
     updateReduc(params[i++]);
+    if (redValidLexInsert)
+      setValidLexInsert(params[i++]);
+  }
   if (isExpand())
     updateExpandCount(params[i++]);
   if (insChain != nullptr)
@@ -106,10 +116,9 @@ bool CodegenEnv::isAdmissibleTensorExp(unsigned exp) {
 
   OpOperand *lhs = linalgOp.getDpsInitOperand(0);
   unsigned tensor = lhs->getOperandNumber();
-  auto enc = getSparseTensorEncoding(lhs->get().getType());
   // An non-annotated output tensor is assumed dense, and becomes a random
   // access n-dim memref. Admissible since insertions cannot occur.
-  if (!enc || enc.isAllDense())
+  if (getSparseTensorType(lhs->get()).isAllDense())
     return true;
 
   // A tensor expression with a sparse output tensor that changes its values
@@ -223,6 +232,16 @@ Value CodegenEnv::endReduc() {
   updateReduc(Value());
   redExp = -1u;
   return val;
+}
+
+void CodegenEnv::setValidLexInsert(Value val) {
+  assert(isReduc() && val);
+  redValidLexInsert = val;
+}
+
+void CodegenEnv::clearValidLexInsert() {
+  assert(!isReduc());
+  redValidLexInsert = Value();
 }
 
 void CodegenEnv::startCustomReduc(unsigned exp) {

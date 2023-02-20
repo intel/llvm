@@ -99,6 +99,9 @@ protected:
                              SDValue RHS, DAGCombinerInfo &DCI) const;
   SDValue performSelectCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
+  TargetLowering::NegatibleCost
+  getConstantNegateCost(const ConstantFPSDNode *C) const;
+
   bool isConstantCostlierToNegate(SDValue N) const;
   SDValue performFNegCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performFAbsCombine(SDNode *N, DAGCombinerInfo &DCI) const;
@@ -156,6 +159,7 @@ public:
     return Val.getOpcode() == ISD::BITCAST ? Val.getOperand(0) : Val;
   }
 
+  static bool shouldFoldFNegIntoSrc(SDNode *FNeg, SDValue FNegSrc);
   static bool allUsesHaveSourceMods(const SDNode *N,
                                     unsigned CostThreshold = 4);
   bool isFAbsFree(EVT VT) const override;
@@ -228,6 +232,10 @@ public:
   void ReplaceNodeResults(SDNode * N,
                           SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
+
+  SDValue combineFMinMaxLegacyImpl(const SDLoc &DL, EVT VT, SDValue LHS,
+                                   SDValue RHS, SDValue True, SDValue False,
+                                   SDValue CC, DAGCombinerInfo &DCI) const;
 
   SDValue combineFMinMaxLegacy(const SDLoc &DL, EVT VT, SDValue LHS,
                                SDValue RHS, SDValue True, SDValue False,

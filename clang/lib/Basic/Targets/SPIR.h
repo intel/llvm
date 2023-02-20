@@ -15,10 +15,11 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
 #include "OSTargets.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace clang {

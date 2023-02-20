@@ -103,9 +103,35 @@ func.func @atomic_write(%a: !llvm.ptr<i32>) -> () {
 // CHECK: (%[[ARG0:.*]]: !llvm.ptr<i32>, %[[ARG1:.*]]: !llvm.ptr<i32>)
 // CHECK: omp.atomic.read %[[ARG1]] = %[[ARG0]] memory_order(acquire) hint(contended) : !llvm.ptr<i32>
 func.func @atomic_read(%a: !llvm.ptr<i32>, %b: !llvm.ptr<i32>) -> () {
-  omp.atomic.read %b = %a memory_order(acquire) hint(contended) : !llvm.ptr<i32>
+  omp.atomic.read %b = %a memory_order(acquire) hint(contended) : !llvm.ptr<i32>, i32
   return
 }
+
+// -----
+
+func.func @atomic_update() {
+  %0 = llvm.mlir.addressof @_QFsEc : !llvm.ptr<i32>
+  omp.atomic.update   %0 : !llvm.ptr<i32> {
+  ^bb0(%arg0: i32):
+    %1 = arith.constant 1 : i32
+    %2 = arith.addi %arg0, %1  : i32
+    omp.yield(%2 : i32)
+  }
+  return
+}
+llvm.mlir.global internal @_QFsEc() : i32 {
+  %0 = arith.constant 10 : i32
+  llvm.return %0 : i32
+}
+
+// CHECK-LABEL: @atomic_update
+// CHECK: %[[GLOBAL_VAR:.*]] = llvm.mlir.addressof @_QFsEc : !llvm.ptr<i32>
+// CHECK: omp.atomic.update   %[[GLOBAL_VAR]] : !llvm.ptr<i32> {
+// CHECK: ^bb0(%[[IN_VAL:.*]]: i32):
+// CHECK:   %[[CONST_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK:   %[[OUT_VAL:.*]] = llvm.add %[[IN_VAL]], %[[CONST_1]]  : i32
+// CHECK:   omp.yield(%[[OUT_VAL]] : i32)
+// CHECK: }
 
 // -----
 
@@ -142,6 +168,23 @@ func.func @simdloop_block_arg(%val : i32, %ub : i32, %i : index) {
     cf.br ^bb1(%2 : index)
   ^bb3:
     omp.yield
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @task_depend
+// CHECK:  (%[[ARG0:.*]]: !llvm.ptr<i32>) {
+// CHECK:  omp.task depend(taskdependin -> %[[ARG0]] : !llvm.ptr<i32>) {
+// CHECK:    omp.terminator
+// CHECK:  }
+// CHECK:   llvm.return
+// CHECK: }
+
+func.func @task_depend(%arg0: !llvm.ptr<i32>) {
+  omp.task depend(taskdependin -> %arg0 : !llvm.ptr<i32>) {
+    omp.terminator
   }
   return
 }

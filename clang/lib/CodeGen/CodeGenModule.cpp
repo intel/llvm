@@ -51,7 +51,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/CallingConv.h"
@@ -68,8 +67,9 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
-#include "llvm/Support/X86TargetParser.h"
 #include "llvm/Support/xxhash.h"
+#include "llvm/TargetParser/Triple.h"
+#include "llvm/TargetParser/X86TargetParser.h"
 #include <optional>
 
 using namespace clang;
@@ -551,7 +551,7 @@ static llvm::MDNode *getAspectEnumValueMD(ASTContext &ASTContext,
 }
 
 void CodeGenModule::Release() {
-  Module *Primary = getContext().getModuleForCodeGen();
+  Module *Primary = getContext().getNamedModuleForCodeGen();
   if (CXX20ModuleInits && Primary && !Primary->isHeaderLikeModule())
     EmitModuleInitializers(Primary);
   EmitDeferred();
@@ -622,20 +622,6 @@ void CodeGenModule::Release() {
     EmitMainVoidAlias();
 
   if (getTriple().isAMDGPU()) {
-    // Emit reference of __amdgpu_device_library_preserve_asan_functions to
-    // preserve ASAN functions in bitcode libraries.
-    if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
-      auto *FT = llvm::FunctionType::get(VoidTy, {});
-      auto *F = llvm::Function::Create(
-          FT, llvm::GlobalValue::ExternalLinkage,
-          "__amdgpu_device_library_preserve_asan_functions", &getModule());
-      auto *Var = new llvm::GlobalVariable(
-          getModule(), FT->getPointerTo(),
-          /*isConstant=*/true, llvm::GlobalValue::WeakAnyLinkage, F,
-          "__amdgpu_device_library_preserve_asan_functions_ptr", nullptr,
-          llvm::GlobalVariable::NotThreadLocal);
-      addCompilerUsedGlobal(Var);
-    }
     // Emit amdgpu_code_object_version module flag, which is code object version
     // times 100.
     if (getTarget().getTargetOpts().CodeObjectVersion !=
@@ -1042,6 +1028,10 @@ void CodeGenModule::Release() {
   if (getCodeGenOpts().SkipRaxSetup)
     getModule().addModuleFlag(llvm::Module::Override, "SkipRaxSetup", 1);
 
+  if (getContext().getTargetInfo().getMaxTLSAlign())
+    getModule().addModuleFlag(llvm::Module::Error, "MaxTLSAlign",
+                              getContext().getTargetInfo().getMaxTLSAlign());
+
   getTargetCodeGenInfo().emitTargetMetadata(*this, MangledDeclNames);
 
   EmitBackendOptionsMetadata(getCodeGenOpts());
@@ -1075,7 +1065,7 @@ void CodeGenModule::EmitOpenCLMetadata() {
 void CodeGenModule::EmitBackendOptionsMetadata(
     const CodeGenOptions CodeGenOpts) {
   if (getTriple().isRISCV()) {
-    getModule().addModuleFlag(llvm::Module::Error, "SmallDataLimit",
+    getModule().addModuleFlag(llvm::Module::Min, "SmallDataLimit",
                               CodeGenOpts.SmallDataLimit);
   }
 }

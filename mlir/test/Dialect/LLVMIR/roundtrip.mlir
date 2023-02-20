@@ -339,10 +339,21 @@ func.func @null() {
   llvm.return
 }
 
+// CHECK-LABEL: @atomic_load
+func.func @atomic_load(%ptr : !llvm.ptr) {
+  // CHECK: llvm.load %{{.*}} atomic monotonic {alignment = 4 : i64} : !llvm.ptr -> f32
+  %0 = llvm.load %ptr atomic monotonic {alignment = 4 : i64} : !llvm.ptr -> f32
+  // CHECK: llvm.load volatile %{{.*}} atomic syncscope("singlethread") monotonic {alignment = 16 : i64} : !llvm.ptr -> f32
+  %1 = llvm.load volatile %ptr atomic syncscope("singlethread") monotonic {alignment = 16 : i64} : !llvm.ptr -> f32
+  llvm.return
+}
+
 // CHECK-LABEL: @atomicrmw
 func.func @atomicrmw(%ptr : !llvm.ptr, %val : f32) {
   // CHECK: llvm.atomicrmw fadd %{{.*}}, %{{.*}} monotonic : !llvm.ptr, f32
   %0 = llvm.atomicrmw fadd %ptr, %val monotonic : !llvm.ptr, f32
+  // CHECK: llvm.atomicrmw volatile fsub %{{.*}}, %{{.*}} syncscope("singlethread") monotonic {alignment = 16 : i64} : !llvm.ptr, f32
+  %1 = llvm.atomicrmw volatile fsub %ptr, %val syncscope("singlethread") monotonic {alignment = 16 : i64} : !llvm.ptr, f32
   llvm.return
 }
 
@@ -350,6 +361,8 @@ func.func @atomicrmw(%ptr : !llvm.ptr, %val : f32) {
 func.func @cmpxchg(%ptr : !llvm.ptr, %cmp : i32, %new : i32) {
   // CHECK: llvm.cmpxchg %{{.*}}, %{{.*}}, %{{.*}} acq_rel monotonic : !llvm.ptr, i32
   %0 = llvm.cmpxchg %ptr, %cmp, %new acq_rel monotonic : !llvm.ptr, i32
+  // CHECK: llvm.cmpxchg weak volatile %{{.*}}, %{{.*}}, %{{.*}} syncscope("singlethread") acq_rel monotonic {alignment = 16 : i64} : !llvm.ptr, i32
+  %1 = llvm.cmpxchg weak volatile %ptr, %cmp, %new syncscope("singlethread") acq_rel monotonic {alignment = 16 : i64} : !llvm.ptr, i32
   llvm.return
 }
 
@@ -495,22 +508,6 @@ func.func @fastmathFlags(%arg0: f32, %arg1: f32, %arg2: i32, %arg3: vector<2 x f
 // CHECK: {{.*}} = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<afn>} : (f32) -> f32
   %12 = llvm.intr.sin(%arg0) {fastmathFlags = #llvm.fastmath<afn>} : (f32) -> f32
   return
-}
-
-module {
-  // CHECK-LABEL: @loopOptions
-  llvm.func @loopOptions() {
-    // CHECK: llvm.br
-    // CHECK-SAME: llvm.loop = {options = #llvm.loopopts<disable_unroll = true, disable_licm = true, interleave_count = 1, disable_pipeline = true, pipeline_initiation_interval = 1>}, parallel_access = [@metadata::@group1]}
-    llvm.br ^bb1 {llvm.loop = {options = #llvm.loopopts<disable_unroll = true, disable_licm = true, interleave_count = 1, disable_pipeline = true, pipeline_initiation_interval = 1>}, parallel_access = [@metadata::@group1]}
-  ^bb1:
-    llvm.return
-  }
-  // CHECK: llvm.metadata @metadata attributes {test_attribute} {
-  llvm.metadata @metadata attributes {test_attribute} {
-    // CHECK: llvm.access_group @group1
-    llvm.access_group @group1
-  }
 }
 
 // CHECK-LABEL: llvm.func @vararg_func

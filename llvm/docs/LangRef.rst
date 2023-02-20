@@ -366,8 +366,9 @@ added in the future:
     apply for values returned in callee-saved registers.
 
     - On X86-64 the callee preserves all general purpose registers, except for
-      R11. R11 can be used as a scratch register. Floating-point registers
-      (XMMs/YMMs) are not preserved and need to be saved by the caller.
+      R11 and return registers, if any. R11 can be used as a scratch register.
+      Floating-point registers (XMMs/YMMs) are not preserved and need to be
+      saved by the caller.
 
     The idea behind this convention is to support calls to runtime functions
     that have a hot path and a cold path. The hot path is usually a small piece
@@ -715,14 +716,16 @@ to over-align the global if the global has an assigned section. In this
 case, the extra alignment could be observable: for example, code could
 assume that the globals are densely packed in their section and try to
 iterate over them as an array, alignment padding would break this
-iteration. The maximum alignment is ``1 << 32``.
+iteration. For TLS variables, the module flag ``MaxTLSAlign``, if present,
+limits the alignment to the given value. Optimizers are not allowed to
+impose a stronger alignment on these variables. The maximum alignment
+is ``1 << 32``.
 
-For global variables declarations, as well as definitions that may be
+For global variable declarations, as well as definitions that may be
 replaced at link time (``linkonce``, ``weak``, ``extern_weak`` and ``common``
-linkage types), LLVM makes no assumptions about the allocation size of the
-variables, except that they may not overlap. The alignment of a global variable
-declaration or replaceable definition must not be greater than the alignment of
-the definition it resolves to.
+linkage types), the allocation size and alignment of the definition it resolves
+to must be greater than or equal to that of the declaration or replaceable
+definition, otherwise the behavior is undefined.
 
 Globals can also have a :ref:`DLL storage class <dllstorageclass>`,
 an optional :ref:`runtime preemption specifier <runtime_preemption_model>`,
@@ -3281,15 +3284,17 @@ seq\_cst total orderings of other operations that are not marked
 Floating-Point Environment
 --------------------------
 
-The default LLVM floating-point environment assumes that floating-point
-instructions do not have side effects. Results assume the round-to-nearest
-rounding mode. No floating-point exception state is maintained in this
-environment. Therefore, there is no attempt to create or preserve invalid
-operation (SNaN) or division-by-zero exceptions.
+The default LLVM floating-point environment assumes that traps are disabled and
+status flags are not observable. Therefore, floating-point math operations do
+not have side effects and may be speculated freely. Results assume the
+round-to-nearest rounding mode.
 
-The benefit of this exception-free assumption is that floating-point
-operations may be speculated freely without any other fast-math relaxations
-to the floating-point model.
+Floating-point math operations are allowed to treat all NaNs as if they were
+quiet NaNs. For example, "pow(1.0, SNaN)" may be simplified to 1.0. This also
+means that SNaN may be passed through a math operation without quieting. For
+example, "fmul SNaN, 1.0" may be simplified to SNaN rather than QNaN. However,
+SNaN values are never created by math operations. They may only occur when
+provided as a program input value.
 
 Code that requires different behavior than this should use the
 :ref:`Constrained Floating-Point Intrinsics <constrainedfp>`.
@@ -8534,6 +8539,14 @@ function, with the possibility of control flow transfer to either the
 
 This instruction should only be used to implement the "goto" feature of gcc
 style inline assembly. Any other usage is an error in the IR verifier.
+
+Note that in order to support outputs along indirect edges, LLVM may need to
+split critical edges, which may require synthesizing a replacement block for
+the ``indirect labels``. Therefore, the address of a label as seen by another
+``callbr`` instruction, or for a :ref:`blockaddress <blockaddress>` constant,
+may not be equal to the address provided for the same block to this
+instruction's ``indirect labels`` operand. The assembly code may only transfer
+control to addresses provided via this instruction's ``indirect labels``.
 
 Arguments:
 """"""""""
@@ -26152,7 +26165,12 @@ if the element value satisfies the specified test. The argument ``test`` is a
 bit mask where each bit specifies floating-point class to test. For example, the
 value 0x108 makes test for normal value, - bits 3 and 8 in it are set, which
 means that the function returns ``true`` if ``op`` is a positive or negative
-normal value. The function never raises floating-point exceptions.
+normal value. The function never raises floating-point exceptions. The
+function does not canonicalize its input value and does not depend
+on the floating-point environment. If the floating-point environment
+has a zeroing treatment of subnormal input values (such as indicated
+by the ``"denormal-fp-math"`` attribute), a subnormal value will be
+observed (will not be implicitly treated as zero).
 
 
 General Intrinsics

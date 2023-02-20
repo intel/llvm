@@ -126,8 +126,25 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalFor({v2s64})
       .widenScalarToNextPow2(0)
       .clampScalar(0, s32, s64)
+      .clampMaxNumElements(0, s8, 16)
+      .clampMaxNumElements(0, s16, 8)
       .clampNumElements(0, v2s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 2;
+          },
+          0, s32)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 4;
+          },
+          0, s16)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 16;
+          },
+          0, s8)
       .moreElementsToNextPow2(0);
 
   getActionDefinitionsBuilder({G_SHL, G_ASHR, G_LSHR})
@@ -964,8 +981,8 @@ bool AArch64LegalizerInfo::legalizeVectorTrunc(
   Register SrcReg = MI.getOperand(1).getReg();
   LLT DstTy = MRI.getType(DstReg);
   LLT SrcTy = MRI.getType(SrcReg);
-  assert(isPowerOf2_32(DstTy.getSizeInBits()) &&
-         isPowerOf2_32(SrcTy.getSizeInBits()));
+  assert(llvm::has_single_bit<uint32_t>(DstTy.getSizeInBits()) &&
+         llvm::has_single_bit<uint32_t>(SrcTy.getSizeInBits()));
 
   // Split input type.
   LLT SplitSrcTy =

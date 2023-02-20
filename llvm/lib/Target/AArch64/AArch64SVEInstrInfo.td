@@ -171,7 +171,8 @@ def SDT_AArch64Arith : SDTypeProfile<1, 3, [
 
 def SDT_AArch64FMA : SDTypeProfile<1, 4, [
   SDTCisVec<0>, SDTCisVec<1>, SDTCisVec<2>, SDTCisVec<3>, SDTCisVec<4>,
-  SDTCVecEltisVT<1,i1>, SDTCisSameAs<0,2>, SDTCisSameAs<2,3>, SDTCisSameAs<3,4>
+  SDTCVecEltisVT<1,i1>, SDTCisSameNumEltsAs<0,1>,
+  SDTCisSameAs<0,2>, SDTCisSameAs<0,3>, SDTCisSameAs<0,4>
 ]>;
 
 // Predicated operations with the result of inactive lanes being unspecified.
@@ -244,6 +245,11 @@ def AArch64revh_mt   : SDNode<"AArch64ISD::REVH_MERGE_PASSTHRU", SDT_AArch64Arit
 def AArch64revw_mt   : SDNode<"AArch64ISD::REVW_MERGE_PASSTHRU", SDT_AArch64Arith>;
 def AArch64revd_mt   : SDNode<"AArch64ISD::REVD_MERGE_PASSTHRU", SDT_AArch64Arith>;
 
+def AArch64fneg_mt_nsz : PatFrag<(ops node:$pred, node:$op, node:$pt),
+                                 (AArch64fneg_mt node:$pred, node:$op, node:$pt), [{
+  return N->getFlags().hasNoSignedZeros();
+}]>;
+
 // These are like the above but we don't yet have need for ISD nodes. They allow
 // a single pattern to match intrinsic and ISD operand layouts.
 def AArch64cls_mt  : PatFrags<(ops node:$pg, node:$op, node:$pt), [(int_aarch64_sve_cls  node:$pt, node:$pg, node:$op)]>;
@@ -285,11 +291,11 @@ def AArch64uaba : PatFrags<(ops node:$op1, node:$op2, node:$op3),
 
 def AArch64usra : PatFrags<(ops node:$op1, node:$op2, node:$op3),
                            [(int_aarch64_sve_usra node:$op1, node:$op2, node:$op3),
-                            (add node:$op1, (AArch64lsr_p (SVEAllActive), node:$op2, (SVEShiftSplatImmR (i32 node:$op3))))]>;
+                            (add node:$op1, (AArch64lsr_p (SVEAnyPredicate), node:$op2, (SVEShiftSplatImmR (i32 node:$op3))))]>;
 
 def AArch64ssra : PatFrags<(ops node:$op1, node:$op2, node:$op3),
                            [(int_aarch64_sve_ssra node:$op1, node:$op2, node:$op3),
-                            (add node:$op1, (AArch64asr_p (SVEAllActive), node:$op2, (SVEShiftSplatImmR (i32 node:$op3))))]>;
+                            (add node:$op1, (AArch64asr_p (SVEAnyPredicate), node:$op2, (SVEShiftSplatImmR (i32 node:$op3))))]>;
 
 def SDT_AArch64FCVT : SDTypeProfile<1, 3, [
   SDTCisVec<0>, SDTCisVec<1>, SDTCisVec<2>, SDTCisVec<3>,
@@ -346,21 +352,31 @@ def AArch64fmul_p_oneuse : PatFrag<(ops node:$pred, node:$src1, node:$src2),
 }]>;
 
 
-def AArch64fabd_p : PatFrag<(ops node:$pg, node:$op1, node:$op2),
-                            (AArch64fabs_mt node:$pg, (AArch64fsub_p node:$pg, node:$op1, node:$op2), undef)>;
+def AArch64fabd_p : PatFrags<(ops node:$pg, node:$op1, node:$op2),
+                             [(int_aarch64_sve_fabd_u node:$pg, node:$op1, node:$op2),
+                              (AArch64fabs_mt node:$pg, (AArch64fsub_p node:$pg, node:$op1, node:$op2), undef)]>;
 
-// FMAs with a negated multiplication operand can be commuted.
-def AArch64fmls_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
-                          [(AArch64fma_p node:$pred, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op2, node:$op3),
-                           (AArch64fma_p node:$pred, node:$op2, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op3)]>;
+def AArch64fmla_p : PatFrags<(ops node:$pg, node:$za, node:$zn, node:$zm),
+                             [(AArch64fma_p node:$pg, node:$zn, node:$zm, node:$za),
+                              (vselect node:$pg, (AArch64fma_p (AArch64ptrue 31), node:$zn, node:$zm, node:$za), node:$za)]>;
+
+def AArch64fmls_p : PatFrags<(ops node:$pg, node:$za, node:$zn, node:$zm),
+                             [(int_aarch64_sve_fmls_u node:$pg, node:$za, node:$zn, node:$zm),
+                              (AArch64fma_p node:$pg, (AArch64fneg_mt node:$pg, node:$zn, (undef)), node:$zm, node:$za),
+                              (AArch64fma_p node:$pg, node:$zm, (AArch64fneg_mt node:$pg, node:$zn, (undef)), node:$za),
+                              (vselect node:$pg, (AArch64fma_p (AArch64ptrue 31), (AArch64fneg_mt (AArch64ptrue 31), node:$zn, (undef)), node:$zm, node:$za), node:$za)]>;
+
+def AArch64fnmla_p : PatFrags<(ops node:$pg, node:$za, node:$zn, node:$zm),
+                              [(int_aarch64_sve_fnmla_u node:$pg, node:$za, node:$zn, node:$zm),
+                               (AArch64fma_p node:$pg, (AArch64fneg_mt node:$pg, node:$zn, (undef)), node:$zm, (AArch64fneg_mt node:$pg, node:$za, (undef))),
+                               (AArch64fneg_mt_nsz node:$pg, (AArch64fma_p node:$pg, node:$zn, node:$zm, node:$za), (undef))]>;
+
+def AArch64fnmls_p : PatFrags<(ops node:$pg, node:$za, node:$zn, node:$zm),
+                              [(int_aarch64_sve_fnmls_u node:$pg, node:$za, node:$zn, node:$zm),
+                               (AArch64fma_p node:$pg, node:$zn, node:$zm, (AArch64fneg_mt node:$pg, node:$za, (undef)))]>;
 
 def AArch64fsubr_p : PatFrag<(ops node:$pg, node:$op1, node:$op2),
                              (AArch64fsub_p node:$pg, node:$op2, node:$op1)>;
-
-def AArch64fneg_mt_nsz : PatFrag<(ops node:$pred, node:$op, node:$pt),
-                                 (AArch64fneg_mt node:$pred, node:$op, node:$pt), [{
-  return N->getFlags().hasNoSignedZeros();
-}]>;
 
 def SDT_AArch64Arith_Unpred : SDTypeProfile<1, 2, [
   SDTCisVec<0>, SDTCisVec<1>, SDTCisVec<2>,
@@ -611,6 +627,7 @@ let Predicates = [HasSVEorSME] in {
   defm FMAX_ZPZZ   : sve_fp_bin_pred_hfd<AArch64fmax_p>;
   defm FMIN_ZPZZ   : sve_fp_bin_pred_hfd<AArch64fmin_p>;
   defm FABD_ZPZZ   : sve_fp_bin_pred_hfd<AArch64fabd_p>;
+  defm FMULX_ZPZZ  : sve_fp_bin_pred_hfd<int_aarch64_sve_fmulx_u>;
   defm FDIV_ZPZZ   : sve_fp_bin_pred_hfd<AArch64fdiv_p>;
 } // End HasSVEorSME
 
@@ -649,7 +666,7 @@ let Predicates = [HasSVE] in {
 } // End HasSVE
 
 let Predicates = [HasSVEorSME] in {
-  defm FCADD_ZPmZ : sve_fp_fcadd<"fcadd", int_aarch64_sve_fcadd>;
+  defm FCADD_ZPmZ  : sve_fp_fcadd<"fcadd", int_aarch64_sve_fcadd>;
   defm FCMLA_ZPmZZ : sve_fp_fcmla<"fcmla", int_aarch64_sve_fcmla>;
 
   defm FMLA_ZPmZZ  : sve_fp_3op_p_zds_a<0b00, "fmla",  "FMLA_ZPZZZ", AArch64fmla_m1, "FMAD_ZPmZZ">;
@@ -662,48 +679,10 @@ let Predicates = [HasSVEorSME] in {
   defm FNMAD_ZPmZZ : sve_fp_3op_p_zds_b<0b10, "fnmad", int_aarch64_sve_fnmad, "FNMLA_ZPmZZ", /*isReverseInstr*/ 1>;
   defm FNMSB_ZPmZZ : sve_fp_3op_p_zds_b<0b11, "fnmsb", int_aarch64_sve_fnmsb, "FNMLS_ZPmZZ", /*isReverseInstr*/ 1>;
 
-  defm FMLA_ZPZZZ  : sve_fp_3op_p_zds_zx;
-  defm FMLS_ZPZZZ  : sve_fp_3op_p_zds_zx;
-  defm FNMLA_ZPZZZ : sve_fp_3op_p_zds_zx;
-  defm FNMLS_ZPZZZ : sve_fp_3op_p_zds_zx;
-
-  multiclass fma<ValueType Ty, ValueType PredTy, string Suffix> {
-    // Zd = Za + Zn * Zm
-    def : Pat<(Ty (AArch64fma_p PredTy:$P, Ty:$Zn, Ty:$Zm, Ty:$Za)),
-              (!cast<Instruction>("FMLA_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zd = Za + -Zn * Zm
-    def : Pat<(Ty (AArch64fmls_p PredTy:$P, Ty:$Zn, Ty:$Zm, Ty:$Za)),
-              (!cast<Instruction>("FMLS_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zd = -Za + Zn * Zm
-    def : Pat<(Ty (AArch64fma_p PredTy:$P, Ty:$Zn, Ty:$Zm, (AArch64fneg_mt PredTy:$P, Ty:$Za, (Ty (undef))))),
-              (!cast<Instruction>("FNMLS_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zd = -Za + -Zn * Zm
-    def : Pat<(Ty (AArch64fma_p PredTy:$P, (AArch64fneg_mt PredTy:$P, Ty:$Zn, (Ty (undef))), Ty:$Zm, (AArch64fneg_mt PredTy:$P, Ty:$Za, (Ty (undef))))),
-              (!cast<Instruction>("FNMLA_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zd = -(Za + Zn * Zm)
-    // (with nsz neg.)
-    def : Pat<(AArch64fneg_mt_nsz PredTy:$P, (AArch64fma_p PredTy:$P, Ty:$Zn, Ty:$Zm, Ty:$Za), (Ty (undef))),
-              (!cast<Instruction>("FNMLA_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zda = Zda + Zn * Zm
-    def : Pat<(vselect (PredTy PPR:$Pg), (Ty (AArch64fma_p (PredTy (AArch64ptrue 31)), ZPR:$Zn, ZPR:$Zm, ZPR:$Za)), ZPR:$Za),
-              (!cast<Instruction>("FMLA_ZPmZZ_"#Suffix) PPR:$Pg, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-
-    // Zda = Zda + -Zn * Zm
-    def : Pat<(vselect (PredTy PPR:$Pg), (Ty (AArch64fma_p (PredTy (AArch64ptrue 31)), (AArch64fneg_mt (PredTy (AArch64ptrue 31)), Ty:$Zn, (Ty (undef))), ZPR:$Zm, ZPR:$Za)), ZPR:$Za),
-              (!cast<Instruction>("FMLS_ZPmZZ_"#Suffix) PPR:$Pg, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
-  }
-
-  defm : fma<nxv8f16, nxv8i1, "H">;
-  defm : fma<nxv4f16, nxv4i1, "H">;
-  defm : fma<nxv2f16, nxv2i1, "H">;
-  defm : fma<nxv4f32, nxv4i1, "S">;
-  defm : fma<nxv2f32, nxv2i1, "S">;
-  defm : fma<nxv2f64, nxv2i1, "D">;
+  defm FMLA_ZPZZZ  : sve_fp_3op_pred_hfd<AArch64fmla_p>;
+  defm FMLS_ZPZZZ  : sve_fp_3op_pred_hfd<AArch64fmls_p>;
+  defm FNMLA_ZPZZZ : sve_fp_3op_pred_hfd<AArch64fnmla_p>;
+  defm FNMLS_ZPZZZ : sve_fp_3op_pred_hfd<AArch64fnmls_p>;
 } // End HasSVEorSME
 
 let Predicates = [HasSVE] in {
@@ -3539,8 +3518,14 @@ let Predicates = [HasSVE2] in {
 
 let Predicates = [HasSVE2orSME] in {
   // SVE2 floating-point base 2 logarithm as integer
-  defm FLOGB_ZPmZ : sve2_fp_flogb<"flogb", int_aarch64_sve_flogb>;
+  defm FLOGB_ZPmZ : sve2_fp_flogb<"flogb", "FLOGB_ZPZZ", int_aarch64_sve_flogb>;
+}
 
+let Predicates = [HasSVE2orSME, UseExperimentalZeroingPseudos] in {
+  defm FLOGB_ZPZZ : sve2_fp_un_pred_zeroing_hsd<int_aarch64_sve_flogb>;
+} // End HasSVE2orSME, UseExperimentalZeroingPseudos
+
+let Predicates = [HasSVE2orSME] in {
   // SVE2 floating-point convert precision
   defm FCVTXNT_ZPmZ : sve2_fp_convert_down_odd_rounding_top<"fcvtxnt", "int_aarch64_sve_fcvtxnt">;
   defm FCVTX_ZPmZ   : sve2_fp_convert_down_odd_rounding<"fcvtx",       "int_aarch64_sve_fcvtx">;
@@ -3690,17 +3675,17 @@ defm PSEL_PPPRI : sve2_int_perm_sel_p<"psel", int_aarch64_sve_psel>;
 
 let Predicates = [HasSVE2p1_or_HasSME2] in {
 defm FCLAMP_ZZZ : sve2p1_fclamp<"fclamp", int_aarch64_sve_fclamp>;
-def FDOT_ZZZ_S  : sve_float_dot<0b0, "fdot">;
-def FDOT_ZZZI_S : sve_float_dot_indexed<0b0, "fdot">;
+defm FDOT_ZZZ_S  : sve_float_dot<0b0, "fdot", nxv8f16, int_aarch64_sve_fdot_x2>;
+defm FDOT_ZZZI_S : sve_float_dot_indexed<0b0, "fdot", nxv8f16, int_aarch64_sve_fdot_lane_x2>;
 def BFMLSLB_ZZZ_S : sve2_fp_mla_long<0b110, "bfmlslb">;
 def BFMLSLT_ZZZ_S : sve2_fp_mla_long<0b111, "bfmlslt">;
 def BFMLSLB_ZZZI_S : sve2_fp_mla_long_by_indexed_elem<0b110, "bfmlslb">;
 def BFMLSLT_ZZZI_S : sve2_fp_mla_long_by_indexed_elem<0b111, "bfmlslt">;
 
-def SDOT_ZZZ_HtoS  : sve2p1_two_way_dot_vv<"sdot", 0b0>;
-def UDOT_ZZZ_HtoS  : sve2p1_two_way_dot_vv<"udot", 0b1>;
-def SDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"sdot", 0b0>;
-def UDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"udot", 0b1>;
+defm SDOT_ZZZ_HtoS  : sve2p1_two_way_dot_vv<"sdot", 0b0, int_aarch64_sve_sdot_x2>;
+defm UDOT_ZZZ_HtoS  : sve2p1_two_way_dot_vv<"udot", 0b1, int_aarch64_sve_udot_x2>;
+defm SDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"sdot", 0b0, int_aarch64_sve_sdot_lane_x2>;
+defm UDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"udot", 0b1, int_aarch64_sve_udot_lane_x2>;
 
 defm CNTP_XCI : sve2p1_pcount_pn<"cntp", 0b000>;
 defm PEXT_PCI : sve2p1_pred_as_ctr_to_mask<"pext">;

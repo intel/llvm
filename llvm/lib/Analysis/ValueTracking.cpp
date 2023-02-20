@@ -1735,9 +1735,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
         Known.Zero.setBitsFrom(32);
         break;
       case Intrinsic::riscv_vsetvli:
-      case Intrinsic::riscv_vsetvli_opt:
       case Intrinsic::riscv_vsetvlimax:
-      case Intrinsic::riscv_vsetvlimax_opt:
         // Assume that VL output is >= 65536.
         // TODO: Take SEW and LMUL into account.
         if (BitWidth > 17)
@@ -2304,8 +2302,7 @@ static bool isGEPKnownNonNull(const GEPOperator *GEP, unsigned Depth,
 static bool isKnownNonNullFromDominatingCondition(const Value *V,
                                                   const Instruction *CtxI,
                                                   const DominatorTree *DT) {
-  if (isa<Constant>(V))
-    return false;
+  assert(!isa<Constant>(V) && "Called for constant?");
 
   if (!CtxI || !DT)
     return false;

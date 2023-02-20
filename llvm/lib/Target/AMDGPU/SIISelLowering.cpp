@@ -1866,7 +1866,7 @@ SDValue SITargetLowering::getPreloadedValue(SelectionDAG &DAG,
     return DAG.getUNDEF(VT);
   }
 
-  return CreateLiveInRegister(DAG, RC, Reg->getRegister(), VT);
+  return loadInputValue(DAG, RC, VT, SDLoc(DAG.getEntryNode()), *Reg);
 }
 
 static void processPSInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
@@ -2084,7 +2084,9 @@ void SITargetLowering::allocateSpecialInputSGPRs(
   if (Info.hasDispatchPtr())
     allocateSGPR64Input(CCInfo, ArgInfo.DispatchPtr);
 
-  if (Info.hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5)
+  const Module *M = MF.getFunction().getParent();
+  if (Info.hasQueuePtr() &&
+      AMDGPU::getCodeObjectVersion(*M) < AMDGPU::AMDHSA_COV5)
     allocateSGPR64Input(CCInfo, ArgInfo.QueuePtr);
 
   // Implicit arg ptr takes the place of the kernarg segment pointer. This is a
@@ -2134,7 +2136,9 @@ void SITargetLowering::allocateHSAUserSGPRs(CCState &CCInfo,
     CCInfo.AllocateReg(DispatchPtrReg);
   }
 
-  if (Info.hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5) {
+  const Module *M = MF.getFunction().getParent();
+  if (Info.hasQueuePtr() &&
+      AMDGPU::getCodeObjectVersion(*M) < AMDGPU::AMDHSA_COV5) {
     Register QueuePtrReg = Info.addQueuePtr(TRI);
     MF.addLiveIn(QueuePtrReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(QueuePtrReg);
@@ -2177,11 +2181,16 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
                                            SIMachineFunctionInfo &Info,
                                            CallingConv::ID CallConv,
                                            bool IsShader) const {
+  bool HasArchitectedSGPRs = Subtarget->hasArchitectedSGPRs();
   if (Subtarget->hasUserSGPRInit16Bug() && !IsShader) {
     // Note: user SGPRs are handled by the front-end for graphics shaders
     // Pad up the used user SGPRs with dead inputs.
-    unsigned CurrentUserSGPRs = Info.getNumUserSGPRs();
 
+    // TODO: NumRequiredSystemSGPRs computation should be adjusted appropriately
+    // before enabling architected SGPRs for workgroup IDs.
+    assert(!HasArchitectedSGPRs && "Unhandled feature for the subtarget");
+
+    unsigned CurrentUserSGPRs = Info.getNumUserSGPRs();
     // Note we do not count the PrivateSegmentWaveByteOffset. We do not want to
     // rely on it to reach 16 since if we end up having no stack usage, it will
     // not really be added.
@@ -2197,20 +2206,26 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
   }
 
   if (Info.hasWorkGroupIDX()) {
-    Register Reg = Info.addWorkGroupIDX();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDX(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
   if (Info.hasWorkGroupIDY()) {
-    Register Reg = Info.addWorkGroupIDY();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDY(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
   if (Info.hasWorkGroupIDZ()) {
-    Register Reg = Info.addWorkGroupIDZ();
-    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    Register Reg = Info.addWorkGroupIDZ(HasArchitectedSGPRs);
+    if (!HasArchitectedSGPRs)
+      MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+
     CCInfo.AllocateReg(Reg);
   }
 
@@ -4467,10 +4482,6 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
   }
 }
 
-bool SITargetLowering::hasBitPreservingFPLogic(EVT VT) const {
-  return isTypeLegal(VT.getScalarType());
-}
-
 bool SITargetLowering::hasAtomicFaddRtnForTy(SDValue &Op) const {
   switch (Op.getValue(0).getSimpleValueType().SimpleTy) {
   case MVT::f32:
@@ -5433,19 +5444,13 @@ SDValue SITargetLowering::lowerTRAP(SDValue Op, SelectionDAG &DAG) const {
       Subtarget->getTrapHandlerAbi() != GCNSubtarget::TrapHandlerAbi::AMDHSA)
     return lowerTrapEndpgm(Op, DAG);
 
-  if (std::optional<uint8_t> HsaAbiVer = AMDGPU::getHsaAbiVersion(Subtarget)) {
-    switch (*HsaAbiVer) {
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V2:
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
-      return lowerTrapHsaQueuePtr(Op, DAG);
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
-      return Subtarget->supportsGetDoorbellID() ?
-          lowerTrapHsa(Op, DAG) : lowerTrapHsaQueuePtr(Op, DAG);
-    }
-  }
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  unsigned CodeObjectVersion = AMDGPU::getCodeObjectVersion(*M);
+  if (CodeObjectVersion <= AMDGPU::AMDHSA_COV3)
+    return lowerTrapHsaQueuePtr(Op, DAG);
 
-  llvm_unreachable("Unknown trap handler");
+  return Subtarget->supportsGetDoorbellID() ? lowerTrapHsa(Op, DAG) :
+         lowerTrapHsaQueuePtr(Op, DAG);
 }
 
 SDValue SITargetLowering::lowerTrapEndpgm(
@@ -5473,7 +5478,8 @@ SDValue SITargetLowering::lowerTrapHsaQueuePtr(
 
   SDValue QueuePtr;
   // For code object version 5, QueuePtr is passed through implicit kernarg.
-  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  if (AMDGPU::getCodeObjectVersion(*M) >= AMDGPU::AMDHSA_COV5) {
     QueuePtr =
         loadImplicitKernelArgument(DAG, MVT::i64, SL, Align(8), QUEUE_PTR);
   } else {
@@ -5576,7 +5582,8 @@ SDValue SITargetLowering::getSegmentAperture(unsigned AS, const SDLoc &DL,
 
   // For code object version 5, private_base and shared_base are passed through
   // implicit kernargs.
-  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+  const Module *M = DAG.getMachineFunction().getFunction().getParent();
+  if (AMDGPU::getCodeObjectVersion(*M) >= AMDGPU::AMDHSA_COV5) {
     ImplicitParameter Param =
         (AS == AMDGPUAS::LOCAL_ADDRESS) ? SHARED_BASE : PRIVATE_BASE;
     return loadImplicitKernelArgument(DAG, MVT::i32, DL, Align(4), Param);
@@ -8691,6 +8698,14 @@ SDValue SITargetLowering::widenLoad(LoadSDNode *Ld, DAGCombinerInfo &DCI) const 
   return DAG.getMergeValues({ Cvt, NewLoad.getValue(1) }, SL);
 }
 
+static bool addressMayBeAccessedAsPrivate(const MachineMemOperand *MMO,
+                                          const SIMachineFunctionInfo &Info) {
+  // TODO: Should check if the address can definitely not access stack.
+  if (Info.isEntryFunction())
+    return Info.hasFlatScratchInit();
+  return true;
+}
+
 SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   LoadSDNode *Load = cast<LoadSDNode>(Op);
@@ -8757,7 +8772,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   // then we need to use the same legalization rules we use for private.
   if (AS == AMDGPUAS::FLAT_ADDRESS &&
       !Subtarget->hasMultiDwordFlatScratchAddressing())
-    AS = MFI->hasFlatScratchInit() ?
+    AS = addressMayBeAccessedAsPrivate(Load->getMemOperand(), *MFI) ?
          AMDGPUAS::PRIVATE_ADDRESS : AMDGPUAS::GLOBAL_ADDRESS;
 
   unsigned NumElements = MemVT.getVectorNumElements();
@@ -9031,10 +9046,10 @@ SDValue SITargetLowering::lowerFDIV_FAST(SDValue Op, SelectionDAG &DAG) const {
 
   SDValue r1 = DAG.getNode(ISD::FABS, SL, MVT::f32, RHS);
 
-  const APFloat K0Val(BitsToFloat(0x6f800000));
+  const APFloat K0Val(llvm::bit_cast<float>(0x6f800000));
   const SDValue K0 = DAG.getConstantFP(K0Val, SL, MVT::f32);
 
-  const APFloat K1Val(BitsToFloat(0x2f800000));
+  const APFloat K1Val(llvm::bit_cast<float>(0x2f800000));
   const SDValue K1 = DAG.getConstantFP(K1Val, SL, MVT::f32);
 
   const SDValue One = DAG.getConstantFP(1.0, SL, MVT::f32);
@@ -9295,7 +9310,7 @@ SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   // then we need to use the same legalization rules we use for private.
   if (AS == AMDGPUAS::FLAT_ADDRESS &&
       !Subtarget->hasMultiDwordFlatScratchAddressing())
-    AS = MFI->hasFlatScratchInit() ?
+    AS = addressMayBeAccessedAsPrivate(Store->getMemOperand(), *MFI) ?
          AMDGPUAS::PRIVATE_ADDRESS : AMDGPUAS::GLOBAL_ADDRESS;
 
   unsigned NumElements = VT.getVectorNumElements();
@@ -12936,6 +12951,9 @@ SITargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
 
     if (AMDGPU::isFlatGlobalAddrSpace(AS) &&
         Subtarget->hasAtomicFaddNoRtnInsts()) {
+      if (Subtarget->hasGFX940Insts())
+        return AtomicExpansionKind::None;
+
       if (unsafeFPAtomicsDisabled(RMW->getFunction()))
         return AtomicExpansionKind::CmpXChg;
 
