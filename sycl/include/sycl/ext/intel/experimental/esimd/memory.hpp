@@ -585,6 +585,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
 
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
@@ -664,6 +667,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -746,6 +752,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
 
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -824,6 +833,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -1274,6 +1286,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
+                    _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Conversion data types are not supported");
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
@@ -1349,6 +1364,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
+                    _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Conversion data types are not supported");
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
