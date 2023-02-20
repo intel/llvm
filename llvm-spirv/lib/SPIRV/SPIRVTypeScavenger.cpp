@@ -293,7 +293,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   }
 
   // Check if we've already deduced a type for the value.
-  DeducedType &Ty = DeducedTypes[V];
+  DeducedType Ty = DeducedTypes[V];
   if (Ty) {
     return Ty;
   }
@@ -402,6 +402,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     Ty = Deferred;
   }
 
+  DeducedTypes[V] = Ty;
   VisitStack.pop_back();
   return Ty;
 }
