@@ -87,41 +87,10 @@ func.func @test_OwnerLessBase(%arg0: !sycl.owner_less_base) {
 
 // -----
 
-!sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
-// CHECK: llvm.func @test_assert_happened(%arg0: !llvm.[[ASSERT_HAPPENED:struct<"struct.sycl::_V1::detail::AssertHappened", \(i32, array<257 x i8>, array<257 x i8>, array<129 x i8>, i32, i64, i64, i64, i64, i64, i64\)>]]) {
-func.func @test_assert_happened(%arg0: !sycl_assert_happened_) {
-  return
-}
-
-// -----
-
 !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
 !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
 // CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(ptr<f32, 3>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(ptr<i32, 1>\)>]]) {
 func.func @test_atomic(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) {
-  return
-}
-
-// -----
-
-!sycl_bfloat16_ = !sycl.bfloat16<(i16)>
-// CHECK: llvm.func @test_bfloat16(%arg0: !llvm.[[BFLOAT16:struct<"class.sycl::_V1::ext::oneapi::bfloat16", \(i16\)>]]) {
-func.func @test_bfloat16(%arg0: !sycl_bfloat16_) {
-  return
-}
-
-// -----
-
-!sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
-// CHECK: llvm.func @test_get_scalar_op(%arg0: !llvm.[[GET_SCALAR_OP:struct<"class.sycl::_V1::detail::GetScalarOp.*", \(i32\)>]])
-func.func @test_get_scalar_op(%arg0: !sycl_get_scalar_op_i32_) {
-  return
-}
-
-// -----
-
-// CHECK: llvm.func @test_get_op(%arg0: !llvm.[[GET_OP:struct<"class.sycl::_V1::detail::GetOp", \(i8\)>]])
-func.func @test_get_op(%arg0: !sycl.get_op<i32>) {
   return
 }
 
@@ -252,20 +221,6 @@ func.func @test_sub_group(%arg0: !sycl.sub_group) {
 func.func @test_stream(%arg0: !sycl_stream_) {
     return
 }
-
-// -----
-
-!sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
-!sycl_tuple_copy_assignable_value_holder_i32_ = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl.tuple_value_holder<[i32], (i32)>)>
-// CHECK: llvm.func @test_tuple_value_holder(%arg0: !llvm.[[TUPLE_VALUE_HOLDER:struct<"struct.sycl::_V1::detail::TupleValueHolder", \(i32\)>]]) {
-func.func @test_tuple_value_holder(%arg0: !sycl_tuple_value_holder_i32_) {
-  return
-}
-// CHECK: llvm.func @test_tuple_copy_assignable_value_holder(%arg0: !llvm.[[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER:struct<"struct.sycl::_V1::detail::TupleCopyAssignableValueHolder", \(]][[TUPLE_VALUE_HOLDER]][[SUFFIX]]) {
-func.func @test_tuple_copy_assignable_value_holder(%arg0: !sycl_tuple_copy_assignable_value_holder_i32_) {
-  return
-}
-
 // -----
 
 !sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
@@ -273,8 +228,8 @@ func.func @test_tuple_copy_assignable_value_holder(%arg0: !sycl_tuple_copy_assig
 func.func @test_vec(%arg0: !sycl_vec_f32_4_) {
   return
 }
-!sycl_swizzled_vec_f32_4_ = !sycl.swizzled_vec<[!sycl_vec_f32_4_, 0, 2], (memref<?x!sycl_vec_f32_4_, 4>, !sycl.get_op<i8>, !sycl.get_op<i8>)>
-// CHECK: llvm.func @test_swizzled_vec(%arg0: !llvm.[[SWIZZLED_VEC:struct<"class.sycl::_V1::detail::SwizzleOp"]], (ptr<[[VEC]], 4>, [[GET_OP]], [[GET_OP]][[SUFFIX]]) {
+!sycl_swizzled_vec_f32_4_ = !sycl.swizzled_vec<[!sycl_vec_f32_4_, 0, 2], (memref<?x!sycl_vec_f32_4_, 4>, !llvm.struct<(i8)>, !llvm.struct<(i8)>)>
+// CHECK: llvm.func @test_swizzled_vec(%arg0: !llvm.[[SWIZZLED_VEC:struct<"class.sycl::_V1::detail::SwizzleOp"]], (ptr<[[VEC]], 4>, [[GET_OP:struct<\(i8\)>]], [[GET_OP]][[SUFFIX]]) {
 func.func @test_swizzled_vec(%arg0: !sycl_swizzled_vec_f32_4_) {
   return
 }
