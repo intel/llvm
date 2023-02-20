@@ -81,6 +81,85 @@ __float2bfloat16(float f, __iml_rounding_mode rounding_mode) {
 
   return (bf16_sign << 15) | (bf16_exp << 7) | bf16_mant;
 }
+// We only need utils to convert double to bfloat16 with RTE
+static _iml_bf16_internal __double2bfloat16(double d) {
+  union {
+    double d_val;
+    uint64_t u64_val;
+  } fp64_bits;
+
+  fp64_bits.d_val = d;
+  uint16_t bf16_sign =
+      static_cast<uint16_t>((fp64_bits.u64_val & 0x8000000000000000) >> 63);
+  uint16_t fp64_exp =
+      static_cast<uint16_t>((fp64_bits.u64_val & 0x7FF0000000000000) >> 52);
+  uint64_t fp64_mant = (fp64_bits.u64_val & 0xFFFFFFFFFFFFF);
+  uint16_t bf16_mant;
+  // handling +/-infinity and NAN for double input
+  if (fp64_exp == 0x7FF) {
+    if (!fp64_mant) {
+      return bf16_sign ? 0xFF80 : 0x7F80;
+    } else {
+      // returns a quiet NaN
+      return 0x7FC0;
+    }
+  }
+
+  // Subnormal double precision is converted to 0
+  if (!fp64_exp) {
+    return bf16_sign ? 0x8000 : 0x0;
+  }
+
+  fp64_exp -= 1023;
+  // handling overflow, convert to +/-infinity
+  if (static_cast<int16_t>(fp64_exp) > 127) {
+    return bf16_sign ? 0xFF80 : 0x7F80;
+  }
+
+  // handling underflow
+  if (static_cast<int16_t>(fp64_exp) < -133) {
+    return bf16_sign ? 0x8000 : 0x0;
+  }
+
+  //-133 <= fp64_exp <= 127, 1.signicand * 2^fp64_exp
+  // For these numbers, they are NOT subnormal double-precision numbers but
+  // will turn into subnormal when converting to bfloat16
+  uint64_t discard_bits;
+  if (static_cast<int16_t>(fp64_exp) < -126) {
+    fp64_mant |= 0x10000000000000;
+    fp64_mant >>= -126 - static_cast<int16_t>(fp64_exp) - 1;
+    discard_bits = fp64_mant & 0x3FFFFFFFFFFF;
+    bf16_mant = static_cast<uint16_t>(fp64_mant >> 46);
+    if (discard_bits > 0x200000000000 ||
+        ((discard_bits == 0x200000000000) && ((bf16_mant & 0x1) == 0x1)))
+      bf16_mant += 1;
+    fp64_exp = 0;
+    if (bf16_mant == 0x80) {
+      bf16_mant = 0;
+      fp64_exp = 1;
+    }
+    return (bf16_sign << 15) | (fp64_exp << 7) | bf16_mant;
+  }
+
+  // For normal value, discard 45 bits from mantissa
+  discard_bits = fp64_mant & 0x1FFFFFFFFFFF;
+  bf16_mant = static_cast<uint16_t>(fp64_mant >> 45);
+  if (discard_bits > 0x100000000000 ||
+      ((discard_bits == 0x100000000000) && ((bf16_mant & 0x1) == 0x1)))
+    bf16_mant += 1;
+
+  if (bf16_mant == 0x80) {
+    if (fp64_exp != 127) {
+      bf16_mant = 0;
+      fp64_exp++;
+    } else {
+      return bf16_sign ? 0xFF80 : 0x7F80;
+    }
+  }
+  fp64_exp += 127;
+
+  return (bf16_sign << 15) | (fp64_exp << 7) | bf16_mant;
+}
 
 template <typename Ty>
 static Ty __iml_bfloat162integral_u(uint16_t b,
