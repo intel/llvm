@@ -1371,21 +1371,16 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       const auto TypeName = RD->getName();
       if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
-          TypeName == "array" || TypeName == "AssertHappened" ||
-          TypeName == "atomic" || TypeName == "bfloat16" ||
-          TypeName == "GetOp" || TypeName == "GetScalarOp" ||
-          TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
-          TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "kernel_handler" ||
+          TypeName == "array" || TypeName == "atomic" || TypeName == "group" ||
+          TypeName == "h_item" || TypeName == "id" || TypeName == "item" ||
+          TypeName == "ItemBase" || TypeName == "kernel_handler" ||
           TypeName == "LocalAccessorBaseDevice" ||
           TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
           TypeName == "maximum" || TypeName == "minimum" ||
           TypeName == "multi_ptr" || TypeName == "nd_item" ||
           TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
-          TypeName == "range" || TypeName == "stream" ||
-          TypeName == "sub_group" || TypeName == "SwizzleOp" ||
-          TypeName == "TupleCopyAssignableValueHolder" ||
-          TypeName == "TupleValueHolder" || TypeName == "vec")
+          TypeName == "range" || TypeName == "SwizzleOp" ||
+          TypeName == "stream" || TypeName == "sub_group" || TypeName == "vec")
         return getSYCLType(RT, *this);
 
       assert((AllowUndefinedSYCLTypes ||

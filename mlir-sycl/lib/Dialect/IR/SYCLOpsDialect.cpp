@@ -135,8 +135,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << Ty.getCurrentDimension() << "_";
         return AliasResult::OverridableAlias;
       })
-      .Case<mlir::sycl::AssertHappenedType, mlir::sycl::BFloat16Type,
-            mlir::sycl::KernelHandlerType, mlir::sycl::StreamType>(
+      .Case<mlir::sycl::KernelHandlerType, mlir::sycl::StreamType>(
           [&](auto Ty) {
             OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
             return AliasResult::FinalAlias;
@@ -170,28 +169,21 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_" << Ty.getType();
         return AliasResult::FinalAlias;
       })
+      .Case<mlir::sycl::MaximumType, mlir::sycl::MinimumType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_";
+        return AliasResult::FinalAlias;
+      })
       .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
            << "_";
         return AliasResult::OverridableAlias;
       })
-      .Case<mlir::sycl::GetScalarOpType, mlir::sycl::MinimumType,
-            mlir::sycl::MaximumType, mlir::sycl::TupleValueHolderType>(
-          [&](auto Ty) {
-            OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
-               << Ty.getDataType() << "_";
-            return AliasResult::FinalAlias;
-          })
       .Case<mlir::sycl::SwizzledVecType>([&](auto Ty) {
         const auto VecTy = Ty.getVecType();
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
            << VecTy.getDataType() << "_" << VecTy.getNumElements() << "_";
-        return AliasResult::OverridableAlias;
-      })
-      .Case<mlir::sycl::TupleCopyAssignableValueHolderType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_";
         return AliasResult::OverridableAlias;
       })
       .Case<mlir::sycl::VecType>([&](auto Ty) {

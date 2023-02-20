@@ -1282,28 +1282,27 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                                    getConstantIndex(FNum));
   } else if (sycl::isSYCLType(MT.getElementType())) {
     Type ElemTy = MT.getElementType();
-    Result =
-        TypeSwitch<Type, Value>(ElemTy)
-            .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
-              assert(FNum < AT.getBody().size() && "ERROR");
-              const auto ElemType = AT.getBody()[FNum].cast<MemRefType>();
-              const auto ResultType = MemRefType::get(
-                  ElemType.getShape(), ElemType.getElementType(),
-                  MemRefLayoutAttrInterface(), MT.getMemorySpace());
-              return Builder.create<polygeist::SubIndexOp>(
-                  Loc, ResultType, Val, getConstantIndex(FNum));
-            })
-            .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
-                  sycl::AccessorSubscriptType, sycl::AtomicType,
-                  sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
-                  sycl::ItemType, sycl::LocalAccessorBaseDeviceType,
-                  sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
-                  sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
-                  sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
-                [&](auto ElemTy) {
-                  return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
-                                                                 Shape);
-                });
+    Result = TypeSwitch<Type, Value>(ElemTy)
+                 .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
+                   assert(FNum < AT.getBody().size() && "ERROR");
+                   const auto ElemType = AT.getBody()[FNum].cast<MemRefType>();
+                   const auto ResultType = MemRefType::get(
+                       ElemType.getShape(), ElemType.getElementType(),
+                       MemRefLayoutAttrInterface(), MT.getMemorySpace());
+                   return Builder.create<polygeist::SubIndexOp>(
+                       Loc, ResultType, Val, getConstantIndex(FNum));
+                 })
+                 .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
+                       sycl::AccessorSubscriptType, sycl::AtomicType,
+                       sycl::GroupType, sycl::ItemBaseType, sycl::ItemType,
+                       sycl::LocalAccessorBaseDeviceType,
+                       sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
+                       sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
+                       sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
+                     [&](auto ElemTy) {
+                       return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
+                                                                      Shape);
+                     });
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
