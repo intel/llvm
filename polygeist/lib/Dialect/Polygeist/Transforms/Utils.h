@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 namespace llvm {
-template <typename T> struct SmallVectorImpl;
+template <typename T> class SmallVectorImpl;
 } // namespace llvm
 
 namespace mlir {

@@ -97,8 +97,7 @@ bool getEffectsBefore(Operation *op,
       if (isa<BarrierOp>(it)) {
         if (stopAtBarrier)
           return true;
-        else
-          continue;
+        continue;
       }
       if (!collectEffects(it, effects, /* ignoreBarriers */ true))
         return false;
@@ -259,7 +258,7 @@ public:
     // Move barrier into after region and after loop, if possible
     if (auto whileOp = dyn_cast<scf::WhileOp>(barrier->getParentOp())) {
       if (barrier->getParentRegion() == &whileOp.getBefore()) {
-        auto cond = whileOp.getBefore().front().getTerminator();
+        auto *cond = whileOp.getBefore().front().getTerminator();
 
         bool above = true;
         for (Operation *it = cond; it != nullptr; it = it->getPrevNode()) {
@@ -289,7 +288,7 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
   SmallVector<Value> todo = {v};
   while (todo.size()) {
     Value v = todo.pop_back_val();
-    for (auto u : v.getUsers()) {
+    for (auto *u : v.getUsers()) {
       if (seenuse && u == potentialUser)
         *seenuse = true;
       if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp, polygeist::CacheLoad>(
@@ -1408,7 +1407,7 @@ public:
   }
 };
 
-OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Memref2PointerOp::fold(FoldAdaptor operands) {
   if (auto subindex = getSource().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.getIndex().getDefiningOp<ConstantIndexOp>()) {
       if (cop.value() == 0) {
@@ -1920,7 +1919,7 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
       MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
-OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Pointer2MemrefOp::fold(FoldAdaptor operands) {
   /// Simplify pointer2memref(bitcast(x)) to pointer2memref(x)
   if (auto mc = getSource().getDefiningOp<LLVM::BitcastOp>()) {
     getSourceMutable().assign(mc.getArg());
@@ -1948,7 +1947,7 @@ OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult SubIndexOp::fold(FoldAdaptor operands) {
   if (getResult().getType() == getSource().getType()) {
     if (matchPattern(getIndex(), m_Zero()))
       return getSource();
@@ -1964,7 +1963,7 @@ OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult TypeSizeOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeSizeOp::fold(FoldAdaptor operands) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
@@ -1994,7 +1993,7 @@ void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<TypeSizeCanonicalize>(context);
 }
 
-OpFoldResult TypeAlignOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeAlignOp::fold(FoldAdaptor operands) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
@@ -2267,7 +2266,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
       // lastParentWithoutScope (i.e. where we would hoist to), skip.
       if (llvm::any_of(alloc->getOperands(), [&](Value v) { return !fix(v); }))
         return WalkResult::skip();
-      for (auto s : subHoist)
+      for (auto *s : subHoist)
         toHoist.insert(s);
       toHoist.insert(alloc);
       return WalkResult::advance();
