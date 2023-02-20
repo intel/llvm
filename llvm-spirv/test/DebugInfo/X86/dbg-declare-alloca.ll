@@ -1,6 +1,3 @@
-; Temporarily disabled (until failure cuase if found) to unblock the pulldown
-; XFAIL: *
-
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
