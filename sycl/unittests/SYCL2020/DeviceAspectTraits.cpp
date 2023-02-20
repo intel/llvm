@@ -7,7 +7,8 @@
 TEST(DeviceAspectTraits, AnyDeviceHasAspect) {
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
   constexpr bool CheckAnyDeviceHas##ASPECT =                                   \
-      sycl::any_device_has_v<sycl::aspect::ASPECT>;
+      sycl::any_device_has_v<sycl::aspect::ASPECT>;                            \
+  std::ignore = CheckAnyDeviceHas##ASPECT;
 
 #include <sycl/info/aspects.def>
 
@@ -16,7 +17,8 @@ TEST(DeviceAspectTraits, AnyDeviceHasAspect) {
 TEST(DeviceAspectTraits, AllDevicesHaveAspect) {
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
   constexpr bool CheckAllDevicesHave##ASPECT =                                 \
-      sycl::all_devices_have_v<sycl::aspect::ASPECT>;
+      sycl::all_devices_have_v<sycl::aspect::ASPECT>;                          \
+  std::ignore = CheckAllDevicesHave##ASPECT;
 
 #include <sycl/info/aspects.def>
 
