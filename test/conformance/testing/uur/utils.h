@@ -68,6 +68,16 @@ urDeviceGetReferenceCount(ur_device_handle_t device) {
 }
 
 inline std::pair<uint32_t, bool>
+urEventGetReferenceCount(ur_event_handle_t event) {
+    int32_t refCount = 0;
+    if (urEventGetInfo(event, UR_EVENT_INFO_REFERENCE_COUNT, sizeof(uint32_t),
+                       &refCount, 0)) {
+        return {0, false};
+    }
+    return {refCount, true};
+}
+
+inline std::pair<uint32_t, bool>
 urQueueGetReferenceCount(ur_queue_handle_t queue) {
     uint32_t refCount = 0;
     if (urQueueGetInfo(queue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(uint32_t),
