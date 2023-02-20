@@ -2013,6 +2013,22 @@ public:
   }
 
   template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const accessor &operator=(const value_type &Other) const {
+    *getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const accessor &operator=(value_type &&Other) const {
+    *getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
             typename = detail::enable_if_t<(Dims > 0) && (IsAccessAnyWrite ||
                                                           IsAccessReadOnly)>>
   reference operator[](id<Dimensions> Index) const {
@@ -2780,6 +2796,20 @@ public:
     return Property();
 #endif
   }
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
+  const local_accessor &operator=(const value_type &Other) const {
+    *local_acc::getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
+  const local_accessor &operator=(value_type &&Other) const {
+    *local_acc::getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
 };
 
 /// Image accessors.
@@ -2957,6 +2987,7 @@ protected:
                              access::placeholder::false_t>;
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
+  constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
 
   template <typename T, int Dims>
   struct IsSameAsBuffer
@@ -3111,6 +3142,23 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                       PropertyList, CodeLoc) {}
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const host_accessor &
+  operator=(const typename AccessorT::value_type &Other) const {
+    *AccessorT::getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
+    *AccessorT::getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>

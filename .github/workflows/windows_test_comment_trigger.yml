@@ -6,31 +6,29 @@ on:
 
 jobs:
   windows_test_preparation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     if: ${{ github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
     steps:
     - name: react_to_comment
-      uses: actions/github-script@v4
+      uses: actions/github-script@v6
       with:
         script: |
-          const {owner, repo} = context.issue;
-          github.reactions.createForIssueComment({
-            owner,
-            repo,
+          github.rest.reactions.createForIssueComment({
+            owner: context.issue.owner,
+            repo: context.issue.repo,
             comment_id: context.payload.comment.id,
-            content: "rocket",
+            content: "rocket"
           });
     - name: get_pr_sha
       id: sha
-      uses: actions/github-script@v4
+      uses: actions/github-script@v6
       with:
         result-encoding: string
         script: |
-          const { owner, repo, number } = context.issue;
-          const pr = await github.pulls.get({
-            owner,
-            repo,
-            pull_number: number,
+          const pr = await github.rest.pulls.get({
+            owner: context.issue.owner,
+            repo: context.issue.repo,
+            pull_number: number
           });
           return pr.data.head.sha
     - name: update_pr_status_pending
@@ -54,7 +52,7 @@ jobs:
       build_ref: ${{ needs.windows_test_preparation.outputs.PR_SHA }}
 
   windows_test_completion:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [windows_test_preparation, windows_default]
     if: always()
     steps:
