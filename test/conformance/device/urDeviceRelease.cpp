@@ -7,7 +7,16 @@ struct urDeviceReleaseTest : uur::urAllDevicesTest {};
 TEST_F(urDeviceReleaseTest, Success) {
     for (auto device : devices) {
         ASSERT_SUCCESS(urDeviceRetain(device));
+
+        const auto prevRefCount = uur::urDeviceGetReferenceCount(device);
+        ASSERT_TRUE(prevRefCount.second);
+
         EXPECT_SUCCESS(urDeviceRelease(device));
+
+        const auto refCount = uur::urDeviceGetReferenceCount(device);
+        ASSERT_TRUE(refCount.second);
+
+        ASSERT_EQ(prevRefCount.first - 1, refCount.first);
     }
 }
 

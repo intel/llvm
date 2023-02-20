@@ -57,6 +57,16 @@ urContextGetReferenceCount(ur_context_handle_t context) {
     return {refCount, true};
 }
 
+inline std::pair<uint32_t, bool>
+urDeviceGetReferenceCount(ur_device_handle_t device) {
+    uint32_t refCount = 0;
+    if (urDeviceGetInfo(device, UR_DEVICE_INFO_REFERENCE_COUNT,
+                        sizeof(uint32_t), &refCount, 0)) {
+        return {0, false};
+    }
+    return {refCount, true};
+}
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
