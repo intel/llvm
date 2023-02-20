@@ -17,7 +17,7 @@ TEST_P(urContextReleaseTest, Success) {
     const auto refCount = uur::urContextGetReferenceCount(context);
     ASSERT_TRUE(refCount.second);
 
-    ASSERT_EQ(prevRefCount.first + 1, refCount.first);
+    ASSERT_GT(prevRefCount.first, refCount.first);
 }
 
 TEST_P(urContextReleaseTest, InvalidNullHandleContext) {

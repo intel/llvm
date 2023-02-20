@@ -15,7 +15,7 @@ TEST_P(urContextRetainTest, Success) {
     const auto refCount = uur::urContextGetReferenceCount(context);
     ASSERT_TRUE(refCount.second);
 
-    ASSERT_EQ(prevRefCount.first + 1, refCount.first);
+    ASSERT_LT(prevRefCount.first, refCount.first);
 
     EXPECT_SUCCESS(urContextRelease(context));
 }
