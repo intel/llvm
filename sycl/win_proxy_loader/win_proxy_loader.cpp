@@ -78,16 +78,30 @@ std::string getCurrentDSODir() {
 
 // these are cribbed from include/sycl/detail/pi.hpp
 // a new plugin must be added to both places.
+#ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
+#else // llvm-mingw
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
+#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
+#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
+#endif
 
 // ------------------------------------
 
-static std::map<std::string, void *> dllMap;
+using MapT = std::map<std::string, void *>;
+
+MapT& getDllMap() {
+  static MapT dllMap;
+  return dllMap;
+}
 
 /// load the five libraries and store them in a map.
 void preloadLibraries() {
@@ -108,6 +122,8 @@ void preloadLibraries() {
 
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
   const std::string LibSYCLDir = getCurrentDSODir() + DirSep;
+
+  MapT& dllMap = getDllMap();
 
   std::string ocl_path = LibSYCLDir + __SYCL_OPENCL_PLUGIN_NAME;
   dllMap.emplace(ocl_path, LoadLibraryA(ocl_path.c_str()));
@@ -137,6 +153,8 @@ void preloadLibraries() {
 /// windows_pi.cpp:loadOsLibrary() calls this to get the DLL we loaded earlier.
 __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
 
+  MapT& dllMap = getDllMap();
+  
   auto match = dllMap.find(
       PluginPath); // result might be nullptr (not found), which is perfectly valid.
   if (match == dllMap.end()) {
