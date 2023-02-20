@@ -47,16 +47,8 @@ module.exports = ({core, process}) => {
           } else {
             v["env"] = {};
           }
-          // Temporary support for both in-tree/out-of-tree (llvm-test-suite)
-          // end-to-end tests.
-          v["in_tree_e2e"] = false;
           enabledLTSConfigs.push(v);
           if (v["aws-type"]) enabledLTSAWSConfigs.push(v);
-
-          var inTreeV = Object.assign({}, v);
-          inTreeV["in_tree_e2e"] = true;
-          inTreeV["name"] = inTreeV["name"] + " In-Tree"
-          enabledLTSConfigs.push(inTreeV);
         }
       });
 
