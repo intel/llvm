@@ -67,6 +67,16 @@ urDeviceGetReferenceCount(ur_device_handle_t device) {
     return {refCount, true};
 }
 
+inline std::pair<uint32_t, bool>
+urQueueGetReferenceCount(ur_queue_handle_t queue) {
+    uint32_t refCount = 0;
+    if (urQueueGetInfo(queue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(uint32_t),
+                       &refCount, nullptr)) {
+        return {0, false};
+    }
+    return {refCount, true};
+}
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
