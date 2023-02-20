@@ -66,6 +66,25 @@ inline auto createExceptionHandler() {
   };
 }
 
+inline property_list createQueuePropertyList(bool profiling,
+                                             bool inOrder = false) {
+  if (inOrder) {
+    if (profiling)
+      return {property::queue::in_order(), property::queue::enable_profiling()};
+    return {property::queue::in_order()};
+  }
+  if (profiling)
+    return {property::queue::enable_profiling()};
+  return {};
+}
+
+inline queue createQueue(bool inOrder = false) {
+  device dev{esimd_test::ESIMDSelector};
+  sycl::property_list propList =
+      createQueuePropertyList(dev.has(aspect::queue_profiling), inOrder);
+  return queue(dev, esimd_test::createExceptionHandler(), propList);
+}
+
 template <typename T>
 std::vector<T> read_binary_file(const char *fname, size_t num = 0) {
   std::vector<T> vec;
@@ -240,21 +259,22 @@ private:
 // find the time difference between the starting time of the e0 and
 // the ending time of en, return micro-second
 inline double report_time(const std::string &msg, event e0, event en) {
-  cl_ulong time_start =
+  uint64_t time_start =
       e0.get_profiling_info<info::event_profiling::command_start>();
-  cl_ulong time_end =
+  uint64_t time_end =
       en.get_profiling_info<info::event_profiling::command_end>();
   double elapsed = (time_end - time_start) / 1e6;
   // cerr << msg << elapsed << " msecs" << std::endl;
   return elapsed;
 }
 
-void display_timing_stats(double const kernelTime,
+void display_timing_stats(double const *kernelTime,
                           unsigned int const uiNumberOfIterations,
                           double const overallTime) {
   std::cout << "Number of iterations: " << uiNumberOfIterations << "\n";
-  std::cout << "[KernelTime]:" << kernelTime << "\n";
-  std::cout << "[OverallTime][Primary]:" << overallTime << "\n";
+  if (kernelTime)
+    std::cout << "[KernelTime]: " << *kernelTime << "\n";
+  std::cout << "[OverallTime][Primary]: " << overallTime << "\n";
 }
 
 // Get signed integer of given byte size.
