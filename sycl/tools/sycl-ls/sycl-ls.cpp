@@ -84,7 +84,7 @@ static void printSelectorChoice(const device_selector &Selector,
     auto PlatformName = Platform.get_info<info::platform::name>();
     printDeviceInfo(Device, verbose,
                     Prepend + DeviceTypeName + ", " + PlatformName);
-  } catch (const sycl::runtime_error &Exception) {
+  } catch (const sycl::exception &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
     if (What.length() > 50)
@@ -126,73 +126,81 @@ int main(int argc, char **argv) {
         << std::endl;
   }
 
-  const auto &Platforms = platform::get_platforms();
+  try {
+    const auto &Platforms = platform::get_platforms();
 
-  // Keep track of the number of devices per backend
-  std::map<backend, size_t> DeviceNums;
+    // Keep track of the number of devices per backend
+    std::map<backend, size_t> DeviceNums;
 
-  for (const auto &Platform : Platforms) {
-    backend Backend = Platform.get_backend();
-    auto PlatformName = Platform.get_info<info::platform::name>();
-    const auto &Devices = Platform.get_devices();
-
-    // the device counting done here should have the same result as the counting
-    // done by SYCL itself. But technically, it is not the same method, as SYCL
-    // keeps a table of platforms:start_dev_index in each plugin.
-
-    for (const auto &Device : Devices) {
-      std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
-                << DeviceNums[Backend] << "] ";
-      ++DeviceNums[Backend];
-      // Verbose parameter is set to false to print regular devices output first
-      printDeviceInfo(Device, false, PlatformName);
-    }
-  }
-
-  if (verbose) {
-    std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
-    uint32_t PlatformNum = 0;
-    DeviceNums.clear();
     for (const auto &Platform : Platforms) {
       backend Backend = Platform.get_backend();
-      ++PlatformNum;
-      auto PlatformVersion = Platform.get_info<info::platform::version>();
       auto PlatformName = Platform.get_info<info::platform::name>();
-      auto PlatformVendor = Platform.get_info<info::platform::vendor>();
-      std::cout << "Platform [#" << PlatformNum << "]:" << std::endl;
-      std::cout << "    Version  : " << PlatformVersion << std::endl;
-      std::cout << "    Name     : " << PlatformName << std::endl;
-      std::cout << "    Vendor   : " << PlatformVendor << std::endl;
-
       const auto &Devices = Platform.get_devices();
-      std::cout << "    Devices  : " << Devices.size() << std::endl;
+
+      // the device counting done here should have the same result as the
+      // counting done by SYCL itself. But technically, it is not the same
+      // method, as SYCL keeps a table of platforms:start_dev_index in each
+      // plugin.
+
       for (const auto &Device : Devices) {
-        std::cout << "        Device [#" << DeviceNums[Backend]
-                  << "]:" << std::endl;
+        std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
+                  << DeviceNums[Backend] << "] ";
         ++DeviceNums[Backend];
-        printDeviceInfo(Device, true, "        ");
+        // Verbose parameter is set to false to print regular devices output
+        // first
+        printDeviceInfo(Device, false, PlatformName);
       }
     }
-  } else {
-    return EXIT_SUCCESS;
+
+    if (verbose) {
+      std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
+      uint32_t PlatformNum = 0;
+      DeviceNums.clear();
+      for (const auto &Platform : Platforms) {
+        backend Backend = Platform.get_backend();
+        ++PlatformNum;
+        auto PlatformVersion = Platform.get_info<info::platform::version>();
+        auto PlatformName = Platform.get_info<info::platform::name>();
+        auto PlatformVendor = Platform.get_info<info::platform::vendor>();
+        std::cout << "Platform [#" << PlatformNum << "]:" << std::endl;
+        std::cout << "    Version  : " << PlatformVersion << std::endl;
+        std::cout << "    Name     : " << PlatformName << std::endl;
+        std::cout << "    Vendor   : " << PlatformVendor << std::endl;
+
+        const auto &Devices = Platform.get_devices();
+        std::cout << "    Devices  : " << Devices.size() << std::endl;
+        for (const auto &Device : Devices) {
+          std::cout << "        Device [#" << DeviceNums[Backend]
+                    << "]:" << std::endl;
+          ++DeviceNums[Backend];
+          printDeviceInfo(Device, true, "        ");
+        }
+      }
+    } else {
+      return EXIT_SUCCESS;
+    }
+
+    // Print the selectors choice in one-line always
+    verbose = false;
+
+    // Print built-in device selectors choice
+    printSelectorChoice(default_selector(), "default_selector()      : ");
+    printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
+    printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
+    printSelectorChoice(gpu_selector(), "gpu_selector()          : ");
+
+    // Print trivial custom selectors choice
+    printSelectorChoice(custom_selector(info::device_type::gpu),
+                        "custom_selector(gpu)    : ");
+    printSelectorChoice(custom_selector(info::device_type::cpu),
+                        "custom_selector(cpu)    : ");
+    printSelectorChoice(custom_selector(info::device_type::accelerator),
+                        "custom_selector(acc)    : ");
+
+  } catch (sycl::exception &e) {
+    std::cerr << "SYCL Exception encountered: " << e.what() << std::endl
+              << std::endl;
   }
-
-  // Print the selectors choice in one-line always
-  verbose = false;
-
-  // Print built-in device selectors choice
-  printSelectorChoice(default_selector(), "default_selector()      : ");
-  printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
-  printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
-  printSelectorChoice(gpu_selector(), "gpu_selector()          : ");
-
-  // Print trivial custom selectors choice
-  printSelectorChoice(custom_selector(info::device_type::gpu),
-                      "custom_selector(gpu)    : ");
-  printSelectorChoice(custom_selector(info::device_type::cpu),
-                      "custom_selector(cpu)    : ");
-  printSelectorChoice(custom_selector(info::device_type::accelerator),
-                      "custom_selector(acc)    : ");
 
   return EXIT_SUCCESS;
 }

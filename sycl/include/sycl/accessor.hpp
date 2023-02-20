@@ -554,18 +554,18 @@ protected:
 
 template <int Dim, typename T> struct IsValidCoordDataT;
 template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value =
-      detail::is_contained<T, detail::type_list<cl_int, cl_float>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
 };
 template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value =
-      detail::is_contained<T,
-                           detail::type_list<cl_int2, cl_float2>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<vec<opencl::cl_int, 2>,
+                           vec<opencl::cl_float, 2>>>::type::value;
 };
 template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value =
-      detail::is_contained<T,
-                           detail::type_list<cl_int4, cl_float4>>::type::value;
+  constexpr static bool value = detail::is_contained<
+      T, detail::type_list<vec<opencl::cl_int, 4>,
+                           vec<opencl::cl_float, 4>>>::type::value;
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -620,10 +620,10 @@ private:
   constexpr static bool IsImageAccessAnyRead =
       (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
-  static_assert(std::is_same<DataT, cl_int4>::value ||
-                    std::is_same<DataT, cl_uint4>::value ||
-                    std::is_same<DataT, cl_float4>::value ||
-                    std::is_same<DataT, cl_half4>::value,
+  static_assert(std::is_same<DataT, vec<opencl::cl_int, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_uint, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_float, 4>>::value ||
+                    std::is_same<DataT, vec<opencl::cl_half, 4>>::value,
                 "The data type of an image accessor must be only cl_int4, "
                 "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
 
@@ -2013,6 +2013,22 @@ public:
   }
 
   template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const accessor &operator=(const value_type &Other) const {
+    *getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const accessor &operator=(value_type &&Other) const {
+    *getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
             typename = detail::enable_if_t<(Dims > 0) && (IsAccessAnyWrite ||
                                                           IsAccessReadOnly)>>
   reference operator[](id<Dimensions> Index) const {
@@ -2780,6 +2796,20 @@ public:
     return Property();
 #endif
   }
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
+  const local_accessor &operator=(const value_type &Other) const {
+    *local_acc::getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
+  const local_accessor &operator=(value_type &&Other) const {
+    *local_acc::getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
 };
 
 /// Image accessors.
@@ -2957,6 +2987,7 @@ protected:
                              access::placeholder::false_t>;
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
+  constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
 
   template <typename T, int Dims>
   struct IsSameAsBuffer
@@ -3111,6 +3142,23 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                       PropertyList, CodeLoc) {}
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const host_accessor &
+  operator=(const typename AccessorT::value_type &Other) const {
+    *AccessorT::getQualifiedPtr() = Other;
+    return *this;
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<AccessMode != access_mode::atomic &&
+                                           !IsAccessReadOnly && Dims == 0>>
+  const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
+    *AccessorT::getQualifiedPtr() = std::move(Other);
+    return *this;
+  }
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
