@@ -28,3 +28,15 @@ TEST_P(urEnqueueMemUnmapTest, InvalidNullHandleMem) {
 TEST_P(urEnqueueMemUnmapTest, InvalidNullPtrMap) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urEnqueueMemUnmap(queue, buffer, nullptr, 0, nullptr, nullptr));
 }
+
+TEST_P(urEnqueueMemUnmapTest, InvalidNullPtrEventWaitList) {
+    ASSERT_EQ_RESULT(urEnqueueMemUnmap(queue, buffer, map, 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(
+        urEnqueueMemUnmap(queue, buffer, map, 0, &validEvent, nullptr),
+        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}

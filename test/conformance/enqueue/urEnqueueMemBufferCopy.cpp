@@ -52,6 +52,19 @@ TEST_P(urEnqueueMemBufferCopyTest, InvalidNullHandleBufferDst) {
                      urEnqueueMemBufferCopy(queue, src_buffer, nullptr, 0, 0, size, 0, nullptr, nullptr));
 }
 
+TEST_P(urEnqueueMemBufferCopyTest, InvalidNullPtrEventWaitList) {
+    ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
+                                            size, 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
+                                            size, 0, &validEvent, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
+
 using urEnqueueMemBufferCopyMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {

@@ -54,6 +54,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -90,6 +94,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -125,6 +133,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -172,6 +184,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -219,6 +235,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -282,6 +302,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -345,6 +369,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -390,6 +418,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -447,6 +479,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -492,6 +528,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -545,6 +585,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -598,6 +642,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -643,6 +691,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -691,6 +743,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -764,6 +820,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -823,6 +883,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -859,6 +923,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -896,6 +964,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -936,6 +1008,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -973,6 +1049,10 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1054,6 +1134,10 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+      - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+      - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+      - "If event objects in phEventWaitList are not valid events."
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
@@ -1093,6 +1177,10 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
@@ -1138,6 +1226,10 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
@@ -1179,6 +1271,11 @@ params:
       name: phEvent
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read data from a device global variable to the host."
@@ -1218,4 +1315,9 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.    
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."

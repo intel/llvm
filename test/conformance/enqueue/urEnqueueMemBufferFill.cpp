@@ -68,6 +68,22 @@ TEST_P(urEnqueueMemBufferFillTest, InvalidNullHandlePointerPattern) {
                      urEnqueueMemBufferFill(queue, buffer, nullptr, sizeof(uint32_t), 0, size, 0, nullptr, nullptr));
 }
 
+TEST_P(urEnqueueMemBufferFillTest, InvalidNullPtrEventWaitList) {
+    const uint32_t pattern = 0xdeadbeef;
+    ASSERT_EQ_RESULT(urEnqueueMemBufferFill(queue, buffer, &pattern,
+                                            sizeof(uint32_t), 0, size, 1,
+                                            nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferFill(queue, buffer, &pattern,
+                                            sizeof(uint32_t), 0, size, 0,
+                                            &validEvent, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
+
 using urEnqueueMemBufferFillMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {

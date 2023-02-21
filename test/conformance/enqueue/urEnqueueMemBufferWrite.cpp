@@ -37,3 +37,18 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPointerSrc) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urEnqueueMemBufferWrite(queue, buffer, true, 0, size, nullptr, 0, nullptr, nullptr));
 }
+
+TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPtrEventWaitList) {
+    std::vector<uint32_t> input(count, 42);
+    ASSERT_EQ_RESULT(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
+                                             input.data(), 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
+                                             input.data(), 0, &validEvent,
+                                             nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
