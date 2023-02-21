@@ -43,6 +43,26 @@ struct joint_matrix {
   }
 };
 
+template<typename Group, typename T, use Use, size_t M, size_t N, layout Layout, typename F>
+inline __SYCL_ALWAYS_INLINE void 
+joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &C, F&& lambda) 
+{
+  #if defined(__SYCL_DEVICE_ONLY__)
+  #if defined(__NVPTX__)
+  #else // NVPTX
+    auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, C);
+    for (int i = 0; i < wi_data_c.length(); i++) 
+    { 
+      lambda(wi_data_c[i]);
+    }
+  #endif
+  #else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+  #endif
+  return;
+}
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
