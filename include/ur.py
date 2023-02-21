@@ -205,11 +205,12 @@ class ur_result_t(c_int):
 ###############################################################################
 ## @brief Defines structure types
 class ur_structure_type_v(IntEnum):
-    IMAGE_DESC = 0                                  ## ::ur_image_desc_t
-    PROGRAM_PROPERTIES = 1                          ## ::ur_program_properties_t
-    USM_DESC = 2                                    ## ::ur_usm_desc_t
-    USM_POOL_DESC = 3                               ## ::ur_usm_pool_desc_t
-    USM_POOL_LIMITS_DESC = 4                        ## ::ur_usm_pool_limits_desc_t
+    CONTEXT_PROPERTIES = 0                          ## ::ur_context_properties_t
+    IMAGE_DESC = 1                                  ## ::ur_image_desc_t
+    PROGRAM_PROPERTIES = 2                          ## ::ur_program_properties_t
+    USM_DESC = 3                                    ## ::ur_usm_desc_t
+    USM_POOL_DESC = 4                               ## ::ur_usm_pool_desc_t
+    USM_POOL_LIMITS_DESC = 5                        ## ::ur_usm_pool_limits_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -549,6 +550,26 @@ class ur_memory_scope_capability_flags_t(c_int):
 
 
 ###############################################################################
+## @brief Context property type
+class ur_context_flags_v(IntEnum):
+    TBD = UR_BIT(0)                                 ## reserved for future use
+
+class ur_context_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Context creation properties
+class ur_context_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("flags", ur_context_flags_t)                                   ## [in] context creation flags.
+    ]
+
+###############################################################################
 ## @brief Supported context info
 class ur_context_info_v(IntEnum):
     NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
@@ -697,7 +718,7 @@ class ur_image_format_t(Structure):
 ## @brief Image descriptor type.
 class ur_image_desc_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("type", ur_mem_type_t),                                        ## [in] memory object type
         ("width", c_size_t),                                            ## [in] image width
@@ -859,7 +880,7 @@ class ur_usm_pool_handle_t(c_void_p):
 ## @brief USM allocation descriptor type
 class ur_usm_desc_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_mem_flags_t),                                  ## [in] memory allocation flags
         ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
@@ -869,7 +890,7 @@ class ur_usm_desc_t(Structure):
 ## @brief USM pool descriptor type
 class ur_usm_pool_desc_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_pool_flags_t)                                  ## [in] memory allocation flags
     ]
@@ -878,7 +899,8 @@ class ur_usm_pool_desc_t(Structure):
 ## @brief USM pool limits descriptor type
 class ur_usm_pool_limits_desc_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("maxPoolSize", c_size_t),                                      ## [in] Maximum size of a memory pool
         ("maxPoolableSize", c_size_t),                                  ## [in] Allocations up to this limit will be subject to pooling
@@ -936,7 +958,8 @@ class ur_program_metadata_t(Structure):
 ## @brief Program creation properties.
 class ur_program_properties_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES
         ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
         ("count", c_ulong),                                             ## [in] the number of entries in pMetadatas, if count is greater than
                                                                         ## zero then pMetadatas must not be null.
@@ -1296,9 +1319,9 @@ class ur_platform_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urContextCreate
 if __use_win_types:
-    _urContextCreate_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_handle_t) )
+    _urContextCreate_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_properties_t), POINTER(ur_context_handle_t) )
 else:
-    _urContextCreate_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_handle_t) )
+    _urContextCreate_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_properties_t), POINTER(ur_context_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urContextRetain

@@ -9,7 +9,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextSetExtendedDeleterTest);
 
 TEST_P(urContextSetExtendedDeleterTest, Success) {
     ur_context_handle_t context = nullptr;
-    ASSERT_SUCCESS(urContextCreate(1, &device, &context));
+    ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
     ASSERT_NE(context, nullptr);
 
     bool called = false;
@@ -28,7 +28,7 @@ TEST_P(urContextSetExtendedDeleterTest, InvalidNullHandleContext) {
 
 TEST_P(urContextSetExtendedDeleterTest, InvalidNullPointerDeleter) {
     ur_context_handle_t context = nullptr;
-    ASSERT_SUCCESS(urContextCreate(1, &device, &context));
+    ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
     ASSERT_NE(context, nullptr);
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,

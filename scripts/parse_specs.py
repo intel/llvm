@@ -634,7 +634,7 @@ def _inline_base(obj, meta):
                 m = copy.deepcopy(m)
                 if m['name'] == "stype":
                     m['init'] = re.sub(r"(\$[a-z]+)(\w+)_t", r"\1_STRUCTURE_TYPE\2", obj['name']).upper()
-
+                    m['desc'] += ', must be %s' % m['init']
                 obj['members'].insert(i, m)
     return obj
 

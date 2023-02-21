@@ -269,6 +269,8 @@ type: enum
 desc: "Defines structure types"
 name: $x_structure_type_t
 etors:
+    - name: CONTEXT_PROPERTIES
+      desc: $x_context_properties_t
     - name: IMAGE_DESC
       desc: $x_image_desc_t
     - name: PROGRAM_PROPERTIES
