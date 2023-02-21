@@ -229,7 +229,7 @@ func.func @affine_for_hoist2(%arg0: memref<?xf32>, %arg1: f32) {
   return
 }
 
-// COM: Ensure reductions loops guards are correct.  
+// COM: Ensure reductions loops guards are correct.
 func.func @affine_for_hoist3(%arg0: memref<?xi32>, %arg1: i32) -> (i32) {
   // CHECK:        func.func @affine_for_hoist3(%arg0: memref<?xi32>, %arg1: i32) -> i32 {
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
@@ -254,6 +254,68 @@ func.func @affine_for_hoist3(%arg0: memref<?xi32>, %arg1: i32) -> (i32) {
     affine.yield %sum_next : i32
   }
   return %sum : i32
+}
+
+// COM: Ensure aliased store dominating load can be hoisted.
+func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
+  // CHECK:        func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
+  // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
+  // CHECK-NEXT:    %c3_i32 = arith.constant 3 : i32
+  // CHECK-NEXT:    affine.if #set1() { 
+  // CHECK-NEXT:      affine.store %c3_i32, %alloca[0] : memref<1xi32>
+  // CHECK-NEXT:      %0 = affine.load %alloca[0] : memref<1xi32>  
+  // CHECK-NEXT:      affine.for %arg1 = 0 to 10 {
+  // CHECK-NEXT:        %1 = affine.load %arg0[0] : memref<?xi32>
+  // CHECK-NEXT:        %2 = arith.addi %1, %0 : i32
+  // CHECK-NEXT:        affine.store %2, %arg0[0] : memref<?xi32>
+  // CHECK-NEXT:      }
+  // CHECK-NEXT:    }
+
+  %alloca = memref.alloca() : memref<1xi32>
+  %c3 = arith.constant 3 : i32
+  affine.for %arg1 = 0 to 10 {
+    // Store can be hoisted because it is the only reaching definition for the first load. 
+    //  - the store dominates the aliased load and 
+    //  - there is no other aliased store in the loop
+    affine.store %c3, %alloca[0] : memref<1xi32>  
+    %c3_1 = affine.load %alloca[0] : memref<1xi32>
+    %arr = affine.load %arg0[0] : memref<?xi32>
+    %add = arith.addi %arr, %c3_1 : i32
+    affine.store %add, %arg0[0] : memref<?xi32>
+  }
+  return
+}  
+
+// COM: Ensure aliased store after dominating load cannot be hoisted.
+func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
+  // CHECK:        func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
+  // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
+  // CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
+  // CHECK-DAG:     %c4_i32 = arith.constant 4 : i32  
+  // CHECK-NEXT:    affine.store %c3_i32, %alloca[0] : memref<1xi32>
+  // CHECK-NEXT:    affine.for %arg1 = 0 to 10 {
+  // CHECK-NEXT:      %0 = affine.load %alloca[0] : memref<1xi32> 
+  // CHECK-NEXT:      affine.store %c4_i32, %alloca[0] : memref<1xi32>
+  // CHECK-NEXT:      %1 = affine.load %arg0[0] : memref<?xi32>
+  // CHECK-NEXT:      %2 = arith.addi %1, %0 : i32
+  // CHECK-NEXT:      affine.store %2, %arg0[0] : memref<?xi32>
+  // CHECK-NEXT:    }
+
+  %alloca = memref.alloca() : memref<1xi32>    
+  %c3 = arith.constant 3 : i32    
+  %c4 = arith.constant 4 : i32      
+  affine.store %c3, %alloca[0] : memref<1xi32>
+  affine.for %arg2 = 0 to 10 {    
+    // Cannot hoist the load because the loop has a store that can change the loaded result. 
+    %c3_1 = affine.load %alloca[0] : memref<1xi32>
+    // Cannot hoist the store because it changes the value loaded by the previous operation, 
+    // (the store does not dominate the load %c3_1).
+    affine.store %c4, %alloca[0] : memref<1xi32>
+    %arr = affine.load %arg0[0] : memref<?xi32>
+    %add = arith.addi %arr, %c3_1 : i32
+    affine.store %add, %arg0[0] : memref<?xi32>
+  }
+  return
 }
 }
 

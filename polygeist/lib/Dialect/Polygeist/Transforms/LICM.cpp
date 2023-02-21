@@ -39,8 +39,9 @@ class OperationSideEffects {
                                        const OperationSideEffects &);
 
 public:
-  OperationSideEffects(const Operation &op, const AliasAnalysis &aliasAnalysis)
-      : op(op), aliasAnalysis(aliasAnalysis) {
+  OperationSideEffects(const Operation &op, const AliasAnalysis &aliasAnalysis,
+                       const DominanceInfo &domInfo)
+      : op(op), aliasAnalysis(aliasAnalysis), domInfo(domInfo) {
     if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
       SmallVector<MemoryEffects::EffectInstance, 1> effects;
       memEffect.getEffects(effects);
@@ -103,6 +104,8 @@ public:
 private:
   const Operation &op; /// Operation associated with the side effects.
   const AliasAnalysis &aliasAnalysis; /// Alias Analysis reference.
+  const DominanceInfo &domInfo;       /// Dominance information reference.
+
   /// Side effects associated with reading resources.
   SmallVector<MemoryEffects::EffectInstance> readResources;
   /// Side effects associated with writing resources.
@@ -293,7 +296,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
   // If the given operation has side effects, check whether they conflict with
   // the side effects summarized in this class.
   if (auto MEI = dyn_cast<MemoryEffectOpInterface>(other)) {
-    OperationSideEffects sideEffects(other, aliasAnalysis);
+    OperationSideEffects sideEffects(other, aliasAnalysis, domInfo);
 
     // Checks for a conflicts on the given resource 'res' by applying the
     // supplied predicate function 'hasConflict'.
@@ -313,15 +316,15 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
     [[maybe_unused]] auto printConflictingSideEffects =
         [](const MemoryEffects::EffectInstance &EI, AliasResult aliasRes,
            const Operation &other) {
-          llvm::dbgs() << "Found conflicting side effect: {"
-                       << EI.getResource()->getName() << ", " << EI.getValue()
-                       << "}\n";
-          llvm::dbgs().indent(2) << "with: " << other << "\n";
-          llvm::dbgs().indent(2) << "aliasResult: " << aliasRes << "\n";
+          llvm::dbgs().indent(2)
+              << "found conflicting side effect: {"
+              << EI.getResource()->getName() << ", " << EI.getValue() << "}\n";
+          llvm::dbgs().indent(4) << "with: " << other << "\n";
+          llvm::dbgs().indent(4) << "aliasResult: " << aliasRes << "\n";
         };
 
-    // Check whether the given operation 'other' writes (or allocates, or frees)
-    // a resource that is read by the operation associated with this class.
+    // Check whether the given operation 'other' allocates, writes, or frees a
+    // resource that is read by the operation associated with this class.
     if (llvm::any_of(
             readResources, [&](const MemoryEffects::EffectInstance &readRes) {
               auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
@@ -346,21 +349,35 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
     // Check whether the given operation 'other' allocates, reads, writes or
     // frees a resource that is written by the operation associated with this
     // class.
-    if (llvm::any_of(
-            writeResources, [&](const MemoryEffects::EffectInstance &writeRes) {
-              auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
-                AliasResult aliasRes =
-                    const_cast<AliasAnalysis &>(aliasAnalysis)
-                        .alias(EI.getValue(), writeRes.getValue());
-                if (aliasRes.isNo())
-                  return false;
+    if (llvm::any_of(writeResources, [&](const MemoryEffects::EffectInstance
+                                             &writeRes) {
+          auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
+            AliasResult aliasRes =
+                const_cast<AliasAnalysis &>(aliasAnalysis)
+                    .alias(EI.getValue(), writeRes.getValue());
+            if (aliasRes.isNo())
+              return false;
 
-                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
-                return true;
-              };
+            // An aliased read operation doesn't prevent hoisting if it is
+            // dominated by the write operation.
+            if (isa<MemoryEffects::Read>(EI.getEffect()) &&
+                domInfo.dominates(const_cast<Operation *>(&op),
+                                  const_cast<Operation *>(&other))) {
+              LLVM_DEBUG({
+                printConflictingSideEffects(EI, aliasRes, other);
+                llvm::dbgs().indent(2)
+                    << "can be hoisted: aliased write operation dominates the "
+                       "read operation\n";
+              });
+              return false;
+            }
 
-              return checkForConflict(writeRes.getResource(), hasConflict);
-            })) {
+            LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
+            return true;
+          };
+
+          return checkForConflict(writeRes.getResource(), hasConflict);
+        })) {
       return true;
     }
 
@@ -683,8 +700,9 @@ AffineIfOp AffineParallelGuardBuilder::createGuard() const {
 /// conflicts in the loop are given in \p willBeMoved.
 static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
-                               const AliasAnalysis &aliasAnalysis) {
-  const OperationSideEffects sideEffects(op, aliasAnalysis);
+                               const AliasAnalysis &aliasAnalysis,
+                               const DominanceInfo &domInfo) {
+  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
 
   Optional<Operation *> conflictingOp =
       TypeSwitch<Operation *, Optional<Operation *>>((Operation *)loop)
@@ -704,13 +722,15 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   if (conflictingOp.has_value()) {
     if (!willBeMoved.count(*conflictingOp))
       return true;
-    LLVM_DEBUG(llvm::dbgs() << "OK: related operation will be hoisted\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "can be hoisted: conflicting operation will be hoisted\n");
   }
 
   // Check whether the parent operation has conflicts on the loop.
   if (op.getParentOp() == loop)
     return false;
-  if (hasConflictsInLoop(*op.getParentOp(), loop, willBeMoved, aliasAnalysis))
+  if (hasConflictsInLoop(*op.getParentOp(), loop, willBeMoved, aliasAnalysis,
+                         domInfo))
     return true;
 
   // If the parent operation is not guaranteed to execute its
@@ -736,7 +756,8 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
 /// to be loop invariant (and therefore will be moved outside of the loop).
 static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
                          const SmallPtrSetImpl<Operation *> &willBeMoved,
-                         const AliasAnalysis &aliasAnalysis) {
+                         const AliasAnalysis &aliasAnalysis,
+                         const DominanceInfo &domInfo) {
   // Returns true if the given value can be moved outside of the loop, and
   // false otherwise. A value cannot be moved outside of the loop if its
   // operands are not defined outside of the loop and cannot themselves be
@@ -783,7 +804,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   }
 
   // Do not hoist operations that allocate a resource.
-  const OperationSideEffects sideEffects(op, aliasAnalysis);
+  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
   if (sideEffects.allocatesResource()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
@@ -799,8 +820,8 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   // loop prevent hosting it.
   if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
        sideEffects.freesResource()) &&
-      hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis)) {
-    LLVM_DEBUG(llvm::dbgs()
+      hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis, domInfo)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
                << "cannot be hoisted: found conflicting operation\n");
     return false;
   }
@@ -814,23 +835,22 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
 
   for (Region &region : op.getRegions()) {
     for (Operation &innerOp : region.getOps()) {
-      if (!canBeHoisted(innerOp, loop, willBeMoved2, aliasAnalysis))
+      if (!canBeHoisted(innerOp, loop, willBeMoved2, aliasAnalysis, domInfo))
         return false;
       willBeMoved2.insert(&innerOp);
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "can be hoisted: no conflicts found\n");
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "can be hoisted: no conflicts found\n");
 
   return true;
 }
 
 // Populate \p opsToMove with operations that can be hoisted out of the given
 // loop \p loop.
-static void
-collectHoistableOperations(LoopLikeOpInterface loop,
-                           const AliasAnalysis &aliasAnalysis,
-                           SmallVectorImpl<Operation *> &opsToMove) {
+static void collectHoistableOperations(
+    LoopLikeOpInterface loop, const AliasAnalysis &aliasAnalysis,
+    const DominanceInfo &domInfo, SmallVectorImpl<Operation *> &opsToMove) {
   // Do not use walk here, as we do not want to go into nested regions and
   // hoist operations from there. These regions might have semantics unknown
   // to this rewriting. If the nested regions are loops, they will have been
@@ -838,7 +858,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   SmallPtrSet<Operation *, 8> willBeMoved;
   for (Block &block : loop.getLoopBody()) {
     for (Operation &op : block.without_terminator()) {
-      if (!canBeHoisted(op, loop, willBeMoved, aliasAnalysis))
+      if (!canBeHoisted(op, loop, willBeMoved, aliasAnalysis, domInfo))
         continue;
       opsToMove.push_back(&op);
       willBeMoved.insert(&op);
@@ -847,13 +867,14 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
-                                    const AliasAnalysis &aliasAnalysis) {
+                                    const AliasAnalysis &aliasAnalysis,
+                                    const DominanceInfo &domInfo) {
   Operation *loopOp = loop;
   if (!isa<scf::ForOp, scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
     return 0;
 
   SmallVector<Operation *, 8> opsToMove;
-  collectHoistableOperations(loop, aliasAnalysis, opsToMove);
+  collectHoistableOperations(loop, aliasAnalysis, domInfo, opsToMove);
   if (opsToMove.empty())
     return 0;
 
@@ -870,6 +891,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
 
 void LICM::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
 
   [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
     Operation *parentOp = loop;
@@ -905,7 +927,7 @@ void LICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo);
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({
