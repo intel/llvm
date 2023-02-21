@@ -596,7 +596,11 @@ def make_etor_lines(namespace, tags, obj, py=False, meta=None):
             prologue = ""
 
     if not py:
-        lines.append("%sFORCE_UINT32 = 0x7fffffff"%make_enum_name(namespace, tags, obj)[:-1].upper())
+        lines += [
+            "/// @cond",
+            "%sFORCE_UINT32 = 0x7fffffff"%make_enum_name(namespace, tags, obj)[:-1].upper(),
+            "/// @endcond",
+        ]
 
     return lines
 

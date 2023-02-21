@@ -218,7 +218,9 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_ADAPTER_SPECIFIC = 68,                ///< An adapter specific warning/error has been reported and can be
                                                           ///< retrieved via the urGetLastResult entry point.
     UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                 ///< Unknown or internal error
+    /// @cond
     UR_RESULT_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_result_t;
 
@@ -226,7 +228,9 @@ typedef enum ur_result_t {
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_IMAGE_DESC = 0, ///< ::ur_image_desc_t
+    /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_structure_type_t;
 
@@ -343,7 +347,9 @@ typedef enum ur_context_info_t {
                                               ///< supported.
     UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT = 5, ///< [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
                                               ///< supported.
+    /// @cond
     UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_context_info_t;
 
@@ -1115,7 +1121,9 @@ typedef uint32_t ur_map_flags_t;
 typedef enum ur_map_flag_t {
     UR_MAP_FLAG_READ = UR_BIT(0),  ///< Map for read access
     UR_MAP_FLAG_WRITE = UR_BIT(1), ///< Map for write access
+    /// @cond
     UR_MAP_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_map_flag_t;
 
@@ -1124,7 +1132,9 @@ typedef enum ur_map_flag_t {
 typedef uint32_t ur_usm_migration_flags_t;
 typedef enum ur_usm_migration_flag_t {
     UR_USM_MIGRATION_FLAG_DEFAULT = UR_BIT(0), ///< Default migration TODO: Add more enums!
+    /// @cond
     UR_USM_MIGRATION_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_usm_migration_flag_t;
 
@@ -1335,7 +1345,9 @@ urEnqueueUSMPrefetch(
 /// @brief USM memory advice
 typedef enum ur_mem_advice_t {
     UR_MEM_ADVICE_DEFAULT = 0, ///< The USM memory advice is default
+    /// @cond
     UR_MEM_ADVICE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_mem_advice_t;
 
@@ -1577,7 +1589,9 @@ typedef enum ur_command_t {
     UR_COMMAND_USM_MEMCPY_2D = 23,                ///< Event created by ::urEnqueueUSMMemcpy2D
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 24, ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 25,  ///< Event created by ::urEnqueueDeviceGlobalVariableRead
+    /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_command_t;
 
@@ -1588,7 +1602,9 @@ typedef enum ur_event_status_t {
     UR_EVENT_STATUS_RUNNING = 1,   ///< Command is running
     UR_EVENT_STATUS_SUBMITTED = 2, ///< Command is submitted
     UR_EVENT_STATUS_QUEUED = 3,    ///< Command is queued
+    /// @cond
     UR_EVENT_STATUS_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_event_status_t;
 
@@ -1600,7 +1616,9 @@ typedef enum ur_event_info_t {
     UR_EVENT_INFO_COMMAND_TYPE = 2,             ///< [::ur_command_t] Command type information of an event object
     UR_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3, ///< [::ur_event_status_t] Command execution status of an event object
     UR_EVENT_INFO_REFERENCE_COUNT = 4,          ///< [uint32_t] Reference count of an event object
+    /// @cond
     UR_EVENT_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_event_info_t;
 
@@ -1615,7 +1633,9 @@ typedef enum ur_profiling_info_t {
                                           ///< starts execution
     UR_PROFILING_INFO_COMMAND_END = 3,    ///< A 64-bit value of current device counter in nanoseconds when the event
                                           ///< has finished execution
+    /// @cond
     UR_PROFILING_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_profiling_info_t;
 
@@ -1805,7 +1825,9 @@ typedef enum ur_execution_info_t {
     UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device.
     UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED = 3,    ///< Indicates that the event has been queued, this is the initial state of
                                                     ///< events.
+    /// @cond
     UR_EXECUTION_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_execution_info_t;
 
@@ -1866,7 +1888,9 @@ typedef enum ur_mem_flag_t {
                                                      ///< the memory object
     UR_MEM_FLAG_ALLOC_HOST_POINTER = UR_BIT(4),      ///< Allocate memory object from host accessible memory
     UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER = UR_BIT(5), ///< Allocate memory and copy the data from host pointer pointed memory
+    /// @cond
     UR_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_mem_flag_t;
 
@@ -1880,7 +1904,9 @@ typedef enum ur_mem_type_t {
     UR_MEM_TYPE_IMAGE1D = 4,        ///< 1D image object
     UR_MEM_TYPE_IMAGE1D_ARRAY = 5,  ///< 1D image array object
     UR_MEM_TYPE_IMAGE1D_BUFFER = 6, ///< 1D image buffer object
+    /// @cond
     UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_mem_type_t;
 
@@ -1889,7 +1915,9 @@ typedef enum ur_mem_type_t {
 typedef enum ur_mem_info_t {
     UR_MEM_INFO_SIZE = 0,    ///< size_t: actual size of of memory object in bytes
     UR_MEM_INFO_CONTEXT = 1, ///< ::ur_context_handle_t: context in which the memory object was created
+    /// @cond
     UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_mem_info_t;
 
@@ -1910,7 +1938,9 @@ typedef enum ur_image_channel_order_t {
     UR_IMAGE_CHANNEL_ORDER_RGX = 11,      ///< channel order RGx
     UR_IMAGE_CHANNEL_ORDER_RGBX = 12,     ///< channel order RGBx
     UR_IMAGE_CHANNEL_ORDER_SRGBA = 13,    ///< channel order sRGBA
+    /// @cond
     UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_image_channel_order_t;
 
@@ -1932,7 +1962,9 @@ typedef enum ur_image_channel_type_t {
     UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32 = 12, ///< channel type unsigned int32
     UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT = 13,     ///< channel type half float
     UR_IMAGE_CHANNEL_TYPE_FLOAT = 14,          ///< channel type float
+    /// @cond
     UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_image_channel_type_t;
 
@@ -1946,7 +1978,9 @@ typedef enum ur_image_info_t {
     UR_IMAGE_INFO_WIDTH = 4,        ///< size_t: image width
     UR_IMAGE_INFO_HEIGHT = 5,       ///< size_t: image height
     UR_IMAGE_INFO_DEPTH = 6,        ///< size_t: image depth
+    /// @cond
     UR_IMAGE_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_image_info_t;
 
@@ -2105,7 +2139,9 @@ typedef struct ur_buffer_region_t {
 /// @brief Buffer creation type
 typedef enum ur_buffer_create_type_t {
     UR_BUFFER_CREATE_TYPE_REGION = 0, ///< buffer create type is region
+    /// @cond
     UR_BUFFER_CREATE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_buffer_create_type_t;
 
@@ -2293,7 +2329,9 @@ typedef enum ur_queue_info_t {
     UR_QUEUE_INFO_PROPERTIES = 3,      ///< Queue properties info
     UR_QUEUE_INFO_REFERENCE_COUNT = 4, ///< Queue reference count
     UR_QUEUE_INFO_SIZE = 5,            ///< Queue size info
+    /// @cond
     UR_QUEUE_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_queue_info_t;
 
@@ -2308,7 +2346,9 @@ typedef enum ur_queue_flag_t {
     UR_QUEUE_FLAG_DISCARD_EVENTS = UR_BIT(4),                ///< Events will be discarded
     UR_QUEUE_FLAG_PRIORITY_LOW = UR_BIT(5),                  ///< Low priority queue
     UR_QUEUE_FLAG_PRIORITY_HIGH = UR_BIT(6),                 ///< High priority queue
+    /// @cond
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_queue_flag_t;
 
@@ -2321,7 +2361,9 @@ typedef intptr_t ur_queue_property_t;
 typedef enum ur_queue_properties_t {
     UR_QUEUE_PROPERTIES_FLAGS = -1,         ///< [::ur_queue_flags_t]: the bitfield of queue flags
     UR_QUEUE_PROPERTIES_COMPUTE_INDEX = -2, ///< [uint32_t]: the queue index
+    /// @cond
     UR_QUEUE_PROPERTIES_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_queue_properties_t;
 
@@ -2566,7 +2608,9 @@ typedef enum ur_sampler_info_t {
     UR_SAMPLER_INFO_MIP_FILTER_MODE = 5,   ///< Sampler MIP filter mode setting
     UR_SAMPLER_INFO_LOD_MIN = 6,           ///< Sampler LOD Min value
     UR_SAMPLER_INFO_LOD_MAX = 7,           ///< Sampler LOD Max value
+    /// @cond
     UR_SAMPLER_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_sampler_info_t;
 
@@ -2576,7 +2620,9 @@ typedef enum ur_sampler_properties_t {
     UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0, ///< Sampler normalized coordinates
     UR_SAMPLER_PROPERTIES_ADDRESSING_MODE = 1,   ///< Sampler addressing mode
     UR_SAMPLER_PROPERTIES_FILTER_MODE = 2,       ///< Sampler filter mode
+    /// @cond
     UR_SAMPLER_PROPERTIES_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_sampler_properties_t;
 
@@ -2592,7 +2638,9 @@ typedef enum ur_sampler_addressing_mode_t {
     UR_SAMPLER_ADDRESSING_MODE_CLAMP = 2,           ///< Clamp
     UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 3,   ///< Clamp to edge
     UR_SAMPLER_ADDRESSING_MODE_NONE = 4,            ///< None
+    /// @cond
     UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_sampler_addressing_mode_t;
 
@@ -2769,7 +2817,9 @@ urSamplerCreateWithNativeHandle(
 typedef uint32_t ur_usm_mem_flags_t;
 typedef enum ur_usm_mem_flag_t {
     UR_USM_MEM_FLAG_ALLOC_FLAGS_INTEL = UR_BIT(0), ///< The USM memory allocation is from Intel USM
+    /// @cond
     UR_USM_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_usm_mem_flag_t;
 
@@ -2780,7 +2830,9 @@ typedef enum ur_usm_type_t {
     UR_USM_TYPE_HOST = 1,   ///< Host USM type
     UR_USM_TYPE_DEVICE = 2, ///< Device USM type
     UR_USM_TYPE_SHARED = 3, ///< Shared USM type
+    /// @cond
     UR_USM_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_usm_type_t;
 
@@ -2791,7 +2843,9 @@ typedef enum ur_usm_alloc_info_t {
     UR_USM_ALLOC_INFO_BASE_PTR = 1, ///< Memory allocation base pointer info
     UR_USM_ALLOC_INFO_SIZE = 2,     ///< Memory allocation size info
     UR_USM_ALLOC_INFO_DEVICE = 3,   ///< Memory allocation device info
+    /// @cond
     UR_USM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_usm_alloc_info_t;
 
@@ -2940,7 +2994,9 @@ typedef enum ur_device_type_t {
     UR_DEVICE_TYPE_FPGA = 5,    ///< Field Programmable Gate Array
     UR_DEVICE_TYPE_MCA = 6,     ///< Memory Copy Accelerator
     UR_DEVICE_TYPE_VPU = 7,     ///< Vision Processing Unit
+    /// @cond
     UR_DEVICE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_type_t;
 
@@ -3107,7 +3163,9 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 100,             ///< uint32_t: Returns 1 if the device doesn't have a notion of a
                                                                 ///< queue index. Otherwise, returns the number of queue indices that are
                                                                 ///< available for this device.
+    /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_info_t;
 
@@ -3205,7 +3263,9 @@ typedef enum ur_device_partition_t {
     UR_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0,    ///< End of by counts list
     UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088, ///< Partition by affinity domain
     UR_DEVICE_PARTITION_BY_CSLICE = 0x1089,          ///< Partition by c-slice
+    /// @cond
     UR_DEVICE_PARTITION_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_partition_t;
 
@@ -3293,7 +3353,9 @@ typedef enum ur_fp_capability_flag_t {
     UR_FP_CAPABILITY_FLAG_INF_NAN = UR_BIT(4),                       ///< Support INF to NAN
     UR_FP_CAPABILITY_FLAG_DENORM = UR_BIT(5),                        ///< Support denorm
     UR_FP_CAPABILITY_FLAG_FMA = UR_BIT(6),                           ///< Support FMA
+    /// @cond
     UR_FP_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_fp_capability_flag_t;
 
@@ -3303,7 +3365,9 @@ typedef enum ur_device_mem_cache_type_t {
     UR_DEVICE_MEM_CACHE_TYPE_NONE = 0,             ///< Has none cache
     UR_DEVICE_MEM_CACHE_TYPE_READ_ONLY_CACHE = 1,  ///< Has read only cache
     UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE = 2, ///< Has read write cache
+    /// @cond
     UR_DEVICE_MEM_CACHE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_mem_cache_type_t;
 
@@ -3312,7 +3376,9 @@ typedef enum ur_device_mem_cache_type_t {
 typedef enum ur_device_local_mem_type_t {
     UR_DEVICE_LOCAL_MEM_TYPE_LOCAL = 0,  ///< Dedicated local memory
     UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL = 1, ///< Global memory
+    /// @cond
     UR_DEVICE_LOCAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_local_mem_type_t;
 
@@ -3322,7 +3388,9 @@ typedef uint32_t ur_device_exec_capability_flags_t;
 typedef enum ur_device_exec_capability_flag_t {
     UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL = UR_BIT(0),        ///< Support kernel execution
     UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL = UR_BIT(1), ///< Support native kernel execution
+    /// @cond
     UR_DEVICE_EXEC_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_exec_capability_flag_t;
 
@@ -3332,7 +3400,9 @@ typedef uint32_t ur_device_affinity_domain_flags_t;
 typedef enum ur_device_affinity_domain_flag_t {
     UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA = UR_BIT(0),               ///< By NUMA
     UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE = UR_BIT(1), ///< BY next partitionable
+    /// @cond
     UR_DEVICE_AFFINITY_DOMAIN_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_affinity_domain_flag_t;
 
@@ -3423,7 +3493,9 @@ typedef enum ur_memory_order_capability_flag_t {
     UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE = UR_BIT(2), ///< Release memory ordering
     UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL = UR_BIT(3), ///< Acquire/release memory ordering
     UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST = UR_BIT(4), ///< Sequentially consistent memory ordering
+    /// @cond
     UR_MEMORY_ORDER_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_memory_order_capability_flag_t;
 
@@ -3436,7 +3508,9 @@ typedef enum ur_memory_scope_capability_flag_t {
     UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP = UR_BIT(2), ///< Work group scope
     UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE = UR_BIT(3),     ///< Device scope
     UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM = UR_BIT(4),     ///< System scope
+    /// @cond
     UR_MEMORY_SCOPE_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_memory_scope_capability_flag_t;
 
@@ -3530,7 +3604,9 @@ typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_CONTEXT = 3,         ///< Return Context object associated with Kernel
     UR_KERNEL_INFO_PROGRAM = 4,         ///< Return Program object associated with Kernel
     UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< Return Kernel attributes, return type char[]
+    /// @cond
     UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_kernel_info_t;
 
@@ -3546,7 +3622,9 @@ typedef enum ur_kernel_group_info_t {
                                                                  ///< size_t
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< Return minimum amount of private memory in bytes used by each work
                                                                  ///< item in the Kernel, return type size_t
+    /// @cond
     UR_KERNEL_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_kernel_group_info_t;
 
@@ -3558,7 +3636,9 @@ typedef enum ur_kernel_sub_group_info_t {
     UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS = 2, ///< Return number of SubGroup required by the source code, return type
                                                          ///< uint32_t
     UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL = 3,   ///< Return SubGroup size required by Intel, return type uint32_t
+    /// @cond
     UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_kernel_sub_group_info_t;
 
@@ -3568,7 +3648,9 @@ typedef enum ur_kernel_exec_info_t {
     UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS = 0, ///< Kernel might access data through USM pointer, type bool_t*
     UR_KERNEL_EXEC_INFO_USM_PTRS = 1,            ///< Provide an explicit list of USM pointers that the kernel will access,
                                                  ///< type void*[].
+    /// @cond
     UR_KERNEL_EXEC_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_kernel_exec_info_t;
 
@@ -4043,7 +4125,9 @@ typedef enum ur_platform_info_t {
                                       ///< size of the info needs to be dynamically queried.
     UR_PLATFORM_INFO_PROFILE = 5,     ///< [char*] The string denoting profile of the platform. The size of the
                                       ///< info needs to be dynamically queried.
+    /// @cond
     UR_PLATFORM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_platform_info_t;
 
@@ -4087,7 +4171,9 @@ urPlatformGetInfo(
 typedef enum ur_api_version_t {
     UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),     ///< version 0.9
     UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 9), ///< latest known version
+    /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_api_version_t;
 
@@ -4357,7 +4443,9 @@ typedef enum ur_program_info_t {
     UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< Number of kernels in Program, return type size_t
     UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< Return a semi-colon separated list of kernel names in Program, return
                                          ///< type char[]
+    /// @cond
     UR_PROGRAM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_program_info_t;
 
@@ -4396,7 +4484,9 @@ typedef enum ur_program_build_status_t {
     UR_PROGRAM_BUILD_STATUS_ERROR = 1,       ///< Program build error
     UR_PROGRAM_BUILD_STATUS_SUCCESS = 2,     ///< Program build success
     UR_PROGRAM_BUILD_STATUS_IN_PROGRESS = 3, ///< Program build in progress
+    /// @cond
     UR_PROGRAM_BUILD_STATUS_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_program_build_status_t;
 
@@ -4407,7 +4497,9 @@ typedef enum ur_program_binary_type_t {
     UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT = 1, ///< Program binary is compiled object
     UR_PROGRAM_BINARY_TYPE_LIBRARY = 2,         ///< Program binary is library object
     UR_PROGRAM_BINARY_TYPE_EXECUTABLE = 3,      ///< Program binary is executable
+    /// @cond
     UR_PROGRAM_BINARY_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_program_binary_type_t;
 
@@ -4418,7 +4510,9 @@ typedef enum ur_program_build_info_t {
     UR_PROGRAM_BUILD_INFO_OPTIONS = 1,     ///< Program build options, return type char[]
     UR_PROGRAM_BUILD_INFO_LOG = 2,         ///< Program build log, return type char[]
     UR_PROGRAM_BUILD_INFO_BINARY_TYPE = 3, ///< Program binary type, return type ::ur_program_binary_type_t
+    /// @cond
     UR_PROGRAM_BUILD_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_program_build_info_t;
 
@@ -4534,7 +4628,9 @@ urProgramCreateWithNativeHandle(
 typedef uint32_t ur_device_init_flags_t;
 typedef enum ur_device_init_flag_t {
     UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0), ///< initialize GPU device drivers
+    /// @cond
     UR_DEVICE_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
 
 } ur_device_init_flag_t;
 
