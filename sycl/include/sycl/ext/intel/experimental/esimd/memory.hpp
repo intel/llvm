@@ -595,8 +595,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -614,7 +614,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
-  using LoadElemT = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using LoadElemT =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
 
@@ -676,8 +678,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -695,7 +697,10 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
-  using LoadElemT = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using LoadElemT =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
 
@@ -760,8 +765,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -777,7 +782,10 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using LoadElemT =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _VS = detail::to_lsc_vector_size<FactoredNElts>();
@@ -841,8 +849,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -858,7 +866,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using LoadElemT =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _VS = detail::to_lsc_vector_size<FactoredNElts>();
@@ -1300,8 +1310,8 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1318,7 +1328,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
 
-  using StoreType = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using StoreType =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
 
   __esimd_lsc_store_stateless<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
                               ActualDS, _VS, _Transposed, N>(
@@ -1380,8 +1392,8 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
+                         (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1398,7 +1410,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
 
-  using StoreType = std::conditional_t<Use64BitData, uint64_t, uint32_t>;
+  using StoreType =
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
 
   __esimd_lsc_store_bti<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
                         ActualDS, _VS, _Transposed, N>(
