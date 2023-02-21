@@ -10,6 +10,23 @@ type: header
 desc: "Intel $OneApi Unified Runtime APIs for Context"
 ordinal: "3"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Context property type"
+name: $x_context_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Context creation properties"
+class: $xProgram
+name: $x_context_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_context_flags_t
+      name: flags
+      desc: "[in] context creation flags."
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Creates a context with the given devices."
 class: $xContext
@@ -34,6 +51,10 @@ params:
       name: phDevices
       desc: |
             [in][range(0, DeviceCount)] array of handle of devices.
+    - type: const $x_context_properties_t*
+      name: pProperties
+      desc: |
+            [in][optional] pointer to context creation properties.
     - type: $x_context_handle_t*
       name: phContext
       desc: "[out] pointer to handle of context object created"

@@ -408,16 +408,17 @@ urDeviceGetGlobalTimestamps(
 /// @brief Intercept function for urContextCreate
 __urdlllocal ur_result_t UR_APICALL
 urContextCreate(
-    uint32_t DeviceCount,                ///< [in] the number of devices given in phDevices
-    const ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
-    ur_context_handle_t *phContext       ///< [out] pointer to handle of context object created
+    uint32_t DeviceCount,                       ///< [in] the number of devices given in phDevices
+    const ur_device_handle_t *phDevices,        ///< [in][range(0, DeviceCount)] array of handle of devices.
+    const ur_context_properties_t *pProperties, ///< [in][optional] pointer to context creation properties.
+    ur_context_handle_t *phContext              ///< [out] pointer to handle of context object created
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnCreate = d_context.urDdiTable.Context.pfnCreate;
     if (nullptr != pfnCreate) {
-        result = pfnCreate(DeviceCount, phDevices, phContext);
+        result = pfnCreate(DeviceCount, phDevices, pProperties, phContext);
     } else {
         // generic implementation
         *phContext = reinterpret_cast<ur_context_handle_t>(d_context.get());

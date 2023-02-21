@@ -155,7 +155,7 @@ events, and programs are explicitly created against a context. A trivial work wi
 
     // Create a context
     ${x}_context_handle_t hContext;
-    ${x}ContextCreate(1, &hDevice, &hContext);
+    ${x}ContextCreate(1, &hDevice, nullptr, &hContext);
 
     // Operations on this context
     // ...

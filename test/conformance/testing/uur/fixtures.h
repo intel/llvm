@@ -122,7 +122,7 @@ struct urDeviceTestWithParam
 struct urContextTest : urDeviceTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTest::SetUp());
-        ASSERT_SUCCESS(urContextCreate(1, &device, &context));
+        ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
         ASSERT_NE(context, nullptr);
     }
 
@@ -169,7 +169,7 @@ template <class T>
 struct urContextTestWithParam : urDeviceTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urContextCreate(1, &this->device, &context));
+        ASSERT_SUCCESS(urContextCreate(1, &this->device, nullptr, &context));
     }
 
     void TearDown() override {
@@ -261,7 +261,7 @@ struct urMultiDeviceContextTest : urPlatformTest {
             GTEST_SKIP();
         }
         ASSERT_SUCCESS(urContextCreate(static_cast<uint32_t>(devices.size()),
-                                       devices.data(), &context));
+                                       devices.data(), nullptr, &context));
     }
 
     void TearDown() override {

@@ -228,11 +228,12 @@ typedef enum ur_result_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 0,           ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 1,   ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 2,             ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 3,        ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 4, ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,   ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,           ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 2,   ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 3,             ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 4,        ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 5, ///< ::ur_usm_pool_limits_desc_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1089,6 +1090,27 @@ typedef enum ur_memory_scope_capability_flag_t {
 #pragma region context
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Context property type
+typedef uint32_t ur_context_flags_t;
+typedef enum ur_context_flag_t {
+    UR_CONTEXT_FLAG_TBD = UR_BIT(0), ///< reserved for future use
+    /// @cond
+    UR_CONTEXT_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_context_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Context creation properties
+typedef struct ur_context_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    ur_context_flags_t flags;  ///< [in] context creation flags.
+
+} ur_context_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Creates a context with the given devices.
 ///
 /// @details
@@ -1117,9 +1139,10 @@ typedef enum ur_memory_scope_capability_flag_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(
-    uint32_t DeviceCount,                ///< [in] the number of devices given in phDevices
-    const ur_device_handle_t *phDevices, ///< [in][range(0, DeviceCount)] array of handle of devices.
-    ur_context_handle_t *phContext       ///< [out] pointer to handle of context object created
+    uint32_t DeviceCount,                       ///< [in] the number of devices given in phDevices
+    const ur_device_handle_t *phDevices,        ///< [in][range(0, DeviceCount)] array of handle of devices.
+    const ur_context_properties_t *pProperties, ///< [in][optional] pointer to context creation properties.
+    ur_context_handle_t *phContext              ///< [out] pointer to handle of context object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1434,7 +1457,7 @@ typedef struct ur_image_format_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image descriptor type.
 typedef struct ur_image_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure
+    ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_mem_type_t type;        ///< [in] memory object type
     size_t width;              ///< [in] image width
@@ -2035,7 +2058,7 @@ typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation descriptor type
 typedef struct ur_usm_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure
+    ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_usm_mem_flags_t flags;  ///< [in] memory allocation flags
     ur_mem_advice_t hints;     ///< [in] Memory advice hints
@@ -2045,7 +2068,7 @@ typedef struct ur_usm_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool descriptor type
 typedef struct ur_usm_pool_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure
+    ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_usm_pool_flags_t flags; ///< [in] memory allocation flags
 
@@ -2054,7 +2077,8 @@ typedef struct ur_usm_pool_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool limits descriptor type
 typedef struct ur_usm_pool_limits_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     size_t maxPoolSize;        ///< [in] Maximum size of a memory pool
     size_t maxPoolableSize;    ///< [in] Allocations up to this limit will be subject to pooling
@@ -2482,7 +2506,8 @@ typedef struct ur_program_metadata_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program creation properties.
 typedef struct ur_program_properties_t {
-    ur_structure_type_t stype;               ///< [in] type of this structure
+    ur_structure_type_t stype;               ///< [in] type of this structure, must be
+                                             ///< ::UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES
     void *pNext;                             ///< [in,out][optional] pointer to extension-specific structure
     uint32_t count;                          ///< [in] the number of entries in pMetadatas, if count is greater than
                                              ///< zero then pMetadatas must not be null.
@@ -5087,6 +5112,7 @@ typedef struct ur_platform_callbacks_t {
 typedef struct ur_context_create_params_t {
     uint32_t *pDeviceCount;
     const ur_device_handle_t **pphDevices;
+    const ur_context_properties_t **ppProperties;
     ur_context_handle_t **pphContext;
 } ur_context_create_params_t;
 
