@@ -5133,6 +5133,10 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::RvvBool64:
       break;
 
+    // WebAssembly builtin types.
+    case clang::BuiltinType::WasmExternRef:
+      break;
+
     case clang::BuiltinType::IncompleteMatrixIdx:
       break;
     }

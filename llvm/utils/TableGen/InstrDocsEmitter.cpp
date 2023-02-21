@@ -28,18 +28,17 @@
 
 using namespace llvm;
 
-namespace llvm {
-
-void writeTitle(StringRef Str, raw_ostream &OS, char Kind = '-') {
-  OS << std::string(Str.size(), Kind) << "\n" << Str << "\n"
+static void writeTitle(StringRef Str, raw_ostream &OS, char Kind = '-') {
+  OS << std::string(Str.size(), Kind) << "\n"
+     << Str << "\n"
      << std::string(Str.size(), Kind) << "\n";
 }
 
-void writeHeader(StringRef Str, raw_ostream &OS, char Kind = '-') {
+static void writeHeader(StringRef Str, raw_ostream &OS, char Kind = '-') {
   OS << Str << "\n" << std::string(Str.size(), Kind) << "\n";
 }
 
-std::string escapeForRST(StringRef Str) {
+static std::string escapeForRST(StringRef Str) {
   std::string Result;
   Result.reserve(Str.size() + 4);
   for (char C : Str) {
@@ -54,6 +53,8 @@ std::string escapeForRST(StringRef Str) {
   }
   return Result;
 }
+
+namespace llvm {
 
 void EmitInstrDocs(RecordKeeper &RK, raw_ostream &OS) {
   CodeGenDAGPatterns CDP(RK);

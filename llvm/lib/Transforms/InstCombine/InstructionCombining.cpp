@@ -3237,10 +3237,10 @@ Instruction *InstCombinerImpl::visitSwitchInst(SwitchInst &SI) {
   // Compute the number of leading bits we can ignore.
   // TODO: A better way to determine this would use ComputeNumSignBits().
   for (const auto &C : SI.cases()) {
-    LeadingKnownZeros = std::min(
-        LeadingKnownZeros, C.getCaseValue()->getValue().countLeadingZeros());
-    LeadingKnownOnes = std::min(
-        LeadingKnownOnes, C.getCaseValue()->getValue().countLeadingOnes());
+    LeadingKnownZeros =
+        std::min(LeadingKnownZeros, C.getCaseValue()->getValue().countl_zero());
+    LeadingKnownOnes =
+        std::min(LeadingKnownOnes, C.getCaseValue()->getValue().countl_one());
   }
 
   unsigned NewWidth = Known.getBitWidth() - std::max(LeadingKnownZeros, LeadingKnownOnes);
@@ -4220,23 +4220,6 @@ bool InstCombinerImpl::run() {
 
     if (!DebugCounter::shouldExecute(VisitCounter))
       continue;
-
-    // Instruction isn't dead, see if we can constant propagate it.
-    if (!I->use_empty() &&
-        (I->getNumOperands() == 0 || isa<Constant>(I->getOperand(0)))) {
-      if (Constant *C = ConstantFoldInstruction(I, DL, &TLI)) {
-        LLVM_DEBUG(dbgs() << "IC: ConstFold to: " << *C << " from: " << *I
-                          << '\n');
-
-        // Add operands to the worklist.
-        replaceInstUsesWith(*I, C);
-        ++NumConstProp;
-        if (isInstructionTriviallyDead(I, &TLI))
-          eraseInstFromFunction(*I);
-        MadeIRChange = true;
-        continue;
-      }
-    }
 
     // See if we can trivially sink this instruction to its user if we can
     // prove that the successor is not executed more frequently than our block.

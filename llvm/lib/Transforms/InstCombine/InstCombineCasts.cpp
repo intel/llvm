@@ -308,6 +308,10 @@ Instruction *InstCombinerImpl::commonCastTransforms(CastInst &CI) {
   Value *Src = CI.getOperand(0);
   Type *Ty = CI.getType();
 
+  if (auto *SrcC = dyn_cast<Constant>(Src))
+    if (Constant *Res = ConstantFoldCastOperand(CI.getOpcode(), SrcC, Ty, DL))
+      return replaceInstUsesWith(CI, Res);
+
   // Try to eliminate a cast of a cast.
   if (auto *CSrc = dyn_cast<CastInst>(Src)) {   // A->B->C cast
     if (Instruction::CastOps NewOpc = isEliminableCastPair(CSrc, &CI)) {
@@ -1433,7 +1437,7 @@ Instruction *InstCombinerImpl::transformSExtICmp(ICmpInst *Cmp,
         if (!Op1C->isZero() == (Pred == ICmpInst::ICMP_NE)) {
           // sext ((x & 2^n) == 0)   -> (x >> n) - 1
           // sext ((x & 2^n) != 2^n) -> (x >> n) - 1
-          unsigned ShiftAmt = KnownZeroMask.countTrailingZeros();
+          unsigned ShiftAmt = KnownZeroMask.countr_zero();
           // Perform a right shift to place the desired bit in the LSB.
           if (ShiftAmt)
             In = Builder.CreateLShr(In,
@@ -1447,7 +1451,7 @@ Instruction *InstCombinerImpl::transformSExtICmp(ICmpInst *Cmp,
         } else {
           // sext ((x & 2^n) != 0)   -> (x << bitwidth-n) a>> bitwidth-1
           // sext ((x & 2^n) == 2^n) -> (x << bitwidth-n) a>> bitwidth-1
-          unsigned ShiftAmt = KnownZeroMask.countLeadingZeros();
+          unsigned ShiftAmt = KnownZeroMask.countl_zero();
           // Perform a left shift to place the desired bit in the MSB.
           if (ShiftAmt)
             In = Builder.CreateShl(In,

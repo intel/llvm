@@ -1331,10 +1331,6 @@ public:
   /// standard library.
   LazyDeclPtr StdAlignValT;
 
-  /// The C++ "std::experimental" namespace, where the experimental parts
-  /// of the standard library resides.
-  NamespaceDecl *StdExperimentalNamespaceCache;
-
   /// The C++ "std::initializer_list" template, which is defined in
   /// \<initializer_list>.
   ClassTemplateDecl *StdInitializerList;
@@ -1342,10 +1338,6 @@ public:
   /// The C++ "std::coroutine_traits" template, which is defined in
   /// \<coroutine_traits>
   ClassTemplateDecl *StdCoroutineTraitsCache;
-  /// The namespace where coroutine components are defined. In standard,
-  /// they are defined in std namespace. And in the previous implementation,
-  /// they are defined in std::experimental namespace.
-  NamespaceDecl *CoroTraitsNamespaceCache;
 
   /// The C++ "type_info" declaration, which is defined in \<typeinfo>.
   RecordDecl *CXXTypeInfoDecl;
@@ -2557,9 +2549,6 @@ private:
   /// The global module fragment of the current translation unit.
   clang::Module *GlobalModuleFragment = nullptr;
 
-  /// The modules we imported directly.
-  llvm::SmallPtrSet<clang::Module *, 8> DirectModuleImports;
-
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
 
@@ -2575,7 +2564,7 @@ private:
   }
 
   /// Enter the scope of the global module.
-  Module *PushGlobalModuleFragment(SourceLocation BeginLoc, bool IsImplicit);
+  Module *PushGlobalModuleFragment(SourceLocation BeginLoc);
   /// Leave the scope of the global module.
   void PopGlobalModuleFragment();
 
@@ -2608,10 +2597,6 @@ public:
   /// Get the module owning an entity.
   Module *getOwningModule(const Decl *Entity) {
     return Entity->getOwningModule();
-  }
-
-  bool isModuleDirectlyImported(const Module *M) {
-    return DirectModuleImports.contains(M);
   }
 
   // Determine whether the module M belongs to the  current TU.
@@ -6370,9 +6355,6 @@ public:
 
   NamespaceDecl *getStdNamespace() const;
   NamespaceDecl *getOrCreateStdNamespace();
-
-  NamespaceDecl *lookupStdExperimentalNamespace();
-  NamespaceDecl *getCachedCoroNamespace() { return CoroTraitsNamespaceCache; }
 
   CXXRecordDecl *getStdBadAlloc() const;
   EnumDecl *getStdAlignValT() const;
@@ -11327,8 +11309,7 @@ public:
   /// Lookup 'coroutine_traits' in std namespace and std::experimental
   /// namespace. The namespace found is recorded in Namespace.
   ClassTemplateDecl *lookupCoroutineTraits(SourceLocation KwLoc,
-                                           SourceLocation FuncLoc,
-                                           NamespaceDecl *&Namespace);
+                                           SourceLocation FuncLoc);
   /// Check that the expression co_await promise.final_suspend() shall not be
   /// potentially-throwing.
   bool checkFinalSuspendNoThrow(const Stmt *FinalSuspend);
