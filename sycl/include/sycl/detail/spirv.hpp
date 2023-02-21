@@ -518,23 +518,23 @@ struct VecTypeIsProhibitedForShuffleEmulation
 
 template <typename T>
 using EnableIfNativeShuffle =
-    detail::enable_if_t<detail::is_arithmetic<T>::value &&
-                            !VecTypeIsProhibitedForShuffleEmulation<T>::value,
-                        T>;
+    std::enable_if_t<detail::is_arithmetic<T>::value &&
+                         !VecTypeIsProhibitedForShuffleEmulation<T>::value,
+                     T>;
 
 template <typename T>
 using EnableIfVectorShuffle =
-    detail::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
+    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
 
 #else  // ifndef __NVPTX__
 
 template <typename T>
-using EnableIfNativeShuffle = detail::enable_if_t<
+using EnableIfNativeShuffle = std::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
 
 template <typename T>
 using EnableIfVectorShuffle =
-    detail::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+    std::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
 #endif // ifndef __NVPTX__
 
 #ifdef __NVPTX__
