@@ -96,8 +96,8 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
 
   // This just needs to be some symbol in the binary; C++ doesn't
   // allow taking the address of ::main however.
-  void *P = (void *)(intptr_t)GetExecutablePath;
-  return llvm::sys::fs::getMainExecutable(Argv0, P);
+  return llvm::sys::fs::getMainExecutable(
+      Argv0, reinterpret_cast<void *>(GetExecutablePath));
 }
 
 static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
@@ -111,9 +111,8 @@ static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
   llvm::StringSaver Saver(A);
   llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV);
   llvm::StringRef Tool = ArgV[1];
-  void *GetExecutablePathVP =
-      reinterpret_cast<void *>(reinterpret_cast<intptr_t>(GetExecutablePath));
-  auto argv{llvm::ArrayRef(ArgV)};
+  void *GetExecutablePathVP = reinterpret_cast<void *>(GetExecutablePath);
+  llvm::ArrayRef<const char *> argv{ArgV};
 
   if (Tool == "-cc1")
     return cc1_main(argv.slice(1), ArgV[0], GetExecutablePathVP);
@@ -1077,7 +1076,7 @@ int main(int argc, char **argv) {
     for (int I = 0; I < argc; I++)
       Args.push_back(argv[I]);
 
-    llvm::ArrayRef<const char *> Argv{llvm::ArrayRef(Args)};
+    llvm::ArrayRef<const char *> Argv{Args};
     const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
     const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
     unsigned MissingArgIndex, MissingArgCount;
