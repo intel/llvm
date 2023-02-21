@@ -6,6 +6,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
+
 #define TILE_SZ 16
 #define TM (TILE_SZ - 4)
 #define TN (TILE_SZ - 4)
@@ -91,7 +92,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                                N * 4);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           auto wi_data_c = get_wi_data(sg, sub_c);
+           auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
            for (int i = 0; i < wi_data_c.length(); i++) {
              wi_data_c[i] *= 2;
            }
