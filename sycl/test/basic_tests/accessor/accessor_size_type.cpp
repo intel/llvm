@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
 
 #include <sycl/sycl.hpp>
 #include <type_traits>
