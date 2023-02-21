@@ -75,14 +75,19 @@ namespace intel::experimental::matrix {
 
 // Begin wi_element definition
 
-template <typename T, size_t NumRows, size_t NumCols, sycl::ext::oneapi::experimental::matrix::use Use,
-          sycl::ext::oneapi::experimental::matrix::layout Layout = sycl::ext::oneapi::experimental::matrix::layout::dynamic, typename Group = sycl::sub_group>
+template <typename T, size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::use Use,
+          sycl::ext::oneapi::experimental::matrix::layout Layout =
+              sycl::ext::oneapi::experimental::matrix::layout::dynamic,
+          typename Group = sycl::sub_group>
 class wi_element {
-  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, NumRows,
+                                                        NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat,
+  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                 Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator T() {
@@ -152,17 +157,20 @@ public:
 #undef OP
 };
 
-template <size_t NumRows, size_t NumCols, sycl::ext::oneapi::experimental::matrix::use Use, sycl::ext::oneapi::experimental::matrix::layout Layout,
+template <size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::use Use,
+          sycl::ext::oneapi::experimental::matrix::layout Layout,
           typename Group>
 class wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use, Layout,
                  Group> {
-  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols,
-               Layout> &M;
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<
+      Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, sycl::ext::oneapi::bfloat16, Use, NumRows,
-                          NumCols, Layout> &Mat,
+  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                 Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols,
+                 Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator sycl::ext::oneapi::bfloat16() {
@@ -304,28 +312,34 @@ public:
 
 // Begin wi_data definition
 
-template <typename Group, typename T, sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>
+template <typename Group, typename T,
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout>
 class wi_data {
 
-  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows,
+                                                        Cols, Layout> &jm;
 
-  wi_data(sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
+  wi_data(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          Group, T, Use, Rows, Cols, Layout> &_jm)
+      : jm(_jm){};
 
-  template <typename Grp, typename Type, sycl::ext::oneapi::experimental::matrix::use UseJm, size_t NumRows,
-            size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout LayoutJm>
+  template <typename Grp, typename Type,
+            sycl::ext::oneapi::experimental::matrix::use UseJm, size_t NumRows,
+            size_t NumCols,
+            sycl::ext::oneapi::experimental::matrix::layout LayoutJm>
   friend decltype(auto)
-  get_wi_data(Grp,
-              sycl::ext::oneapi::experimental::matrix::joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
+  get_wi_data(Grp, sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                       Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
 
 public:
   size_t length() {
-    #if __SYCL_DEVICE_ONLY__
-      return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
-    #else
-      throw runtime_error("joint matrix is not supported on host device.",       \
+#if __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
-    #endif
+#endif
   };
 
   decltype(auto) operator[](size_t i) {
@@ -333,10 +347,12 @@ public:
   };
 };
 
-template <typename Group, typename T, sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>
+template <typename Group, typename T,
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout>
 inline __SYCL_ALWAYS_INLINE decltype(auto)
-get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                          Group, T, Use, Rows, Cols, Layout> &jm) {
   std::ignore = sg;
   return wi_data(jm);
 }
