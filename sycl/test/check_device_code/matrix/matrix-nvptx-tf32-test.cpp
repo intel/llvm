@@ -82,11 +82,15 @@ int main() {
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
             sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a)[i] =
-                round_to_tf32(sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a)[i]);
+                round_to_tf32(
+                    sycl::ext::intel::experimental::matrix::get_wi_data(
+                        sg, sub_a)[i]);
 
           for (auto i = 0; i < 4; ++i)
             sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b)[i] =
-                round_to_tf32(sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b)[i]);
+                round_to_tf32(
+                    sycl::ext::intel::experimental::matrix::get_wi_data(
+                        sg, sub_b)[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.row.row.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 %{{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -131,11 +135,15 @@ int main() {
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
             sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a)[i] =
-                round_to_tf32(sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a)[i]);
+                round_to_tf32(
+                    sycl::ext::intel::experimental::matrix::get_wi_data(
+                        sg, sub_a)[i]);
 
           for (auto i = 0; i < 4; ++i)
             sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b)[i] =
-                round_to_tf32(sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b)[i]);
+                round_to_tf32(
+                    sycl::ext::intel::experimental::matrix::get_wi_data(
+                        sg, sub_b)[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.col.col.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
