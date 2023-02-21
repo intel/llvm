@@ -24,7 +24,10 @@ etors:
     - name: PROPERTIES
       desc: "$x_queue_flags_t: the properties associated with $X_QUEUE_PROPERTIES_FLAGS."
     - name: REFERENCE_COUNT
-      desc: "Queue reference count"
+      desc: |
+            [uint32_t] Reference count of the queue object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: SIZE
       desc: "uint32_t: The size of the queue"
 --- #--------------------------------------------------------------------------

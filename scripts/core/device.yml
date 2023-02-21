@@ -206,7 +206,10 @@ etors:
     - name: PLATFORM
       desc: "$x_platform_handle_t: the platform associated with the device"
     - name: REFERENCE_COUNT
-      desc: "uint32_t: reference count"
+      desc: |
+            [uint32_t] Reference count of the device object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
       desc: "char[]: IL version"
     - name: NAME

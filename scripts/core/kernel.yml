@@ -86,7 +86,10 @@ etors:
     - name: NUM_ARGS
       desc: "Return Kernel number of arguments"
     - name: REFERENCE_COUNT
-      desc: "Return Kernel reference count"
+      desc: |
+            [uint32_t] Reference count of the kernel object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "Return Context object associated with Kernel"
     - name: PROGRAM

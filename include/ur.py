@@ -253,6 +253,9 @@ class ur_context_info_v(IntEnum):
     DEVICES = 1                                     ## [::ur_context_handle_t...] The array of the device handles in the
                                                     ## context
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
     USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
                                                     ## supported.
     USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
@@ -357,7 +360,10 @@ class ur_event_info_v(IntEnum):
     CONTEXT = 1                                     ## [::ur_context_handle_t] Context information of an event object
     COMMAND_TYPE = 2                                ## [::ur_command_t] Command type information of an event object
     COMMAND_EXECUTION_STATUS = 3                    ## [::ur_event_status_t] Command execution status of an event object
-    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of an event object
+    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the event object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
 
 class ur_event_info_t(c_int):
     def __str__(self):
@@ -556,14 +562,15 @@ class ur_buffer_create_type_t(c_int):
 ###############################################################################
 ## @brief Query queue info
 class ur_queue_info_v(IntEnum):
-    CONTEXT = 0                                     ## ::ur_queue_handle_t: context associated with this queue.
-    DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
-    DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
-                                                    ## device.
-    PROPERTIES = 3                                  ## ::ur_queue_flags_t: the properties associated with
-                                                    ## ::UR_QUEUE_PROPERTIES_FLAGS.
-    REFERENCE_COUNT = 4                             ## Queue reference count
-    SIZE = 5                                        ## uint32_t: The size of the queue
+    CONTEXT = 0                                     ## Queue context info
+    DEVICE = 1                                      ## Queue device info
+    DEVICE_DEFAULT = 2                              ## Queue device default info
+    PROPERTIES = 3                                  ## Queue properties info
+    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+    SIZE = 5                                        ## Queue size info
 
 class ur_queue_info_t(c_int):
     def __str__(self):
@@ -605,7 +612,10 @@ class ur_queue_properties_t(c_int):
 ###############################################################################
 ## @brief Get sample object information
 class ur_sampler_info_v(IntEnum):
-    REFERENCE_COUNT = 0                             ## Sampler reference count info
+    REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the sampler object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
     CONTEXT = 1                                     ## Sampler context info
     NORMALIZED_COORDS = 2                           ## Sampler normalized coordindate setting
     ADDRESSING_MODE = 3                             ## Sampler addressing mode setting
@@ -777,7 +787,10 @@ class ur_device_info_v(IntEnum):
     QUEUE_ON_HOST_PROPERTIES = 61                   ## ::ur_queue_flags_t: host queue property bit-field
     BUILT_IN_KERNELS = 62                           ## char[]: a semi-colon separated list of built-in kernels
     PLATFORM = 63                                   ## ::ur_platform_handle_t: the platform associated with the device
-    REFERENCE_COUNT = 64                            ## uint32_t: reference count
+    REFERENCE_COUNT = 64                            ## [uint32_t] Reference count of the device object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
     IL_VERSION = 65                                 ## char[]: IL version
     NAME = 66                                       ## char[]: Device name
     VENDOR = 67                                     ## char[]: Device vendor
@@ -942,7 +955,10 @@ class ur_memory_scope_capability_flags_t(c_int):
 class ur_kernel_info_v(IntEnum):
     FUNCTION_NAME = 0                               ## Return Kernel function name, return type char[]
     NUM_ARGS = 1                                    ## Return Kernel number of arguments
-    REFERENCE_COUNT = 2                             ## Return Kernel reference count
+    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
     CONTEXT = 3                                     ## Return Context object associated with Kernel
     PROGRAM = 4                                     ## Return Program object associated with Kernel
     ATTRIBUTES = 5                                  ## Return Kernel attributes, return type char[]
@@ -1090,7 +1106,10 @@ class ur_program_properties_t(Structure):
 ###############################################################################
 ## @brief Get Program object information
 class ur_program_info_v(IntEnum):
-    REFERENCE_COUNT = 0                             ## Program reference count info
+    REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the program object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
     CONTEXT = 1                                     ## Program context info
     NUM_DEVICES = 2                                 ## Return number of devices associated with Program
     DEVICES = 3                                     ## Return list of devices associated with Program, return type

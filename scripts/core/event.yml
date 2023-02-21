@@ -98,7 +98,10 @@ etors:
     - name: COMMAND_EXECUTION_STATUS
       desc: "[$x_event_status_t] Command execution status of an event object"
     - name: REFERENCE_COUNT
-      desc: "[uint32_t] Reference count of an event object"
+      desc: |
+            [uint32_t] Reference count of the event object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Profiling query information type"
