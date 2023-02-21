@@ -96,8 +96,8 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
 
   // This just needs to be some symbol in the binary; C++ doesn't
   // allow taking the address of ::main however.
-  void *P = (void *)(intptr_t)GetExecutablePath;
-  return llvm::sys::fs::getMainExecutable(Argv0, P);
+  return llvm::sys::fs::getMainExecutable(
+      Argv0, reinterpret_cast<void *>(GetExecutablePath));
 }
 
 static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
@@ -111,15 +111,15 @@ static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
   llvm::StringSaver Saver(A);
   llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV);
   llvm::StringRef Tool = ArgV[1];
-  void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
+  void *GetExecutablePathVP = reinterpret_cast<void *>(GetExecutablePath);
+  llvm::ArrayRef<const char *> argv{ArgV};
+
   if (Tool == "-cc1")
-    return cc1_main(makeArrayRef(ArgV).slice(1), ArgV[0], GetExecutablePathVP);
+    return cc1_main(argv.slice(1), ArgV[0], GetExecutablePathVP);
   if (Tool == "-cc1as")
-    return cc1as_main(makeArrayRef(ArgV).slice(2), ArgV[0],
-                      GetExecutablePathVP);
+    return cc1as_main(argv.slice(2), ArgV[0], GetExecutablePathVP);
   if (Tool == "-cc1gen-reproducer")
-    return cc1gen_reproducer_main(makeArrayRef(ArgV).slice(2), ArgV[0],
-                                  GetExecutablePathVP);
+    return cc1gen_reproducer_main(argv.slice(2), ArgV[0], GetExecutablePathVP);
   // Reject unknown tools.
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
@@ -1076,7 +1076,7 @@ int main(int argc, char **argv) {
     for (int I = 0; I < argc; I++)
       Args.push_back(argv[I]);
 
-    llvm::ArrayRef<const char *> Argv = makeArrayRef(Args);
+    llvm::ArrayRef<const char *> Argv{Args};
     const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
     const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
     unsigned MissingArgIndex, MissingArgCount;

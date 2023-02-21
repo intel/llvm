@@ -15,6 +15,7 @@ def Polygeist_Dialect : Dialect {
   let name = "polygeist";
   let cppNamespace = "::mlir::polygeist";
   let description = [{}];
+  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 #endif // POLYGEIST_BASE
