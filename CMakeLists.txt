@@ -44,10 +44,11 @@ endif()
 
 # CXX flags setup
 if(NOT MSVC)
-    add_compile_options(-fPIC -Wall -Wpedantic)
+    add_compile_options(-fPIC -Wall -Wpedantic
+        $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
+        $<$<CXX_COMPILER_ID:Clang>:-fcolor-diagnostics>)
     if(UR_DEVELOPER_MODE)
-        add_compile_options(-fno-omit-frame-pointer)
-        add_compile_options(-Werror)
+        add_compile_options(-Werror -fno-omit-frame-pointer)
     endif()
 elseif(MSVC)
     string(REPLACE "/MDd" "/MTd" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
