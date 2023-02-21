@@ -215,7 +215,10 @@ class: $xProgram
 name: $x_program_info_t
 etors:
     - name: REFERENCE_COUNT
-      desc: "Program reference count info"
+      desc: |
+            [uint32_t] Reference count of the program object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "Program context info"
     - name: NUM_DEVICES

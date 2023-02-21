@@ -343,6 +343,9 @@ typedef enum ur_context_info_t {
     UR_CONTEXT_INFO_DEVICES = 1,              ///< [::ur_context_handle_t...] The array of the device handles in the
                                               ///< context
     UR_CONTEXT_INFO_REFERENCE_COUNT = 2,      ///< [uint32_t] Reference count of the context object.
+                                              ///< The reference count returned should be considered immediately stale.
+                                              ///< It is unsuitable for general use in applications. This feature is
+                                              ///< provided for identifying memory leaks.
     UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT = 3, ///< [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
                                               ///< supported.
     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,   ///< [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
@@ -1617,7 +1620,10 @@ typedef enum ur_event_info_t {
     UR_EVENT_INFO_CONTEXT = 1,                  ///< [::ur_context_handle_t] Context information of an event object
     UR_EVENT_INFO_COMMAND_TYPE = 2,             ///< [::ur_command_t] Command type information of an event object
     UR_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3, ///< [::ur_event_status_t] Command execution status of an event object
-    UR_EVENT_INFO_REFERENCE_COUNT = 4,          ///< [uint32_t] Reference count of an event object
+    UR_EVENT_INFO_REFERENCE_COUNT = 4,          ///< [uint32_t] Reference count of the event object.
+                                                ///< The reference count returned should be considered immediately stale.
+                                                ///< It is unsuitable for general use in applications. This feature is
+                                                ///< provided for identifying memory leaks.
     /// @cond
     UR_EVENT_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2325,14 +2331,15 @@ urTearDown(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query queue info
 typedef enum ur_queue_info_t {
-    UR_QUEUE_INFO_CONTEXT = 0,         ///< ::ur_queue_handle_t: context associated with this queue.
-    UR_QUEUE_INFO_DEVICE = 1,          ///< ::ur_device_handle_t: device associated with this queue.
-    UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< ::ur_queue_handle_t: the current default queue of the underlying
-                                       ///< device.
-    UR_QUEUE_INFO_PROPERTIES = 3,      ///< ::ur_queue_flags_t: the properties associated with
-                                       ///< ::UR_QUEUE_PROPERTIES_FLAGS.
-    UR_QUEUE_INFO_REFERENCE_COUNT = 4, ///< Queue reference count
-    UR_QUEUE_INFO_SIZE = 5,            ///< uint32_t: The size of the queue
+    UR_QUEUE_INFO_CONTEXT = 0,         ///< Queue context info
+    UR_QUEUE_INFO_DEVICE = 1,          ///< Queue device info
+    UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< Queue device default info
+    UR_QUEUE_INFO_PROPERTIES = 3,      ///< Queue properties info
+    UR_QUEUE_INFO_REFERENCE_COUNT = 4, ///< [uint32_t] Reference count of the queue object.
+                                       ///< The reference count returned should be considered immediately stale.
+                                       ///< It is unsuitable for general use in applications. This feature is
+                                       ///< provided for identifying memory leaks.
+    UR_QUEUE_INFO_SIZE = 5,            ///< Queue size info
     /// @cond
     UR_QUEUE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2604,7 +2611,10 @@ urQueueFlush(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get sample object information
 typedef enum ur_sampler_info_t {
-    UR_SAMPLER_INFO_REFERENCE_COUNT = 0,   ///< Sampler reference count info
+    UR_SAMPLER_INFO_REFERENCE_COUNT = 0,   ///< [uint32_t] Reference count of the sampler object.
+                                           ///< The reference count returned should be considered immediately stale.
+                                           ///< It is unsuitable for general use in applications. This feature is
+                                           ///< provided for identifying memory leaks.
     UR_SAMPLER_INFO_CONTEXT = 1,           ///< Sampler context info
     UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< Sampler normalized coordindate setting
     UR_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< Sampler addressing mode setting
@@ -3121,7 +3131,10 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,               ///< ::ur_queue_flags_t: host queue property bit-field
     UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,                       ///< char[]: a semi-colon separated list of built-in kernels
     UR_DEVICE_INFO_PLATFORM = 63,                               ///< ::ur_platform_handle_t: the platform associated with the device
-    UR_DEVICE_INFO_REFERENCE_COUNT = 64,                        ///< uint32_t: reference count
+    UR_DEVICE_INFO_REFERENCE_COUNT = 64,                        ///< [uint32_t] Reference count of the device object.
+                                                                ///< The reference count returned should be considered immediately stale.
+                                                                ///< It is unsuitable for general use in applications. This feature is
+                                                                ///< provided for identifying memory leaks.
     UR_DEVICE_INFO_IL_VERSION = 65,                             ///< char[]: IL version
     UR_DEVICE_INFO_NAME = 66,                                   ///< char[]: Device name
     UR_DEVICE_INFO_VENDOR = 67,                                 ///< char[]: Device vendor
@@ -3604,7 +3617,10 @@ urKernelSetArgLocal(
 typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< Return Kernel function name, return type char[]
     UR_KERNEL_INFO_NUM_ARGS = 1,        ///< Return Kernel number of arguments
-    UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< Return Kernel reference count
+    UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
+                                        ///< The reference count returned should be considered immediately stale.
+                                        ///< It is unsuitable for general use in applications. This feature is
+                                        ///< provided for identifying memory leaks.
     UR_KERNEL_INFO_CONTEXT = 3,         ///< Return Context object associated with Kernel
     UR_KERNEL_INFO_PROGRAM = 4,         ///< Return Program object associated with Kernel
     UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< Return Kernel attributes, return type char[]
@@ -4492,7 +4508,10 @@ urProgramGetFunctionPointer(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Program object information
 typedef enum ur_program_info_t {
-    UR_PROGRAM_INFO_REFERENCE_COUNT = 0, ///< Program reference count info
+    UR_PROGRAM_INFO_REFERENCE_COUNT = 0, ///< [uint32_t] Reference count of the program object.
+                                         ///< The reference count returned should be considered immediately stale.
+                                         ///< It is unsuitable for general use in applications. This feature is
+                                         ///< provided for identifying memory leaks.
     UR_PROGRAM_INFO_CONTEXT = 1,         ///< Program context info
     UR_PROGRAM_INFO_NUM_DEVICES = 2,     ///< Return number of devices associated with Program
     UR_PROGRAM_INFO_DEVICES = 3,         ///< Return list of devices associated with Program, return type
