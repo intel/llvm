@@ -1966,6 +1966,49 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                         name.data());
   }
 
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH: {
+    int memory_clock_khz = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&memory_clock_khz, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                             device->get()) == CUDA_SUCCESS);
+
+    int memory_bus_width = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&memory_bus_width,
+                             CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+
+    // Reference
+    // https://github.com/jeffhammond/HPCInfo/blob/master/cuda/gpu-detect.cu
+    int major = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+
+    int minor = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                             device->get()) == CUDA_SUCCESS);
+
+    // Xavier AGX override
+    if (major == 7 && minor == 2) {
+       memory_clock_khz = 2133000;
+    }
+
+    // Orin AGX override
+    if (major == 8 && minor == 7) {
+       memory_clock_khz = 3200000;
+       memory_bus_width = 256;
+    }
+
+    uint64_t memory_bandwidth = uint64_t(memory_clock_khz) * memory_bus_width * 250;
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   memory_bandwidth);
+  }
+
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
@@ -1974,7 +2017,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     return PI_ERROR_INVALID_VALUE;
 
   default:
