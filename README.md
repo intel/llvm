@@ -50,7 +50,7 @@ Tools can be acquired via instructions in [third_party](/third_party/README.md).
 ## Building
 
 Requirements:
-- C++ compiler with C++14 support
+- C++ compiler with C++17 support
 - cmake >= 3.14.0
 - clang-format-15.0 (can be installed with `python -m pip install clang-format`)
 

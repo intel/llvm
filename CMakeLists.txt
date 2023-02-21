@@ -13,8 +13,8 @@ include(helpers)
 
 find_package(Python3 COMPONENTS Interpreter)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # Build Options
 option(UR_DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
