@@ -36,11 +36,11 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   int *ptr = 0;
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
 
-  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v2i64(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 4, i8 2, i8 2, i8 0, <1 x i64> {{[^)]+}}, <2 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   simd<int, VL> data1 = 1;
   lsc_block_store<int, VL>(ptr, data1);
 
-  // CHECK: {{[^)]+}} = call <2 x i64> @llvm.genx.lsc.load.stateless.v2i64.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 4, i8 2, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   simd<int, VL> data2 = lsc_block_load<int, VL>(ptr);
 
   //CHECK: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
@@ -61,10 +61,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
 
   uint32_t surf_offset = 1 * VL * sizeof(int);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v2i64(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 4, i8 2, i8 2, i8 0, <1 x i32> {{[^)]+}}, <2 x i64> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
   lsc_block_store<int, VL>(acc, surf_offset, data1);
 
-  // CHECK: {{[^)]+}} = call <2 x i64> @llvm.genx.lsc.load.bti.v2i64.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 4, i8 2, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
   simd<int, VL> data4 = lsc_block_load<int, VL>(acc, surf_offset);
 
   // CHECK: call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
