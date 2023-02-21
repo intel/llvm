@@ -50,8 +50,19 @@ TEST_P(urEnqueueUSMMemsetTest, InvalidNullPtr) {
 TEST_P(urEnqueueUSMMemsetTest, InvalidNullPtrEventWaitList) {
     int *ptr{nullptr};
     ur_usm_mem_flags_t flags;
-    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0, reinterpret_cast<void **>(&ptr)));
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 1, nullptr, nullptr));
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &flags, sizeof(int), 0,
+                                    reinterpret_cast<void **>(&ptr)));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 1, nullptr, nullptr));
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 0,
+                                        &validEvent, nullptr));
+
     ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 

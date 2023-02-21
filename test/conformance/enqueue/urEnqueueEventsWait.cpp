@@ -56,5 +56,17 @@ TEST_P(urEnqueueEventsWaitTest, Success) {
 }
 
 TEST_P(urEnqueueEventsWaitTest, InvalidNullHandleQueue) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urEnqueueEventsWait(nullptr, 0, nullptr, nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urEnqueueEventsWait(nullptr, 0, nullptr, nullptr));
+}
+
+TEST_P(urEnqueueEventsWaitTest, InvalidNullPtrEventWaitList) {
+    ASSERT_EQ_RESULT(urEnqueueEventsWait(queue1, 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueEventsWait(queue1, 0, &validEvent, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }

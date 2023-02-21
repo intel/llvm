@@ -239,6 +239,14 @@ urEnqueueKernelLaunch(
         if (NULL == pGlobalWorkSize) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
@@ -268,6 +276,14 @@ urEnqueueEventsWait(
         if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
@@ -296,6 +312,14 @@ urEnqueueEventsWaitWithBarrier(
     if (context.enableParameterValidation) {
         if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -338,6 +362,14 @@ urEnqueueMemBufferRead(
         if (NULL == pDst) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst, numEventsInWaitList, phEventWaitList, phEvent);
@@ -378,6 +410,14 @@ urEnqueueMemBufferWrite(
 
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -426,6 +466,14 @@ urEnqueueMemBufferReadRect(
 
         if (NULL == pDst) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -476,6 +524,14 @@ urEnqueueMemBufferWriteRect(
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
@@ -516,6 +572,14 @@ urEnqueueMemBufferCopy(
 
         if (NULL == hBufferDst) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -562,6 +626,14 @@ urEnqueueMemBufferCopyRect(
         if (NULL == hBufferDst) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, srcRegion, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
@@ -602,6 +674,14 @@ urEnqueueMemBufferFill(
 
         if (NULL == pPattern) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -647,6 +727,14 @@ urEnqueueMemImageRead(
         if (NULL == pDst) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemImageRead(hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
@@ -691,6 +779,14 @@ urEnqueueMemImageWrite(
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region, inputRowPitch, inputSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
@@ -734,6 +830,14 @@ urEnqueueMemImageCopy(
 
         if (NULL == hImageDst) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -782,6 +886,14 @@ urEnqueueMemBufferMap(
         if (NULL == ppRetMap) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size, numEventsInWaitList, phEventWaitList, phEvent, ppRetMap);
@@ -820,6 +932,14 @@ urEnqueueMemUnmap(
         if (NULL == pMappedPtr) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
@@ -854,6 +974,14 @@ urEnqueueUSMMemset(
 
         if (NULL == ptr) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -895,6 +1023,14 @@ urEnqueueUSMMemcpy(
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList, phEventWaitList, phEvent);
@@ -933,6 +1069,14 @@ urEnqueueUSMPrefetch(
 
         if (0x1 < flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -1010,6 +1154,14 @@ urEnqueueUSMFill2D(
         if (NULL == pPattern) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height, numEventsInWaitList, phEventWaitList, phEvent);
@@ -1046,6 +1198,14 @@ urEnqueueUSMMemset2D(
 
         if (NULL == pMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -1089,6 +1249,14 @@ urEnqueueUSMMemcpy2D(
 
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -1136,6 +1304,14 @@ urEnqueueDeviceGlobalVariableWrite(
         if (NULL == pSrc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
     }
 
     return pfnDeviceGlobalVariableWrite(hQueue, hProgram, name, blockingWrite, count, offset, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
@@ -1181,6 +1357,14 @@ urEnqueueDeviceGlobalVariableRead(
 
         if (NULL == pDst) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 

@@ -28,6 +28,21 @@ TEST_P(urEnqueueMemBufferReadTest, InvalidNullPointerDst) {
                      urEnqueueMemBufferRead(queue, buffer, true, 0, size, nullptr, 0, nullptr, nullptr));
 }
 
+TEST_P(urEnqueueMemBufferReadTest, InvalidNullPtrEventWaitList) {
+    std::vector<uint32_t> output(count, 42);
+    ASSERT_EQ_RESULT(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                            output.data(), 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                            output.data(), 0, &validEvent,
+                                            nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
+
 using urEnqueueMemBufferReadMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferReadMultiDeviceTest, WriteReadDifferentQueues) {

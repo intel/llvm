@@ -140,6 +140,23 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPointerRetMap) {
                                                                                  0, size, 0, nullptr, nullptr, nullptr));
 }
 
+TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
+    ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
+                                           UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
+                                           0, size, 1, nullptr, nullptr,
+                                           nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
+                                           UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
+                                           0, size, 0, &validEvent, nullptr,
+                                           nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
+
 using urEnqueueMemBufferMapMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {

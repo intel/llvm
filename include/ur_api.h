@@ -152,7 +152,8 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_BUFFER_SIZE = 10,             ///< Invalid buffer size
     UR_RESULT_ERROR_INVALID_MEM_OBJECT = 11,              ///< Invalid memory object
     UR_RESULT_ERROR_INVALID_EVENT = 12,                   ///< Invalid event
-    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,         ///< Invalid event wait list
+    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,         ///< Returned when the event wait list or the events in the wait list are
+                                                          ///< invalid.
     UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,    ///< Misaligned sub buffer offset
     UR_RESULT_ERROR_BUILD_PROGRAM_FAILURE = 15,           ///< Build program failure
     UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 16,         ///< Invalid work group size
@@ -511,6 +512,10 @@ urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -562,6 +567,10 @@ urEnqueueKernelLaunch(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -601,6 +610,10 @@ urEnqueueEventsWait(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -639,6 +652,10 @@ urEnqueueEventsWaitWithBarrier(
 ///         + `NULL == pDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -681,6 +698,10 @@ urEnqueueMemBufferRead(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -726,6 +747,10 @@ urEnqueueMemBufferWrite(
 ///         + `NULL == pDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -778,6 +803,10 @@ urEnqueueMemBufferReadRect(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -823,6 +852,10 @@ urEnqueueMemBufferWriteRect(
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -861,6 +894,10 @@ urEnqueueMemBufferCopy(
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -904,6 +941,10 @@ urEnqueueMemBufferCopyRect(
 ///         + `NULL == pPattern`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -947,6 +988,10 @@ urEnqueueMemBufferFill(
 ///         + `NULL == pDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -993,6 +1038,10 @@ urEnqueueMemImageRead(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1033,6 +1082,10 @@ urEnqueueMemImageWrite(
 ///         + `NULL == hImageDst`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1103,6 +1156,10 @@ typedef enum ur_usm_migration_flag_t {
 ///         + `NULL == ppRetMap`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1144,6 +1201,10 @@ urEnqueueMemBufferMap(
 ///         + `NULL == pMappedPtr`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1174,6 +1235,10 @@ urEnqueueMemUnmap(
 ///         + `NULL == ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1206,6 +1271,10 @@ urEnqueueUSMMemset(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1240,6 +1309,10 @@ urEnqueueUSMMemcpy(
 ///         + `0x1 < flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1306,6 +1379,10 @@ urEnqueueUSMMemAdvise(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///         + `NULL == pPattern`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMFill2D(
@@ -1336,6 +1413,10 @@ urEnqueueUSMFill2D(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemset2D(
@@ -1366,6 +1447,10 @@ urEnqueueUSMMemset2D(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemcpy2D(
@@ -1400,6 +1485,10 @@ urEnqueueUSMMemcpy2D(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == name`
 ///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.
@@ -1432,6 +1521,10 @@ urEnqueueDeviceGlobalVariableWrite(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == name`
 ///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.

@@ -133,3 +133,24 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPointerSrc) {
                      urEnqueueMemBufferWriteRect(queue, buffer, true, buffer_offset, host_offset, region, size, size, size, size, nullptr,
                                                  0, nullptr, nullptr));
 }
+
+TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPtrEventWaitList) {
+    std::vector<uint32_t> src(count);
+    ur_rect_region_t region{size, 1, 1};
+    ur_rect_offset_t buffer_offset{0, 0, 0};
+    ur_rect_offset_t host_offset{0, 0, 0};
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferWriteRect(queue, buffer, true, buffer_offset,
+                                    host_offset, region, size, size, size, size,
+                                    src.data(), 1, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t validEvent;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferWriteRect(queue, buffer, true, buffer_offset,
+                                    host_offset, region, size, size, size, size,
+                                    src.data(), 0, &validEvent, nullptr),
+        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+}
