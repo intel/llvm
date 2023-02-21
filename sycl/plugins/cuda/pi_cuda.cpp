@@ -858,12 +858,6 @@ pi_result cuda_piContextRetain(pi_context context) {
   return pi2ur::piContextRetain(context);
 }
 
-pi_result cuda_piextContextSetExtendedDeleter(
-    pi_context context, pi_context_extended_deleter function, void *user_data) {
-  context->set_extended_deleter(function, user_data);
-  return PI_SUCCESS;
-}
-
 /// \return If available, the first binary that is PTX
 ///
 pi_result cuda_piextDeviceSelectBinary(pi_device device,
@@ -923,114 +917,9 @@ pi_result cuda_piDeviceRelease(pi_device device) {
   return pi2ur::piDeviceRelease(device);
 }
 
-/// Gets the native CUDA handle of a PI device object
-///
-/// \param[in] device The PI device to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI device object.
-///
-/// \return PI_SUCCESS
-pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
-                                          pi_native_handle *nativeHandle) {
-  *nativeHandle = static_cast<pi_native_handle>(device->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI device object from a CUDA device handle.
-/// NOTE: The created PI object does not take ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI device object from.
-/// \param[in] platform is the PI platform of the device.
-/// \param[out] device Set to the PI device object created from native handle.
-///
-/// \return TBD
-pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                 pi_platform platform,
-                                                 pi_device *piDevice) {
-  assert(piDevice != nullptr);
-
-  CUdevice cu_device = static_cast<CUdevice>(nativeHandle);
-
-  auto is_device = [=](std::unique_ptr<ur_device_handle_t_> &dev) {
-    return dev->get() == cu_device;
-  };
-
-  // If a platform is provided just check if the device is in it
-  if (platform) {
-    auto search_res = std::find_if(begin(platform->devices_),
-                                   end(platform->devices_), is_device);
-    if (search_res != end(platform->devices_)) {
-      // TODO(ur): Remove cast when this entry point is moved to UR
-      *piDevice = reinterpret_cast<pi_device>((*search_res).get());
-      return PI_SUCCESS;
-    }
-  }
-
-  // Get list of platforms
-  pi_uint32 num_platforms;
-  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
-  if (result != PI_SUCCESS)
-    return result;
-
-  pi_platform *plat =
-      static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
-  result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
-  if (result != PI_SUCCESS)
-    return result;
-
-  // Iterate through platforms to find device that matches nativeHandle
-  for (pi_uint32 j = 0; j < num_platforms; ++j) {
-    auto search_res = std::find_if(begin(plat[j]->devices_),
-                                   end(plat[j]->devices_), is_device);
-    if (search_res != end(plat[j]->devices_)) {
-      // TODO(ur): Remove cast when this entry point is moved to UR
-      *piDevice = reinterpret_cast<pi_device>((*search_res).get());
-      return PI_SUCCESS;
-    }
-  }
-
-  // If the provided nativeHandle cannot be matched to an
-  // existing device return error
-  return PI_ERROR_INVALID_OPERATION;
-}
-
 /* Context APIs */
 pi_result cuda_piContextRelease(pi_context ctxt) {
   return pi2ur::piContextRelease(ctxt);
-}
-
-/// Gets the native CUDA handle of a PI context object
-///
-/// \param[in] context The PI context to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI context object.
-///
-/// \return PI_SUCCESS
-pi_result cuda_piextContextGetNativeHandle(pi_context context,
-                                           pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI context object from a CUDA context handle.
-/// NOTE: The created PI object does not take ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI context object from.
-/// \param[out] context Set to the PI context object created from native handle.
-///
-/// \return TBD
-pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                  pi_uint32 num_devices,
-                                                  const pi_device *devices,
-                                                  bool ownNativeHandle,
-                                                  pi_context *piContext) {
-  (void)nativeHandle;
-  (void)num_devices;
-  (void)devices;
-  (void)ownNativeHandle;
-  (void)piContext;
-  assert(piContext != nullptr);
-  assert(ownNativeHandle == false);
-
-  return PI_ERROR_INVALID_OPERATION;
 }
 
 /// Creates a PI Memory object using a CUDA memory allocation.
@@ -4466,18 +4355,18 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, cuda_piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, cuda_piextGetDeviceFunctionPointer)
-  _PI_CL(piextDeviceGetNativeHandle, cuda_piextDeviceGetNativeHandle)
+  _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
-         cuda_piextDeviceCreateWithNativeHandle)
+         pi2ur::piextDeviceCreateWithNativeHandle)
   // Context
-  _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
+  _PI_CL(piextContextSetExtendedDeleter, pi2ur::piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, pi2ur::piContextCreate)
   _PI_CL(piContextGetInfo, pi2ur::piContextGetInfo)
   _PI_CL(piContextRetain, pi2ur::piContextRetain)
   _PI_CL(piContextRelease, pi2ur::piContextRelease)
-  _PI_CL(piextContextGetNativeHandle, cuda_piextContextGetNativeHandle)
+  _PI_CL(piextContextGetNativeHandle, pi2ur::piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle,
-         cuda_piextContextCreateWithNativeHandle)
+         pi2ur::piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piextQueueCreate, cuda_piextQueueCreate)

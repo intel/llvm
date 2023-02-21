@@ -124,7 +124,6 @@ private:
   std::vector<deleter_data> extended_deleters_;
 };
 
-
 // Make the Unified Runtime handles definition complete.
 // This is used in various "create" API where new handles are allocated.
 // struct _zer_platform_handle_t : public _ur_platform_handle_t {

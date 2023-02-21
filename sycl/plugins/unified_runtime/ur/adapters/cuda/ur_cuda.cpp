@@ -1342,3 +1342,112 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
   ctxt->increment_reference_count();
   return UR_RESULT_SUCCESS;
 }
+
+/// Gets the native CUDA handle of a UR device object
+///
+/// \param[in] device The UR device to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the UR device object.
+///
+/// \return PI_SUCCESS
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+    ur_device_handle_t device, ur_native_handle_t *nativeHandle) {
+  *nativeHandle = reinterpret_cast<ur_native_handle_t>(device->get());
+  return UR_RESULT_SUCCESS;
+}
+
+/// Created a UR device object from a CUDA device handle.
+/// NOTE: The created UR object does not take ownership of the native handle.
+///
+/// \param[in] nativeHandle The native handle to create UR device object from.
+/// \param[in] platform is the UR platform of the device.
+/// \param[out] device Set to the UR device object created from native handle.
+///
+/// \return TBD
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
+    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
+    ur_device_handle_t *phDevice) {
+  assert(phDevice != nullptr);
+
+  // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
+  // instead
+  CUdevice cu_device = 0;
+  memcpy(&cu_device, hNativeDevice, sizeof(CUdevice));
+
+  auto is_device = [=](std::unique_ptr<ur_device_handle_t_> &dev) {
+    return dev->get() == cu_device;
+  };
+
+  // If a platform is provided just check if the device is in it
+  if (hPlatform) {
+    auto search_res = std::find_if(begin(hPlatform->devices_),
+                                   end(hPlatform->devices_), is_device);
+    if (search_res != end(hPlatform->devices_)) {
+      *phDevice = search_res->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // Get list of platforms
+  uint32_t num_platforms = 0;
+  ur_result_t result = urPlatformGet(0, nullptr, &num_platforms);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+
+  ur_platform_handle_t *plat = static_cast<ur_platform_handle_t *>(
+      malloc(num_platforms * sizeof(ur_platform_handle_t)));
+  result = urPlatformGet(num_platforms, plat, nullptr);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+
+  // Iterate through platforms to find device that matches nativeHandle
+  for (uint32_t j = 0; j < num_platforms; ++j) {
+    auto search_res = std::find_if(begin(plat[j]->devices_),
+                                   end(plat[j]->devices_), is_device);
+    if (search_res != end(plat[j]->devices_)) {
+      *phDevice = static_cast<ur_device_handle_t>((*search_res).get());
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // If the provided nativeHandle cannot be matched to an
+  // existing device return error
+  return UR_RESULT_ERROR_INVALID_OPERATION;
+}
+
+/// Gets the native CUDA handle of a UR context object
+///
+/// \param[in] context The UR context to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the UR context object.
+///
+/// \return ZER_RESULT_SUCCESS
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
+    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->get());
+  return UR_RESULT_SUCCESS;
+}
+
+/// Created a UR context object from a CUDA context handle.
+/// NOTE: The created PI object does not take ownership of the native handle.
+///
+/// \param[in] nativeHandle The native handle to create PI context object from.
+/// \param[out] context Set to the PI context object created from native handle.
+///
+/// \return TBD
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
+    ur_native_handle_t hNativeContext, ur_context_handle_t *phContext) {
+  (void)hNativeContext;
+  (void)phContext;
+
+  return UR_RESULT_ERROR_INVALID_OPERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
+    ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
+    void *pUserData) {
+  hContext->set_extended_deleter(pfnDeleter, pUserData);
+  return UR_RESULT_SUCCESS;
+}

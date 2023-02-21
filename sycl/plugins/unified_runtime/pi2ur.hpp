@@ -622,4 +622,79 @@ inline pi_result piContextRelease(pi_context context) {
   return PI_SUCCESS;
 }
 
+inline pi_result piextDeviceSelectBinary(pi_device device,
+                                         pi_device_binary *binaries,
+                                         pi_uint32 num_binaries,
+                                         pi_uint32 *selected_binary_ind) {
+  // assert(false);
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextGetDeviceFunctionPointer(pi_device device, pi_program program,
+                              const char *function_name,
+                              pi_uint64 *function_pointer_ret) {
+  // assert(false);
+  // urProgramGetFunctionPointer
+  return PI_SUCCESS;
+}
+
+inline pi_result piextDeviceGetNativeHandle(pi_device device,
+                                            pi_native_handle *nativeHandle) {
+  auto hDevice = reinterpret_cast<ur_device_handle_t>(device);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
+
+  HANDLE_ERRORS(urDeviceGetNativeHandle(hDevice, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                  pi_platform platform, pi_device *device) {
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto hPlatform = reinterpret_cast<ur_platform_handle_t>(platform);
+  auto phDevice = reinterpret_cast<ur_device_handle_t *>(device);
+
+  HANDLE_ERRORS(
+      urDeviceCreateWithNativeHandle(hNativeHandle, hPlatform, phDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextSetExtendedDeleter(
+    pi_context context, pi_context_extended_deleter func, void *user_data) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+
+  HANDLE_ERRORS(urContextSetExtendedDeleter(hContext, func, user_data));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextGetNativeHandle(pi_context context,
+                                             pi_native_handle *nativeHandle) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
+
+  HANDLE_ERRORS(urContextGetNativeHandle(hContext, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, bool pluginOwnsNativeHandle,
+    pi_context *context) {
+
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto phContext = reinterpret_cast<ur_context_handle_t *>(context);
+
+  // Note that we ignore the devices and ownership arguments here. This is
+  // enough for CUDA, HIP and OpenCL.
+
+  HANDLE_ERRORS(urContextCreateWithNativeHandle(hNativeHandle, phContext));
+
+  return PI_SUCCESS;
+}
+
 } // namespace pi2ur
