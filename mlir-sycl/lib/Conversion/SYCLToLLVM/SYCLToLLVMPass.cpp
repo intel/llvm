@@ -16,7 +16,9 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 using namespace mlir;
@@ -51,6 +53,15 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   LLVMTypeConverter converter(&getContext(), options);
 
   RewritePatternSet patterns(context);
+
+  if (useBarePtrCallConv) {
+    // Keep these at the top; these should be run before the rest of
+    // function conversion patterns.
+    populateReturnOpTypeConversionPattern(patterns, converter);
+    populateCallOpTypeConversionPattern(patterns, converter);
+    populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
+    polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns);
+  }
 
   sycl::populateSYCLToLLVMConversionPatterns(converter, patterns);
   populateFuncToLLVMConversionPatterns(converter, patterns);

@@ -13,10 +13,12 @@ add_mlir_conversion_library(MLIRSYCLToLLVM
   LINK_LIBS PUBLIC
   MLIRArithToLLVM
   MLIRFuncToLLVM
+  MLIRFuncTransforms
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
   MLIRMemRefToLLVM
+  MLIRPolygeistTransforms
   MLIRSYCLDialect  
   MLIRTransforms
   )
