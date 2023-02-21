@@ -366,20 +366,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         cl_uint value = 1u;
         std::memcpy(paramValue, &value, sizeof(cl_uint));
       }
-    } else {
-      // Otherwise, we can't query anything, because even cl_khr_subgroups does
-      // not provide similar query. Therefore, simply return minimum possible
-      // value 1 here.
-      if (paramValue && paramValueSize < sizeof(cl_uint))
-        return static_cast<pi_result>(CL_INVALID_VALUE);
-      if (paramValueSizeRet)
-        *paramValueSizeRet = sizeof(cl_uint);
 
-      if (paramValue) {
-        cl_uint value = 1u;
-        std::memcpy(paramValue, &value, sizeof(cl_uint));
-      }
+      return static_cast<pi_result>(err);
     }
+
+    // Otherwise, we can't query anything, because even cl_khr_subgroups does
+    // not provide similar query. Therefore, simply return minimum possible
+    // value 1 here.
+    if (paramValue && paramValueSize < sizeof(cl_uint))
+      return static_cast<pi_result>(CL_INVALID_VALUE);
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(cl_uint);
+
+    if (paramValue) {
+      cl_uint value = 1u;
+      std::memcpy(paramValue, &value, sizeof(cl_uint));
+    }
+
+    return static_cast<pi_result>(CL_SUCCESS);
   }
   default:
     cl_int result = clGetDeviceInfo(
