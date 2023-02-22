@@ -69,25 +69,32 @@ void group_store(Group g, const InputT& in,
 (1) _Preconditions_: `in_ptr` must be the same for all work-items
 in the group.
 
-_Constraints_: Only available if `Group` is a work-group or sub-group.
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `InputIteratorT` suppose to be a random access iterator.
+* Value type of `InputIteratorT` must be convertible to OutputT.
 
 _Effects_: Loads single element from `in_ptr` to `out` by using the `g` group
-object to identify memory location. For the 1d case it would be:
-`g.get_group_id(0) * g.get_local_range(0)  + g.get_local_id(0)`
+object to identify memory location as `in_ptr` + `g.get_local_id()`.
 
-Properties TBD (setting boundary values or limiting numbers of work items).
-
+`Properties` argument is reserved for future revisions of this extention and is
+ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`
+May be used in future for setting boundary values or limiting numbers of work items.
 
 (2) _Preconditions_: `out_ptr` must be the same for all work-items
 in the group.
 
-_Constraints_: Only available if `Group` is a work-group or sub-group.
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `OutputIteratorT` suppose to be a random access iterator.
+* InputT must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores single element `in` to `out_ptr` by using the `g` group
-object to identify memory location. For the 1d case it would be:
-`g.get_group_id(0) * g.get_local_range(0)  + g.get_local_id(0)`
+object to identify memory location as `out_ptr` + `g.get_local_id()`
 
-Properties TBD (setting boundary values or limiting numbers of work items).
+`Properties` argument is reserved for future revisions of this extention and is
+ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`
+May be used in future for setting boundary values or limiting numbers of work items.
 
 == `sycl::vec` Functions
 
@@ -106,25 +113,44 @@ template<typename Group, typename InputT, int N,
          typename OutputIteratorT, typename Properties = properties<>>
 void group_store(Group g, const sycl::vec<InputT, N>& in,
                       OutputIteratorT out_ptr, Properties = {}); // (4)
-
 }
 ----
 
 (3) _Preconditions_: `in_ptr` must be the same for all work-items
 in the group.
 
-_Constraints_: Only available if `Group` is a work-group or sub-group.
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `InputIteratorT` suppose to be a random access iterator.
+* value type of `InputIteratorT` and OutputT types must be convertible basic
+scalar types supported in device code.
 
 _Effects_: Loads `N` elements from `in_ptr` to `out`
-using the `g` group object. Properties can specify data placement.
+using the `g` group object.
+Properties may specify xref:data_placement[data placement].
+Default data placement is a blocked one:
+`out[i]` = `in_ptr[g.get_local_id() * N + i];`
+in striped case:
+`out[i]` = `in_ptr[g.get_local_id() + g.get_max_local_range() * i];`
+for `i` between `0` and `N`.
 
 (4) _Preconditions_: `out_ptr` must be the same for all work-items
 in the group.
 
-_Constraints_: Only available if `Group` is a work-group or sub-group.
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `OutputIteratorT` suppose to be a random access iterator.
+* value type of `OutputIteratorT` and InputT types must be convertible basic
+scalar types supported in device code.
 
 _Effects_: Stores `N` elements from `in` vec to `out_ptr`
-using the `g` group object. Properties can specify data placement.
+using the `g` group object.
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out_ptr[g.get_local_id() * N + i]` = `in[i];`
+in striped case:
+`out_ptr[g.get_local_id() + g.get_max_local_range() * i]` = `in[i];`
+for `i` between `0` and `N`.
 
 == Functions with fixed-size arrays
 
@@ -157,12 +183,6 @@ void group_store(GroupHelper gh, sycl::span<InputT, ItemsPerWorkItem> in,
                  OutputIteratorT out_ptr,  Properties = {}); // (7)
 
 
-// Properties:
-enum class group_algorithm_data_placement {
-  blocked,
-  striped
-};
-
 // Support memory function to define the needed amount of temporary memory
 // needed (name TBD)
 
@@ -173,27 +193,48 @@ constexpr std::size_t memory_required(sycl::memory_scope scope,
 }
 ----
 
-(6) _Preconditions_: `in_ptr` must be the same for all work-items
-in the group. `out` must be a `sycl::span` made from a pointer to the private memory space.
+.(6) _Preconditions_:
+* `in_ptr` must be the same for all work-items in the group.
+* `out` must be a `sycl::span` made from a pointer to the private memory space.
 
-_Constraints_: Only available if `GroupHelper` is a
+._Constraints_:
+* Only available if `GroupHelper` is a
 work-group or sub-group or `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space
 (link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
+* `InputIteratorT` suppose to be a random access iterator.
+* Value type of `InputIteratorT` must be convertible to OutputT.
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_ptr` to `out`
-using the `gh` group helper object. Properties can specify data placement.
+using the `gh` group helper object.
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out[i]` = `in_ptr[gh.get_local_id() * ElementsPerWorkItem + i];`
+in striped case:
+`out[i]` = `in_ptr[gh.get_local_id() + gh.get_max_local_range() * i];`
+for `i` between `0` and `ElementsPerWorkItem`.
 
-(7) _Preconditions_: `out_ptr` must be the same for all work-items
-in the group. `in` must be a `sycl::span` made from a pointer to the private memory space.
+.(7) _Preconditions_:
+* `out_ptr` must be the same for all work-items in the group.
+* `in` must be a `sycl::span` made from a pointer to the private memory space.
 
-_Constraints_: Only available if `GroupHelper` is a
+._Constraints_:
+* Only available if `GroupHelper` is a
 work-group or sub-group or `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space
 (link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
+* `OutputIteratorT` suppose to be a random access iterator.
+* InputT must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_ptr`
-using the `gh` group helper object. Properties can specify data placement.
+using the `gh` group helper object.
+
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out_ptr[gh.get_local_id() * ItemsPerWorkItem + i]` = `in[i];`
+in striped case:
+`out_ptr[gh.get_local_id() + gh.get_max_local_range() * i]` = `in[i];`
+for `i` between `0` and `ItemsPerWorkItem`.
 
 (8)_Effects_: Returns size of temporary memory (in bytes) that is required for
 scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
@@ -201,6 +242,79 @@ and the scope parameter: use sycl::memory_scope::work_group to get memory size
 required for each work-group; use sycl::memory_scope::sub_group to get memory
 size required for each sub-group. If other scope values are passed, behavior is
 unspecified.
+
+== Data placement
+
+anchor:data_placement[]
+
+To specify a correct data placement for placing of resulting data
+there is a enum (proposed in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]):
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Properties:
+enum class group_algorithm_data_placement {
+  blocked,
+  striped
+};
+
+}
+----
+
+Data placement layout example on group_load:
+
+* ElementsPerWorkItem = 4
+* 3 work-items in the group
+* input is: in_ptr[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+
+Consider 2 layouts:
+
+1.`sycl::ext::oneapi::experimental::group_algorithm_data_placement::blocked`.
+
+|===
+|Work-item id|Output stored in private fixed-size array
+
+|0
+|{0, 1, 2, 3}
+|1
+|{4, 5, 6, 7}
+|2
+|{8, 9, 10, 11}
+|===
+
+2.`sycl::ext::oneapi::experimental::group_algorithm_data_placement::striped`.
+
+|===
+|Work-item id|Output stored in private fixed-size array
+
+|0
+|{0, 3, 6, 9}
+|1
+|{1, 4, 7, 10}
+|2
+|{2, 5, 8, 11}
+|===
+
+There is a property that satisfies
+link:sycl_ext_oneapi_properties.asciidoc[SYCL Properties Extension]
+requirements:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property
+{
+    template<group_algorithm_data_placement type>
+    struct data_placement; // (9)
+}
+----
+
+(9) Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
+arrays functions.
+
+Example:
+`group_load(g, input, output_span, properties<data_placement<blocked>>{});`
 
 == Usage Examples
 
