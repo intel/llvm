@@ -271,7 +271,7 @@ event queue_impl::memcpyToDeviceGlobal(
     }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -318,7 +318,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
