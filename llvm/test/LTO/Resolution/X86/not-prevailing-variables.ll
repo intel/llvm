@@ -1,5 +1,5 @@
 ; RUN: opt -module-summary %s -o %t1.o
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t2.o %t1.o      \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers -save-temps -o %t2.o %t1.o      \
 ; RUN:   -r %t1.o,testVar1,plx -r %t1.o,testVar2,plx \
 ; RUN:   -r %t1.o,var1,pl -r %t1.o,var2,lx
 
@@ -13,7 +13,7 @@
 ; CHECK-NEXT:   retq
 ; CHECK:      <testVar2>:
 ; CHECK-NEXT:   movq  (%rip), %rax
-; CHECK-NEXT:     R_X86_64_GOTPCREL var2-0x4
+; CHECK-NEXT:     R_X86_64_REX_GOTPCRELX var2-0x4
 ; CHECK-NEXT:   movl  (%rax), %eax
 ; CHECK-NEXT:   retq
 

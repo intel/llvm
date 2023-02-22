@@ -175,6 +175,24 @@ __ESIMD_API simd<Tx, N> gather(const Tx *p,
   return gather<Tx, N>(p, simd<Ty, N>(offsets), mask);
 }
 
+/// A variation of \c gather API with \c offsets represented as scalar.
+///
+/// @tparam Tx Element type, must be of size 4 or less.
+/// @tparam N Number of elements to read; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
+/// @param p The base address.
+/// @param offset the scalar 32-bit or 64-bit offset in bytes.
+/// ((byte*)p + offset) must be element size aligned.
+/// @param mask The access mask, defaults to all 1s.
+/// @return A vector of elements read. Elements in masked out lanes are
+///   undefined.
+///
+template <typename Tx, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
+gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
+  return gather<Tx, N>(p, simd<Toffset, N>(offset), mask);
+}
+
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
 /// value of the corresponding element in the input offset vector. Access to
@@ -234,6 +252,23 @@ __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
   using T = detail::__raw_t<Tx>;
   using Ty = typename simd_view<Toffset, RegionTy>::element_type;
   scatter<Tx, N>(p, simd<Ty, N>(offsets), vals, mask);
+}
+
+/// A variation of \c scatter API with \c offsets represented as scalar.
+///
+/// @tparam Tx Element type, must be of size 4 or less.
+/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
+/// @param p The base address.
+/// @param offset the scalar 32-bit or 64-bit offset in bytes.
+/// ((byte*)p + offset) must be element size aligned.
+/// @param vals The vector to scatter.
+/// @param mask The access mask, defaults to all 1s.
+///
+template <typename Tx, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
+scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
+  scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
 /// Loads a contiguous block of memory from given memory address and returns
@@ -635,6 +670,29 @@ gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
   return gather_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), mask);
 }
 
+/// A variation of \c gather_rgba API with \c offsets represented as
+/// scalar.
+///
+/// @tparam T Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam N Number of pixels to access (matches the size of the \c offsets
+///   vector). Must be 8, 16 or 32.
+/// @tparam Mask A pixel's channel mask.
+/// @param p The USM base pointer representing memory address of the access.
+/// @param offset scalar byte offsets of the pixels relative to the base
+/// pointer.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
+/// @return Read data - up to N*4 values of type \c Tx.
+///
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+gather_rgba(const T *p, Toffset offset, simd_mask<N> mask = 1) {
+  return gather_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), mask);
+}
+
 template <typename T, int N, rgba_channel_mask RGBAMask>
 __SYCL_DEPRECATED("use gather_rgba<rgba_channel_mask>()")
 __ESIMD_API std::enable_if_t<
@@ -717,6 +775,30 @@ scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
              simd_mask<N> mask = 1) {
   using Ty = typename simd_view<Toffset, RegionTy>::element_type;
   scatter_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), vals, mask);
+}
+
+/// A variation of \c scatter_rgba API with \c offsets represented as
+/// scalar
+///
+/// @tparam T Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam N Number of pixels to access (matches the size of the \c offsets
+///   vector). Must be 8, 16 or 32.
+/// @tparam RGBAMask A pixel's channel mask.
+/// @param p The USM base pointer representing memory address of the access.
+/// @param vals values to be written.
+/// @param offset scalar byte offset of the pixels relative to the base
+/// pointer.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
+///
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
+scatter_rgba(T *p, Toffset offset,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+             simd_mask<N> mask = 1) {
+  scatter_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
 template <typename T, int N, rgba_channel_mask RGBAMask>
@@ -911,6 +993,61 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
   }
 }
 
+/// A variation of \c atomic_update API with \c offsets represented as
+/// \c simd_view object.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
+                                      simd_view<Toffset, RegionTy> offsets,
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, mask);
+}
+
+/// A variation of \c atomic_update API with \c offset represented as
+/// scalar object.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin \c atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The scalar 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
+    simd<Tx, N>>
+atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, mask);
+}
+
 /// @anchor usm_atomic_update0
 /// @brief No-argument variant of the atomic update operation.
 ///
@@ -970,32 +1107,24 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
   return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), mask);
 }
 
-/// A variation of \c atomic_update API with \c offsets represented as
-/// \c simd_view object.
+/// A variation of \c atomic_update API with \c offset represented as
+/// scalar.
 ///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::save.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc or
+/// \c atomic_op::dec, \c atomic_op::load.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
+/// @param offset The scalar 32-bit or 64-bit offset in bytes.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
-                                      simd_view<Toffset, RegionTy> offsets,
-                                      simd<Tx, N> src0, simd_mask<N> mask) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, mask);
+template <atomic_op Op, typename Tx, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
+atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
+  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
 
 /// @anchor usm_atomic_update2
@@ -1060,6 +1189,30 @@ atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
   using Ty = typename simd_view<Toffset, RegionTy>::element_type;
   return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, src1, mask);
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// scalar.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpwr.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The scalar 32-bit or 64-bit offset in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
+atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
+              simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, src1,
+                                  mask);
 }
 
 /// @} sycl_esimd_memory_atomics
@@ -1187,7 +1340,6 @@ template <typename T, int N, rgba_channel_mask RGBAMask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
-
   const auto SI = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_gather4_masked_scaled2<T, N, RGBAMask>(
       SI, 0 /*global_offset*/, offsets.data(), mask.data());
@@ -1395,7 +1547,6 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 /// @cond EXCLUDE
 
 namespace detail {
-
 // ----- Outlined implementations of simd_obj_impl class memory access APIs.
 
 template <typename T, int N, class T1, class SFINAE>

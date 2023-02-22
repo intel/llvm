@@ -425,6 +425,80 @@ void targetFreeExplicit(void *DevicePtr, int DeviceNum, int Kind,
   DP("omp_target_free deallocated device ptr\n");
 }
 
+void *targetLockExplicit(void *HostPtr, size_t Size, int DeviceNum,
+                         const char *Name) {
+  TIMESCOPE();
+  DP("Call to %s for device %d locking %zu bytes\n", Name, DeviceNum, Size);
+
+  if (Size <= 0) {
+    DP("Call to %s with non-positive length\n", Name);
+    return NULL;
+  }
+
+  void *rc = NULL;
+
+  if (!deviceIsReady(DeviceNum)) {
+    DP("%s returns NULL ptr\n", Name);
+    return NULL;
+  }
+
+  DeviceTy *DevicePtr = nullptr;
+  {
+    std::lock_guard<decltype(PM->RTLsMtx)> LG(PM->RTLsMtx);
+
+    if (!PM->Devices[DeviceNum]) {
+      DP("%s returns, device %d not available\n", Name, DeviceNum);
+      return nullptr;
+    }
+
+    DevicePtr = PM->Devices[DeviceNum].get();
+  }
+
+  int32_t err = 0;
+  if (DevicePtr->RTL->data_lock) {
+    err = DevicePtr->RTL->data_lock(DeviceNum, HostPtr, Size, &rc);
+    if (err) {
+      DP("Could not lock ptr %p\n", HostPtr);
+      return nullptr;
+    }
+  }
+  DP("%s returns device ptr " DPxMOD "\n", Name, DPxPTR(rc));
+  return rc;
+}
+
+void targetUnlockExplicit(void *HostPtr, int DeviceNum, const char *Name) {
+  TIMESCOPE();
+  DP("Call to %s for device %d unlocking\n", Name, DeviceNum);
+
+  DeviceTy *DevicePtr = nullptr;
+  {
+    std::lock_guard<decltype(PM->RTLsMtx)> LG(PM->RTLsMtx);
+
+    // Don't check deviceIsReady as it can initialize the device if needed.
+    // Just check if DeviceNum exists as targetUnlockExplicit can be called
+    // during process exit/free (and it may have been already destroyed) and
+    // targetAllocExplicit will have already checked deviceIsReady anyway.
+    size_t DevicesSize = PM->Devices.size();
+
+    if (DevicesSize <= (size_t)DeviceNum) {
+      DP("Device ID  %d does not have a matching RTL\n", DeviceNum);
+      return;
+    }
+
+    if (!PM->Devices[DeviceNum]) {
+      DP("%s returns, device %d not available\n", Name, DeviceNum);
+      return;
+    }
+
+    DevicePtr = PM->Devices[DeviceNum].get();
+  } // unlock RTLsMtx
+
+  if (DevicePtr->RTL->data_unlock)
+    DevicePtr->RTL->data_unlock(DeviceNum, HostPtr);
+
+  DP("%s returns\n", Name);
+}
+
 /// Call the user-defined mapper function followed by the appropriate
 // targetData* function (targetData{Begin,End,Update}).
 int targetDataMapper(ident_t *Loc, DeviceTy &Device, void *ArgBase, void *Arg,
@@ -1636,6 +1710,56 @@ int target(ident_t *Loc, DeviceTy &Device, void *HostPtr, int32_t ArgNum,
       REPORT("Failed to process data after launching the kernel.\n");
       return OFFLOAD_FAIL;
     }
+  }
+
+  return OFFLOAD_SUCCESS;
+}
+
+/// Executes a kernel using pre-recorded information for loading to
+/// device memory to launch the target kernel with the pre-recorded
+/// configuration.
+int target_replay(ident_t *Loc, DeviceTy &Device, void *HostPtr,
+                  void *DeviceMemory, int64_t DeviceMemorySize, void **TgtArgs,
+                  ptrdiff_t *TgtOffsets, int32_t NumArgs, int32_t NumTeams,
+                  int32_t ThreadLimit, uint64_t LoopTripCount,
+                  AsyncInfoTy &AsyncInfo) {
+  int32_t DeviceId = Device.DeviceID;
+  TableMap *TM = getTableMap(HostPtr);
+  // Fail if the table map fails to find the target kernel pointer for the
+  // provided host pointer.
+  if (!TM) {
+    REPORT("Host ptr " DPxMOD " does not have a matching target pointer.\n",
+           DPxPTR(HostPtr));
+    return OFFLOAD_FAIL;
+  }
+
+  // Retrieve the target table of offloading entries.
+  __tgt_target_table *TargetTable = nullptr;
+  {
+    std::lock_guard<std::mutex> TrlTblLock(PM->TrlTblMtx);
+    assert(TM->Table->TargetsTable.size() > (size_t)DeviceId &&
+           "Not expecting a device ID outside the table's bounds!");
+    TargetTable = TM->Table->TargetsTable[DeviceId];
+  }
+  assert(TargetTable && "Global data has not been mapped\n");
+
+  // Retrieve the target kernel pointer, allocate and store the recorded device
+  // memory data, and launch device execution.
+  void *TgtEntryPtr = TargetTable->EntriesBegin[TM->Index].addr;
+  DP("Launching target execution %s with pointer " DPxMOD " (index=%d).\n",
+     TargetTable->EntriesBegin[TM->Index].name, DPxPTR(TgtEntryPtr), TM->Index);
+
+  void *TgtPtr = Device.allocData(DeviceMemorySize, /* HstPtr */ nullptr,
+                                  TARGET_ALLOC_DEFAULT);
+  Device.submitData(TgtPtr, DeviceMemory, DeviceMemorySize, AsyncInfo);
+
+  int Ret =
+      Device.runTeamRegion(TgtEntryPtr, TgtArgs, TgtOffsets, NumArgs, NumTeams,
+                           ThreadLimit, LoopTripCount, AsyncInfo);
+
+  if (Ret != OFFLOAD_SUCCESS) {
+    REPORT("Executing target region abort target.\n");
+    return OFFLOAD_FAIL;
   }
 
   return OFFLOAD_SUCCESS;

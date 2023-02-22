@@ -285,8 +285,14 @@ Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
       }
       break;
     case Instruction::Load:
-    case Instruction::Store:
       // Do not need to change anything here.
+      break;
+    case Instruction::Store:
+      if (Val == cast<StoreInst>(I)->getValueOperand()) {
+        return createStringError(
+            inconvertibleErrorCode(),
+            "It is not safe to promote values being stored to another pointer");
+      }
       break;
     default:
       return createStringError(inconvertibleErrorCode(),

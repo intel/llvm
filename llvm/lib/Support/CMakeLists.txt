@@ -203,6 +203,7 @@ add_llvm_component_library(LLVMSupport
   Regex.cpp
   RISCVAttributes.cpp
   RISCVAttributeParser.cpp
+  RISCVISAInfo.cpp
   ScaledNumber.cpp
   ScopedPrinter.cpp
   SHA1.cpp
@@ -213,6 +214,7 @@ add_llvm_component_library(LLVMSupport
   SmallVector.cpp
   SourceMgr.cpp
   SpecialCaseList.cpp
+  StatCacheFileSystem.cpp
   Statistic.cpp
   StringExtras.cpp
   StringMap.cpp
@@ -261,7 +263,6 @@ add_llvm_component_library(LLVMSupport
   Program.cpp
   RWMutex.cpp
   Signals.cpp
-  ThreadLocal.cpp
   Threading.cpp
   Valgrind.cpp
   Watchdog.cpp
