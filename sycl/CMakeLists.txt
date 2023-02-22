@@ -389,6 +389,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      libsycldevice
      level-zero-sycl-dev
+     unified-runtime-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
