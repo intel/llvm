@@ -31,7 +31,7 @@
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE
 // CHECK-LLVM-SAME:     (%"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %0, 
-// CHECK-LLVM-SAME:     { i32 addrspace(1)* }* noundef byval({ i32 addrspace(1)* }) align 8 %1) #0 {
+// CHECK-LLVM-SAME:     { i32 addrspace(1)* }* noundef byval({ i32 addrspace(1)* }) align 8 %1) #1 {
 // CHECK-LLVM-NEXT:  %3 = alloca %"class.sycl::_V1::item.1.true", align 8
 // CHECK-LLVM-NEXT:  %4 = alloca { i32 addrspace(4)* }, i64 1, align 8
 // CHECK-LLVM-NEXT:  %5 = alloca %"class.sycl::_V1::range.1", align 8

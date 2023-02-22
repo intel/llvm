@@ -22,7 +22,7 @@
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
 // CHECK-LLVM:       store float [[RESULT]], float addrspace(4)* {{.*}}, align 4
 
-// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS]]
+// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS1:[0-9]+]]
 // CHECK-LLVM:       call spir_func void [[FUNC]]
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
@@ -96,3 +96,4 @@ int main() {
 
 // Keep at the end of the file.
 // CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" "uniform-work-group-size"="true" }

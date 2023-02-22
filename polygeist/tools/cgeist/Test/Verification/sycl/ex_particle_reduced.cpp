@@ -3,11 +3,11 @@
 
 // Test that the kernel named `kernel_likelihood` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_likelihood(
-// LLVM-SAME: float addrspace(1)* noundef %0, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %1, 
+// LLVM-SAME: float addrspace(1)* noundef align 4 %0, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %1, 
 // LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %2, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %3,
-// LLVM-SAME: float addrspace(1)* noundef %4, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %5, 
+// LLVM-SAME: float addrspace(1)* noundef align 4 %4, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %5, 
 // LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %6, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %7, 
-// LLVM-SAME: i8 addrspace(1)* noundef %8, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %9, 
+// LLVM-SAME: i8 addrspace(1)* noundef align 1 %8, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %9, 
 // LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %10, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %11)
 
 #include <sycl/sycl.hpp>
