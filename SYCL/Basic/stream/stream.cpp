@@ -27,8 +27,8 @@ int main() {
     Queue.submit([&](handler &CGH) {
       stream Out(1024, 80, CGH,
                  property_list{property::buffer::context_bound{Context}});
-      assert(Out.get_size() == 1024);
-      assert(Out.get_max_statement_size() == 80);
+      assert(Out.size() == 1024);
+      assert(Out.get_work_item_buffer_size() == 80);
       assert(Out.has_property<property::buffer::context_bound>());
       assert(!Out.has_property<property::queue::in_order>());
       assert(
