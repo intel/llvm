@@ -133,14 +133,12 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
-    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-        NativeHandle;
+    interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
     device Device;
 
-    type(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-             nativeHandle,
+    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
          device dev,
          ext::oneapi::level_zero::ownership ownership =
              ext::oneapi::level_zero::ownership::transfer)
