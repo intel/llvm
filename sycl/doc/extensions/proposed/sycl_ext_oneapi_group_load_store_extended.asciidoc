@@ -75,7 +75,7 @@ in the group.
 * Value type of `InputIteratorT` must be convertible to OutputT.
 
 _Effects_: Loads single element from `in_ptr` to `out` by using the `g` group
-object to identify memory location as `in_ptr` + `g.get_local_id()`.
+object to identify memory location as `in_ptr` + `g.get_local_linear_id()`.
 
 `Properties` argument is reserved for future revisions of this extention and is
 ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`
@@ -90,7 +90,7 @@ in the group.
 * InputT must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores single element `in` to `out_ptr` by using the `g` group
-object to identify memory location as `out_ptr` + `g.get_local_id()`
+object to identify memory location as `out_ptr` + `g.get_local_linear_id()`
 
 `Properties` argument is reserved for future revisions of this extention and is
 ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`
@@ -129,9 +129,9 @@ _Effects_: Loads `N` elements from `in_ptr` to `out`
 using the `g` group object.
 Properties may specify xref:data_placement[data placement].
 Default data placement is a blocked one:
-`out[i]` = `in_ptr[g.get_local_id() * N + i];`
+`out[i]` = `in_ptr[g.get_local_linear_id() * N + i];`
 in striped case:
-`out[i]` = `in_ptr[g.get_local_id() + g.get_max_local_range() * i];`
+`out[i]` = `in_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
 
 (4) _Preconditions_: `out_ptr` must be the same for all work-items
@@ -147,9 +147,9 @@ _Effects_: Stores `N` elements from `in` vec to `out_ptr`
 using the `g` group object.
 Properties may specify xref:data_placement[data placement].
 Default placement is a blocked one:
-`out_ptr[g.get_local_id() * N + i]` = `in[i];`
+`out_ptr[g.get_local_linear_id() * N + i]` = `in[i];`
 in striped case:
-`out_ptr[g.get_local_id() + g.get_max_local_range() * i]` = `in[i];`
+`out_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
 
 == Functions with fixed-size arrays
@@ -209,9 +209,9 @@ _Effects_: Loads `ElementsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object.
 Properties may specify xref:data_placement[data placement].
 Default placement is a blocked one:
-`out[i]` = `in_ptr[gh.get_local_id() * ElementsPerWorkItem + i];`
+`out[i]` = `in_ptr[gh.get_local_linear_id() * ElementsPerWorkItem + i];`
 in striped case:
-`out[i]` = `in_ptr[gh.get_local_id() + gh.get_max_local_range() * i];`
+`out[i]` = `in_ptr[gh.get_local_linear_id() + gh.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
 
 .(7) _Preconditions_:
@@ -231,9 +231,9 @@ using the `gh` group helper object.
 
 Properties may specify xref:data_placement[data placement].
 Default placement is a blocked one:
-`out_ptr[gh.get_local_id() * ItemsPerWorkItem + i]` = `in[i];`
+`out_ptr[gh.get_local_linear_id() * ItemsPerWorkItem + i]` = `in[i];`
 in striped case:
-`out_ptr[gh.get_local_id() + gh.get_max_local_range() * i]` = `in[i];`
+`out_ptr[gh.get_local_linear_id() + gh.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
 
 (8)_Effects_: Returns size of temporary memory (in bytes) that is required for
