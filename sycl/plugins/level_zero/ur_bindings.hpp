@@ -8,14 +8,14 @@
 #pragma once
 
 #include "pi_level_zero.hpp"
-#include <zer_api.h>
+#include <ur_api.h>
 
 // Make the Unified Runtime handles definition complete.
 // This is used in various "create" API where new handles are allocated.
-struct _zer_platform_handle_t : public _pi_platform {
+struct ur_platform_handle_t_ : public _pi_platform {
   using _pi_platform::_pi_platform;
 };
 
-struct _zer_device_handle_t : public _pi_device {
+struct ur_device_handle_t_ : public _pi_device {
   using _pi_device::_pi_device;
 };

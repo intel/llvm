@@ -593,7 +593,7 @@ pi_result _pi_context::initialize() {
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   ZeCommandQueueDesc.ordinal =
       Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
   if (Range.first >= 0 &&
@@ -932,7 +932,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 
   // Copy group initialization.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   if (Range.first < 0 || Range.second < 0) {
     // We are asked not to use copy engines, just do nothing.
     // Leave CopyQueueGroup.ZeQueues empty, and it won't be used.
@@ -7801,7 +7801,7 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Write device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -7846,7 +7846,7 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
