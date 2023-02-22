@@ -1146,28 +1146,28 @@ public:
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
   // implicit conversion between const / non-const types for read only accessors
-  template <typename DataType, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder Placeholder,
-            typename PropListT>
-  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
-                          PropListT> &other,
-           std::enable_if_t<(AccMode == access_mode::read) &&
-                            !(std::is_same<DataType, DataT>::value) &&
-                            std::is_same<std::remove_const_t<DataType>,
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
+                          IsPlaceholder_, PropertyListT_> &other,
+           std::enable_if_t<(AccessMode_ == access_mode::read) &&
+                            !(std::is_same<DataT_, DataT>::value) &&
+                            std::is_same<std::remove_const_t<DataT_>,
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
       : impl(other.impl) {}
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
-  template <typename DataType, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder Placeholder,
-            typename PropListT>
-  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
-                          PropListT> &other,
-           std::enable_if_t<(AccMode == access_mode::read_write) &&
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
+                          IsPlaceholder_, PropertyListT_> &other,
+           std::enable_if_t<(AccessMode_ == access_mode::read_write) &&
                             (AccessMode == access_mode::read) &&
-                            std::is_same<std::remove_const_t<DataType>,
+                            std::is_same<std::remove_const_t<DataT_>,
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
       : impl(other.impl) {}
@@ -1251,29 +1251,29 @@ public:
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
   // implicit conversion between const / non-const types for read only accessors
-  template <typename DataType, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder Placeholder,
-            typename PropListT>
-  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
-                          PropListT> &other,
-           std::enable_if_t<(AccMode == access_mode::read) &&
-                            !(std::is_same<DataType, DataT>::value) &&
-                            std::is_same<std::remove_const_t<DataType>,
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
+                          IsPlaceholder_, PropertyListT_> &other,
+           std::enable_if_t<(AccessMode_ == access_mode::read) &&
+                            !(std::is_same<DataT_, DataT>::value) &&
+                            std::is_same<std::remove_const_t<DataT_>,
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
-      : accessor<DataT, Dim, AccMode, AccTarget, Placeholder, PropListT>(
-            other.impl) {}
+      : accessor<DataT, Dimensions_, AccessMode_, AccessTarget_, IsPlaceholder_,
+                 PropertyListT_>(other.impl) {}
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
-  template <typename DataType, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder Placeholder,
-            typename PropListT>
-  accessor(const accessor<DataType, Dim, AccMode, AccTarget, Placeholder,
-                          PropListT> &other,
-           std::enable_if_t<(AccMode == access_mode::read_write) &&
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
+                          IsPlaceholder_, PropertyListT_> &other,
+           std::enable_if_t<(AccessMode_ == access_mode::read_write) &&
                             (AccessMode == access_mode::read) &&
-                            std::is_same<std::remove_const_t<DataType>,
+                            std::is_same<std::remove_const_t<DataT_>,
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
       : accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
