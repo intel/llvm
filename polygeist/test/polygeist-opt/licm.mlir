@@ -176,10 +176,17 @@ func.func @scf_parallel_nohoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: inde
 // -----
 
 // COM: Test LICM on affine.for loops.
+!sycl_id_1 = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1 = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
+
 module {
+
+
 // CHECK: #set = affine_set<()[s0, s1] : (s1 - s0 - 1 >= 0)>
 // CHECK: #set1 = affine_set<() : (9 >= 0)>
 
+// COM: Ensure loop invariant unaliased load + store are hoisted.
 func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
   // CHECK:       func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
   // CHECK-DAG      %cst = arith.constant 2.000000e+00 : f32    
@@ -277,7 +284,7 @@ func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
     // Store can be hoisted because it is the only reaching definition for the first load. 
     //  - the store dominates the aliased load and 
     //  - there is no other aliased store in the loop
-    affine.store %c3, %alloca[0] : memref<1xi32>  
+    affine.store %c3, %alloca[0] : memref<1xi32>
     %c3_1 = affine.load %alloca[0] : memref<1xi32>
     %arr = affine.load %arg0[0] : memref<?xi32>
     %add = arith.addi %arr, %c3_1 : i32
@@ -285,6 +292,44 @@ func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
   }
   return
 }  
+
+// COM: Ensure accessor.subscript operation is hoisted and the load + store instructions before the accessor.subscript
+// COM: operation are also hoisted (because the store referencing %4 is not aliased with %alloca used by the first load).
+func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+  // CHECK:        func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+  // CHECK-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
+  // CHECK-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
+  // CHECK:          affine.if #set1() {
+  // CHECK-NEXT:       %3 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
+  // CHECK-NEXT:       affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1_>
+  // CHECK-NEXT:       %4 = sycl.accessor.subscript %arg0[%alloca_0] {{.*}} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-NEXT:      affine.for %arg1 = 0 to 10 {
+  // CHECK-NEXT:        %5 = affine.load %4[0] : memref<?xf32, 4>
+  // CHECK-NEXT:        %6 = arith.addf %5, {{.*}} : f32
+  // CHECK-NEXT:        affine.store %6, %4[0] : memref<?xf32, 4>
+  // CHECK-NEXT:      }
+  // CHECK-NEXT:    }    
+
+  %alloca = memref.alloca() : memref<1x!sycl_id_1>  
+  %alloca_0 = memref.alloca() : memref<1x!sycl_id_1>
+  %c64_i64 = arith.constant 64 : i64
+  %cst = arith.constant 1.000000e+01 : f32
+
+  %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_1>) -> !llvm.ptr<!sycl_id_1>
+  %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_1> to !llvm.ptr<!sycl_id_1, 4>
+  %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_1, 4>) -> memref<?x!sycl_id_1, 4>
+  sycl.constructor @id(%2, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1, 4>, i64)
+
+  affine.for %arg1 = 0 to 10 {    
+    %3 = affine.load %alloca[0] : memref<1x!sycl_id_1>
+    affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1>
+    %4 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>) -> memref<?xf32, 4>
+    %5 = affine.load %4[0] : memref<?xf32, 4>
+    %6 = arith.addf %5, %cst : f32
+    affine.store %6, %4[0] : memref<?xf32, 4>
+  }
+  return
+}
 
 // COM: Ensure aliased store after dominating load cannot be hoisted.
 func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
@@ -348,5 +393,3 @@ func.func @affine_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: ind
   return
 }
 }
-
-// -----
