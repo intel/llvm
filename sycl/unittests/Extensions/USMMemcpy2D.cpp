@@ -362,6 +362,8 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
       redefine_piextUSMEnqueueMemset2D);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
       redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
