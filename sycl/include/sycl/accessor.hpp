@@ -1001,11 +1001,13 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
-                 AccessTarget == access::target::host_buffer),
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task),
                 "Expected buffer type");
 
   static_assert((AccessTarget == access::target::global_buffer ||
-                 AccessTarget == access::target::host_buffer) ||
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task) ||
                     (AccessTarget == access::target::constant_buffer &&
                      AccessMode == access::mode::read),
                 "Access mode can be only read for constant buffers");
