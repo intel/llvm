@@ -1162,6 +1162,8 @@ if (CLANG_CL AND (LLVM_BUILD_INSTRUMENTED OR LLVM_USE_SANITIZER))
     CMAKE_SHARED_LINKER_FLAGS)
 endif()
 
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frecord-gcc-switches")
+
 if(LLVM_PROFDATA_FILE AND EXISTS ${LLVM_PROFDATA_FILE})
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
     append("-fprofile-instr-use=\"${LLVM_PROFDATA_FILE}\""
@@ -1392,8 +1394,22 @@ if ( EXTRA_RECOMMENDED_OPTSET )
       append_common_extra_recommended_flags()
     elseif (EXTRA_RECOMMENDED_OPTSET STREQUAL "sanitize")
       append_common_extra_recommended_flags()
-      # add sanitize explicitly
-      # sanitize should be added to compile and link lines both
+      if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_option_ext("-fsanitize=cfi" FSANITIZE_CFI)
+        add_link_option_ext("-fsanitize=cfi" FSANITIZE_CFI_LINK
+          CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+          CMAKE_SHARED_LINKER_FLAGS)
+        add_compile_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK)
+        add_link_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK_LINK
+          CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+          CMAKE_SHARED_LINKER_FLAGS)
+      else()
+        add_compile_option_ext("-fcf-protection=full -mcet" FCF_PROTECTION)
+        # need to align compile and link option set, link now is set unconditionally
+        add_link_option_ext("-fcf-protection=full -mcet" FCF_PROTECTION_LINK
+          CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+          CMAKE_SHARED_LINKER_FLAGS)
+      endif()
     else()
       message(FATAL_ERROR "Unsupported value of EXTRA_RECOMMENDED_OPTSET: ${EXTRA_RECOMMENDED_OPTSET}")
     endif()
