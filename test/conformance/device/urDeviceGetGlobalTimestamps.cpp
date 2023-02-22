@@ -11,6 +11,7 @@
 //          - Currently we are saying the error between host/device
 //          - timers is 0.5%
 constexpr double allowedTimerError = 0.005;
+constexpr size_t delayTimerMultiplier = 100;
 
 /// @brief Return the absolute difference between two numeric values.
 /// @tparam T An numeric type.
@@ -53,9 +54,17 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
 
 TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
     for (auto device : devices) {
-        uint64_t deviceStartTime, deviceEndTime = 0;
-        uint64_t hostStartTime, hostEndTime = 0;
-        uint64_t hostOnlyStartTime, hostOnlyEndTime = 0;
+        // get the timer resolution of the device
+        size_t deviceTimerResolutionNanoSecs = 0;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION, sizeof(size_t),
+            &deviceTimerResolutionNanoSecs, nullptr));
+        size_t delayAmountNanoSecs =
+            delayTimerMultiplier * deviceTimerResolutionNanoSecs;
+
+        uint64_t deviceStartTime = 0, deviceEndTime = 0;
+        uint64_t hostStartTime = 0, hostEndTime = 0;
+        uint64_t hostOnlyStartTime = 0, hostOnlyEndTime = 0;
 
         ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, &deviceStartTime,
                                                    &hostStartTime));
@@ -67,7 +76,8 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
         ASSERT_GE(hostOnlyStartTime, hostStartTime);
 
         // wait for timers to increment
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(
+            std::chrono::nanoseconds(delayAmountNanoSecs));
 
         ASSERT_SUCCESS(
             urDeviceGetGlobalTimestamps(device, &deviceEndTime, &hostEndTime));
