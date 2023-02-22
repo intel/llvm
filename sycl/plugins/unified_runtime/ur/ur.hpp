@@ -18,45 +18,47 @@
 #include <thread>
 #include <vector>
 
-#include <zer_api.h>
+#include <ur_api.h>
 
 // TODO: promote all of the below extensions to the Unified Runtime
 //       and get rid of these ZER_EXT constants.
-const int ZER_EXT_DEVICE_INFO_END = ZER_DEVICE_INFO_FORCE_UINT32;
-const int ZER_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE = ZER_EXT_DEVICE_INFO_END - 1;
-const int ZER_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D = ZER_EXT_DEVICE_INFO_END - 2;
-const int ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
-    ZER_EXT_DEVICE_INFO_END - 3;
-const int ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS =
-    ZER_EXT_DEVICE_INFO_END - 4;
-const int ZER_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH = ZER_EXT_DEVICE_INFO_END - 6;
-const int ZER_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU =
-    ZER_EXT_DEVICE_INFO_END - 7;
-const int ZER_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE =
-    ZER_EXT_DEVICE_INFO_END - 8;
-const int ZER_EXT_DEVICE_INFO_GPU_SLICES = ZER_EXT_DEVICE_INFO_END - 9;
-const int ZER_EXT_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES =
-    ZER_EXT_DEVICE_INFO_END - 10;
-const int ZER_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = ZER_EXT_DEVICE_INFO_END - 11;
-const int ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE = ZER_EXT_DEVICE_INFO_END - 12;
-const int ZER_EXT_DEVICE_INFO_FREE_MEMORY = ZER_EXT_DEVICE_INFO_END - 13;
-const int ZER_EXT_DEVICE_INFO_DEVICE_ID = ZER_EXT_DEVICE_INFO_END - 14;
-const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
-    ZER_DEVICE_INFO_IMAGE_MAX_ARRAR_SIZE;
+const int UR_EXT_DEVICE_INFO_END = UR_DEVICE_INFO_FORCE_UINT32;
+const int UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE = UR_EXT_DEVICE_INFO_END - 1;
+const int UR_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D = UR_EXT_DEVICE_INFO_END - 2;
+// const int UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
+//     UR_EXT_DEVICE_INFO_END - 3;
+// const int ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS =
+//     UR_EXT_DEVICE_INFO_END - 4;
+const int UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH = UR_EXT_DEVICE_INFO_END - 6;
+const int UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU = UR_EXT_DEVICE_INFO_END - 7;
+const int UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE =
+    UR_EXT_DEVICE_INFO_END - 8;
+const int UR_EXT_DEVICE_INFO_GPU_SLICES = UR_EXT_DEVICE_INFO_END - 9;
+// const int UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES =
+//     UR_EXT_DEVICE_INFO_END - 10;
+const int UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = UR_EXT_DEVICE_INFO_END - 11;
+// const int ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE = UR_EXT_DEVICE_INFO_END -
+// 12;
+const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
+// const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
+// const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
+//     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
 
-const int ZER_EXT_RESULT_END = 0x1000;
-const zer_result_t ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
-    zer_result_t(ZER_EXT_RESULT_END - 1);
+const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
+    (ur_device_info_t)0x103D;
 
-const int ZER_EXT_USM_CAPS_ACCESS = 1 << 0;
-const int ZER_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
-const int ZER_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
-const int ZER_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
+const int UR_EXT_RESULT_END = 0x1000;
+const ur_result_t UR_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
+    ur_result_t(UR_EXT_RESULT_END - 1);
 
-const zer_device_partition_property_flag_t
-    ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
-        zer_device_partition_property_flag_t(
-            ZER_DEVICE_PARTITION_PROPERTY_FLAG_FORCE_UINT32 - 1);
+const int UR_EXT_USM_CAPS_ACCESS = 1 << 0;
+const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
+const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
+const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
+
+const ur_device_partition_property_t
+    UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
+        ur_device_partition_property_t(UR_DEVICE_PARTITION_FORCE_UINT32 - 1);
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -247,21 +249,21 @@ extern bool PrintTrace;
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for these global variables reclaimed only at
 // explicit tear-down.
-extern std::vector<zer_platform_handle_t> *PiPlatformsCache;
+extern std::vector<ur_platform_handle_t> *PiPlatformsCache;
 extern SpinLock *PiPlatformsCacheMutex;
 extern bool PiPlatformCachePopulated;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 template <typename T, typename Assign>
-zer_result_t getInfoImpl(size_t param_value_size, void *param_value,
-                         size_t *param_value_size_ret, T value,
-                         size_t value_size, Assign &&assign_func) {
+ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
+                        size_t *param_value_size_ret, T value,
+                        size_t value_size, Assign &&assign_func) {
 
   if (param_value != nullptr) {
 
     if (param_value_size < value_size) {
-      return ZER_RESULT_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
     assign_func(param_value, value, value_size);
@@ -271,12 +273,12 @@ zer_result_t getInfoImpl(size_t param_value_size, void *param_value,
     *param_value_size_ret = value_size;
   }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 template <typename T>
-zer_result_t getInfo(size_t param_value_size, void *param_value,
-                     size_t *param_value_size_ret, T value) {
+ur_result_t getInfo(size_t param_value_size, void *param_value,
+                    size_t *param_value_size_ret, T value) {
 
   auto assignment = [](void *param_value, T value, size_t value_size) {
     (void)value_size;
@@ -288,17 +290,17 @@ zer_result_t getInfo(size_t param_value_size, void *param_value,
 }
 
 template <typename T>
-zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
-                          void *param_value, size_t *param_value_size_ret,
-                          const T *value) {
+ur_result_t getInfoArray(size_t array_length, size_t param_value_size,
+                         void *param_value, size_t *param_value_size_ret,
+                         const T *value) {
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
                      array_length * sizeof(T), memcpy);
 }
 
 template <typename T, typename RetType>
-zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
-                          void *param_value, size_t *param_value_size_ret,
-                          const T *value) {
+ur_result_t getInfoArray(size_t array_length, size_t param_value_size,
+                         void *param_value, size_t *param_value_size_ret,
+                         const T *value) {
   if (param_value) {
     memset(param_value, 0, param_value_size);
     for (uint32_t I = 0; I < array_length; I++)
@@ -306,11 +308,11 @@ zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
   }
   if (param_value_size_ret)
     *param_value_size_ret = array_length * sizeof(RetType);
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 template <>
-inline zer_result_t
+inline ur_result_t
 getInfo<const char *>(size_t param_value_size, void *param_value,
                       size_t *param_value_size_ret, const char *value) {
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
@@ -331,19 +333,19 @@ public:
         param_value_size_ret(param_value_size) {}
 
   // Scalar return value
-  template <class T> zer_result_t operator()(const T &t) {
+  template <class T> ur_result_t operator()(const T &t) {
     return getInfo(param_value_size, param_value, param_value_size_ret, t);
   }
 
   // Array return value
-  template <class T> zer_result_t operator()(const T *t, size_t s) {
+  template <class T> ur_result_t operator()(const T *t, size_t s) {
     return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
                         t);
   }
 
   // Array return value where element type is differrent from T
   template <class RetType, class T>
-  zer_result_t operator()(const T *t, size_t s) {
+  ur_result_t operator()(const T *t, size_t s) {
     return getInfoArray<T, RetType>(s, param_value_size, param_value,
                                     param_value_size_ret, t);
   }
@@ -356,13 +358,9 @@ protected:
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local zer_result_t ErrorMessageCode;
+extern thread_local ur_result_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *message,
-                                      zer_result_t error_code);
-
-// Returns plugin specific error and warning messages
-// TODO: promote to Unified Runtime API
-zer_result_t zerPluginGetLastError(char **message);
+                                      ur_result_t error_code);

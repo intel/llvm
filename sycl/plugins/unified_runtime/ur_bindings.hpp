@@ -8,13 +8,13 @@
 #pragma once
 
 #include <ur/adapters/level_zero/ur_level_zero.hpp>
-#include <zer_api.h>
+#include <ur_api.h>
 
 // Make the Unified Runtime handles definition complete.
 // This is used in various "create" API where new handles are allocated.
-struct _zer_platform_handle_t : public _ur_platform_handle_t {
+struct ur_platform_handle_t_ : public _ur_platform_handle_t {
   using _ur_platform_handle_t::_ur_platform_handle_t;
 };
-struct _zer_device_handle_t : public _ur_device_handle_t {
+struct ur_device_handle_t_ : public _ur_device_handle_t {
   using _ur_device_handle_t::_ur_device_handle_t;
 };
