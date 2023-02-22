@@ -72,7 +72,6 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  when devices are used.
 ///
 struct _pi_platform {
-  static CUevent evBase_; // CUDA event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -87,6 +86,7 @@ private:
 
   native_type cuDevice_;
   CUcontext cuContext_;
+  CUevent evBase_; // CUDA event used as base counter
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
 
@@ -95,9 +95,10 @@ private:
   int max_work_group_size;
 
 public:
-  _pi_device(native_type cuDevice, CUcontext cuContext, pi_platform platform)
-      : cuDevice_(cuDevice), cuContext_(cuContext), refCount_{1},
-        platform_(platform) {}
+  _pi_device(native_type cuDevice, CUcontext cuContext, CUevent evBase,
+             pi_platform platform)
+      : cuDevice_(cuDevice), cuContext_(cuContext),
+        evBase_(evBase), refCount_{1}, platform_(platform) {}
 
   ~_pi_device() { cuDevicePrimaryCtxRelease(cuDevice_); }
 
@@ -108,6 +109,8 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  pi_uint64 get_elapsed_time(CUevent) const;
 
   void save_max_work_item_sizes(size_t size,
                                 size_t *save_max_work_item_sizes) noexcept {
