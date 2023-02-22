@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_float_controls
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_float_controls
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
-; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
+; RUN: FileCheck %s --input-file %t.spt -check-prefixes=SPV,SPVEXT
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.4
+; RUN: llvm-spirv %t.spv -o %t.spt --to-text
+; RUN: FileCheck %s --input-file %t.spt -check-prefixes=SPV,SPV14
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.1
+; RUN: llvm-spirv %t.spv -o %t.spt --to-text
+; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV-NEGATIVE
 
 ; ModuleID = 'float_control.bc'
 source_filename = "float_control.cpp"
@@ -43,6 +49,10 @@ entry:
 !llvm.ident = !{!13}
 !spirv.EntryPoint = !{}
 !spirv.ExecutionMode = !{!15, !16, !17, !18, !19, !20, !21, !22, !23, !24, !25, !26, !27, !28, !29}
+
+; SPVEXT-DAG: Extension "SPV_KHR_float_controls"
+; SPV14-NOT: Extension "SPV_KHR_float_controls"
+; SPV-NEGATIVE-NOT: Extension "SPV_KHR_float_controls"
 
 ; SPV-DAG: EntryPoint {{[0-9]+}} [[KERNEL0:[0-9]+]] "k_float_controls_0"
 ; SPV-DAG: EntryPoint {{[0-9]+}} [[KERNEL1:[0-9]+]] "k_float_controls_1"
