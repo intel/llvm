@@ -342,6 +342,34 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
   }
 }
 
+template <typename PtrT>
+void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
+                           CUdeviceptr *out_dev_ptr, PtrT *out_host_ptr) {
+  // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+  // checks with PI_CHECK_ERROR are not suggested
+  CUresult ret = cuPointerGetAttribute(
+      out_mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)usm_ptr);
+  assert((*out_mem_type != CU_MEMORYTYPE_ARRAY &&
+          *out_mem_type != CU_MEMORYTYPE_UNIFIED) &&
+         "ARRAY, UNIFIED types are not supported!");
+
+  // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+  if (ret == CUDA_ERROR_INVALID_VALUE) {
+    *out_mem_type = CU_MEMORYTYPE_HOST;
+    *out_dev_ptr = 0;
+    *out_host_ptr = usm_ptr;
+
+    // todo: resets the above "non-stick" error
+  } else if (ret == CUDA_SUCCESS) {
+    *out_dev_ptr = (*out_mem_type == CU_MEMORYTYPE_DEVICE)
+                       ? reinterpret_cast<CUdeviceptr>(usm_ptr)
+                       : 0;
+    *out_host_ptr = (*out_mem_type == CU_MEMORYTYPE_HOST) ? usm_ptr : nullptr;
+  } else {
+    PI_CHECK_ERROR(ret);
+  }
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -998,7 +1026,6 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
@@ -5261,39 +5288,17 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
       (*event)->start();
     }
 
-    // Determine the direction of Copy using cuPointerGetAttributes
+    // Determine the direction of copy using cuPointerGetAttribute
     // for both the src_ptr and dst_ptr
-    // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
-    CUpointer_attribute attributes = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
-
-    CUmemorytype src_type = static_cast<CUmemorytype>(0);
-    void *src_attribute_values[] = {(void *)(&src_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, src_attribute_values, (CUdeviceptr)src_ptr));
-    assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
-
-    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
-    void *dst_attribute_values[] = {(void *)(&dst_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
-    assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
-
     CUDA_MEMCPY2D cpyDesc = {0};
 
-    cpyDesc.srcMemoryType = src_type;
-    cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(src_ptr)
-                            : 0;
-    cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
-    cpyDesc.srcPitch = src_pitch;
+    getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
+                          &cpyDesc.srcHost);
+    getUSMHostOrDevicePtr(dst_ptr, &cpyDesc.dstMemoryType, &cpyDesc.dstDevice,
+                          &cpyDesc.dstHost);
 
-    cpyDesc.dstMemoryType = dst_type;
-    cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
-                            : 0;
-    cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
     cpyDesc.dstPitch = dst_pitch;
-
+    cpyDesc.srcPitch = src_pitch;
     cpyDesc.WidthInBytes = width;
     cpyDesc.Height = height;
 

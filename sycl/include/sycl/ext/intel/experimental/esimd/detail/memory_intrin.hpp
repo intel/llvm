@@ -401,7 +401,6 @@ void __esimd_emu_lsc_offset_write(
                       std::conditional_t<DS ==
                                              __ESIMD_ENS::lsc_data_size::u16u32,
                                          uint16_t, void>>>>>>;
-
   for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
     if (Pred[OffsetIdx] == 0) {
       // Skip input vector elements correpsonding to
@@ -420,7 +419,12 @@ void __esimd_emu_lsc_offset_write(
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
-        *((StoreType *)(WriteBase + ByteDistance)) = vals[VecIdx];
+        if constexpr (std::is_floating_point<Ty>::value) {
+          *((StoreType *)(WriteBase + ByteDistance)) =
+              sycl::bit_cast<StoreType>(vals[VecIdx]);
+        } else {
+          *((StoreType *)(WriteBase + ByteDistance)) = vals[VecIdx];
+        }
       }
     }
   }
@@ -1177,7 +1181,12 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
     for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
          ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
-      *((StoreType *)(BaseAddr + ByteDistance)) = vals[VecIdx];
+      if constexpr (std::is_floating_point<Ty>::value) {
+        *((StoreType *)(BaseAddr + ByteDistance)) =
+            sycl::bit_cast<StoreType>(vals[VecIdx]);
+      } else {
+        *((StoreType *)(BaseAddr + ByteDistance)) = vals[VecIdx];
+      }
     }
   }
 }
