@@ -23,8 +23,12 @@ using namespace sycl;
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 8)                               \
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 16)
 
+// Check different combinations of the given binary operation. Some compare
+// scalar values with the marrays, which is valid as all elements in the marrays
+// should be the same.
 #define CHECK_BINOP(OP, LHS, RHS)                                              \
-  assert((LHS[0] * RHS) == (LHS * RHS) && (LHS * RHS[0]) == (LHS * RHS));
+  assert((LHS[0] OP RHS) == (LHS OP RHS) && (LHS OP RHS[0]) == (LHS OP RHS) && \
+         (LHS[0] OP RHS[0]) == (LHS OP RHS));
 
 struct NotDefaultConstructible {
   NotDefaultConstructible() = delete;
