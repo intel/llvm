@@ -55,6 +55,9 @@ int main() {
 device_global<int> Basic;
 // CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Basic, "_Z5Basic");
 
+extern device_global<int> ExternDevGlobal;
+// CHECK-FOOTER-NOT: ExternDevGlobal
+
 struct Wrapper {
   static device_global<int> WrapperDevGlobal;
 };
