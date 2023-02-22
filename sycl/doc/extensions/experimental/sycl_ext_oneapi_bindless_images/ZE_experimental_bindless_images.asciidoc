@@ -1,0 +1,368 @@
+# Bindless Images
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) Codeplay. All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Dependencies
+
+This extension is written against the Level Zero v1.5.8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== API
+
+* Enumerations
++
+```
+ze_bindless_images_ext_version_t
+```
+* Structures
++
+```
+ze_image_mem_exp_desc_t
+ze_bindless_image_exp_desc_t
+ze_image_mem_alloc_exp_desc_t
+```
+
+== Overview
+
+Bindless images are a feature that provides flexibility on how images are accessed and used, such as removing limitations on how many images can be accessed as well as potentially improving performance.
+This is an improvement on the legacy of binding images which is a holdover from binding slots in hardware which used to be limited in number.
+
+Currently, bindless images are used internally in Level Zero.
+However, the full capabilities of bindless images are not exposed such as being able to independently access different types of images in an array regardless of their dimensionality as long as the images are accessed correctly by the user.
+
+This document will be proposing an extension for Level Zero to enable bindless images to be fully exploited.
+Part of the inspiration for this proposal is to allow the implementation of bindless images in SYCL, a proposal for which is currently in development, where Level Zero is used as a backend.
+
+
+=== Current Status of Images in Level Zero
+
+Currently, `zeImageCreate` does not produce image handles that have the properties to enable bindless images.
+In addition to this, images allocate and own their memory.
+These two things conflict with work being conducted on SYCL bindless images.
+This is because the API for SYCL bindless images has been designed to improve the flexibility and general usability of images in SYCL and this introduces some conflicts with Level Zero.
+For bindless images in SYCL to work in Level Zero, not only must there be a way to produce bindless image handles, but also allocate and populate image memory before `zeImageCreate` is called.
+
+Level Zero stores image memory in an implementation-specific encoding and layout that optimizes for device access such as the z-order curve.
+This proposal, instead, focuses on storing image memory in a linear fashion.
+
+Also, accessing images through USM is not supported by Level Zero.
+This would allow the reading and writing of image data with conventional pointers, in contrast to the current Level Zero images which require the exclusive use of API.
+This proposal introduces bindless images to Level Zero which allows for USM access.
+
+=== Explicit or Implicit Bindless Images
+
+There are two directions in which bindless images can be implemented.
+Either all images are implicitly bindless, or bindless images are explicitly declared.
+
+Level Zero with implicit bindless images would mean all images would have to be bindless.
+This would mean that users could start using the features of bindless images without needing to introduce new code to enable bindless images.
+This method however could present issues on devices that cannot support bindless images and some kind of flag would be required to enable or disables bindless images.
+Also, there would be no way to use both bound and bindless images together which could potentially present issues when that is desired.
+
+Level Zero with explicit bindless images would require a way to designate an image as bindless at the image's construction.
+This would allow the mixing of bound and bindless images which could be useful for some developers as it would be clearer what is incompatible with a device that does not support bindless images.
+
+This extension is written for explicit bindless images.
+If implicit bindless images are the direction chosen to go in then the struct `ze_bindless_image_exp_desc_t` will not be needed.
+
+=== Current SYCL Bindless API
+
+The current proposed SYCL API for bindless images looks as follows:
+
+Functions:
+```cpp
+image_mem_handle allocate_image(...)
+image_handle create_image(...)
+event queue::copy_image(...)
+DataT read_image(...)
+void write_image(...)
+```
+
+This API was designed with the restrictions of CUDA in mind as changes cannot be made to CUDA.
+
+In SYCL the process currently looks like this:
+Allocate the image using `allocate_image`.
+The image handle is then created using `create_image`.
+Then the data of the image is copied over to the device via `copy_image`.
+Lastly in the kernel, the image can be read and written using the respective image handle and `read_image`/`write_image`.
+
+This presents some API differences when compared to how the Level Zero image API currently works.
+In Level Zero, first, the creation of the image occurs.
+This effectively performs both `allocate_image` and `create_image` from the proposed extended SYCL API.
+The data can then be copied to the device and read within a kernel.
+We cannot effectively map `zeImageCreate` to both `sycl::ext::allocate_image` and `sycl::ext::create_image`.
+Therefore, we propose to extend Level Zero with the ability to allocate image memory separately from `zeImageCreate`, and pass that memory to `zeImageCreate` to use.
+
+There are also issues with pitched image memory.
+Normally, Level Zero deals with pitched memory itself and does not concern the user. 
+However, with the newly proposed SYCL bindless images API, the pitch information must be handled by the user on allocation and passed between the copying and creation functions.
+
+== Specification
+
+For bindless images to function in Level Zero, image handles must be produced.
+
+This is done by introducing three new extension structures.
+The first, `ze_bindless_image_exp_desc_t` designates an image or sampler as bindless and contains a field that can be used to access the image handle created.
+The second, `ze_image_mem_exp_desc_t` allows for the separate memory management of images.
+This allows for image data to be copied over to the device before the image type is created using `zeCommandListAppendMemoryCopyRegion`.
+While this can be mimicked using the https://spec.oneapi.io/level-zero/latest/core/EXT_ImageCopy.html[image copy extension],
+that introduces extra copies as a full image would need to be created in the `allocate_image` step then overwritten using functions from this extension.
+Copying image data to and from the device can be done before or after `zeImageCreate` is called.
+Lastly, is `ze_image_mem_alloc_exp_desc_t`.
+This is used for Level Zero to allocate memory and calculate the best pitch size for bindless images.
+
+=== New Structure Types
+
+* enumerator `ZE_BINDLESS_IMAGE_EXP_DESC`
++
+```
+ze_bindless_image_exp_desc_t
+```
+* enumerator `ZE_STRUCTURE_TYPE_IMAGE_MEM_EXP_DESC`
++
+```
+ze_image_mem_exp_desc_t
+```
+* enumerator `ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC`
++
+```
+ze_image_mem_alloc_exp_desc_t
+```
+
+==== ze_bindless_image_exp_desc_t
+
+* `struct ze_bindless_image_exp_desc_t`
++
+Bindless descriptor
+
+Public Members
+
+* `ze_structure_type_t stype`
++
+[in] type of this structure
+* `const void *pNext`
++
+[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
+
+`ze_bindless_image_exp_desc_t` is intended to be used to declare an image as bindless.
+If the choice is taken for bindless to be the default then this struct will not be needed.
+In this document, it is assumed that bound images will be the default and bindless images will need to be explicitly declared.
+
+To use this struct it should be passed into `zeImageCreate` to inform Level Zero that the image is to be bindless.
+The returned image handle in turn should have the characteristics to enable bindless images.
+
+==== ze_image_mem_exp_desc_t
+
+* `struct ze_image_mem_exp_desc_t`
++
+Manual image memory descriptor
+
+Public Members
+
+* `ze_structure_type_t stype`
++
+[in] type of this structure
+* `const void *pNext`
++
+[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
+*
+`void **ptr`
++
+[in] pointer to device allocation
+* `uint64_t rowPitch`
++
+[in][optional] size of image row pitch in bytes
+* `uint64_t slicePitch`
++
+[in][optional] size of image slice pitch in bytes
+
+`ze_image_mem_exp_desc_t` is intended to allow for the separate memory management of images.
+To use this struct it is to be passed to `zeImageCreate`.
+In addition to passing the pointer to the memory that `zeImageCreate` is to use it also informs Level Zero what pitch the image memory is.
+
+==== ze_image_mem_alloc_exp_desc_t
+
+* `struct ze_image_mem_alloc_exp_desc_t`
++
+Declare pitch of image
+
+Public Members
+
+* `ze_structure_type_t stype`
++
+[in] type of this structure
+* `const void *pNext`
++
+[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
+* `uint64_t widthInBytes`
++
+[in] width of image row in bytes
+* `uint64_t height`
++ [in] height of image
+* `uint64_t depth`
++
+[in] depth of image
+* `uint64_t elementSizeBytes`
++
+[in] byte size of single element
+* `uint64_t *rowPitch`
++
+[out][optional] pitch of row
+* `uint64_t *slicePitch`
++
+[out][optional] pitch of slice
+
+`ze_image_mem_alloc_exp_desc_t` is intended to be passed to `zeMemAllocDevice` when manually allocating memory for an image to return optimized pitch information.
+The returned row and slice pitch can then be passed to `zeCommandListAppendMemoryCopyRegion` through its arguments and `zeImageCreate` using `ze_image_mem_exp_desc_t` to inform both functions what the correct pitched image memory is.
+The order in that structs are passed in using `pNext` does not matter.
+
+
+The following pseudo-code demonstrates how to create a bindless image with separate memory:
+
+```cpp
+size_t widthInBytes = 100 * sizeof(float), width = 100, height = 100, depth = 0;
+unsigned int elementSizeBytes = sizeof(float);
+
+size_t rowPitch, slicePitch;
+
+ze_image_mem_alloc_exp_desc_t imgAllocDesc = {
+    ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC, // stype
+    nullptr, // pNext
+    widthInBytes,
+    height,
+    depth,
+    elementSizeBytes,
+    &rowPitch,
+    &slicePitch
+};
+
+ze_device_mem_alloc_desc_t deviceDesc = {
+    ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC, // stype
+    imgAllocDesc, // pNext
+    ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED // flags
+    0 // ordinal
+};
+
+void *imgMemPtr;
+// maybe have new zeExtMemImageAllocDevice instead of zeMemAllocDevice then ze_device_mem_alloc_desc_t would not be needed.
+// Also size field would not be needed as that info would be able to be calculated from data in ze_image_mem_alloc_exp_desc_t.
+zeMemAllocDevice(context, deviceDesc, width * height * sizeof(float), 1, device,
+                 imgMemPtr);
+
+ze_copy_region_t cpyRegionImg = {
+    0, // x offset
+    0, // y offset
+    0, // z offset
+    width,
+    height,
+    depth
+};
+
+zeCommandListAppendMemoryCopyRegion(commandList, imgMemPtr, cpyRegionImg,
+                                    rowPitch, slicePitch, srcPtr, cpyRegionImg,
+                                    0 /*srcRowPitch*/, 0 /*srcSlicePitch*/,
+                                    nullptr /*ze_event_handle_t*/,
+                                    0 /*numWaitEvents*/,
+                                    nullptr /*ze_event_handle_t*/);
+
+ze_image_mem_exp_desc_t imgMem = {
+    ZE_STRUCTURE_TYPE_IMAGE_MEM_EXP_DESC, // stype
+    nullptr, // pNext
+    imgMemPtr,
+    rowPitch,
+    slicePitch
+};
+
+ze_bindless_image_exp_desc_t imgBindless {
+    ZE_BINDLESS_IMAGE_EXP_DESC, // stype
+    imgMem // pNext
+};
+
+ze_image_desc_t imageDesc = {
+    ZE_STRUCTURE_TYPE_IMAGE_DESC, // stype
+    &imgBindless, // pNext
+    0, // ze_image_flag_t, set to read only.
+    ZE_IMAGE_TYPE_2D,
+    format,
+    128, // width
+    128, // height
+    0, // depth
+    0, // arrayLevels
+    0 // miplevels
+};
+
+ze_image_handle_t hImage; // Bindless image handle
+zeImageCreate(hContext, hDevice, &imageDesc, &hImage);
+```
+
+
+```cpp
+ze_bindless_image_exp_desc_t bindlessSmp {
+    ZE_BINDLESS_IMAGE_EXP_DESC, // stype
+    nullptr // pNext
+};
+
+ze_sampler_desc_t samplerDesc = {
+    ZE_STRUCTURE_TYPE_SAMPLER_DESC, // stype
+    bindlessSmp, // pNext
+    ZE_SAMPLER_ADDRESS_MODE_CLAMP, // addressMode
+    ZE_SAMPLER_FILTER_MODE_LINEAR, // filterMode
+    false // isNormalized
+};
+
+ze_sampler_handle_t hSampler; // Bindless sampler handle
+zeSamplerCreate(hContext, hDevice, &samplerDesc, &hSampler);
+```
+
+When it is desired to access a bindless image or sampler under the hood, the handles will be converted from handles to their respective image/sampler types using instructions from `SPV_NV_bindless_textures`, or equivalent extension.
+
+
+== Implementation notes
+
+No implementation yet.
+
+== Issues
+
+== Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date |Changes
+|1 |2023-02-23 | Initial draft
+|======================
