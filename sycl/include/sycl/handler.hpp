@@ -2925,7 +2925,7 @@ private:
         });
   }
 
-    // Common function for launching a 2D USM fill kernel or host_task to avoid
+  // Common function for launching a 2D USM fill kernel or host_task to avoid
   // redefinitions of the kernel from memset and fill.
   template <typename T>
   void commonUSMFill2DFallbackHostTask(void *Dest, size_t DestPitch,
