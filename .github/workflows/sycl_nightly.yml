@@ -68,7 +68,7 @@ jobs:
 
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: ubuntu2004_build_test
     steps:
     - uses: actions/checkout@v3
@@ -105,7 +105,7 @@ jobs:
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: ubuntu2204_build_test
     steps:
     - uses: actions/checkout@v3
