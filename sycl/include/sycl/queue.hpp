@@ -60,16 +60,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 class device;
 class queue;
-
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    -> backend_return_t<BackendName, SyclObjectT>;
-
-namespace ext::oneapi::level_zero::experimental {
-template <backend BackendName, class SyclObjectT>
-auto get_native_standard_or_immediate(const SyclObjectT &Obj)
-    -> backend_return_t2<BackendName, SyclObjectT>;
-}
+    ->backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
 class queue_impl;
@@ -1637,10 +1630,6 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
-  template <backend BackendName, class SyclObjectT>
-  friend auto
-  ext::oneapi::level_zero::experimental::get_native_standard_or_immediate(
-      const SyclObjectT &Obj) -> backend_return_t2<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,

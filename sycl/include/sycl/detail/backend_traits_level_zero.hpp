@@ -62,8 +62,7 @@ template <> struct interop<backend::ext_oneapi_level_zero, event> {
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_command_queue_handle_t;
-  using type2 =
+  using type =
       std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 
@@ -134,29 +133,17 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
-    interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership;
-
-    device Device;
-
-    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
-         device dev,
-         ext::oneapi::level_zero::ownership ownership =
-             ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
-  };
-  struct type2 {
     std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
         NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
     device Device;
 
-    type2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-              nativeHandle,
-          device dev,
-          ext::oneapi::level_zero::ownership ownership =
-              ext::oneapi::level_zero::ownership::transfer)
+    type(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+             nativeHandle,
+         device dev,
+         ext::oneapi::level_zero::ownership ownership =
+             ext::oneapi::level_zero::ownership::transfer)
         : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
   };
 };
@@ -178,8 +165,7 @@ struct BackendReturn<backend::ext_oneapi_level_zero,
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_command_queue_handle_t;
-  using type2 =
+  using type =
       std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 

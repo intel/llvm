@@ -56,13 +56,9 @@ template <backend Backend> class backend_traits {
 public:
   template <class T>
   using input_type = typename detail::BackendInput<Backend, T>::type;
-  template <class T>
-  using input_type2 = typename detail::BackendInput<Backend, T>::type2;
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
-  template <class T>
-  using return_type2 = typename detail::BackendReturn<Backend, T>::type2;
 
   using errc = detail::backend_errc;
 };
@@ -70,16 +66,10 @@ public:
 template <backend Backend, typename SyclType>
 using backend_input_t =
     typename backend_traits<Backend>::template input_type<SyclType>;
-template <backend Backend, typename SyclType>
-using backend_input_t2 =
-    typename backend_traits<Backend>::template input_type2<SyclType>;
 
 template <backend Backend, typename SyclType>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SyclType>;
-template <backend Backend, typename SyclType>
-using backend_return_t2 =
-    typename backend_traits<Backend>::template return_type2<SyclType>;
 
 namespace detail {
 template <backend Backend, typename DataT, int Dimensions, typename AllocatorT>
@@ -131,20 +121,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    -> backend_return_t<BackendName, SyclObjectT> {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-  return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
-      Obj.getNative());
-}
-
-namespace ext::oneapi::level_zero::experimental {
-template <backend BackendName, class SyclObjectT>
-auto get_native_standard_or_immediate(const SyclObjectT &Obj)
-    -> backend_return_t2<BackendName, SyclObjectT> {
+    ->backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
@@ -152,7 +129,6 @@ auto get_native_standard_or_immediate(const SyclObjectT &Obj)
   }
   return Obj.getNative2();
 }
-} // namespace ext::oneapi::level_zero::experimental
 
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
@@ -297,23 +273,9 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, Handler, Backend);
-}
-
-namespace ext::oneapi::level_zero::experimental {
-template <backend Backend>
-typename std::enable_if<
-    sycl::detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
-    queue>::type
-make_queue_standard_or_immediate(
-    const typename backend_traits<Backend>::template input_type2<queue>
-        &BackendObject,
-    const context &TargetContext, const async_handler Handler = {}) {
   return sycl::detail::make_queue_standard_or_immediate(
       BackendObject, TargetContext, nullptr, false, Handler, Backend);
 }
-} // namespace ext::oneapi::level_zero::experimental
 
 template <backend Backend>
 typename std::enable_if<
