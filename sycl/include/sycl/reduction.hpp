@@ -1200,13 +1200,18 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
-          auto LocalSum = Identity;
-          for (size_t I = LID; I < NWorkGroups; I += WGSize)
-            LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
+          // The last work-group may not have enough work for all its items.
+          size_t RemainingWorkSize = std::min(NWorkGroups, WGSize);
 
-          LocalReds[LID] = LocalSum;
+          if (LID < RemainingWorkSize) {
+            auto LocalSum = PartialSums[LID * NElements + E];
+            for (size_t I = LID + WGSize; I < NWorkGroups; I += WGSize)
+              LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
 
-          doTreeReduction(WGSize, LID, LocalReds, BOp,
+            LocalReds[LID] = LocalSum;
+          }
+
+          doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
                           [&]() { workGroupBarrier(); });
           if (LID == 0) {
             auto V = LocalReds[0];
@@ -1571,13 +1576,16 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
           size_t GID = NDIt.get_global_linear_id();
 
           for (int E = 0; E < NElements; ++E) {
+            // The last work-group may not have enough work for all its items.
+            size_t RemainingWorkSize =
+                sycl::min(WGSize, NWorkItems - GrID * WGSize);
+
             // Copy the element to local memory to prepare it for
             // tree-reduction.
-            LocalReds[LID] = (UniformPow2WG || GID < NWorkItems)
-                                 ? In[GID * NElements + E]
-                                 : ReduIdentity;
+            if (LID < RemainingWorkSize)
+              LocalReds[LID] = In[GID * NElements + E];
 
-            doTreeReduction(WGSize, LID, LocalReds, BOp,
+            doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
                             [&]() { NDIt.barrier(); });
 
             // Compute the partial sum/reduction for the work-group.
