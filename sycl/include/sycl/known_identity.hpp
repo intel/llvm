@@ -65,9 +65,7 @@ using IsLogicalOR =
 
 template <typename T>
 using isComplex =
-    bool_constant<std::is_same<T, std::complex<short>>::value ||
-                  std::is_same<T, std::complex<int>>::value ||
-                  std::is_same<T, std::complex<float>>::value ||
+    bool_constant<std::is_same<T, std::complex<float>>::value ||
                   std::is_same<T, std::complex<double>>::value>;
 
 // Identity = 0
