@@ -121,7 +121,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    ->backend_return_t<BackendName, SyclObjectT> {
+    -> backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
