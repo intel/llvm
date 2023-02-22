@@ -5,7 +5,7 @@
 // RUN: %clang_cc1 -fsycl-instrument-device-code -triple spir64_gen-unknown-unknown %s -emit-llvm -o - 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fsycl-instrument-device-code -triple spir64_fpga-unknown-unknown %s -emit-llvm -o - 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fsycl-instrument-device-code -triple spir64_x86_64-unknown-unknown %s -emit-llvm -o - 2>&1 | FileCheck %s
-// CHECK-NOT: error
+// CHECK-NOT: error:
 
 // RUN: not %clang_cc1 -fsycl-instrument-device-code -triple spirv32 -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK-ERR
 // RUN: not %clang_cc1 -fsycl-instrument-device-code -triple spirv64 -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK-ERR
