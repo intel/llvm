@@ -454,7 +454,6 @@ if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   endif()
 endif()
 
-
 # Use it as fake dependency in order to force another command(s) to execute.
 add_custom_command(OUTPUT __force_it
   COMMAND "${CMAKE_COMMAND}" -E echo

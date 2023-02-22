@@ -1,3 +1,28 @@
+//==------------ win_proxy_loader.cpp - SYCL standard source file ----------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// On Windows, DLLs loaded dynamically (via LoadLibrary) are not tracked as
+// dependencies of the caller in the same way they would be if linked
+// statically.
+// This can lead to unloading problems, where after main() finishes the OS will
+// unload those DLLs from memory, possibly before the caller is done.
+// (static var destruction or DllMain() can both occur after)
+// The workaround is this proxy_loader. It is statically linked by the SYCL
+// library and thus is a real dependency and is not unloaded from memory until
+// after SYCL itself is unloaded. It calls LoadLibrary on all the PI Plugins
+// that SYCL will use during its initialization, which ensures that those plugin
+// DLLs are not unloaded until after.
+// Note that this property is not transitive. If any of the PI DLLs in turn
+// dynamically load some other DLL during their lifecycle there is no guarantee
+// that the "grandchild" won't be unloaded early. They would need to employ a
+// similar approach.
+
+
 #include <cassert>
 
 #ifdef _WIN32
@@ -103,7 +128,7 @@ MapT& getDllMap() {
   return dllMap;
 }
 
-/// load the five libraries and store them in a map.
+/// Load the plugin libraries and store them in a map.
 void preloadLibraries() {
   // Suppress system errors.
   // Tells the system to not display the critical-error-handler message box.
@@ -150,7 +175,7 @@ void preloadLibraries() {
   }
 }
 
-/// windows_pi.cpp:loadOsLibrary() calls this to get the DLL we loaded earlier.
+/// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded earlier.
 __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
 
   MapT& dllMap = getDllMap();

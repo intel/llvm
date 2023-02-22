@@ -1,4 +1,3 @@
-
 project(win_proxy_loader)
 add_library(win_proxy_loader SHARED  win_proxy_loader.cpp)
 if (WIN32)
@@ -40,13 +39,10 @@ if (MSVC)
   set(CMAKE_CXX_FLAGS_MINSIZEREL "")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "")
   set(CMAKE_CXX_FLAGS_DEBUG "")
-endif()
-
 
 # Handle the debug version for the Microsoft compiler as a special case by
 # creating a debug version of the static library that uses the flags used by
 # the SYCL runtime
-if (MSVC)
   add_library(win_proxy_loaderd SHARED win_proxy_loader.cpp)
   target_compile_options(win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
   target_compile_options(win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
@@ -54,8 +50,7 @@ if (MSVC)
   target_link_libraries(win_proxy_loader PRIVATE shlwapi)
   if (WIN32)
      install(TARGETS win_proxy_loaderd
-             RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader
-  )
+             RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader)
   endif()
 endif()
 
