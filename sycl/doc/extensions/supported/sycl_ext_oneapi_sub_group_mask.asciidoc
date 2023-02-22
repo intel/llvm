@@ -131,7 +131,9 @@ number of bits in the value representation of `T`, the remaining positions are
 initialized to zero.
 
 |`sub_group_mask(const sub_group_mask &other) = default`
-|Constructs a group mask as a copy of _other_.
+|Constructs a group mask as a copy of _other_. Size of _other_ group mask must
+be the same as max local range of the sub-group which work-item belongs to or
+otherwise behavior is undefined.
 
 |`sub_group_mask& operator=(const sub_group_mask &other) = default`
 |Assigns this instance of `sub_group_mask` with a copy of _other_. Size of both
