@@ -88,8 +88,8 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
         const uint64_t hostTimeDiff = hostEndTime - hostStartTime;
         const uint64_t observedDiff =
             absolute_difference(deviceTimeDiff, hostTimeDiff);
-        const uint64_t allowedDiff =
-            std::min(deviceTimeDiff, hostTimeDiff) * allowedTimerError;
+        const uint64_t allowedDiff = static_cast<uint64_t>(
+            std::min(deviceTimeDiff, hostTimeDiff) * allowedTimerError);
 
         ASSERT_LE(observedDiff, allowedDiff);
     }
