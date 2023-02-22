@@ -1,7 +1,8 @@
-# sycl_ext_oneapi_bindless_images
+# Bindless Images
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
 
 // This section needs to be after the document title.
 :doctype: book
@@ -9,35 +10,32 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-:dpcpp: pass:[DPC++]
 
+:blank: pass:[ +]
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-## Notice
+
+== Notice
 
 [%hardbreaks]
-Copyright (C) Codeplay Software Limited. All rights reserved.
+Copyright (C) Codeplay. All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
-of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
 
-## Contact
 
-To report problems with this extension, please open a new issue at:
+== Dependencies
 
-https://github.com/intel/llvm/issues
-
-## Dependencies
-
-This extension is written against the SYCL 2020 revision 6 specification. All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-## Status
+
+== Status
 
 This is an experimental extension specification, intended to provide early
 access to features and gather community feedback.  Interfaces defined in this
@@ -46,15 +44,16 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-## Backend support status
 
-This extension is currently implemented in DPC++ only when using the CUDA backend.
-Attempting to use this extension in kernels
-that run on other devices or backends may result in undefined behavior.
-Be aware that the compiler is not able to issue a diagnostic to warn you if this happens.
-Work is ongoing to support other backends.
+== Backend support status
 
-## Overview
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the CUDA backend.  Attempting to use this extension in
+kernels that run on other devices or backends will not work. 
+Be aware that the compiler may not be able to issue a diagnostic to
+warn you if this happens.
+
+== Overview
 
 Images in SYCL 1.2.1 were designed to work with OpenCL.
 SYCL 2020 tried to make them work with other backends as well
@@ -69,19 +68,21 @@ potentially a number that's not known at compile time,
 which is very difficult or even impossible to do with the current model.
 
 That's why we propose in this document a new extension for SYCL 2020 images.
-Per the proposal, users would be able to separate memory allocation for the image
-from the actual image creation.
-An image is represented  by an opaque handle that can be passed directly into a kernel
-without requesting access.
-In many ways this model resembles more the USM model when accessing data on the device,
-but it's specialized for dealing with images.
+Per the proposal, users would be able to separate memory allocation for the 
+image from the actual image creation.
+An image is represented  by an opaque handle that can be passed directly into 
+a kernel without requesting access.
+In many ways this model resembles more the USM model when accessing data on 
+the device, but it's specialized for dealing with images.
 
 The proposed model does not replace SYCL 2020 images,
-it is instead meant as building blocks for implementing SYCL 2020 images on top of it.
+it is instead meant as building blocks for implementing SYCL 2020 images on 
+top of it.
 
-## Specification
 
-### Feature test macro
+== Specification
+
+=== Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification. An implementation supporting this extension must predefine the
@@ -91,13 +92,13 @@ determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
 implementation supports.
 
-[%header,cols="10,90"]
-|===
-| Value | Description
-| 202302 | The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
-|===
+[frame="none",options="header"]
+|======================
+|Value |Description
+|202302 |Initial version of this extension
+|======================
 
-### Image descriptor
+=== Image descriptor
 
 ```cpp
 namespace sycl::ext::oneapi {
@@ -114,21 +115,23 @@ struct image_descriptor {
 }
 ```
 
-The image descriptor represents the image dimensions, channel type, channel order, and row pitch.
+The image descriptor represents the image dimensions, channel type, channel 
+order, and row pitch.
 
 Note that `image_channel_type` and `image_channel_order` existed in SYCL 1.2.1,
 but were removed in SYCL 2020 in favor of a single, unified enum class.
 We propose separating them again to enable better flexibility
 and to avoid combinatorial complexity.
 
-### Allocating image memory
+=== Allocating image memory
 
 ```cpp
 namespace sycl::ext::oneapi {
 
-void* allocate_image(const context& syclContext, image_descriptor desc);
+image_mem_handle allocate_image(const context& syclContext, 
+                                image_descriptor desc);
 
-void free_image(const context& syclContext, void* memory_handle);
+void free_image(const context& syclContext, void *memory_handle);
 
 }
 ```
@@ -138,40 +141,44 @@ allocate an image, then create an image handle from the allocation.
 
 The first step is to allocate memory for an image.
 `allocate_image` can be used for this,
-as it allocates memory based on the requirements outlined by the image descriptor.
-The function returns a pointer to the newly allocated memory.
-Note that the image is an opaque type, so the pointer cannot be dereferenced on the host.
+as it allocates memory based on the requirements outlined by the image 
+descriptor. The function returns a handle to the newly allocated memory.
+Note that the image is an opaque type, so the handle cannot be dereferenced on 
+the host. The layout of the allocated memory is backend-specific, and may be an 
+optimized layout, e.g. tile swizzle patterns.
 
-After we're done with the image, we need to cleanup the memory using `free_image`.
+After we're done with the image, we need to cleanup the memory using 
+`free_image`.
 
-
-[NOTE]
-====
-In the DPC++ CUDA backend, this will allocate a `CUarray` type.
-====
+_In the DPC++ CUDA backend, these will allocate/deallocate a `CUarray` type._
 
 An alternative is to allocate memory using device USM allocations.
-In addition to the existing USM allocation functions, a new USM pitched allocation function is proposed:
+In addition to the existing USM allocation functions, a new USM pitched 
+allocation function is proposed.
 
 ```cpp
 namespace sycl::ext::oneapi {
 
-void* pitched_alloc_device(size_t* ret_pitch, size_t width_in_bytes, size_t height
-                           unsigned int element_size_bytes, const queue& queue);
+void *pitched_alloc_device(size_t* ret_pitch, size_t width_in_bytes, 
+                           size_t height unsigned int element_size_bytes, 
+                           const queue &queue);
 
 }
 ```
 
-This function will allocate a memory region aimed to be used for two-dimensional images.
-It places appropriate padding at the end of image rows and returns the pitch value used.
+This function will allocate a memory region aimed to be used for 
+two-dimensional images.
+It places appropriate padding at the end of image rows and returns the pitch 
+value used.
 
 For one-dimensional images, existing USM allocation functions are sufficient.
 
 Three-dimensional images do not support USM.
 
-The next step, creating the image, is the same regardless of how the memory was allocated.
+The next step, creating the image, is the same regardless of how the memory 
+was allocated.
 
-### Obtaining a handle to the image
+=== Obtaining a handle to the image
 
 ```cpp
 namespace sycl::ext::oneapi {
@@ -179,9 +186,15 @@ namespace sycl::ext::oneapi {
 using unsampled_image_handle = /* Implementation defined */;
 using sampled_image_handle = /* Implementation defined */;
 
-unsampled_image_handle create_image(const context& syclContext, void* devPtr);
-sampled_image_handle create_image(const context& syclContext, void* devPtr,
-                          sampler& sampler);
+unsampled_image_handle create_image(const context &syclContext,
+                                    image_mem_handle mem_handle);
+sampled_image_handle create_image(const context &syclContext,
+                                  image_mem_handle mem_handle,
+                                  sampler &sampler);
+
+unsampled_image_handle create_image(const context &syclContext, void *usm_ptr);
+sampled_image_handle create_image(const context &syclContext, void *usm_ptr,
+                                  sampler &sampler);
 
 void destroy_image_handle(const context& syclContext,
                           sampled_image_handle& imageHandle);
@@ -194,74 +207,86 @@ void destroy_image_handle(const context& syclContext,
 Once we have allocated memory, we can pass it into the `create_image` function
 to obtain a `sampled_image_handle` or `unsampled_image_handle`.
 These objects are opaque types that represent an image object.
-They can be captured by value into a SYCL kernel,
-or they can be passed in a buffer as a dynamic array of images
-(see examples below).
+They can be captured by value into a SYCL kernel, or they can be passed in a 
+buffer as a dynamic array of images (see examples below).
 
 We can either provide a sampler or not when creating the image.
 
-[NOTE]
-====
-In the DPC++ CUDA backend a sampled image will correspond to a CUDA texture.
-An unsampled image will usually correspond to a CUDA surface, unless the memory the
-texture is created from is USM, then it will correspond to a CUDA texture.
-====
+_In the DPC++ CUDA backend a sampled image will correspond to a CUDA texture.
+An unsampled image will usually correspond to a CUDA surface, unless the memory 
+the texture is created from USM, then it will correspond to a CUDA texture._
 
-After we're done with the image, we need to destroy the handle using `destroy_image_handle`.
+After we're done with the image, we need to destroy the handle using 
+`destroy_image_handle`.
 
-### Explicit copies
+=== Explicit copies
 
 ```cpp
-namespace sycl::ext::oneapi {
+namespace sycl {
+class queue {
+public:
+  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
+                         const ext::oneapi::image_descriptor &Desc);
+  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         event DepEvent);
+  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         const std::vector<event> &DepEvents);
 
-enum image_copy_flags : unsigned int {
-  HtoD = 0, // Host to device
-  DtoH = 1, // Device to host
-  DtoD = 2, // Device to device
+  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
+                         const ext::oneapi::image_descriptor &Desc);
+  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         event DepEvent);
+  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         const std::vector<event> &DepEvents);
+
+  event ext_image_memcpy(void *Dest, void *Src, 
+                         const ext::oneapi::image_descriptor &Desc);
+  event ext_image_memcpy(void *Dest, void *Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         event DepEvent);
+  event ext_image_memcpy(void *Dest, void *Src,
+                         const ext::oneapi::image_descriptor &Desc,
+                         const std::vector<event> &DepEvents);
 };
-
-void copy_image(const sycl::queue& syclQueue, void* dst_ptr, void* src_ptr,
-                image_descriptor desc, image_copy_flags flags);
-
 }
 ```
 
-`copy_image` can be used to copy data between host and device,
-or alternatively between two devices.
-`dst_ptr` and `src_ptr` can represent host or device pointers, depending on the value
-of `image_copy_flags`.
-The direction of the copy is determined by passing in a value of `image_copy_flags`.
-The image descriptor is used to determine the dimensions of the image, and the image
-row pitch, when copying the data.
+An `ext_image_memcpy` function is proposed as a method of the queue, to 
+copy image memory. It can be used to copy image memory from host to device, or 
+device to host. The image descriptor is used to determine the dimensions of 
+the image, and the image row pitch, when copying the data.
 
+For images allocated using USM, existing SYCL functionality can used to 
+copy their memory, but we also provide `ext_image_copy` functions that take 
+USM pointers.
 
-[NOTE]
-====
-The copy operation should be made a method on the queue in the future,
-and the copy flags might be made redundant as we should be able to determine
-whether given pointers are device, host, or USM pointers
-====
-
-### Reading and writing inside the kernel
+=== Reading and writing inside the kernel
 
 ```cpp
 namespace sycl::ext::oneapi {
 
-template <typename DataT, typename CoordT>
-DataT read_image(const image_handle &imageHandle, const CoordT &coords);
+DataT read_image(const unsampled_image_handle &imageHandle,
+                 const CoordT &coords);
+DataT read_image(const sampled_image_handle &imageHandle, 
+                 const CoordT &coords);
 
 template <typename DataT, typename CoordT>
-void write_image(const image_handle &imageHandle, const CoordT &Coords,
-                 const DataT &Color);
+void write_image(const unsampled_image_handle &imageHandle,
+                 const CoordT &Coords, const DataT &Color);
 
 }
 ```
 
-Inside a kernel it's possible to read an image using `read_image` via the image handle,
-which returns a value of the user specified type `DataT`.
+Inside a kernel it's possible to read an image using `read_image` via the image 
+handle, which returns a value of the user specified type `DataT`.
 Similarly, it's possible to write to an image via a handle using `write_image`.
 
-`write_image` is not available for sampled images, or images created from USM memory.
+`write_image` is not available for sampled images, or images created from USM 
+memory.
 
 `DataT` must correspond to the type specified in the `image_descriptor`
 when the image was created.
@@ -269,16 +294,43 @@ when the image was created.
 The coordinates are specified as an `int` for 1D images, `int2` for 2D images,
 and `int4` for 3D images (not `int3`).
 
+Note that all images must be used in either read-only or write-only fashion 
+within a single kernel invocation; read/write images are not supported.
 
-[NOTE]
-====
-Sampling will likely require passing a sampler handle to the `read_image` function.
-The current proposal does not require this, as CUDA ties samplers and textures at time of creation.
-====
+_Sampling will likely require passing a sampler handle to the `read_image` 
+function. The current proposal does not require this, as CUDA can tie samplers 
+and textures at time of creation._
 
-## Examples
+=== Getting image information from non-USM image memory
 
-### 1D image read/write
+Extension functions are provided to retrieve information about images allocated 
+using the `image_allocate` function.
+
+```cpp
+namespace sycl::ext::oneapi {
+
+sycl::range<3> get_image_range(const sycl::context &syclContext,
+                               const image_mem_handle mem_handle);
+
+unsigned int get_image_flags(const sycl::context &syclContext,
+                             const image_mem_handle mem_handle);
+
+sycl::image_channel_type
+get_image_channel_type(const sycl::context &syclContext,
+                       const image_mem_handle mem_handle);
+
+unsigned int get_image_num_channels(const sycl::context &syclContext,
+                                    const image_mem_handle mem_handle);
+
+}
+```
+
+_These functions provide the same information that CUDA's 
+`cuArray3DGetDescriptor` provides._
+
+== Examples
+
+=== 1D image read/write
 
 ```cpp
 queue q;
@@ -299,15 +351,17 @@ ext::oneapi::image_descriptor desc({N, 0, 0}, image_channel_order::rgba,
 auto imgMemoryIn = ext::oneapi::allocate_image(ctxt, desc);
 auto imgMemoryOut = ext::oneapi::allocate_image(ctxt, desc);
 
-// Extension: copy over data to device
-ext::oneapi::copy_image(q, imgMemoryIn, dataIn.data(), desc,
-                              ext::oneapi::image_copy_flags::HtoD);
-
 // Extension: create the image and return the handle
-ext::oneapi::image_handle imgIn =
-    ext::oneapi::create_image(ctxt, imgMemoryIn);
-ext::oneapi::image_handle imgOut =
-    ext::oneapi::create_image(ctxt, imgMemoryOut);
+ext::oneapi::image_handle imgIn = 
+    ext::oneapi::create_image(ctxt, imgMemoryIn, desc);
+ext::oneapi::image_handle imgOut = 
+    ext::oneapi::create_image(ctxt, imgMemoryOut, desc);
+
+// Extension: copy over data to device
+q.ext_image_copy(imgMemoryIn, dataIn.data(), desc);
+
+// Wait for copy operation to finish
+q.wait();
 
 q.submit([&](handler &cgh) {
   // No need to request access, handles captured by value
@@ -332,7 +386,8 @@ ext::oneapi::free_image(ctxt, imgMemoryIn);
 ext::oneapi::free_image(ctxt, imgMemoryOut);
 ```
 
-### Reading from a dynamically sized array of 2D images
+=== Reading from a dynamically sized array of 2D images
+
 
 ```cpp
 device dev;
@@ -358,32 +413,34 @@ for (int i = 0; i < width; i++) {
 sycl::ext::oneapi::image_descriptor desc(
   {width, height}, image_channel_order::rgba, image_channel_type::fp32);
 
-// Allocate each image and save the device ptrs
-std::vector<void *> imgAllocations;
+// Allocate each image and save the handles
+std::vector<sycl::ext::oneapi::image_mem_handle> imgAllocations;
 for (int i = 0; i < numImages; i++) {
-// Extension: returns the device pointer to the allocated memory
-auto device_ptr = sycl::ext::oneapi::allocate_image(ctxt, desc);
-if (device_ptr == nullptr) {
-  std::cout << "Error allocating image!" << std::endl;
-  return 1;
-}
-imgAllocations.push_back(device_ptr);
+  // Extension: returns the handle to the allocated memory
+  auto img_mem = sycl::ext::oneapi::allocate_image(ctxt, desc);
+  if (img_mem == nullptr) {
+    std::cout << "Error allocating image!" << std::endl;
+    return 1;
+  }
+  imgAllocations.push_back(img_mem);
 }
 
 // Copy over data to device for each image
 for (int i = 0; i < numImages; i++) {
-// Extension: copy over data to device
-sycl::ext::oneapi::copy_image(q, imgAllocations[i], dataIn.data(), desc,
-                              sycl::ext::oneapi::image_copy_flags::HtoD);
+  // Extension: copy over data to device
+  q.ext_image_copy(imgAllocations[i], dataIn.data(), desc);
 }
+
+// Wait for copy operations to finish
+q.wait();
 
 // Create the images and return the handles
 std::vector<sycl::ext::oneapi::unsampled_image_handle> imgHandles;
 for (int i = 0; i < numImages; i++) {
-// Extension: create the image and return the handle
-sycl::ext::oneapi::unsampled_image_handle imgHandle =
-    sycl::ext::oneapi::create_image(ctxt, imgAllocations[i]);
-imgHandles.push_back(imgHandle);
+  // Extension: create the image and return the handle
+  sycl::ext::oneapi::unsampled_image_handle imgHandle =
+      sycl::ext::oneapi::create_image(ctxt, imgAllocations[i], desc);
+  imgHandles.push_back(imgHandle);
 }
 
 // Cuda stores data in column-major fashion
@@ -426,21 +483,23 @@ for (int i = 0; i < numImages; i++) {
 }
 ```
 
-## Implementation notes
+== Implementation notes
 
 The current DPC++ prototype only implements the proposal for the CUDA backend,
 however we are actively exploring Level Zero with SPIR-V.
-We are looking at other backend as well in order to ensure the extension can work across different backends.
+We are looking at other backend as well in order to ensure the extension can 
+work across different backends.
 
-## Issues
+== Issues
 
-### No dependency tracking
+=== No dependency tracking
 
 Because this extension allows images to work in a USM-like model,
 there are similar limitations to using USM for non-images,
-mainly the lack of dependency tracking and the need for users to manually synchronize operations.
+mainly the lack of dependency tracking and the need for users to manually 
+synchronize operations.
 
-### Limitations when using USM as image memory
+=== Limitations when using USM as image memory
 
 When USM is used as the image memory, these are the general limitations:
 
@@ -453,7 +512,7 @@ Then there are dimension specific limitations:
 * 2D - Only works with `pitched_alloc_device`.
 * 3D - No support at the moment.
 
-### Not supported yet
+=== Not supported yet
 
 These features still need to be handled:
 
@@ -462,10 +521,21 @@ These features still need to be handled:
 * Interop with various backends
 * etc.
 
-## Revision History
+== Revision History
 
-[%header,cols="10,15,75"]
-|===
-| Rev | Date | Changes
-| 1 | 2023-02-03 | Initial draft
-|===
+[frame="none",options="header"]
+|======================
+|Rev |Date |Changes
+|1 |2023-02-03 | Initial draft
+|2 |2023-02-23 | - Added `image_mem_handle` for image memory allocated with 
+                   `allocate_image`
+
+                 - Added ability to create images from USM
+
+                 - Added new way to copy images, removed requirement for copy 
+                   direction
+
+                 - Added image memory information getters to reflect 
+                   `cuArray3DGetDescriptor` functionality
+|======================
+
