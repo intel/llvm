@@ -86,10 +86,10 @@ must be encountered by all work-items in the group in converged control flow.
 |===
 |Function|Description
 
-|`template <typename Group> Group::mask_type group_ballot(Group g, bool predicate = true)`
+|`template <typename Group> sub_group_mask group_ballot(Group g, bool predicate = true)`
 |Return a `sub_group_mask` with one bit for each work-item in group _g_. A bit
 is set in this mask if and only if the corresponding work-item's _predicate_ is
-`true`.
+`true`. Available only when `std::is_same_v<std::decay_t<Group>, sub_group>` is true.
 |===
 
 === Group Masks
