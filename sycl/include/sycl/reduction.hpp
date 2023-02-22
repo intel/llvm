@@ -1088,7 +1088,7 @@ static inline size_t GreatestPowerOfTwo(size_t N) {
     return 0;
 
   size_t Ret = 1;
-  while((N >>= 1) != 0)
+  while ((N >>= 1) != 0)
     Ret <<= 1;
   return Ret;
 }
@@ -1749,8 +1749,7 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... OutAccT, typename... ReducerT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduCGFuncImplScalar(
-    bool IsOneWG, nd_item<Dims> NDIt,
-    ReduTupleT<LocalAccT...> LocalAccsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
@@ -1852,9 +1851,8 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
-  auto LocalAccsTuple =
-      makeReduTupleT(local_accessor<typename Reductions::result_type, 1>{
-          WGSize, CGH}...);
+  auto LocalAccsTuple = makeReduTupleT(
+      local_accessor<typename Reductions::result_type, 1>{WGSize, CGH}...);
 
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsOneWG = NWorkGroups == 1;
