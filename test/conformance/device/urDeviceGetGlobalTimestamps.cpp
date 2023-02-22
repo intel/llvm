@@ -1,7 +1,27 @@
 // Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
+#include <chrono>
+#include <thread>
+#include <type_traits>
 #include <uur/fixtures.h>
+
+// WARNING  - This is the precision that is used in the OpenCL-CTS.
+//          - We might need to modify this value per-adapter.
+//          - Currently we are saying the error between host/device
+//          - timers is 0.5%
+constexpr double allowedTimerError = 0.005;
+
+/// @brief Return the absolute difference between two numeric values.
+/// @tparam T An numeric type.
+/// @param[in] a First value.
+/// @param[in] b Second value.
+/// @return The absolute difference between `a` and `b`.
+template <class T,
+          typename std::enable_if_t<std::is_arithmetic<T>::value, bool> = true>
+T absolute_difference(T a, T b) {
+    return std::max(a, b) - std::min(a, b);
+}
 
 using urDeviceGetGlobalTimestampTest = uur::urAllDevicesTest;
 
@@ -9,17 +29,18 @@ TEST_F(urDeviceGetGlobalTimestampTest, Success) {
     for (auto device : devices) {
         uint64_t device_time = 0;
         uint64_t host_time = 0;
-        ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
+        ASSERT_SUCCESS(
+            urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
         ASSERT_NE(device_time, 0);
         ASSERT_NE(host_time, 0);
-        // TODO - ASSERT synchronized? - #166
     }
 }
 
 TEST_F(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
     for (auto device : devices) {
         uint64_t host_time = 0;
-        ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
+        ASSERT_SUCCESS(
+            urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
         ASSERT_NE(host_time, 0);
     }
 }
@@ -27,6 +48,50 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
 TEST_F(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
     for (auto device : devices) {
         ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
+    }
+}
+
+TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
+    for (auto device : devices) {
+        uint64_t deviceStartTime, deviceEndTime = 0;
+        uint64_t hostStartTime, hostEndTime = 0;
+        uint64_t hostOnlyStartTime, hostOnlyEndTime = 0;
+
+        ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, &deviceStartTime,
+                                                   &hostStartTime));
+        ASSERT_SUCCESS(
+            urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyStartTime));
+        ASSERT_NE(deviceStartTime, 0);
+        ASSERT_NE(hostStartTime, 0);
+        ASSERT_NE(hostOnlyStartTime, 0);
+        ASSERT_GE(hostOnlyStartTime, hostStartTime);
+
+        // wait for timers to increment
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+
+        ASSERT_SUCCESS(
+            urDeviceGetGlobalTimestamps(device, &deviceEndTime, &hostEndTime));
+        ASSERT_SUCCESS(
+            urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyEndTime));
+        ASSERT_NE(deviceEndTime, 0);
+        ASSERT_NE(hostEndTime, 0);
+        ASSERT_NE(hostOnlyEndTime, 0);
+        ASSERT_GE(hostOnlyEndTime, hostEndTime);
+
+        // check that the timers have advanced
+        ASSERT_GT(deviceEndTime, deviceStartTime);
+        ASSERT_GT(hostEndTime, hostStartTime);
+        ASSERT_GT(hostOnlyEndTime, hostOnlyStartTime);
+
+        // assert that the host/devices times are synchronized to some accuracy
+        const uint64_t deviceTimeDiff = deviceEndTime - deviceStartTime;
+        const uint64_t hostTimeDiff = hostEndTime - hostStartTime;
+        const uint64_t observedDiff =
+            absolute_difference(deviceTimeDiff, hostTimeDiff);
+        const uint64_t allowedDiff =
+            std::min(deviceTimeDiff, hostTimeDiff) * allowedTimerError;
+
+        ASSERT_LE(observedDiff, allowedDiff);
     }
 }
 
