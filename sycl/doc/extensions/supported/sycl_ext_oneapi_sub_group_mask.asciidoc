@@ -107,6 +107,9 @@ The mask is defined such that the least significant bit (LSB) corresponds to
 the work-item with id 0, and the most significant bit (MSB) corresponds to the
 work-item with the id `max_local_range()-1`.
 
+NOTE: Constructors and assignment operator below are only available starting in
+revision 2 of the specification.
+
 |===
 |Constructor|Description
 
@@ -300,12 +303,14 @@ struct sub_group_mask {
 
   static constexpr size_t max_bits = /* implementation-defined */;
 
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
   sub_group_mask();
   sub_group_mask(unsigned long long val);
   template<typename T, std::size_t K>
   sub_group_mask(const sycl::marray<T, K>& val);
   sub_group_mask(const sub_group_mask &other) = default;
   sub_group_mask& operator=(const sub_group_mask &other) = default;
+#endif
 
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
