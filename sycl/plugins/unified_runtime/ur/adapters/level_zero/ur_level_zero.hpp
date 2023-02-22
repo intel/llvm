@@ -183,6 +183,21 @@ struct _ur_platform_handle_t : public _ur_platform {
   zer_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
 };
 
+enum EventsScope {
+  // All events are created host-visible.
+  AllHostVisible,
+  // All events are created with device-scope and only when
+  // host waits them or queries their status that a proxy
+  // host-visible event is created and set to signal after
+  // original event signals.
+  OnDemandHostVisibleProxy,
+  // All events are created with device-scope and only
+  // when a batch of commands is submitted for execution a
+  // last command in that batch is added to signal host-visible
+  // completion of each command in this batch (the default mode).
+  LastCommandInBatchHostVisible
+};
+
 struct _ur_device_handle_t : _pi_object {
   _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
                       zer_device_handle_t ParentDevice = nullptr)
@@ -270,6 +285,7 @@ struct _ur_device_handle_t : _pi_object {
   // Whether to use immediate commandlists for queues on this device.
   // For some devices (e.g. PVC) immediate commandlists are preferred.
   bool ImmCommandListsPreferred;
+  bool isImmedidateCommandListUsed = false;
 
   enum ImmCmdlistMode {
     // Immediate commandlists are not used.
@@ -282,6 +298,8 @@ struct _ur_device_handle_t : _pi_object {
   };
   // Return whether to use immediate commandlists for this device.
   ImmCmdlistMode useImmediateCommandLists();
+
+  EventsScope eventsScope = AllHostVisible;
 
   bool isSubDevice() { return RootDevice != nullptr; }
 

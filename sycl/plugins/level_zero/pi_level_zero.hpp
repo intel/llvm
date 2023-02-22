@@ -158,21 +158,6 @@ public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
 };
 
-enum EventsScope {
-  // All events are created host-visible.
-  AllHostVisible,
-  // All events are created with device-scope and only when
-  // host waits them or queries their status that a proxy
-  // host-visible event is created and set to signal after
-  // original event signals.
-  OnDemandHostVisibleProxy,
-  // All events are created with device-scope and only
-  // when a batch of commands is submitted for execution a
-  // last command in that batch is added to signal host-visible
-  // completion of each command in this batch (the default mode).
-  LastCommandInBatchHostVisible
-};
-
 struct _pi_device : _ur_device_handle_t {
   using _ur_device_handle_t::_ur_device_handle_t;
 };
