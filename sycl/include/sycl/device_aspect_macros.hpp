@@ -43,6 +43,16 @@
 #define __SYCL_ALL_DEVICES_HAVE_6__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_7__
+// __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7)
+#define __SYCL_ALL_DEVICES_HAVE_7__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_8__
+// __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8)
+#define __SYCL_ALL_DEVICES_HAVE_8__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_9__
 // __SYCL_ASPECT(image, 9
 #define __SYCL_ALL_DEVICES_HAVE_9__ 0
@@ -231,6 +241,16 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_6__
 // __SYCL_ASPECT(fp64, 6)
 #define __SYCL_ANY_DEVICE_HAS_6__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_7__
+// __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7)
+#define __SYCL_ANY_DEVICE_HAS_7__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_8__
+// __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8)
+#define __SYCL_ANY_DEVICE_HAS_8__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_9__

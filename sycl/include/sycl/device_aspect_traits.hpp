@@ -34,6 +34,12 @@ template <>
 struct all_devices_have<aspect::fp64>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_6__> {};
 template <>
+struct all_devices_have<aspect::int64_base_atomics>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_7__> {};
+template <>
+struct all_devices_have<aspect::int64_extended_atomics>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_8__> {};
+template <>
 struct all_devices_have<aspect::image>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_9__> {};
 template <>
@@ -153,6 +159,12 @@ struct any_device_has<aspect::fp16>
 template <>
 struct any_device_has<aspect::fp64>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_6__> {};
+template <>
+struct any_device_has<aspect::int64_base_atomics>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_7__> {};
+template <>
+struct any_device_has<aspect::int64_extended_atomics>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_8__> {};
 template <>
 struct any_device_has<aspect::image>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_9__> {};
