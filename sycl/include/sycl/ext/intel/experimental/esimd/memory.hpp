@@ -556,14 +556,21 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 or DS is
-/// not set or set to \c lsc_data_size::default_size and the total amount of
-/// data i.e. \c sizeof(T) \c * \c NELTS is multiple of 8, the address must be
-/// 8-byte aligned, the address must be 8-byte aligned, otherwise - 4-bytes
-/// aligned. Allowed values for the data size are \c lsc_data_size::u32 and \c
-/// lsc_data_size::u64. Allowed NElts values are 1, 2, 3, 4, 8, 16, 32, 64. Note
-/// that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts must
-/// be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
+/// data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// When NElts is greater than 64 and the data size is not \c
+/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
+/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
+/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
+/// is multiple of 8) and less than 64 words to transfer.
+/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
+/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
+/// the data must be 8 bytes aligned.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -572,10 +579,11 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
-/// entirely, non-zero - operation is performed. The default is '1' - perform
-/// the operation.
-/// @return is a vector of type T and size NElts. The elements of the returned
-/// vector for which the corresponding element in \p pred is 0 are undefined.
+/// entirely, non-zero - operation is performed. The default is '1' -
+/// perform the operation.
+/// @return is a vector of type T and size NElts. The elements of the
+/// returned vector for which the corresponding element in \p pred is 0
+/// are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
@@ -595,8 +603,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -614,9 +623,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
-  using LoadElemT =
+  using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
 
@@ -640,13 +649,21 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 or DS is
-/// not set or set to \c lsc_data_size::default_size and the total amount of
-/// data i.e. \c sizeof(T) \c * \c NELTS is multiple of 8, the address must be
-/// 8-byte aligned, otherwise - 4-bytes aligned. Allowed values for the data
-/// size are \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts
-/// values are 1, 2, 3, 4, 8, 16, 32, 64. Note that to access 512 bytes, DS must
-/// be \c lsc_data_size::u64 and \c NElts must be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
+/// data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// When NElts is greater than 64 and the data size is not \c
+/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
+/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
+/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
+/// is multiple of 8) and less than 64 words to transfer.
+/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
+/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
+/// the data must be 8 bytes aligned.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -678,8 +695,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -697,9 +715,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
-  using LoadElemT =
+  using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
 
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
@@ -765,8 +783,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -782,9 +801,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
+  using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
 
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
@@ -849,8 +868,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
           ? 4
@@ -866,9 +886,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT =
+  using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr auto _VS = detail::to_lsc_vector_size<FactoredNElts>();
@@ -1310,8 +1330,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1328,9 +1349,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
 
-  using StoreType =
+  using StoreType = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
 
   __esimd_lsc_store_stateless<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
                               ActualDS, _VS, _Transposed, N>(
@@ -1392,8 +1413,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
-      sizeof(T) == 8 || (DS == lsc_data_size::default_size && NElts > 64 &&
-                         (NElts * sizeof(T)) % 8 == 0);
+      sizeof(T) == 8 ||
+      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
           ? 4
@@ -1410,9 +1432,9 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr detail::lsc_vector_size _VS =
       detail::to_lsc_vector_size<FactoredNElts>();
 
-  using StoreType =
+  using StoreType = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>;
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
 
   __esimd_lsc_store_bti<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
                         ActualDS, _VS, _Transposed, N>(
