@@ -6,9 +6,12 @@ project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
-set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
+if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
+  set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
+endif()
 
 # Create a soft option for enabling the use of TBB
 option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
