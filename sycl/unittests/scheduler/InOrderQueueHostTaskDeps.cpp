@@ -11,6 +11,7 @@
 
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -53,21 +54,22 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   EXPECT_TRUE(GEventsWaitCounter == 1);
 }
 
+constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+
 TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
-  std::mutex m;
-  std::function<void()> CustomHostLambda = [&]() {
-    std::unique_lock<std::mutex> InsideHostTaskLock(m);
-  };
-  m.lock();
-
-  auto HostTaskEvent = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.host_task(CustomHostLambda); });
+  auto HostTaskEvent =
+      InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([] {}); });
   auto Kernel1Event = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
   detail::EventImplPtr Kernel1EventImpl =
@@ -75,7 +77,9 @@ TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
   detail::Command *Kernel1Command =
       static_cast<detail::Command *>(Kernel1EventImpl->getCommand());
   ASSERT_NE(Kernel1Command, nullptr);
-  EXPECT_FALSE(Kernel1Command->isSuccessfullyEnqueued());
+
+  // Kernel waits for hots task in submit call so always enqueued
+  EXPECT_TRUE(Kernel1Command->isSuccessfullyEnqueued());
 
   auto Kernel2Event = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
@@ -84,8 +88,8 @@ TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
   detail::Command *Kernel2Command =
       static_cast<detail::Command *>(Kernel2EventImpl->getCommand());
   ASSERT_NE(Kernel2Command, nullptr);
-  EXPECT_FALSE(Kernel2Command->isSuccessfullyEnqueued());
 
-  m.unlock();
+  EXPECT_TRUE(Kernel2Command->isSuccessfullyEnqueued());
+
   InOrderQueue.wait();
 }
