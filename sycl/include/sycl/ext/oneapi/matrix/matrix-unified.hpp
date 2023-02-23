@@ -59,13 +59,9 @@ class wi_data {
               joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
 
 public:
-  size_t length() {
-    return jm.cuda_impl.wi_marray.size();
-  };
+  size_t length() { return jm.cuda_impl.wi_marray.size(); };
 
-  decltype(auto) operator[](size_t i) {
-    return (jm.cuda_impl.wi_marray[i]);
-  };
+  decltype(auto) operator[](size_t i) { return (jm.cuda_impl.wi_marray[i]); };
 };
 #else
 template <typename type, size_t size> class wi_data {
