@@ -6864,12 +6864,73 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   return mapError(ZeResult);
 }
 
-static bool ShouldUseUSMAllocator() {
+static bool UseUSMAllocator = [] {
   // Enable allocator by default if it's not explicitly disabled
   return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR") == nullptr;
-}
+}();
 
-static const bool UseUSMAllocator = ShouldUseUSMAllocator();
+enum class USMAllocationForceResidencyType {
+  // [Default] Do not force memory residency at allocation time.
+  None = 0,
+  // Force memory resident on the device of allocation at allocation time.
+  // For host allocation force residency on all devices in a context.
+  Device = 1,
+  // Force memory resident on all devices in the context with P2P
+  // access to the device of allocation.
+  // For host allocation force residency on all devices in a context.
+  P2PDevices = 2
+};
+
+// Returns the desired USM residency setting
+static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
+  const auto Str = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  if (!Str)
+    return USMAllocationForceResidencyType::None;
+  switch (std::atoi(Str)) {
+  case 1:
+    return USMAllocationForceResidencyType::Device;
+  case 2:
+    return USMAllocationForceResidencyType::P2PDevices;
+  default:
+    return USMAllocationForceResidencyType::None;
+  };
+}();
+
+// Make USM allocation resident as requested
+static pi_result
+USMAllocationMakeResident(pi_context Context,
+                          pi_device Device, // nullptr for host allocation
+                          void *Ptr, size_t Size) {
+
+  std::list<pi_device> Devices;
+
+  if (USMAllocationForceResidency == USMAllocationForceResidencyType::None)
+    return PI_SUCCESS;
+  else if (!Device) {
+    // Host allocation, make it resident on all devices in the context
+    Devices.insert(Devices.end(), Context->Devices.begin(),
+                   Context->Devices.end());
+  } else {
+    Devices.push_back(Device);
+    if (USMAllocationForceResidency ==
+        USMAllocationForceResidencyType::P2PDevices) {
+      ze_bool_t P2P;
+      for (const auto &D : Context->Devices) {
+        if (D == Device)
+          continue;
+        // TODO: Cache P2P devices for a context
+        ZE_CALL(zeDeviceCanAccessPeer, (D->ZeDevice, Device->ZeDevice, &P2P));
+        if (P2P)
+          Devices.push_back(D);
+      }
+    }
+  }
+  for (const auto &D : Devices) {
+    ZE_CALL(zeContextMakeMemoryResident,
+            (Context->ZeContext, D->ZeDevice, Ptr, Size));
+  }
+  return PI_SUCCESS;
+}
 
 static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
@@ -6902,6 +6963,7 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
@@ -6932,6 +6994,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
+
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
 }
@@ -6956,6 +7020,7 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, nullptr, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
