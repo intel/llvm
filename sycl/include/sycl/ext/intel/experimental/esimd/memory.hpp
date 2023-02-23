@@ -1329,7 +1329,7 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr int SmallIntFactor32Bit =
       (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
-                "Number of elements is not supported by Transposed load");
+                "Number of elements is not supported by Transposed store");
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
@@ -1414,7 +1414,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr int SmallIntFactor32Bit =
       (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
-                "Number of elements is not supported by Transposed load");
+                "Number of elements is not supported by Transposed store");
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
