@@ -514,13 +514,13 @@ def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref,
-                                 VectorEltTy,
+def ConstructorArgs : AnyTypeOf<[Builtin_Vector,
                                  IndexType,
-                                 VectorSplatArg,
                                  SYCL_IDType,
+                                 SYCLMemref,
                                  SYCL_RangeType,
-                                 Builtin_Vector,
+                                 VectorEltTy,
+                                 VectorSplatArg
                                ]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   let summary = "Generic constructor operation";
@@ -529,9 +529,10 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];
 
   let arguments = (ins
+    Arg<SYCLMemref, "The SYCL object being created", [MemWrite]>:$Dst,
+    Variadic<ConstructorArgs>:$Args,  
     FlatSymbolRefAttr:$TypeName,
-    FlatSymbolRefAttr:$MangledFunctionName,
-    Variadic<ConstructorArgs>:$Args
+    FlatSymbolRefAttr:$MangledFunctionName
   );
   let results = (outs);
 
@@ -555,7 +556,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];      
 
   let assemblyFormat = [{
-    $TypeName `(` $Args `)` attr-dict `:` `(` type($Args) `)`
+    $TypeName `(` $Dst (`,` $Args^)?`)` attr-dict `:` `(` type($Dst) (`,` type($Args)^)? `)`
   }];
 }
 

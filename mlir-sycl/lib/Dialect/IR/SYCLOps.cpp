@@ -64,11 +64,8 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
 }
 
 LogicalResult SYCLConstructorOp::verify() {
-  if (getNumOperands() == 0)
-    return emitOpError("A sycl::constructor must be passed the object to build "
-                       "as the first argument");
-  auto MT = getOperand(0).getType().dyn_cast<MemRefType>();
-  if (MT && isSYCLType(MT.getElementType()))
+  auto mt = getOperand(0).getType().dyn_cast<MemRefType>();
+  if (mt && isSYCLType(mt.getElementType()))
     return success();
 
   return emitOpError("The first argument of a sycl::constructor op has to be a "
