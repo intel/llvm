@@ -923,7 +923,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       die("No compute queue available/allowed.");
     }
   }
-  if (Device->useImmediateCommandLists()) {
+  if (UsingImmCmdLists) {
     // Create space to hold immediate commandlists corresponding to the
     // ZeQueues
     ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
