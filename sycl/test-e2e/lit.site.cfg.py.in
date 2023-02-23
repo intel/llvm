@@ -4,7 +4,7 @@ import sys
 import platform
 
 
-config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@CMAKE_CXX_COMPILER@")
+config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
 config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
 
 config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
