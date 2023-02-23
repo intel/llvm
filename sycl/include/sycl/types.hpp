@@ -2098,7 +2098,7 @@ namespace detail {
 // Vectors of size 1 are handled separately and therefore 1 is not included in
 // the check below.
 constexpr bool isValidVectorSize(int N) {
-  return (N >= 2 && N <= 4) || N == 8 || N == 16;
+  return N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
 }
 template <typename T, int N, typename V> struct VecStorage {
   static_assert(
