@@ -300,19 +300,15 @@ int main(void) {
   auto div_op = esimd_test::BinaryOpSeq<BinOp::div>{};
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(div_op, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-#ifndef WA_BUG
   if (SupportsDouble)
     passed &= test<short, double, 7, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-#endif // WA_BUG
   passed &= test<float, float, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   if (SupportsHalf)
     passed &= test<half, char, 1, BinOp, verify_n, IDf>(div_op, q, 1);
   if (SupportsHalf)
     passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(div_op, q, 1);
-#ifndef WA_BUG
   if (SupportsDouble && SupportsHalf)
     passed &= test<double, half, 7, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-#endif // WA_BUG
   passed &= test<short, uint64_t, 7, BinOp, VSf, IDf>(div_op, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, short, 8, BinOp, VSf, IDf>(div_op, q);
@@ -342,9 +338,7 @@ int main(void) {
   auto int_div_ops = esimd_test::IntBinaryOpsDivRem;
   passed &=
       test<unsigned char, unsigned int, 1, BinOp, VSf, IDf>(int_div_ops, q);
-#ifndef WA_BUG
   passed &= test<char, uint64_t, 1, BinOp, VSf, IDf>(int_div_ops, q);
-#endif // WA_BUG
   passed &= test<uint64_t, char, 32, BinOp, VSf, IDf>(int_div_ops, q);
   passed &= test<int, short, 1, BinOp, VSf, IDf>(int_div_ops, q);
   passed &= test<short, int, 8, BinOp, VSf, IDf>(int_div_ops, q);

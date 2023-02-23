@@ -12,10 +12,7 @@
 // Tests various binary operations applied to simd objects.
 // PVC variant of the test - adds bfloat16 and tfloat32.
 
-// TODO Re-enable cases disabled via WA_BUG.
-
 #define USE_BF16
-#define WA_BUG
 #define USE_TF32
 
 #include "bin_and_cmp_ops_heavy.cpp"
