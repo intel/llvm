@@ -29,7 +29,7 @@
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_4__
-//__SYCL_ASPECT(custom, 4
+//__SYCL_ASPECT(custom, 4)
 #define __SYCL_ALL_DEVICES_HAVE_4__ 0
 #endif
 
@@ -54,7 +54,7 @@
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_9__
-// __SYCL_ASPECT(image, 9
+// __SYCL_ASPECT(image, 9)
 #define __SYCL_ALL_DEVICES_HAVE_9__ 0
 #endif
 
@@ -229,7 +229,7 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_4__
-//__SYCL_ASPECT(custom, 4
+//__SYCL_ASPECT(custom, 4)
 #define __SYCL_ANY_DEVICE_HAS_4__ 0
 #endif
 
@@ -254,7 +254,7 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_9__
-// __SYCL_ASPECT(image, 9
+// __SYCL_ASPECT(image, 9)
 #define __SYCL_ANY_DEVICE_HAS_9__ 0
 #endif
 
