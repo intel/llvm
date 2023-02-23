@@ -12,8 +12,8 @@
 
 #include <sycl/sycl.hpp>
 
-extern "C" SYCL_EXTERNAL int func_const() __attribute__((const));
-extern "C" SYCL_EXTERNAL int func_pure() __attribute__((pure));
+extern "C" SYCL_EXTERNAL [[gnu::const]] int func_const();
+extern "C" SYCL_EXTERNAL [[gnu::pure]] int func_pure();
 
 extern "C" SYCL_EXTERNAL int foo() {
   return func_const() + func_pure();
