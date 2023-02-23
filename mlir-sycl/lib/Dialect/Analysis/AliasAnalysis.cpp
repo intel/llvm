@@ -41,14 +41,6 @@ static bool isRestrict(Value val) {
                            "local_alias_analysis.restrict");
 }
 
-// Return true if the operation \p op belongs to the SYCL MLIR dialect.
-static bool isSYCLOperation(Operation *op) {
-  if (!op || !op->getDialect())
-    return false;
-  return op->getDialect()->getNamespace() ==
-         sycl::SYCLDialect::getDialectNamespace();
-}
-
 // Return true is the given type \p ty is a MemRef type with a SYCL element
 // type.
 static bool isMemRefOfSYCLType(Type ty) {
@@ -64,41 +56,40 @@ static bool isMemRefOfSYCLType(Type ty) {
 AliasResult sycl::AliasAnalysis::aliasImpl(Value lhs, Value rhs) {
   if (lhs == rhs)
     return AliasResult::MustAlias;
-  if (Optional<AliasResult> aliasResult = handleRestrictAlias(lhs, rhs))
-    return *aliasResult;
-  if (Optional<AliasResult> aliasResult = handleSYCLAlias(lhs, rhs))
-    return *aliasResult;
 
-  return LocalAliasAnalysis::aliasImpl(lhs, rhs);
+  if (AliasResult aliasResult = handleRestrictAlias(lhs, rhs);
+      !aliasResult.isMay())
+    return aliasResult;
+
+  return handleSYCLAlias(lhs, rhs);
 }
 
-Optional<AliasResult> sycl::AliasAnalysis::handleRestrictAlias(Value lhs,
-                                                               Value rhs) {
+AliasResult sycl::AliasAnalysis::handleRestrictAlias(Value lhs, Value rhs) {
   // Function arguments do not alias if any of them are 'restrict' qualified.
   if (isFuncArg(lhs) && isFuncArg(rhs))
     if (isRestrict(lhs) || isRestrict(rhs))
       return AliasResult::NoAlias;
 
-  return std::nullopt;
+  return AliasResult::MayAlias;
 }
 
-Optional<AliasResult> sycl::AliasAnalysis::handleSYCLAlias(Value lhs,
-                                                           Value rhs) {
+AliasResult sycl::AliasAnalysis::handleSYCLAlias(Value lhs, Value rhs) {
   Operation *lhsOp = lhs.getDefiningOp(), *rhsOp = rhs.getDefiningOp();
   if (!isSYCLOperation(lhsOp) && !isSYCLOperation(rhsOp))
-    return std::nullopt;
+    return AliasResult::MayAlias;
 
   // Handle accessor.subscript operations.
-  if (auto aliasResult = handleAccessorSubscriptAlias(lhs, rhs))
-    return *aliasResult;
+  if (AliasResult aliasResult = handleAccessorSubscriptAlias(lhs, rhs);
+      !aliasResult.isMay())
+    return aliasResult;
 
   // TODO: handle the other SYCL operations.
 
-  return std::nullopt;
+  return AliasResult::MayAlias;
 }
 
-Optional<AliasResult>
-sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs, Value rhs) {
+AliasResult sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs,
+                                                              Value rhs) {
   Operation *lhsOp = lhs.getDefiningOp(), *rhsOp = rhs.getDefiningOp();
   auto lhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(lhsOp);
   auto rhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(rhsOp);
@@ -121,5 +112,5 @@ sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs, Value rhs) {
       (rhsSubOp && typesDoNotAlias(rhsTy, lhsTy)))
     return AliasResult::NoAlias;
 
-  return std::nullopt;
+  return AliasResult::MayAlias;
 }
