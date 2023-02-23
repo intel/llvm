@@ -17,6 +17,7 @@ option(XPTI_ENABLE_WERROR OFF)
 option(XPTI_BUILD_SAMPLES OFF)
 option(XPTI_BUILD_BENCHMARK OFF)
 option(XPTI_ENABLE_STATISTICS OFF)
+option(XPTI_ENABLE_TESTS ON)
 
 if (XPTI_ENABLE_WERROR)
   if(MSVC)
@@ -55,7 +56,10 @@ add_subdirectory(src)
 
 add_custom_target(check-xptifw)
 
-add_subdirectory(unit_test)
+if (XPTI_ENABLE_TESTS)
+  add_subdirectory(unit_test)
+endif()
+
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
