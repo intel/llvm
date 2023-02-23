@@ -1986,26 +1986,28 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
     int memory_clock_khz = 0;
     if (is_xavier_agx) {
-        memory_clock_khz = 2133000;
+      memory_clock_khz = 2133000;
     } else if (is_orin_agx) {
-        memory_clock_khz = 3200000;
+      memory_clock_khz = 3200000;
     } else {
-        sycl::detail::pi::assertion(
-            cuDeviceGetAttribute(&memory_clock_khz, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
-                                device->get()) == CUDA_SUCCESS);
-    }
-    
-    int memory_bus_width = 0;
-    if (is_orin_agx) {
-       memory_bus_width = 256;
-    } else {
-        sycl::detail::pi::assertion(
-            cuDeviceGetAttribute(&memory_bus_width,
-                                CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
-                                device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&memory_clock_khz,
+                               CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                               device->get()) == CUDA_SUCCESS);
     }
 
-    uint64_t memory_bandwidth = uint64_t(memory_clock_khz) * memory_bus_width * 250;
+    int memory_bus_width = 0;
+    if (is_orin_agx) {
+      memory_bus_width = 256;
+    } else {
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&memory_bus_width,
+                               CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+                               device->get()) == CUDA_SUCCESS);
+    }
+
+    uint64_t memory_bandwidth =
+        uint64_t(memory_clock_khz) * memory_bus_width * 250;
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
