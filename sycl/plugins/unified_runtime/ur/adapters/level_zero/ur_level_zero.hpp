@@ -202,8 +202,7 @@ struct _ur_device_handle_t : _pi_object {
   _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
                       zer_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
   }
@@ -295,7 +294,7 @@ struct _ur_device_handle_t : _pi_object {
   ImmCmdlistMode useImmediateCommandLists();
 
   // Returns whether immediate command lists are used on this device.
-  ImmCmdlistMode ImmCommandListUsed {};
+  ImmCmdlistMode ImmCommandListUsed{};
 
   // Scope of events used for events on the device
   // Can be adjusted with SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS

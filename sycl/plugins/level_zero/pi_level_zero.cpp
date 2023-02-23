@@ -4462,8 +4462,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
-  if (Queue->Device->ImmCommandListUsed &&
-      IndirectAccessTrackingEnabled) {
+  if (Queue->Device->ImmCommandListUsed && IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
     // references and appending to the queue (which means submission)
     // must be done together.
@@ -4964,7 +4963,8 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventList[I]->Queue->Device->ZeEventsScope == OnDemandHostVisibleProxy) {
+    if (EventList[I]->Queue->Device->ZeEventsScope ==
+        OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
