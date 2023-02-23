@@ -460,7 +460,7 @@ urContextCreateWithNativeHandle(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Context's extended deleter callback function with user data.
-typedef void(ur_context_extended_deleter_t)(
+typedef void (*ur_context_extended_deleter_t)(
     void *pUserData ///< [in][out] pointer to data to be passed to callback
 );
 
@@ -1834,7 +1834,7 @@ typedef enum ur_execution_info_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event callback function that can be registered by the application.
-typedef void(ur_event_callback_t)(
+typedef void (*ur_event_callback_t)(
     ur_event_handle_t hEvent,       ///< [in] handle to event
     ur_execution_info_t execStatus, ///< [in] execution status of the event
     void *pUserData                 ///< [in][out] pointer to data to be passed to callback
@@ -3949,7 +3949,7 @@ urKernelCreateWithNativeHandle(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief callback function for urModuleCreate
-typedef void(ur_modulecreate_callback_t)(
+typedef void (*ur_modulecreate_callback_t)(
     ur_module_handle_t hModule, ///< [in] handle of Module object created.
     void *pParams               ///< [in][out] pointer to user data to be passed to callback.
 );

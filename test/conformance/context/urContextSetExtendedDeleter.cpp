@@ -13,7 +13,7 @@ TEST_P(urContextSetExtendedDeleterTest, Success) {
     ASSERT_NE(context, nullptr);
 
     bool called = false;
-    ur_context_extended_deleter_t *deleter = [](void *userdata) { *static_cast<bool *>(userdata) = true; };
+    ur_context_extended_deleter_t deleter = [](void *userdata) { *static_cast<bool *>(userdata) = true; };
 
     ASSERT_SUCCESS(urContextSetExtendedDeleter(context, deleter, &called));
     ASSERT_SUCCESS(urContextRelease(context));
@@ -21,7 +21,7 @@ TEST_P(urContextSetExtendedDeleterTest, Success) {
 }
 
 TEST_P(urContextSetExtendedDeleterTest, InvalidNullHandleContext) {
-    ur_context_extended_deleter_t *deleter = [](void *) {};
+    ur_context_extended_deleter_t deleter = [](void *) {};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urContextSetExtendedDeleter(nullptr, deleter, nullptr));
 }
