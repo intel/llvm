@@ -51,14 +51,14 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   // versions.  If this is an OpenCL backend, get the version.
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
-  bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
+  bool IsOpenCLVGE20 = false; // Backend is Greater or Equal to OpenCL 2.0
   bool IsL0 = false;        // Backend is any OneAPI Level 0 version
   auto Backend = Platform.get_backend();
   if (Backend == sycl::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);
-    IsOpenCLV20 = (VersionString.find("2.0") == 0);
+    IsOpenCLVGE20 = (VersionString.find("2.") == 0) || (VersionString.find("3.") == 0);
   } else if (Backend == sycl::backend::ext_oneapi_level_zero) {
     IsL0 = true;
   }
@@ -73,7 +73,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
     // reqd_work_group_size attribute is used to declare the work-group size
     // for kernel in the program source.
-    if (!HasLocalSize && (IsOpenCLV1x || IsOpenCLV20)) {
+    if (!HasLocalSize && (IsOpenCLV1x || IsOpenCLVGE20)) {
       throw sycl::nd_range_error(
           "OpenCL 1.x and 2.0 requires to pass local size argument even if "
           "required work-group size was specified in the program source",
@@ -113,7 +113,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxWGSize),
             PI_ERROR_INVALID_WORK_GROUP_SIZE);
-    } else if (IsOpenCLV20 || IsL0) {
+    } else if (IsOpenCLVGE20 || IsL0) {
       // OpenCL 2.x or OneAPI Level Zero:
       // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
       // the total number of work-items in the work-group computed as
