@@ -55,6 +55,10 @@
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
+#ifndef __SYCL_USE_EXT_VECTOR_TYPE__
+#include <sycl/detail/cl.h>
+#endif
+
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -2109,9 +2113,8 @@ template <typename T, int N> struct VecStorageImpl {
   using DataType = T __attribute__((ext_vector_type(N)));
 };
 #else
-// When ext_vector_type is not available, we rely on cl_* types from CL/OpenCL.h
+// When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
 // to represent vec storage.
-// FIXME: there is no direct include of CL/OpenCL.h in this file
 template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
