@@ -2331,15 +2331,17 @@ urTearDown(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query queue info
 typedef enum ur_queue_info_t {
-    UR_QUEUE_INFO_CONTEXT = 0,         ///< Queue context info
-    UR_QUEUE_INFO_DEVICE = 1,          ///< Queue device info
-    UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< Queue device default info
-    UR_QUEUE_INFO_PROPERTIES = 3,      ///< Queue properties info
+    UR_QUEUE_INFO_CONTEXT = 0,         ///< ::ur_queue_handle_t: context associated with this queue.
+    UR_QUEUE_INFO_DEVICE = 1,          ///< ::ur_device_handle_t: device associated with this queue.
+    UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< ::ur_queue_handle_t: the current default queue of the underlying
+                                       ///< device.
+    UR_QUEUE_INFO_PROPERTIES = 3,      ///< ::ur_queue_flags_t: the properties associated with
+                                       ///< ::UR_QUEUE_PROPERTIES_FLAGS.
     UR_QUEUE_INFO_REFERENCE_COUNT = 4, ///< [uint32_t] Reference count of the queue object.
                                        ///< The reference count returned should be considered immediately stale.
                                        ///< It is unsuitable for general use in applications. This feature is
                                        ///< provided for identifying memory leaks.
-    UR_QUEUE_INFO_SIZE = 5,            ///< Queue size info
+    UR_QUEUE_INFO_SIZE = 5,            ///< uint32_t: The size of the queue
     /// @cond
     UR_QUEUE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond

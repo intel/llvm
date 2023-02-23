@@ -7,15 +7,15 @@ using urDeviceRetainTest = uur::urAllDevicesTest;
 
 TEST_F(urDeviceRetainTest, Success) {
     for (auto device : devices) {
-        const auto prevRefCount = uur::urDeviceGetReferenceCount(device);
-        ASSERT_TRUE(prevRefCount.second);
+        const auto prevRefCount = uur::GetObjectReferenceCount(device);
+        ASSERT_TRUE(prevRefCount.has_value());
 
         ASSERT_SUCCESS(urDeviceRetain(device));
 
-        const auto refCount = uur::urDeviceGetReferenceCount(device);
-        ASSERT_TRUE(refCount.second);
+        const auto refCount = uur::GetObjectReferenceCount(device);
+        ASSERT_TRUE(refCount.has_value());
 
-        ASSERT_LT(prevRefCount.first, refCount.first);
+        ASSERT_LT(prevRefCount.value(), refCount.value());
 
         EXPECT_SUCCESS(urDeviceRelease(device));
     }
