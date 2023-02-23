@@ -43,6 +43,67 @@ struct joint_matrix {
   }
 };
 
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
+class wi_data {
+
+  joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
+
+  wi_data(joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
+
+  template <typename Grp, typename Type, use UseJm, size_t NumRows,
+            size_t NumCols, layout LayoutJm>
+  friend decltype(auto)
+  get_wi_data(Grp,
+              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
+
+public:
+  size_t length() {
+    return jm.cuda_impl.wi_marray.size();
+  };
+
+  decltype(auto) operator[](size_t i) {
+    return (jm.cuda_impl.wi_marray[i]);
+  };
+};
+#else
+template <typename type, size_t size> class wi_data {
+  marray<type, size> &data;
+  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
+  template <typename Grp, typename Type, use UseJm, size_t NumRows,
+            size_t NumCols, layout LayoutJm>
+  friend decltype(auto)
+  get_wi_data(Grp,
+              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
+
+public:
+  size_t length() { return data.size(); };
+
+  type &operator[](size_t i) { return data[i]; };
+};
+#endif
+
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
+inline __SYCL_ALWAYS_INLINE decltype(auto)
+get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  std::ignore = sg;
+  return wi_data(jm);
+#else
+  std::ignore = sg;
+  std::ignore = jm;
+  if constexpr (std::is_same_v<T, precision::tf32>) {
+    marray<float, 1> unused{};
+    return wi_data<float, 1>(unused);
+  } else {
+    marray<T, 1> unused{};
+    return wi_data<T, 1>(unused);
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 template <typename Group, typename T, use Use, size_t M, size_t N,
           layout Layout, typename F>
 inline __SYCL_ALWAYS_INLINE void
@@ -50,6 +111,9 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &C,
                    F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
+  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
+    lambda(jm.cuda_impl.wi_marray[i]);
+  }
 #else // NVPTX
   auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, C);
   for (int i = 0; i < wi_data_c.length(); i++) {
