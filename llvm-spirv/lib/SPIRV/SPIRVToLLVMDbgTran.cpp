@@ -611,9 +611,18 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
       !IsDefinition)
     DIS = Builder.createMethod(Scope, Name, LinkageName, File, LineNo, Ty, 0, 0,
                                nullptr, Flags, SPFlags, TParamsArray);
-  else
+  else {
+    // Create targetFuncName mostly for Fortran trampoline function if it is
+    // the case
+    StringRef TargetFunction;
+    if (Ops.size() > TargetFunctionNameIdx) {
+      TargetFunction = getString(Ops[TargetFunctionNameIdx]);
+    }
     DIS = Builder.createFunction(Scope, Name, LinkageName, File, LineNo, Ty,
-                                 ScopeLine, Flags, SPFlags, TParamsArray, FD);
+                                 ScopeLine, Flags, SPFlags, TParamsArray, FD,
+                                 /*ThrownTypes*/ nullptr,
+                                 /*Annotations*/ nullptr, TargetFunction);
+  }
   DebugInstCache[DebugInst] = DIS;
   SPIRVId RealFuncId = Ops[FunctionIdIdx];
   FuncMap[RealFuncId] = DIS;

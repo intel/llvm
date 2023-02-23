@@ -991,8 +991,16 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
 
     if (DISubprogram *FuncDecl = Func->getDeclaration())
       Ops.push_back(transDbgEntry(FuncDecl)->getId());
-    else
+    else {
       Ops.push_back(getDebugInfoNoneId());
+      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) {
+        // Translate targetFuncName mostly for Fortran trampoline function if it
+        // is the case
+        StringRef TargetFunc = Func->getTargetFuncName();
+        if (!TargetFunc.empty())
+          Ops.push_back(BM->getString(TargetFunc.str())->getId());
+      }
+    }
 
     DebugFunc = BM->addDebugInfo(SPIRVDebug::Function, getVoidTy(), Ops);
     MDMap.insert(std::make_pair(Func, DebugFunc));
