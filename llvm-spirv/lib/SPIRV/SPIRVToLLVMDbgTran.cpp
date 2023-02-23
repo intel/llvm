@@ -128,7 +128,10 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
-  unsigned SourceLang = convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
+  unsigned SourceLang =
+      DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100
+          ? convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(Ops[LanguageIdx])
+          : convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
   auto Producer = findModuleProducer();
   return Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]),
                                    Producer, false, "", 0);

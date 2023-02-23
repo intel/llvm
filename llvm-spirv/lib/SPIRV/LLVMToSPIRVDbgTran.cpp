@@ -508,7 +508,10 @@ LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
   Ops[SourceIdx] = getSource(CU)->getId();
   auto DwarfLang =
       static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
-  Ops[LanguageIdx] = convertDWARFSourceLangToSPIRV(DwarfLang);
+  Ops[LanguageIdx] =
+      BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100
+          ? convertDWARFSourceLangToSPIRVNonSemanticDbgInfo(DwarfLang)
+          : convertDWARFSourceLangToSPIRV(DwarfLang);
   BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
   // Cache CU in a member.
   SPIRVCU = static_cast<SPIRVExtInst *>(

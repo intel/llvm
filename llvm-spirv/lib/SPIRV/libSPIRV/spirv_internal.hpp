@@ -29,6 +29,25 @@
 namespace spv {
 namespace internal {
 
+enum InternalSourceLanguageNonSemanticDI {
+  ISourceLanguagePython = 101,
+  ISourceLanguageJulia = 102,
+  ISourceLanguageRust = 103,
+  ISourceLanguageD = 104,
+  ISourceLanguageFortran95 = 105,
+  ISourceLanguageFortran2003 = 106,
+  ISourceLanguageFortran2008 = 107,
+  ISourceLanguageC = 108,
+  ISourceLanguageC99 = 109,
+  ISourceLanguageC11 = 110,
+  ISourceLanguageCPP = 111,
+  ISourceLanguageCPP03 = 112,
+  ISourceLanguageCPP11 = 113,
+  ISourceLanguageCPP14 = 114,
+  ISourceLanguageCPP17 = 115,
+  ISourceLanguageCPP20 = 116,
+};
+
 enum InternalLinkageType {
   ILTPrev = LinkageTypeMax - 2,
   ILTInternal
@@ -134,6 +153,39 @@ _SPIRV_OP(Op, MaskedScatterINTEL)
 _SPIRV_OP(Capability, TensorFloat32ConversionINTEL)
 _SPIRV_OP(Op, ConvertFToTF32INTEL)
 #undef _SPIRV_OP
+
+constexpr SourceLanguage SourceLanguagePython =
+    static_cast<SourceLanguage>(ISourceLanguagePython);
+constexpr SourceLanguage SourceLanguageJulia =
+    static_cast<SourceLanguage>(ISourceLanguageJulia);
+constexpr SourceLanguage SourceLanguageRust =
+    static_cast<SourceLanguage>(ISourceLanguageRust);
+constexpr SourceLanguage SourceLanguageD =
+    static_cast<SourceLanguage>(ISourceLanguageD);
+constexpr SourceLanguage SourceLanguageFortran95 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran95);
+constexpr SourceLanguage SourceLanguageFortran2003 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2003);
+constexpr SourceLanguage SourceLanguageFortran2008 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2008);
+constexpr SourceLanguage SourceLanguageC =
+    static_cast<SourceLanguage>(ISourceLanguageC);
+constexpr SourceLanguage SourceLanguageC99 =
+    static_cast<SourceLanguage>(ISourceLanguageC99);
+constexpr SourceLanguage SourceLanguageC11 =
+    static_cast<SourceLanguage>(ISourceLanguageC11);
+constexpr SourceLanguage SourceLanguageCPP =
+    static_cast<SourceLanguage>(ISourceLanguageCPP);
+constexpr SourceLanguage SourceLanguageCPP03 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP03);
+constexpr SourceLanguage SourceLanguageCPP11 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP11);
+constexpr SourceLanguage SourceLanguageCPP14 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP14);
+constexpr SourceLanguage SourceLanguageCPP17 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP17);
+constexpr SourceLanguage SourceLanguageCPP20 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP20);
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
