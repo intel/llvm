@@ -10,15 +10,15 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventReleaseTest);
 TEST_P(urEventReleaseTest, Success) {
     ASSERT_SUCCESS(urEventRetain(event));
 
-    const auto prevRefCount = uur::urEventGetReferenceCount(event);
-    ASSERT_TRUE(prevRefCount.second);
+    const auto prevRefCount = uur::GetObjectReferenceCount(event);
+    ASSERT_TRUE(prevRefCount.has_value());
 
     ASSERT_SUCCESS(urEventRelease(event));
 
-    const auto refCount = uur::urEventGetReferenceCount(event);
-    ASSERT_TRUE(refCount.second);
+    const auto refCount = uur::GetObjectReferenceCount(event);
+    ASSERT_TRUE(refCount.has_value());
 
-    ASSERT_GT(prevRefCount.first, refCount.first);
+    ASSERT_GT(prevRefCount.value(), refCount.value());
 }
 
 TEST_P(urEventReleaseTest, InvalidNullHandle) {

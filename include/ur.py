@@ -562,15 +562,17 @@ class ur_buffer_create_type_t(c_int):
 ###############################################################################
 ## @brief Query queue info
 class ur_queue_info_v(IntEnum):
-    CONTEXT = 0                                     ## Queue context info
-    DEVICE = 1                                      ## Queue device info
-    DEVICE_DEFAULT = 2                              ## Queue device default info
-    PROPERTIES = 3                                  ## Queue properties info
+    CONTEXT = 0                                     ## ::ur_queue_handle_t: context associated with this queue.
+    DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
+    DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
+                                                    ## device.
+    PROPERTIES = 3                                  ## ::ur_queue_flags_t: the properties associated with
+                                                    ## ::UR_QUEUE_PROPERTIES_FLAGS.
     REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    SIZE = 5                                        ## Queue size info
+    SIZE = 5                                        ## uint32_t: The size of the queue
 
 class ur_queue_info_t(c_int):
     def __str__(self):

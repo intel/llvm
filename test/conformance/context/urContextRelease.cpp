@@ -9,15 +9,15 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextReleaseTest);
 TEST_P(urContextReleaseTest, Success) {
     ASSERT_SUCCESS(urContextRetain(context));
 
-    const auto prevRefCount = uur::urContextGetReferenceCount(context);
-    ASSERT_TRUE(prevRefCount.second);
+    const auto prevRefCount = uur::GetObjectReferenceCount(context);
+    ASSERT_TRUE(prevRefCount.has_value());
 
     ASSERT_SUCCESS(urContextRelease(context));
 
-    const auto refCount = uur::urContextGetReferenceCount(context);
-    ASSERT_TRUE(refCount.second);
+    const auto refCount = uur::GetObjectReferenceCount(context);
+    ASSERT_TRUE(refCount.has_value());
 
-    ASSERT_GT(prevRefCount.first, refCount.first);
+    ASSERT_GT(prevRefCount.value(), refCount.value());
 }
 
 TEST_P(urContextReleaseTest, InvalidNullHandleContext) {
