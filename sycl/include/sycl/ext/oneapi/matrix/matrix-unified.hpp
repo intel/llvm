@@ -103,7 +103,7 @@ get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 template <typename Group, typename T, use Use, size_t M, size_t N,
           layout Layout, typename F>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &C,
+joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
                    F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -111,7 +111,7 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &C,
     lambda(jm.cuda_impl.wi_marray[i]);
   }
 #else // NVPTX
-  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, C);
+  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
   for (int i = 0; i < wi_data_c.length(); i++) {
     lambda(wi_data_c[i]);
   }
