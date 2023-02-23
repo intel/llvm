@@ -312,6 +312,9 @@ if 'cpu' in config.target_devices.split(','):
     if platform.system() == "Linux":
         cpu_run_on_linux_substitute = cpu_run_substitute
         cpu_check_on_linux_substitute = "| FileCheck %s"
+
+    if config.run_launcher:
+        cpu_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("CPU device not used")
 
@@ -353,6 +356,8 @@ if 'gpu' in config.target_devices.split(','):
     if config.sycl_be == "ext_oneapi_cuda":
         gpu_run_substitute += "SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 "
 
+    if config.run_launcher:
+        gpu_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("GPU device not used")
 
@@ -370,10 +375,17 @@ if 'acc' in config.target_devices.split(','):
     acc_run_substitute = " env ONEAPI_DEVICE_SELECTOR='*:acc' "
     acc_check_substitute = "| FileCheck %s"
     config.available_features.add('accelerator')
+
+    if config.run_launcher:
+        acc_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("Accelerator device not used")
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
+
+if config.run_launcher:
+    config.substitutions.append(('%e2e_tests_root', config.test_source_root))
+    config.recursiveExpansionLimit = 10
 
 if config.sycl_be == 'ext_oneapi_cuda' or (config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'NVIDIA'):
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
