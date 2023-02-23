@@ -1933,12 +1933,7 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
   return Function;
 }
 
-const clang::CodeGen::CGFunctionInfo &
-MLIRASTConsumer::getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
-  auto Result = CGFunctionInfos.find(FD);
-  if (Result != CGFunctionInfos.end())
-    return *Result->second;
-
+static clang::GlobalDecl getGlobalDecl(const clang::FunctionDecl *FD) {
   clang::GlobalDecl GD;
   if (const auto *CC = dyn_cast<clang::CXXConstructorDecl>(FD))
     GD = clang::GlobalDecl(CC, clang::CXXCtorType::Ctor_Complete);
@@ -1946,8 +1941,16 @@ MLIRASTConsumer::getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
     GD = clang::GlobalDecl(CC, clang::CXXDtorType::Dtor_Complete);
   else
     GD = clang::GlobalDecl(FD);
+  return GD;
+}
 
-  CGFunctionInfos[FD] = &getTypes().arrangeGlobalDeclaration(GD);
+const clang::CodeGen::CGFunctionInfo &
+MLIRASTConsumer::getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
+  auto Result = CGFunctionInfos.find(FD);
+  if (Result != CGFunctionInfos.end())
+    return *Result->second;
+
+  CGFunctionInfos[FD] = &getTypes().arrangeGlobalDeclaration(getGlobalDecl(FD));
 
   return *CGFunctionInfos[FD];
 }
@@ -2504,12 +2507,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
   mlirclang::AttributeList PAL;
   {
     const clang::CodeGen::CGFunctionInfo &FI = getOrCreateCGFunctionInfo(&FD);
-    const auto *FPT = FD.getType()->getAs<clang::FunctionProtoType>();
-    clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
     unsigned CallingConv;
-    getTypes().constructAttributeList(Function.getName(), FI, CalleeInfo, PAL,
-                                      CallingConv,
+    getTypes().constructAttributeList(Function.getName(), FI,
+                                      getGlobalDecl(&FD), PAL, CallingConv,
                                       /*AttrOnCallSite*/ false,
                                       /*IsThunk*/ false);
 

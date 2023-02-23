@@ -152,8 +152,9 @@ static void addAttributesFromAssumes(mlirclang::AttrBuilder &FuncAttrs,
   for (StringRef AttrName : Attrs)
     StrAttrs.push_back(StringAttr::get(Ctx, AttrName));
 
-  FuncAttrs.addPassThroughAttribute(llvm::AssumptionAttrKey,
-                                    mlir::ArrayAttr::get(Ctx, StrAttrs));
+  if (!StrAttrs.empty())
+    FuncAttrs.addPassThroughAttribute(llvm::AssumptionAttrKey,
+                                      mlir::ArrayAttr::get(Ctx, StrAttrs));
 }
 
 static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
