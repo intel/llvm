@@ -182,11 +182,10 @@ func.func @scf_parallel_nohoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: inde
 
 module {
 
-
 // CHECK: #set = affine_set<()[s0, s1] : (s1 - s0 - 1 >= 0)>
 // CHECK: #set1 = affine_set<() : (9 >= 0)>
 
-// COM: Ensure loop invariant unaliased load + store are hoisted.
+// COM: Ensure loop invariant load and store are hoisted.
 func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
   // CHECK:       func.func @affine_for_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index) {
   // CHECK-DAG      %cst = arith.constant 2.000000e+00 : f32    
@@ -293,8 +292,8 @@ func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
   return
 }  
 
-// COM: Ensure accessor.subscript operation is hoisted and the load + store instructions before the accessor.subscript
-// COM: operation are also hoisted (because the store referencing %4 is not aliased with %alloca used by the first load).
+// COM: Ensure accessor.subscript operation is hoisted and the load + store instructions before the 
+// COM: accessor.subscript operation are also hoisted (because %4 is not aliased with %alloca).
 func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK:        func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
@@ -303,12 +302,12 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-NEXT:       %3 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
   // CHECK-NEXT:       affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1_>
   // CHECK-NEXT:       %4 = sycl.accessor.subscript %arg0[%alloca_0] {{.*}} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
-  // CHECK-NEXT:      affine.for %arg1 = 0 to 10 {
-  // CHECK-NEXT:        %5 = affine.load %4[0] : memref<?xf32, 4>
-  // CHECK-NEXT:        %6 = arith.addf %5, {{.*}} : f32
-  // CHECK-NEXT:        affine.store %6, %4[0] : memref<?xf32, 4>
-  // CHECK-NEXT:      }
-  // CHECK-NEXT:    }    
+  // CHECK-NEXT:       affine.for %arg1 = 0 to 10 {
+  // CHECK-NEXT:         %5 = affine.load %4[0] : memref<?xf32, 4>
+  // CHECK-NEXT:         %6 = arith.addf %5, {{.*}} : f32
+  // CHECK-NEXT:         affine.store %6, %4[0] : memref<?xf32, 4>
+  // CHECK-NEXT:       }
+  // CHECK-NEXT:     }    
 
   %alloca = memref.alloca() : memref<1x!sycl_id_1>  
   %alloca_0 = memref.alloca() : memref<1x!sycl_id_1>
