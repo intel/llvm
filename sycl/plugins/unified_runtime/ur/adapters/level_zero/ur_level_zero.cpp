@@ -1187,7 +1187,7 @@ getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->isImmedidateCommandListUsed)
+    if (Device->ImmCommandListUsed)
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1237,7 +1237,8 @@ _ur_device_handle_t::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    return ImmCommandListsPreferred ? PerQueue : NotUsed;
+    // Change this to PerQueue as default after more testing.
+    return NotUsed;
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1410,17 +1411,10 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
-  // Check device id for PVC.
-  // TODO: change mechanism for detecting PVC once L0 provides an interface.
-  // At present even PVC doesn't automatically use immediate commandlists.
-  // Change this after more testing.
-  ImmCommandListsPreferred =
-      false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
+  ImmCommandListUsed = this->useImmediateCommandLists();
 
-  isImmedidateCommandListUsed = this->useImmediateCommandLists();
-
-  if (!isImmedidateCommandListUsed) {
-    eventsScope = DeviceEventsSetting;
+  if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
+    ZeEventsScope = DeviceEventsSetting;
   }
 
   return ZER_RESULT_SUCCESS;

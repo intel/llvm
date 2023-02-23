@@ -202,7 +202,7 @@ struct _ur_device_handle_t : _pi_object {
   _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
                       zer_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ImmCommandListsPreferred{false}, ZeDeviceProperties{},
+        ZeDeviceProperties{},
         ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
@@ -282,24 +282,25 @@ struct _ur_device_handle_t : _pi_object {
   // _ur_device_handle_t.
   const zer_device_handle_t RootDevice;
 
-  // Whether to use immediate commandlists for queues on this device.
-  // For some devices (e.g. PVC) immediate commandlists are preferred.
-  bool ImmCommandListsPreferred;
-  bool isImmedidateCommandListUsed = false;
-
   enum ImmCmdlistMode {
     // Immediate commandlists are not used.
-    NotUsed,
+    NotUsed = 0,
     // One set of compute and copy immediate commandlists per queue.
     PerQueue,
     // One set of compute and copy immediate commandlists per host thread that
     // accesses the queue.
     PerThreadPerQueue
   };
-  // Return whether to use immediate commandlists for this device.
+  // Read env settings to select immediate commandlist mode.
   ImmCmdlistMode useImmediateCommandLists();
 
-  EventsScope eventsScope = AllHostVisible;
+  // Returns whether immediate command lists are used on this device.
+  ImmCmdlistMode ImmCommandListUsed {};
+
+  // Scope of events used for events on the device
+  // Can be adjusted with SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS
+  // for non-immediate command lists
+  EventsScope ZeEventsScope = AllHostVisible;
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
