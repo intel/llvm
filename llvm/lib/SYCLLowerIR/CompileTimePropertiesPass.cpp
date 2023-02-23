@@ -467,9 +467,13 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
     uint32_t attr_val;
 
     if (DecorStr == "sycl-alignment") {
-      assert(DecorValue && !DecorValue->getAsInteger(0, attr_val) &&
-             "sycl-alignment attribute is missing or not valid");
+      assert(DecorValue && "sycl-alignment attribute is missing");
 
+      bool DecorValueIntConvFailed = DecorValue->getAsInteger(0, attr_val);
+
+      std::ignore = DecorValueIntConvFailed;
+      assert(!DecorValueIntConvFailed &&
+             "sycl-alignment attribute is not an integer");
       assert(llvm::isPowerOf2_64(attr_val) &&
              "sycl-alignment attribute is not a power of 2");
 
