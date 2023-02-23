@@ -117,7 +117,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -180,7 +180,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -224,7 +224,101 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  if (MEmulateOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
+event queue_impl::memcpyToDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
+    const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
+    const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
+
+    RT::PiEvent NativeEvent{};
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+        &NativeEvent);
+
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (MEmulateOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
+event queue_impl::memcpyFromDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
+    const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
+    size_t Offset, const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_from_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
+
+    RT::PiEvent NativeEvent{};
+    MemoryManager::copy_from_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+        &NativeEvent);
+
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -237,12 +331,12 @@ void queue_impl::addEvent(const event &Event) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    if (is_host() || !MSupportOOO)
+    if (is_host() || MEmulateOOO)
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
-  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr) {
+  else if (is_host() || MEmulateOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -253,7 +347,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || !MSupportOOO);
+  assert(is_host() || MEmulateOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -388,7 +482,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  const bool SupportsPiFinish = !is_host() && MSupportOOO;
+  const bool SupportsPiFinish = !is_host() && !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
