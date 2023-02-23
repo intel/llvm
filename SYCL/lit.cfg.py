@@ -83,7 +83,7 @@ llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 if config.extra_environment:
     lit_config.note("Extra environment variables")
     for env_pair in config.extra_environment.split(','):
-        [var,val]=env_pair.split("=")
+        [var,val]=env_pair.split("=", 1)
         if val:
            llvm_config.with_environment(var,val,append_path=True)
            lit_config.note("\t"+var+"="+val)
