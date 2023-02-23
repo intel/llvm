@@ -3,11 +3,11 @@
 //
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,error %s
 //
-// Note: there is one more error being emitted: "requested alignemnt is not a power of 2"
-// It happens because in all cases above we weren't able to select underlying
-// data type for vec and therefore it screwed up other code realying on it.
-// This error message is not they key thing we want to test here and that's why
-// it is ok to ignore it.
+// Note: there is one more error being emitted: "requested alignemnt is not a
+// power of 2" It happens because in all cases above we weren't able to select
+// underlying data type for vec and therefore it screwed up other code realying
+// on it. This error message is not they key thing we want to test here and
+// that's why it is ok to ignore it.
 
 #include <sycl/sycl.hpp>
 

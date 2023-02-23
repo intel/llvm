@@ -566,8 +566,7 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      typename detail::VecStorage<DataT, NumElements>::DataType;
+  using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -2148,7 +2147,9 @@ using select_apply_cl_t =
                   conditional_t<sizeof(IN) == 2, T16,
                                 conditional_t<sizeof(IN) == 4, T32, T64>>>;
 // Single element bool
-template <> struct VecStorage<bool, 1, void> { using DataType = bool; };
+template <> struct VecStorage<bool, 1, void> {
+  using DataType = bool;
+};
 // Multiple element bool
 template <int N>
 struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
