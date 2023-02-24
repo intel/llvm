@@ -192,6 +192,10 @@ struct pi_command_list_info_t {
   // may be still "in-use" due to sporadic delay in HW.
   bool ZeFenceInUse{false};
 
+  // Indicates if command list is in closed state. This is needed to avoid
+  // appending commands to the closed command list.
+  bool IsClosed{false};
+
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
   // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
