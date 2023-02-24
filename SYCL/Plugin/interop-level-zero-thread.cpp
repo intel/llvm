@@ -168,6 +168,7 @@ sycl::event operation(sycl::queue q) {
       {l0_event, sycl::ext::oneapi::level_zero::ownership::keep},
       q.get_context());
 
+  zeEventHostSignal(l0_event);
   auto return_event = q.ext_oneapi_submit_barrier({sycl_event});
   struct operation new_op = {std::move(deps), l0_event, sycl_event,
                              return_event};
