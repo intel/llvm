@@ -78,7 +78,7 @@ TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
       static_cast<detail::Command *>(Kernel1EventImpl->getCommand());
   ASSERT_NE(Kernel1Command, nullptr);
 
-  // Kernel waits for hots task in submit call so always enqueued
+  // Kernel waits for host task in submit call so always enqueued
   EXPECT_TRUE(Kernel1Command->isSuccessfullyEnqueued());
 
   auto Kernel2Event = InOrderQueue.submit(
