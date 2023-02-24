@@ -1140,7 +1140,7 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
           !RD->getName().empty()) {
         std::string Name =
             MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-        SmallVector<Value> RemainderArgs(Args.begin() + 1, Args.end());
+        ArrayRef<Value> RemainderArgs(Args.begin() + 1, Args.end());
         return Builder.create<mlir::sycl::SYCLConstructorOp>(
             Loc, Args[0], RemainderArgs, RD->getName(), Name);
       }
