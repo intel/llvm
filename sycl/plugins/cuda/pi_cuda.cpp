@@ -334,6 +334,34 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
   }
 }
 
+template <typename PtrT>
+void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
+                           CUdeviceptr *out_dev_ptr, PtrT *out_host_ptr) {
+  // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+  // checks with PI_CHECK_ERROR are not suggested
+  CUresult ret = cuPointerGetAttribute(
+      out_mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)usm_ptr);
+  assert((*out_mem_type != CU_MEMORYTYPE_ARRAY &&
+          *out_mem_type != CU_MEMORYTYPE_UNIFIED) &&
+         "ARRAY, UNIFIED types are not supported!");
+
+  // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+  if (ret == CUDA_ERROR_INVALID_VALUE) {
+    *out_mem_type = CU_MEMORYTYPE_HOST;
+    *out_dev_ptr = 0;
+    *out_host_ptr = usm_ptr;
+
+    // todo: resets the above "non-stick" error
+  } else if (ret == CUDA_SUCCESS) {
+    *out_dev_ptr = (*out_mem_type == CU_MEMORYTYPE_DEVICE)
+                       ? reinterpret_cast<CUdeviceptr>(usm_ptr)
+                       : 0;
+    *out_host_ptr = (*out_mem_type == CU_MEMORYTYPE_HOST) ? usm_ptr : nullptr;
+  } else {
+    PI_CHECK_ERROR(ret);
+  }
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -560,31 +588,27 @@ bool _pi_event::is_completed() const noexcept {
   return true;
 }
 
-pi_uint64 _pi_event::get_queued_time() const {
+pi_uint64 _pi_device::get_elapsed_time(CUevent ev) const {
   float miliSeconds = 0.0f;
-  assert(is_started());
 
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evQueued_));
+  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evBase_, ev));
+
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+}
+
+pi_uint64 _pi_event::get_queued_time() const {
+  assert(is_started());
+  return queue_->get_device()->get_elapsed_time(evQueued_);
 }
 
 pi_uint64 _pi_event::get_start_time() const {
-  float miliSeconds = 0.0f;
   assert(is_started());
-
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+  return queue_->get_device()->get_elapsed_time(evStart_);
 }
 
 pi_uint64 _pi_event::get_end_time() const {
-  float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
-
-  PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+  return queue_->get_device()->get_elapsed_time(evEnd_);
 }
 
 pi_result _pi_event::record() {
@@ -794,81 +818,6 @@ std::string getKernelNames(pi_program) {
   return {};
 }
 
-/// RAII object that calls the reference count release function on the held PI
-/// object on destruction.
-///
-/// The `dismiss` function stops the release from happening on destruction.
-template <typename T> class ReleaseGuard {
-private:
-  T Captive;
-
-  static pi_result callRelease(pi_device Captive) {
-    return cuda_piDeviceRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_context Captive) {
-    return cuda_piContextRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_mem Captive) {
-    return cuda_piMemRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_program Captive) {
-    return cuda_piProgramRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_kernel Captive) {
-    return cuda_piKernelRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_queue Captive) {
-    return cuda_piQueueRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_event Captive) {
-    return cuda_piEventRelease(Captive);
-  }
-
-public:
-  ReleaseGuard() = delete;
-  /// Obj can be `nullptr`.
-  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
-  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
-    Other.Captive = nullptr;
-  }
-
-  ReleaseGuard(const ReleaseGuard &) = delete;
-
-  /// Calls the related PI object release function if the object held is not
-  /// `nullptr` or if `dismiss` has not been called.
-  ~ReleaseGuard() {
-    if (Captive != nullptr) {
-      pi_result ret = callRelease(Captive);
-      if (ret != PI_SUCCESS) {
-        // A reported CUDA error is either an implementation or an asynchronous
-        // CUDA error for which it is unclear if the function that reported it
-        // succeeded or not. Either way, the state of the program is compromised
-        // and likely unrecoverable.
-        sycl::detail::pi::die(
-            "Unrecoverable program state reached in cuda_piMemRelease");
-      }
-    }
-  }
-
-  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
-
-  ReleaseGuard &operator=(ReleaseGuard &&Other) {
-    Captive = Other.Captive;
-    Other.Captive = nullptr;
-    return *this;
-  }
-
-  /// End the guard and do not release the reference count of the held
-  /// PI object.
-  void dismiss() { Captive = nullptr; }
-};
-
 //-- PI API implementation
 extern "C" {
 
@@ -920,8 +869,15 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
               CUcontext context;
               err = PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&context, device));
 
+              ScopedContext active(context);
+              CUevent evBase;
+              err = PI_CHECK_ERROR(cuEventCreate(&evBase, CU_EVENT_DEFAULT));
+
+              // Use default stream to record base event counter
+              err = PI_CHECK_ERROR(cuEventRecord(evBase, 0));
+
               platformId.devices_.emplace_back(
-                  new _pi_device{device, context, &platformId});
+                  new _pi_device{device, context, evBase, &platformId});
 
               {
                 const auto &dev = platformId.devices_.back().get();
@@ -1082,7 +1038,6 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
@@ -2147,18 +2102,6 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
   try {
     piContextPtr = std::unique_ptr<_pi_context>(new _pi_context(
         std::vector<pi_device>(devices, devices + num_devices)));
-
-    static std::once_flag initFlag;
-    std::call_once(
-        initFlag,
-        [](pi_result &err) {
-          // Use default stream to record base event counter
-          PI_CHECK_ERROR(
-              cuEventCreate(&_pi_platform::evBase_, CU_EVENT_DEFAULT));
-          PI_CHECK_ERROR(cuEventRecord(_pi_platform::evBase_, 0));
-        },
-        errcode_ret);
-
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {
     errcode_ret = err;
@@ -2409,8 +2352,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
               bufferRegion.origin;
   }
 
-  ReleaseGuard<pi_mem> releaseGuard(parent_buffer);
-
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
     retMemObj = std::unique_ptr<_pi_mem>{
@@ -2424,7 +2365,6 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  releaseGuard.dismiss();
   *memObj = retMemObj.release();
   return PI_SUCCESS;
 }
@@ -5408,39 +5348,17 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
       (*event)->start();
     }
 
-    // Determine the direction of Copy using cuPointerGetAttributes
+    // Determine the direction of copy using cuPointerGetAttribute
     // for both the src_ptr and dst_ptr
-    // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
-    CUpointer_attribute attributes = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
-
-    CUmemorytype src_type = static_cast<CUmemorytype>(0);
-    void *src_attribute_values[] = {(void *)(&src_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, src_attribute_values, (CUdeviceptr)src_ptr));
-    assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
-
-    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
-    void *dst_attribute_values[] = {(void *)(&dst_type)};
-    result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        1, &attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
-    assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
-
     CUDA_MEMCPY2D cpyDesc = {0};
 
-    cpyDesc.srcMemoryType = src_type;
-    cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(src_ptr)
-                            : 0;
-    cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
-    cpyDesc.srcPitch = src_pitch;
+    getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
+                          &cpyDesc.srcHost);
+    getUSMHostOrDevicePtr(dst_ptr, &cpyDesc.dstMemoryType, &cpyDesc.dstDevice,
+                          &cpyDesc.dstHost);
 
-    cpyDesc.dstMemoryType = dst_type;
-    cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
-                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
-                            : 0;
-    cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
     cpyDesc.dstPitch = dst_pitch;
-
+    cpyDesc.srcPitch = src_pitch;
     cpyDesc.WidthInBytes = width;
     cpyDesc.Height = height;
 
@@ -5692,11 +5610,7 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
   if (DeviceTime) {
     PI_CHECK_ERROR(cuEventSynchronize(event));
-
-    float elapsedTime = 0.0f;
-    PI_CHECK_ERROR(
-        cuEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
-    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
+    *DeviceTime = Device->get_elapsed_time(event);
   }
 
   return PI_SUCCESS;
@@ -5865,5 +5779,3 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 }
 
 } // extern "C"
-
-CUevent _pi_platform::evBase_{nullptr};

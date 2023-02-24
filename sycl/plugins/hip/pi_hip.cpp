@@ -5345,6 +5345,9 @@ pi_result hip_piTearDown(void *PluginParameter) {
 
 pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                       uint64_t *HostTime) {
+  if (!DeviceTime && !HostTime)
+    return PI_SUCCESS;
+
   _pi_event::native_type event;
 
   ScopedContext active(Device->get_context());

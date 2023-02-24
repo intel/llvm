@@ -214,23 +214,24 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 #endif
 }
 
-template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic<T>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
-reduce_over_group(Group g, T x, BinaryOperation binary_op) {
+template <typename Group, typename T, int N, class BinaryOperation>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     detail::is_vector_arithmetic<sycl::vec<T, N>>::value &&
+     detail::is_native_op<sycl::vec<T, N>, BinaryOperation>::value),
+    sycl::vec<T, N>>
+reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
-                   typename T::element_type>::value ||
-          (std::is_same<T, half>::value &&
+                   typename sycl::vec<T, N>::element_type>::value ||
+          (std::is_same<sycl::vec<T, N>, half>::value &&
            std::is_same<decltype(binary_op(x[0], x[0])), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
-  T result;
-  for (int s = 0; s < x.size(); ++s) {
-    result[s] = reduce_over_group(g, x[s], binary_op);
-  }
+  sycl::vec<T, N> result;
+
+  detail::dim_loop<N>(
+      [&](size_t s) { result[s] = reduce_over_group(g, x[s], binary_op); });
   return result;
 }
 

@@ -10,11 +10,18 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/sycl.hpp>
+
+#include <algorithm>
+
 using namespace sycl;
 
 #define CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, MARRAY_SIZE)               \
   static_assert(std::is_same_v<sycl::marray<ELEM_TYPE, MARRAY_SIZE>,           \
                                sycl::ALIAS_MTYPE##MARRAY_SIZE>);
+
+template <size_t N> bool AllTrue(sycl::marray<bool, N> M) {
+  return std::all_of(M.begin(), M.end(), [](const bool &V) { return V; });
+}
 
 #define CHECK_ALIAS(ALIAS_MTYPE, ELEM_TYPE)                                    \
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 2)                               \
@@ -23,10 +30,49 @@ using namespace sycl;
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 8)                               \
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 16)
 
+// Check different combinations of the given binary operation. Some compare
+// scalar values with the marrays, which is valid as all elements in the marrays
+// should be the same.
+#define CHECK_BINOP(OP, LHS, RHS)                                              \
+  assert(AllTrue((LHS[0] OP RHS) == (LHS OP RHS)) &&                           \
+         AllTrue((LHS OP RHS[0]) == (LHS OP RHS)) &&                           \
+         AllTrue((LHS[0] OP RHS[0]) == (LHS OP RHS)));
+
 struct NotDefaultConstructible {
   NotDefaultConstructible() = delete;
   constexpr NotDefaultConstructible(int){};
 };
+
+template <typename T> void CheckBinOps() {
+  sycl::marray<T, 3> ref_arr0{0};
+  sycl::marray<T, 3> ref_arr1{1};
+  sycl::marray<T, 3> ref_arr2{2};
+  sycl::marray<T, 3> ref_arr3{3};
+
+  CHECK_BINOP(+, ref_arr1, ref_arr2)
+  CHECK_BINOP(-, ref_arr1, ref_arr2)
+  CHECK_BINOP(*, ref_arr1, ref_arr2)
+  CHECK_BINOP(/, ref_arr1, ref_arr2)
+  CHECK_BINOP(&&, ref_arr0, ref_arr2)
+  CHECK_BINOP(||, ref_arr0, ref_arr2)
+  CHECK_BINOP(==, ref_arr1, ref_arr2)
+  CHECK_BINOP(!=, ref_arr1, ref_arr2)
+  CHECK_BINOP(<, ref_arr1, ref_arr2)
+  CHECK_BINOP(>, ref_arr1, ref_arr2)
+  CHECK_BINOP(<=, ref_arr1, ref_arr2)
+  CHECK_BINOP(>=, ref_arr1, ref_arr2)
+
+  if constexpr (!std::is_same_v<T, sycl::half> && !std::is_same_v<T, float> &&
+                !std::is_same_v<T, double>) {
+    // Operators not supported on sycl::half, float, and double.
+    CHECK_BINOP(%, ref_arr1, ref_arr2)
+    CHECK_BINOP(&, ref_arr1, ref_arr3)
+    CHECK_BINOP(|, ref_arr1, ref_arr3)
+    CHECK_BINOP(^, ref_arr1, ref_arr3)
+    CHECK_BINOP(>>, ref_arr1, ref_arr2)
+    CHECK_BINOP(<<, ref_arr1, ref_arr2)
+  }
+}
 
 template <typename DataT> void CheckConstexprVariadicCtors() {
   constexpr DataT default_val{1};
@@ -144,6 +190,20 @@ int main() {
   assert(t___[0] == ~1 && t___[1] == ~2 && t___[2] == ~3);
   b___ = !mint3{0, 1, 2};
   assert(b___[0] == true && b___[1] == false && b___[2] == false);
+
+  // Check direct binary operators
+  CheckBinOps<bool>();
+  CheckBinOps<std::int8_t>();
+  CheckBinOps<std::uint8_t>();
+  CheckBinOps<std::int16_t>();
+  CheckBinOps<std::uint16_t>();
+  CheckBinOps<std::int32_t>();
+  CheckBinOps<std::uint32_t>();
+  CheckBinOps<std::int64_t>();
+  CheckBinOps<std::uint64_t>();
+  CheckBinOps<sycl::half>();
+  CheckBinOps<float>();
+  CheckBinOps<double>();
 
   // check copyability
   constexpr sycl::marray<double, 5> ma;

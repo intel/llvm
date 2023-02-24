@@ -216,6 +216,14 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     }
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_QUEUE_PROPERTIES: {
+    assert(param_value_size == sizeof(pi_queue_properties));
+    if (param_value) {
+      *static_cast<pi_queue_properties *>(param_value) =
+          PI_QUEUE_FLAG_PROFILING_ENABLE;
+    }
+    return PI_SUCCESS;
+  }
   default:
     return PI_SUCCESS;
   }

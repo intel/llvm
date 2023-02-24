@@ -515,6 +515,10 @@ CODEGENOPT(CtorDtorReturnThis, 1, 0)
 /// Whether to disable the standard optimization pipeline for the SYCL device compiler.
 CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 
+/// Optimize SYCL Framework functions. These are functions
+/// which do not contain "user" code.
+CODEGENOPT(OptimizeSYCLFramework, 1, 0)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT
