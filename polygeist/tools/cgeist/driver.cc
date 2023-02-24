@@ -287,8 +287,6 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   OptPM.addPass(polygeist::createLoopRestructurePass());
   OptPM.addPass(polygeist::replaceAffineCFGPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-  if (ScalarReplacement)
-    PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   if (EnableLICM)
     OptPM.addPass(polygeist::createLICMPass());
   else
@@ -305,8 +303,16 @@ static int canonicalize(mlir::MLIRContext &Ctx,
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::replaceAffineCFGPass());
-    if (ScalarReplacement)
+    if (ScalarReplacement) {
+      // Perform AffineScalarReplacementPass on func::FuncOp nested in another
+      // region, e.g., gpu.module.
+      mlir::OpPassManager &nestPM = PM.nestAny();
+      nestPM.addNestedPass<func::FuncOp>(
+          mlir::createAffineScalarReplacementPass());
+      // Perform AffineScalarReplacementPass on func::FuncOp directly under
+      // builtin.module.
       PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+    }
   }
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
