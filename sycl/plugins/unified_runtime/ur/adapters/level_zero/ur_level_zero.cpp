@@ -1389,12 +1389,8 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
-  // Check device id for PVC.
-  // TODO: change mechanism for detecting PVC once L0 provides an interface.
-  // At present even PVC doesn't automatically use immediate commandlists.
-  // Change this after more testing.
-  ImmCommandListsPreferred =
-      false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
+  // Immediate commandlists will be used by default for all devices.
+  ImmCommandListsPreferred = true;
 
   return ZER_RESULT_SUCCESS;
 }
