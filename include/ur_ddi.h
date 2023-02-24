@@ -955,7 +955,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueMemUnmap_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMMemset_t)(
     ur_queue_handle_t,
     void *,
-    int8_t,
+    int,
     size_t,
     uint32_t,
     const ur_event_handle_t *,
