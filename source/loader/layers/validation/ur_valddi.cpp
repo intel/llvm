@@ -1200,6 +1200,22 @@ urEnqueueUSMMemset2D(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
+        if (pitch == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (width == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (height == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (pitch < width) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
         if (phEventWaitList == NULL && numEventsInWaitList > 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }

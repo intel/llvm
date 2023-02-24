@@ -1288,6 +1288,12 @@ urEnqueueUSMFill2D(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `pitch == 0`
+///         + `width == 0`
+///         + `height == 0`
+///         + `pitch < width`
+///         + `pitch * height` is higher than the memory allocation size
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`

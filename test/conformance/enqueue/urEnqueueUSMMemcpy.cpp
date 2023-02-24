@@ -48,10 +48,15 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
         return UR_EVENT_STATUS_COMPLETE == memset_event_status;
     }
 
-    bool verifyData() {
-        EXPECT_SUCCESS(
-            urEnqueueUSMMemcpy(queue, true, host_mem.data(), device_dst, allocation_size, 0, nullptr, nullptr));
-        return std::all_of(host_mem.begin(), host_mem.end(), [this](uint8_t i) { return i == memset_value; });
+    void verifyData() {
+        ASSERT_SUCCESS(
+            urEnqueueUSMMemcpy(queue, true, host_mem.data(), device_dst,
+                               allocation_size, 0, nullptr, nullptr));
+        bool good = std::all_of(host_mem.begin(), host_mem.end(),
+                                [this](uint8_t i) {
+                                    return i == memset_value;
+                                });
+        ASSERT_TRUE(good);
     }
 
     const uint32_t num_elements = 1024;
@@ -71,7 +76,7 @@ TEST_P(urEnqueueUSMMemcpyTest, Blocking) {
     ASSERT_SUCCESS(urEventWait(1, &memset_event));
     ASSERT_TRUE(memsetHasFinished());
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, device_dst, device_src, allocation_size, 0, nullptr, nullptr));
-    ASSERT_TRUE(verifyData());
+    ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
 /**
@@ -90,7 +95,7 @@ TEST_P(urEnqueueUSMMemcpyTest, BlockingWithEvent) {
                                   &event_status, nullptr));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
     EXPECT_SUCCESS(urEventRelease(memcpy_event));
-    ASSERT_TRUE(verifyData());
+    ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
 /**
@@ -105,7 +110,7 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
         urEnqueueUSMMemcpy(queue, false, device_dst, device_src, allocation_size, 0, nullptr, &memcpy_event));
     ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
 
-    ASSERT_TRUE(verifyData());
+    ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
 /**
@@ -115,7 +120,7 @@ TEST_P(urEnqueueUSMMemcpyTest, WaitForDependencies) {
     ASSERT_SUCCESS(
         urEnqueueUSMMemcpy(queue, true, device_dst, device_src, sizeof(int), 1, &memset_event, nullptr));
     ASSERT_TRUE(memsetHasFinished());
-    ASSERT_TRUE(verifyData());
+    ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
 TEST_P(urEnqueueUSMMemcpyTest, InvalidNullQueueHandle) {

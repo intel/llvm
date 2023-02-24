@@ -53,6 +53,22 @@ inline void copyRect(std::vector<uint8_t> src, ur_rect_offset_t src_offset, ur_r
     }
 }
 
+struct TestParameters2D {
+    int pitch;
+    int width;
+    int height;
+};
+
+template <typename T>
+inline std::string print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name = uur::GetPlatformAndDeviceName(device_handle);
+    std::stringstream test_name;
+    test_name << platform_device_name << "__pitch__" << std::get<1>(info.param).pitch << "__width__" << std::get<1>(info.param).width
+              << "__height__" << std::get<1>(info.param).height;
+    return test_name.str();
+}
+
 } // namespace uur
 
 #endif // UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED
