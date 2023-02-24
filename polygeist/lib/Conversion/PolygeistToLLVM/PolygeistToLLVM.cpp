@@ -370,6 +370,32 @@ struct Pointer2MemrefOpLowering
   }
 };
 
+struct AddrSpaceCastOpLowering
+    : public ConvertOpToLLVMPattern<AddrSpaceCastOp> {
+  using ConvertOpToLLVMPattern<AddrSpaceCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(AddrSpaceCastOp op, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    MemRefType resTy = op.getType();
+    MemRefType srcTy = op.getSource().getType();
+    assert(srcTy.getElementType() == resTy.getElementType() &&
+           "Expecting same source and result element type");
+    Type elemTy = resTy.getElementType();
+    Value ptr = rewriter.create<Memref2PointerOp>(
+        loc, LLVM::LLVMPointerType::get(elemTy, srcTy.getMemorySpaceAsInt()),
+        op.getSource());
+    ptr = rewriter.create<LLVM::AddrSpaceCastOp>(
+        loc, LLVM::LLVMPointerType::get(elemTy, resTy.getMemorySpaceAsInt()),
+        ptr);
+    ptr = rewriter.create<Pointer2MemrefOp>(loc, resTy, ptr);
+
+    rewriter.replaceOp(op, {ptr});
+    return success();
+  }
+};
+
 struct StreamToTokenOpLowering
     : public ConvertOpToLLVMPattern<StreamToTokenOp> {
   using ConvertOpToLLVMPattern<StreamToTokenOp>::ConvertOpToLLVMPattern;
@@ -485,7 +511,8 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
-               Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
+               Memref2PointerOpLowering, Pointer2MemrefOpLowering,
+               AddrSpaceCastOpLowering>(converter);
   if (converter.getOptions().useBarePtrCallConv) {
     // When adding these patterns (and other patterns changing the default
     // conversion of operations on MemRef values), a higher benefit is passed

@@ -113,6 +113,19 @@ def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
   }];
 }
 
+def AddrSpaceCastOp : Polygeist_Op<"addrspacecast", [
+  ViewLikeOpInterface, Pure
+]> {
+  let summary = "Cast address space of a memref";
+
+  let arguments = (ins AnyMemRef : $source);
+  let results = (outs AnyMemRef : $result);
+
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return getSource(); }
+  }];
+}
+
 def TrivialUseOp : Polygeist_Op<"trivialuse"> {
   let summary = "memref subview operation";
 
