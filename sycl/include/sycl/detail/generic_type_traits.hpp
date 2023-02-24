@@ -41,8 +41,6 @@ template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
 
-template <typename T> using is_half = is_contained<T, gtl::scalar_half_list>;
-
 template <typename T>
 using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 

@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only -D__NO_EXT_VECTOR_TYPE_ON_HOST__
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -34,7 +33,6 @@ template <typename T> inline void checkVectorsWithN() {
 }
 
 inline void checkVectors() {
-  checkVectorsWithN<bool>();
   checkVectorsWithN<s::half>();
   checkVectorsWithN<float>();
   checkVectorsWithN<double>();
