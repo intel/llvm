@@ -3,29 +3,24 @@
 
 #include "fixtures.h"
 
-using urEventRetainTest = uur::event::urEventReferenceTest;
-
-/* Check that urEventRetain returns Success */
-TEST_P(urEventRetainTest, Success) {
-    ASSERT_SUCCESS(urEventRetain(event));
-    ASSERT_SUCCESS(urEventRelease(event));
-    ASSERT_SUCCESS(urEventRelease(event));
-}
-
-/* Check that urEventRetain increments the reference count */
-TEST_P(urEventRetainTest, CheckReferenceCount) {
-    ASSERT_TRUE(checkEventReferenceCount(1));
-    ASSERT_SUCCESS(urEventRetain(event));
-    ASSERT_TRUE(checkEventReferenceCount(2));
-    ASSERT_SUCCESS(urEventRelease(event));
-    ASSERT_SUCCESS(urEventRelease(event));
-}
-
-using urEventRetainNegativeTest = uur::urQueueTest;
-
-TEST_P(urEventRetainNegativeTest, InvalidNullHandle) {
-    ASSERT_EQ_RESULT(urEventRetain(nullptr), UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-}
-
+using urEventRetainTest = uur::event::urEventTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainTest);
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainNegativeTest);
+
+TEST_P(urEventRetainTest, Success) {
+    const auto prevRefCount = uur::GetObjectReferenceCount(event);
+    ASSERT_TRUE(prevRefCount.has_value());
+
+    ASSERT_SUCCESS(urEventRetain(event));
+
+    const auto refCount = uur::GetObjectReferenceCount(event);
+    ASSERT_TRUE(refCount.has_value());
+
+    ASSERT_LT(prevRefCount.value(), refCount.value());
+
+    ASSERT_SUCCESS(urEventRelease(event));
+}
+
+TEST_P(urEventRetainTest, InvalidNullHandle) {
+    ASSERT_EQ_RESULT(urEventRetain(nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}
