@@ -12,6 +12,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Update dependencies file
+      env:
+        GITHUB_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
       run: |
         version="$(python3 devops/scripts/update_drivers.py linux)"
         echo 'NEW_DRIVER_VERSION='$version >> $GITHUB_ENV
