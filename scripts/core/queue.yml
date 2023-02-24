@@ -16,17 +16,17 @@ class: $xQueue
 name: $x_queue_info_t
 etors:
     - name: CONTEXT
-      desc: "Queue context info"
+      desc: "$x_queue_handle_t: context associated with this queue."
     - name: DEVICE
-      desc: "Queue device info"
+      desc: "$x_device_handle_t: device associated with this queue."
     - name: DEVICE_DEFAULT
-      desc: "Queue device default info"
+      desc: "$x_queue_handle_t: the current default queue of the underlying device."
     - name: PROPERTIES
-      desc: "Queue properties info"
+      desc: "$x_queue_flags_t: the properties associated with $X_QUEUE_PROPERTIES_FLAGS."
     - name: REFERENCE_COUNT
       desc: "Queue reference count"
     - name: SIZE
-      desc: "Queue size info"
+      desc: "uint32_t: The size of the queue"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue property flags"
