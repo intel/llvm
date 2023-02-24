@@ -30,6 +30,7 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
+
 struct LICM : public LICMBase<LICM> {
   void runOnOperation() override;
 };
