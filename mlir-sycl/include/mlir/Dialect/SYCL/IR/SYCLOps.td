@@ -24,6 +24,7 @@ include "mlir/IR/BuiltinTypeInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // DIALECT DECLARATION
@@ -567,7 +568,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef, LocalAccessorMemRef, LocalAccessorBaseMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, LocalAccessorBaseMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
-  Pure, MemRefsNormalizable]
+  Pure, ViewLikeOpInterface, MemRefsNormalizable]
 > {
   let summary = "Derived type to base type cast operation";
   let description = [{
@@ -578,6 +579,10 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
 
   let arguments = (ins CastArg:$source);
   let results = (outs CastRes:$result);
+
+  let extraClassDeclaration = [{
+    Value getViewSource() { return getSource(); }
+  }];  
 
   let assemblyFormat = [{
     $source attr-dict `:` type($source) `to` type($result)
