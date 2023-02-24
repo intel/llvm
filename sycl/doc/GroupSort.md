@@ -75,13 +75,13 @@ The following should be implemented:
 - [x] `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
 - [ ] `sort_over_group` with `span`-based parameters.
 - [ ] Level Zero extension for `memory_required` functions
-  - [x] Specification.
-  - [x] Implementation.
+  - [ ] Specification.
+  - [ ] Implementation.
 - [ ] Backend support for sorting algorithms.
   - [ ] Default sorter
 - [ ] Fallback library if device doesn't implement functions.
 
-`[x]` means that corresponding feature is implemented.
+**Note**: The "tick" means that corresponding feature is implemented.
 
 Sections below describe each component in more details.
 
