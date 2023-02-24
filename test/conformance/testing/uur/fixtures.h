@@ -337,15 +337,13 @@ struct urMemBufferQueueTest : urQueueTest {
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        const auto deviceUSMSupport = GetDeviceInfo<bool>(
-            this->device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(deviceUSMSupport.has_value());
-        if (!deviceUSMSupport.value()) {
-            GTEST_SKIP() << "Device USM is not supported.";
+        const auto device_usm = GetDeviceInfo<bool>(this->device,
+                                                    UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
+        ASSERT_TRUE(device_usm.has_value());
+        if (!device_usm.value()) {
+            GTEST_SKIP() << "Device USM in not supported";
         }
-
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, sizeof(int), 0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
         ASSERT_SUCCESS(
             urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
@@ -367,15 +365,13 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
-
-        const auto deviceUSMSupport = GetDeviceInfo<bool>(
-            this->device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(deviceUSMSupport.has_value());
-        if (!deviceUSMSupport.value()) {
-            GTEST_SKIP() << "Device USM is not supported.";
+        const auto device_sum = GetDeviceInfo<bool>(this->device,
+                                                    UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
+        ASSERT_TRUE(device_sum.has_value());
+        if (!device_sum.value()) {
+            GTEST_SKIP() << "Device USM in not supported";
         }
-        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, nullptr, nullptr,
-                                        sizeof(int), 0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, nullptr, nullptr, sizeof(int), 0, &ptr));
         ur_event_handle_t event = nullptr;
         ASSERT_SUCCESS(urEnqueueUSMMemset(this->queue, ptr, 0, sizeof(int), 0,
                                           nullptr, &event));
