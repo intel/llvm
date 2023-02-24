@@ -1105,8 +1105,13 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
   // If the pivot is not the same as the work size, it needs to do an initial
   // reduction where we only reduce the N last elements into the first N
   // elements, where N is WorkSize - Pivot.
+  // 0                       Pivot              WorkSize  Power of two
+  // |                         |                   |      |
+  // +---------------------+---+-------------------+------+
+  //                       |
+  //              WorkSize - Pivot (+/- 1)
   if (Pivot != WorkSize) {
-    if (LID < Pivot && Pivot + LID < WorkSize)
+    if (Pivot + LID < WorkSize)
       Func(LID, Pivot + LID);
     Barrier();
   }
