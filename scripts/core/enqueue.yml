@@ -943,9 +943,9 @@ params:
     - type: void*
       name: ptr
       desc: "[in] pointer to USM memory object"
-    - type: int8_t
-      name: byteValue
-      desc: "[in] byte value to fill"
+    - type: int
+      name: value
+      desc: "[in] value to fill. It is interpreted as an 8-bit value and the upper 24 bits are ignored"
     - type: size_t
       name: count
       desc: "[in] size in bytes to be set"
@@ -964,6 +964,9 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`count == 0`"
+        - "If `count` is higher than the allocation size of `ptr`"
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
@@ -1008,6 +1011,9 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pSrc` or `pDst`"
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
@@ -1049,6 +1055,9 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMem`"
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
@@ -1090,6 +1099,9 @@ params:
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMem`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1134,10 +1146,19 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`pitch == 0`"
+      - "`width == 0`"
+      - "`height == 0`"
+      - "`pitch < width`"
+      - "If `pitch * height` is higher than the allocation size of `pMem`"
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
       - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
       - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
       - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
@@ -1157,7 +1178,7 @@ params:
       desc: "[in] the total width of the destination memory including padding."
     - type: int
       name: value
-      desc: "[in] the value to fill into the region in pMem."
+      desc: "[in] the value to fill into the region in pMem. It is interpreted as an 8-bit value and the upper 24 bits are ignored"
     - type: size_t
       name: width
       desc: "[in] the width in bytes of each row to set." 
@@ -1187,6 +1208,9 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
@@ -1232,10 +1256,21 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`srcPitch == 0`"
+      - "`dstPitch == 0`"
+      - "`srcPitch < width`"
+      - "`dstPitch < width`"
+      - "`height == 0`"
+      - "If `srcPitch * height` is higher than the allocation size of `pSrc`"
+      - "If `dstPitch * height` is higher than the allocation size of `pDst`"
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function

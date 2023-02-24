@@ -1836,9 +1836,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemset
 if __use_win_types:
-    _urEnqueueUSMMemset_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_byte, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemset_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemset_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_byte, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemset_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemcpy
