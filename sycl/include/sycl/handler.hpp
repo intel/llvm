@@ -2471,13 +2471,7 @@ public:
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memcpy2d'");
 
-    // If the backends supports 2D copy we use that.
-    if (supportsUSMMemcpy2D()) {
-      ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
-      return;
-    }
-
-    // Otherwise use fallback mechanisms based on the type of the pointers.
+    // Get the type of the pointers.
     context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
     usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
     usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
@@ -2485,9 +2479,17 @@ public:
         SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
     bool DestIsHost = DestAllocType == usm::alloc::unknown ||
                       DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
     if (SrcIsHost && DestIsHost) {
       commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                          Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
     } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
@@ -2520,14 +2522,7 @@ public:
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_copy2d'");
 
-    // If the backends supports 2D copy we use that.
-    if (supportsUSMMemcpy2D()) {
-      ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
-                               SrcPitch * sizeof(T), Width * sizeof(T), Height);
-      return;
-    }
-
-    // Otherwise use fallback mechanisms based on the type of the pointers.
+    // Get the type of the pointers.
     context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
     usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
     usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
@@ -2535,13 +2530,16 @@ public:
         SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
     bool DestIsHost = DestAllocType == usm::alloc::unknown ||
                       DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
     if (SrcIsHost && DestIsHost) {
       commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                          Height);
-    } else if (SrcIsHost || DestIsHost) {
-      // As a special case, we allow host-to-device and device-to-host copies
-      // through as they need a more fragmented fallback mechanism, which we
-      // include as part of CGCopy2DUSM.
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
                                SrcPitch * sizeof(T), Width * sizeof(T), Height);
     } else {
