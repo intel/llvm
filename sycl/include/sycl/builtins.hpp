@@ -1378,196 +1378,43 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
 }
 
 // marray relational functions
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isequal(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isequal(x[i], y[i]);
-  }
-  return res;
-}
 
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isnotequal(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isnotequal(x[i], y[i]);
+#define __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(NAME)                 \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
+  sycl::marray<bool, detail::marray_size<T>> NAME(T x, T y) __NOEXC {          \
+    sycl::marray<bool, detail::marray_size<T>> res;                            \
+    for (int i = 0; i < x.size(); i++) {                                       \
+      res[i] = NAME(x[i], y[i]);                                               \
+    }                                                                          \
+    return res;                                                                \
   }
-  return res;
-}
 
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isgreater(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isgreater(x[i], y[i]);
+#define __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(NAME)                  \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
+  sycl::marray<bool, detail::marray_size<T>> NAME(T x) __NOEXC {               \
+    sycl::marray<bool, detail::marray_size<T>> res;                            \
+    for (int i = 0; i < x.size(); i++) {                                       \
+      res[i] = NAME(x[i]);                                                     \
+    }                                                                          \
+    return res;                                                                \
   }
-  return res;
-}
 
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isgreaterequal(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isgreaterequal(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isless(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isless(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> islessequal(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = islessequal(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> islessgreater(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = islessgreater(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isfinite(T x) __NOEXC {
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isfinite(x[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isinf(T x) __NOEXC {
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isinf(x[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isnan(T x) __NOEXC {
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isnan(x[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isnormal(T x) __NOEXC {
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isnormal(x[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isordered(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isordered(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> isunordered(T x, T y) __NOEXC {
-  static_assert(x.size() == y.size(), "sycl::marray sizes must be equal.");
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = isunordered(x[i], y[i]);
-  }
-  return res;
-}
-
-template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_svgenfloat<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<bool, detail::marray_size<T>> signbit(T x) __NOEXC {
-  sycl::marray<bool, detail::marray_size<T>> res;
-  for (int i = 0; i < x.size(); i++) {
-    res[i] = signbit(x[i]);
-  }
-  return res;
-}
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isnotequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isgreater)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isgreaterequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isless)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(islessequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(islessgreater)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isfinite)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isinf)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isnan)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isnormal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isordered)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
 
 namespace detail {
 #if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
