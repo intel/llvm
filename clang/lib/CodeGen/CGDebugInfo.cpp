@@ -413,6 +413,8 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
     FileName = TheCU->getFile()->getFilename();
     if (CGM.getCodeGenOpts().SYCLUseMainFileName &&
         CGM.getLangOpts().MacroPrefixMap.size() > 0) {
+      // When fmacro-prefix-map is used, the original source file
+      // file name is indicated by FullMainFileName instead of the CU.
       auto &CGO = CGM.getCodeGenOpts();
       FileName = CGO.FullMainFileName;
       FID = ComputeValidFileID(SM, CGO.FullMainFileName);
