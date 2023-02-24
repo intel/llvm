@@ -1574,6 +1574,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
           size_t WGSize = NDIt.get_local_range().size();
           size_t LID = NDIt.get_local_linear_id();
           size_t GID = NDIt.get_global_linear_id();
+          size_t GrID = NDIt.get_group_linear_id();
 
           for (int E = 0; E < NElements; ++E) {
             // The last work-group may not have enough work for all its items.
@@ -1590,7 +1591,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
             // Compute the partial sum/reduction for the work-group.
             if (LID == 0) {
-              size_t GrID = NDIt.get_group_linear_id();
               typename Reduction::result_type PSum = LocalReds[0];
               if (IsUpdateOfUserVar)
                 PSum = BOp(Out[0], PSum);
