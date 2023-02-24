@@ -1928,11 +1928,10 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... InAccT, typename... OutAccT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplScalar(
-    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
-    size_t GID, size_t RemainingWorkSize,
-    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
-    ReduTupleT<BOPsT...> BOPsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, size_t LID, size_t GID,
+    size_t RemainingWorkSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
   // The end work-group may have less work than the rest, so we only need to
@@ -1954,10 +1953,10 @@ void reduAuxCGFuncImplScalar(
 
 template <typename Reduction, int Dims, typename LocalAccT, typename InAccT,
           typename OutAccT, typename T, typename BOPT>
-void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
-                                  nd_item<Dims> NDIt, size_t LID, size_t GID,
-                                  size_t RemainingWorkSize, LocalAccT LocalReds,
-                                  InAccT In, OutAccT Out, T Identity, BOPT BOp,
+void reduAuxCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
+                                  size_t GID, size_t RemainingWorkSize,
+                                  LocalAccT LocalReds, InAccT In, OutAccT Out,
+                                  T Identity, BOPT BOp,
                                   bool IsInitializeToIdentity) {
 
   // If there are multiple values, reduce each separately
@@ -1992,19 +1991,18 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... InAccT, typename... OutAccT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplArray(
-    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
-    size_t GID, size_t RemainingWorkSize,
-    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
-    ReduTupleT<BOPsT...> BOPsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, size_t LID, size_t GID,
+    size_t RemainingWorkSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduAuxCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
-       UniformPow2WG, IsOneWG, NDIt, LID, GID, RemainingWorkSize,
-       std::get<Is>(LocalAccsTuple), std::get<Is>(InAccsTuple),
-       std::get<Is>(OutAccsTuple), std::get<Is>(IdentitiesTuple),
-       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
+       IsOneWG, NDIt, LID, GID, RemainingWorkSize, std::get<Is>(LocalAccsTuple),
+       std::get<Is>(InAccsTuple), std::get<Is>(OutAccsTuple),
+       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
+       InitToIdentityProps[Is]),
    ...);
 }
 
@@ -2063,12 +2061,12 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 
       // Handle scalar and array reductions
       reduAuxCGFuncImplScalar<Reductions...>(
-          HasUniformWG, IsOneWG, NDIt, LID, GID, RemainingWorkSize,
-          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ScalarIs);
       reduAuxCGFuncImplArray<Reductions...>(
-          HasUniformWG, IsOneWG, NDIt, LID, GID, RemainingWorkSize,
-          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ArrayIs);
     });
   };
