@@ -26,6 +26,11 @@ __ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifdef __SYCL_DEVICE_ONLY__
+// Create an explicit data and GPU scoreboard dependency.
+__ESIMD_INTRIN void __esimd_wait(uint16_t value);
+#endif // __SYCL_DEVICE_ONLY__
+
 // \brief Raw sends load.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).

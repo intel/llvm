@@ -1291,17 +1291,22 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
           assert(DeviceGlobalInfo.empty() && "Extra data left!");
 
+          // Give the image pointer as an identifier for the image the
+          // device-global is associated with.
+          uintptr_t ImgId = reinterpret_cast<uintptr_t>(Img.get());
+
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
             // If it has already been registered we update the information.
-            ExistingDeviceGlobal->second->initialize(TypeSize,
+            ExistingDeviceGlobal->second->initialize(ImgId, KSId, TypeSize,
                                                      DeviceImageScopeDecorated);
           } else {
             // If it has not already been registered we create a new entry.
             // Note: Pointer to the device global is not available here, so it
             //       cannot be set until registration happens.
             auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-                DeviceGlobal->Name, TypeSize, DeviceImageScopeDecorated);
+                DeviceGlobal->Name, ImgId, KSId, TypeSize,
+                DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
           }
         }
@@ -1625,6 +1630,26 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
       FoundEntries.push_back(DeviceGlobalEntry->second.get());
   }
   return FoundEntries;
+}
+
+device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
+    RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
+  const bundle_state ImgState = getBinImageState(BinImage);
+
+  assert(compatibleWithDevice(BinImage, Dev));
+
+  std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
+  // Collect kernel names for the image.
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    KernelIDs = m_BinImg2KernelIDs[BinImage];
+  }
+
+  DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+      BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
+      /*PIProgram=*/nullptr);
+
+  return createSyclObjFromImpl<device_image_plain>(Impl);
 }
 
 std::vector<device_image_plain>
