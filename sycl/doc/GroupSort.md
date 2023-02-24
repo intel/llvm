@@ -41,26 +41,6 @@ In DPC++ Headers/DPC++ RT we don't know which sorting algorithm is better for
 different architectures. Backends have more capability to optimize the sorting algorithm
 using low-level instructions.
 
-The following should be implemented:
-
-1. Sorter classes and their `operator()` including sorting algorithms.
-
-2. `joint_sort` and `sort_over_group` functions.
-
-3. Traits to distinguish interfaces with `Compare` and `Sorter` parameters.
-
-4. Checks when radix sort is applicable (arithmetic types only).
-
-5. The `radix_order` enum class.
-
-6. `default_sorter` and `radix_sorter`.
-
-7. `group_with_scratchpad` predefined group helper.
-
-8. Backend support for sorting algorithms.
-
-9. `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
-
 Data types that should be supported by backends: arithmetic types
 (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
 
@@ -73,9 +53,35 @@ Overall, for backend support we need to have the following:
 - Fallback implementation of sorting algorithms for user's types, comparators and/or sorters.
 
 - Backend implementation for types, comparators and/or sorters
-that can be optimized using backend specific instructions.
+  that can be optimized using backend specific instructions.
+
+  **NOTE**: It was decided that `radix_sorter` will be implemented only in DPC++ Headers since
+it's difficult to support such algorithm at backends' level.
 
 - Fallback implementation in case if backends don't have more optimized implementations yet.
+
+- Level Zero extension for `memory_required` functions.
+
+The following should be implemented:
+
+- [x] Sorter classes and their `operator()` including sorting algorithms
+  - [x] Default sorter.
+  - [x] Radix sorter.
+- [x] `joint_sort` and `sort_over_group` functions.
+- [x] Traits to distinguish interfaces with `Compare` and `Sorter` parameters.
+- [x] Checks when radix sort is applicable (arithmetic types only).
+- [x] The `radix_order` enum class.
+- [x] `group_with_scratchpad` predefined group helper.
+- [x] `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
+- [ ] `sort_over_group` with `span`-based parameters.
+- [ ] Level Zero extension for `memory_required` functions
+  - [x] Specification.
+  - [x] Implementation.
+- [ ] Backend support for sorting algorithms.
+  - [ ] Default sorter
+- [ ] Fallback library if device doesn't implement functions.
+
+`[x]` means that corresponding feature is implemented.
 
 Sections below describe each component in more details.
 
@@ -83,8 +89,8 @@ Sections below describe each component in more details.
 
 DPC++ Headers contain the following:
 - required definitions of `joint_sort`, `sort_over_group` functions, `radix_order` enum class,
-`default_sorter`, `radix_sorter` classes with corresponding `operator()`
-as well as other classes and methods.
+  `default_sorter`, `radix_sorter` classes with corresponding `operator()`
+  as well as other classes and methods.
 
 - Checks if radix sort is applicable for provided data types.
 
@@ -94,7 +100,7 @@ as well as other classes and methods.
 
 ### Level Zero
 
-To implement `memory_reuired` methods for sorters we need to calculate
+To implement `memory_required` methods for sorters we need to calculate
 how much temporary memory is needed.
 However, we don't have an information how much memory is needed by backend compiler.
 That's why we need a Level Zero function that calls a function from the backend and
@@ -184,13 +190,18 @@ void __devicelib_default_work_group_private_sort_spread_descending_<encoded_para
 ```
 
 Notes:
-- `T`, `U` are from the following list `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f16`, `f32`, `f64`.
-- `encoded_param_types` is `T` prepended with `p1` for global/private address space and `p3` for shared local memory.
+- `T`, `U` are from the following list `i8`, `i16`,
+  `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f16`, `f32`, `f64`.
+- `encoded_param_types` is `T` prepended with `p1` for global/private address
+  space and `p3` for shared local memory.
 - `first` is a pointer to the actual data for sorting.
 - The type of `n` (number of elements) is u32.
-- `keys_first` points to "keys" for key-value sorting. "Keys" are comparing and moving during the sorting.
-- `scratch` is a temporary storage (local or global) that can be used by backends. The type of `scratch` is always `byte*`.
-- `values_first` points to "values" for key-value sorting. "Keys" are only moving corresponding the "keys" order during the sorting.
+- `keys_first` points to "keys" for key-value sorting.
+  "Keys" are comparing and moving during the sorting.
+- `scratch` is a temporary storage (local or global) that can be used by backends.
+  The type of `scratch` is always `byte*`.
+- `values_first` points to "values" for key-value sorting. "Keys" are only moving
+  corresponding the "keys" order during the sorting.
 
 Examples:
 ```cpp
@@ -200,3 +211,10 @@ void __devicelib_default_work_group_joint_sort_ascending_p3u32_p3u32_u32_p1i8(ui
 void __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(uint* first_keys, uint* first_values, uint n, byte* scratch);
 double __devicelib_default_sub_group_private_sort_ascending_f64(double value);
 ```
+
+## Alternative Design
+
+If it's proved that no specific improvements can be done at backends' level (e.g. special
+instructions, hardware dispatch) comparing to high-level SYCL code then implementations
+of sorting functions can be placed in DPC++ Headers
+(no hardware backends, no Level Zero support will be needed in such cases).
