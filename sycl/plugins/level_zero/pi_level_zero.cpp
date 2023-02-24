@@ -692,6 +692,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
     ZE_CALL(zeCommandListReset, (CommandList->first));
     CommandList->second.ZeFenceInUse = false;
+    CommandList->second.IsClosed = false;
   }
 
   auto &EventList = CommandList->second.EventList;
@@ -1194,12 +1195,12 @@ pi_result _pi_context::getAvailableCommandList(
         ze_fence_handle_t ZeFence;
         ZeStruct<ze_fence_desc_t> ZeFenceDesc;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-        CommandList =
-            Queue->CommandListMap
-                .emplace(ZeCommandList,
-                         pi_command_list_info_t{ZeFence, true, ZeCommandQueue,
-                                                QueueGroupOrdinal})
-                .first;
+        CommandList = Queue->CommandListMap
+                          .emplace(ZeCommandList,
+                                   pi_command_list_info_t{ZeFence, true, false,
+                                                          ZeCommandQueue,
+                                                          QueueGroupOrdinal})
+                          .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
       if (auto Res = Queue->insertStartBarrierIfDiscardEventsMode(CommandList))
@@ -1295,7 +1296,8 @@ _pi_queue::createCommandList(bool UseCopyEngine,
   ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-          ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
+          ZeCommandList,
+          {ZeFence, false, false, ZeCommandQueue, QueueGroupOrdinal}));
 
   PI_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
@@ -1382,6 +1384,10 @@ void _pi_queue::CaptureIndirectAccesses() {
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
+  // Do nothing if command list is already closed.
+  if (CommandList->second.IsClosed)
+    return PI_SUCCESS;
+
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // If the current LastCommandEvent is the nullptr, then it means
@@ -1554,6 +1560,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
     // Close the command list and have it ready for dispatch.
     ZE_CALL(zeCommandListClose, (CommandList->first));
+    // Mark this command list as closed.
+    CommandList->second.IsClosed = true;
     this->LastUsedCommandList = CommandListMap.end();
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
@@ -1722,7 +1730,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
+              ZeCommandList, {nullptr, true, false, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
   // piQueueReleaseInternal
