@@ -718,25 +718,20 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
   // operation, as well as providing a queue of operations to execute over.
   std::vector<OpPMInfo> opInfos;
   DenseMap<OperationName, std::optional<unsigned>> knownOpPMIdx;
-  std::function<void(Operation &)> collectOpInfos = [&](Operation &regionOp) {
-    for (auto &region : regionOp.getRegions()) {
-      for (Operation &op : region.getOps()) {
-        // Get the pass manager index for this operation type.
-        auto pmIdxIt = knownOpPMIdx.try_emplace(op.getName(), std::nullopt);
-        if (pmIdxIt.second) {
-          if (auto *mgr = findPassManagerFor(mgrs, op.getName(), *context))
-            pmIdxIt.first->second = std::distance(mgrs.begin(), mgr);
-        }
-
-        // If this operation can be scheduled, add it to the list.
-        if (pmIdxIt.first->second)
-          opInfos.emplace_back(*pmIdxIt.first->second, &op, am.nest(&op));
-        else
-          collectOpInfos(op);
+  for (auto &region : getOperation()->getRegions()) {
+    for (Operation &op : region.getOps()) {
+      // Get the pass manager index for this operation type.
+      auto pmIdxIt = knownOpPMIdx.try_emplace(op.getName(), std::nullopt);
+      if (pmIdxIt.second) {
+        if (auto *mgr = findPassManagerFor(mgrs, op.getName(), *context))
+          pmIdxIt.first->second = std::distance(mgrs.begin(), mgr);
       }
+
+      // If this operation can be scheduled, add it to the list.
+      if (pmIdxIt.first->second)
+        opInfos.emplace_back(*pmIdxIt.first->second, &op, am.nest(&op));
     }
-  };
-  collectOpInfos(*getOperation());
+  }
 
   // Get the current thread for this adaptor.
   PassInstrumentation::PipelineParentInfo parentInfo = {llvm::get_threadid(),
