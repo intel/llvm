@@ -168,8 +168,8 @@ set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-configure_file("version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
-configure_file("feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
+configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
