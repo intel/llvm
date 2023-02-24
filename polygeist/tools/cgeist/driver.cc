@@ -295,6 +295,16 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   OptPM.addPass(polygeist::createCanonicalizeForPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (RaiseToAffine) {
+    auto addFunctionPass =
+        [&](std::function<std::unique_ptr<OperationPass<func::FuncOp>>()>
+                createFuncPass) {
+          // Perform FuncPass on func::FuncOp nested in another region, e.g.,
+          // gpu.module.
+          mlir::OpPassManager &nestPM = PM.nestAny();
+          nestPM.addNestedPass<func::FuncOp>(createFuncPass());
+          // Perform FuncPass on func::FuncOp directly under builtin.module.
+          PM.addNestedPass<func::FuncOp>(createFuncPass());
+        };
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
@@ -303,16 +313,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::replaceAffineCFGPass());
-    if (ScalarReplacement) {
-      // Perform AffineScalarReplacementPass on func::FuncOp nested in another
-      // region, e.g., gpu.module.
-      mlir::OpPassManager &nestPM = PM.nestAny();
-      nestPM.addNestedPass<func::FuncOp>(
-          mlir::createAffineScalarReplacementPass());
-      // Perform AffineScalarReplacementPass on func::FuncOp directly under
-      // builtin.module.
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
-    }
+    if (ScalarReplacement)
+      addFunctionPass(createAffineScalarReplacementPass);
   }
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
