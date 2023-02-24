@@ -16,6 +16,7 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
@@ -69,6 +70,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addIllegalDialect<sycl::SYCLDialect>();
   target.addLegalDialect<LLVM::LLVMDialect>();
+  target.addLegalDialect<arith::ArithDialect>();
 
   target.addLegalOp<ModuleOp>();
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
