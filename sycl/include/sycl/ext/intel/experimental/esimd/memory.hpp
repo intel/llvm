@@ -602,6 +602,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' -
@@ -611,7 +612,8 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Flags = __ESIMD_NS::overaligned_tag<4>>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   // Verify input template arguments.
@@ -629,7 +631,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
@@ -695,6 +698,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed.
@@ -703,7 +707,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// @return is a vector of type T and size NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Flags = __ESIMD_NS::overaligned_tag<4>>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
                __ESIMD_NS::simd<T, NElts> old_values) {
@@ -721,7 +726,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
@@ -776,6 +782,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Zero means operation is skipped
@@ -786,13 +793,13 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename Flags = __ESIMD_NS::overaligned_tag<4>, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset,
                __ESIMD_NS::simd_mask<1> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+  return lsc_block_load<T, NElts, DS, L1H, L3H, Flags>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
@@ -809,7 +816,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
@@ -861,6 +869,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Operation is skipped for index 'i'
@@ -872,13 +881,13 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename Flags = __ESIMD_NS::overaligned_tag<4>, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
                __ESIMD_NS::simd<T, NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+  return lsc_block_load<T, NElts, DS, L1H, L3H, Flags>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, old_values);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
@@ -894,7 +903,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
                 "Number of elements is not supported by Transposed load");
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (FDS == lsc_data_size::u16)
@@ -1326,6 +1336,7 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param vals is values to store.
 /// @param pred is operation predicate. Zero means operation is skipped
@@ -1333,7 +1344,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// the operation.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Flags = __ESIMD_NS::overaligned_tag<4>>
 __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                                  __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_data_size<T, DS>();
@@ -1358,7 +1370,8 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
@@ -1401,6 +1414,7 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param vals is values to store.
@@ -1410,13 +1424,13 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename Flags = __ESIMD_NS::overaligned_tag<4>, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals,
                 __ESIMD_NS::simd_mask<1> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  lsc_block_store<T, NElts, DS, L1H, L3H>(
+  lsc_block_store<T, NElts, DS, L1H, L3H, Flags>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred);
 #else
   detail::check_lsc_data_size<T, DS>();
@@ -1443,7 +1457,8 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
 
   constexpr bool Use64BitData =
       sizeof(T) == 8 ||
-      (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+      (Flags::template alignment<T> >= __ESIMD_DNS::OperandSize::QWORD &&
+       DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
        (NElts * sizeof(T)) % 8 == 0);
   constexpr int SmallIntFactor64Bit =
       (_DS == lsc_data_size::u16)
