@@ -65,19 +65,19 @@ class: $xContext
 name: $x_context_info_t
 etors:
     - name: NUM_DEVICES
-      value: "1"
       desc: "[uint32_t] The number of the devices in the context"
     - name: DEVICES
-      value: "2"
       desc: "[$x_context_handle_t...] The array of the device handles in the context"
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the context object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: USM_MEMCPY2D_SUPPORT
-      value: "3"
       desc: "[bool] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
     - name: USM_FILL2D_SUPPORT
-      value: "4"
       desc: "[bool] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
     - name: USM_MEMSET2D_SUPPORT
-      value: "5"
       desc: "[bool] to indicate if the $xEnqueueUSMMemset2D entrypoint is supported."
 --- #--------------------------------------------------------------------------
 type: function

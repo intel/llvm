@@ -16,7 +16,10 @@ class: $xSampler
 name: $x_sampler_info_t
 etors:
     - name: REFERENCE_COUNT
-      desc: "Sampler reference count info"
+      desc: |
+            [uint32_t] Reference count of the sampler object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "Sampler context info"
     - name: NORMALIZED_COORDS
