@@ -1177,6 +1177,12 @@ params:
       desc: |
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
+  - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`pitch == 0`"
+      - "`width == 0`"
+      - "`height == 0`"
+      - "`pitch < width`"
+      - "`pitch * height` is higher than the memory allocation size"
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"

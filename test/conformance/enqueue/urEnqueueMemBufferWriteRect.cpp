@@ -1,6 +1,6 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: MIT
-#include "rect_helpers.h"
+#include "helpers.h"
 #include <numeric>
 
 static std::vector<uur::test_parameters_t> generateParameterizations() {

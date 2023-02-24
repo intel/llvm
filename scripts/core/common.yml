@@ -225,7 +225,7 @@ etors:
     - name: ERROR_INVALID_NULL_POINTER
       desc: "[Validation] pointer argument may not be nullptr"
     - name: ERROR_INVALID_SIZE
-      desc: "[Validation] size argument is invalid (e.g., must not be zero)"
+      desc: "[Validation] invalid size or dimensions (e.g., must not be zero, or is out of bounds)"
     - name: ERROR_UNSUPPORTED_SIZE
       desc: "[Validation] size argument is not supported by the device (e.g., too large)"
     - name: ERROR_UNSUPPORTED_ALIGNMENT

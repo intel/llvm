@@ -192,7 +192,8 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_NULL_HANDLE = 48,             ///< [Validation] handle argument is not valid
     UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 49,            ///< [Validation] object pointed to by handle still in-use by device
     UR_RESULT_ERROR_INVALID_NULL_POINTER = 50,            ///< [Validation] pointer argument may not be nullptr
-    UR_RESULT_ERROR_INVALID_SIZE = 51,                    ///< [Validation] size argument is invalid (e.g., must not be zero)
+    UR_RESULT_ERROR_INVALID_SIZE = 51,                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
+                                                          ///< out of bounds)
     UR_RESULT_ERROR_UNSUPPORTED_SIZE = 52,                ///< [Validation] size argument is not supported by the device (e.g., too
                                                           ///< large)
     UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 53,           ///< [Validation] alignment argument is not supported by the device (e.g.,
@@ -1426,6 +1427,12 @@ urEnqueueUSMFill2D(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `pitch == 0`
+///         + `width == 0`
+///         + `height == 0`
+///         + `pitch < width`
+///         + `pitch * height` is higher than the memory allocation size
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`

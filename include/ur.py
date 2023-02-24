@@ -169,7 +169,8 @@ class ur_result_v(IntEnum):
     ERROR_INVALID_NULL_HANDLE = 48                  ## [Validation] handle argument is not valid
     ERROR_HANDLE_OBJECT_IN_USE = 49                 ## [Validation] object pointed to by handle still in-use by device
     ERROR_INVALID_NULL_POINTER = 50                 ## [Validation] pointer argument may not be nullptr
-    ERROR_INVALID_SIZE = 51                         ## [Validation] size argument is invalid (e.g., must not be zero)
+    ERROR_INVALID_SIZE = 51                         ## [Validation] invalid size or dimensions (e.g., must not be zero, or is
+                                                    ## out of bounds)
     ERROR_UNSUPPORTED_SIZE = 52                     ## [Validation] size argument is not supported by the device (e.g., too
                                                     ## large)
     ERROR_UNSUPPORTED_ALIGNMENT = 53                ## [Validation] alignment argument is not supported by the device (e.g.,
