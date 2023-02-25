@@ -536,8 +536,6 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   );
   let results = (outs);
 
-  let hasVerifier = 1;
-
   let extraClassDeclaration = [{
     operand_iterator arg_operand_begin() { return operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }

@@ -63,15 +63,6 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
       .Default(false);
 }
 
-LogicalResult SYCLConstructorOp::verify() {
-  auto mt = getOperand(0).getType().dyn_cast<MemRefType>();
-  if (mt && isSYCLType(mt.getElementType()))
-    return success();
-
-  return emitOpError("The first argument of a sycl::constructor op has to be a "
-                     "MemRef to a SYCL type");
-}
-
 LogicalResult SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
