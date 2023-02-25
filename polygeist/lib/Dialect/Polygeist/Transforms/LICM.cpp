@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
@@ -29,6 +30,7 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
+
 struct LICM : public LICMBase<LICM> {
   void runOnOperation() override;
 };
@@ -141,16 +143,16 @@ operator<<(llvm::raw_ostream &OS, const OperationSideEffects &ME) {
 
   OS << "Operation: " << ME.getOperation() << "\n";
   if (isSideEffectFree)
-    OS.indent(2) << "is side effects free.\n";
+    OS.indent(2) << "=> is side effects free.\n";
   else {
     if (ME.readsFromResource())
-      printResources("read resources", ME.readResources);
+      printResources("=> read resources", ME.readResources);
     if (ME.writesToResource())
-      printResources("write resources", ME.writeResources);
+      printResources("=> write resources", ME.writeResources);
     if (ME.freesResource())
-      printResources("free resources", ME.freeResources);
+      printResources("=> free resources", ME.freeResources);
     if (ME.allocatesResource())
-      printResources("allocate resources", ME.allocateResources);
+      printResources("=> allocate resources", ME.allocateResources);
   }
 
   return OS;
@@ -275,7 +277,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
            .hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     LLVM_DEBUG({
       llvm::dbgs()
-          << "Found conflict due to operation with unknown side effects:\n";
+          << "=> found conflict due to operation with unknown side effects:\n";
       llvm::dbgs().indent(2) << other << "\n";
     });
     return true;
@@ -317,10 +319,8 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
         [](const MemoryEffects::EffectInstance &EI, AliasResult aliasRes,
            const Operation &other) {
           llvm::dbgs().indent(2)
-              << "found conflicting side effect: {"
-              << EI.getResource()->getName() << ", " << EI.getValue() << "}\n";
-          llvm::dbgs().indent(4) << "with: " << other << "\n";
-          llvm::dbgs().indent(4) << "aliasResult: " << aliasRes << "\n";
+              << "=> found conflicting side effect with: " << other << "\n";
+          llvm::dbgs().indent(2) << "=> aliasResult: " << aliasRes << "\n";
         };
 
     // Check whether the given operation 'other' allocates, writes, or frees a
@@ -349,35 +349,35 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
     // Check whether the given operation 'other' allocates, reads, writes or
     // frees a resource that is written by the operation associated with this
     // class.
-    if (llvm::any_of(writeResources, [&](const MemoryEffects::EffectInstance
-                                             &writeRes) {
-          auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
-            AliasResult aliasRes =
-                const_cast<AliasAnalysis &>(aliasAnalysis)
-                    .alias(EI.getValue(), writeRes.getValue());
-            if (aliasRes.isNo())
-              return false;
+    if (llvm::any_of(
+            writeResources, [&](const MemoryEffects::EffectInstance &writeRes) {
+              auto hasConflict = [&](const MemoryEffects::EffectInstance &EI) {
+                AliasResult aliasRes =
+                    const_cast<AliasAnalysis &>(aliasAnalysis)
+                        .alias(EI.getValue(), writeRes.getValue());
+                if (aliasRes.isNo())
+                  return false;
 
-            // An aliased read operation doesn't prevent hoisting if it is
-            // dominated by the write operation.
-            if (isa<MemoryEffects::Read>(EI.getEffect()) &&
-                domInfo.dominates(const_cast<Operation *>(&op),
-                                  const_cast<Operation *>(&other))) {
-              LLVM_DEBUG({
-                printConflictingSideEffects(EI, aliasRes, other);
-                llvm::dbgs().indent(2)
-                    << "can be hoisted: aliased write operation dominates the "
-                       "read operation\n";
-              });
-              return false;
-            }
+                // An aliased read operation doesn't prevent hoisting if it is
+                // dominated by the write operation.
+                if (isa<MemoryEffects::Read>(EI.getEffect()) &&
+                    domInfo.dominates(const_cast<Operation *>(&op),
+                                      const_cast<Operation *>(&other))) {
+                  LLVM_DEBUG({
+                    printConflictingSideEffects(EI, aliasRes, other);
+                    llvm::dbgs().indent(2)
+                        << "=> aliased write operation dominates the "
+                           "read operation\n";
+                  });
+                  return false;
+                }
 
-            LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
-            return true;
-          };
+                LLVM_DEBUG(printConflictingSideEffects(EI, aliasRes, other));
+                return true;
+              };
 
-          return checkForConflict(writeRes.getResource(), hasConflict);
-        })) {
+              return checkForConflict(writeRes.getResource(), hasConflict);
+            })) {
       return true;
     }
 
@@ -778,7 +778,8 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
       !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "cannot be hoisted: unknown side effects\n";
+      llvm::dbgs().indent(2)
+          << "**** cannot be hoisted: unknown side effects\n\n";
     });
     return false;
   }
@@ -789,7 +790,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
       llvm::dbgs().indent(2)
-          << "cannot be hoisted: operand(s) can't be hoisted\n";
+          << "**** cannot be hoisted: operand(s) can't be hoisted\n\n";
     });
     return false;
   }
@@ -798,7 +799,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   if (isMemoryEffectFree(&op)) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "can be hoisted: has no side effects\n";
+      llvm::dbgs().indent(2) << "**** can be hoisted: has no side effects\n\n";
     });
     return true;
   }
@@ -809,7 +810,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
       llvm::dbgs().indent(2)
-          << "cannot be hoisted: operation allocates a resource\n";
+          << "**** cannot be hoisted: operation allocates a resource\n\n";
     });
     return false;
   }
@@ -822,7 +823,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
        sideEffects.freesResource()) &&
       hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis, domInfo)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "cannot be hoisted: found conflicting operation\n");
+               << "**** cannot be hoisted: found conflicting operation\n\n");
     return false;
   }
 
@@ -841,7 +842,8 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs().indent(2) << "can be hoisted: no conflicts found\n");
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "**** can be hoisted: no conflicts found\n\n");
 
   return true;
 }
@@ -890,8 +892,9 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
 }
 
 void LICM::runOnOperation() {
-  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis());
 
   [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
     Operation *parentOp = loop;

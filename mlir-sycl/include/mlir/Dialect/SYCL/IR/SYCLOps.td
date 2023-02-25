@@ -658,10 +658,8 @@ def SYCLAccessorSubscriptOp
     This operation represents a call to the accessor::operator[] function.
   }];
 
-  let arguments = (ins Arg<AccessorMemRef, "The offsetted accessor",
-                           [MemRead]>:$Acc,
-                       Arg<SYCLAccessorSubscriptIndex, "The offset",
-		           [MemRead]>:$Index,
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
+                       Arg<SYCLAccessorSubscriptIndex, "The offset", [MemRead]>:$Index,
                        TypeArrayAttr:$ArgumentTypes,
                        FlatSymbolRefAttr:$FunctionName,
                        OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
