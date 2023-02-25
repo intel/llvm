@@ -322,6 +322,9 @@ AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind, uint64_t Val,
   };
 
   switch (Kind) {
+  case llvm::Attribute::AttrKind::Memory:
+    // Val can be zero for memory(none).
+    return Invoke(AddRawIntAttrPtr, Kind, Val);
   case llvm::Attribute::AttrKind::Alignment:
     assert(Val <= llvm::Value::MaximumAlignment && "Alignment too large");
     LLVM_FALLTHROUGH;
@@ -382,7 +385,7 @@ AttrBuilder::addPassThroughRawIntAttr(llvm::Attribute::AttrKind Kind,
   OpBuilder Builder(&Ctx);
   NamedAttribute NamedAttr(
       StringAttr::get(&Ctx, llvm::Attribute::getNameFromAttrKind(Kind)),
-      Builder.getIntegerAttr(Builder.getIntegerType(64), Value));
+      StringAttr::get(&Ctx, Twine(Value)));
   return addPassThroughAttributeImpl(NamedAttr);
 }
 

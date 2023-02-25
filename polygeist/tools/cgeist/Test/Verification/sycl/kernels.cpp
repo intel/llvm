@@ -17,7 +17,7 @@
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR-LABEL: gpu.func @_ZTS8kernel_1(
-// CHECK-MLIR:         %arg0: memref<?xi32, 1> {llvm.noundef},
+// CHECK-MLIR:         %arg0: memref<?xi32, 1> {llvm.align = 4 : i64, llvm.noundef},
 // CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
 // CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
 // CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
@@ -52,7 +52,7 @@ void host_1() {
 }
 
 // CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(
-// CHECK-MLIR:          %arg0: memref<?xi32, 1> {llvm.noundef},
+// CHECK-MLIR:          %arg0: memref<?xi32, 1> {llvm.align = 4 : i64, llvm.noundef},
 // CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
 // CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
 // CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}
@@ -82,4 +82,4 @@ SYCL_EXTERNAL void function_1(sycl::item<2, true> item) {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp" "uniform-work-group-size"="true" }

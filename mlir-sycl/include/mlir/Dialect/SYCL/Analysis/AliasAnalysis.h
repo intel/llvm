@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the implementation of a alias analysis for the SYCL
+// This file contains the implementation of an alias analysis for the SYCL
 // dialect.
 //
 //===----------------------------------------------------------------------===//
@@ -26,19 +26,18 @@ protected:
 
 private:
   /// Return 'NoAlias' if both values are function arguments and any of them
-  /// have attribute 'local_alias_analysis.restrict', and an empty optional
-  /// otherwise.
-  Optional<AliasResult> handleRestrictAlias(Value lhs, Value rhs);
+  /// have attribute 'local_alias_analysis.restrict', and 'MayAlias' otherwise.
+  AliasResult handleRestrictAlias(Value lhs, Value rhs);
 
   /// This function attempts to refine aliasing for values produced by SYCL
   /// operations. It returns 'NoAlias' if it can prove that values do not alias
-  /// and an empty optional otherwise.
-  Optional<AliasResult> handleSYCLAlias(Value lhs, Value rhs);
+  /// and 'MayAlias' otherwise.
+  AliasResult handleSYCLAlias(Value lhs, Value rhs);
 
   /// This function attempts to refine aliasing for values produced by SYCL
   /// 'accessor.subscript' operations. It returns 'NoAlias' if it can prove that
-  /// values do not alias and an empty optional otherwise.
-  Optional<AliasResult> handleAccessorSubscriptAlias(Value lhs, Value rhs);
+  /// values do not alias and 'MayAlias' otherwise.
+  AliasResult handleAccessorSubscriptAlias(Value lhs, Value rhs);
 };
 
 } // namespace sycl
