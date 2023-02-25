@@ -370,28 +370,16 @@ struct Pointer2MemrefOpLowering
   }
 };
 
-struct AddrSpaceCastOpLowering
+struct AddrSpaceCastBarePtrOpLowering
     : public ConvertOpToLLVMPattern<AddrSpaceCastOp> {
   using ConvertOpToLLVMPattern<AddrSpaceCastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(AddrSpaceCastOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    MemRefType resTy = op.getType();
-    MemRefType srcTy = op.getSource().getType();
-    assert(srcTy.getElementType() == resTy.getElementType() &&
-           "Expecting same source and result element type");
-    Type elemTy = resTy.getElementType();
-    Value ptr = rewriter.create<Memref2PointerOp>(
-        loc, LLVM::LLVMPointerType::get(elemTy, srcTy.getMemorySpaceAsInt()),
-        op.getSource());
-    ptr = rewriter.create<LLVM::AddrSpaceCastOp>(
-        loc, LLVM::LLVMPointerType::get(elemTy, resTy.getMemorySpaceAsInt()),
-        ptr);
-    ptr = rewriter.create<Pointer2MemrefOp>(loc, resTy, ptr);
-
-    rewriter.replaceOp(op, {ptr});
+    const auto newTy = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(op, newTy,
+                                                       transformed.getSource());
     return success();
   }
 };
@@ -511,8 +499,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
-               Memref2PointerOpLowering, Pointer2MemrefOpLowering,
-               AddrSpaceCastOpLowering>(converter);
+               Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
   if (converter.getOptions().useBarePtrCallConv) {
     // When adding these patterns (and other patterns changing the default
     // conversion of operations on MemRef values), a higher benefit is passed
@@ -520,8 +507,9 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
     // performing the default conversion, which should only run if the "bare
     // pointer" ones fail.
     patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
-                 BarePointer2MemrefOpLowering>(converter,
-                                               /*benefit*/ 2);
+                 BarePointer2MemrefOpLowering, AddrSpaceCastBarePtrOpLowering>(
+        converter,
+        /*benefit*/ 2);
   }
 }
 

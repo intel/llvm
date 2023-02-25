@@ -63,6 +63,32 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
       .Default(false);
 }
 
+constexpr unsigned genericAddressSpace{4};
+bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
+                                            TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  const auto input = inputs.front().dyn_cast<MemRefType>();
+  const auto output = outputs.front().dyn_cast<MemRefType>();
+  if (!input || !output)
+    return false;
+
+  if (input.getShape() != output.getShape())
+    return false;
+
+  if (input.getElementType() != output.getElementType())
+    return false;
+
+  if (input.getLayout() != output.getLayout())
+    return false;
+
+  unsigned int inputMS = input.getMemorySpaceAsInt();
+  unsigned int outputMS = output.getMemorySpaceAsInt();
+  return ((inputMS == genericAddressSpace) !=
+          (outputMS == genericAddressSpace));
+}
+
 LogicalResult SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
