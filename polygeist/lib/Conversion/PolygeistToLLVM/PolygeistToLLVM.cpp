@@ -370,20 +370,6 @@ struct Pointer2MemrefOpLowering
   }
 };
 
-struct AddrSpaceCastBarePtrOpLowering
-    : public ConvertOpToLLVMPattern<AddrSpaceCastOp> {
-  using ConvertOpToLLVMPattern<AddrSpaceCastOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(AddrSpaceCastOp op, OpAdaptor transformed,
-                  ConversionPatternRewriter &rewriter) const override {
-    const auto newTy = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(op, newTy,
-                                                       transformed.getSource());
-    return success();
-  }
-};
-
 struct StreamToTokenOpLowering
     : public ConvertOpToLLVMPattern<StreamToTokenOp> {
   using ConvertOpToLLVMPattern<StreamToTokenOp>::ConvertOpToLLVMPattern;
@@ -507,9 +493,8 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
     // performing the default conversion, which should only run if the "bare
     // pointer" ones fail.
     patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
-                 BarePointer2MemrefOpLowering, AddrSpaceCastBarePtrOpLowering>(
-        converter,
-        /*benefit*/ 2);
+                 BarePointer2MemrefOpLowering>(converter,
+                                               /*benefit*/ 2);
   }
 }
 

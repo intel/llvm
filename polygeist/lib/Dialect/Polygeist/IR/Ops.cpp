@@ -342,9 +342,6 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
       if (auto sub = dyn_cast<polygeist::Pointer2MemrefOp>(u)) {
         todo.push_back(sub);
       }
-      if (auto sub = dyn_cast<polygeist::AddrSpaceCastOp>(u)) {
-        todo.push_back(sub);
-      }
       return true;
     }
   }
@@ -363,10 +360,6 @@ Value getBase(Value v) {
       continue;
     }
     if (auto s = v.getDefiningOp<Pointer2MemrefOp>()) {
-      v = s.getSource();
-      continue;
-    }
-    if (auto s = v.getDefiningOp<AddrSpaceCastOp>()) {
       v = s.getSource();
       continue;
     }
