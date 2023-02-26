@@ -1145,33 +1145,6 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
-  // implicit conversion between const / non-const types for read only accessors
-  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
-                          IsPlaceholder_, PropertyListT_> &other,
-           std::enable_if_t<(AccessMode_ == access_mode::read) &&
-                            !(std::is_same<DataT_, DataT>::value) &&
-                            std::is_same<std::remove_const_t<DataT_>,
-                                         std::remove_const_t<DataT>>::value> * =
-               nullptr)
-      : impl(other.impl) {}
-
-  // implicit conversion from read_write T accessor to read only T (const)
-  // accessor
-  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
-                          IsPlaceholder_, PropertyListT_> &other,
-           std::enable_if_t<(AccessMode_ == access_mode::read_write) &&
-                            (AccessMode == access_mode::read) &&
-                            std::is_same<std::remove_const_t<DataT_>,
-                                         std::remove_const_t<DataT>>::value> * =
-               nullptr)
-      : impl(other.impl) {}
-
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -1250,35 +1223,42 @@ public:
             /*IsPlaceH=*/true,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
+#endif // __SYCL_DEVICE_ONLY__
+
+public:
   // implicit conversion between const / non-const types for read only accessors
-  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
-                          IsPlaceholder_, PropertyListT_> &other,
-           std::enable_if_t<(AccessMode_ == access_mode::read) &&
+  template <typename DataT_>
+  accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other,
+           std::enable_if_t<(AccessMode == access_mode::read) &&
                             !(std::is_same<DataT_, DataT>::value) &&
                             std::is_same<std::remove_const_t<DataT_>,
                                          std::remove_const_t<DataT>>::value> * =
                nullptr)
-      : accessor<DataT, Dimensions_, AccessMode_, AccessTarget_, IsPlaceholder_,
-                 PropertyListT_>(other.impl) {}
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+  }
+#else
+      : accessor(other.impl) {
+  }
+#endif // __SYCL_DEVICE_ONLY__
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
   template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget_,
-                          IsPlaceholder_, PropertyListT_> &other,
-           std::enable_if_t<(AccessMode_ == access_mode::read_write) &&
-                            (AccessMode == access_mode::read) &&
-                            std::is_same<std::remove_const_t<DataT_>,
-                                         std::remove_const_t<DataT>>::value> * =
-               nullptr)
-      : accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
-                 PropertyListT>(other.impl) {}
-
+            typename = detail::enable_if_t<
+                (AccessMode_ == access_mode::read_write) &&
+                (AccessMode == access_mode::read) &&
+                std::is_same<std::remove_const_t<DataT_>,
+                             std::remove_const_t<DataT>>::value>>
+  accessor(const accessor<DataT_, Dimensions_, AccessMode_, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+  }
+#else
+      : accessor(other.impl) {
+  }
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
