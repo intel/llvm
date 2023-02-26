@@ -1227,14 +1227,14 @@ public:
 
 public:
   // implicit conversion between const / non-const types for read only accessors
-  template <typename DataT_>
+  template <typename DataT_,
+            typename = detail::enable_if_t<
+                (AccessMode == access_mode::read) &&
+                !(std::is_same<DataT_, DataT>::value) &&
+                std::is_same<std::remove_const_t<DataT_>,
+                             std::remove_const_t<DataT>>::value>>
   accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
-                          IsPlaceholder, PropertyListT> &other,
-           std::enable_if_t<(AccessMode == access_mode::read) &&
-                            !(std::is_same<DataT_, DataT>::value) &&
-                            std::is_same<std::remove_const_t<DataT_>,
-                                         std::remove_const_t<DataT>>::value> * =
-               nullptr)
+                          IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(other.impl) {
   }
