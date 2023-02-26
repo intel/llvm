@@ -41,6 +41,8 @@ template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
 
+template <typename T> using is_half = is_contained<T, gtl::scalar_half_list>;
+
 template <typename T>
 using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 
@@ -420,18 +422,18 @@ using select_apply_cl_scalar_t =
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
 using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
-                             sycl::cl_long>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_char, sycl::opencl::cl_short,
+                             sycl::opencl::cl_int, sycl::opencl::cl_long>;
 
 template <typename T>
 using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
-                             sycl::cl_ulong>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_uchar, sycl::opencl::cl_ushort,
+                             sycl::opencl::cl_uint, sycl::opencl::cl_ulong>;
 
 template <typename T>
 using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::cl_half, sycl::cl_float,
-                             sycl::cl_double>;
+    select_apply_cl_scalar_t<T, std::false_type, sycl::opencl::cl_half,
+                             sycl::opencl::cl_float, sycl::opencl::cl_double>;
 
 template <typename T>
 using select_cl_scalar_integral_t =

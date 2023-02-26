@@ -9,6 +9,8 @@ option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" ON)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
+option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
+option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -166,10 +168,13 @@ set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-set(version_header "${sycl_inc_dir}/sycl/version.hpp")
-configure_file("${version_header}.in" "${version_header}")
-set(feature_header "${sycl_inc_dir}/sycl/feature_test.hpp")
-configure_file("${feature_header}.in" "${feature_header}")
+configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
+configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+install(FILES
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
+  COMPONENT sycl-headers)
 
 include(AddBoostMp11Headers)
 
@@ -325,6 +330,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   if (MSVC)
     add_dependencies( sycl-toolchain xptid)
   endif()
+endif()
+
+if (SYCL_ENABLE_STACK_PRINTING)
+  add_dependencies(sycl-toolchain llvm-symbolizer)
 endif()
 
 option(SYCL_INCLUDE_TESTS

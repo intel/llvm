@@ -1703,6 +1703,12 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::Memset2DUSM:
     return "memset 2d usm";
     break;
+  case detail::CG::CopyToDeviceGlobal:
+    return "copy to device_global";
+    break;
+  case detail::CG::CopyFromDeviceGlobal:
+    return "copy from device_global";
+    break;
   default:
     return "unknown";
     break;
@@ -1978,10 +1984,8 @@ static pi_result SetKernelParamsAndLaunch(
       Requirement *Req = (Requirement *)(Arg.MPtr);
       if (Req->MAccessRange == range<3>({0, 0, 0}))
         break;
-      if (getMemAllocationFunc == nullptr)
-        throw sycl::exception(make_error_code(errc::kernel_argument),
-                              "placeholder accessor must be bound by calling "
-                              "handler::require() before it can be used.");
+      assert(getMemAllocationFunc != nullptr &&
+             "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
@@ -2589,6 +2593,25 @@ pi_int32 ExecCGCommand::enqueueImp() {
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
     return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyToDeviceGlobal: {
+    CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_to_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::CopyFromDeviceGlobal: {
+    CGCopyFromDeviceGlobal *Copy =
+        (CGCopyFromDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_from_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
