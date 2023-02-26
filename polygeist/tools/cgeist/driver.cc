@@ -227,10 +227,7 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
   Ctx.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   Ctx.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
   Ctx.getOrLoadDialect<mlir::vector::VectorDialect>();
-
-  if (SYCLIsDevice) {
-    Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
-  }
+  Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
 
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(Ctx);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(Ctx);

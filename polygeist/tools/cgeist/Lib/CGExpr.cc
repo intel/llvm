@@ -1699,7 +1699,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  Loc, Ty, Scalar, getConstantIndex(0)),
                              /*isReference*/ false);
 
-      if (ScalarTy.getShape().size() != MT.getShape().size()) {
+      if (ScalarTy.getShape().size() != MT.getShape().size() ||
+          ScalarTy.getElementType() != MT.getElementType()) {
         auto MemRefToPtr = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
             LLVM::LLVMPointerType::get(Builder.getI8Type(),
