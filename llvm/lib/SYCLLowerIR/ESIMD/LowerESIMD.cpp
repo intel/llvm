@@ -1203,7 +1203,7 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   if (!LI->getType()->isVectorTy()) {
     // Copy users to seperate container for safe modification
     // during iteration.
-    SmallVector<User *> Users(LI->users().begin(), LI->users().end());
+    SmallVector<User *> Users(LI->users());
     for (User *LU : Users) {
       Instruction *Inst = cast<Instruction>(LU);
       NewInst =
