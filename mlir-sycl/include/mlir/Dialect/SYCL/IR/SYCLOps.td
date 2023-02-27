@@ -591,7 +591,7 @@ def SYCLAddrSpaceCastOp : SYCL_Op<"addrspacecast", [
   DeclareOpInterfaceMethods<CastOpInterface>, 
   ViewLikeOpInterface, Pure
 ]> {
-  let summary = "Cast address space of a memref";
+  let summary = "Perform an address space cast between specific and generic address space";
 
   let arguments = (ins AnyMemRef : $source);
   let results = (outs AnyMemRef : $result);

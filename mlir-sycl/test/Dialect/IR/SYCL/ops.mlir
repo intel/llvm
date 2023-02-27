@@ -12,6 +12,18 @@
 !sycl_range_3_ = !sycl.range<[3], (!sycl_array_3_)>
 !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
 
+// CHECK-LABEL: test_addrspacecast_to_generic
+func.func @test_addrspacecast_to_generic(%arg0: memref<?xi32>) -> memref<?xi32, 4> {
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// CHECK-LABEL: test_addrspacecast_from_generic
+func.func @test_addrspacecast_from_generic(%arg0: memref<?xi32, 4>) -> memref<?xi32> {
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32, 4> to memref<?xi32>
+  return %0 : memref<?xi32>
+}
+
 // CHECK-LABEL: test_cast_id
 func.func @test_cast_id(%arg: memref<1x!sycl_id_1_>) -> memref<1x!sycl_array_1_> {
   %0 = sycl.cast %arg : memref<1x!sycl_id_1_> to memref<1x!sycl_array_1_>

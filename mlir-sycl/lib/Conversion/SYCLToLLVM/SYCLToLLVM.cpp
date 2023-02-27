@@ -592,8 +592,9 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
 
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
-  if (typeConverter.getOptions().useBarePtrCallConv)
-    patterns.add<BarePtrCastPattern, BarePtrAddrSpaceCastPattern>(
-        typeConverter, /*benefit*/ 2);
+  if (typeConverter.getOptions().useBarePtrCallConv) {
+    patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
+    patterns.add<BarePtrAddrSpaceCastPattern>(typeConverter);
+  }
   patterns.add<ConstructorPattern>(typeConverter);
 }
