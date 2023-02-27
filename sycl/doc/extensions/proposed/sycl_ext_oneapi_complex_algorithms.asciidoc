@@ -127,7 +127,7 @@ does not implement.
 
 === Known Identities
 
-Along with the known identities listed in https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.identities[Table 123], `sycl::known_identity` and `sycl::has_known_identity` also support `std::complex` with floating-point types.
+Along with the known identities listed in https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.identities[Table 123], `sycl::known_identity` and `sycl::has_known_identity` also support `std::complex` with the `float` and `double` floating-point types.
 
 == Issues
 
