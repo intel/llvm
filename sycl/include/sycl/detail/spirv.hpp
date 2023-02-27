@@ -542,19 +542,20 @@ using EnableIfVectorShuffle =
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfBitcastShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            (std::is_trivially_copyable<T>::value &&
-                             (sizeof(T) == 1 || sizeof(T) == 2 ||
-                              sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
+    std::enable_if_t<!detail::is_arithmetic_v<T> &&
+                         (std::is_trivially_copyable_v<T> &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
+                           sizeof(T) == 8)),
+                     T>;
 #else
 template <typename T>
-using EnableIfBitcastShuffle = detail::enable_if_t<
-    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
-        (std::is_trivially_copyable<T>::value &&
-         (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
-    T>;
+using EnableIfBitcastShuffle =
+    std::enable_if_t<!(std::is_integral_v<T> &&
+                       (sizeof(T) <= sizeof(int32_t))) &&
+                         !detail::is_vector_arithmetic_v<T> &&
+                         (std::is_trivially_copyable_v<T> &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+                     T>;
 #endif // ifndef __NVPTX__
 
 // Generic shuffles may require multiple calls to SubgroupShuffle
@@ -564,17 +565,17 @@ using EnableIfBitcastShuffle = detail::enable_if_t<
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfGenericShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            !(std::is_trivially_copyable<T>::value &&
-                              (sizeof(T) == 1 || sizeof(T) == 2 ||
-                               sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
+    std::enable_if_t<!detail::is_arithmetic_v<T> &&
+                         !(std::is_trivially_copyable_v<T> &&
+                           (sizeof(T) == 1 || sizeof(T) == 2 ||
+                            sizeof(T) == 4 || sizeof(T) == 8)),
+                     T>;
 #else
 template <typename T>
-using EnableIfGenericShuffle = detail::enable_if_t<
+using EnableIfGenericShuffle = std::enable_if_t<
     !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
-        !(std::is_trivially_copyable<T>::value &&
+        !detail::is_vector_arithmetic_v<T> &&
+        !(std::is_trivially_copyable_v<T> &&
           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
     T>;
 #endif
