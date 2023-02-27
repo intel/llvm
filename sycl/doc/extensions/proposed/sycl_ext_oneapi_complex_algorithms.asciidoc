@@ -125,6 +125,10 @@ NOTE: `sycl::bit_and`, `sycl::bit_or`, `sycl::bit_xor`, `sycl::logical_and`,
 because their behaviors are defined in terms of operators that `std::complex`
 does not implement.
 
+=== Known Identities
+
+Along with the known identities listed in https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.identities[Table 123], `sycl::known_identity` and `sycl::has_known_identity` also support `std::complex` with floating-point types.
+
 == Issues
 
 None.
