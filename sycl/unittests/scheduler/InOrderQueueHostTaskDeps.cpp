@@ -70,8 +70,7 @@ TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
 
   auto HostTaskEvent =
       InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([] {}); });
-  auto Kernel1Event = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  auto Kernel1Event = InOrderQueue.single_task<TestKernel<>>([] {});
   detail::EventImplPtr Kernel1EventImpl =
       sycl::detail::getSyclObjImpl(Kernel1Event);
   detail::Command *Kernel1Command =
@@ -81,15 +80,16 @@ TEST_F(SchedulerTest, InOrderQueueSubmissionOrder) {
   // Kernel waits for host task in submit call so always enqueued
   EXPECT_TRUE(Kernel1Command->isSuccessfullyEnqueued());
 
-  auto Kernel2Event = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  auto Kernel2Event = InOrderQueue.single_task<TestKernel<>>([] {});
   detail::EventImplPtr Kernel2EventImpl =
       sycl::detail::getSyclObjImpl(Kernel2Event);
   detail::Command *Kernel2Command =
       static_cast<detail::Command *>(Kernel2EventImpl->getCommand());
-  ASSERT_NE(Kernel2Command, nullptr);
-
-  EXPECT_TRUE(Kernel2Command->isSuccessfullyEnqueued());
+  // Unfortunately now zero deps kernel command can be deleted on enqueue. Keep
+  // it for future usage.
+  if (Kernel2Command) {
+    EXPECT_TRUE(Kernel2Command->isSuccessfullyEnqueued());
+  }
 
   InOrderQueue.wait();
 }
