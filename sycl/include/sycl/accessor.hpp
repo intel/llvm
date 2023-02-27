@@ -1237,11 +1237,10 @@ public:
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
   template <typename DataT_, access::mode AccessMode_,
-            typename =
-                detail::enable_if_t<(AccessMode_ == access_mode::read_write) &&
-                                    (IsAccessReadOnly) &&
-                                    std::is_same_v<std::remove_const_t<DataT_>,
-                                                   std::remove_const_t<DataT>>>>
+            typename = detail::enable_if_t<
+                (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
   accessor(const accessor<DataT_, Dimensions, AccessMode_, AccessTarget,
                           IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
