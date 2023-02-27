@@ -271,9 +271,9 @@ dependencies in one of two ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
-create an edge, it must be a default constructed event returned from a queue
-submission captured by the same graph. Otherwise, the event will be ignored and
-no dependency edge will be created in the graph. `handler::depends_on()` can be
+create an edge, it must be an event returned from a queue
+submission captured by the same graph. Otherwise, a synchronous error will be
+thrown with error code `invalid`. `handler::depends_on()` can be
 used to express edges when a user is working with USM memory rather than SYCL
 buffers.
 |===
@@ -895,10 +895,17 @@ Table {counter: tableNumber}. Queue info query
 
 |===
 
-A default constructed event is returned when a user submits a command-group to
-a queue in the recording state. These events have status
-`info::event_command_status::complete` and a user waiting on them will return
-immediately.
+Events returned from queue submissions when a queue is in the recording state
+may only be used as parameters to `handler::depends_on()` or as dependent
+events for queue shortcuts like `queue::parallel_for()` for submissions which
+are being recorded to the same modifiable `command_graph`. These events have
+status `info::event_command_status::complete`.
+
+Waiting on an event returned from a queue submission recorded to a graph
+will throw synchronously with error code `invalid`.
+
+Calling `queue::wait()` on a queue in the recording state is an error and
+will throw synchronously with error code `invalid`.
 
 ==== Queue Properties
 
@@ -1040,13 +1047,14 @@ no queue state is changed. This design is because the queues are already in
 the state the user desires, so if the function threw an exception in this case,
 the application would likely swallow it and then proceed.
 
-While a queue is in the recording state, methods performed on that queue which
-are not command submissions behave as normal. This includes waits, throws, and
-queries on the queue. These are all ignored by the graph system, as opposed to
-throwing an exception when in queue recording mode. This is because otherwise
-there would be no thread safe way for a user to check they could call these
-functions without throwing, as a query about the state of the queue may be
-immediately stale.
+While a queue is in the recording state, methods peformed on that queue which
+are not command submissions behave as normal except for waits. Waiting on a
+queue in the recording state is an error and will throw a synchronous
+exception. Other methods are ignored by the graph system as opposed to
+throwing in recording mode. As any query about the state of the queue may
+be immediately stale, any code which relies on queue waits should take care
+to ensure waits are not performed on queues in recording mode. For example by
+using separate queues for graph recording and normal queue operations.
 
 === Storage Lifetimes
 
