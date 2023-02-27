@@ -123,6 +123,10 @@ FusionResult KernelFusion::fuseKernels(
       fusion::FusionPipeline::runFusionPasses(*NewMod, ModuleInfo,
                                               BarriersFlags);
 
+  if (!NewMod->getFunction(FusedKernelName)) {
+    return FusionResult{"Kernel fusion failed"};
+  }
+
   // Get the updated kernel info for the fused kernel and add the information to
   // the existing KernelInfo.
   if (!NewModInfo->hasKernelFor(FusedKernelName)) {
