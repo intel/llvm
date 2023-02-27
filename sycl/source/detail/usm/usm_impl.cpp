@@ -119,6 +119,10 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     if (Error != PI_SUCCESS)
       return nullptr;
   }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
+        reinterpret_cast<size_t>(RetVal));
+#endif
   return RetVal;
 }
 
@@ -247,8 +251,13 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   PrepareNotify.scopedNotify(
       (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
 #endif
-  return alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
+  void *RetVal = alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                               getSyclObjImpl(Dev).get(), Kind, PropList);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
+        reinterpret_cast<size_t>(RetVal));
+#endif
+  return RetVal;
 }
 
 void freeInternal(void *Ptr, const context_impl *CtxImpl) {
