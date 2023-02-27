@@ -5,11 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Prefetch operations for cuda and windows currently does not work
-// cuMemPrefetchAsync returns cudaErrorInvalidDevice for this OS
-// Test is temporarily disabled until this is resolved
-// UNSUPPORTED: cuda && windows
-//
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out

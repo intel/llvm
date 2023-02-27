@@ -8,9 +8,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t_nonvar.out %ACC_CHECK_PLACEHOLDER
 
-// CUDA does not support printf.
-// UNSUPPORTED: cuda
-//
 // Hits an assertion with AMD:
 // XFAIL: hip_amd
 

@@ -3,8 +3,8 @@
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 
-// JIT compilation path is not taken on CUDA and HIP backend.
-// UNSUPPORTED: cuda || hip
+// JIT compilation path is not taken on HIP backend.
+// UNSUPPORTED: hip
 
 // This tests checks that implicitly created kernel_bundles (i.e. through
 // setting a specialization ID from host) only builds the device image

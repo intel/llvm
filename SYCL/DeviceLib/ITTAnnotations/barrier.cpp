@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 
 // RUN: %clangxx -fsycl -fsycl-instrument-device-code %s -o %t.out \
 // RUN: -fsycl-targets=%sycl_triple

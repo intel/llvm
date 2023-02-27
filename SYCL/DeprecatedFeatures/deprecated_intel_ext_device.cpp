@@ -3,7 +3,6 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
 //
 // REQUIRES: gpu
-// UNSUPPORTED: cuda
 // UNSUPPORTED: hip
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero

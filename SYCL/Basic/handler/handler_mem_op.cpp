@@ -2,8 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: cuda
-
 //==- handler.cpp - SYCL handler explicit memory operations test -*- C++-*--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
