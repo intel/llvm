@@ -542,7 +542,7 @@ using EnableIfVectorShuffle =
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfBitcastShuffle =
-    std::enable_if_t<!detail::is_arithmetic_v<T> &&
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
                          (std::is_trivially_copyable_v<T> &&
                           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
                            sizeof(T) == 8)),
@@ -552,7 +552,7 @@ template <typename T>
 using EnableIfBitcastShuffle =
     std::enable_if_t<!(std::is_integral_v<T> &&
                        (sizeof(T) <= sizeof(int32_t))) &&
-                         !detail::is_vector_arithmetic_v<T> &&
+                         !detail::is_vector_arithmetic<T>::value &&
                          (std::is_trivially_copyable_v<T> &&
                           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
                      T>;
@@ -565,7 +565,7 @@ using EnableIfBitcastShuffle =
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfGenericShuffle =
-    std::enable_if_t<!detail::is_arithmetic_v<T> &&
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
                          !(std::is_trivially_copyable_v<T> &&
                            (sizeof(T) == 1 || sizeof(T) == 2 ||
                             sizeof(T) == 4 || sizeof(T) == 8)),
@@ -574,7 +574,7 @@ using EnableIfGenericShuffle =
 template <typename T>
 using EnableIfGenericShuffle = std::enable_if_t<
     !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic_v<T> &&
+        !detail::is_vector_arithmetic<T>::value &&
         !(std::is_trivially_copyable_v<T> &&
           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
     T>;
