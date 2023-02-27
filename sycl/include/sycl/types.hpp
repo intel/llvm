@@ -2140,12 +2140,12 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
-// sizeof(IN).  expected to handle scalar types in IN.
-template <typename IN, typename T8, typename T16, typename T32, typename T64>
+// sizeof(_IN).  expected to handle scalar types in _IN.
+template <typename _IN, typename T8, typename T16, typename T32, typename T64>
 using select_apply_cl_t =
-    conditional_t<sizeof(IN) == 1, T8,
-                  conditional_t<sizeof(IN) == 2, T16,
-                                conditional_t<sizeof(IN) == 4, T32, T64>>>;
+    conditional_t<sizeof(_IN) == 1, T8,
+                  conditional_t<sizeof(_IN) == 2, T16,
+                                conditional_t<sizeof(_IN) == 4, T32, T64>>>;
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
