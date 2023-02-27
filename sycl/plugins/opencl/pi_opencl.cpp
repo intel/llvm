@@ -1714,7 +1714,6 @@ pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
         blocking, ptr, size, num_events_in_waitlist,
         cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
   }
-
   return RetVal;
 }
 
@@ -1743,7 +1742,6 @@ pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
         blocking, ptr, size, num_events_in_waitlist,
         cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
   }
-
   return RetVal;
 }
 

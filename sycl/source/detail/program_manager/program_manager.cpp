@@ -1672,9 +1672,7 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
                                             const char *UniqueId) {
   std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-
-  assert(m_HostPipes.find(UniqueId) == m_HostPipes.end() &&
-         "Host pipe has already been registered.");
+  
   auto ExistingHostPipe = m_HostPipes.find(UniqueId);
   if (ExistingHostPipe != m_HostPipes.end()) {
     ExistingHostPipe->second->initialize(HostPipePtr);

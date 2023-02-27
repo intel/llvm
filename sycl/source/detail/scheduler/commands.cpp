@@ -2336,12 +2336,9 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                   void *ptr, size_t size,
                                   std::vector<RT::PiEvent> &RawEvents,
                                   RT::PiEvent *OutEvent, bool read) {
-  // TODO: Few options of getting the kernel name / program object:
-  // 1. Encode this in the pipe registration
-  // 2. Initialize the pipe registration from first kernel launch, but then this
-  // will violate the spec
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
+
   RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
       *(hostPipeEntry->mDeviceImage), Queue->get_context(),
       Queue->get_device());

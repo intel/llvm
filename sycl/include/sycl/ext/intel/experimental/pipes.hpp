@@ -70,7 +70,8 @@ public:
   struct 
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_global_variable(
-    "sycl-host-pipe", nullptr)]][[__sycl_detail__::sycl_type(host_pipe)]]
+    "sycl-host-pipe", "sycl-host-pipe-size", nullptr, sizeof(_dataT))]]
+  [[__sycl_detail__::sycl_type(host_pipe)]]
 #endif // __SYCL_DEVICE_ONLY___
   ConstantPipeStorageExp 
 #ifdef __SYCL_DEVICE_ONLY__
