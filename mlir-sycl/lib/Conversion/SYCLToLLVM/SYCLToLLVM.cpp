@@ -805,6 +805,14 @@ public:
   static bool hasIDOffsetType(SYCLAccessorSubscriptOp op) {
     return op.getIndex().getType().isa<MemRefType>();
   }
+
+  Value getRef(OpBuilder &builder, Location loc, Type ptrTy, Value acc,
+               Value index) const {
+    const auto ptr = GetMemberPattern<AccessorSubscript>::loadValue(
+        builder, loc, LLVM::LLVMPointerType::get(ptrTy), acc);
+    return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, index,
+                                       /*inbounds*/ true);
+  }
 };
 
 class AccessorSubscriptIDIndexPattern
@@ -862,7 +870,7 @@ public:
     const auto loc = op.getLoc();
     const auto ptrTy = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOp(
-        op, GetMemberPattern<AccessorSubscript>::getRef(
+        op, AccessorSubscriptPattern::getRef(
                 rewriter, loc, ptrTy, opAdaptor.getAcc(),
                 getLinearIndex(
                     rewriter, loc,
@@ -873,16 +881,23 @@ public:
 
 /// Conversion pattern with non-atomic access mode, scalar offset type and
 /// 1-dimensional accessor.
-class SubscriptScalarOffset1D
-    : public GetRefToMemberDimPattern<SYCLAccessorSubscriptOp,
-                                      AccessorSubscript> {
+class SubscriptScalarOffset1D : public AccessorSubscriptPattern {
 public:
-  using GetRefToMemberDimPattern<SYCLAccessorSubscriptOp,
-                                 AccessorSubscript>::GetRefToMemberDimPattern;
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
     return success(!AccessorSubscriptPattern::hasIDOffsetType(op) &&
                    AccessorSubscriptPattern::has1DAccessor(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto ptrTy = getTypeConverter()->convertType(op.getType());
+    const Value ptr = GetMemberPattern<AccessorSubscript>::loadValue(
+        rewriter, loc, LLVM::LLVMPointerType::get(ptrTy), opAdaptor.getAcc());
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, ptrTy, ptr, opAdaptor.getIndex(), /*inbounds*/ true);
   }
 };
 
@@ -944,7 +959,7 @@ public:
                         static_cast<unsigned>(atomicTy.getAddrSpace())));
     const Value undef = rewriter.create<LLVM::UndefOp>(
         loc, typeConverter->convertType(atomicTy));
-    const Value ptr = GetMemberPattern<AccessorSubscript>::getRef(
+    const auto ptr = AccessorSubscriptPattern::getRef(
         rewriter, loc, ptrTy, opAdaptor.getAcc(),
         getLinearIndex(
             rewriter, loc,
