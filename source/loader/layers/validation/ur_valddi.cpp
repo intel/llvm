@@ -1119,6 +1119,9 @@ urUSMHostAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM host memory object
 ) {
     auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
@@ -1135,6 +1138,14 @@ urUSMHostAlloc(
         if (NULL == ppMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (align != 0 && ((align & (align - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_USM_SIZE;
+        }
     }
 
     return pfnHostAlloc(hContext, pUSMDesc, pool, size, align, ppMem);
@@ -1150,6 +1161,9 @@ urUSMDeviceAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM device memory object
 ) {
     auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
@@ -1170,6 +1184,14 @@ urUSMDeviceAlloc(
         if (NULL == ppMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (align != 0 && ((align & (align - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_USM_SIZE;
+        }
     }
 
     return pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, align, ppMem);
@@ -1184,7 +1206,10 @@ urUSMSharedAlloc(
     ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align,               ///< [in] alignment of the USM memory object
+    uint32_t align,               ///< [in] alignment of the USM memory object.
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM shared memory object
 ) {
     auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
@@ -1204,6 +1229,14 @@ urUSMSharedAlloc(
 
         if (NULL == ppMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (align != 0 && ((align & (align - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_USM_SIZE;
         }
     }
 

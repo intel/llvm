@@ -1418,8 +1418,14 @@ urSamplerCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If ::UR_DEVICE_INFO_USM_HOST_SUPPORT is false.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -1429,6 +1435,9 @@ urUSMHostAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM host memory object
 ) {
     auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
@@ -1462,8 +1471,14 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If ::UR_DEVICE_INFO_USM_HOST_SUPPORT is false.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -1474,6 +1489,9 @@ urUSMDeviceAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM device memory object
 ) {
     auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
@@ -1508,7 +1526,13 @@ urUSMDeviceAlloc(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT` and `UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT` are both false.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -1518,7 +1542,10 @@ urUSMSharedAlloc(
     ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align,               ///< [in] alignment of the USM memory object
+    uint32_t align,               ///< [in] alignment of the USM memory object.
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM shared memory object
 ) {
     auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
