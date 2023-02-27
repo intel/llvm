@@ -81,17 +81,17 @@ static Optional<Type> getI8Struct(StringRef name,
 struct OffsetTag {};
 
 /// Get a dimension from a range.
-struct RangeGet : public OffsetTag {
+struct RangeGetDim : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 0};
 };
 
 /// Get a dimension from an ID.
-struct IDGet : public OffsetTag {
+struct IDGetDim : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 0};
 };
 
 /// Get the underlying pointer from an accessor.
-struct AccessorSubscript : public OffsetTag {
+struct AccessorGetPtr : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{1, 0};
 };
 
@@ -778,7 +778,7 @@ private:
 /// Base class for other patterns converting `sycl.accessor.subscript` to LLVM.
 class AccessorSubscriptPattern
     : public ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp>,
-      public GetMemberPattern<AccessorSubscript> {
+      public GetMemberPattern<AccessorGetPtr> {
 public:
   using ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp>::ConvertOpToLLVMPattern;
 
@@ -808,7 +808,7 @@ public:
 
   Value getRef(OpBuilder &builder, Location loc, Type ptrTy, Value acc,
                Value index) const {
-    const auto ptr = GetMemberPattern<AccessorSubscript>::loadValue(
+    const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
         builder, loc, LLVM::LLVMPointerType::get(ptrTy), acc);
     return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, index,
                                        /*inbounds*/ true);
@@ -817,14 +817,14 @@ public:
 
 class AccessorSubscriptIDIndexPattern
     : public AccessorSubscriptPattern,
-      public GetMemberPattern<IDGet>,
-      public GetMemberPattern<AccessorGetMemRange, RangeGet> {
+      public GetMemberPattern<IDGetDim>,
+      public GetMemberPattern<AccessorGetMemRange, RangeGetDim> {
   template <typename... Args> Value getID(Args &&...args) const {
-    return GetMemberPattern<IDGet>::loadValue(std::forward<Args>(args)...);
+    return GetMemberPattern<IDGetDim>::loadValue(std::forward<Args>(args)...);
   }
 
   template <typename... Args> Value getMemRange(Args &&...args) const {
-    return GetMemberPattern<AccessorGetMemRange, RangeGet>::loadValue(
+    return GetMemberPattern<AccessorGetMemRange, RangeGetDim>::loadValue(
         std::forward<Args>(args)...);
   }
 
@@ -894,7 +894,7 @@ public:
                ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
     const auto ptrTy = getTypeConverter()->convertType(op.getType());
-    const Value ptr = GetMemberPattern<AccessorSubscript>::loadValue(
+    const Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
         rewriter, loc, LLVM::LLVMPointerType::get(ptrTy), opAdaptor.getAcc());
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
         op, ptrTy, ptr, opAdaptor.getIndex(), /*inbounds*/ true);
@@ -973,9 +973,10 @@ public:
 // SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
 //===----------------------------------------------------------------------===//
 
-class RangeGetPattern : public LoadMemberDimPattern<SYCLRangeGetOp, RangeGet> {
+class RangeGetPattern
+    : public LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim> {
 public:
-  using LoadMemberDimPattern<SYCLRangeGetOp, RangeGet>::LoadMemberDimPattern;
+  using LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLRangeGetOp op) const final {
     return success(op.getType().isa<IntegerType>());
@@ -983,10 +984,10 @@ public:
 };
 
 class RangeGetRefPattern
-    : public GetRefToMemberDimPattern<SYCLRangeGetOp, RangeGet> {
+    : public GetRefToMemberDimPattern<SYCLRangeGetOp, RangeGetDim> {
 public:
   using GetRefToMemberDimPattern<SYCLRangeGetOp,
-                                 RangeGet>::GetRefToMemberDimPattern;
+                                 RangeGetDim>::GetRefToMemberDimPattern;
 
   LogicalResult match(SYCLRangeGetOp op) const final {
     return success(op.getType().isa<MemRefType>());
@@ -998,7 +999,7 @@ public:
 //===----------------------------------------------------------------------===//
 
 class RangeSizePattern : public GetRangeSizePattern<SYCLRangeSizeOp>,
-                         public GetMemberPattern<RangeGet> {
+                         public GetMemberPattern<RangeGetDim> {
 public:
   using GetRangeSizePattern<SYCLRangeSizeOp>::GetRangeSizePattern;
 
@@ -1012,9 +1013,9 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// Converts SYCLIDGet with a scalar return type to LLVM
-class IDGetPattern : public LoadMemberDimPattern<SYCLIDGetOp, IDGet> {
+class IDGetPattern : public LoadMemberDimPattern<SYCLIDGetOp, IDGetDim> {
 public:
-  using LoadMemberDimPattern<SYCLIDGetOp, IDGet>::LoadMemberDimPattern;
+  using LoadMemberDimPattern<SYCLIDGetOp, IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
     return success(op.getType().isa<IntegerType>());
@@ -1022,9 +1023,10 @@ public:
 };
 
 /// Converts SYCLIDGet with a reference return type to LLVM
-class IDGetRefPattern : public GetRefToMemberDimPattern<SYCLIDGetOp, IDGet> {
+class IDGetRefPattern : public GetRefToMemberDimPattern<SYCLIDGetOp, IDGetDim> {
 public:
-  using GetRefToMemberDimPattern<SYCLIDGetOp, IDGet>::GetRefToMemberDimPattern;
+  using GetRefToMemberDimPattern<SYCLIDGetOp,
+                                 IDGetDim>::GetRefToMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
     return success(op.getType().isa<MemRefType>());
