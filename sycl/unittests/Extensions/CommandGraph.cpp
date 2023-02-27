@@ -94,3 +94,81 @@ TEST_F(CommandGraphTest, MakeEdge) {
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size() == 1);
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2)->MPredecessors.size() == 1);
 }
+
+TEST_F(CommandGraphTest, BeginEndRecording) {
+  using namespace sycl::ext::oneapi;
+
+  sycl::property_list Props{
+      sycl::ext::oneapi::property::queue::lazy_execution{}};
+
+  sycl::queue Queue{Dev, Props};
+  sycl::queue Queue2{Dev, Props};
+
+  // Test throwing behaviour
+  // Check we can repeatedly begin recording on the same queues
+  ASSERT_NO_THROW(Graph.begin_recording(Queue));
+  ASSERT_NO_THROW(Graph.begin_recording(Queue));
+  ASSERT_NO_THROW(Graph.begin_recording(Queue2));
+  ASSERT_NO_THROW(Graph.begin_recording(Queue2));
+  // Check we can repeatedly end recording on the same queues
+  ASSERT_NO_THROW(Graph.end_recording(Queue));
+  ASSERT_NO_THROW(Graph.end_recording(Queue));
+  ASSERT_NO_THROW(Graph.end_recording(Queue2));
+  ASSERT_NO_THROW(Graph.end_recording(Queue2));
+  // Vector versions
+  ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
+  ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
+  ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
+  ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
+
+  experimental::command_graph Graph2;
+
+  Graph.begin_recording(Queue);
+  // Trying to record to a second Graph should throw
+  ASSERT_ANY_THROW(Graph2.begin_recording(Queue));
+  // Trying to end when it is recording to a different graph should throw
+  ASSERT_ANY_THROW(Graph2.end_recording(Queue));
+  Graph.end_recording(Queue);
+
+  // Testing return values of begin and end recording
+  // Queue should change state so should return true here
+  ASSERT_TRUE(Graph.begin_recording(Queue));
+  // But not changed state here
+  ASSERT_FALSE(Graph.begin_recording(Queue));
+
+  // Queue2 should change state so should return true here
+  ASSERT_TRUE(Graph.begin_recording(Queue2));
+  // But not changed state here
+  ASSERT_FALSE(Graph.begin_recording(Queue2));
+
+  // Queue should have changed state so should return true
+  ASSERT_TRUE(Graph.end_recording(Queue));
+  // But not changed state here
+  ASSERT_FALSE(Graph.end_recording(Queue));
+
+  // Should end recording on Queue2
+  ASSERT_TRUE(Graph.end_recording());
+  // State should not change on Queue2 now
+  ASSERT_FALSE(Graph.end_recording(Queue2));
+
+  // Testing vector begin and end
+  ASSERT_TRUE(Graph.begin_recording({Queue, Queue2}));
+  // Both shoudl now not have state changed
+  ASSERT_FALSE(Graph.begin_recording(Queue));
+  ASSERT_FALSE(Graph.begin_recording(Queue2));
+
+  // End recording on both
+  ASSERT_TRUE(Graph.end_recording({Queue, Queue2}));
+  // Both shoudl now not have state changed
+  ASSERT_FALSE(Graph.end_recording(Queue));
+  ASSERT_FALSE(Graph.end_recording(Queue2));
+
+  // First add one single queue
+  ASSERT_TRUE(Graph.begin_recording(Queue));
+  // Vector begin should still return true as Queue2 has state changed
+  ASSERT_TRUE(Graph.begin_recording({Queue, Queue2}));
+  // End recording on Queue2
+  ASSERT_TRUE(Graph.end_recording(Queue2));
+  // Vector end should still return true as Queue will have state changed
+  ASSERT_TRUE(Graph.end_recording({Queue, Queue2}));
+}

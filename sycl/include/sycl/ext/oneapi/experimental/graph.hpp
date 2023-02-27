@@ -19,6 +19,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class handler;
+class queue;
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -69,6 +70,40 @@ public:
   command_graph<graph_state::executable>
   finalize(const sycl::context &syclContext,
            const property_list &propList = {}) const;
+
+  /// Change the state of a queue to be recording and associate this graph with
+  /// it.
+  /// @param recordingQueue The queue to change state on and associate this
+  /// graph with.
+  /// @return True if the queue had its state changed from executing to
+  /// recording.
+  bool begin_recording(queue recordingQueue);
+
+  /// Change the state of multiple queues to be recording and associate this
+  /// graph with each of them.
+  /// @param recordingQueues The queues to change state on and associate this
+  /// graph with.
+  /// @return True if any queue had its state changed from executing to
+  /// recording.
+  bool begin_recording(const std::vector<queue> &recordingQueues);
+
+  /// Set all queues currently recording to this graph to the executing state.
+  /// @return True if any queue had its state changed from recording to
+  /// executing.
+  bool end_recording();
+
+  /// Set a queues currently recording to this graph to the executing state.
+  /// @param recordingQueue The queue to change state on.
+  /// @return True if the queue had its state changed from recording to
+  /// executing.
+  bool end_recording(queue recordingQueue);
+
+  /// Set multiple queues currently recording to this graph to the executing
+  /// state.
+  /// @param recordingQueue The queues to change state on.
+  /// @return True if any queue had its state changed from recording to
+  /// executing.
+  bool end_recording(const std::vector<queue> &recordingQueues);
 
 private:
   command_graph(detail::graph_ptr Impl) : impl(Impl) {}
