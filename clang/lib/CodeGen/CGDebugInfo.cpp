@@ -407,10 +407,6 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
   FileID FID;
 
   if (Loc.isInvalid()) {
-    // The DIFile used by the CU is distinct from the main source file. Call
-    // createFile() below for canonicalization if the source file was specified
-    // with an absolute path.
-    FileName = TheCU->getFile()->getFilename();
     if (CGM.getCodeGenOpts().SYCLUseMainFileName &&
         CGM.getLangOpts().MacroPrefixMap.size() > 0) {
       // When fmacro-prefix-map is used, the original source file
@@ -418,6 +414,11 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
       auto &CGO = CGM.getCodeGenOpts();
       FileName = CGO.FullMainFileName;
       FID = ComputeValidFileID(SM, CGO.FullMainFileName);
+    } else {
+      // The DIFile used by the CU is distinct from the main source file. Call
+      // createFile() below for canonicalization if the source file was
+      // specified with an absolute path.
+      FileName = TheCU->getFile()->getFilename();
     }
   } else {
     PresumedLoc PLoc = SM.getPresumedLoc(Loc);
@@ -425,8 +426,6 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
 
     if (FileName.empty()) {
       FileName = TheCU->getFile()->getFilename();
-    } else {
-      FileName = PLoc.getFilename();
     }
     FID = PLoc.getFileID();
   }
