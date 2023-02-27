@@ -914,11 +914,12 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                RT::PiEvent *OutEvent) {
   sycl::context Context = Queue->get_context();
 
-  if (!Context.is_host()) {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                     Length, Advice, OutEvent);
+  if (Context.is_host()) {
+    return;
   }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
+                                                     Length, Advice, OutEvent);
 }
 
 void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,

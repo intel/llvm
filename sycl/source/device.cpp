@@ -90,12 +90,12 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
           plt.get_devices(info::device_type::host));
       if (!host_device.empty())
         devices.insert(devices.end(), host_device.begin(), host_device.end());
-    } else {
-      std::vector<device> found_devices(plt.get_devices(deviceType));
-      if (!found_devices.empty())
-        devices.insert(devices.end(), found_devices.begin(),
-                       found_devices.end());
+      continue;
     }
+
+    std::vector<device> found_devices(plt.get_devices(deviceType));
+    if (!found_devices.empty())
+      devices.insert(devices.end(), found_devices.begin(), found_devices.end());
   }
 
   return devices;

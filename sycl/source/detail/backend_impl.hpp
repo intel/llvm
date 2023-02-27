@@ -14,13 +14,10 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
-  backend Result;
   if (Impl->is_host())
-    Result = backend::host;
-  else
-    Result = Impl->getPlugin().getBackend();
+    return backend::host;
+  return Impl->getPlugin().getBackend();
 
-  return Result;
 }
 
 } // namespace detail
