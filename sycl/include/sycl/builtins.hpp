@@ -1382,8 +1382,8 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
 #define __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(NAME)                 \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  sycl::marray<bool, detail::marray_size<T>> NAME(T x, T y) __NOEXC {          \
-    sycl::marray<bool, detail::marray_size<T>> res;                            \
+  sycl::marray<bool, T::size()> NAME(T x, T y) __NOEXC {                       \
+    sycl::marray<bool, T::size()> res;                                         \
     for (int i = 0; i < x.size(); i++) {                                       \
       res[i] = NAME(x[i], y[i]);                                               \
     }                                                                          \
@@ -1393,8 +1393,8 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
 #define __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(NAME)                  \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  sycl::marray<bool, detail::marray_size<T>> NAME(T x) __NOEXC {               \
-    sycl::marray<bool, detail::marray_size<T>> res;                            \
+  sycl::marray<bool, T::size()> NAME(T x) __NOEXC {                            \
+    sycl::marray<bool, T::size()> res;                                         \
     for (int i = 0; i < x.size(); i++) {                                       \
       res[i] = NAME(x[i]);                                                     \
     }                                                                          \
@@ -1472,15 +1472,10 @@ detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
 
 // mgentype select (mgentype a, mgentype b, marray<bool, { N }> c)
 template <typename T,
-          typename = detail::enable_if_t<
-              detail::is_mgenfloat<T>::value &&
-                  detail::is_sgentype<detail::marray_element_type<T>>::value,
-              T>>
-sycl::marray<detail::marray_element_type<T>, detail::marray_size<T>>
-select(T a, T b, sycl::marray<bool, detail::marray_size<T>> c) __NOEXC {
-  static_assert((a.size() == b.size()) && (b.size() == c.size()),
-                "sycl::marray sizes must be equal.");
-  sycl::marray<detail::marray_element_type<T>, detail::marray_size<T>> res;
+          typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>
+sycl::marray<detail::marray_element_type<T>, T::size()>
+select(T a, T b, sycl::marray<bool, T::size()> c) __NOEXC {
+  sycl::marray<detail::marray_element_type<T>, T::size()> res;
   for (int i = 0; i < a.size(); i++) {
     res[i] = select(a[i], b[i], c[i]);
   }
