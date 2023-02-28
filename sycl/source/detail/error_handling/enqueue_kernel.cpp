@@ -52,7 +52,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLVGE20 = false; // Backend is Greater or Equal to OpenCL 2.0
-  bool IsL0 = false;          // Backend is any OneAPI Level 0 version
+  bool IsLevelZero = false;          // Backend is any OneAPI Level 0 version
   auto Backend = Platform.get_backend();
   if (Backend == sycl::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
@@ -61,7 +61,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     IsOpenCLVGE20 =
         (VersionString.find("2.") == 0) || (VersionString.find("3.") == 0);
   } else if (Backend == sycl::backend::ext_oneapi_level_zero) {
-    IsL0 = true;
+    IsLevelZero = true;
   }
 
   size_t CompileWGSize[3] = {0};
@@ -114,7 +114,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxWGSize),
             PI_ERROR_INVALID_WORK_GROUP_SIZE);
-    } else if (IsOpenCLVGE20 || IsL0) {
+    } else if (IsOpenCLVGE20 || IsLevelZero) {
       // OpenCL 2.x or OneAPI Level Zero:
       // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
       // the total number of work-items in the work-group computed as
