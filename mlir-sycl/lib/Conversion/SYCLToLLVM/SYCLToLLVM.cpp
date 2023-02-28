@@ -14,6 +14,7 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
@@ -66,6 +67,293 @@ static Optional<Type> getI8Struct(StringRef name,
   return convertedTy;
 }
 
+//===----------------------------------------------------------------------===//
+// Tags definitions.
+//===----------------------------------------------------------------------===//
+
+/// Base class for other offset tags.
+///
+/// Offset tags will specify the indices to use in a GEP operation to reference
+/// a struct field. In order to do so, tags must provide a `static constexpr`
+/// array field called `indices`. E.g., each dimension in a range is accessed
+/// through the indices [0, 0, 0] (being the first one to dereference the
+/// pointer argument), so the `indices` field should hold the values [0, 0].
+struct OffsetTag {};
+
+/// Get a dimension from a range.
+struct RangeGetDim : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 0};
+};
+
+/// Get a dimension from an ID.
+struct IDGetDim : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 0};
+};
+
+/// Get the underlying pointer from an accessor.
+struct AccessorGetPtr : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{1, 0};
+};
+
+/// Get the MemRange field from an accessor.
+struct AccessorGetMemRange : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 1};
+};
+
+/// Auxiliary function to build an indices array from a tag.
+template <typename Iter, typename Tag,
+          typename = std::enable_if_t<std::is_base_of_v<OffsetTag, Tag>>>
+constexpr Iter initIndicesEach(Iter it) {
+  for (auto index : Tag::indices) {
+    // Fill the indices from the tag.
+    *it++ = index;
+  }
+  return it;
+}
+
+/// Auxiliary constant to find the required size of the array holding a sequence
+/// of indices from the input tags.
+template <typename... Tags>
+static constexpr std::size_t indices_size{(Tags::indices.size() + ...)};
+
+//===----------------------------------------------------------------------===//
+// Utility patterns
+//===----------------------------------------------------------------------===//
+
+/// Helper type to find whether the input parameter pack is empty.
+template <typename...> struct is_empty : public std::false_type {};
+template <> struct is_empty<> : public std::true_type {};
+
+template <typename... Args>
+static constexpr bool is_empty_v{is_empty<Args...>::value};
+
+/// Base class for patterns accessing struct members.
+///
+/// Each derived class is intended to access a given member of a given class,
+/// e.g., the underlying pointer of an accessor.
+///
+/// Derived classes must implement getIndices().
+class GetMemberPatternBase {
+protected:
+  constexpr GetMemberPatternBase() = default;
+
+  /// Returns a reference of type \p ty to a member of the struct pointed by \p
+  /// ptr.
+  template <typename... Args,
+            typename = std::enable_if_t<
+                std::is_constructible_v<LLVM::GEPArg, Args...> ||
+                is_empty_v<Args...>>>
+  Value getRef(OpBuilder &builder, Location loc, Type ty, Value ptr,
+               Args &&...args) const {
+    SmallVector<LLVM::GEPArg> indices{0};
+    const auto staticIndices = getIndices();
+    indices.append(staticIndices.begin(), staticIndices.end());
+    if constexpr (!is_empty_v<Args...>) {
+      // Add additional index if provided.
+      indices.emplace_back(std::forward<Args>(args)...);
+    }
+    return builder.create<LLVM::GEPOp>(loc, ty, ptr, indices,
+                                       /*inbounds*/ true);
+  }
+
+  /// Returns a value of the type pointed by \p ty to a member of the struct
+  /// pointed by \p ptr.
+  ///
+  /// Effectively calls getRef() and loads the value.
+  template <typename... Args,
+            typename = std::enable_if_t<
+                std::is_constructible_v<LLVM::GEPArg, Args...> ||
+                is_empty_v<Args...>>>
+  Value loadValue(OpBuilder &builder, Location loc, Type ty, Value ptr,
+                  Args &&...args) const {
+    const auto gep =
+        getRef<Args...>(builder, loc, ty, ptr, std::forward<Args>(args)...);
+    return builder.create<LLVM::LoadOp>(loc, gep);
+  }
+
+  /// Return the indices needed to access the specific member this class is
+  /// intended to access.
+  virtual ArrayRef<int32_t> getIndices() const = 0;
+};
+
+template <typename Iter, typename... Tags>
+constexpr void initIndices(Iter begin) {
+  static_assert(llvm::are_base_of<OffsetTag, Tags...>::value,
+                "All input types must be offset tags.");
+  ((begin = initIndicesEach<Iter, Tags>(begin)), ...);
+}
+
+template <typename... Tags>
+class GetMemberPattern : public GetMemberPatternBase {
+  static_assert(llvm::are_base_of<OffsetTag, Tags...>::value,
+                "All input types must be offset tags.");
+
+protected:
+  ArrayRef<int32_t> getIndices() const final { return *indices; }
+
+  using GetMemberPatternBase::GetMemberPatternBase;
+
+private:
+  /// Struct definition to allow constexpr initialization of indices.
+  static constexpr struct GetMemberPatternIndices {
+    static constexpr std::size_t size{indices_size<Tags...>};
+
+    constexpr GetMemberPatternIndices() {
+      initIndices<typename std::array<int32_t, size>::iterator, Tags...>(
+          indices.begin());
+    }
+
+    ArrayRef<int32_t> operator*() const { return indices; }
+
+    std::array<int32_t, size> indices{0};
+  } indices{};
+};
+
+/// Base pattern for operations getting a reference to a struct member.
+template <typename Op, typename... Tags>
+class GetRefToMemberPattern : public GetMemberPattern<Tags...>,
+                              public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+private:
+  using GetMemberPattern<Tags...>::getRef;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto operands = adaptor.getOperands();
+    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(),
+                                  getTypeConverter()->convertType(op.getType()),
+                                  operands[0]));
+  }
+};
+
+/// Base pattern for operations getting a reference to a given dimension of a
+/// struct member.
+template <typename Op, typename... Tags>
+class GetRefToMemberDimPattern : public GetMemberPattern<Tags...>,
+                                 public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+private:
+  using GetMemberPattern<Tags...>::getRef;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto operands = adaptor.getOperands();
+    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(),
+                                  getTypeConverter()->convertType(op.getType()),
+                                  operands[0], operands[1]));
+  }
+};
+
+/// Base pattern for operations loading a struct member.
+template <typename Op, typename... Tags>
+class LoadMemberPattern : public GetMemberPattern<Tags...>,
+                          public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+private:
+  using GetMemberPattern<Tags...>::loadValue;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto operands = adaptor.getOperands();
+    const auto addressSpace = operands[0]
+                                  .getType()
+                                  .template cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    rewriter.replaceOp(
+        op, loadValue(rewriter, op.getLoc(),
+                      LLVM::LLVMPointerType::get(
+                          getTypeConverter()->convertType(op.getType()),
+                          addressSpace),
+                      operands[0]));
+  }
+};
+
+/// Base pattern for operations loading a given dimension of a struct member.
+template <typename Op, typename... Tags>
+class LoadMemberDimPattern : public GetMemberPattern<Tags...>,
+                             public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+private:
+  using GetMemberPattern<Tags...>::loadValue;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto operands = adaptor.getOperands();
+    const auto addressSpace = operands[0]
+                                  .getType()
+                                  .template cast<LLVM::LLVMPointerType>()
+                                  .getAddressSpace();
+    rewriter.replaceOp(
+        op, loadValue(rewriter, op.getLoc(),
+                      LLVM::LLVMPointerType::get(
+                          getTypeConverter()->convertType(op.getType()),
+                          addressSpace),
+                      operands[0], operands[1]));
+  }
+};
+/// Base pattern for operations calculating the size of a range.
+///
+/// The result is the accumulation (mul) of all of each dimension of the input
+/// range.
+template <typename Op>
+class GetRangeSizePattern : public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+
+  virtual Value getRange(OpBuilder &builder, Location loc, Type ptrTy,
+                         Value thisArg, int32_t index) const = 0;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto thisArg = adaptor.getOperands()[0];
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        op.getType(), thisArg.getType()
+                          .template cast<LLVM::LLVMPointerType>()
+                          .getAddressSpace());
+    const auto loc = op.getLoc();
+    const auto dimension = getDimensions(op.getOperand().getType());
+    assert(1 <= dimension && dimension < 4 && "Invalid number of dimensions");
+    Value newValue =
+        rewriter.create<arith::ConstantIntOp>(loc, 1, op.getType());
+    for (unsigned i = 0; i < dimension; ++i) {
+      const auto size = getRange(rewriter, loc, ptrTy, thisArg, i);
+      newValue = rewriter.create<arith::MulIOp>(loc, newValue, size);
+    }
+    rewriter.replaceOp(op, newValue);
+  }
+};
 //===----------------------------------------------------------------------===//
 // Type conversion
 //===----------------------------------------------------------------------===//
@@ -502,6 +790,267 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// AccessorSubscriptPattern - Convert `sycl.accessor.subscript` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Base class for other patterns converting `sycl.accessor.subscript` to LLVM.
+class AccessorSubscriptPattern
+    : public ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp>,
+      public GetMemberPattern<AccessorGetPtr> {
+public:
+  using ConvertOpToLLVMPattern<SYCLAccessorSubscriptOp>::ConvertOpToLLVMPattern;
+
+public:
+  /// Whether the input accessor has atomic access mode.
+  static bool hasAtomicAccessor(SYCLAccessorSubscriptOp op) {
+    return op.getAcc()
+               .getType()
+               .getElementType()
+               .cast<AccessorType>()
+               .getAccessMode() == MemoryAccessMode::Atomic;
+  }
+
+  /// Whether the input accessor is 1-dimensional.
+  static bool has1DAccessor(SYCLAccessorSubscriptOp op) {
+    return op.getAcc()
+               .getType()
+               .getElementType()
+               .cast<AccessorType>()
+               .getDimension() == 1;
+  }
+
+  /// Whether the input offset is an id.
+  static bool hasIDOffsetType(SYCLAccessorSubscriptOp op) {
+    return op.getIndex().getType().isa<MemRefType>();
+  }
+
+  Value getRef(OpBuilder &builder, Location loc, Type ptrTy, Value acc,
+               Value index) const {
+    const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
+        builder, loc, LLVM::LLVMPointerType::get(ptrTy), acc);
+    return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, index,
+                                       /*inbounds*/ true);
+  }
+};
+
+class AccessorSubscriptIDIndexPattern
+    : public AccessorSubscriptPattern,
+      public GetMemberPattern<IDGetDim>,
+      public GetMemberPattern<AccessorGetMemRange, RangeGetDim> {
+  template <typename... Args> Value getID(Args &&...args) const {
+    return GetMemberPattern<IDGetDim>::loadValue(std::forward<Args>(args)...);
+  }
+
+  template <typename... Args> Value getMemRange(Args &&...args) const {
+    return GetMemberPattern<AccessorGetMemRange, RangeGetDim>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  /// Calculates the linear index out of an id.
+  Value getLinearIndex(OpBuilder &builder, Location loc, AccessorType accTy,
+                       OpAdaptor opAdaptor) const {
+    const auto id = opAdaptor.getIndex();
+    const auto mem = opAdaptor.getAcc();
+    // int64_t Res{0};
+    Value res = builder.create<arith::ConstantIntOp>(loc, 0, 64);
+    const auto memRangePtrTy = LLVM::LLVMPointerType::get(
+        builder.getI64Type(),
+        mem.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
+    const auto idPtrTy = LLVM::LLVMPointerType::get(
+        builder.getI64Type(),
+        id.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
+    for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
+      // Res = Res * Mem[I] + Id[I]
+      const auto memI = getMemRange(builder, loc, memRangePtrTy, mem, i);
+      const auto idI = getID(builder, loc, idPtrTy, id, i);
+      res = builder.create<arith::AddIOp>(
+          loc, builder.create<arith::MulIOp>(loc, res, memI), idI);
+    }
+    return res;
+  }
+};
+
+/// Conversion pattern with non-atomic access mode and id offset type.
+class SubscriptIDOffset : public AccessorSubscriptIDIndexPattern {
+public:
+  using AccessorSubscriptIDIndexPattern::AccessorSubscriptIDIndexPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(AccessorSubscriptPattern::hasIDOffsetType(op) &&
+                   op.getType().isa<MemRefType>());
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto ptrTy = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOp(
+        op, AccessorSubscriptPattern::getRef(
+                rewriter, loc, ptrTy, opAdaptor.getAcc(),
+                getLinearIndex(
+                    rewriter, loc,
+                    op.getAcc().getType().getElementType().cast<AccessorType>(),
+                    opAdaptor)));
+  }
+};
+
+/// Conversion pattern with non-atomic access mode, scalar offset type and
+/// 1-dimensional accessor.
+class SubscriptScalarOffset1D : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(!AccessorSubscriptPattern::hasIDOffsetType(op) &&
+                   AccessorSubscriptPattern::has1DAccessor(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto ptrTy = getTypeConverter()->convertType(op.getType());
+    const Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
+        rewriter, loc, LLVM::LLVMPointerType::get(ptrTy), opAdaptor.getAcc());
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, ptrTy, ptr, opAdaptor.getIndex(), /*inbounds*/ true);
+  }
+};
+
+/// Conversion pattern with non-atomic access mode, scalar offset type and
+/// N-dimensional accessor.
+///
+/// Return type is implementation specific. Handling DPC++ case here: struct
+/// with two fields:
+/// - id<Dim - 1>: Current offset;
+/// - accessor<Dim>: Original accessor.
+class SubscriptScalarOffsetND : public AccessorSubscriptPattern {
+public:
+  using AccessorSubscriptPattern::AccessorSubscriptPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(!AccessorSubscriptPattern::hasIDOffsetType(op) &&
+                   !AccessorSubscriptPattern::has1DAccessor(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    Value subscript = rewriter.create<LLVM::UndefOp>(
+        loc, getTypeConverter()->convertType(op.getType()));
+    // Insert initial offset in the first position
+    subscript = rewriter.create<LLVM::InsertValueOp>(
+        loc, subscript, opAdaptor.getIndex(), ArrayRef<int64_t>{0, 0, 0, 0});
+    // Zero-initialize rest of the offset id<Dim - 1>
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    for (unsigned i = 1, dim = getDimensions(op.getAcc().getType()) - 1;
+         i < dim; ++i) {
+      subscript = rewriter.create<LLVM::InsertValueOp>(
+          loc, subscript, zero, ArrayRef<int64_t>{0, 0, 0, i});
+    }
+    // Insert original accessor
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, subscript, rewriter.create<LLVM::LoadOp>(loc, opAdaptor.getAcc()),
+        1);
+  }
+};
+
+/// Conversion pattern with atomic access mode and id offset type.
+class AtomicSubscriptIDOffset : public AccessorSubscriptIDIndexPattern {
+public:
+  using AccessorSubscriptIDIndexPattern::AccessorSubscriptIDIndexPattern;
+
+  LogicalResult match(SYCLAccessorSubscriptOp op) const final {
+    return success(AccessorSubscriptPattern::hasAtomicAccessor(op) &&
+                   AccessorSubscriptPattern::hasIDOffsetType(op));
+  }
+
+  void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto atomicTy = op.getType().cast<AtomicType>();
+    auto *typeConverter = getTypeConverter();
+    const auto ptrTy = typeConverter->convertType(
+        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
+                        static_cast<unsigned>(atomicTy.getAddrSpace())));
+    const Value undef = rewriter.create<LLVM::UndefOp>(
+        loc, typeConverter->convertType(atomicTy));
+    const auto ptr = AccessorSubscriptPattern::getRef(
+        rewriter, loc, ptrTy, opAdaptor.getAcc(),
+        getLinearIndex(
+            rewriter, loc,
+            op.getAcc().getType().getElementType().cast<AccessorType>(),
+            opAdaptor));
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, undef, ptr, 0);
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// SYCLRangeGetPattern - Convert `sycl.range.get` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class RangeGetPattern
+    : public LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLRangeGetOp op) const final {
+    return success(op.getType().isa<IntegerType>());
+  }
+};
+
+class RangeGetRefPattern
+    : public GetRefToMemberDimPattern<SYCLRangeGetOp, RangeGetDim> {
+public:
+  using GetRefToMemberDimPattern<SYCLRangeGetOp,
+                                 RangeGetDim>::GetRefToMemberDimPattern;
+
+  LogicalResult match(SYCLRangeGetOp op) const final {
+    return success(op.getType().isa<MemRefType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// SYCLRangeSizePattern - Convert `sycl.range.size` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class RangeSizePattern : public GetRangeSizePattern<SYCLRangeSizeOp>,
+                         public GetMemberPattern<RangeGetDim> {
+public:
+  using GetRangeSizePattern<SYCLRangeSizeOp>::GetRangeSizePattern;
+
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return loadValue(builder, loc, ptrTy, thisArg, index);
+  }
+};
+//===----------------------------------------------------------------------===//
+// IDGetPattern - Converts `sycl.it.get` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLIDGet with a scalar return type to LLVM
+class IDGetPattern : public LoadMemberDimPattern<SYCLIDGetOp, IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLIDGetOp, IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLIDGetOp op) const final {
+    return success(op.getType().isa<IntegerType>());
+  }
+};
+
+/// Converts SYCLIDGet with a reference return type to LLVM
+class IDGetRefPattern : public GetRefToMemberDimPattern<SYCLIDGetOp, IDGetDim> {
+public:
+  using GetRefToMemberDimPattern<SYCLIDGetOp,
+                                 IDGetDim>::GetRefToMemberDimPattern;
+
+  LogicalResult match(SYCLIDGetOp op) const final {
+    return success(op.getType().isa<MemRefType>());
+  }
+};
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -594,7 +1143,11 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv) {
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
-    patterns.add<BarePtrAddrSpaceCastPattern>(typeConverter);
+    patterns.add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+                 IDGetPattern, IDGetRefPattern, RangeGetPattern,
+                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
+                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
+        typeConverter);
   }
   patterns.add<ConstructorPattern>(typeConverter);
 }
