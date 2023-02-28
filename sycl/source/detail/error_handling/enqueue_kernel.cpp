@@ -52,7 +52,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLVGE20 = false; // Backend is Greater or Equal to OpenCL 2.0
-  bool IsLevelZero = false;          // Backend is any OneAPI Level 0 version
+  bool IsLevelZero = false;   // Backend is any OneAPI Level 0 version
   auto Backend = Platform.get_backend();
   if (Backend == sycl::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
