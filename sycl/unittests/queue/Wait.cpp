@@ -11,12 +11,16 @@
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 #include <sycl/sycl.hpp>
 
 #include <memory>
 
 namespace {
 using namespace sycl;
+
+constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
 struct TestCtx {
   bool SupportOOO = true;
@@ -75,7 +79,20 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
+event submitTask(queue &Q, buffer<int, 1> &Buf) {
+  return Q.submit([&](handler &Cgh) {
+    auto Acc = Buf.template get_access<access::mode::read_write>(Cgh);
+    Cgh.fill(Acc, 42);
+  });
+}
+
 TEST(QueueWait, QueueWaitTest) {
+  // This test manually blocks a host task node after its completion.
+  // Need to disable cleanup to keep the node alive.
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
@@ -105,11 +122,8 @@ TEST(QueueWait, QueueWaitTest) {
   // Events with temporary ownership
   {
     TestContext = {};
-    buffer<int, 1> buf{range<1>(1)};
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::read_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
+    buffer<int, 1> Buf{range<1>(1)};
+    submitTask(Q, Buf);
     Q.wait();
     // Still owned by the execution graph
     ASSERT_EQ(TestContext.EventReferenceCount, 1);
@@ -120,37 +134,21 @@ TEST(QueueWait, QueueWaitTest) {
   // Blocked commands
   {
     TestContext = {};
-    buffer<int, 1> buf{range<1>(1)};
+    buffer<int, 1> Buf{range<1>(1)};
 
-    std::mutex m;
-    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
-    TestLock.lock();
+    event DepEvent = submitTask(Q, Buf);
 
-    event HostTaskEvent = Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::read>(Cgh);
-      Cgh.host_task([=, &m]() {
-        (void)acc;
-        std::unique_lock<std::mutex> InsideHostTaskLock(m);
-      });
-    });
-    std::shared_ptr<detail::event_impl> HostTaskEventImpl =
-        detail::getSyclObjImpl(HostTaskEvent);
-    auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
-    EXPECT_EQ(Cmd->MUsers.size(), 0u);
-    EXPECT_TRUE(Cmd->isHostTask());
+    // Manually block the next commands.
+    std::shared_ptr<detail::event_impl> DepEventImpl =
+        detail::getSyclObjImpl(DepEvent);
+    auto *Cmd = static_cast<detail::Command *>(DepEventImpl->getCommand());
+    Cmd->MIsBlockable = true;
+    Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
-    // Use the host task to block the next commands
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
-    // Unblock the host task to allow the submitted events to complete once
-    // enqueued.
-    TestLock.unlock();
+    submitTask(Q, Buf);
+    submitTask(Q, Buf);
+
+    Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
     Q.wait();
     // Only a single event (the last one) should be waited for here.
     ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
