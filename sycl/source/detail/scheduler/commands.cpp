@@ -231,9 +231,9 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
 }
 
 // This function is implemented (duplicating getPiEvents a lot) as short term
-// solution for the issue that shortcut functions bypass graph and could not
+// solution for the issue that barrier with wait list could not
 // handle empty pi event handles when kernel is enqueued on host task
-// completion. Used for barrier with wait list.
+// completion.
 std::vector<RT::PiEvent> Command::getPiEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
   std::vector<RT::PiEvent> RetPiEvents;
@@ -241,7 +241,7 @@ std::vector<RT::PiEvent> Command::getPiEventsBlocking(
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    // Throwaway host task also.
+    // Skip host task also.
     if (!EventImpl->isContextInitialized() || EventImpl->is_host())
       continue;
     // In this path nullptr native event means that the command has not been
