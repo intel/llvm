@@ -1278,6 +1278,17 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     bool ifp = (major >= 7);
     return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // BF16 is not supported on ROCm < 4.5
+    bool bfloat16;
+#if (HIP_VERSION_MAJOR == 4 && HIP_VERSION_MINOR >= 5)
+    bfloat16 = true;
+#else
+    bfloat16 = false;
+#endif
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   bfloat16);
+  }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     int warpSize = 0;
     sycl::detail::pi::assertion(
@@ -1874,7 +1885,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return PI_ERROR_INVALID_VALUE;
 
   default:
