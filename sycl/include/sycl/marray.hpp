@@ -72,8 +72,12 @@ template <typename DataT, typename ArgT, typename... ArgTN>
 struct ArrayCreator<DataT, ArgT, ArgTN...> {
   static constexpr std::array<DataT, GetMArrayArgsSize<ArgT, ArgTN...>::value>
   Create(const ArgT &Arg, const ArgTN &...Args) {
-    return ConcatArrays(std::array<DataT, 1>{static_cast<DataT>(Arg)},
-                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    std::array<DataT, 1> ImmArray{static_cast<DataT>(Arg)};
+    if constexpr (sizeof...(Args))
+      return ConcatArrays(ImmArray,
+                          ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
   }
 };
 template <typename DataT, typename T, std::size_t N, typename... ArgTN>
@@ -81,8 +85,12 @@ struct ArrayCreator<DataT, marray<T, N>, ArgTN...> {
   static constexpr std::array<DataT,
                               GetMArrayArgsSize<marray<T, N>, ArgTN...>::value>
   Create(const marray<T, N> &Arg, const ArgTN &...Args) {
-    return ConcatArrays(MArrayToArray<DataT>(Arg),
-                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    auto ImmArray = MArrayToArray<DataT>(Arg);
+    if constexpr (sizeof...(Args))
+      return ConcatArrays(ImmArray,
+                          ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
   }
 };
 template <typename DataT> struct ArrayCreator<DataT> {
