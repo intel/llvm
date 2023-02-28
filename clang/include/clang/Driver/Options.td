@@ -3031,6 +3031,10 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   "or AOT compilation of each device image.">;
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
+def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
+  Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
+  HelpText<"Option used in conjunction with -O0 to "
+  "optimize SYCL framework utility functions and leave user's kernel code unoptimized. (experimental)">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
   HelpText<"Run the preprocessor, parser and semantic analysis stages">;
@@ -6464,6 +6468,9 @@ defm const_strings : BoolOption<"f", "const-strings",
 def fno_bitfield_type_align : Flag<["-"], "fno-bitfield-type-align">,
   HelpText<"Ignore bit-field types when aligning structures">,
   MarshallingInfoFlag<LangOpts<"NoBitFieldTypeAlign">>;
+def fopencl_force_vector_abi : Flag<["-"], "fopencl-force-vector-abi">,
+  HelpText<"Disable vector to scalar coercion for OpenCL">,
+  MarshallingInfoFlag<LangOpts<"OpenCLForceVectorABI">>;
 def ffake_address_space_map : Flag<["-"], "ffake-address-space-map">,
   HelpText<"Use a fake address space map; OpenCL testing purposes only">,
   MarshallingInfoFlag<LangOpts<"FakeAddressSpaceMap">>;

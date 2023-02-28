@@ -2867,7 +2867,7 @@ pi_result hip_piEnqueueKernelLaunch(
     if (providedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
         if (local_work_size[dim] > maxThreadsPerBlock[dim])
-          return PI_ERROR_INVALID_WORK_ITEM_SIZE;
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         // Checks that local work sizes are a divisor of the global work sizes
         // which includes that the local work sizes are neither larger than the
         // global work sizes and not 0.
@@ -5330,6 +5330,9 @@ pi_result hip_piTearDown(void *PluginParameter) {
 
 pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                       uint64_t *HostTime) {
+  if (!DeviceTime && !HostTime)
+    return PI_SUCCESS;
+
   _pi_event::native_type event;
 
   ScopedContext active(Device->get_context());

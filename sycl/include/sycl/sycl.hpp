@@ -22,6 +22,7 @@
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
 #include <sycl/device.hpp>
+#include <sycl/device_aspect_traits.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>

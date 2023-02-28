@@ -166,7 +166,11 @@ static void Parse_ODS_Device(ods_target &Target,
 }
 
 std::vector<ods_target>
-Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
+Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
+  // lowercase
+  std::string envStr = envString;
+  std::transform(envStr.begin(), envStr.end(), envStr.begin(), ::tolower);
+
   std::vector<ods_target> Result;
   if (envStr.empty()) {
     ods_target acceptAnything;
