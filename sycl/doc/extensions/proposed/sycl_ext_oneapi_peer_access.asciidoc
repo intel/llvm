@@ -142,8 +142,9 @@ it indicates that this device may concurrently access and atomically modify USM
 device memory allocations located on the `peer` device when peer access is enabled
 to that device. Atomics performed on a peer device's memory must have
 `memory_scope::system` scope.
-If the query returns false, attempting to perform atomic operations
-on `peer` memory will have undefined behavior.
+If the query returns false, attempting to concurrently access or atomically 
+modify USM device memory located on the `peer` device results in undefined 
+behavior.
 
 |void enable_peer_access(const device &peer)
 |Enables this device to access USM device allocations located on the peer
