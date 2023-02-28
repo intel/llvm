@@ -115,7 +115,7 @@ void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
       for (int k = 0; k < K; k++) {
         float va = A_mem[m * K + k];
         float vb = B_mem[k * N + n];
-        C_mem[m * N + n] = va * vb;
+        C_mem[m * N + n] += va * vb;
       }
     }
 }
@@ -126,8 +126,8 @@ int main() {
       A[i][j] = 1.0f * (i + j);
     }
   }
-  for (int i = 0; i < MATRIX_K / 2; i++) {
-    for (int j = 0; j < MATRIX_N * 2; j++) {
+  for (int i = 0; i < MATRIX_K; i++) {
+    for (int j = 0; j < MATRIX_N; j++) {
       B[i][j] = 2.0f * i + 3.0f * j;
     }
   }
@@ -144,7 +144,7 @@ int main() {
   big_matrix<float, MATRIX_K, MATRIX_N> MB((float *)&B);
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref((float *)A, (float *)B, (float *)D, MATRIX_M, MATRIX_N,
-                      MATRIX_K / 2);
+                      MATRIX_K);
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
