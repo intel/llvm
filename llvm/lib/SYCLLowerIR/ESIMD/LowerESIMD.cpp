@@ -505,6 +505,7 @@ public:
         {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"wait", {"dummy.mov", {a(0)}}},
         {"dpas2",
          {"dpas2", {a(0), a(1), a(2), t(0), t(1), t(2), t(3), t(11), t(12)}}},
         {"dpas_nosrc0", {"dpas.nosrc0", {a(0), a(1), t(0)}}},
