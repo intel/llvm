@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -152,12 +152,15 @@ device. This does not permit the peer device to access this device's memory.
 Once this access is enabled, SYCL kernel functions and the explicit memory
 functions may access USM device allocations on the peer device subject to the
 normal rules about context as described in the core SYCL specification.
-Throws an exception if access cannot be enabled or if access is already
-enabled.
+If this devcie does not support peer access (as defined by
+`peer_access::access_supported`), throws an `exception` with the
+`errc::feature_not_supported` error code. If access is already enabled,
+throws an exception with the `errc::invalid` error code.
+
 
 |void disable_peer_access(const device &peer)
-|Disables access to the peer device's memory from this device. Throws an
-exception if access cannot be disabled or if access is not enabled.
+|Disables access to the peer device's memory from this device. If peer access
+is not enabled, throws an `excpetion` with the `errc::invalid` error code.
 
 |===
 
