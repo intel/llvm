@@ -7,7 +7,7 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime API common types"
+desc: "Intel $OneApi Unified Runtime API common types"
 ordinal: "0"
 --- #--------------------------------------------------------------------------
 type: macro

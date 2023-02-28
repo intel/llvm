@@ -7,8 +7,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs for Runtime"
-ordinal: "2"
+desc: "Intel $OneApi Unified Runtime APIs for Runtime"
+ordinal: "0"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported device initialization flags"
@@ -39,5 +39,18 @@ params:
             [in] device initialization flags.
             must be 0 (default) or a combination of $x_device_init_flag_t.
       init: "0"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Tear down the $OneApi instance and release all its resources"
+class: $x
+name: TearDown
+decl: static
+ordinal: "1"
+params:
+    - type: void*
+      name: pParams
+      desc: "[in] pointer to tear down parameters"
 returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

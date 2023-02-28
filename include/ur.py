@@ -251,517 +251,48 @@ class ur_rect_region_t(Structure):
     ]
 
 ###############################################################################
-## @brief Supported context info
-class ur_context_info_v(IntEnum):
-    NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
-    DEVICES = 1                                     ## [::ur_context_handle_t...] The array of the device handles in the
-                                                    ## context
-    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
-                                                    ## The reference count returned should be considered immediately stale. 
-                                                    ## It is unsuitable for general use in applications. This feature is
-                                                    ## provided for identifying memory leaks.
-    USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
-                                                    ## supported.
-    USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
-                                                    ## supported.
-    USM_MEMSET2D_SUPPORT = 5                        ## [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
-                                                    ## supported.
+## @brief Supported device initialization flags
+class ur_device_init_flags_v(IntEnum):
+    GPU = UR_BIT(0)                                 ## initialize GPU device drivers
 
-class ur_context_info_t(c_int):
-    def __str__(self):
-        return str(ur_context_info_v(self.value))
-
-
-###############################################################################
-## @brief Context's extended deleter callback function with user data.
-def ur_context_extended_deleter_t(user_defined_callback):
-    @CFUNCTYPE(None, c_void_p)
-    def ur_context_extended_deleter_t_wrapper(pUserData):
-        return user_defined_callback(pUserData)
-    return ur_context_extended_deleter_t_wrapper
-
-###############################################################################
-## @brief Map flags
-class ur_map_flags_v(IntEnum):
-    READ = UR_BIT(0)                                ## Map for read access
-    WRITE = UR_BIT(1)                               ## Map for write access
-
-class ur_map_flags_t(c_int):
+class ur_device_init_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
 
 ###############################################################################
-## @brief Map flags
-class ur_usm_migration_flags_v(IntEnum):
-    DEFAULT = UR_BIT(0)                             ## Default migration TODO: Add more enums! 
+## @brief Supported platform info
+class ur_platform_info_v(IntEnum):
+    NAME = 1                                        ## [char*] The string denoting name of the platform. The size of the info
+                                                    ## needs to be dynamically queried.
+    VENDOR_NAME = 2                                 ## [char*] The string denoting name of the vendor of the platform. The
+                                                    ## size of the info needs to be dynamically queried.
+    VERSION = 3                                     ## [char*] The string denoting the version of the platform. The size of
+                                                    ## the info needs to be dynamically queried.
+    EXTENSIONS = 4                                  ## [char*] The string denoting extensions supported by the platform. The
+                                                    ## size of the info needs to be dynamically queried.
+    PROFILE = 5                                     ## [char*] The string denoting profile of the platform. The size of the
+                                                    ## info needs to be dynamically queried.
 
-class ur_usm_migration_flags_t(c_int):
+class ur_platform_info_t(c_int):
     def __str__(self):
-        return hex(self.value)
+        return str(ur_platform_info_v(self.value))
 
 
 ###############################################################################
-## @brief USM memory advice
-class ur_mem_advice_v(IntEnum):
-    DEFAULT = 0                                     ## The USM memory advice is default
-    SET_READ_MOSTLY = 1                             ## Hint that memory will be read from frequently and written to rarely
-    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
-    SET_PREFERRED_LOCATION = 3                      ## Hint that the preferred memory location is the specified device
-    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
-    SET_NON_ATOMIC_MOSTLY = 5                       ## Hints that memory will mostly be accessed non-atomically
-    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
-    BIAS_CACHED = 7                                 ## Hints that memory should be cached
-    BIAS_UNCACHED = 8                               ## Hints that memory should be not be cached
+## @brief Supported API versions
+## 
+## @details
+##     - API versions contain major and minor attributes, use
+##       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
+class ur_api_version_v(IntEnum):
+    _0_9 = UR_MAKE_VERSION( 0, 9 )                  ## version 0.9
+    CURRENT = UR_MAKE_VERSION( 0, 9 )               ## latest known version
 
-class ur_mem_advice_t(c_int):
+class ur_api_version_t(c_int):
     def __str__(self):
-        return str(ur_mem_advice_v(self.value))
+        return str(ur_api_version_v(self.value))
 
-
-###############################################################################
-## @brief Command type
-class ur_command_v(IntEnum):
-    KERNEL_LAUNCH = 0                               ## Event created by ::urEnqueueKernelLaunch
-    EVENTS_WAIT = 1                                 ## Event created by ::urEnqueueEventsWait
-    EVENTS_WAIT_WITH_BARRIER = 2                    ## Event created by ::urEnqueueEventsWaitWithBarrier
-    MEM_BUFFER_READ = 3                             ## Event created by ::urEnqueueMemBufferRead
-    MEM_BUFFER_WRITE = 4                            ## Event created by ::urEnqueueMemBufferWrite
-    MEM_BUFFER_READ_RECT = 5                        ## Event created by ::urEnqueueMemBufferReadRect
-    MEM_BUFFER_WRITE_RECT = 6                       ## Event created by ::urEnqueueMemBufferWriteRect
-    MEM_BUFFER_COPY = 7                             ## Event created by ::urEnqueueMemBufferCopy
-    MEM_BUFFER_COPY_RECT = 8                        ## Event created by ::urEnqueueMemBufferCopyRect
-    MEM_BUFFER_FILL = 9                             ## Event created by ::urEnqueueMemBufferFill
-    MEM_IMAGE_READ = 10                             ## Event created by ::urEnqueueMemImageRead
-    MEM_IMAGE_WRITE = 11                            ## Event created by ::urEnqueueMemImageWrite
-    MEM_IMAGE_COPY = 12                             ## Event created by ::urEnqueueMemImageCopy
-    MEM_BUFFER_MAP = 14                             ## Event created by ::urEnqueueMemBufferMap
-    MEM_UNMAP = 16                                  ## Event created by ::urEnqueueMemUnmap
-    USM_MEMSET = 17                                 ## Event created by ::urEnqueueUSMMemset
-    USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
-    USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
-    USM_MEM_ADVISE = 20                             ## Event created by ::urEnqueueUSMMemAdvise
-    USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
-    USM_MEMSET_2D = 22                              ## Event created by ::urEnqueueUSMMemset2D
-    USM_MEMCPY_2D = 23                              ## Event created by ::urEnqueueUSMMemcpy2D
-    DEVICE_GLOBAL_VARIABLE_WRITE = 24               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
-    DEVICE_GLOBAL_VARIABLE_READ = 25                ## Event created by ::urEnqueueDeviceGlobalVariableRead
-
-class ur_command_t(c_int):
-    def __str__(self):
-        return str(ur_command_v(self.value))
-
-
-###############################################################################
-## @brief Event Status
-class ur_event_status_v(IntEnum):
-    COMPLETE = 0                                    ## Command is complete
-    RUNNING = 1                                     ## Command is running
-    SUBMITTED = 2                                   ## Command is submitted
-    QUEUED = 3                                      ## Command is queued
-
-class ur_event_status_t(c_int):
-    def __str__(self):
-        return str(ur_event_status_v(self.value))
-
-
-###############################################################################
-## @brief Event query information type
-class ur_event_info_v(IntEnum):
-    COMMAND_QUEUE = 0                               ## [::ur_queue_handle_t] Command queue information of an event object
-    CONTEXT = 1                                     ## [::ur_context_handle_t] Context information of an event object
-    COMMAND_TYPE = 2                                ## [::ur_command_t] Command type information of an event object
-    COMMAND_EXECUTION_STATUS = 3                    ## [::ur_event_status_t] Command execution status of an event object
-    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the event object.
-                                                    ## The reference count returned should be considered immediately stale. 
-                                                    ## It is unsuitable for general use in applications. This feature is
-                                                    ## provided for identifying memory leaks.
-
-class ur_event_info_t(c_int):
-    def __str__(self):
-        return str(ur_event_info_v(self.value))
-
-
-###############################################################################
-## @brief Profiling query information type
-class ur_profiling_info_v(IntEnum):
-    COMMAND_QUEUED = 0                              ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## is enqueued
-    COMMAND_SUBMIT = 1                              ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## is submitted
-    COMMAND_START = 2                               ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## starts execution
-    COMMAND_END = 3                                 ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## has finished execution
-
-class ur_profiling_info_t(c_int):
-    def __str__(self):
-        return str(ur_profiling_info_v(self.value))
-
-
-###############################################################################
-## @brief Event states for all events.
-class ur_execution_info_v(IntEnum):
-    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
-    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event.
-    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device.
-    EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
-                                                    ## events.
-
-class ur_execution_info_t(c_int):
-    def __str__(self):
-        return str(ur_execution_info_v(self.value))
-
-
-###############################################################################
-## @brief Event callback function that can be registered by the application.
-def ur_event_callback_t(user_defined_callback):
-    @CFUNCTYPE(None, ur_event_handle_t, ur_execution_info_t, c_void_p)
-    def ur_event_callback_t_wrapper(hEvent, execStatus, pUserData):
-        return user_defined_callback(hEvent, execStatus, pUserData)
-    return ur_event_callback_t_wrapper
-
-###############################################################################
-## @brief Memory flags
-class ur_mem_flags_v(IntEnum):
-    READ_WRITE = UR_BIT(0)                          ## The memory object will be read and written by a kernel. This is the
-                                                    ## default
-    WRITE_ONLY = UR_BIT(1)                          ## The memory object will be written but not read by a kernel
-    READ_ONLY = UR_BIT(2)                           ## The memory object is a read-only inside a kernel
-    USE_HOST_POINTER = UR_BIT(3)                    ## Use memory pointed by a host pointer parameter as the storage bits for
-                                                    ## the memory object
-    ALLOC_HOST_POINTER = UR_BIT(4)                  ## Allocate memory object from host accessible memory
-    ALLOC_COPY_HOST_POINTER = UR_BIT(5)             ## Allocate memory and copy the data from host pointer pointed memory
-
-class ur_mem_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
-## @brief Memory types
-class ur_mem_type_v(IntEnum):
-    BUFFER = 0                                      ## Buffer object
-    IMAGE2D = 1                                     ## 2D image object
-    IMAGE3D = 2                                     ## 3D image object
-    IMAGE2D_ARRAY = 3                               ## 2D image array object
-    IMAGE1D = 4                                     ## 1D image object
-    IMAGE1D_ARRAY = 5                               ## 1D image array object
-    IMAGE1D_BUFFER = 6                              ## 1D image buffer object
-
-class ur_mem_type_t(c_int):
-    def __str__(self):
-        return str(ur_mem_type_v(self.value))
-
-
-###############################################################################
-## @brief Memory Information type
-class ur_mem_info_v(IntEnum):
-    SIZE = 0                                        ## size_t: actual size of of memory object in bytes
-    CONTEXT = 1                                     ## ::ur_context_handle_t: context in which the memory object was created
-
-class ur_mem_info_t(c_int):
-    def __str__(self):
-        return str(ur_mem_info_v(self.value))
-
-
-###############################################################################
-## @brief Image channel order info: number of channels and the channel layout
-class ur_image_channel_order_v(IntEnum):
-    A = 0                                           ## channel order A
-    R = 1                                           ## channel order R
-    RG = 2                                          ## channel order RG
-    RA = 3                                          ## channel order RA
-    RGB = 4                                         ## channel order RGB
-    RGBA = 5                                        ## channel order RGBA
-    BGRA = 6                                        ## channel order BGRA
-    ARGB = 7                                        ## channel order ARGB
-    INTENSITY = 8                                   ## channel order intensity
-    LUMINANCE = 9                                   ## channel order luminance
-    RX = 10                                         ## channel order Rx
-    RGX = 11                                        ## channel order RGx
-    RGBX = 12                                       ## channel order RGBx
-    SRGBA = 13                                      ## channel order sRGBA
-
-class ur_image_channel_order_t(c_int):
-    def __str__(self):
-        return str(ur_image_channel_order_v(self.value))
-
-
-###############################################################################
-## @brief Image channel type info: describe the size of the channel data type
-class ur_image_channel_type_v(IntEnum):
-    SNORM_INT8 = 0                                  ## channel type snorm int8
-    SNORM_INT16 = 1                                 ## channel type snorm int16
-    UNORM_INT8 = 2                                  ## channel type unorm int8
-    UNORM_INT16 = 3                                 ## channel type unorm int16
-    UNORM_SHORT_565 = 4                             ## channel type unorm short 565
-    UNORM_SHORT_555 = 5                             ## channel type unorm short 555
-    INT_101010 = 6                                  ## channel type int 101010
-    SIGNED_INT8 = 7                                 ## channel type signed int8
-    SIGNED_INT16 = 8                                ## channel type signed int16
-    SIGNED_INT32 = 9                                ## channel type signed int32
-    UNSIGNED_INT8 = 10                              ## channel type unsigned int8
-    UNSIGNED_INT16 = 11                             ## channel type unsigned int16
-    UNSIGNED_INT32 = 12                             ## channel type unsigned int32
-    HALF_FLOAT = 13                                 ## channel type half float
-    FLOAT = 14                                      ## channel type float
-
-class ur_image_channel_type_t(c_int):
-    def __str__(self):
-        return str(ur_image_channel_type_v(self.value))
-
-
-###############################################################################
-## @brief Image information types
-class ur_image_info_v(IntEnum):
-    FORMAT = 0                                      ## ::ur_image_format_t: image format
-    ELEMENT_SIZE = 1                                ## size_t: element size
-    ROW_PITCH = 2                                   ## size_t: row pitch
-    SLICE_PITCH = 3                                 ## size_t: slice pitch
-    WIDTH = 4                                       ## size_t: image width
-    HEIGHT = 5                                      ## size_t: image height
-    DEPTH = 6                                       ## size_t: image depth
-
-class ur_image_info_t(c_int):
-    def __str__(self):
-        return str(ur_image_info_v(self.value))
-
-
-###############################################################################
-## @brief Image format including channel layout and data type
-class ur_image_format_t(Structure):
-    _fields_ = [
-        ("channelOrder", ur_image_channel_order_t),                     ## [in] image channel order
-        ("channelType", ur_image_channel_type_t)                        ## [in] image channel type
-    ]
-
-###############################################################################
-## @brief Image descriptor type.
-class ur_image_desc_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
-        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("type", ur_mem_type_t),                                        ## [in] memory object type
-        ("width", c_size_t),                                            ## [in] image width
-        ("height", c_size_t),                                           ## [in] image height
-        ("depth", c_size_t),                                            ## [in] image depth
-        ("arraySize", c_size_t),                                        ## [in] image array size
-        ("rowPitch", c_size_t),                                         ## [in] image row pitch
-        ("slicePitch", c_size_t),                                       ## [in] image slice pitch
-        ("numMipLevel", c_ulong),                                       ## [in] number of MIP levels
-        ("numSamples", c_ulong)                                         ## [in] number of samples
-    ]
-
-###############################################################################
-## @brief Buffer region type, used to describe a sub buffer
-class ur_buffer_region_t(Structure):
-    _fields_ = [
-        ("origin", c_size_t),                                           ## [in] buffer origin offset
-        ("size", c_size_t)                                              ## [in] size of the buffer region
-    ]
-
-###############################################################################
-## @brief Buffer creation type
-class ur_buffer_create_type_v(IntEnum):
-    REGION = 0                                      ## buffer create type is region
-
-class ur_buffer_create_type_t(c_int):
-    def __str__(self):
-        return str(ur_buffer_create_type_v(self.value))
-
-
-###############################################################################
-## @brief Query queue info
-class ur_queue_info_v(IntEnum):
-    CONTEXT = 0                                     ## ::ur_queue_handle_t: context associated with this queue.
-    DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
-    DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
-                                                    ## device.
-    PROPERTIES = 3                                  ## ::ur_queue_flags_t: the properties associated with
-                                                    ## ::UR_QUEUE_PROPERTIES_FLAGS.
-    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
-                                                    ## The reference count returned should be considered immediately stale. 
-                                                    ## It is unsuitable for general use in applications. This feature is
-                                                    ## provided for identifying memory leaks.
-    SIZE = 5                                        ## uint32_t: The size of the queue
-
-class ur_queue_info_t(c_int):
-    def __str__(self):
-        return str(ur_queue_info_v(self.value))
-
-
-###############################################################################
-## @brief Queue property flags
-class ur_queue_flags_v(IntEnum):
-    OUT_OF_ORDER_EXEC_MODE_ENABLE = UR_BIT(0)       ## Enable/disable out of order execution
-    PROFILING_ENABLE = UR_BIT(1)                    ## Enable/disable profiling
-    ON_DEVICE = UR_BIT(2)                           ## Is a device queue
-    ON_DEVICE_DEFAULT = UR_BIT(3)                   ## Is the default queue for a device
-    DISCARD_EVENTS = UR_BIT(4)                      ## Events will be discarded
-    PRIORITY_LOW = UR_BIT(5)                        ## Low priority queue
-    PRIORITY_HIGH = UR_BIT(6)                       ## High priority queue
-
-class ur_queue_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
-## @brief Queue property type
-class ur_queue_property_t(c_intptr_t):
-    pass
-
-###############################################################################
-## @brief Queue Properties
-class ur_queue_properties_v(IntEnum):
-    FLAGS = -1                                      ## [::ur_queue_flags_t]: the bitfield of queue flags
-    COMPUTE_INDEX = -2                              ## [uint32_t]: the queue index
-
-class ur_queue_properties_t(c_int):
-    def __str__(self):
-        return str(ur_queue_properties_v(self.value))
-
-
-###############################################################################
-## @brief Get sample object information
-class ur_sampler_info_v(IntEnum):
-    REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the sampler object.
-                                                    ## The reference count returned should be considered immediately stale. 
-                                                    ## It is unsuitable for general use in applications. This feature is
-                                                    ## provided for identifying memory leaks.
-    CONTEXT = 1                                     ## Sampler context info
-    NORMALIZED_COORDS = 2                           ## Sampler normalized coordindate setting
-    ADDRESSING_MODE = 3                             ## Sampler addressing mode setting
-    FILTER_MODE = 4                                 ## Sampler filter mode setting
-    MIP_FILTER_MODE = 5                             ## Sampler MIP filter mode setting
-    LOD_MIN = 6                                     ## Sampler LOD Min value
-    LOD_MAX = 7                                     ## Sampler LOD Max value
-
-class ur_sampler_info_t(c_int):
-    def __str__(self):
-        return str(ur_sampler_info_v(self.value))
-
-
-###############################################################################
-## @brief Sampler properties
-class ur_sampler_properties_v(IntEnum):
-    NORMALIZED_COORDS = 0                           ## Sampler normalized coordinates
-    ADDRESSING_MODE = 1                             ## Sampler addressing mode
-    FILTER_MODE = 2                                 ## Sampler filter mode
-
-class ur_sampler_properties_t(c_int):
-    def __str__(self):
-        return str(ur_sampler_properties_v(self.value))
-
-
-###############################################################################
-## @brief Sampler Properties type
-class ur_sampler_property_t(c_intptr_t):
-    pass
-
-###############################################################################
-## @brief Sampler addressing mode
-class ur_sampler_addressing_mode_v(IntEnum):
-    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
-    REPEAT = 1                                      ## Repeat
-    CLAMP = 2                                       ## Clamp
-    CLAMP_TO_EDGE = 3                               ## Clamp to edge
-    NONE = 4                                        ## None
-
-class ur_sampler_addressing_mode_t(c_int):
-    def __str__(self):
-        return str(ur_sampler_addressing_mode_v(self.value))
-
-
-###############################################################################
-## @brief USM memory property flags
-class ur_usm_mem_flags_v(IntEnum):
-    BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
-    BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
-    WRITE_COMBINED = UR_BIT(2)                      ## Memory should be allocated write-combined (WC)
-    INITIAL_PLACEMENT_DEVICE = UR_BIT(3)            ## Optimize shared allocation for first access on the device
-    INITIAL_PLACEMENT_HOST = UR_BIT(4)              ## Optimize shared allocation for first access on the host
-    DEVICE_READ_ONLY = UR_BIT(5)                    ## Memory is only possibly modified from the host, but read-only in all
-                                                    ## device code
-
-class ur_usm_mem_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
-## @brief USM memory property flags
-class ur_usm_pool_flags_v(IntEnum):
-    ZERO_INITIALIZE_BLOCK = UR_BIT(0)               ## All coarse-grain allocations (allocations from the driver) will be
-                                                    ## zero-initialized.
-
-class ur_usm_pool_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
-## @brief USM allocation type
-class ur_usm_type_v(IntEnum):
-    UNKOWN = 0                                      ## Unkown USM type
-    HOST = 1                                        ## Host USM type
-    DEVICE = 2                                      ## Device USM type
-    SHARED = 3                                      ## Shared USM type
-
-class ur_usm_type_t(c_int):
-    def __str__(self):
-        return str(ur_usm_type_v(self.value))
-
-
-###############################################################################
-## @brief USM memory allocation information type
-class ur_usm_alloc_info_v(IntEnum):
-    TYPE = 0                                        ## Memory allocation type info
-    BASE_PTR = 1                                    ## Memory allocation base pointer info
-    SIZE = 2                                        ## Memory allocation size info
-    DEVICE = 3                                      ## Memory allocation device info
-
-class ur_usm_alloc_info_t(c_int):
-    def __str__(self):
-        return str(ur_usm_alloc_info_v(self.value))
-
-
-###############################################################################
-## @brief Handle of USM pool
-class ur_usm_pool_handle_t(c_void_p):
-    pass
-
-###############################################################################
-## @brief USM allocation descriptor type
-class ur_usm_desc_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
-        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("flags", ur_usm_mem_flags_t),                                  ## [in] memory allocation flags
-        ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
-    ]
-
-###############################################################################
-## @brief USM pool descriptor type
-class ur_usm_pool_desc_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
-        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("flags", ur_usm_pool_flags_t)                                  ## [in] memory allocation flags
-    ]
-
-###############################################################################
-## @brief USM pool limits descriptor type
-class ur_usm_pool_limits_desc_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
-        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("maxPoolSize", c_size_t),                                      ## [in] Maximum size of a memory pool
-        ("maxPoolableSize", c_size_t),                                  ## [in] Allocations up to this limit will be subject to pooling
-        ("capacity", c_size_t),                                         ## [in] When pooling, each bucket will hold a max of 4 unfreed slabs
-        ("slabMinSize", c_size_t)                                       ## [in] Minimum allocation size that will be requested from the driver
-    ]
 
 ###############################################################################
 ## @brief Supported device types
@@ -1018,66 +549,342 @@ class ur_memory_scope_capability_flags_t(c_int):
 
 
 ###############################################################################
-## @brief Get Kernel object information
-class ur_kernel_info_v(IntEnum):
-    FUNCTION_NAME = 0                               ## Return Kernel function name, return type char[]
-    NUM_ARGS = 1                                    ## Return Kernel number of arguments
-    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
+## @brief Supported context info
+class ur_context_info_v(IntEnum):
+    NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
+    DEVICES = 1                                     ## [::ur_context_handle_t...] The array of the device handles in the
+                                                    ## context
+    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 3                                     ## Return Context object associated with Kernel
-    PROGRAM = 4                                     ## Return Program object associated with Kernel
-    ATTRIBUTES = 5                                  ## Return Kernel attributes, return type char[]
+    USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
+                                                    ## supported.
+    USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
+                                                    ## supported.
+    USM_MEMSET2D_SUPPORT = 5                        ## [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
+                                                    ## supported.
 
-class ur_kernel_info_t(c_int):
+class ur_context_info_t(c_int):
     def __str__(self):
-        return str(ur_kernel_info_v(self.value))
+        return str(ur_context_info_v(self.value))
 
 
 ###############################################################################
-## @brief Get Kernel Work Group information
-class ur_kernel_group_info_v(IntEnum):
-    GLOBAL_WORK_SIZE = 0                            ## Return Work Group maximum global size, return type size_t[3]
-    WORK_GROUP_SIZE = 1                             ## Return maximum Work Group size, return type size_t
-    COMPILE_WORK_GROUP_SIZE = 2                     ## Return Work Group size required by the source code, such as
-                                                    ## __attribute__((required_work_group_size(X,Y,Z)), return type size_t[3]
-    LOCAL_MEM_SIZE = 3                              ## Return local memory required by the Kernel, return type size_t
-    PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4          ## Return preferred multiple of Work Group size for launch, return type
-                                                    ## size_t
-    PRIVATE_MEM_SIZE = 5                            ## Return minimum amount of private memory in bytes used by each work
-                                                    ## item in the Kernel, return type size_t
+## @brief Context's extended deleter callback function with user data.
+def ur_context_extended_deleter_t(user_defined_callback):
+    @CFUNCTYPE(None, c_void_p)
+    def ur_context_extended_deleter_t_wrapper(pUserData):
+        return user_defined_callback(pUserData)
+    return ur_context_extended_deleter_t_wrapper
 
-class ur_kernel_group_info_t(c_int):
+###############################################################################
+## @brief Memory flags
+class ur_mem_flags_v(IntEnum):
+    READ_WRITE = UR_BIT(0)                          ## The memory object will be read and written by a kernel. This is the
+                                                    ## default
+    WRITE_ONLY = UR_BIT(1)                          ## The memory object will be written but not read by a kernel
+    READ_ONLY = UR_BIT(2)                           ## The memory object is a read-only inside a kernel
+    USE_HOST_POINTER = UR_BIT(3)                    ## Use memory pointed by a host pointer parameter as the storage bits for
+                                                    ## the memory object
+    ALLOC_HOST_POINTER = UR_BIT(4)                  ## Allocate memory object from host accessible memory
+    ALLOC_COPY_HOST_POINTER = UR_BIT(5)             ## Allocate memory and copy the data from host pointer pointed memory
+
+class ur_mem_flags_t(c_int):
     def __str__(self):
-        return str(ur_kernel_group_info_v(self.value))
+        return hex(self.value)
 
 
 ###############################################################################
-## @brief Get Kernel SubGroup information
-class ur_kernel_sub_group_info_v(IntEnum):
-    MAX_SUB_GROUP_SIZE = 0                          ## Return maximum SubGroup size, return type uint32_t
-    MAX_NUM_SUB_GROUPS = 1                          ## Return maximum number of SubGroup, return type uint32_t
-    COMPILE_NUM_SUB_GROUPS = 2                      ## Return number of SubGroup required by the source code, return type
-                                                    ## uint32_t
-    SUB_GROUP_SIZE_INTEL = 3                        ## Return SubGroup size required by Intel, return type uint32_t
+## @brief Memory types
+class ur_mem_type_v(IntEnum):
+    BUFFER = 0                                      ## Buffer object
+    IMAGE2D = 1                                     ## 2D image object
+    IMAGE3D = 2                                     ## 3D image object
+    IMAGE2D_ARRAY = 3                               ## 2D image array object
+    IMAGE1D = 4                                     ## 1D image object
+    IMAGE1D_ARRAY = 5                               ## 1D image array object
+    IMAGE1D_BUFFER = 6                              ## 1D image buffer object
 
-class ur_kernel_sub_group_info_t(c_int):
+class ur_mem_type_t(c_int):
     def __str__(self):
-        return str(ur_kernel_sub_group_info_v(self.value))
+        return str(ur_mem_type_v(self.value))
 
 
 ###############################################################################
-## @brief Set additional Kernel execution information
-class ur_kernel_exec_info_v(IntEnum):
-    USM_INDIRECT_ACCESS = 0                         ## Kernel might access data through USM pointer, type bool_t*
-    USM_PTRS = 1                                    ## Provide an explicit list of USM pointers that the kernel will access,
-                                                    ## type void*[].
+## @brief Memory Information type
+class ur_mem_info_v(IntEnum):
+    SIZE = 0                                        ## size_t: actual size of of memory object in bytes
+    CONTEXT = 1                                     ## ::ur_context_handle_t: context in which the memory object was created
 
-class ur_kernel_exec_info_t(c_int):
+class ur_mem_info_t(c_int):
     def __str__(self):
-        return str(ur_kernel_exec_info_v(self.value))
+        return str(ur_mem_info_v(self.value))
 
+
+###############################################################################
+## @brief Image channel order info: number of channels and the channel layout
+class ur_image_channel_order_v(IntEnum):
+    A = 0                                           ## channel order A
+    R = 1                                           ## channel order R
+    RG = 2                                          ## channel order RG
+    RA = 3                                          ## channel order RA
+    RGB = 4                                         ## channel order RGB
+    RGBA = 5                                        ## channel order RGBA
+    BGRA = 6                                        ## channel order BGRA
+    ARGB = 7                                        ## channel order ARGB
+    INTENSITY = 8                                   ## channel order intensity
+    LUMINANCE = 9                                   ## channel order luminance
+    RX = 10                                         ## channel order Rx
+    RGX = 11                                        ## channel order RGx
+    RGBX = 12                                       ## channel order RGBx
+    SRGBA = 13                                      ## channel order sRGBA
+
+class ur_image_channel_order_t(c_int):
+    def __str__(self):
+        return str(ur_image_channel_order_v(self.value))
+
+
+###############################################################################
+## @brief Image channel type info: describe the size of the channel data type
+class ur_image_channel_type_v(IntEnum):
+    SNORM_INT8 = 0                                  ## channel type snorm int8
+    SNORM_INT16 = 1                                 ## channel type snorm int16
+    UNORM_INT8 = 2                                  ## channel type unorm int8
+    UNORM_INT16 = 3                                 ## channel type unorm int16
+    UNORM_SHORT_565 = 4                             ## channel type unorm short 565
+    UNORM_SHORT_555 = 5                             ## channel type unorm short 555
+    INT_101010 = 6                                  ## channel type int 101010
+    SIGNED_INT8 = 7                                 ## channel type signed int8
+    SIGNED_INT16 = 8                                ## channel type signed int16
+    SIGNED_INT32 = 9                                ## channel type signed int32
+    UNSIGNED_INT8 = 10                              ## channel type unsigned int8
+    UNSIGNED_INT16 = 11                             ## channel type unsigned int16
+    UNSIGNED_INT32 = 12                             ## channel type unsigned int32
+    HALF_FLOAT = 13                                 ## channel type half float
+    FLOAT = 14                                      ## channel type float
+
+class ur_image_channel_type_t(c_int):
+    def __str__(self):
+        return str(ur_image_channel_type_v(self.value))
+
+
+###############################################################################
+## @brief Image information types
+class ur_image_info_v(IntEnum):
+    FORMAT = 0                                      ## ::ur_image_format_t: image format
+    ELEMENT_SIZE = 1                                ## size_t: element size
+    ROW_PITCH = 2                                   ## size_t: row pitch
+    SLICE_PITCH = 3                                 ## size_t: slice pitch
+    WIDTH = 4                                       ## size_t: image width
+    HEIGHT = 5                                      ## size_t: image height
+    DEPTH = 6                                       ## size_t: image depth
+
+class ur_image_info_t(c_int):
+    def __str__(self):
+        return str(ur_image_info_v(self.value))
+
+
+###############################################################################
+## @brief Image format including channel layout and data type
+class ur_image_format_t(Structure):
+    _fields_ = [
+        ("channelOrder", ur_image_channel_order_t),                     ## [in] image channel order
+        ("channelType", ur_image_channel_type_t)                        ## [in] image channel type
+    ]
+
+###############################################################################
+## @brief Image descriptor type.
+class ur_image_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("type", ur_mem_type_t),                                        ## [in] memory object type
+        ("width", c_size_t),                                            ## [in] image width
+        ("height", c_size_t),                                           ## [in] image height
+        ("depth", c_size_t),                                            ## [in] image depth
+        ("arraySize", c_size_t),                                        ## [in] image array size
+        ("rowPitch", c_size_t),                                         ## [in] image row pitch
+        ("slicePitch", c_size_t),                                       ## [in] image slice pitch
+        ("numMipLevel", c_ulong),                                       ## [in] number of MIP levels
+        ("numSamples", c_ulong)                                         ## [in] number of samples
+    ]
+
+###############################################################################
+## @brief Buffer region type, used to describe a sub buffer
+class ur_buffer_region_t(Structure):
+    _fields_ = [
+        ("origin", c_size_t),                                           ## [in] buffer origin offset
+        ("size", c_size_t)                                              ## [in] size of the buffer region
+    ]
+
+###############################################################################
+## @brief Buffer creation type
+class ur_buffer_create_type_v(IntEnum):
+    REGION = 0                                      ## buffer create type is region
+
+class ur_buffer_create_type_t(c_int):
+    def __str__(self):
+        return str(ur_buffer_create_type_v(self.value))
+
+
+###############################################################################
+## @brief Get sample object information
+class ur_sampler_info_v(IntEnum):
+    REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the sampler object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+    CONTEXT = 1                                     ## Sampler context info
+    NORMALIZED_COORDS = 2                           ## Sampler normalized coordindate setting
+    ADDRESSING_MODE = 3                             ## Sampler addressing mode setting
+    FILTER_MODE = 4                                 ## Sampler filter mode setting
+    MIP_FILTER_MODE = 5                             ## Sampler MIP filter mode setting
+    LOD_MIN = 6                                     ## Sampler LOD Min value
+    LOD_MAX = 7                                     ## Sampler LOD Max value
+
+class ur_sampler_info_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_info_v(self.value))
+
+
+###############################################################################
+## @brief Sampler properties
+class ur_sampler_properties_v(IntEnum):
+    NORMALIZED_COORDS = 0                           ## Sampler normalized coordinates
+    ADDRESSING_MODE = 1                             ## Sampler addressing mode
+    FILTER_MODE = 2                                 ## Sampler filter mode
+
+class ur_sampler_properties_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_properties_v(self.value))
+
+
+###############################################################################
+## @brief Sampler Properties type
+class ur_sampler_property_t(c_intptr_t):
+    pass
+
+###############################################################################
+## @brief Sampler addressing mode
+class ur_sampler_addressing_mode_v(IntEnum):
+    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
+    REPEAT = 1                                      ## Repeat
+    CLAMP = 2                                       ## Clamp
+    CLAMP_TO_EDGE = 3                               ## Clamp to edge
+    NONE = 4                                        ## None
+
+class ur_sampler_addressing_mode_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_addressing_mode_v(self.value))
+
+
+###############################################################################
+## @brief USM memory property flags
+class ur_usm_mem_flags_v(IntEnum):
+    BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
+    BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
+    WRITE_COMBINED = UR_BIT(2)                      ## Memory should be allocated write-combined (WC)
+    INITIAL_PLACEMENT_DEVICE = UR_BIT(3)            ## Optimize shared allocation for first access on the device
+    INITIAL_PLACEMENT_HOST = UR_BIT(4)              ## Optimize shared allocation for first access on the host
+    DEVICE_READ_ONLY = UR_BIT(5)                    ## Memory is only possibly modified from the host, but read-only in all
+                                                    ## device code
+
+class ur_usm_mem_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM memory property flags
+class ur_usm_pool_flags_v(IntEnum):
+    ZERO_INITIALIZE_BLOCK = UR_BIT(0)               ## All coarse-grain allocations (allocations from the driver) will be
+                                                    ## zero-initialized.
+
+class ur_usm_pool_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM allocation type
+class ur_usm_type_v(IntEnum):
+    UNKOWN = 0                                      ## Unkown USM type
+    HOST = 1                                        ## Host USM type
+    DEVICE = 2                                      ## Device USM type
+    SHARED = 3                                      ## Shared USM type
+
+class ur_usm_type_t(c_int):
+    def __str__(self):
+        return str(ur_usm_type_v(self.value))
+
+
+###############################################################################
+## @brief USM memory allocation information type
+class ur_usm_alloc_info_v(IntEnum):
+    TYPE = 0                                        ## Memory allocation type info
+    BASE_PTR = 1                                    ## Memory allocation base pointer info
+    SIZE = 2                                        ## Memory allocation size info
+    DEVICE = 3                                      ## Memory allocation device info
+
+class ur_usm_alloc_info_t(c_int):
+    def __str__(self):
+        return str(ur_usm_alloc_info_v(self.value))
+
+
+###############################################################################
+## @brief USM memory advice
+class ur_mem_advice_v(IntEnum):
+    DEFAULT = 0                                     ## The USM memory advice is default
+    SET_READ_MOSTLY = 1                             ## Hint that memory will be read from frequently and written to rarely
+    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
+    SET_PREFERRED_LOCATION = 3                      ## Hint that the preferred memory location is the specified device
+    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
+    SET_NON_ATOMIC_MOSTLY = 5                       ## Hints that memory will mostly be accessed non-atomically
+    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    BIAS_CACHED = 7                                 ## Hints that memory should be cached
+    BIAS_UNCACHED = 8                               ## Hints that memory should be not be cached
+
+class ur_mem_advice_t(c_int):
+    def __str__(self):
+        return str(ur_mem_advice_v(self.value))
+
+
+###############################################################################
+## @brief Handle of USM pool
+class ur_usm_pool_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief USM allocation descriptor type
+class ur_usm_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_mem_flags_t),                                  ## [in] memory allocation flags
+        ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
+    ]
+
+###############################################################################
+## @brief USM pool descriptor type
+class ur_usm_pool_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_pool_flags_t)                                  ## [in] memory allocation flags
+    ]
+
+###############################################################################
+## @brief USM pool limits descriptor type
+class ur_usm_pool_limits_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("maxPoolSize", c_size_t),                                      ## [in] Maximum size of a memory pool
+        ("maxPoolableSize", c_size_t),                                  ## [in] Allocations up to this limit will be subject to pooling
+        ("capacity", c_size_t),                                         ## [in] When pooling, each bucket will hold a max of 4 unfreed slabs
+        ("slabMinSize", c_size_t)                                       ## [in] Minimum allocation size that will be requested from the driver
+    ]
 
 ###############################################################################
 ## @brief callback function for urModuleCreate
@@ -1086,40 +893,6 @@ def ur_modulecreate_callback_t(user_defined_callback):
     def ur_modulecreate_callback_t_wrapper(hModule, pParams):
         return user_defined_callback(hModule, pParams)
     return ur_modulecreate_callback_t_wrapper
-
-###############################################################################
-## @brief Supported platform info
-class ur_platform_info_v(IntEnum):
-    NAME = 1                                        ## [char*] The string denoting name of the platform. The size of the info
-                                                    ## needs to be dynamically queried.
-    VENDOR_NAME = 2                                 ## [char*] The string denoting name of the vendor of the platform. The
-                                                    ## size of the info needs to be dynamically queried.
-    VERSION = 3                                     ## [char*] The string denoting the version of the platform. The size of
-                                                    ## the info needs to be dynamically queried.
-    EXTENSIONS = 4                                  ## [char*] The string denoting extensions supported by the platform. The
-                                                    ## size of the info needs to be dynamically queried.
-    PROFILE = 5                                     ## [char*] The string denoting profile of the platform. The size of the
-                                                    ## info needs to be dynamically queried.
-
-class ur_platform_info_t(c_int):
-    def __str__(self):
-        return str(ur_platform_info_v(self.value))
-
-
-###############################################################################
-## @brief Supported API versions
-## 
-## @details
-##     - API versions contain major and minor attributes, use
-##       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
-class ur_api_version_v(IntEnum):
-    _0_9 = UR_MAKE_VERSION( 0, 9 )                  ## version 0.9
-    CURRENT = UR_MAKE_VERSION( 0, 9 )               ## latest known version
-
-class ur_api_version_t(c_int):
-    def __str__(self):
-        return str(ur_api_version_v(self.value))
-
 
 ###############################################################################
 ## @brief Program metadata property type.
@@ -1234,11 +1007,238 @@ class ur_program_build_info_t(c_int):
 
 
 ###############################################################################
-## @brief Supported device initialization flags
-class ur_device_init_flags_v(IntEnum):
-    GPU = UR_BIT(0)                                 ## initialize GPU device drivers
+## @brief Get Kernel object information
+class ur_kernel_info_v(IntEnum):
+    FUNCTION_NAME = 0                               ## Return Kernel function name, return type char[]
+    NUM_ARGS = 1                                    ## Return Kernel number of arguments
+    REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+    CONTEXT = 3                                     ## Return Context object associated with Kernel
+    PROGRAM = 4                                     ## Return Program object associated with Kernel
+    ATTRIBUTES = 5                                  ## Return Kernel attributes, return type char[]
 
-class ur_device_init_flags_t(c_int):
+class ur_kernel_info_t(c_int):
+    def __str__(self):
+        return str(ur_kernel_info_v(self.value))
+
+
+###############################################################################
+## @brief Get Kernel Work Group information
+class ur_kernel_group_info_v(IntEnum):
+    GLOBAL_WORK_SIZE = 0                            ## Return Work Group maximum global size, return type size_t[3]
+    WORK_GROUP_SIZE = 1                             ## Return maximum Work Group size, return type size_t
+    COMPILE_WORK_GROUP_SIZE = 2                     ## Return Work Group size required by the source code, such as
+                                                    ## __attribute__((required_work_group_size(X,Y,Z)), return type size_t[3]
+    LOCAL_MEM_SIZE = 3                              ## Return local memory required by the Kernel, return type size_t
+    PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4          ## Return preferred multiple of Work Group size for launch, return type
+                                                    ## size_t
+    PRIVATE_MEM_SIZE = 5                            ## Return minimum amount of private memory in bytes used by each work
+                                                    ## item in the Kernel, return type size_t
+
+class ur_kernel_group_info_t(c_int):
+    def __str__(self):
+        return str(ur_kernel_group_info_v(self.value))
+
+
+###############################################################################
+## @brief Get Kernel SubGroup information
+class ur_kernel_sub_group_info_v(IntEnum):
+    MAX_SUB_GROUP_SIZE = 0                          ## Return maximum SubGroup size, return type uint32_t
+    MAX_NUM_SUB_GROUPS = 1                          ## Return maximum number of SubGroup, return type uint32_t
+    COMPILE_NUM_SUB_GROUPS = 2                      ## Return number of SubGroup required by the source code, return type
+                                                    ## uint32_t
+    SUB_GROUP_SIZE_INTEL = 3                        ## Return SubGroup size required by Intel, return type uint32_t
+
+class ur_kernel_sub_group_info_t(c_int):
+    def __str__(self):
+        return str(ur_kernel_sub_group_info_v(self.value))
+
+
+###############################################################################
+## @brief Set additional Kernel execution information
+class ur_kernel_exec_info_v(IntEnum):
+    USM_INDIRECT_ACCESS = 0                         ## Kernel might access data through USM pointer, type bool_t*
+    USM_PTRS = 1                                    ## Provide an explicit list of USM pointers that the kernel will access,
+                                                    ## type void*[].
+
+class ur_kernel_exec_info_t(c_int):
+    def __str__(self):
+        return str(ur_kernel_exec_info_v(self.value))
+
+
+###############################################################################
+## @brief Query queue info
+class ur_queue_info_v(IntEnum):
+    CONTEXT = 0                                     ## ::ur_queue_handle_t: context associated with this queue.
+    DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
+    DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
+                                                    ## device.
+    PROPERTIES = 3                                  ## ::ur_queue_flags_t: the properties associated with
+                                                    ## ::UR_QUEUE_PROPERTIES_FLAGS.
+    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+    SIZE = 5                                        ## uint32_t: The size of the queue
+
+class ur_queue_info_t(c_int):
+    def __str__(self):
+        return str(ur_queue_info_v(self.value))
+
+
+###############################################################################
+## @brief Queue property flags
+class ur_queue_flags_v(IntEnum):
+    OUT_OF_ORDER_EXEC_MODE_ENABLE = UR_BIT(0)       ## Enable/disable out of order execution
+    PROFILING_ENABLE = UR_BIT(1)                    ## Enable/disable profiling
+    ON_DEVICE = UR_BIT(2)                           ## Is a device queue
+    ON_DEVICE_DEFAULT = UR_BIT(3)                   ## Is the default queue for a device
+    DISCARD_EVENTS = UR_BIT(4)                      ## Events will be discarded
+    PRIORITY_LOW = UR_BIT(5)                        ## Low priority queue
+    PRIORITY_HIGH = UR_BIT(6)                       ## High priority queue
+
+class ur_queue_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Queue property type
+class ur_queue_property_t(c_intptr_t):
+    pass
+
+###############################################################################
+## @brief Queue Properties
+class ur_queue_properties_v(IntEnum):
+    FLAGS = -1                                      ## [::ur_queue_flags_t]: the bitfield of queue flags
+    COMPUTE_INDEX = -2                              ## [uint32_t]: the queue index
+
+class ur_queue_properties_t(c_int):
+    def __str__(self):
+        return str(ur_queue_properties_v(self.value))
+
+
+###############################################################################
+## @brief Command type
+class ur_command_v(IntEnum):
+    KERNEL_LAUNCH = 0                               ## Event created by ::urEnqueueKernelLaunch
+    EVENTS_WAIT = 1                                 ## Event created by ::urEnqueueEventsWait
+    EVENTS_WAIT_WITH_BARRIER = 2                    ## Event created by ::urEnqueueEventsWaitWithBarrier
+    MEM_BUFFER_READ = 3                             ## Event created by ::urEnqueueMemBufferRead
+    MEM_BUFFER_WRITE = 4                            ## Event created by ::urEnqueueMemBufferWrite
+    MEM_BUFFER_READ_RECT = 5                        ## Event created by ::urEnqueueMemBufferReadRect
+    MEM_BUFFER_WRITE_RECT = 6                       ## Event created by ::urEnqueueMemBufferWriteRect
+    MEM_BUFFER_COPY = 7                             ## Event created by ::urEnqueueMemBufferCopy
+    MEM_BUFFER_COPY_RECT = 8                        ## Event created by ::urEnqueueMemBufferCopyRect
+    MEM_BUFFER_FILL = 9                             ## Event created by ::urEnqueueMemBufferFill
+    MEM_IMAGE_READ = 10                             ## Event created by ::urEnqueueMemImageRead
+    MEM_IMAGE_WRITE = 11                            ## Event created by ::urEnqueueMemImageWrite
+    MEM_IMAGE_COPY = 12                             ## Event created by ::urEnqueueMemImageCopy
+    MEM_BUFFER_MAP = 14                             ## Event created by ::urEnqueueMemBufferMap
+    MEM_UNMAP = 16                                  ## Event created by ::urEnqueueMemUnmap
+    USM_MEMSET = 17                                 ## Event created by ::urEnqueueUSMMemset
+    USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
+    USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
+    USM_MEM_ADVISE = 20                             ## Event created by ::urEnqueueUSMMemAdvise
+    USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
+    USM_MEMSET_2D = 22                              ## Event created by ::urEnqueueUSMMemset2D
+    USM_MEMCPY_2D = 23                              ## Event created by ::urEnqueueUSMMemcpy2D
+    DEVICE_GLOBAL_VARIABLE_WRITE = 24               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
+    DEVICE_GLOBAL_VARIABLE_READ = 25                ## Event created by ::urEnqueueDeviceGlobalVariableRead
+
+class ur_command_t(c_int):
+    def __str__(self):
+        return str(ur_command_v(self.value))
+
+
+###############################################################################
+## @brief Event Status
+class ur_event_status_v(IntEnum):
+    COMPLETE = 0                                    ## Command is complete
+    RUNNING = 1                                     ## Command is running
+    SUBMITTED = 2                                   ## Command is submitted
+    QUEUED = 3                                      ## Command is queued
+
+class ur_event_status_t(c_int):
+    def __str__(self):
+        return str(ur_event_status_v(self.value))
+
+
+###############################################################################
+## @brief Event query information type
+class ur_event_info_v(IntEnum):
+    COMMAND_QUEUE = 0                               ## [::ur_queue_handle_t] Command queue information of an event object
+    CONTEXT = 1                                     ## [::ur_context_handle_t] Context information of an event object
+    COMMAND_TYPE = 2                                ## [::ur_command_t] Command type information of an event object
+    COMMAND_EXECUTION_STATUS = 3                    ## [::ur_event_status_t] Command execution status of an event object
+    REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the event object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+
+class ur_event_info_t(c_int):
+    def __str__(self):
+        return str(ur_event_info_v(self.value))
+
+
+###############################################################################
+## @brief Profiling query information type
+class ur_profiling_info_v(IntEnum):
+    COMMAND_QUEUED = 0                              ## A 64-bit value of current device counter in nanoseconds when the event
+                                                    ## is enqueued
+    COMMAND_SUBMIT = 1                              ## A 64-bit value of current device counter in nanoseconds when the event
+                                                    ## is submitted
+    COMMAND_START = 2                               ## A 64-bit value of current device counter in nanoseconds when the event
+                                                    ## starts execution
+    COMMAND_END = 3                                 ## A 64-bit value of current device counter in nanoseconds when the event
+                                                    ## has finished execution
+
+class ur_profiling_info_t(c_int):
+    def __str__(self):
+        return str(ur_profiling_info_v(self.value))
+
+
+###############################################################################
+## @brief Event states for all events.
+class ur_execution_info_v(IntEnum):
+    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
+    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event.
+    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device.
+    EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
+                                                    ## events.
+
+class ur_execution_info_t(c_int):
+    def __str__(self):
+        return str(ur_execution_info_v(self.value))
+
+
+###############################################################################
+## @brief Event callback function that can be registered by the application.
+def ur_event_callback_t(user_defined_callback):
+    @CFUNCTYPE(None, ur_event_handle_t, ur_execution_info_t, c_void_p)
+    def ur_event_callback_t_wrapper(hEvent, execStatus, pUserData):
+        return user_defined_callback(hEvent, execStatus, pUserData)
+    return ur_event_callback_t_wrapper
+
+###############################################################################
+## @brief Map flags
+class ur_map_flags_v(IntEnum):
+    READ = UR_BIT(0)                                ## Map for read access
+    WRITE = UR_BIT(1)                               ## Map for write access
+
+class ur_map_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Map flags
+class ur_usm_migration_flags_v(IntEnum):
+    DEFAULT = UR_BIT(0)                             ## Default migration TODO: Add more enums! 
+
+class ur_usm_migration_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
@@ -2014,74 +2014,11 @@ class ur_enqueue_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urUSMHostAlloc
+## @brief Function-pointer for urInit
 if __use_win_types:
-    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
 else:
-    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
-
-###############################################################################
-## @brief Function-pointer for urUSMDeviceAlloc
-if __use_win_types:
-    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
-else:
-    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
-
-###############################################################################
-## @brief Function-pointer for urUSMSharedAlloc
-if __use_win_types:
-    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
-else:
-    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
-
-###############################################################################
-## @brief Function-pointer for urUSMFree
-if __use_win_types:
-    _urUSMFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
-else:
-    _urUSMFree_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
-
-###############################################################################
-## @brief Function-pointer for urUSMGetMemAllocInfo
-if __use_win_types:
-    _urUSMGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-else:
-    _urUSMGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-
-###############################################################################
-## @brief Function-pointer for urUSMPoolCreate
-if __use_win_types:
-    _urUSMPoolCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
-else:
-    _urUSMPoolCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urUSMPoolDestroy
-if __use_win_types:
-    _urUSMPoolDestroy_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
-else:
-    _urUSMPoolDestroy_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
-
-
-###############################################################################
-## @brief Table of USM functions pointers
-class ur_usm_dditable_t(Structure):
-    _fields_ = [
-        ("pfnHostAlloc", c_void_p),                                     ## _urUSMHostAlloc_t
-        ("pfnDeviceAlloc", c_void_p),                                   ## _urUSMDeviceAlloc_t
-        ("pfnSharedAlloc", c_void_p),                                   ## _urUSMSharedAlloc_t
-        ("pfnFree", c_void_p),                                          ## _urUSMFree_t
-        ("pfnGetMemAllocInfo", c_void_p),                               ## _urUSMGetMemAllocInfo_t
-        ("pfnPoolCreate", c_void_p),                                    ## _urUSMPoolCreate_t
-        ("pfnPoolDestroy", c_void_p)                                    ## _urUSMPoolDestroy_t
-    ]
-
-###############################################################################
-## @brief Function-pointer for urTearDown
-if __use_win_types:
-    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
-else:
-    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
 
 ###############################################################################
 ## @brief Function-pointer for urGetLastResult
@@ -2091,20 +2028,20 @@ else:
     _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
 
 ###############################################################################
-## @brief Function-pointer for urInit
+## @brief Function-pointer for urTearDown
 if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
 else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
 
 
 ###############################################################################
 ## @brief Table of Global functions pointers
 class ur_global_dditable_t(Structure):
     _fields_ = [
-        ("pfnTearDown", c_void_p),                                      ## _urTearDown_t
+        ("pfnInit", c_void_p),                                          ## _urInit_t
         ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
-        ("pfnInit", c_void_p)                                           ## _urInit_t
+        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
     ]
 
 ###############################################################################
@@ -2176,6 +2113,69 @@ class ur_queue_dditable_t(Structure):
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urQueueCreateWithNativeHandle_t
         ("pfnFinish", c_void_p),                                        ## _urQueueFinish_t
         ("pfnFlush", c_void_p)                                          ## _urQueueFlush_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urUSMHostAlloc
+if __use_win_types:
+    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+else:
+    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+
+###############################################################################
+## @brief Function-pointer for urUSMDeviceAlloc
+if __use_win_types:
+    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+else:
+    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+
+###############################################################################
+## @brief Function-pointer for urUSMSharedAlloc
+if __use_win_types:
+    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+else:
+    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+
+###############################################################################
+## @brief Function-pointer for urUSMFree
+if __use_win_types:
+    _urUSMFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+else:
+    _urUSMFree_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+
+###############################################################################
+## @brief Function-pointer for urUSMGetMemAllocInfo
+if __use_win_types:
+    _urUSMGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urUSMGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urUSMPoolCreate
+if __use_win_types:
+    _urUSMPoolCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
+else:
+    _urUSMPoolCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urUSMPoolDestroy
+if __use_win_types:
+    _urUSMPoolDestroy_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+else:
+    _urUSMPoolDestroy_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+
+
+###############################################################################
+## @brief Table of USM functions pointers
+class ur_usm_dditable_t(Structure):
+    _fields_ = [
+        ("pfnHostAlloc", c_void_p),                                     ## _urUSMHostAlloc_t
+        ("pfnDeviceAlloc", c_void_p),                                   ## _urUSMDeviceAlloc_t
+        ("pfnSharedAlloc", c_void_p),                                   ## _urUSMSharedAlloc_t
+        ("pfnFree", c_void_p),                                          ## _urUSMFree_t
+        ("pfnGetMemAllocInfo", c_void_p),                               ## _urUSMGetMemAllocInfo_t
+        ("pfnPoolCreate", c_void_p),                                    ## _urUSMPoolCreate_t
+        ("pfnPoolDestroy", c_void_p)                                    ## _urUSMPoolDestroy_t
     ]
 
 ###############################################################################
@@ -2269,9 +2269,9 @@ class ur_dditable_t(Structure):
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
         ("Enqueue", ur_enqueue_dditable_t),
-        ("USM", ur_usm_dditable_t),
         ("Global", ur_global_dditable_t),
         ("Queue", ur_queue_dditable_t),
+        ("USM", ur_usm_dditable_t),
         ("Device", ur_device_dditable_t)
     ]
 
@@ -2461,22 +2461,6 @@ class UR_DDI:
         self.urEnqueueDeviceGlobalVariableRead = _urEnqueueDeviceGlobalVariableRead_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableRead)
 
         # call driver to get function pointers
-        USM = ur_usm_dditable_t()
-        r = ur_result_v(self.__dll.urGetUSMProcAddrTable(version, byref(USM)))
-        if r != ur_result_v.SUCCESS:
-            raise Exception(r)
-        self.__dditable.USM = USM
-
-        # attach function interface to function address
-        self.urUSMHostAlloc = _urUSMHostAlloc_t(self.__dditable.USM.pfnHostAlloc)
-        self.urUSMDeviceAlloc = _urUSMDeviceAlloc_t(self.__dditable.USM.pfnDeviceAlloc)
-        self.urUSMSharedAlloc = _urUSMSharedAlloc_t(self.__dditable.USM.pfnSharedAlloc)
-        self.urUSMFree = _urUSMFree_t(self.__dditable.USM.pfnFree)
-        self.urUSMGetMemAllocInfo = _urUSMGetMemAllocInfo_t(self.__dditable.USM.pfnGetMemAllocInfo)
-        self.urUSMPoolCreate = _urUSMPoolCreate_t(self.__dditable.USM.pfnPoolCreate)
-        self.urUSMPoolDestroy = _urUSMPoolDestroy_t(self.__dditable.USM.pfnPoolDestroy)
-
-        # call driver to get function pointers
         Global = ur_global_dditable_t()
         r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
         if r != ur_result_v.SUCCESS:
@@ -2484,9 +2468,9 @@ class UR_DDI:
         self.__dditable.Global = Global
 
         # attach function interface to function address
-        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
-        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
         self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
+        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
+        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
 
         # call driver to get function pointers
         Queue = ur_queue_dditable_t()
@@ -2504,6 +2488,22 @@ class UR_DDI:
         self.urQueueCreateWithNativeHandle = _urQueueCreateWithNativeHandle_t(self.__dditable.Queue.pfnCreateWithNativeHandle)
         self.urQueueFinish = _urQueueFinish_t(self.__dditable.Queue.pfnFinish)
         self.urQueueFlush = _urQueueFlush_t(self.__dditable.Queue.pfnFlush)
+
+        # call driver to get function pointers
+        USM = ur_usm_dditable_t()
+        r = ur_result_v(self.__dll.urGetUSMProcAddrTable(version, byref(USM)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.USM = USM
+
+        # attach function interface to function address
+        self.urUSMHostAlloc = _urUSMHostAlloc_t(self.__dditable.USM.pfnHostAlloc)
+        self.urUSMDeviceAlloc = _urUSMDeviceAlloc_t(self.__dditable.USM.pfnDeviceAlloc)
+        self.urUSMSharedAlloc = _urUSMSharedAlloc_t(self.__dditable.USM.pfnSharedAlloc)
+        self.urUSMFree = _urUSMFree_t(self.__dditable.USM.pfnFree)
+        self.urUSMGetMemAllocInfo = _urUSMGetMemAllocInfo_t(self.__dditable.USM.pfnGetMemAllocInfo)
+        self.urUSMPoolCreate = _urUSMPoolCreate_t(self.__dditable.USM.pfnPoolCreate)
+        self.urUSMPoolDestroy = _urUSMPoolDestroy_t(self.__dditable.USM.pfnPoolDestroy)
 
         # call driver to get function pointers
         Device = ur_device_dditable_t()

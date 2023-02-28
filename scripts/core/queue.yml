@@ -7,8 +7,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs"
-ordinal: "0"
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "8"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Query queue info"

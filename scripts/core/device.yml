@@ -8,7 +8,7 @@
 
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs for Device"
+desc: "Intel $OneApi Unified Runtime APIs for Device"
 ordinal: "2"
 --- #--------------------------------------------------------------------------
 type: enum
