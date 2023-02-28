@@ -587,6 +587,25 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
   }];
 }
 
+def SYCLAddrSpaceCastOp : SYCL_Op<"addrspacecast", [
+  DeclareOpInterfaceMethods<CastOpInterface>, 
+  ViewLikeOpInterface, Pure
+]> {
+  let summary = "Perform an address space cast between specific and generic address space";
+
+  let arguments = (ins AnyMemRef : $source);
+  let results = (outs AnyMemRef : $result);
+
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return getSource(); }
+  }];
+
+  let assemblyFormat = [{
+    $source attr-dict `:` type($source) `to` type($result)
+  }];
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // CALL OPERATION
 ////////////////////////////////////////////////////////////////////////////////

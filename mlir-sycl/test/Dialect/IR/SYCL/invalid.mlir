@@ -1,5 +1,37 @@
 // RUN: sycl-mlir-opt -split-input-file %s -verify-diagnostics
 
+func.func @test_addrspacecast_different_elementtype(%arg0: memref<?xi64>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi64>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi64> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_different_shape(%arg0: memref<1xi32>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<1xi32>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<1xi32> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_different_layout(%arg0: memref<?xi32, affine_map<(d0) -> (d0 + 1)>>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi32, affine_map<(d0) -> (d0 + 1)>>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32, affine_map<(d0) -> (d0 + 1)>> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_generic_to_generic(%arg0: memref<?xi32, 4>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi32, 4>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32, 4> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
