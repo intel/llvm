@@ -8,10 +8,15 @@
 ; Positive tests:
 ;
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.4 -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NOEXT
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.4 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-max-version=1.4 -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; During consumption, any SPIR-V extension must be accepted by default
@@ -21,29 +26,29 @@
 ;
 ; Negative tests:
 ;
-; Check that translator is able to reject SPIR-V if extension is disallowed
+; Check that translator is able to skip nsw/nuw attributes if extension is
+; disabled implicitly or explicitly and if max SPIR-V version is lower then 1.4
 ;
-; RUN: not llvm-spirv -r %t.spv --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o - 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-SPIRV
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
+; RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEGATIVE
 ;
-; Check that translator is able to skip nsw/nuw attributes if extension is disabled implicitly or explicitly
-;
-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NOEXT
-; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
-;
-; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NOEXT
-; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEGATIVE
 
-; CHECK-SPIRV: Extension "SPV_KHR_no_integer_wrap_decoration"
+; Check SPIR-V versions in a format magic number + version
+; CHECK-SPIRV-EXT: 119734787 65536
+; CHECK-SPIRV-EXT: Extension "SPV_KHR_no_integer_wrap_decoration"
+; CHECK-SPIRV-NOEXT: 119734787 66560
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NoSignedWrap
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NoUnsignedWrap
 ;
-; CHECK-SPIRV-NOEXT-NOT: Extension "SPV_KHR_no_integer_wrap_decoration"
-; CHECK-SPIRV-NOEXT-NOT: Decorate {{[0-9]+}} NoSignedWrap
-; CHECK-SPIRV-NOEXT-NOT: Decorate {{[0-9]+}} NoUnsignedWrap
+; CHECK-SPIRV-NEGATIVE-NOT: Extension "SPV_KHR_no_integer_wrap_decoration"
+; CHECK-SPIRV-NEGATIVE-NOT: Decorate {{[0-9]+}} NoSignedWrap
+; CHECK-SPIRV-NEGATIVE-NOT: Decorate {{[0-9]+}} NoUnsignedWrap
 ;
 ; CHECK-INVALID-SPIRV: input SPIR-V module uses extension 'SPV_KHR_no_integer_wrap_decoration' which were disabled
 
@@ -55,7 +60,7 @@ define spir_func i32 @square(i16 zeroext %a) local_unnamed_addr #0 {
 entry:
   %conv = zext i16 %a to i32
   ; CHECK-LLVM: mul nuw nsw
-  ; CHECK-LLVM-NOEXT: mul i32
+  ; CHECK-LLVM-NEGATIVE: mul i32
   %mul = mul nuw nsw i32 %conv, %conv
   ret i32 %mul
 }

@@ -16,6 +16,7 @@
 #include "syclcp/SYCLCP.h"
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
@@ -70,6 +71,9 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   ModulePassManager MPM;
   // Run the fusion pass on the LLVM IR module.
   MPM.addPass(SYCLKernelFusion{BarriersFlags});
+  // This pass is needed to inline remapping function calls inserted by the
+  // SYCLKernelFusion pass.
+  MPM.addPass(AlwaysInlinerPass{});
   {
     FunctionPassManager FPM;
     // Run loop unrolling and SROA to split the kernel functor struct into its
