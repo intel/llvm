@@ -97,6 +97,6 @@ is not required.
 
 | `sycl::ext::oneapi::property::queue::high_priority`
 | This property signals that commands submitted to this queue should be treated with 
-more prioirty than all others.
+more priority than all others.
 |===
 
