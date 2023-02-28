@@ -43,12 +43,9 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
       // enqueued when kernel fusion is happening.
       SyclEventImplPtr->wait(SyclEventImplPtr);
     } else {
-      // In this path nullptr native event means that the command has been not
-      // enqueued. It may happen if async enqueue in host task involved into
-      // scenario. This should affect only shortcut functions which works
-      // bypassing graph. In case of graph involved all dependencies in
-      // this event list must be enqueued by graph processor before
-      // Command::enqueue called.
+      // In this path nullptr native event means that the command has not been
+      // enqueued. It may happen if async enqueue in a host task is involved.
+      // This should affect only shortcut functions, which bypass the graph.
       if (SyclEventImplPtr->getHandleRef() == nullptr) {
         std::vector<Command *> AuxCmds;
         Scheduler::getInstance().enqueueCommandForCG(SyclEventImplPtr, AuxCmds,

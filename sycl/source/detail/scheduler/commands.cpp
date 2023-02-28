@@ -244,9 +244,8 @@ std::vector<RT::PiEvent> Command::getPiEventsBlocking(
     // Throwaway host task also.
     if (!EventImpl->isContextInitialized() || EventImpl->is_host())
       continue;
-    // In this path nullptr native event means that the command has been not
-    // enqueued. It may happen if async enqueue in host task involved into
-    // scenario.
+    // In this path nullptr native event means that the command has not been
+    // enqueued. It may happen if async enqueue in a host task is involved.
     if (EventImpl->getHandleRef() == nullptr) {
       if (!EventImpl->getCommand() ||
           !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
