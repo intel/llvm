@@ -340,24 +340,42 @@ params:
       desc: |
             [out][optional] pointer to the actual size in bytes of data being queried by propName.
 --- #--------------------------------------------------------------------------
-type: function
-desc: "Set a Program object specialization constant to a specific value"
+type: struct
+desc: "Specialization constant information"
 class: $xProgram
-name: SetSpecializationConstant
+name: $x_specialization_constant_info_t
+members:
+    - type: uint32_t
+      name: id
+      desc: "[in] specialization constant Id"
+    - type: size_t
+      name: size
+      desc: "[in] size of the specialization constant value"
+    - type: const void*
+      name: pValue
+      desc: "[in] pointer to the specialization constant value bytes"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set an array of specialization constants on a Program."
+class: $xProgram
+name: SetSpecializationConstants
+details:
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
 ordinal: "0"
 params:
     - type: $x_program_handle_t
       name: hProgram
       desc: "[in] handle of the Program object"
     - type: uint32_t
-      name: specId
-      desc: "[in] specification constant Id"
-    - type: "size_t"
-      name: specSize
-      desc: "[in] size of the specialization constant value"
-    - type: "const void*"
-      name: pSpecValue
-      desc: "[in] pointer to the specialization value bytes"
+      name: count
+      desc: "[in] the number of elements in the pSpecConstants array"
+    - type: const $x_specialization_constant_info_t*
+      name: pSpecConstants
+      desc: "[in][range(0, count)] array of specialization constant value descriptions"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "`count == 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return program native program handle."

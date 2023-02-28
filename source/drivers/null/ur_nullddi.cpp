@@ -1334,20 +1334,20 @@ urProgramGetBuildInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramSetSpecializationConstant
+/// @brief Intercept function for urProgramSetSpecializationConstants
 __urdlllocal ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetSpecializationConstant = d_context.urDdiTable.Program.pfnSetSpecializationConstant;
-    if (nullptr != pfnSetSpecializationConstant) {
-        result = pfnSetSpecializationConstant(hProgram, specId, specSize, pSpecValue);
+    auto pfnSetSpecializationConstants = d_context.urDdiTable.Program.pfnSetSpecializationConstants;
+    if (nullptr != pfnSetSpecializationConstants) {
+        result = pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
     } else {
         // generic implementation
     }
@@ -1662,6 +1662,27 @@ urKernelSetArgMemObj(
     auto pfnSetArgMemObj = d_context.urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr != pfnSetArgMemObj) {
         result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnSetSpecializationConstants = d_context.urDdiTable.Kernel.pfnSetSpecializationConstants;
+    if (nullptr != pfnSetSpecializationConstants) {
+        result = pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
     } else {
         // generic implementation
     }
@@ -3136,6 +3157,8 @@ urGetKernelProcAddrTable(
 
     pDdiTable->pfnSetArgMemObj = driver::urKernelSetArgMemObj;
 
+    pDdiTable->pfnSetSpecializationConstants = driver::urKernelSetSpecializationConstants;
+
     return result;
 }
 
@@ -3292,7 +3315,7 @@ urGetProgramProcAddrTable(
 
     pDdiTable->pfnGetBuildInfo = driver::urProgramGetBuildInfo;
 
-    pDdiTable->pfnSetSpecializationConstant = driver::urProgramSetSpecializationConstant;
+    pDdiTable->pfnSetSpecializationConstants = driver::urProgramSetSpecializationConstants;
 
     pDdiTable->pfnGetNativeHandle = driver::urProgramGetNativeHandle;
 

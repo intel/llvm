@@ -275,7 +275,7 @@ urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES < infoType) {
+        if (UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < infoType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -1745,17 +1745,17 @@ urProgramGetBuildInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramSetSpecializationConstant
+/// @brief Intercept function for urProgramSetSpecializationConstants
 __urdlllocal ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 ) {
-    auto pfnSetSpecializationConstant = context.urDdiTable.Program.pfnSetSpecializationConstant;
+    auto pfnSetSpecializationConstants = context.urDdiTable.Program.pfnSetSpecializationConstants;
 
-    if (nullptr == pfnSetSpecializationConstant) {
+    if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -1764,12 +1764,16 @@ urProgramSetSpecializationConstant(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pSpecValue) {
+        if (NULL == pSpecConstants) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (count == 0) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
     }
 
-    return pfnSetSpecializationConstant(hProgram, specId, specSize, pSpecValue);
+    return pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2165,6 +2169,37 @@ urKernelSetArgMemObj(
     }
 
     return pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
+) {
+    auto pfnSetSpecializationConstants = context.urDdiTable.Kernel.pfnSetSpecializationConstants;
+
+    if (nullptr == pfnSetSpecializationConstants) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pSpecConstants) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (count == 0) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+    }
+
+    return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4208,6 +4243,9 @@ urGetKernelProcAddrTable(
     dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
     pDdiTable->pfnSetArgMemObj = validation_layer::urKernelSetArgMemObj;
 
+    dditable.pfnSetSpecializationConstants = pDdiTable->pfnSetSpecializationConstants;
+    pDdiTable->pfnSetSpecializationConstants = validation_layer::urKernelSetSpecializationConstants;
+
     return result;
 }
 
@@ -4402,8 +4440,8 @@ urGetProgramProcAddrTable(
     dditable.pfnGetBuildInfo = pDdiTable->pfnGetBuildInfo;
     pDdiTable->pfnGetBuildInfo = validation_layer::urProgramGetBuildInfo;
 
-    dditable.pfnSetSpecializationConstant = pDdiTable->pfnSetSpecializationConstant;
-    pDdiTable->pfnSetSpecializationConstant = validation_layer::urProgramSetSpecializationConstant;
+    dditable.pfnSetSpecializationConstants = pDdiTable->pfnSetSpecializationConstants;
+    pDdiTable->pfnSetSpecializationConstants = validation_layer::urProgramSetSpecializationConstants;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
     pDdiTable->pfnGetNativeHandle = validation_layer::urProgramGetNativeHandle;

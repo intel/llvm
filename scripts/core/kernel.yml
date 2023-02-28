@@ -345,6 +345,32 @@ returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Set an array of specialization constants on a Kernel."
+class: $xKernel
+name: SetSpecializationConstants
+details:
+    - "This entry point is optional, the application should query for support with device query $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS passed to $xDeviceGetInfo."
+    - "Adapters which are capable of setting specialization constants immediately prior to $xEnqueueKernelLaunch with low overhead should implement this entry point."
+    - "Otherwise, if setting specialization constants late requires recompiling or linking a program, adapters should not implement this entry point."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: uint32_t
+      name: count
+      desc: "[in] the number of elements in the pSpecConstants array"
+    - type: const $x_specialization_constant_info_t*
+      name: pSpecConstants
+      desc: "[in] array of specialization constant value descriptions"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "`count == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false"
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Return platform native kernel handle."
 class: $xKernel
 name: GetNativeHandle

@@ -306,7 +306,7 @@ urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES < infoType`
+///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < infoType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL
 urDeviceGetInfo(
@@ -1851,7 +1851,12 @@ urProgramGetBuildInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Program object specialization constant to a specific value
+/// @brief Set an array of specialization constants on a Program.
+///
+/// @details
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1860,13 +1865,15 @@ urProgramGetBuildInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSpecValue`
+///         + `NULL == pSpecConstants`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `count == 0`
 ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -2268,6 +2275,45 @@ urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
     ur_mem_handle_t hArgValue   ///< [in][optional] handle of Memory object.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set an array of specialization constants on a Kernel.
+///
+/// @details
+///     - This entry point is optional, the application should query for support
+///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
+///       passed to ::urDeviceGetInfo.
+///     - Adapters which are capable of setting specialization constants
+///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
+///       implement this entry point.
+///     - Otherwise, if setting specialization constants late requires
+///       recompiling or linking a program, adapters should not implement this
+///       entry point.
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSpecConstants`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false
+ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
