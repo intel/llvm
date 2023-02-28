@@ -27,97 +27,76 @@
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *
 __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
-                             __spv::Scope::Flag Sc = S, int MemOperand = 0);
+                             int MemOperand = 0);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *Object,
-    std::size_t Stride, __spv::MatrixLayout Layout = L,
-    __spv::Scope::Flag Sc = S, int MemOperand = 0);
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *Object,
+    std::size_t Stride, __spv::MatrixLayout Layout = L, int MemOperand = 0);
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           __spv::MatrixUse UA, __spv::MatrixUse UB, __spv::MatrixUse UC,
-          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, S, UC> *
 __spirv_JointMatrixMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, S, UA> *A,
+    __spv::__spirv_JointMatrixINTEL<T1, K, N, S, UB> *B,
+    __spv::__spirv_JointMatrixINTEL<T2, M, N, S, UC> *C);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
           __spv::MatrixUse UC,
-          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *
 __spirv_JointMatrixUUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, S, UA> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, S, UB> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *C);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
           __spv::MatrixUse UC,
-          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *
 __spirv_JointMatrixUSMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, S, UA> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, S, UB> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *C);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
           __spv::MatrixUse UC,
-          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *
 __spirv_JointMatrixSUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, S, UA> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, S, UB> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, S, UC> *C);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *
 __spirv_CompositeConstruct(const T v);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *);
+    __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *, size_t i);
+    __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *, size_t i);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
-__spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *
+__spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, S, U> *,
                             T val, size_t i);
 #else
 template <typename T, std::size_t R, std::size_t C,
