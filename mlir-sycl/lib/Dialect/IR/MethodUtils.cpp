@@ -34,14 +34,12 @@ Operation *trackCasts(Value Val) {
     return nullptr;
 
   return TypeSwitch<Operation *, Operation *>(DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp,
-            mlir::sycl::SYCLAddrSpaceCastOp>([](Operation *Op) {
-        if (auto *Res = trackCasts(Op->getOperand(0)))
-          return Res;
-        return Op;
-      })
-      .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
-          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
+      .Case<mlir::sycl::SYCLCastOp, mlir::sycl::SYCLAddrSpaceCastOp>(
+          [](Operation *Op) {
+            if (auto *Res = trackCasts(Op->getOperand(0)))
+              return Res;
+            return Op;
+          })
       .Default(static_cast<Operation *>(nullptr));
 }
 } // namespace
