@@ -282,9 +282,15 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // Guaranteed to return at least relaxed memory order
+    cl_int result = 1;
+    // TODO: Check for support for the rest of the capabilities
+    std::memcpy(paramValue, &result, sizeof(cl_int));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;
@@ -847,6 +853,13 @@ pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
     // 2D USM memops are not supported.
     cl_bool result = false;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // Guaranteed to return at least relaxed memory order
+    cl_int result = 1;
+    // TODO: Check for support for the rest of the capabilities
+    std::memcpy(paramValue, &result, sizeof(cl_int));
     return PI_SUCCESS;
   }
   default:
