@@ -159,7 +159,7 @@ public:
     return !(LHS == RHS);
   }
 
-  friend constexpr bool operator<(const NDRange &LHS, const NDRange &RHS) {
+  friend bool operator<(const NDRange &LHS, const NDRange &RHS) {
     if (LHS.Dimensions < RHS.Dimensions) {
       return true;
     }
@@ -192,7 +192,7 @@ public:
     return LHS.Offset < RHS.Offset;
   }
 
-  friend constexpr bool operator>(const NDRange &LHS, const NDRange &RHS) {
+  friend bool operator>(const NDRange &LHS, const NDRange &RHS) {
     return RHS < LHS;
   }
 
