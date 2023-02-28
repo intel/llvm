@@ -60,6 +60,10 @@ llvm::cl::opt<bool>
     GenerateAllSYCLFuncs("gen-all-sycl-funcs", llvm::cl::init(false),
                          llvm::cl::desc("Generate all SYCL functions"));
 
+llvm::cl::opt<bool>
+    GenerateSYCLAddrSpaceCast("gen-sycl-addrspacecast", llvm::cl::init(false),
+                              llvm::cl::desc("Genearte sycl.addrspacecast"));
+
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/
@@ -552,13 +556,31 @@ Value MLIRScanner::castToMemSpace(Value Val, unsigned MemSpace) {
         if (ValType.getMemorySpaceAsInt() == MemSpace)
           return Val;
 
-        return Builder.create<sycl::SYCLAddrSpaceCastOp>(
+        if (GenerateSYCLAddrSpaceCast)
+          return Builder.create<sycl::SYCLAddrSpaceCastOp>(
+              Loc,
+              MemRefType::get(ValType.getShape(), ValType.getElementType(),
+                              ValType.getLayout(),
+                              mlirclang::wrapIntegerMemorySpace(
+                                  MemSpace, ValType.getContext())),
+              Val);
+
+        // TODO: Use memref.memory_space_cast by default.
+        Value NewVal = Builder.create<polygeist::Memref2PointerOp>(
+            Loc,
+            LLVM::LLVMPointerType::get(ValType.getElementType(),
+                                       ValType.getMemorySpaceAsInt()),
+            Val);
+        NewVal = Builder.create<LLVM::AddrSpaceCastOp>(
+            Loc, LLVM::LLVMPointerType::get(ValType.getElementType(), MemSpace),
+            NewVal);
+        return Builder.create<polygeist::Pointer2MemrefOp>(
             Loc,
             MemRefType::get(ValType.getShape(), ValType.getElementType(),
-                            ValType.getLayout(),
+                            MemRefLayoutAttrInterface(),
                             mlirclang::wrapIntegerMemorySpace(
                                 MemSpace, ValType.getContext())),
-            Val);
+            NewVal);
       })
       .Case<LLVM::LLVMPointerType>([&](LLVM::LLVMPointerType ValType) -> Value {
         if (ValType.getAddressSpace() == MemSpace)

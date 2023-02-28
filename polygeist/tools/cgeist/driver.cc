@@ -209,6 +209,7 @@ static int emitBinary(const char *Argv0, const char *Filename,
 }
 
 #include "Lib/clang-mlir.cc"
+extern llvm::cl::opt<bool> GenerateSYCLAddrSpaceCast;
 
 // Load MLIR Dialects.
 static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
@@ -227,7 +228,18 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
   Ctx.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   Ctx.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
   Ctx.getOrLoadDialect<mlir::vector::VectorDialect>();
-  Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
+
+  if (SYCLIsDevice) {
+    Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
+    // TODO: Use memref.memory_space_cast by default.
+    if (GenerateSYCLAddrSpaceCast.getNumOccurrences() == 0)
+      GenerateSYCLAddrSpaceCast = true;
+  } else if (GenerateSYCLAddrSpaceCast) {
+    CGEIST_WARNING(
+        llvm::WithColor::warning()
+        << "Cannot use sycl.addrspacecast outside of SYCL context\n");
+    GenerateSYCLAddrSpaceCast = false;
+  }
 
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(Ctx);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(Ctx);
