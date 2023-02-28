@@ -36,7 +36,7 @@ enum uma_result_t {
                                                    ///< Retrieved via the umaPoolGetLastResult entry point.
     UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC = 3, ///< A provider specific warning/error has been reported and can be
                                                    ///< Retrieved via the umaMemoryProviderGetLastResult entry point.
-    UR_RESULT_ERROR_INVALID_ARGUMENT = 4,          ///< Generic error code for invalid arguments
+    UMA_RESULT_ERROR_INVALID_ARGUMENT = 4,         ///< Generic error code for invalid arguments
 
     UMA_RESULT_ERROR_UNKNOWN = 0x7ffffffe ///< Unknown or internal error
 };
