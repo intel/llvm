@@ -101,11 +101,13 @@ the following description:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
+
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = (Use == use::accumulator) ?
           layout::dynamic : /*unspecified*/ >
 struct joint_matrix;
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 When the `Use` parameter is `use::accumulator`, the `Layout` parameter
 defaults to `layout::dynamic`, and it is invalid to specify any other
@@ -120,12 +122,14 @@ implementations to reason about the layout of the matrix in registers.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
+
 enum class use {
   a,
   b,
   accumulator
 };
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 ==== Shape
@@ -133,15 +137,20 @@ The shape of a `joint_matrix` refers to its number of rows `Rows` and
 number of columns `Cols`.
 
 ==== Layout
-This specifies the memory layout and it can be row major or column major.
+This specifies the memory layout and it can be row major or column
+major. `dynamic` layout is used on the `joint_matrix` type when this
+is specified on the memory operations instead for the `accumulator`
+matrix.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
+
 enum class layout {
   row_major,
   col_major,
   dynamic
- };
+}; // namespace sycl::ext::oneapi::experimental::matrix
+
 }
 ```
 
@@ -169,12 +178,7 @@ matrix hardware implements new features.
 Since the matrix functions are group operations (as defined in Section
 4.17.3 of the SYCL specification), the matrix API has to be accessed
 by all the work-items in the group in a convergent control flow. The
-`Group` template argument can be a work-group or a sub-group. These
-functions will be called once by each work item in the group.
-
-To be aligned with the SYCL 2020 group algorithms, an additional group
-argument is added to the matrix operations to designate that these
-functions are collective operations. The {dpcpp} syntax is the following:
+`Group` template argument can be a work-group or a sub-group.
 
 IMPORTANT: In the current implementation, only the `sub_group` scope
 is supported.
@@ -182,21 +186,25 @@ is supported.
 ==== Load
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, typename S,
-            size_t Rows, size_t Cols,
-            access::address_space Space>
-  void joint_matrix_load(Group sg,
+
+template <typename Group, typename T, typename S,
+          size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+  void joint_matrix_load(Group g,
     joint_matrix<Group, T, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
     multi_ptr<S, Space, IsDecorated> src, size_t stride, layout Layout);
 
-  template <typename Group, typename T, typename S,
-            size_t Rows, size_t Cols,
-            use Use, layout Layout, access::address_space Space>
-  void joint_matrix_load(Group sg,
+// Only available when Layout != layout::dynamic
+template <typename Group, typename T, typename S,
+          size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+  void joint_matrix_load(Group g,
     joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
     multi_ptr<S, Space, IsDecorated> src, size_t stride);
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 `joint_matrix_load` loads data from memory to the 2d tiles/registers
@@ -207,26 +215,28 @@ The first overload that takes memory layout as an argument is only
 available for a `joint_matrix` type that used the default value
 `layout::dynamic`.
 The second overload without a memory layout must not be used with a
-`joint_matrix` type that used the default value `layout::dynamic`.
+`joint_matrix` type that has `layout::dynamic`.
 
-The base pointer `src` here determines the starting address of the
+The base pointer `src` of type `S` here determines the starting address of the
 matrix to be loaded from. `Layout` determines whether the data is
-being read in a row (`row_major`), column major (`column_major`)
+being read in a row (`row_major`), column major (`col_major`)
 fashion. `stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major
-layout.
-
+layout. Note that the type `S` must be convertible to matrix elements
+type `T`.
 
 ==== Store
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, size_t Rows, size_t Cols,
-            access::address_space Space>
-  void joint_matrix_store(Group sg,
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+  void joint_matrix_store(Group g,
     joint_matrix<Group, T, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> dest, size_t stride, layout Layout);
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 This function stores the data in the accumulator matrix from the 2d
 tiles back to memory.
@@ -242,15 +252,17 @@ rows for the row major layout, or between columns for the column major layout.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename Ta, typename Tb, typename Tc,
+
+template <typename Group, typename Ta, typename Tb, typename Tc,
   std::size_t M, std::size_t K, std::size_t N,
             layout LayoutA, layout LayoutB>
   joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic>
-  joint_matrix_mad(Group sg,
-    joint_matrix<Group, Ta, use::a, M, K, layoutA> A,
-    joint_matrix<Group, Tb, use::b, K, N, layoutB> B,
+  joint_matrix_mad(Group g,
+    joint_matrix<Group, Ta, use::a, M, K, LayoutA> A,
+    joint_matrix<Group, Tb, use::b, K, N, LayoutB> B,
     joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> C);
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 The matrix multiply and add function performs the multiply operation
 on the matrices `A` and `B`, accumulates the result with `C` and returns
@@ -268,11 +280,13 @@ matrix elements type `T`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, size_t Rows, size_t Cols,
-           use Use, layout Layout, typename Tv>
-  void joint_matrix_fill(Group sg, joint_matrix<Group, T, Use,
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout, typename Tv>
+  void joint_matrix_fill(Group g, joint_matrix<Group, T, Use,
                          Rows, Cols, Layout> &m, Tv v);
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 IMPORTANT: In the current implementation, only the `sub_group` scope
 is supported.
@@ -297,11 +311,13 @@ lambda expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template<typename Group, typename T, use Use, size_t Rows, size_t Cols,
+
+template<typename Group, typename T, use Use, size_t Rows, size_t Cols,
   layout Layout, typename F>
   void joint_matrix_apply(Group g, joint_matrix<Group, T, Use, Rows, Cols,
   Layout>C, F&& func);
-}
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 In the following example, every element of the matrix `C` is
@@ -327,9 +343,11 @@ restricted to `joint_matrix` using:
 
 Joint matrix type `tf32` is defined as an empty class with no member functions.
 ```c++
-namespace precision {
-  class tf32;
-}
+namespace sycl::ext::oneapi::experimental::matrix::precision {
+
+class tf32;
+
+} // namespace sycl::ext::oneapi::experimental::matrix::precision
 ```
 In this case, a `tf32` joint matrix type is declared by using the
 `precision::tf32` type for the `T` template parameter as follows:
@@ -355,8 +373,10 @@ truncated, an explicit rounding function should be used. A new function
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  float round_to_tf32(float elem);
-}
+
+float round_to_tf32(float elem);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 === Example using int8_t type
@@ -394,7 +414,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    });
    joint_matrix_store(sg, tC,
         multi_ptr<int32_t, sycl::access::address_space::global_space>(memC) +
-	sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+        sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
 }).wait();
 ```
 
@@ -457,6 +477,7 @@ accumulator
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
+
 template<tpu u, typename Ta=void, typename Tb=void, typename Tc=void,
 int sM=0, int sN=0, int sK=0>
 struct tpu_params;
@@ -538,6 +559,8 @@ enum class tpu {
   xmx16,
   amx
 };
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 ===== Validation Example:
 ```c++
@@ -575,7 +598,7 @@ descriptors that can be queried using `get_info` API.
 |======================
 | Device descriptors | Return type| Description
 |`ext::oneapi::experimental::info::device::matrix::scopes`
-|`std::vector<scope_t>`
+|`std::vector<scope>`
 |tells the execution scopes that are supported by the joint matrix
 operations on this device
 |`ext::oneapi::experimental::info::device::matrix::combinations` |
@@ -594,7 +617,9 @@ the maximum number is returned. However, if a device supports a
 discrete list of numbers so the `msize, nsize, ksize` variant is applied.
 
 ```c++
-enum class scope_t {
+namespace sycl::ext::oneapi::experimental::matrix {
+
+enum class scope {
   sub_group,
   work_group
 };
@@ -624,6 +649,8 @@ struct combination {
   matrix_type btype;
   matrix_type accumulatortype;
 };
+
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 Each combination of the `combinations` vector composes the types and

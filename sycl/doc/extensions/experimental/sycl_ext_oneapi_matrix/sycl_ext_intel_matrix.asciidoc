@@ -101,10 +101,12 @@ the following section.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
+
 enum class layout {
   packed
 };
-}
+
+} // namespace sycl::ext::intel::experimental::matrix
 ```
 
 
@@ -137,13 +139,16 @@ store on matrix `a` and `b` as well.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
-  template <typename Group, typename T, typename S,
-            size_t NumRows, size_t NumCols,
-            use Use, layout Layout, access::address_space Space>
-  void joint_matrix_store(Group sg,
+
+template <typename Group, typename T, typename S,
+          size_t NumRows, size_t NumCols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+  void joint_matrix_store(Group g,
     joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<S, Space, IsDecorated> src, size_t stride);
-}
+
+} // namespace sycl::ext::intel::experimental::matrix
 ```
 
 ==== Element Indexing and Piece-Wise Operations
@@ -228,8 +233,9 @@ The code listing below shows a synopsis of these new APIs.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
-   wi_data<group, T, Use, Rows, Cols, Layout> get_wi_data(Group sg,
-   joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
+
+wi_data<group, T, Use, Rows, Cols, Layout> get_wi_data(Group g,
+ joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
 
 template <typename T, size_t Rows, size_t Cols, use Use, layout
 Layout, typename Group>
@@ -250,7 +256,8 @@ class wi_element {
 
   std::tuple<size_t, size_t> get_coord();
 };
-}
+
+} // namespace sycl::ext::intel::experimental::matrix
 ```
 
 In the following example `wi_data_c` is a reference to the WI owned
@@ -379,7 +386,11 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 ```
 
 === Intel-Specific Runtime Query
-Besides the query we provide in ../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix], some device descriptors are Intel hardware specific. These are provided as part of `ext::intel::experimental::info::device::matrix` namespace:
+Besides the query we provide in
+../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
+some device descriptors are Intel hardware specific. These are
+provided as part of `ext::intel::experimental::info::device::matrix`
+namespace:
 
 [frame="none",options="header"]
 |======================
