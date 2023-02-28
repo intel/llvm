@@ -87,8 +87,8 @@ event submitTask(queue &Q, buffer<int, 1> &Buf) {
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  // This test manually blocks a host task node after its completion.
-  // Need to disable cleanup to keep the node alive.
+  // This test manually blocks a command node after its completion.
+  // Need to disable cleanup to keep it alive.
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
