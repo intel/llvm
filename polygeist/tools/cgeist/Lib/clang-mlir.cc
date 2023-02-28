@@ -56,14 +56,6 @@ llvm::cl::opt<std::string>
     PrefixABI("prefix-abi", llvm::cl::init(""),
               llvm::cl::desc("Prefix for emitted symbols"));
 
-llvm::cl::opt<bool>
-    GenerateAllSYCLFuncs("gen-all-sycl-funcs", llvm::cl::init(false),
-                         llvm::cl::desc("Generate all SYCL functions"));
-
-llvm::cl::opt<bool>
-    GenerateSYCLAddrSpaceCast("gen-sycl-addrspacecast", llvm::cl::init(false),
-                              llvm::cl::desc("Genearte sycl.addrspacecast"));
-
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/

@@ -22,13 +22,12 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-namespace {
 /// Returns the SYCL cast originating this value if such operation exists; None
 /// otherwise.
 ///
 /// This function relies on how arguments are casted to perform a function call.
 /// Should be updated if this changes.
-Operation *trackCasts(Value Val) {
+static Operation *trackCasts(Value Val) {
   auto *const DefiningOp = Val.getDefiningOp();
   if (!DefiningOp)
     return nullptr;
@@ -42,7 +41,6 @@ Operation *trackCasts(Value Val) {
           })
       .Default(static_cast<Operation *>(nullptr));
 }
-} // namespace
 
 Value mlir::sycl::abstractCasts(Value Original) {
   Operation *Cast = trackCasts(Original);

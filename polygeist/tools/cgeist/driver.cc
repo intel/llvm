@@ -209,7 +209,6 @@ static int emitBinary(const char *Argv0, const char *Filename,
 }
 
 #include "Lib/clang-mlir.cc"
-extern llvm::cl::opt<bool> GenerateSYCLAddrSpaceCast;
 
 // Load MLIR Dialects.
 static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {

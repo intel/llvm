@@ -1699,6 +1699,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  Loc, Ty, Scalar, getConstantIndex(0)),
                              /*isReference*/ false);
 
+      // TODO: When element types are the same, try to use operations in memref
+      // dialect (reshape, expand_shape, collapse_shape) to change the shape.
       if (ScalarTy.getShape().size() != MT.getShape().size() ||
           ScalarTy.getElementType() != MT.getElementType()) {
         auto MemRefToPtr = Builder.create<polygeist::Memref2PointerOp>(
