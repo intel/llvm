@@ -1,4 +1,4 @@
-sycl_ext_oneapi_matrix
+= sycl_ext_oneapi_matrix
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -20,7 +20,7 @@ sycl_ext_oneapi_matrix
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -66,7 +66,7 @@ as described in section 5.7.
 == Overview
 Joint matrix is a SYCL extension for matrix hardware programming. It
 unifies targets like Intel AMX in CPUs, Intel XMX in Intel GPUs and
-Nvidia Tensor Cores. This provides portable but performant API for
+Nvidia Tensor Cores. This provides a portable and performant API for
 users who want to build their own neural networks applications,
 perform custom optimzations, or experiment with new operations in a
 timely and performing manner.
@@ -102,15 +102,15 @@ the following description:
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout = layout::dynamic>
-struct joint_matrix {
-    joint_matrix() {}
-};
+          layout Layout = (Use == use::accumulator) ?
+          layout::dynamic : /*unspecified*/ >
+struct joint_matrix;
 }
 ```
-
-IMPORTANT: Matrix layout defaulting to `layout::dynamic` applies only
-to `joint_matrix` with `use::accumulator`
+When the `Use` parameter is `use::accumulator`, the `Layout` parameter
+defaults to `layout::dynamic`, and it is invalid to specify any other
+value for `Layout`. When `Use` has any other value, there is no default
+for `Layout`, and the application must specify one explicitly.
 
 ==== Use
 The main operation performed by the matrix hardware is `D=C+A*B`. `Use`
@@ -183,18 +183,18 @@ is supported.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, typename S,
-            size_t NumRows, size_t NumCols,
+            size_t Rows, size_t Cols,
             access::address_space Space>
   void joint_matrix_load(Group sg,
-    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+    joint_matrix<Group, T, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
     multi_ptr<S, Space, IsDecorated> src, size_t stride, layout Layout);
-    
+
   template <typename Group, typename T, typename S,
-            size_t NumRows, size_t NumCols,
+            size_t Rows, size_t Cols,
             use Use, layout Layout, access::address_space Space>
   void joint_matrix_load(Group sg,
-    joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
+    joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
     multi_ptr<S, Space, IsDecorated> src, size_t stride);
 }
 ```
@@ -202,7 +202,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 `joint_matrix_load` loads data from memory to the 2d tiles/registers
 of the matrix hardware.
 We define two overloads of the load function depending on whether the
-memory layout was declared as part of the `joint_matrix` type or not. 
+memory layout was declared as part of the `joint_matrix` type or not.
 The first overload that takes memory layout as an argument is only
 available for a `joint_matrix` type that used the default value
 `layout::dynamic`.
@@ -220,10 +220,10 @@ layout.
 ==== Store
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+  template <typename Group, typename T, size_t Rows, size_t Cols,
             access::address_space Space>
   void joint_matrix_store(Group sg,
-    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+    joint_matrix<Group, T, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> dest, size_t stride, layout Layout);
 }
@@ -235,7 +235,7 @@ The base pointer `dest` here determines the starting address of the
 matrix to be stored. `Layout` determines whether the data is being
 written in a row (`row_major`), column major (`column_major`)
 fashion. `stride` describes the number of elements between consecutive
-rows for the row major layout, or between columns for the column major layout. 
+rows for the row major layout, or between columns for the column major layout.
 
 
 ==== Multiply and Add
@@ -243,7 +243,7 @@ rows for the row major layout, or between columns for the column major layout.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename Ta, typename Tb, typename Tc,
-  std::size_t M, std::size_t K, std::size_t N, 
+  std::size_t M, std::size_t K, std::size_t N,
             layout LayoutA, layout LayoutB>
   joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic>
   joint_matrix_mad(Group sg,
@@ -262,14 +262,16 @@ Unlike `joint_matrix_load` that assumes that all the matrices are
 directly loaded from memory, `joint_matrix_fill`  makes it possible to
 multiply a matrix which is not directly loaded from memory but rather
 initialized directly in the register. On Intel AMX, if the
-initialization constant is zero, this would map to the `_tile_zero` intrinsic:
+initialization constant is zero, this would map to the `_tile_zero`
+intrinsic. Note that the value type `Tv` must be convertible to the
+matrix elements type `T`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+  template <typename Group, typename T, size_t Rows, size_t Cols,
            use Use, layout Layout, typename Tv>
   void joint_matrix_fill(Group sg, joint_matrix<Group, T, Use,
-  NumRows, NumCols, Layout> &m, Tv v);
+                         Rows, Cols, Layout> &m, Tv v);
 }
 ```
 IMPORTANT: In the current implementation, only the `sub_group` scope
@@ -287,17 +289,18 @@ examples of this usage. When the operation depends on the element
 index of the matrix, an Intel-specific extension is available as part
 of the * link:sycl_ext_intel_matrix.asciidoc[sycl_ext_intel_matrix]
 
-Besides the `Group` and the `joint_matrix` argument,
-`joint_matrix_apply` takes a lambda expression as an argument that
-specifies the specific operation on each of the elements of the input
-matrix.
+Besides the `Group` and the `joint_matrix` arguments,
+`joint_matrix_apply` takes a C++ Callable object which is invoked once
+for each element of the matrix. This callable object must be invocable
+with a single parameter of type `T&`. Commonly, applications pass a
+lambda expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  template<typename Group, typename T, use Use, size_t M, size_t N,
+  template<typename Group, typename T, use Use, size_t Rows, size_t Cols,
   layout Layout, typename F>
-  void joint_matrix_apply(Group g, joint_matrix<Group, T, Use, M, N,
-  Layout>C, F&& lambda);
+  void joint_matrix_apply(Group g, joint_matrix<Group, T, Use, Rows, Cols,
+  Layout>C, F&& func);
 }
 ```
 
@@ -306,41 +309,55 @@ multiplied by `alpha`. Then, an activation function, `relu` in this
 example, is applied on each of the elements of `C`.
 
 ```c++
-joint_matrix_apply(sg, C, [=](T x) {
+joint_matrix_apply(sg, C, [=](T &x) {
     x *= alpha;
     relu(x);
 });
 ```
 IMPORTANT: `joint_matrix_apply` is not implemented yet.
 
-=== Joint Matrix Additional Types
+=== Support for `tf32` Floating Point Type
 Besides C++ `half`, `float`, `double` types, and `sycl::bfloat16` types, joint
 matrix implementations may support other low-precision floating-point types
-such as tf32. tf32 type has a 19 bit format with one sign bit, 8
-exponent bits offering the same range as fp32,  and 10 mantissa bits
-offering same precision as  half type. The usage of tf32 type is
+such as `tf32`. `tf32` type has a 19 bit format with one sign bit, 8
+exponent bits offering the same range as `fp32`,  and 10 mantissa bits
+offering same precision as  half type. The usage of `tf32` type is
 restricted to `joint_matrix` using:
 `sycl::ext::oneapi::experimental::matrix::precision::tf32`.
 
-Joint matrix type tf32 is defined as an empty class with no member functions.
+Joint matrix type `tf32` is defined as an empty class with no member functions.
 ```c++
 namespace precision {
   class tf32;
 }
 ```
-Besides the type, one conversion function is added:
-`round_to_tf32` that  performs the rounding to tf32.
+In this case, a `tf32` joint matrix type is declared by using the
+`precision::tf32` type for the `T` template parameter as follows:
+
+```c++
+joint_matrix<sub_group, precision::tf32, use::a, tM, tK,
+             layout::row_major> tA;
+```
+
+The purpose of this support is to reduce the precision of the
+`joint_matrix_mad` operation. The rest of the application uses `fp32`
+type. Specifically, joint matrix load/store/fill  perform float type
+memory access to/from tf32 joint matrix. Also, the return type of
+element-wise accesses of a tf32 `joint_matrix` returns
+float. Consequently, general arithmetic is done on `fp32` data.
+
+Joint matrix APIs manipulate floats. No implicit rounding happens when
+users load or store data to/from joint matrices. By default,
+`joint_matrix_mad` works on truncated values (13 bits set to zero). If
+users want joint matrix data to be actually rounded to `tf32` instead of
+truncated, an explicit rounding function should be used. A new function
+`round_to_tf32` is added to  perform the rounding to `tf32`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-  float round_to_tf32(float &elem);
+  float round_to_tf32(float elem);
 }
 ```
-Joint matrix load/store/fill  perform float type memory access to/from
-tf32 joint matrix. Also, the return type of element-wise accesses of a
-tf32 `joint_matrix` returns float. In this case, general arithmetic is
-done on fp32 data.
-
 
 === Example using int8_t type
 ```c++
@@ -534,7 +551,7 @@ size_t NDRangeN = N / myparams::N;
 
 ===== Default Values Example:
 ```c++
-using myparams = tpu_params_both<tpu::xmx16, int8_t, int8_t, int>;
+using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
 size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
@@ -549,56 +566,32 @@ myparams::joint_matrix_accumulator<sub_group> sub_c;
 This provides a more general query interface with information about
 sizes, types,  and scopes that are supported by a specific matrix
 implementation. This is needed to avoid padding by the user, for
-tuning, and efficient code generation if used by a library. The
-general query returns an array of `combinations` of `combination`
-type. Each combination includes the sizes and the types for the
-matrices A, B, and accumulator. Note that for each matrix hardware,
-the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
-ksize` exclusively, depending on whether the implementation supports a
-continuous or discrete number of sizes. For example, the Intel AMX
-implementation supports a continuous number of sizes, so the `max_*`
-variant is applied and only the maximum number is returned. The Intel
-XMX implementation, on the other hand, supports a discrete list of
-numbers so the `msize, nsize, ksize` variant is applied.
+tuning, and efficient code generation if used by a library.
 
 The table below provides a description for each of the device matrix
-desciptors that can be queried using `get_info` API.
+descriptors that can be queried using `get_info` API.
 
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::numtiles`| `uint32_t`
-|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
 |`ext::oneapi::experimental::info::device::matrix::scopes`
 |`std::vector<scope_t>`
-|indicates the memory and execution scopes supported by the matrix
-implementation
-|`ext::oneapi::experimental::info::device::matrix::num_scopes`|`uint32_t`
-|indicates number of scopes supported by the matrix implementation
+|tells the execution scopes that are supported by the joint matrix
+operations on this device
 |`ext::oneapi::experimental::info::device::matrix::combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
-and types
-|`ext::oneapi::experimental::info::device::matrix::num_combinations`|`uint32_t`
-|indicates number of combinations supported by the matrix
-implementation which corresponds to the size of the `combinations` array
-|`combination` 
-|`combination`
-|composes the types and sizes of A, B, accumulator matrices allowed in
-one combination
-|`max_msize`, `max_nsize`, `max_ksize`| `uint32_t`| if the matrix
-implementation supports a continuous number of element sizes, each of
-these members is non-zero, and the matrix implementation supports all
-element sizes from 1 up to (and including) that number. By contrast,
-if the TPU implementation supports a discrete number of element
-sizes, each of these members has the value zero
-|`msize`, `nsize`, `ksize`| `uint32_t`| if the matrix implementation
-supports a discrete number of element sizes, each of these members is
-non-zero, and the value tells one of the supported element sizes. By
-contrast, if the matrix hardware supports a continuous number of
-element sizes, each of these members has the value zero
-|`atype`, `btype`, `accumulatortype`| `matrix_type` | indicates the
-types supported in the combination
+and types on this device
 |======================
+
+The general query returns a vector of `combinations` of `combination`
+type. Each combination includes the sizes and the types for the
+matrices A, B, and accumulator. Note that for each matrix hardware,
+the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
+ksize` exclusively, depending on whether the implementation supports a
+continuous or discrete number of sizes. If a device support a
+continuous number of sizes, the `max_*` variant is applied and only
+the maximum number is returned. However, if a device supports a
+discrete list of numbers so the `msize, nsize, ksize` variant is applied.
 
 ```c++
 enum class scope_t {
@@ -611,14 +604,10 @@ enum class matrix_type {
   tf32,
   fp32,
   fp64,
-  sint2,
-  sint4,
   sint8,
   sint16,
   sint32,
   sint64,
-  uint2,
-  uint4,
   uint8,
   uint16,
   uint32,
@@ -637,6 +626,44 @@ struct combination {
 };
 ```
 
+Each combination of the `combinations` vector composes the types and
+sizes of A, B, accumulator matrices supported by the device
+implementation. The
+table below provides a description of each member of the `combination` struct.
+
+[frame="none",options="header"]
+|======================
+| Member of `combination` | Description
+|`max_msize`, `max_nsize`, `max_ksize`| if the matrix implementation
+supports a continuous number of element sizes, each of these members
+is non-zero, and the matrix implementation supports all element sizes
+from 1 up to (and including) that number. By contrast, if the TPU
+implementation supports a discrete number of element sizes, each of
+these members has the value zero
+|`msize`, `nsize`, `ksize`| if the matrix implementation supports a
+discrete number of element sizes, each of these members is non-zero,
+and the value tells one of the supported element sizes. By contrast,
+if the matrix hardware supports a continuous number of element sizes,
+each of these members has the value zero
+|`atype`, `btype`, `accumulatortype`| indicates the types supported in
+the combination. these are of type `matrix_type` which tells the list
+of types that are supported for the A, B, and accumulator matrices in
+the `T` template parameter as follows: +
+`bf16`: `sycl::bfloat16` +
+`fp16`: `sycl::half` +
+`tf32`: `sycl::ext::oneapi::experimental::matrix::precision::tf32` +
+`fp32`: `float` +
+`fp64`: `double` +
+`sint8`: signed 8 bits signed integer +
+`sint16`: `signed short` +
+`sint32`: `signed int` +
+`sint64`: `signed long` +
+`uint8`: unsigned 8 bits integer +
+`uint16`: `unsigned short` +
+`uint32`: `unsigned int` +
+`uint64`: `unsigned long` 
+|======================
+
 ===== General Query Example:
 ```c++
 constexpr int M = 1500; // with msize = 8 and msize = 4,
@@ -644,12 +671,15 @@ constexpr int M = 1500; // with msize = 8 and msize = 4,
           // remaining 500 using 125 sequence of 4-sized ops
 auto combinations = device.get_info<info::device::matrix::combinations>();
 
-constexpr int {msize, nsize, ksize} = break_dimension(combinations, M);
-constexpr int msize_remainder = break_dimension_remainder(combinations, M);
+int {msize, nsize, ksize} = break_dimension(combinations, M);
+int msize_remainder = break_dimension_remainder(combinations, M);
 // device code:
-joint_matrix<sub_group, int8_t, use::a, msize, ksize, layout::row_major> sub_a;
-joint_matrix<sub_group, int8_t, use::b, ksize, nsize, layout::row_major> sub_b;
-joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
+
+//joint_matrix<sub_group, int8_t, use::a, msize, ksize,
+// layout::row_major> sub_a;
+//joint_matrix<sub_group, int8_t, use::b, ksize, nsize,
+// layout::row_major> sub_b;
+//joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 //Remainder handling
 ```
 

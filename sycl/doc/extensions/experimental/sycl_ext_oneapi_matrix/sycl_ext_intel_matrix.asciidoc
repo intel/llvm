@@ -378,6 +378,16 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 }).wait();
 ```
 
+=== Intel-Specific Runtime Query
+Besides the query we provide in ../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix], some device descriptors are Intel hardware specific. These are provided as part of `ext::intel::experimental::info::device::matrix` namespace:
+
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::oneapi::experimental::info::device::matrix::numtiles`| `uint32_t`
+|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
+|======================
+
 == Revision History
 
 [frame="none",options="header"]
