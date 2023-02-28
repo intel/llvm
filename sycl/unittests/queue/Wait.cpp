@@ -11,16 +11,12 @@
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
-#include <helpers/ScopedEnvVar.hpp>
 #include <sycl/sycl.hpp>
 
 #include <memory>
 
 namespace {
 using namespace sycl;
-
-constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
 struct TestCtx {
   bool SupportOOO = true;
@@ -87,12 +83,6 @@ event submitTask(queue &Q, buffer<int, 1> &Buf) {
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  // This test manually blocks a command node after its completion.
-  // Need to disable cleanup to keep it alive.
-  unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
