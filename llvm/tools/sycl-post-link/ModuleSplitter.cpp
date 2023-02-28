@@ -881,5 +881,107 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
+void DeviceCodeSplitRulesBuilder::registerRule(
+    const std::function<std::string(Function *)> &Callback) {
+  Rules.push_back(Rule::get<CallbackRuleData>(Callback));
+}
+
+void DeviceCodeSplitRulesBuilder::registerSimpleStringAttributeRule(
+    StringRef Attr) {
+  Rules.push_back(Rule::get<SimpleStringAttrRuleData>(Attr));
+}
+
+void DeviceCodeSplitRulesBuilder::registerSimpleFlagMetadataRule(
+    StringRef TrueStr, StringRef FalseStr, StringRef MetadataName) {
+  Rules.push_back(
+      Rule::get<FlagMetadataRuleData>(TrueStr, FalseStr, MetadataName));
+}
+
+void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataRule(
+    StringRef MetadataName) {
+  Rules.push_back(Rule::get<IntegersListMetadataRuleData>(MetadataName));
+}
+
+std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
+  std::string Result;
+  for (const auto &R : Rules) {
+    switch (R.Kind) {
+    case RuleKind::CALLBACK:
+      Result += R.getCallbackRuleData().Callback(F);
+      break;
+    case RuleKind::SIMPLE_STRING_ATTR: {
+      auto AttrName = R.getSimpleStringAttrRuleData().Attr;
+      if (F->hasFnAttribute(AttrName)) {
+        auto Attr = F->getFnAttribute(AttrName);
+        assert(Attr.isStringAttribute());
+        Result += Attr.getValueAsString();
+      }
+    } break;
+    case RuleKind::FLAG_METADATA: {
+      auto Data = R.getFlagMetadataRuleData();
+      if (F->hasMetadata(Data.MetadataName))
+        Result += Data.TrueStr;
+      else
+        Result += Data.FalseStr;
+    } break;
+    case RuleKind::INTEGERS_LIST_METADATA: {
+      auto MetadataName = R.getIntegersListMetadataRuleData().MetadataName;
+      if (F->hasMetadata(MetadataName)) {
+        auto *MDN = F->getMetadata(MetadataName);
+        for (const MDOperand &MDOp : MDN->operands())
+          Result += std::to_string(
+              mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+      }
+    } break;
+    }
+  }
+
+  return Result;
+}
+
+std::unique_ptr<ModuleSplitterBase>
+getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
+                   bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec Groups;
+
+  StringMap<EntryPointSet> GroupNameToFunctionsMap;
+
+  Module &M = MD.getModule();
+
+  // Only process module entry points:
+  for (auto &F : M.functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F)) {
+      continue;
+    }
+
+    auto Key = Rules.executeRules(&F);
+    GroupNameToFunctionsMap[Key].insert(&F);
+  }
+
+  if (GroupNameToFunctionsMap.empty()) {
+    // No entry points met, record this.
+    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+  } else {
+    Groups.reserve(GroupNameToFunctionsMap.size());
+    for (auto &It : GroupNameToFunctionsMap) {
+      auto Name = It.getKey();
+      EntryPointSet &EntryPoints = It.getValue();
+
+      // Start with properties of a source module
+      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
+      // FIXME: properly set top-level properties
+      // if (Features.UsesLargeGRF)
+      //   MDProps.UsesLargeGRF = true;
+      Groups.emplace_back(Name, std::move(EntryPoints), MDProps);
+    }
+  }
+
+  if (Groups.size() > 1)
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
 } // namespace module_split
 } // namespace llvm
