@@ -66,47 +66,6 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
   }
 }
 
-std::vector<RT::PiEvent>
-Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<RT::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls) {
-    // Throw away events created with empty constructor will not have a context
-    // (which is set lazily) calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    // Throw away host task also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
-      continue;
-    // In this path nullptr native event means that the command has been not
-    // enqueued. It may happen if async enqueue in host task involved into
-    // scenario. This should affect only shortcut functions which works
-    // bypassing graph. In case of graph involved all dependencies in
-    // this event list must be enqueued by graph processor before
-    // Command::enqueue called.
-    if (EventImpl->getHandleRef() == nullptr) {
-      if (!EventImpl->getCommand() ||
-          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
-        continue;
-      std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
-    }
-    // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
-    // to different sync mechanisms for different task types on in-order queue.
-    const QueueImplPtr &WorkerQueue = getWorkerQueue();
-    // MWorkerQueue in command is always not null. So check if
-    // EventImpl->getWorkerQueue != nullptr is implicit.
-    if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->isInOrder() && !isHostTask())
-      continue;
-
-    RetPiEvents.push_back(EventImpl->getHandleRef());
-  }
-
-  return RetPiEvents;
-}
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
