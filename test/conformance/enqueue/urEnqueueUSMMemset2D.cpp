@@ -39,8 +39,8 @@ struct urEnqueueUSMMemset2DTestWithParam
         ASSERT_SUCCESS(
             urEnqueueUSMMemcpy2D(queue, true, host_mem.data(), pitch, ptr,
                                  pitch, width, height, 0, nullptr, nullptr));
-        for (int w = 0; w < width; ++w) {
-            for (int h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+            for (size_t h = 0; h < height; ++h) {
                 char *host_ptr = host_mem.data();
                 size_t index = (pitch * h) + w;
                 ASSERT_TRUE((*(host_ptr + index) == memset_value));
@@ -49,10 +49,10 @@ struct urEnqueueUSMMemset2DTestWithParam
     }
 
     const int memset_value = 12;
-    int pitch;
-    int width;
-    int height;
-    uint32_t num_elements;
+    size_t pitch;
+    size_t width;
+    size_t height;
+    size_t num_elements;
     std::vector<char> host_mem;
     int *ptr{nullptr};
 };
@@ -120,10 +120,10 @@ struct urEnqueueUSMMemset2DNegativeTest : uur::urQueueTest {
     }
 
     const int memset_value = 12;
-    int default_pitch = 16;
-    int default_width = 16;
-    int default_height = 16;
-    uint32_t num_elements = default_pitch * default_height;
+    size_t default_pitch = 16;
+    size_t default_width = 16;
+    size_t default_height = 16;
+    size_t num_elements = default_pitch * default_height;
     int *ptr{nullptr};
 };
 
