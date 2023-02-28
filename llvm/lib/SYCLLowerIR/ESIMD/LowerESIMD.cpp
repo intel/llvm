@@ -312,21 +312,28 @@ public:
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
         // source
-        // spelling of and intrinsic (what follows the "__esimd_" prefix), and
+        // spelling of and intrinsic (what follows the "__esimd_" prefix),
+        // and
         // the
         // value is an instance of the ESIMDIntrinDesc class.
         // Example for the "rdregion" intrinsic encoding:
-        // "rdregion" - the GenX spelling of the intrinsic ("llvm.genx." prefix
+        // "rdregion" - the GenX spelling of the intrinsic ("llvm.genx."
+        // prefix
         //      and type suffixes maybe added to get full GenX name)
         // {a(0), t(3),...}
-        //      defines a map from the resulting genx.* intrinsic call arguments
-        //      to the source call's template or function call arguments, e.g.
+        //      defines a map from the resulting genx.* intrinsic call
+        //      arguments
+        //      to the source call's template or function call arguments,
+        //      e.g.
         //      0th genx arg - maps to 0th source call arg
-        //      1st genx arg - maps to 3rd template argument of the source call
+        //      1st genx arg - maps to 3rd template argument of the source
+        //      call
         // nk(N) or bo(N)
         //      a rule applied to the base intrinsic name in order to
-        //      construct a full name ("llvm.genx." prefix s also added); e.g.
-        //      - nk(-1) denotes adding the return type name-based suffix - "i"
+        //      construct a full name ("llvm.genx." prefix s also added);
+        //      e.g.
+        //      - nk(-1) denotes adding the return type name-based suffix -
+        //      "i"
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
@@ -470,7 +477,8 @@ public:
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes
-        // arg3: vXi32 original value of the register that the data is read into
+        // arg3: vXi32 original value of the register that the data is read
+        // into
         {"dword_atomic0",
          {"dword.atomic", {ai1(0), aSI(1), a(2), u(-1)}, bo(0)}},
 
@@ -478,7 +486,8 @@ public:
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes (overloaded)
         // arg3: vXi32/vXfloat src
-        // arg4: vXi32/vXfloat original value of the register that the data is
+        // arg4: vXi32/vXfloat original value of the register that the data
+        // is
         // read into
         {"dword_atomic1",
          {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), u(-1)}, bo(0)}},
@@ -488,7 +497,8 @@ public:
         // arg2: vXi32 element offset in bytes
         // arg3: vXi32 src0
         // arg4: vXi32 src1
-        // arg5: vXi32 original value of the register that the data is read into
+        // arg5: vXi32 original value of the register that the data is read
+        // into
         {"dword_atomic2",
          {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), a(4), u(-1)}, bo(0)}},
 
@@ -658,13 +668,18 @@ public:
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
         {"bf_cvt", {"bf.cvt", {a(0)}}},
-        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}},
+        {"__devicelib_ConvertFToBF16INTEL",
+         {"intel_convert_bfloat16_as_ushort", {a(0)}}},
+        {"__devicelib_ConvertBF16ToFINTEL",
+         {"intel_convert_as_bfloat16_float", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
 };
 
-// The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic table
+// The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic
+// table
 static const IntrinTable &getIntrinTable() {
   static ESIMDIntrinDescTable TheTable;
   return TheTable.getTable();
@@ -678,6 +693,25 @@ static const ESIMDIntrinDesc &getIntrinDesc(StringRef SrcSpelling) {
   llvm::esimd::assert_and_diag(It != Table.end(),
                                "unknown ESIMD intrinsic: ", SrcSpelling);
   return It->second;
+}
+
+static bool isDevicelibFunction(StringRef FunctionName) {
+  return llvm::StringSwitch<bool>(FunctionName)
+      .Case("__devicelib_ConvertFToBF16INTEL", true)
+      .Case("__devicelib_ConvertBF16ToFINTEL", true)
+      .Default(false);
+}
+
+static std::string mangleDevicelibFunction(StringRef FunctionName) {
+  if (isDevicelibFunction(FunctionName)) {
+    if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
+      return (Twine("_Z31") + FunctionName + "RKf").str();
+    }
+    if (FunctionName.startswith("__devicelib_ConvertBF16ToFINTEL")) {
+      return (Twine("_Z31") + FunctionName + "RKt").str();
+    }
+  }
+  return FunctionName.str();
 }
 
 Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
@@ -771,9 +805,9 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
                10);
 }
 
-// Constructs a GenX intrinsic name suffix based on the original C++ name (stem)
-// and the types of its parameters (some intrinsic names have additional
-// suffixes depending on the parameter types).
+// Constructs a GenX intrinsic name suffix based on the original C++ name
+// (stem) and the types of its parameters (some intrinsic names have
+// additional suffixes depending on the parameter types).
 static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
                                         FunctionType *FT,
                                         const ESIMDIntrinDesc::NameRule &Rule) {
@@ -913,9 +947,9 @@ static void translatePackMask(CallInst &CI) {
   Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
   // TODO CM_COMPAT
-  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
-  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
-  // For CM this ICmpInst should be replaced with truncation to i1.
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated
+  // as 'false' there. ESIMD adopts C++ semantics, where any non-zero is
+  // 'true'. For CM this ICmpInst should be replaced with truncation to i1.
   Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
   Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
@@ -1001,10 +1035,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
   CI.replaceAllUsesWith(SI);
 }
 
-// Newly created GenX intrinsic might have different return type than expected.
-// This helper function creates cast operation from GenX intrinsic return type
-// to currently expected. Returns pointer to created cast instruction if it
-// was created, otherwise returns NewI.
+// Newly created GenX intrinsic might have different return type than
+// expected. This helper function creates cast operation from GenX intrinsic
+// return type to currently expected. Returns pointer to created cast
+// instruction if it was created, otherwise returns NewI.
 static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
@@ -1164,10 +1198,10 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // uint32_t __spirv_BuiltIn SubgroupId;
   // uint32_t __spirv_BuiltIn GlobalLinearId
 
-  // Translate those loads from _scalar_ SPIRV globals that can be replaced with
-  // a const value here.
-  // The loads from other scalar SPIRV globals may require insertion of GenX
-  // calls before each user, which is done in the loop by users of 'LI' below.
+  // Translate those loads from _scalar_ SPIRV globals that can be replaced
+  // with a const value here. The loads from other scalar SPIRV globals may
+  // require insertion of GenX calls before each user, which is done in the
+  // loop by users of 'LI' below.
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "SubgroupLocalInvocationId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
@@ -1284,6 +1318,41 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
   }
 }
 
+// Create a spirv function declaration
+// This is used for lowering devicelib functions
+static Function *
+createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
+                                SmallVector<Value *, 16> &GenXArgs,
+                                CallInst &CI) {
+  SmallVector<Type *, 16> ArgTypes;
+  IRBuilder<> Bld(&CI);
+  for (unsigned i = 0; i < GenXArgs.size(); ++i) {
+    Type *NTy = llvm::StringSwitch<Type *>(Desc.GenXSpelling)
+                    .Case("intel_convert_bfloat16_as_ushort",
+                          Type::getFloatTy(CI.getContext()))
+                    .Case("intel_convert_as_bfloat16_float",
+                          Type::getInt16Ty(CI.getContext()))
+                    .Default(nullptr);
+
+    auto LI = Bld.CreateLoad(NTy, GenXArgs[i]);
+    GenXArgs[i] = LI;
+    ArgTypes.push_back(NTy);
+  }
+  auto *FType = FunctionType::get(CI.getType(), ArgTypes, false);
+  Function *F = CI.getModule()->getFunction(Desc.GenXSpelling);
+  if (!F) {
+    F = Function::Create(FType, GlobalVariable::ExternalLinkage,
+                         Desc.GenXSpelling, CI.getModule());
+    F->addFnAttr(Attribute::NoUnwind);
+    F->addFnAttr(Attribute::Convergent);
+    F->setDSOLocal(true);
+
+    F->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+
+  return F;
+}
+
 // Create a simple function declaration
 // This is used for testing purposes, when it is impossible to query
 // vc-intrinsics
@@ -1307,7 +1376,8 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 // __esimd_flat_read<int, 16>(
 //     sycl::_V1::ext::intel::experimental::esimd::__vector_type<unsigned long
 //     long, 16>::type,
-//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int,
+//     16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1361,7 +1431,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
   llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-  StringRef MnglName = F->getName();
+  std::string MnglNameStr = mangleDevicelibFunction(F->getName());
+  StringRef MnglName = MnglNameStr;
+
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
@@ -1374,7 +1446,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
   id::StringView BaseNameV = FE->getName()->getBaseName();
 
-  auto PrefLen = StringRef(ESIMD_INTRIN_PREF1).size();
+  auto PrefLen = isDevicelibFunction(F->getName())
+                     ? 0
+                     : StringRef(ESIMD_INTRIN_PREF1).size();
   StringRef BaseName(BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
   const auto &Desc = getIntrinDesc(BaseName);
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
@@ -1385,7 +1459,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
   Function *NewFDecl = nullptr;
-  if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
+  if (isDevicelibFunction(F->getName())) {
+    NewFDecl = createDeviceLibESIMDDeclaration(Desc, GenXArgs, CI);
+  } else if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
     // Special case for testing purposes
     NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
   } else {
@@ -1652,7 +1728,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // See if the Name represents an ESIMD intrinsic and demangle only if it
       // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0))
+      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
         continue;
       // now skip the digits
       Name = Name.drop_while([](char C) { return std::isdigit(C); });
@@ -1699,7 +1775,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       assert(!Name.startswith("__sycl_set_kernel_properties") &&
              "__sycl_set_kernel_properties must have been lowered");
 
-      if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
+      if (Name.empty() ||
+          (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
