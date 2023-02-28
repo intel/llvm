@@ -25,7 +25,7 @@ namespace experimental {
 namespace {
 #define PROPAGATE_OP(op)                                                       \
   annotated_ref operator op(const T &rhs) noexcept {                           \
-    (*ptr) op rhs;                                                             \
+    (*m_Ptr) op rhs;                                                             \
     return *this;                                                              \
   }
 
@@ -41,7 +41,7 @@ class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 private:
-  T *ptr
+  T *m_Ptr
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(
           detail::PropertyMetaInfo<Props>::name...,
@@ -50,13 +50,13 @@ private:
       ;
 
 public:
-  annotated_ref(T *_ptr) : ptr(_ptr) {}
+  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
   annotated_ref(const annotated_ref &) = default;
 
-  operator T() const { return *ptr; }
+  operator T() const { return *m_Ptr; }
 
-  annotated_ref &operator=(const T &obj) {
-    *ptr = obj;
+  annotated_ref &operator=(const T &Obj) {
+    *m_Ptr = Obj;
     return *this;
   }
 
@@ -75,7 +75,7 @@ public:
 #undef PROPAGATE_OP
 } // namespace
 
-// Deduction guide
+#ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
 annotated_ptr(T *, Args...)
     -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
@@ -84,6 +84,7 @@ template <typename T, typename old, typename... ArgT>
 annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
     -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
+#endif // __cpp_deduction_guides
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ptr {
@@ -105,15 +106,15 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using global_pointer_t = T *;
 #endif
 
-  global_pointer_t ptr;
+  global_pointer_t m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t _obj) {
-    ptr = _obj;
+      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t Ptr) {
+    m_Ptr = Ptr;
   }
 #endif
 
@@ -125,17 +126,17 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  annotated_ptr(T *_ptr,
+  annotated_ptr(T *Ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : ptr(global_pointer_t(_ptr)) {}
+      : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *_ptr, const PropertyValueTs &...props) noexcept
-      : ptr(global_pointer_t(_ptr)) {
+  annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
+      : m_Ptr(global_pointer_t(Ptr)) {
     static_assert(
         std::is_same<
             property_list_t,
@@ -151,7 +152,7 @@ public:
   // must have the same property value.
   template <typename T2, typename PropertyList2>
   explicit annotated_ptr(const annotated_ptr<T2, PropertyList2> &other) noexcept
-      : ptr(other.ptr) {
+      : m_Ptr(other.m_Ptr) {
     static_assert(
         std::is_convertible<T2 *, T *>::value,
         "The underlying pointer type of the input annotated_ptr is not "
@@ -173,7 +174,7 @@ public:
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
-      : ptr(other.ptr) {
+      : m_Ptr(other.m_Ptr) {
     static_assert(
         std::is_convertible<T2 *, T *>::value,
         "The underlying pointer type of the input annotated_ptr is not "
@@ -187,50 +188,50 @@ public:
         "of the input property lists");
   }
 
-  reference operator*() const noexcept { return reference(ptr); }
+  reference operator*() const noexcept { return reference(m_Ptr); }
 
   reference operator[](std::ptrdiff_t idx) const noexcept {
-    return reference(ptr + idx);
+    return reference(m_Ptr + idx);
   }
 
   annotated_ptr operator+(size_t offset) const noexcept {
-    return annotated_ptr<T, property_list_t>(ptr + offset);
+    return annotated_ptr<T, property_list_t>(m_Ptr + offset);
   }
 
   std::ptrdiff_t operator-(annotated_ptr other) const noexcept {
-    return ptr - other.ptr;
+    return m_Ptr - other.m_Ptr;
   }
 
-  explicit operator bool() const noexcept { return ptr != nullptr; }
+  explicit operator bool() const noexcept { return m_Ptr != nullptr; }
 
   operator T *() noexcept = delete;
   operator T *() const = delete;
 
-  T *get() const noexcept { return ptr; }
+  T *get() const noexcept { return m_Ptr; }
 
   annotated_ptr &operator=(T *) noexcept {
-    return annotated_ptr<T, property_list_t>(ptr);
+    return annotated_ptr<T, property_list_t>(m_Ptr);
   }
 
   annotated_ptr &operator++() noexcept {
-    ptr += 1;
+    m_Ptr += 1;
     return *this;
   }
 
   annotated_ptr operator++(int) noexcept {
     auto tmp = *this;
-    ptr += 1;
+    m_Ptr += 1;
     return tmp;
   }
 
   annotated_ptr &operator--() noexcept {
-    ptr -= 1;
+    m_Ptr -= 1;
     return *this;
   }
 
   annotated_ptr operator--(int) noexcept {
     auto tmp = *this;
-    ptr -= 1;
+    m_Ptr -= 1;
     return tmp;
   }
 
