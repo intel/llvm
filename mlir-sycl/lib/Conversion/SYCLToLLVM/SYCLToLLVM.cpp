@@ -100,6 +100,71 @@ struct AccessorGetMemRange : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 1};
 };
 
+/// Get the global range from an nd_range.
+struct NDRangeGetGlobalRange : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{0};
+};
+
+/// Get the local range from an nd_range.
+struct NDRangeGetLocalRange : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{1};
+};
+
+/// Get the offset from an nd_range.
+struct NDRangeGetOffset : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{2};
+};
+
+/// Get the ID field from an item.
+struct ItemGetID : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 1};
+};
+
+/// Get the range field from an item.
+struct ItemGetRange : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 0};
+};
+
+/// Get the offset field from an item.
+struct ItemGetOffset : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 2};
+};
+
+/// Get the ID field from a group.
+struct GroupGetID : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{3};
+};
+
+/// Get the global range field from a group.
+struct GroupGetGlobalRange : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{0};
+};
+
+/// Get the local range field from a group.
+struct GroupGetLocalRange : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{1};
+};
+
+/// Get the group range field from a group.
+struct GroupGetGroupRange : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{2};
+};
+
+/// Get the global item field from an nd_item.
+struct NDItemGlobalItem : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{0};
+};
+
+/// Get the local item field from an nd_item.
+struct NDItemLocalItem : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{1};
+};
+
+/// Get the group field from an nd_item.
+struct NDItemGroup : public OffsetTag {
+  static constexpr std::array<int32_t, 1> indices{2};
+};
+
 /// Auxiliary function to build an indices array from a tag.
 template <typename Iter, typename Tag,
           typename = std::enable_if_t<std::is_base_of_v<OffsetTag, Tag>>>
@@ -354,6 +419,130 @@ public:
     rewriter.replaceOp(op, newValue);
   }
 };
+
+template <typename Op>
+class GetLinearIDPattern : public ConvertOpToLLVMPattern<Op> {
+protected:
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+  virtual Value getID(OpBuilder &builder, Location loc, Type ptrTy,
+                      Value thisArg, int32_t index) const = 0;
+  virtual Value getRange(OpBuilder &builder, Location loc, Type ptrTy,
+                         Value thisArg, int32_t index) const = 0;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const auto thisArg = adaptor.getOperands()[0];
+    const auto ptrTy = LLVM::LLVMPointerType::get(
+        op.getType(), thisArg.getType()
+                          .template cast<LLVM::LLVMPointerType>()
+                          .getAddressSpace());
+    const auto loc = op.getLoc();
+    const auto dimension = getDimensions(op.getOperand().getType());
+    const auto newValue = [this, loc, thisArg, ptrTy, dimension,
+                           &rewriter]() -> Value {
+      switch (dimension) {
+      case 1:
+        // get_id(0)
+        return getID(rewriter, loc, ptrTy, thisArg, 0);
+      case 2: {
+        // get_id(0) * get_range(1) + get_id(1)
+        const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
+        const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+        const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
+        const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+        return rewriter.create<arith::AddIOp>(loc, prod, id1);
+      }
+      case 3: {
+        // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
+        // get_id(2)
+        const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
+        const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+        const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
+        const auto r2 = getRange(rewriter, loc, ptrTy, thisArg, 2);
+        const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
+        const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+        const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
+        const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
+        const auto id2 = getID(rewriter, loc, ptrTy, thisArg, 2);
+        return rewriter.create<arith::AddIOp>(loc, add, id2);
+      }
+      default:
+        llvm_unreachable("Invalid number of dimensions");
+      }
+    }();
+    rewriter.replaceOp(op, newValue);
+  }
+};
+
+/// Base pattern for operations building a struct from a SYCL grid operation
+/// \tparam GridOp.
+template <typename Op, typename GridOp, typename... Tags>
+class GridOpInitPattern : public ConvertOpToLLVMPattern<Op>,
+                          public GetMemberPattern<Tags...> {
+private:
+  using GetMemberPattern<Tags...>::getRef;
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    constexpr unsigned dimGetTyWidth{32};
+
+    const auto loc = op.getLoc();
+    const auto elTy = getTypeConverter()->convertType(op.getType());
+    const auto ptrTy = LLVM::LLVMPointerType::get(elTy);
+    const Value arraySize = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
+    const Value alloca =
+        rewriter.create<LLVM::AllocaOp>(loc, ptrTy, elTy, arraySize);
+    const auto structMemberTy = rewriter.getI64Type();
+    const auto dimTy = rewriter.getIndexType();
+    const auto innerPtrTy = LLVM::LLVMPointerType::get(structMemberTy);
+    for (unsigned i = 0,
+                  dimensions = getDimensions(op->getOperand(0).getType());
+         i < dimensions; ++i) {
+      const auto ref = getRef(rewriter, loc, innerPtrTy, alloca, i);
+      const Value dim =
+          rewriter.create<arith::ConstantIntOp>(loc, i, dimGetTyWidth);
+      const Value val = rewriter.create<arith::IndexCastUIOp>(
+          loc, structMemberTy, rewriter.create<GridOp>(loc, dimTy, dim));
+      rewriter.create<LLVM::StoreOp>(loc, val, ref);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
+  }
+};
+
+/// Base pattern for operations returning the result of a SYCL grid operation
+/// \tparam GridOp.
+template <typename Op, typename GridOp>
+class GridOpInitDimPattern : public ConvertOpToLLVMPattern<Op> {
+protected:
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+private:
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+
+public:
+  LogicalResult match(Op) const override { return success(); }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    const Value id = rewriter.create<GridOp>(
+        op.getLoc(), rewriter.getIndexType(), adaptor.getOperands()[1]);
+    rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), id);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Type conversion
 //===----------------------------------------------------------------------===//
@@ -1026,6 +1215,85 @@ public:
     return loadValue(builder, loc, ptrTy, thisArg, index);
   }
 };
+
+//===----------------------------------------------------------------------===//
+// NDRangeGetGlobalRangePattern - Converts `sycl.nd_range.get_global_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Convert SYCLNdRangeGetGlobalRange to LLVM
+///
+/// For this pattern, we have to load the global range.
+class NDRangeGetGlobalRangePattern
+    : public LoadMemberPattern<SYCLNdRangeGetGlobalRange,
+                               NDRangeGetGlobalRange> {
+public:
+  using LoadMemberPattern<SYCLNdRangeGetGlobalRange,
+                          NDRangeGetGlobalRange>::LoadMemberPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// NDRangeGetLocalRangePattern - Converts `sycl.nd_range.get_local_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Convert SYCLNdRangeGetLocalRange to LLVM
+///
+/// For this pattern, we have to load the local range.
+class NDRangeGetLocalRangePattern
+    : public LoadMemberPattern<SYCLNdRangeGetLocalRange, NDRangeGetLocalRange> {
+public:
+  using LoadMemberPattern<SYCLNdRangeGetLocalRange,
+                          NDRangeGetLocalRange>::LoadMemberPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// NDRangeGetGroupRangePattern - Converts `sycl.nd_range.get_group_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Convert SYCLNdRangeGetGroupRange to LLVM
+///
+/// For this pattern, we have to load both the global and local range and
+/// perform an element-wise division.
+class NDRangeGetGroupRangePattern
+    : public ConvertOpToLLVMPattern<SYCLNdRangeGetGroupRange>,
+      public GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>,
+      public GetMemberPattern<NDRangeGetLocalRange, RangeGetDim>,
+      public GetMemberPattern<RangeGetDim> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLNdRangeGetGroupRange>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNdRangeGetGroupRange op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto nd = opAdaptor.getND();
+    const auto rangeTy = op.getType();
+    Value alloca = rewriter.create<LLVM::AllocaOp>(
+        loc,
+        LLVM::LLVMPointerType::get(getTypeConverter()->convertType(rangeTy)),
+        rewriter.create<arith::ConstantIntOp>(loc, 1, 64),
+        /*alignment*/ 0);
+    const auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getI64Type());
+    for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
+      const auto lhs =
+          GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>::loadValue(
+              rewriter, loc, ptrTy, nd, i);
+      const auto rhs =
+          GetMemberPattern<NDRangeGetLocalRange, RangeGetDim>::loadValue(
+              rewriter, loc, ptrTy, nd, i);
+      const Value val = rewriter.create<arith::DivUIOp>(loc, lhs, rhs);
+      const auto ptr = GetMemberPattern<RangeGetDim>::getRef(rewriter, loc,
+                                                             ptrTy, alloca, i);
+      rewriter.create<LLVM::StoreOp>(loc, val, ptr);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // IDGetPattern - Converts `sycl.it.get` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -1050,6 +1318,605 @@ public:
     return success(op.getType().isa<MemRefType>());
   }
 };
+
+//===----------------------------------------------------------------------===//
+// ItemGetIDPattern - Converts `sycl.item.get_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLItemGetIDOp with an id return type to LLVM
+class ItemGetIDPattern : public LoadMemberPattern<SYCLItemGetIDOp, ItemGetID> {
+public:
+  using LoadMemberPattern<SYCLItemGetIDOp, ItemGetID>::LoadMemberPattern;
+
+  LogicalResult match(SYCLItemGetIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLItemGetIDOp with an index return type to LLVM
+class ItemGetIDDimPattern
+    : public LoadMemberDimPattern<SYCLItemGetIDOp, ItemGetID, IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLItemGetIDOp, ItemGetID,
+                             IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLItemGetIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ItemGetRangePattern - Converts `sycl.item.get_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLItemGetRangeOp with an range return type to LLVM
+class ItemGetRangePattern
+    : public LoadMemberPattern<SYCLItemGetRangeOp, ItemGetRange> {
+public:
+  using LoadMemberPattern<SYCLItemGetRangeOp, ItemGetRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLItemGetRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLItemGetIDOp with an index return type to LLVM
+class ItemGetRangeDimPattern
+    : public LoadMemberDimPattern<SYCLItemGetRangeOp, ItemGetRange,
+                                  RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLItemGetRangeOp, ItemGetRange,
+                             RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLItemGetRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ItemGetLinearIDPattern - Converts `sycl.item.get_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class ItemGetLinearIDPattern
+    : public GetLinearIDPattern<SYCLItemGetLinearIDOp>,
+      public GetMemberPattern<ItemGetID, IDGetDim>,
+      public GetMemberPattern<ItemGetRange, RangeGetDim> {
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<ItemGetRange, RangeGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+
+public:
+  using GetLinearIDPattern<SYCLItemGetLinearIDOp>::GetLinearIDPattern;
+};
+
+/// Converts SYCLItemGetLinearIDOp with no offset item to LLVM
+class ItemNoOffsetGetLinearIDPattern : public ItemGetLinearIDPattern {
+public:
+  using ItemGetLinearIDPattern::ItemGetLinearIDPattern;
+
+  LogicalResult match(SYCLItemGetLinearIDOp op) const final {
+    return success(!op.getItem()
+                        .getType()
+                        .getElementType()
+                        .cast<ItemType>()
+                        .getWithOffset());
+  }
+
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+              int32_t index) const final {
+    return GetMemberPattern<ItemGetID, IDGetDim>::loadValue(builder, loc, ptrTy,
+                                                            thisArg, index);
+  }
+};
+
+/// Converts SYCLItemGetLinearIDOp with no offset item to LLVM
+class ItemOffsetGetLinearIDPattern
+    : public ItemGetLinearIDPattern,
+      public GetMemberPattern<ItemGetOffset, IDGetDim> {
+protected:
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+              int32_t index) const final {
+    const auto id = GetMemberPattern<ItemGetID, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+    const auto offset = GetMemberPattern<ItemGetOffset, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+    return builder.create<arith::SubIOp>(loc, id, offset);
+  }
+
+public:
+  using ItemGetLinearIDPattern::ItemGetLinearIDPattern;
+
+  LogicalResult match(SYCLItemGetLinearIDOp op) const final {
+    return success(op.getItem()
+                       .getType()
+                       .getElementType()
+                       .cast<ItemType>()
+                       .getWithOffset());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetGlobalID - Converts `sycl.nd_item.get_global_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetGlobalIDOp with an ID return type to LLVM
+class NDItemGetGlobalIDPattern
+    : public LoadMemberPattern<SYCLNDItemGetGlobalIDOp, NDItemGlobalItem,
+                               ItemGetID> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetGlobalIDOp, NDItemGlobalItem,
+                          ItemGetID>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetGlobalIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLNDItemGetGlobalIDOp with an ID return type to LLVM
+class NDItemGetGlobalIDDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetGlobalIDOp, NDItemGlobalItem,
+                                  ItemGetID, IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetGlobalIDOp, NDItemGlobalItem,
+                             ItemGetID, IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetGlobalIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetGlobalLinearIDPattern - Converts `sycl.nd_item.get_global_linear_id`
+// to LLVM.
+//===----------------------------------------------------------------------===//
+
+class NDItemGetGlobalLinearIDPattern
+    : public GetLinearIDPattern<SYCLNDItemGetGlobalLinearIDOp>,
+      public GetMemberPattern<NDItemGlobalItem, ItemGetID, IDGetDim>,
+      public GetMemberPattern<NDItemGlobalItem, ItemGetRange, RangeGetDim> {
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<NDItemGlobalItem, ItemGetRange,
+                            RangeGetDim>::loadValue(builder, loc, ptrTy,
+                                                    thisArg, index);
+  }
+
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+              int32_t index) const final {
+    return GetMemberPattern<NDItemGlobalItem, ItemGetID, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+
+public:
+  using GetLinearIDPattern<SYCLNDItemGetGlobalLinearIDOp>::GetLinearIDPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetLocalID - Converts `sycl.nd_item.get_local_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetLocalIDOp with an ID return type to LLVM
+class NDItemGetLocalIDPattern
+    : public LoadMemberPattern<SYCLNDItemGetLocalIDOp, NDItemLocalItem,
+                               ItemGetID> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetLocalIDOp, NDItemLocalItem,
+                          ItemGetID>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLNDItemGetLocalIDOp with an ID return type to LLVM
+class NDItemGetLocalIDDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetLocalIDOp, NDItemLocalItem,
+                                  ItemGetID, IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetLocalIDOp, NDItemLocalItem, ItemGetID,
+                             IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetLocalLinearIDPattern - Converts `sycl.nd_item.get_local_linear_id`
+// to LLVM.
+//===----------------------------------------------------------------------===//
+
+class NDItemGetLocalLinearIDPattern
+    : public GetLinearIDPattern<SYCLNDItemGetLocalLinearIDOp>,
+      public GetMemberPattern<NDItemLocalItem, ItemGetID, IDGetDim>,
+      public GetMemberPattern<NDItemLocalItem, ItemGetRange, RangeGetDim> {
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<NDItemLocalItem, ItemGetRange,
+                            RangeGetDim>::loadValue(builder, loc, ptrTy,
+                                                    thisArg, index);
+  }
+
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+              int32_t index) const final {
+    return GetMemberPattern<NDItemLocalItem, ItemGetID, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+
+public:
+  using GetLinearIDPattern<SYCLNDItemGetLocalLinearIDOp>::GetLinearIDPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetGroup - Converts `sycl.nd_item.get_group` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetGroupOp with an ID return type to LLVM
+class NDItemGetGroupPattern
+    : public LoadMemberPattern<SYCLNDItemGetGroupOp, NDItemGroup> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetGroupOp, NDItemGroup>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetGroupOp op) const final {
+    return success(op.getRes().getType().isa<GroupType>());
+  }
+};
+
+/// Converts SYCLNDItemGetGroupOp with an ID return type to LLVM
+class NDItemGetGroupDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetGroupOp, NDItemGroup, GroupGetID,
+                                  IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetGroupOp, NDItemGroup, GroupGetID,
+                             IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetGroupOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetGroupRange - Converts `sycl.nd_item.get_group_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetGroupRangeOp with an ID return type to LLVM
+class NDItemGetGroupRangePattern
+    : public LoadMemberPattern<SYCLNDItemGetGroupRangeOp, NDItemGroup,
+                               GroupGetGroupRange> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetGroupRangeOp, NDItemGroup,
+                          GroupGetGroupRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLNDItemGetGroupOp with an ID return type to LLVM
+class NDItemGetGroupRangeDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetGroupRangeOp, NDItemGroup,
+                                  GroupGetGroupRange, RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetGroupRangeOp, NDItemGroup,
+                             GroupGetGroupRange,
+                             RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetLocalRange - Converts `sycl.nd_item.get_local_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetLocalRangeOp with an ID return type to LLVM
+class NDItemGetLocalRangePattern
+    : public LoadMemberPattern<SYCLNDItemGetLocalRangeOp, NDItemLocalItem,
+                               ItemGetRange> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetLocalRangeOp, NDItemLocalItem,
+                          ItemGetRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLNDItemGetLocalOp with an ID return type to LLVM
+class NDItemGetLocalRangeDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetLocalRangeOp, NDItemLocalItem,
+                                  ItemGetRange, RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetLocalRangeOp, NDItemLocalItem,
+                             ItemGetRange, RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDItemGetNDRange - Converts `sycl.nd_item.get_nd_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetLocalRangeOp with an ID return type to LLVM
+class NDItemGetNDRange
+    : public ConvertOpToLLVMPattern<SYCLNDItemGetNdRangeOp>,
+      public GetMemberPattern<NDItemGlobalItem, ItemGetRange>,
+      public GetMemberPattern<NDItemLocalItem, ItemGetRange>,
+      public GetMemberPattern<NDItemGlobalItem, ItemGetOffset>,
+      public GetMemberPattern<NDRangeGetGlobalRange>,
+      public GetMemberPattern<NDRangeGetLocalRange>,
+      public GetMemberPattern<NDRangeGetOffset> {
+public:
+  using ConvertOpToLLVMPattern<SYCLNDItemGetNdRangeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNDItemGetNdRangeOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto ndItem = opAdaptor.getNDItem();
+
+    const auto ndrTy = getTypeConverter()->convertType(op.getType());
+    const Value alloca = rewriter.create<LLVM::AllocaOp>(
+        loc, LLVM::LLVMPointerType::get(ndrTy), ndrTy,
+        rewriter.create<arith::ConstantIntOp>(loc, 1, 32));
+
+    const auto rangePtrTy = LLVM::LLVMPointerType::get(
+        ndrTy.cast<LLVM::LLVMStructType>().getBody()[0]);
+    const auto idPtrTy = LLVM::LLVMPointerType::get(
+        ndrTy.cast<LLVM::LLVMStructType>().getBody()[2]);
+
+    rewriter.create<LLVM::StoreOp>(
+        loc,
+        GetMemberPattern<NDItemGlobalItem, ItemGetRange>::loadValue(
+            rewriter, loc, rangePtrTy, ndItem),
+        GetMemberPattern<NDRangeGetGlobalRange>::getRef(rewriter, loc,
+                                                        rangePtrTy, alloca));
+    rewriter.create<LLVM::StoreOp>(
+        loc,
+        GetMemberPattern<NDItemLocalItem, ItemGetRange>::loadValue(
+            rewriter, loc, rangePtrTy, ndItem),
+        GetMemberPattern<NDRangeGetLocalRange>::getRef(rewriter, loc,
+                                                       rangePtrTy, alloca));
+    rewriter.create<LLVM::StoreOp>(
+        loc,
+        GetMemberPattern<NDItemGlobalItem, ItemGetOffset>::loadValue(
+            rewriter, loc, idPtrTy, ndItem),
+        GetMemberPattern<NDRangeGetOffset>::getRef(rewriter, loc, idPtrTy,
+                                                   alloca));
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetID - Converts `sycl.group.get_group_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupID with an ID return type to LLVM
+class GroupGetGroupIDPattern
+    : public LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID> {
+public:
+  using LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLGroupGetGroupID with a scalar return type to LLVM
+class GroupGetGroupIDDimPattern
+    : public LoadMemberDimPattern<SYCLGroupGetGroupIDOp, GroupGetID, IDGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLGroupGetGroupIDOp, GroupGetID,
+                             IDGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalID - Converts `sycl.group.get_local_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalID with an ID return type to LLVM
+class GroupGetLocalIDPattern
+    : public GridOpInitPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp, IDGetDim> {
+public:
+  using GridOpInitPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp,
+                          IDGetDim>::GridOpInitPattern;
+
+  LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IDType>());
+  }
+};
+
+/// Converts SYCLGroupGetLocalID with a scalar return type to LLVM
+class GroupGetLocalIDDimPattern
+    : public GridOpInitDimPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp> {
+public:
+  using GridOpInitDimPattern<SYCLGroupGetLocalIDOp,
+                             SYCLLocalIDOp>::GridOpInitDimPattern;
+
+  LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalRange - Converts `sycl.group.get_local_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalRange with a range return type to LLVM
+class GroupGetLocalRangePattern
+    : public LoadMemberPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetLocalRangeOp,
+                          GroupGetLocalRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+/// Converts SYCLGroupGetLocalRange with a scalar return type to LLVM
+class GroupGetLocalRangeDimPattern
+    : public LoadMemberDimPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange,
+                                  RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLGroupGetLocalRangeOp, GroupGetLocalRange,
+                             RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupRange - Converts `sycl.group.get_group_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupRange with a range return type to LLVM
+class GroupGetGroupRangePattern
+    : public LoadMemberPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetGroupRangeOp,
+                          GroupGetGroupRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<RangeType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetMaxLocalRange - Converts `sycl.group.get_max_local_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetMaxLocalRange
+class GroupGetMaxLocalRangePattern
+    : public LoadMemberPattern<SYCLGroupGetMaxLocalRangeOp,
+                               GroupGetLocalRange> {
+public:
+  using LoadMemberPattern<SYCLGroupGetMaxLocalRangeOp,
+                          GroupGetLocalRange>::LoadMemberPattern;
+};
+
+/// Converts SYCLGroupGetGroupRange with a scalar return type to LLVM
+class GroupGetGroupRangeDimPattern
+    : public LoadMemberDimPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange,
+                                  RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLGroupGetGroupRangeOp, GroupGetGroupRange,
+                             RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
+    return success(op.getRes().getType().isa<IntegerType>());
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupLinearID - Converts `sycl.group.get_group_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupLinearIDOp to LLVM
+class GroupGetGroupLinearIDPattern
+    : public GetLinearIDPattern<SYCLGroupGetGroupLinearIDOp>,
+      public GetMemberPattern<GroupGetID, IDGetDim>,
+      public GetMemberPattern<GroupGetGroupRange, IDGetDim> {
+protected:
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+              int32_t index) const final {
+    return GetMemberPattern<GroupGetID, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<GroupGetGroupRange, IDGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+
+public:
+  using GetLinearIDPattern<SYCLGroupGetGroupLinearIDOp>::GetLinearIDPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalLinearID - Converts `sycl.group.get_local_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalLinearIDOp to LLVM
+class GroupGetLocalLinearIDPattern
+    : public GetLinearIDPattern<SYCLGroupGetLocalLinearIDOp>,
+      public GetMemberPattern<GroupGetGroupRange, RangeGetDim> {
+  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value,
+              int32_t offset) const final {
+    const Value dim = builder.create<arith::ConstantIntOp>(loc, offset, 32);
+    const Value val =
+        builder.create<SYCLLocalIDOp>(loc, builder.getIndexType(), dim);
+    return builder.create<arith::IndexCastUIOp>(
+        loc, ptrTy.cast<LLVM::LLVMPointerType>().getElementType(), val);
+  }
+
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t offset) const final {
+    return GetMemberPattern<GroupGetGroupRange, RangeGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, offset);
+  }
+
+public:
+  using GetLinearIDPattern<SYCLGroupGetLocalLinearIDOp>::GetLinearIDPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetGroupLinearRange - Converts `sycl.group.get_group_linear_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetGroupLinearRangeOp to LLVM
+class GroupGetGroupLinearRangePattern
+    : public GetRangeSizePattern<SYCLGroupGetGroupLinearRangeOp>,
+      public GetMemberPattern<GroupGetGroupRange, RangeGetDim> {
+public:
+  using GetRangeSizePattern<
+      SYCLGroupGetGroupLinearRangeOp>::GetRangeSizePattern;
+
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<GroupGetGroupRange, RangeGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// GroupGetLocalLinearRange - Converts `sycl.group.get_local_linear_range` to
+// LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLGroupGetLocalLinearRangeOp to LLVM
+class GroupGetLocalLinearRangePattern
+    : public GetRangeSizePattern<SYCLGroupGetLocalLinearRangeOp>,
+      public GetMemberPattern<GroupGetLocalRange, RangeGetDim> {
+public:
+  using GetRangeSizePattern<
+      SYCLGroupGetLocalLinearRangeOp>::GetRangeSizePattern;
+
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<GroupGetLocalRange, RangeGetDim>::loadValue(
+        builder, loc, ptrTy, thisArg, index);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
@@ -1143,11 +2010,29 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv) {
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
-    patterns.add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
-                 IDGetPattern, IDGetRefPattern, RangeGetPattern,
-                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
-                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
-        typeConverter);
+    patterns
+        .add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+             GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
+             GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
+             GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
+             IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
+             ItemGetRangeDimPattern, ItemGetRangePattern,
+             NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
+             NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
+             NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
+             NDItemGetNDRange, NDRangeGetGroupRangePattern,
+             NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
+             SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
+             GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
+             GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
+             GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern,
+             ItemGetIDPattern, ItemNoOffsetGetLinearIDPattern,
+             ItemOffsetGetLinearIDPattern, NDItemGetGlobalLinearIDPattern,
+             NDItemGetGroupDimPattern, NDItemGetGroupRangePattern,
+             NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
+             NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern,
+             RangeGetPattern, SubscriptIDOffset, SubscriptScalarOffset1D>(
+            typeConverter);
   }
   patterns.add<ConstructorPattern>(typeConverter);
 }

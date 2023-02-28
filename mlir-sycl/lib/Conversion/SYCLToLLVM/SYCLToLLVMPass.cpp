@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 using namespace mlir;
@@ -69,6 +70,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addIllegalDialect<sycl::SYCLDialect>();
+  target.addLegalOp<sycl::SYCLLocalIDOp>();
   target.addLegalDialect<LLVM::LLVMDialect>();
   target.addLegalDialect<arith::ArithDialect>();
 
