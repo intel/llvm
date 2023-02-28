@@ -670,9 +670,9 @@ public:
         {"bf_cvt", {"bf.cvt", {a(0)}}},
         {"tf32_cvt", {"tf32.cvt", {a(0)}}},
         {"__devicelib_ConvertFToBF16INTEL",
-         {"intel_convert_bfloat16_as_ushort", {a(0)}}},
+         {"__spirv_ConvertFToBF16INTEL", {a(0)}}},
         {"__devicelib_ConvertBF16ToFINTEL",
-         {"intel_convert_as_bfloat16_float", {a(0)}}}};
+         {"__spirv_ConvertBF16ToFINTEL", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -702,6 +702,9 @@ static bool isDevicelibFunction(StringRef FunctionName) {
       .Default(false);
 }
 
+// Mangle deviceLib function to make it pass through the regular workflow
+// These functions are defined as extern "C" which Demangler that is used
+// fails to handle properly.
 static std::string mangleDevicelibFunction(StringRef FunctionName) {
   if (isDevicelibFunction(FunctionName)) {
     if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
@@ -1319,7 +1322,12 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
 }
 
 // Create a spirv function declaration
-// This is used for lowering devicelib functions
+// This is used for lowering devicelib functions.
+// The function
+// 1. Generates spirv function definition
+// 2. Converts passed by reference argument of devicelib function into passed by
+// value argument of spirv functions
+// 3. Assigns proper attributes to generated function
 static Function *
 createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
                                 SmallVector<Value *, 16> &GenXArgs,
@@ -1328,9 +1336,9 @@ createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
   IRBuilder<> Bld(&CI);
   for (unsigned i = 0; i < GenXArgs.size(); ++i) {
     Type *NTy = llvm::StringSwitch<Type *>(Desc.GenXSpelling)
-                    .Case("intel_convert_bfloat16_as_ushort",
+                    .Case("__spirv_ConvertFToBF16INTEL",
                           Type::getFloatTy(CI.getContext()))
-                    .Case("intel_convert_as_bfloat16_float",
+                    .Case("__spirv_ConvertBF16ToFINTEL",
                           Type::getInt16Ty(CI.getContext()))
                     .Default(nullptr);
 
