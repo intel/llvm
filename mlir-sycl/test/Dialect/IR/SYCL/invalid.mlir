@@ -1,5 +1,37 @@
 // RUN: sycl-mlir-opt -split-input-file %s -verify-diagnostics
 
+func.func @test_addrspacecast_different_elementtype(%arg0: memref<?xi64>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi64>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi64> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_different_shape(%arg0: memref<1xi32>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<1xi32>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<1xi32> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_different_layout(%arg0: memref<?xi32, affine_map<(d0) -> (d0 + 1)>>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi32, affine_map<(d0) -> (d0 + 1)>>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32, affine_map<(d0) -> (d0 + 1)>> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
+func.func @test_addrspacecast_generic_to_generic(%arg0: memref<?xi32, 4>) -> memref<?xi32, 4> {
+  // expected-error @+1 {{'sycl.addrspacecast' op operand type 'memref<?xi32, 4>' and result type 'memref<?xi32, 4>' are cast incompatible}}
+  %0 = sycl.addrspacecast %arg0 : memref<?xi32, 4> to memref<?xi32, 4>
+  return %0 : memref<?xi32, 4>
+}
+
+// -----
+
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
@@ -23,26 +55,17 @@ func.func @test_cast_bad_shape(%arg: memref<1x!sycl_id_1_>) -> memref<2x!sycl_ar
 
 // -----
 
-func.func @test_not_arg_constructor() {
-  // expected-error @+1 {{'sycl.constructor' op A sycl::constructor must be passed the object to build as the first argument}}
-  "sycl.constructor"() {TypeName = @range, MangledFunctionName = @rangev} : () -> ()
-}
-
-// -----
-
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 
 func.func @test_non_memref_arg_constructor(%range: !sycl_range_1_) {
-  // expected-error @+1 {{'sycl.constructor' op The first argument of a sycl::constructor op has to be a MemRef to a SYCL type}}
+  // expected-error @+1 {{'sycl.constructor' op operand #0 must be memref}}
   sycl.constructor @range(%range) {MangledFunctionName = @rangev} : (!sycl_range_1_)
 }
 
 // -----
 
-!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-
 func.func @test_non_sycl_arg_constructor(%i: memref<1xi32>) {
-  // expected-error @+1 {{'sycl.constructor' op The first argument of a sycl::constructor op has to be a MemRef to a SYCL type}}
+  // expected-error @+1 {{'sycl.constructor' op operand #0 must be memref}}  
   sycl.constructor @range(%i) {MangledFunctionName = @rangev} : (memref<1xi32>)
 }
 

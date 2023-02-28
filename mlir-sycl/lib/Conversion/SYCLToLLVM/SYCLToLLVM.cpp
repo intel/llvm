@@ -732,6 +732,24 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// CastPattern - Converts `sycl.addrspacecast` to LLVM.
+//===----------------------------------------------------------------------===//
+
+struct BarePtrAddrSpaceCastPattern
+    : public ConvertOpToLLVMPattern<SYCLAddrSpaceCastOp> {
+  using ConvertOpToLLVMPattern<SYCLAddrSpaceCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLAddrSpaceCastOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto newTy = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(op, newTy,
+                                                       opAdaptor.getSource());
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConstructorPattern - Converts `sycl.constructor` to LLVM.
 //===----------------------------------------------------------------------===//
 class ConstructorPattern final
@@ -1125,10 +1143,11 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   if (typeConverter.getOptions().useBarePtrCallConv) {
     patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
-    patterns.add<AtomicSubscriptIDOffset, IDGetPattern, IDGetRefPattern,
-                 RangeGetPattern, RangeGetRefPattern, RangeSizePattern,
-                 SubscriptIDOffset, SubscriptScalarOffset1D,
-                 SubscriptScalarOffsetND>(typeConverter);
+    patterns.add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+                 IDGetPattern, IDGetRefPattern, RangeGetPattern,
+                 RangeGetRefPattern, RangeSizePattern, SubscriptIDOffset,
+                 SubscriptScalarOffset1D, SubscriptScalarOffsetND>(
+        typeConverter);
   }
   patterns.add<ConstructorPattern>(typeConverter);
 }

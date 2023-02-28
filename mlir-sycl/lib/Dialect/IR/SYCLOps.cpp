@@ -63,16 +63,30 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
       .Default(false);
 }
 
-LogicalResult SYCLConstructorOp::verify() {
-  if (getNumOperands() == 0)
-    return emitOpError("A sycl::constructor must be passed the object to build "
-                       "as the first argument");
-  auto MT = getOperand(0).getType().dyn_cast<MemRefType>();
-  if (MT && isSYCLType(MT.getElementType()))
-    return success();
+constexpr unsigned genericAddressSpace{4};
+bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
+                                            TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
 
-  return emitOpError("The first argument of a sycl::constructor op has to be a "
-                     "MemRef to a SYCL type");
+  const auto input = inputs.front().dyn_cast<MemRefType>();
+  const auto output = outputs.front().dyn_cast<MemRefType>();
+  if (!input || !output)
+    return false;
+
+  if (input.getShape() != output.getShape())
+    return false;
+
+  if (input.getElementType() != output.getElementType())
+    return false;
+
+  if (input.getLayout() != output.getLayout())
+    return false;
+
+  unsigned int inputMS = input.getMemorySpaceAsInt();
+  unsigned int outputMS = output.getMemorySpaceAsInt();
+  return ((inputMS == genericAddressSpace) !=
+          (outputMS == genericAddressSpace));
 }
 
 LogicalResult SYCLAccessorSubscriptOp::verify() {

@@ -24,6 +24,7 @@ include "mlir/IR/BuiltinTypeInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // DIALECT DECLARATION
@@ -514,13 +515,13 @@ def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref,
-                                 VectorEltTy,
+def ConstructorArgs : AnyTypeOf<[Builtin_Vector,
                                  IndexType,
-                                 VectorSplatArg,
                                  SYCL_IDType,
+                                 SYCLMemref,
                                  SYCL_RangeType,
-                                 Builtin_Vector,
+                                 VectorEltTy,
+                                 VectorSplatArg
                                ]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   let summary = "Generic constructor operation";
@@ -529,13 +530,12 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];
 
   let arguments = (ins
+    Arg<SYCLMemref, "The SYCL object being created", [MemWrite]>:$Dst,
+    Variadic<ConstructorArgs>:$Args,  
     FlatSymbolRefAttr:$TypeName,
-    FlatSymbolRefAttr:$MangledFunctionName,
-    Variadic<ConstructorArgs>:$Args
+    FlatSymbolRefAttr:$MangledFunctionName
   );
   let results = (outs);
-
-  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     operand_iterator arg_operand_begin() { return operand_begin(); }
@@ -555,7 +555,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   }];      
 
   let assemblyFormat = [{
-    $TypeName `(` $Args `)` attr-dict `:` `(` type($Args) `)`
+    $TypeName `(` $Dst (`,` $Args^)?`)` attr-dict `:` `(` type($Dst) (`,` type($Args)^)? `)`
   }];
 }
 
@@ -566,7 +566,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef, LocalAccessorMemRef, LocalAccessorBaseMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, LocalAccessorBaseMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
-  Pure, MemRefsNormalizable]
+  Pure, ViewLikeOpInterface, MemRefsNormalizable]
 > {
   let summary = "Derived type to base type cast operation";
   let description = [{
@@ -578,10 +578,33 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
   let arguments = (ins CastArg:$source);
   let results = (outs CastRes:$result);
 
+  let extraClassDeclaration = [{
+    Value getViewSource() { return getSource(); }
+  }];  
+
   let assemblyFormat = [{
     $source attr-dict `:` type($source) `to` type($result)
   }];
 }
+
+def SYCLAddrSpaceCastOp : SYCL_Op<"addrspacecast", [
+  DeclareOpInterfaceMethods<CastOpInterface>, 
+  ViewLikeOpInterface, Pure
+]> {
+  let summary = "Perform an address space cast between specific and generic address space";
+
+  let arguments = (ins AnyMemRef : $source);
+  let results = (outs AnyMemRef : $result);
+
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return getSource(); }
+  }];
+
+  let assemblyFormat = [{
+    $source attr-dict `:` type($source) `to` type($result)
+  }];
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // CALL OPERATION
@@ -657,10 +680,8 @@ def SYCLAccessorSubscriptOp
     This operation represents a call to the accessor::operator[] function.
   }];
 
-  let arguments = (ins Arg<AccessorMemRef, "The offsetted accessor",
-                           [MemRead]>:$Acc,
-                       Arg<SYCLAccessorSubscriptIndex, "The offset",
-		           [MemRead]>:$Index,
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
+                       Arg<SYCLAccessorSubscriptIndex, "The offset", [MemRead]>:$Index,
                        TypeArrayAttr:$ArgumentTypes,
                        FlatSymbolRefAttr:$FunctionName,
                        OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
