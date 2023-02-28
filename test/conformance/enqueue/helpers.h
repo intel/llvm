@@ -54,9 +54,9 @@ inline void copyRect(std::vector<uint8_t> src, ur_rect_offset_t src_offset, ur_r
 }
 
 struct TestParameters2D {
-    int pitch;
-    int width;
-    int height;
+    size_t pitch;
+    size_t width;
+    size_t height;
 };
 
 template <typename T>
