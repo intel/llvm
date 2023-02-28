@@ -285,6 +285,8 @@ etors:
             uint32_t: Returns 1 if the device doesn't have a notion of a 
             queue index. Otherwise, returns the number of queue indices that are
             available for this device.
+    - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
+      desc: "`bool`: support the $xKernelSetSpecializationConstants entry point"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

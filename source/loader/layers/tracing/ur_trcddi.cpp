@@ -1481,26 +1481,26 @@ urProgramGetBuildInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramSetSpecializationConstant
+/// @brief Intercept function for urProgramSetSpecializationConstants
 __urdlllocal ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 ) {
-    auto pfnSetSpecializationConstant = context.urDdiTable.Program.pfnSetSpecializationConstant;
+    auto pfnSetSpecializationConstants = context.urDdiTable.Program.pfnSetSpecializationConstants;
 
-    if (nullptr == pfnSetSpecializationConstant) {
+    if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_program_set_specialization_constant_params_t params = {&hProgram, &specId, &specSize, &pSpecValue};
-    uint64_t instance = context.notify_begin(58, "urProgramSetSpecializationConstant", &params);
+    ur_program_set_specialization_constants_params_t params = {&hProgram, &count, &pSpecConstants};
+    uint64_t instance = context.notify_begin(58, "urProgramSetSpecializationConstants", &params);
 
-    ur_result_t result = pfnSetSpecializationConstant(hProgram, specId, specSize, pSpecValue);
+    ur_result_t result = pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 
-    context.notify_end(58, "urProgramSetSpecializationConstant", &params, &result, instance);
+    context.notify_end(58, "urProgramSetSpecializationConstants", &params, &result, instance);
 
     return result;
 }
@@ -1859,6 +1859,30 @@ urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
+) {
+    auto pfnSetSpecializationConstants = context.urDdiTable.Kernel.pfnSetSpecializationConstants;
+
+    if (nullptr == pfnSetSpecializationConstants) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_kernel_set_specialization_constants_params_t params = {&hKernel, &count, &pSpecConstants};
+    uint64_t instance = context.notify_begin(73, "urKernelSetSpecializationConstants", &params);
+
+    ur_result_t result = pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+
+    context.notify_end(73, "urKernelSetSpecializationConstants", &params, &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL
 urKernelGetNativeHandle(
@@ -1872,11 +1896,11 @@ urKernelGetNativeHandle(
     }
 
     ur_kernel_get_native_handle_params_t params = {&hKernel, &phNativeKernel};
-    uint64_t instance = context.notify_begin(73, "urKernelGetNativeHandle", &params);
+    uint64_t instance = context.notify_begin(74, "urKernelGetNativeHandle", &params);
 
     ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
 
-    context.notify_end(73, "urKernelGetNativeHandle", &params, &result, instance);
+    context.notify_end(74, "urKernelGetNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -1896,11 +1920,11 @@ urKernelCreateWithNativeHandle(
     }
 
     ur_kernel_create_with_native_handle_params_t params = {&hNativeKernel, &hContext, &phKernel};
-    uint64_t instance = context.notify_begin(74, "urKernelCreateWithNativeHandle", &params);
+    uint64_t instance = context.notify_begin(75, "urKernelCreateWithNativeHandle", &params);
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
 
-    context.notify_end(74, "urKernelCreateWithNativeHandle", &params, &result, instance);
+    context.notify_end(75, "urKernelCreateWithNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -1922,11 +1946,11 @@ urQueueGetInfo(
     }
 
     ur_queue_get_info_params_t params = {&hQueue, &propName, &propValueSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(75, "urQueueGetInfo", &params);
+    uint64_t instance = context.notify_begin(76, "urQueueGetInfo", &params);
 
     ur_result_t result = pfnGetInfo(hQueue, propName, propValueSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(75, "urQueueGetInfo", &params, &result, instance);
+    context.notify_end(76, "urQueueGetInfo", &params, &result, instance);
 
     return result;
 }
@@ -1952,11 +1976,11 @@ urQueueCreate(
     }
 
     ur_queue_create_params_t params = {&hContext, &hDevice, &pProps, &phQueue};
-    uint64_t instance = context.notify_begin(76, "urQueueCreate", &params);
+    uint64_t instance = context.notify_begin(77, "urQueueCreate", &params);
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProps, phQueue);
 
-    context.notify_end(76, "urQueueCreate", &params, &result, instance);
+    context.notify_end(77, "urQueueCreate", &params, &result, instance);
 
     return result;
 }
@@ -1974,11 +1998,11 @@ urQueueRetain(
     }
 
     ur_queue_retain_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(77, "urQueueRetain", &params);
+    uint64_t instance = context.notify_begin(78, "urQueueRetain", &params);
 
     ur_result_t result = pfnRetain(hQueue);
 
-    context.notify_end(77, "urQueueRetain", &params, &result, instance);
+    context.notify_end(78, "urQueueRetain", &params, &result, instance);
 
     return result;
 }
@@ -1996,11 +2020,11 @@ urQueueRelease(
     }
 
     ur_queue_release_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(78, "urQueueRelease", &params);
+    uint64_t instance = context.notify_begin(79, "urQueueRelease", &params);
 
     ur_result_t result = pfnRelease(hQueue);
 
-    context.notify_end(78, "urQueueRelease", &params, &result, instance);
+    context.notify_end(79, "urQueueRelease", &params, &result, instance);
 
     return result;
 }
@@ -2019,11 +2043,11 @@ urQueueGetNativeHandle(
     }
 
     ur_queue_get_native_handle_params_t params = {&hQueue, &phNativeQueue};
-    uint64_t instance = context.notify_begin(79, "urQueueGetNativeHandle", &params);
+    uint64_t instance = context.notify_begin(80, "urQueueGetNativeHandle", &params);
 
     ur_result_t result = pfnGetNativeHandle(hQueue, phNativeQueue);
 
-    context.notify_end(79, "urQueueGetNativeHandle", &params, &result, instance);
+    context.notify_end(80, "urQueueGetNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -2043,11 +2067,11 @@ urQueueCreateWithNativeHandle(
     }
 
     ur_queue_create_with_native_handle_params_t params = {&hNativeQueue, &hContext, &phQueue};
-    uint64_t instance = context.notify_begin(80, "urQueueCreateWithNativeHandle", &params);
+    uint64_t instance = context.notify_begin(81, "urQueueCreateWithNativeHandle", &params);
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeQueue, hContext, phQueue);
 
-    context.notify_end(80, "urQueueCreateWithNativeHandle", &params, &result, instance);
+    context.notify_end(81, "urQueueCreateWithNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -2065,11 +2089,11 @@ urQueueFinish(
     }
 
     ur_queue_finish_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(81, "urQueueFinish", &params);
+    uint64_t instance = context.notify_begin(82, "urQueueFinish", &params);
 
     ur_result_t result = pfnFinish(hQueue);
 
-    context.notify_end(81, "urQueueFinish", &params, &result, instance);
+    context.notify_end(82, "urQueueFinish", &params, &result, instance);
 
     return result;
 }
@@ -2087,11 +2111,11 @@ urQueueFlush(
     }
 
     ur_queue_flush_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(82, "urQueueFlush", &params);
+    uint64_t instance = context.notify_begin(83, "urQueueFlush", &params);
 
     ur_result_t result = pfnFlush(hQueue);
 
-    context.notify_end(82, "urQueueFlush", &params, &result, instance);
+    context.notify_end(83, "urQueueFlush", &params, &result, instance);
 
     return result;
 }
@@ -2113,11 +2137,11 @@ urEventGetInfo(
     }
 
     ur_event_get_info_params_t params = {&hEvent, &propName, &propValueSize, &pPropValue, &pPropValueSizeRet};
-    uint64_t instance = context.notify_begin(83, "urEventGetInfo", &params);
+    uint64_t instance = context.notify_begin(84, "urEventGetInfo", &params);
 
     ur_result_t result = pfnGetInfo(hEvent, propName, propValueSize, pPropValue, pPropValueSizeRet);
 
-    context.notify_end(83, "urEventGetInfo", &params, &result, instance);
+    context.notify_end(84, "urEventGetInfo", &params, &result, instance);
 
     return result;
 }
@@ -2140,11 +2164,11 @@ urEventGetProfilingInfo(
     }
 
     ur_event_get_profiling_info_params_t params = {&hEvent, &propName, &propValueSize, &pPropValue, &pPropValueSizeRet};
-    uint64_t instance = context.notify_begin(84, "urEventGetProfilingInfo", &params);
+    uint64_t instance = context.notify_begin(85, "urEventGetProfilingInfo", &params);
 
     ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propValueSize, pPropValue, pPropValueSizeRet);
 
-    context.notify_end(84, "urEventGetProfilingInfo", &params, &result, instance);
+    context.notify_end(85, "urEventGetProfilingInfo", &params, &result, instance);
 
     return result;
 }
@@ -2164,11 +2188,11 @@ urEventWait(
     }
 
     ur_event_wait_params_t params = {&numEvents, &phEventWaitList};
-    uint64_t instance = context.notify_begin(85, "urEventWait", &params);
+    uint64_t instance = context.notify_begin(86, "urEventWait", &params);
 
     ur_result_t result = pfnWait(numEvents, phEventWaitList);
 
-    context.notify_end(85, "urEventWait", &params, &result, instance);
+    context.notify_end(86, "urEventWait", &params, &result, instance);
 
     return result;
 }
@@ -2186,11 +2210,11 @@ urEventRetain(
     }
 
     ur_event_retain_params_t params = {&hEvent};
-    uint64_t instance = context.notify_begin(86, "urEventRetain", &params);
+    uint64_t instance = context.notify_begin(87, "urEventRetain", &params);
 
     ur_result_t result = pfnRetain(hEvent);
 
-    context.notify_end(86, "urEventRetain", &params, &result, instance);
+    context.notify_end(87, "urEventRetain", &params, &result, instance);
 
     return result;
 }
@@ -2208,11 +2232,11 @@ urEventRelease(
     }
 
     ur_event_release_params_t params = {&hEvent};
-    uint64_t instance = context.notify_begin(87, "urEventRelease", &params);
+    uint64_t instance = context.notify_begin(88, "urEventRelease", &params);
 
     ur_result_t result = pfnRelease(hEvent);
 
-    context.notify_end(87, "urEventRelease", &params, &result, instance);
+    context.notify_end(88, "urEventRelease", &params, &result, instance);
 
     return result;
 }
@@ -2231,11 +2255,11 @@ urEventGetNativeHandle(
     }
 
     ur_event_get_native_handle_params_t params = {&hEvent, &phNativeEvent};
-    uint64_t instance = context.notify_begin(88, "urEventGetNativeHandle", &params);
+    uint64_t instance = context.notify_begin(89, "urEventGetNativeHandle", &params);
 
     ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
 
-    context.notify_end(88, "urEventGetNativeHandle", &params, &result, instance);
+    context.notify_end(89, "urEventGetNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -2255,11 +2279,11 @@ urEventCreateWithNativeHandle(
     }
 
     ur_event_create_with_native_handle_params_t params = {&hNativeEvent, &hContext, &phEvent};
-    uint64_t instance = context.notify_begin(89, "urEventCreateWithNativeHandle", &params);
+    uint64_t instance = context.notify_begin(90, "urEventCreateWithNativeHandle", &params);
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeEvent, hContext, phEvent);
 
-    context.notify_end(89, "urEventCreateWithNativeHandle", &params, &result, instance);
+    context.notify_end(90, "urEventCreateWithNativeHandle", &params, &result, instance);
 
     return result;
 }
@@ -2280,11 +2304,11 @@ urEventSetCallback(
     }
 
     ur_event_set_callback_params_t params = {&hEvent, &execStatus, &pfnNotify, &pUserData};
-    uint64_t instance = context.notify_begin(90, "urEventSetCallback", &params);
+    uint64_t instance = context.notify_begin(91, "urEventSetCallback", &params);
 
     ur_result_t result = pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
 
-    context.notify_end(90, "urEventSetCallback", &params, &result, instance);
+    context.notify_end(91, "urEventSetCallback", &params, &result, instance);
 
     return result;
 }
@@ -2322,11 +2346,11 @@ urEnqueueKernelLaunch(
     }
 
     ur_enqueue_kernel_launch_params_t params = {&hQueue, &hKernel, &workDim, &pGlobalWorkOffset, &pGlobalWorkSize, &pLocalWorkSize, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(91, "urEnqueueKernelLaunch", &params);
+    uint64_t instance = context.notify_begin(92, "urEnqueueKernelLaunch", &params);
 
     ur_result_t result = pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(91, "urEnqueueKernelLaunch", &params, &result, instance);
+    context.notify_end(92, "urEnqueueKernelLaunch", &params, &result, instance);
 
     return result;
 }
@@ -2352,11 +2376,11 @@ urEnqueueEventsWait(
     }
 
     ur_enqueue_events_wait_params_t params = {&hQueue, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(92, "urEnqueueEventsWait", &params);
+    uint64_t instance = context.notify_begin(93, "urEnqueueEventsWait", &params);
 
     ur_result_t result = pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(92, "urEnqueueEventsWait", &params, &result, instance);
+    context.notify_end(93, "urEnqueueEventsWait", &params, &result, instance);
 
     return result;
 }
@@ -2382,11 +2406,11 @@ urEnqueueEventsWaitWithBarrier(
     }
 
     ur_enqueue_events_wait_with_barrier_params_t params = {&hQueue, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(93, "urEnqueueEventsWaitWithBarrier", &params);
+    uint64_t instance = context.notify_begin(94, "urEnqueueEventsWaitWithBarrier", &params);
 
     ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(93, "urEnqueueEventsWaitWithBarrier", &params, &result, instance);
+    context.notify_end(94, "urEnqueueEventsWaitWithBarrier", &params, &result, instance);
 
     return result;
 }
@@ -2416,11 +2440,11 @@ urEnqueueMemBufferRead(
     }
 
     ur_enqueue_mem_buffer_read_params_t params = {&hQueue, &hBuffer, &blockingRead, &offset, &size, &pDst, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(94, "urEnqueueMemBufferRead", &params);
+    uint64_t instance = context.notify_begin(95, "urEnqueueMemBufferRead", &params);
 
     ur_result_t result = pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(94, "urEnqueueMemBufferRead", &params, &result, instance);
+    context.notify_end(95, "urEnqueueMemBufferRead", &params, &result, instance);
 
     return result;
 }
@@ -2450,11 +2474,11 @@ urEnqueueMemBufferWrite(
     }
 
     ur_enqueue_mem_buffer_write_params_t params = {&hQueue, &hBuffer, &blockingWrite, &offset, &size, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(95, "urEnqueueMemBufferWrite", &params);
+    uint64_t instance = context.notify_begin(96, "urEnqueueMemBufferWrite", &params);
 
     ur_result_t result = pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(95, "urEnqueueMemBufferWrite", &params, &result, instance);
+    context.notify_end(96, "urEnqueueMemBufferWrite", &params, &result, instance);
 
     return result;
 }
@@ -2491,11 +2515,11 @@ urEnqueueMemBufferReadRect(
     }
 
     ur_enqueue_mem_buffer_read_rect_params_t params = {&hQueue, &hBuffer, &blockingRead, &bufferOffset, &hostOffset, &region, &bufferRowPitch, &bufferSlicePitch, &hostRowPitch, &hostSlicePitch, &pDst, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(96, "urEnqueueMemBufferReadRect", &params);
+    uint64_t instance = context.notify_begin(97, "urEnqueueMemBufferReadRect", &params);
 
     ur_result_t result = pfnMemBufferReadRect(hQueue, hBuffer, blockingRead, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(96, "urEnqueueMemBufferReadRect", &params, &result, instance);
+    context.notify_end(97, "urEnqueueMemBufferReadRect", &params, &result, instance);
 
     return result;
 }
@@ -2533,11 +2557,11 @@ urEnqueueMemBufferWriteRect(
     }
 
     ur_enqueue_mem_buffer_write_rect_params_t params = {&hQueue, &hBuffer, &blockingWrite, &bufferOffset, &hostOffset, &region, &bufferRowPitch, &bufferSlicePitch, &hostRowPitch, &hostSlicePitch, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(97, "urEnqueueMemBufferWriteRect", &params);
+    uint64_t instance = context.notify_begin(98, "urEnqueueMemBufferWriteRect", &params);
 
     ur_result_t result = pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(97, "urEnqueueMemBufferWriteRect", &params, &result, instance);
+    context.notify_end(98, "urEnqueueMemBufferWriteRect", &params, &result, instance);
 
     return result;
 }
@@ -2567,11 +2591,11 @@ urEnqueueMemBufferCopy(
     }
 
     ur_enqueue_mem_buffer_copy_params_t params = {&hQueue, &hBufferSrc, &hBufferDst, &srcOffset, &dstOffset, &size, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(98, "urEnqueueMemBufferCopy", &params);
+    uint64_t instance = context.notify_begin(99, "urEnqueueMemBufferCopy", &params);
 
     ur_result_t result = pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset, size, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(98, "urEnqueueMemBufferCopy", &params, &result, instance);
+    context.notify_end(99, "urEnqueueMemBufferCopy", &params, &result, instance);
 
     return result;
 }
@@ -2605,11 +2629,11 @@ urEnqueueMemBufferCopyRect(
     }
 
     ur_enqueue_mem_buffer_copy_rect_params_t params = {&hQueue, &hBufferSrc, &hBufferDst, &srcOrigin, &dstOrigin, &srcRegion, &srcRowPitch, &srcSlicePitch, &dstRowPitch, &dstSlicePitch, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(99, "urEnqueueMemBufferCopyRect", &params);
+    uint64_t instance = context.notify_begin(100, "urEnqueueMemBufferCopyRect", &params);
 
     ur_result_t result = pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, srcRegion, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(99, "urEnqueueMemBufferCopyRect", &params, &result, instance);
+    context.notify_end(100, "urEnqueueMemBufferCopyRect", &params, &result, instance);
 
     return result;
 }
@@ -2639,11 +2663,11 @@ urEnqueueMemBufferFill(
     }
 
     ur_enqueue_mem_buffer_fill_params_t params = {&hQueue, &hBuffer, &pPattern, &patternSize, &offset, &size, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(100, "urEnqueueMemBufferFill", &params);
+    uint64_t instance = context.notify_begin(101, "urEnqueueMemBufferFill", &params);
 
     ur_result_t result = pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(100, "urEnqueueMemBufferFill", &params, &result, instance);
+    context.notify_end(101, "urEnqueueMemBufferFill", &params, &result, instance);
 
     return result;
 }
@@ -2676,11 +2700,11 @@ urEnqueueMemImageRead(
     }
 
     ur_enqueue_mem_image_read_params_t params = {&hQueue, &hImage, &blockingRead, &origin, &region, &rowPitch, &slicePitch, &pDst, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(101, "urEnqueueMemImageRead", &params);
+    uint64_t instance = context.notify_begin(102, "urEnqueueMemImageRead", &params);
 
     ur_result_t result = pfnMemImageRead(hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(101, "urEnqueueMemImageRead", &params, &result, instance);
+    context.notify_end(102, "urEnqueueMemImageRead", &params, &result, instance);
 
     return result;
 }
@@ -2713,11 +2737,11 @@ urEnqueueMemImageWrite(
     }
 
     ur_enqueue_mem_image_write_params_t params = {&hQueue, &hImage, &blockingWrite, &origin, &region, &inputRowPitch, &inputSlicePitch, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(102, "urEnqueueMemImageWrite", &params);
+    uint64_t instance = context.notify_begin(103, "urEnqueueMemImageWrite", &params);
 
     ur_result_t result = pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region, inputRowPitch, inputSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(102, "urEnqueueMemImageWrite", &params, &result, instance);
+    context.notify_end(103, "urEnqueueMemImageWrite", &params, &result, instance);
 
     return result;
 }
@@ -2750,11 +2774,11 @@ urEnqueueMemImageCopy(
     }
 
     ur_enqueue_mem_image_copy_params_t params = {&hQueue, &hImageSrc, &hImageDst, &srcOrigin, &dstOrigin, &region, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(103, "urEnqueueMemImageCopy", &params);
+    uint64_t instance = context.notify_begin(104, "urEnqueueMemImageCopy", &params);
 
     ur_result_t result = pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin, region, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(103, "urEnqueueMemImageCopy", &params, &result, instance);
+    context.notify_end(104, "urEnqueueMemImageCopy", &params, &result, instance);
 
     return result;
 }
@@ -2786,11 +2810,11 @@ urEnqueueMemBufferMap(
     }
 
     ur_enqueue_mem_buffer_map_params_t params = {&hQueue, &hBuffer, &blockingMap, &mapFlags, &offset, &size, &numEventsInWaitList, &phEventWaitList, &phEvent, &ppRetMap};
-    uint64_t instance = context.notify_begin(104, "urEnqueueMemBufferMap", &params);
+    uint64_t instance = context.notify_begin(105, "urEnqueueMemBufferMap", &params);
 
     ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size, numEventsInWaitList, phEventWaitList, phEvent, ppRetMap);
 
-    context.notify_end(104, "urEnqueueMemBufferMap", &params, &result, instance);
+    context.notify_end(105, "urEnqueueMemBufferMap", &params, &result, instance);
 
     return result;
 }
@@ -2817,11 +2841,11 @@ urEnqueueMemUnmap(
     }
 
     ur_enqueue_mem_unmap_params_t params = {&hQueue, &hMem, &pMappedPtr, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(105, "urEnqueueMemUnmap", &params);
+    uint64_t instance = context.notify_begin(106, "urEnqueueMemUnmap", &params);
 
     ur_result_t result = pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(105, "urEnqueueMemUnmap", &params, &result, instance);
+    context.notify_end(106, "urEnqueueMemUnmap", &params, &result, instance);
 
     return result;
 }
@@ -2850,11 +2874,11 @@ urEnqueueUSMMemset(
     }
 
     ur_enqueue_usm_memset_params_t params = {&hQueue, &ptr, &value, &count, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(106, "urEnqueueUSMMemset", &params);
+    uint64_t instance = context.notify_begin(107, "urEnqueueUSMMemset", &params);
 
     ur_result_t result = pfnUSMMemset(hQueue, ptr, value, count, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(106, "urEnqueueUSMMemset", &params, &result, instance);
+    context.notify_end(107, "urEnqueueUSMMemset", &params, &result, instance);
 
     return result;
 }
@@ -2883,11 +2907,11 @@ urEnqueueUSMMemcpy(
     }
 
     ur_enqueue_usm_memcpy_params_t params = {&hQueue, &blocking, &pDst, &pSrc, &size, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(107, "urEnqueueUSMMemcpy", &params);
+    uint64_t instance = context.notify_begin(108, "urEnqueueUSMMemcpy", &params);
 
     ur_result_t result = pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(107, "urEnqueueUSMMemcpy", &params, &result, instance);
+    context.notify_end(108, "urEnqueueUSMMemcpy", &params, &result, instance);
 
     return result;
 }
@@ -2915,11 +2939,11 @@ urEnqueueUSMPrefetch(
     }
 
     ur_enqueue_usm_prefetch_params_t params = {&hQueue, &pMem, &size, &flags, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(108, "urEnqueueUSMPrefetch", &params);
+    uint64_t instance = context.notify_begin(109, "urEnqueueUSMPrefetch", &params);
 
     ur_result_t result = pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(108, "urEnqueueUSMPrefetch", &params, &result, instance);
+    context.notify_end(109, "urEnqueueUSMPrefetch", &params, &result, instance);
 
     return result;
 }
@@ -2942,11 +2966,11 @@ urEnqueueUSMMemAdvise(
     }
 
     ur_enqueue_usm_mem_advise_params_t params = {&hQueue, &pMem, &size, &advice, &phEvent};
-    uint64_t instance = context.notify_begin(109, "urEnqueueUSMMemAdvise", &params);
+    uint64_t instance = context.notify_begin(110, "urEnqueueUSMMemAdvise", &params);
 
     ur_result_t result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
 
-    context.notify_end(109, "urEnqueueUSMMemAdvise", &params, &result, instance);
+    context.notify_end(110, "urEnqueueUSMMemAdvise", &params, &result, instance);
 
     return result;
 }
@@ -2977,11 +3001,11 @@ urEnqueueUSMFill2D(
     }
 
     ur_enqueue_usm_fill2_d_params_t params = {&hQueue, &pMem, &pitch, &patternSize, &pPattern, &width, &height, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(110, "urEnqueueUSMFill2D", &params);
+    uint64_t instance = context.notify_begin(111, "urEnqueueUSMFill2D", &params);
 
     ur_result_t result = pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(110, "urEnqueueUSMFill2D", &params, &result, instance);
+    context.notify_end(111, "urEnqueueUSMFill2D", &params, &result, instance);
 
     return result;
 }
@@ -3012,11 +3036,11 @@ urEnqueueUSMMemset2D(
     }
 
     ur_enqueue_usm_memset2_d_params_t params = {&hQueue, &pMem, &pitch, &value, &width, &height, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(111, "urEnqueueUSMMemset2D", &params);
+    uint64_t instance = context.notify_begin(112, "urEnqueueUSMMemset2D", &params);
 
     ur_result_t result = pfnUSMMemset2D(hQueue, pMem, pitch, value, width, height, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(111, "urEnqueueUSMMemset2D", &params, &result, instance);
+    context.notify_end(112, "urEnqueueUSMMemset2D", &params, &result, instance);
 
     return result;
 }
@@ -3048,11 +3072,11 @@ urEnqueueUSMMemcpy2D(
     }
 
     ur_enqueue_usm_memcpy2_d_params_t params = {&hQueue, &blocking, &pDst, &dstPitch, &pSrc, &srcPitch, &width, &height, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(112, "urEnqueueUSMMemcpy2D", &params);
+    uint64_t instance = context.notify_begin(113, "urEnqueueUSMMemcpy2D", &params);
 
     ur_result_t result = pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width, height, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(112, "urEnqueueUSMMemcpy2D", &params, &result, instance);
+    context.notify_end(113, "urEnqueueUSMMemcpy2D", &params, &result, instance);
 
     return result;
 }
@@ -3083,11 +3107,11 @@ urEnqueueDeviceGlobalVariableWrite(
     }
 
     ur_enqueue_device_global_variable_write_params_t params = {&hQueue, &hProgram, &name, &blockingWrite, &count, &offset, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(113, "urEnqueueDeviceGlobalVariableWrite", &params);
+    uint64_t instance = context.notify_begin(114, "urEnqueueDeviceGlobalVariableWrite", &params);
 
     ur_result_t result = pfnDeviceGlobalVariableWrite(hQueue, hProgram, name, blockingWrite, count, offset, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(113, "urEnqueueDeviceGlobalVariableWrite", &params, &result, instance);
+    context.notify_end(114, "urEnqueueDeviceGlobalVariableWrite", &params, &result, instance);
 
     return result;
 }
@@ -3118,11 +3142,11 @@ urEnqueueDeviceGlobalVariableRead(
     }
 
     ur_enqueue_device_global_variable_read_params_t params = {&hQueue, &hProgram, &name, &blockingRead, &count, &offset, &pDst, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(114, "urEnqueueDeviceGlobalVariableRead", &params);
+    uint64_t instance = context.notify_begin(115, "urEnqueueDeviceGlobalVariableRead", &params);
 
     ur_result_t result = pfnDeviceGlobalVariableRead(hQueue, hProgram, name, blockingRead, count, offset, pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(114, "urEnqueueDeviceGlobalVariableRead", &params, &result, instance);
+    context.notify_end(115, "urEnqueueDeviceGlobalVariableRead", &params, &result, instance);
 
     return result;
 }
@@ -3433,6 +3457,9 @@ urGetKernelProcAddrTable(
     dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
     pDdiTable->pfnSetArgMemObj = tracing_layer::urKernelSetArgMemObj;
 
+    dditable.pfnSetSpecializationConstants = pDdiTable->pfnSetSpecializationConstants;
+    pDdiTable->pfnSetSpecializationConstants = tracing_layer::urKernelSetSpecializationConstants;
+
     return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -3623,8 +3650,8 @@ urGetProgramProcAddrTable(
     dditable.pfnGetBuildInfo = pDdiTable->pfnGetBuildInfo;
     pDdiTable->pfnGetBuildInfo = tracing_layer::urProgramGetBuildInfo;
 
-    dditable.pfnSetSpecializationConstant = pDdiTable->pfnSetSpecializationConstant;
-    pDdiTable->pfnSetSpecializationConstant = tracing_layer::urProgramSetSpecializationConstant;
+    dditable.pfnSetSpecializationConstants = pDdiTable->pfnSetSpecializationConstants;
+    pDdiTable->pfnSetSpecializationConstants = tracing_layer::urProgramSetSpecializationConstants;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
     pDdiTable->pfnGetNativeHandle = tracing_layer::urProgramGetNativeHandle;

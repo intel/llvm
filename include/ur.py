@@ -435,6 +435,7 @@ class ur_device_info_v(IntEnum):
     MAX_COMPUTE_QUEUE_INDICES = 100                 ## uint32_t: Returns 1 if the device doesn't have a notion of a 
                                                     ## queue index. Otherwise, returns the number of queue indices that are
                                                     ## available for this device.
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 101       ## `bool`: support the ::urKernelSetSpecializationConstants entry point
 
 class ur_device_info_t(c_int):
     def __str__(self):
@@ -1031,6 +1032,15 @@ class ur_program_build_info_t(c_int):
 
 
 ###############################################################################
+## @brief Specialization constant information
+class ur_specialization_constant_info_t(Structure):
+    _fields_ = [
+        ("id", c_ulong),                                                ## [in] specialization constant Id
+        ("size", c_size_t),                                             ## [in] size of the specialization constant value
+        ("pValue", c_void_p)                                            ## [in] pointer to the specialization constant value bytes
+    ]
+
+###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
     FUNCTION_NAME = 0                               ## Return Kernel function name, return type char[]
@@ -1501,11 +1511,11 @@ else:
     _urProgramGetBuildInfo_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_device_handle_t, ur_program_build_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
-## @brief Function-pointer for urProgramSetSpecializationConstant
+## @brief Function-pointer for urProgramSetSpecializationConstants
 if __use_win_types:
-    _urProgramSetSpecializationConstant_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, c_size_t, c_void_p )
+    _urProgramSetSpecializationConstants_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_specialization_constant_info_t) )
 else:
-    _urProgramSetSpecializationConstant_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, c_size_t, c_void_p )
+    _urProgramSetSpecializationConstants_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_specialization_constant_info_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramGetNativeHandle
@@ -1533,7 +1543,7 @@ class ur_program_dditable_t(Structure):
         ("pfnGetFunctionPointer", c_void_p),                            ## _urProgramGetFunctionPointer_t
         ("pfnGetInfo", c_void_p),                                       ## _urProgramGetInfo_t
         ("pfnGetBuildInfo", c_void_p),                                  ## _urProgramGetBuildInfo_t
-        ("pfnSetSpecializationConstant", c_void_p),                     ## _urProgramSetSpecializationConstant_t
+        ("pfnSetSpecializationConstants", c_void_p),                    ## _urProgramSetSpecializationConstants_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urProgramGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urProgramCreateWithNativeHandle_t
     ]
@@ -1683,6 +1693,13 @@ if __use_win_types:
 else:
     _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t )
 
+###############################################################################
+## @brief Function-pointer for urKernelSetSpecializationConstants
+if __use_win_types:
+    _urKernelSetSpecializationConstants_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_specialization_constant_info_t) )
+else:
+    _urKernelSetSpecializationConstants_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_specialization_constant_info_t) )
+
 
 ###############################################################################
 ## @brief Table of Kernel functions pointers
@@ -1701,7 +1718,8 @@ class ur_kernel_dditable_t(Structure):
         ("pfnSetArgPointer", c_void_p),                                 ## _urKernelSetArgPointer_t
         ("pfnSetExecInfo", c_void_p),                                   ## _urKernelSetExecInfo_t
         ("pfnSetArgSampler", c_void_p),                                 ## _urKernelSetArgSampler_t
-        ("pfnSetArgMemObj", c_void_p)                                   ## _urKernelSetArgMemObj_t
+        ("pfnSetArgMemObj", c_void_p),                                  ## _urKernelSetArgMemObj_t
+        ("pfnSetSpecializationConstants", c_void_p)                     ## _urKernelSetSpecializationConstants_t
     ]
 
 ###############################################################################
@@ -2377,7 +2395,7 @@ class UR_DDI:
         self.urProgramGetFunctionPointer = _urProgramGetFunctionPointer_t(self.__dditable.Program.pfnGetFunctionPointer)
         self.urProgramGetInfo = _urProgramGetInfo_t(self.__dditable.Program.pfnGetInfo)
         self.urProgramGetBuildInfo = _urProgramGetBuildInfo_t(self.__dditable.Program.pfnGetBuildInfo)
-        self.urProgramSetSpecializationConstant = _urProgramSetSpecializationConstant_t(self.__dditable.Program.pfnSetSpecializationConstant)
+        self.urProgramSetSpecializationConstants = _urProgramSetSpecializationConstants_t(self.__dditable.Program.pfnSetSpecializationConstants)
         self.urProgramGetNativeHandle = _urProgramGetNativeHandle_t(self.__dditable.Program.pfnGetNativeHandle)
         self.urProgramCreateWithNativeHandle = _urProgramCreateWithNativeHandle_t(self.__dditable.Program.pfnCreateWithNativeHandle)
 
@@ -2417,6 +2435,7 @@ class UR_DDI:
         self.urKernelSetExecInfo = _urKernelSetExecInfo_t(self.__dditable.Kernel.pfnSetExecInfo)
         self.urKernelSetArgSampler = _urKernelSetArgSampler_t(self.__dditable.Kernel.pfnSetArgSampler)
         self.urKernelSetArgMemObj = _urKernelSetArgMemObj_t(self.__dditable.Kernel.pfnSetArgMemObj)
+        self.urKernelSetSpecializationConstants = _urKernelSetSpecializationConstants_t(self.__dditable.Kernel.pfnSetSpecializationConstants)
 
         # call driver to get function pointers
         Sampler = ur_sampler_dditable_t()

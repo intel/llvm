@@ -310,12 +310,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramGetBuildInfo_t)(
     size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urProgramSetSpecializationConstant
-typedef ur_result_t(UR_APICALL *ur_pfnProgramSetSpecializationConstant_t)(
+/// @brief Function-pointer for urProgramSetSpecializationConstants
+typedef ur_result_t(UR_APICALL *ur_pfnProgramSetSpecializationConstants_t)(
     ur_program_handle_t,
     uint32_t,
-    size_t,
-    const void *);
+    const ur_specialization_constant_info_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramGetNativeHandle
@@ -340,7 +339,7 @@ typedef struct ur_program_dditable_t {
     ur_pfnProgramGetFunctionPointer_t pfnGetFunctionPointer;
     ur_pfnProgramGetInfo_t pfnGetInfo;
     ur_pfnProgramGetBuildInfo_t pfnGetBuildInfo;
-    ur_pfnProgramSetSpecializationConstant_t pfnSetSpecializationConstant;
+    ur_pfnProgramSetSpecializationConstants_t pfnSetSpecializationConstants;
     ur_pfnProgramGetNativeHandle_t pfnGetNativeHandle;
     ur_pfnProgramCreateWithNativeHandle_t pfnCreateWithNativeHandle;
 } ur_program_dditable_t;
@@ -536,6 +535,13 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgMemObj_t)(
     ur_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelSetSpecializationConstants
+typedef ur_result_t(UR_APICALL *ur_pfnKernelSetSpecializationConstants_t)(
+    ur_kernel_handle_t,
+    uint32_t,
+    const ur_specialization_constant_info_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Kernel functions pointers
 typedef struct ur_kernel_dditable_t {
     ur_pfnKernelCreate_t pfnCreate;
@@ -552,6 +558,7 @@ typedef struct ur_kernel_dditable_t {
     ur_pfnKernelSetExecInfo_t pfnSetExecInfo;
     ur_pfnKernelSetArgSampler_t pfnSetArgSampler;
     ur_pfnKernelSetArgMemObj_t pfnSetArgMemObj;
+    ur_pfnKernelSetSpecializationConstants_t pfnSetSpecializationConstants;
 } ur_kernel_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -731,6 +731,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 100,             ///< uint32_t: Returns 1 if the device doesn't have a notion of a
                                                                 ///< queue index. Otherwise, returns the number of queue indices that are
                                                                 ///< available for this device.
+    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 101,   ///< `bool`: support the ::urKernelSetSpecializationConstants entry point
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -755,7 +756,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES < infoType`
+///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < infoType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
@@ -2787,7 +2788,21 @@ urProgramGetBuildInfo(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Program object specialization constant to a specific value
+/// @brief Specialization constant information
+typedef struct ur_specialization_constant_info_t {
+    uint32_t id;        ///< [in] specialization constant Id
+    size_t size;        ///< [in] size of the specialization constant value
+    const void *pValue; ///< [in] pointer to the specialization constant value bytes
+
+} ur_specialization_constant_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set an array of specialization constants on a Program.
+///
+/// @details
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2796,13 +2811,15 @@ urProgramGetBuildInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSpecValue`
+///         + `NULL == pSpecConstants`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `count == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3231,6 +3248,42 @@ urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
     ur_mem_handle_t hArgValue   ///< [in][optional] handle of Memory object.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set an array of specialization constants on a Kernel.
+///
+/// @details
+///     - This entry point is optional, the application should query for support
+///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
+///       passed to ::urDeviceGetInfo.
+///     - Adapters which are capable of setting specialization constants
+///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
+///       implement this entry point.
+///     - Otherwise, if setting specialization constants late requires
+///       recompiling or linking a program, adapters should not implement this
+///       entry point.
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSpecConstants`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5621,24 +5674,23 @@ typedef void(UR_APICALL *ur_pfnProgramGetBuildInfoCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urProgramSetSpecializationConstant
+/// @brief Callback function parameters for urProgramSetSpecializationConstants
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_program_set_specialization_constant_params_t {
+typedef struct ur_program_set_specialization_constants_params_t {
     ur_program_handle_t *phProgram;
-    uint32_t *pspecId;
-    size_t *pspecSize;
-    const void **ppSpecValue;
-} ur_program_set_specialization_constant_params_t;
+    uint32_t *pcount;
+    const ur_specialization_constant_info_t **ppSpecConstants;
+} ur_program_set_specialization_constants_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urProgramSetSpecializationConstant
+/// @brief Callback function-pointer for urProgramSetSpecializationConstants
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnProgramSetSpecializationConstantCb_t)(
-    ur_program_set_specialization_constant_params_t *params,
+typedef void(UR_APICALL *ur_pfnProgramSetSpecializationConstantsCb_t)(
+    ur_program_set_specialization_constants_params_t *params,
     ur_result_t result,
     void *pTracerUserData,
     void **ppTracerInstanceUserData);
@@ -5696,7 +5748,7 @@ typedef struct ur_program_callbacks_t {
     ur_pfnProgramGetFunctionPointerCb_t pfnGetFunctionPointerCb;
     ur_pfnProgramGetInfoCb_t pfnGetInfoCb;
     ur_pfnProgramGetBuildInfoCb_t pfnGetBuildInfoCb;
-    ur_pfnProgramSetSpecializationConstantCb_t pfnSetSpecializationConstantCb;
+    ur_pfnProgramSetSpecializationConstantsCb_t pfnSetSpecializationConstantsCb;
     ur_pfnProgramGetNativeHandleCb_t pfnGetNativeHandleCb;
     ur_pfnProgramCreateWithNativeHandleCb_t pfnCreateWithNativeHandleCb;
 } ur_program_callbacks_t;
@@ -6135,6 +6187,28 @@ typedef void(UR_APICALL *ur_pfnKernelSetArgMemObjCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urKernelSetSpecializationConstants
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_set_specialization_constants_params_t {
+    ur_kernel_handle_t *phKernel;
+    uint32_t *pcount;
+    const ur_specialization_constant_info_t **ppSpecConstants;
+} ur_kernel_set_specialization_constants_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urKernelSetSpecializationConstants
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnKernelSetSpecializationConstantsCb_t)(
+    ur_kernel_set_specialization_constants_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Kernel callback functions pointers
 typedef struct ur_kernel_callbacks_t {
     ur_pfnKernelCreateCb_t pfnCreateCb;
@@ -6151,6 +6225,7 @@ typedef struct ur_kernel_callbacks_t {
     ur_pfnKernelSetExecInfoCb_t pfnSetExecInfoCb;
     ur_pfnKernelSetArgSamplerCb_t pfnSetArgSamplerCb;
     ur_pfnKernelSetArgMemObjCb_t pfnSetArgMemObjCb;
+    ur_pfnKernelSetSpecializationConstantsCb_t pfnSetSpecializationConstantsCb;
 } ur_kernel_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////

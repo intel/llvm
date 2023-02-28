@@ -1963,20 +1963,20 @@ urProgramGetBuildInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramSetSpecializationConstant
+/// @brief Intercept function for urProgramSetSpecializationConstants
 __urdlllocal ur_result_t UR_APICALL
-urProgramSetSpecializationConstant(
-    ur_program_handle_t hProgram, ///< [in] handle of the Program object
-    uint32_t specId,              ///< [in] specification constant Id
-    size_t specSize,              ///< [in] size of the specialization constant value
-    const void *pSpecValue        ///< [in] pointer to the specialization value bytes
+urProgramSetSpecializationConstants(
+    ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in][range(0, count)] array of specialization constant value
+                                                            ///< descriptions
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_program_object_t *>(hProgram)->dditable;
-    auto pfnSetSpecializationConstant = dditable->ur.Program.pfnSetSpecializationConstant;
-    if (nullptr == pfnSetSpecializationConstant) {
+    auto pfnSetSpecializationConstants = dditable->ur.Program.pfnSetSpecializationConstants;
+    if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -1984,7 +1984,7 @@ urProgramSetSpecializationConstant(
     hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
     // forward to device-platform
-    result = pfnSetSpecializationConstant(hProgram, specId, specSize, pSpecValue);
+    result = pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 
     return result;
 }
@@ -2417,6 +2417,32 @@ urKernelSetArgMemObj(
 
     // forward to device-platform
     result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL
+urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
+    uint32_t count,                                         ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t *pSpecConstants ///< [in] array of specialization constant value descriptions
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
+    auto pfnSetSpecializationConstants = dditable->ur.Kernel.pfnSetSpecializationConstants;
+    if (nullptr == pfnSetSpecializationConstants) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // forward to device-platform
+    result = pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
 
     return result;
 }
@@ -4803,6 +4829,7 @@ urGetKernelProcAddrTable(
             pDdiTable->pfnSetExecInfo = loader::urKernelSetExecInfo;
             pDdiTable->pfnSetArgSampler = loader::urKernelSetArgSampler;
             pDdiTable->pfnSetArgMemObj = loader::urKernelSetArgMemObj;
+            pDdiTable->pfnSetSpecializationConstants = loader::urKernelSetSpecializationConstants;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable = loader::context->platforms.front().dditable.ur.Kernel;
@@ -5089,7 +5116,7 @@ urGetProgramProcAddrTable(
             pDdiTable->pfnGetFunctionPointer = loader::urProgramGetFunctionPointer;
             pDdiTable->pfnGetInfo = loader::urProgramGetInfo;
             pDdiTable->pfnGetBuildInfo = loader::urProgramGetBuildInfo;
-            pDdiTable->pfnSetSpecializationConstant = loader::urProgramSetSpecializationConstant;
+            pDdiTable->pfnSetSpecializationConstants = loader::urProgramSetSpecializationConstants;
             pDdiTable->pfnGetNativeHandle = loader::urProgramGetNativeHandle;
             pDdiTable->pfnCreateWithNativeHandle = loader::urProgramCreateWithNativeHandle;
         } else {
