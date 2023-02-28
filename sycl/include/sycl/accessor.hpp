@@ -2065,14 +2065,10 @@ public:
   }
 
   template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::host_buffer>>
-#if SYCL_LANGUAGE_VERSION >= 202001
-  std::add_pointer_t<value_type> get_pointer() const noexcept
-#else
-  DataT *get_pointer() const
-#endif
-  {
+            typename = detail::enable_if_t<
+                AccessTarget_ == access::target::host_buffer ||
+                AccessTarget_ == access::target::host_task>>
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
   }
 
@@ -2641,8 +2637,8 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  local_ptr<DataT> get_pointer() const {
-    return local_ptr<DataT>(getQualifiedPtr());
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
+    return std::add_pointer_t<value_type>(getQualifiedPtr());
   }
 
   bool operator==(const local_accessor_base &Rhs) const {
