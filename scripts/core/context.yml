@@ -7,8 +7,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs for Context"
-ordinal: "0"
+desc: "Intel $OneApi Unified Runtime APIs for Context"
+ordinal: "3"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Creates a context with the given devices."

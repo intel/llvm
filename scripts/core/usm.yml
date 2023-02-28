@@ -7,8 +7,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero APIs"
-ordinal: "0"
+desc: "Intel $OneApi Unified Rutime APIs"
+ordinal: "4"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory property flags"
@@ -70,6 +70,30 @@ etors:
       desc: "Memory allocation size info"
     - name: DEVICE
       desc: "Memory allocation device info"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM memory advice"
+class: $xUSM
+name: $x_mem_advice_t
+etors:
+    - name: DEFAULT
+      desc: "The USM memory advice is default"
+    - name: SET_READ_MOSTLY
+      desc: "Hint that memory will be read from frequently and written to rarely"
+    - name: CLEAR_READ_MOSTLY
+      desc: "Removes the affect of ::$X_MEM_ADVICE_SET_READ_MOSTLY"
+    - name: SET_PREFERRED_LOCATION
+      desc: "Hint that the preferred memory location is the specified device"
+    - name: CLEAR_PREFERRED_LOCATION
+      desc: "Removes the affect of ::$X_MEM_ADVICE_SET_PREFERRED_LOCATION"
+    - name: SET_NON_ATOMIC_MOSTLY
+      desc: "Hints that memory will mostly be accessed non-atomically"
+    - name: CLEAR_NON_ATOMIC_MOSTLY
+      desc: "Removes the affect of ::$X_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY"
+    - name: BIAS_CACHED
+      desc: "Hints that memory should be cached"
+    - name: BIAS_UNCACHED
+      desc: "Hints that memory should be not be cached"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of USM pool"

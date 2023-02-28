@@ -7,8 +7,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs for Platform"
-ordinal: "2"
+desc: "Intel $OneApi Unified Runtime APIs for Platform"
+ordinal: "1"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves all available platforms"

@@ -139,7 +139,7 @@ typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name']
 %endif
 %endfor # spec in specs
 %if n not in ["zet", "zes"]:
-// Intel ${tags['$OneApi']} Level-Zero API Callbacks
+// Intel ${tags['$OneApi']} Unified Runtime API Callbacks
 #if !defined(__GNUC__)
 #pragma region callbacks
 #endif
