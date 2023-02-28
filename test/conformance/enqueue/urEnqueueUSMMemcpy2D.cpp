@@ -12,8 +12,8 @@ struct urEnqueueUSMMemcpy2DTestWithParam
         const auto device_usm =
             uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
         ASSERT_TRUE(device_usm.has_value());
-        if (device_usm.value()) {
-            GTEST_SKIP() << "device USM not supported.";
+        if (!device_usm.value()) {
+            GTEST_SKIP() << "Device USM not supported.";
         }
 
         const auto [inPitch, inWidth, inHeight] = getParam();
@@ -65,8 +65,23 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     size_t width = 0;
     size_t height = 0;
 };
+
+static std::vector<uur::TestParameters2D> test_cases{
+    /* Everything set to 1 */
+    {1, 1, 1},
+    /* Height == 1 && Pitch > width */
+    {1024, 256, 1},
+    /* Height == 1 && Pitch == width */
+    {1024, 1024, 1},
+    /* Height > 1 && Pitch > width */
+    {1024, 256, 256},
+    /* Height > 1 && Pitch == width + 1 */
+    {234, 233, 23},
+    /* Height == 1 && Pitch == width + 1 */
+    {234, 233, 1}};
+
 UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DTestWithParam,
-                 ::testing::Values(uur::TestParameters2D{1, 1, 1}),
+                 ::testing::ValuesIn(test_cases),
                  uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessBlocking) {
@@ -92,7 +107,7 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
 
 using urEnqueueUSMMemcpy2DNegativeTest = urEnqueueUSMMemcpy2DTestWithParam;
 UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DNegativeTest,
-                 ::testing::Values(uur::TestParameters2D{16, 16, 16}),
+                 ::testing::Values(uur::TestParameters2D{1, 1, 1}),
                  uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidNullHandleQueue) {

@@ -52,7 +52,7 @@ struct urEnqueueUSMMemset2DTestWithParam
     size_t pitch;
     size_t width;
     size_t height;
-    uint32_t num_elements;
+    size_t num_elements;
     std::vector<char> host_mem;
     int *ptr{nullptr};
 };
@@ -123,7 +123,7 @@ struct urEnqueueUSMMemset2DNegativeTest : uur::urQueueTest {
     size_t default_pitch = 16;
     size_t default_width = 16;
     size_t default_height = 16;
-    uint32_t num_elements = default_pitch * default_height;
+    size_t num_elements = default_pitch * default_height;
     int *ptr{nullptr};
 };
 
