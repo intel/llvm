@@ -88,6 +88,10 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::TuningInsertVZEROUPPER,
       X86::TuningUseSLMArithCosts,
       X86::TuningUseGLMDivSqrtCosts,
+      X86::TuningNoDomainDelay,
+      X86::TuningNoDomainDelayMov,
+      X86::TuningNoDomainDelayShuffle,
+      X86::TuningNoDomainDelayBlend,
 
       // Perf-tuning flags.
       X86::TuningFastGather,
@@ -127,7 +131,7 @@ public:
   unsigned getNumberOfRegisters(unsigned ClassID) const;
   TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const;
   unsigned getLoadStoreVecRegBitWidth(unsigned AS) const;
-  unsigned getMaxInterleaveFactor(unsigned VF);
+  unsigned getMaxInterleaveFactor(ElementCount VF);
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},

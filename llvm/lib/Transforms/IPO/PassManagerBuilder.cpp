@@ -164,7 +164,6 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
     MPM.add(createMergedLoadStoreMotionPass()); // Merge ld/st in diamonds
     MPM.add(createGVNPass(DisableGVNLoadPRE));  // Remove redundancies
   }
-  MPM.add(createSCCPPass());                  // Constant prop with SCCP
 
   // Delete dead bit computations (instcombine runs after to fold away the dead
   // computations, and then ADCE will run later to exploit any new DCE
@@ -234,7 +233,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
                                          .sinkCommonInsts(true)));
 
   if (IsFullLTO) {
-    PM.add(createSCCPPass());                 // Propagate exposed constants
     PM.add(createInstructionCombiningPass()); // Clean up again
     PM.add(createBitTrackingDCEPass());
   }
@@ -274,11 +272,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
 
 void PassManagerBuilder::populateModulePassManager(
     legacy::PassManagerBase &MPM) {
-  MPM.add(createAnnotation2MetadataLegacyPass());
-
-  // Allow forcing function attributes as a debugging and tuning aid.
-  MPM.add(createForceFunctionAttrsLegacyPass());
-
   // If all optimizations are disabled, just run the always-inline pass and,
   // if enabled, the function merging pass.
   if (OptLevel == 0) {
@@ -295,9 +288,6 @@ void PassManagerBuilder::populateModulePassManager(
     MPM.add(new TargetLibraryInfoWrapperPass(*LibraryInfo));
 
   addInitialAliasAnalysisPasses(MPM);
-
-  // Infer attributes about declarations if possible.
-  MPM.add(createInferFunctionAttrsLegacyPass());
 
   if (OptLevel > 2)
     MPM.add(createCallSiteSplittingPass());
@@ -318,14 +308,10 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createGlobalsAAWrapperPass());
 
   // Start of CallGraph SCC passes.
-  bool RunInliner = false;
   if (Inliner) {
     MPM.add(Inliner);
     Inliner = nullptr;
-    RunInliner = true;
   }
-
-  MPM.add(createPostOrderFunctionAttrsLegacyPass());
 
   addFunctionSimplificationPasses(MPM);
 
@@ -333,28 +319,6 @@ void PassManagerBuilder::populateModulePassManager(
   // pass manager that we are specifically trying to avoid. To prevent this
   // we must insert a no-op module pass to reset the pass manager.
   MPM.add(createBarrierNoopPass());
-
-  if (OptLevel > 1)
-    // Remove avail extern fns and globals definitions if we aren't
-    // compiling an object file for later LTO. For LTO we want to preserve
-    // these so they are eligible for inlining at link-time. Note if they
-    // are unreferenced they will be removed by GlobalDCE later, so
-    // this only impacts referenced available externally globals.
-    // Eventually they will be suppressed during codegen, but eliminating
-    // here enables more opportunity for GlobalDCE as it may make
-    // globals referenced by available external functions dead
-    // and saves running remaining passes on the eliminated functions.
-    MPM.add(createEliminateAvailableExternallyPass());
-
-  // The inliner performs some kind of dead code elimination as it goes,
-  // but there are cases that are not really caught by it. We might
-  // at some point consider teaching the inliner about them, but it
-  // is OK for now to run GlobalOpt + GlobalDCE in tandem as their
-  // benefits generally outweight the cost, making the whole pipeline
-  // faster.
-  if (RunInliner) {
-    MPM.add(createGlobalDCEPass());
-  }
 
   // We add a fresh GlobalsModRef run at this point. This is particularly
   // useful as the above will have inlined, DCE'ed, and function-attr
@@ -382,13 +346,6 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, false));
 
   addVectorPasses(MPM, /* IsFullLTO */ false);
-
-  // GlobalOpt already deletes dead functions and globals, at -O2 try a
-  // late pass of GlobalDCE.  It is capable of deleting dead cycles.
-  if (OptLevel > 1) {
-    MPM.add(createGlobalDCEPass());         // Remove dead fns and globals.
-    MPM.add(createConstantMergePass());     // Merge dup global constants
-  }
 
   // LoopSink pass sinks instructions hoisted by LICM, which serves as a
   // canonicalization pass that enables other optimizations. As a result,

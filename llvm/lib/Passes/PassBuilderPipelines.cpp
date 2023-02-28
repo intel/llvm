@@ -1314,9 +1314,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     OptimizePM.addPass(EarlyCSEPass());
   }
 
-  if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt &&
-      (PGOOpt->Action == PGOOptions::IRUse ||
-       PGOOpt->Action == PGOOptions::SampleUse))
+  // CHR pass should only be applied with the profile information.
+  // The check is to check the profile summary information in CHR.
+  if (EnableCHR && Level == OptimizationLevel::O3)
     OptimizePM.addPass(ControlHeightReductionPass());
 
   // FIXME: We need to run some loop optimizations to re-rotate loops after

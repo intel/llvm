@@ -54,18 +54,9 @@ static mlir::Value genAllocatableTempFromSourceBox(mlir::Location loc,
   return copy;
 }
 
-static std::pair<mlir::Value, bool>
-genTempFromSourceBox(mlir::Location loc, fir::FirOpBuilder &builder,
-                     mlir::Value sourceBox) {
-  return {genAllocatableTempFromSourceBox(loc, builder, sourceBox),
-          /*cleanUpTemp=*/true};
-}
-
 namespace {
 /// May \p lhs alias with \p rhs?
 /// TODO: implement HLFIR alias analysis.
-static bool mayAlias(hlfir::Entity lhs, hlfir::Entity rhs) { return true; }
-
 class AssignOpConversion : public mlir::OpRewritePattern<hlfir::AssignOp> {
 public:
   explicit AssignOpConversion(mlir::MLIRContext *ctx) : OpRewritePattern{ctx} {}
@@ -91,7 +82,11 @@ public:
     assert(!lhsCleanUp && !rhsCleanUp &&
            "variable to fir::ExtendedValue must not require cleanup");
 
-    if (lhs.isArray()) {
+    auto emboxRHS = [&](fir::ExtendedValue &rhsExv) -> mlir::Value {
+      // There may be overlap between lhs and rhs. The runtime is able to detect
+      // and to make a copy of the rhs before modifying the lhs if needed.
+      // The code below relies on this and does not do any compile time alias
+      // analysis.
       const bool rhsIsValue = fir::isa_trivial(fir::getBase(rhsExv).getType());
       if (rhsIsValue) {
         // createBox can only be called for fir::ExtendedValue that are
@@ -105,25 +100,37 @@ public:
         builder.create<fir::StoreOp>(loc, rhsVal, temp);
         rhsExv = temp;
       }
+      return fir::getBase(builder.createBox(loc, rhsExv));
+    };
 
+    if (assignOp.isAllocatableAssignment()) {
+      // Whole allocatable assignment: use the runtime to deal with the
+      // reallocation.
+      mlir::Value from = emboxRHS(rhsExv);
+      mlir::Value to = fir::getBase(lhsExv);
+      if (assignOp.mustKeepLhsLengthInAllocatableAssignment()) {
+        // Indicate the runtime that it should not reallocate in case of length
+        // mismatch, and that it should use the LHS explicit/assumed length if
+        // allocating/reallocation the LHS.
+        TODO(loc, "assignment to explicit length whole allocatable");
+      } else if (lhs.isPolymorphic()) {
+        // Indicate the runtime that the LHS must have the RHS dynamic type
+        // after the assignment.
+        TODO(loc, "assignment to whole polymorphic entity");
+      } else {
+        fir::runtime::genAssign(builder, loc, to, from);
+      }
+    } else if (lhs.isArray()) {
       // Use the runtime for simplicity. An optimization pass will be added to
       // inline array assignment when profitable.
-      auto to = fir::getBase(builder.createBox(loc, lhsExv));
-      auto from = fir::getBase(builder.createBox(loc, rhsExv));
-      bool cleanUpTemp = false;
-      if (!rhsIsValue && mayAlias(rhs, lhs))
-        std::tie(from, cleanUpTemp) = genTempFromSourceBox(loc, builder, from);
-
+      mlir::Value from = emboxRHS(rhsExv);
+      mlir::Value to = fir::getBase(builder.createBox(loc, lhsExv));
+      // This is not a whole allocatable assignment: the runtime will not
+      // reallocate and modify "toMutableBox" even if it is taking it by
+      // reference.
       auto toMutableBox = builder.createTemporary(loc, to.getType());
-      // As per 10.2.1.2 point 1 (1) polymorphic variables must be allocatable.
-      // It is assumed here that they have been reallocated with the dynamic
-      // type and that the mutableBox will not be modified.
       builder.create<fir::StoreOp>(loc, to, toMutableBox);
       fir::runtime::genAssign(builder, loc, toMutableBox, from);
-      if (cleanUpTemp) {
-        mlir::Value addr = builder.create<fir::BoxAddrOp>(loc, from);
-        builder.create<fir::FreeMemOp>(loc, addr);
-      }
     } else {
       // Assume overlap does not matter for scalar (dealt with memmove for
       // characters).

@@ -10335,6 +10335,7 @@ public:
                         const Decl *Pattern, Decl *Inst,
                         LateInstantiatedAttrVec *LateAttrs = nullptr,
                         LocalInstantiationScope *OuterMostScope = nullptr);
+  void updateAttrsForLateParsedTemplate(const Decl *Pattern, Decl *Inst);
 
   void
   InstantiateAttrsForDecl(const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -11284,7 +11285,7 @@ public:
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD);
   //===--------------------------------------------------------------------===//
-  // C++ Coroutines TS
+  // C++ Coroutines
   //
   bool ActOnCoroutineBodyStart(Scope *S, SourceLocation KwLoc,
                                StringRef Keyword);
@@ -13036,7 +13037,6 @@ public:
   bool areVectorTypesSameSize(QualType srcType, QualType destType);
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
-  bool areSameVectorElemTypes(QualType srcType, QualType destType);
   bool anyAltivecTypes(QualType srcType, QualType destType);
 
   /// type checking declaration initializers (C99 6.7.8)
@@ -13985,6 +13985,7 @@ private:
   bool CheckPPCMMAType(QualType Type, SourceLocation TypeLoc);
 
   bool SemaBuiltinElementwiseMath(CallExpr *TheCall);
+  bool SemaBuiltinElementwiseTernaryMath(CallExpr *TheCall);
   bool PrepareBuiltinElementwiseMathOneArgCall(CallExpr *TheCall);
   bool PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall);
 

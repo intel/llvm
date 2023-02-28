@@ -12230,20 +12230,22 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
   if (Op.getOpcode() != ISD::BUILD_VECTOR)
     return SDValue();
 
-  if (VT.isInteger()) {
-    // Certain vector constants, used to express things like logical NOT and
-    // arithmetic NEG, are passed through unmodified.  This allows special
-    // patterns for these operations to match, which will lower these constants
-    // to whatever is proven necessary.
-    BuildVectorSDNode *BVN = cast<BuildVectorSDNode>(Op.getNode());
-    if (BVN->isConstant())
-      if (ConstantSDNode *Const = BVN->getConstantSplatNode()) {
-        unsigned BitSize = VT.getVectorElementType().getSizeInBits();
-        APInt Val(BitSize,
-                  Const->getAPIntValue().zextOrTrunc(BitSize).getZExtValue());
-        if (Val.isZero() || Val.isAllOnes())
-          return Op;
-      }
+  // Certain vector constants, used to express things like logical NOT and
+  // arithmetic NEG, are passed through unmodified.  This allows special
+  // patterns for these operations to match, which will lower these constants
+  // to whatever is proven necessary.
+  BuildVectorSDNode *BVN = cast<BuildVectorSDNode>(Op.getNode());
+  if (BVN->isConstant()) {
+    if (ConstantSDNode *Const = BVN->getConstantSplatNode()) {
+      unsigned BitSize = VT.getVectorElementType().getSizeInBits();
+      APInt Val(BitSize,
+                Const->getAPIntValue().zextOrTrunc(BitSize).getZExtValue());
+      if (Val.isZero() || (VT.isInteger() && Val.isAllOnes()))
+        return Op;
+    }
+    if (ConstantFPSDNode *Const = BVN->getConstantFPSplatNode())
+      if (Const->isZero() && !Const->isNegative())
+        return Op;
   }
 
   if (SDValue V = ConstantBuildVector(Op, DAG))
@@ -12445,7 +12447,8 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
     APInt ConstantValueAPInt(1, 0);
     if (auto *C = dyn_cast<ConstantSDNode>(ConstantValue))
       ConstantValueAPInt = C->getAPIntValue().zextOrTrunc(BitSize);
-    if (!isNullConstant(ConstantValue) && !ConstantValueAPInt.isAllOnes()) {
+    if (!isNullConstant(ConstantValue) && !isNullFPConstant(ConstantValue) &&
+        !ConstantValueAPInt.isAllOnes()) {
       Val = ConstantBuildVector(Val, DAG);
       if (!Val)
         // Otherwise, materialize the constant and splat it.
@@ -13649,6 +13652,22 @@ bool AArch64TargetLowering::shouldReduceLoadWidth(SDNode *Load,
       return false;
   }
   // We have no reason to disallow reducing the load width, so allow it.
+  return true;
+}
+
+// Treat a sext_inreg(extract(..)) as free if it has multiple uses.
+bool AArch64TargetLowering::shouldRemoveRedundantExtend(SDValue Extend) const {
+  EVT VT = Extend.getValueType();
+  if ((VT == MVT::i64 || VT == MVT::i32) && Extend->use_size()) {
+    SDValue Extract = Extend.getOperand(0);
+    if (Extract.getOpcode() == ISD::ANY_EXTEND && Extract.hasOneUse())
+      Extract = Extract.getOperand(0);
+    if (Extract.getOpcode() == ISD::EXTRACT_VECTOR_ELT && Extract.hasOneUse()) {
+      EVT VecVT = Extract.getOperand(0).getValueType();
+      if (VecVT.getScalarType() == MVT::i8 || VecVT.getScalarType() == MVT::i16)
+        return false;
+    }
+  }
   return true;
 }
 
@@ -18446,10 +18465,16 @@ static SDValue performIntrinsicCombine(SDNode *N,
     return convertMergedOpToPredOp(N, ISD::SADDSAT, DAG, true);
   case Intrinsic::aarch64_sve_sqsub:
     return convertMergedOpToPredOp(N, ISD::SSUBSAT, DAG, true);
+  case Intrinsic::aarch64_sve_sqsub_u:
+    return DAG.getNode(ISD::SSUBSAT, SDLoc(N), N->getValueType(0),
+                       N->getOperand(2), N->getOperand(3));
   case Intrinsic::aarch64_sve_uqadd:
     return convertMergedOpToPredOp(N, ISD::UADDSAT, DAG, true);
   case Intrinsic::aarch64_sve_uqsub:
     return convertMergedOpToPredOp(N, ISD::USUBSAT, DAG, true);
+  case Intrinsic::aarch64_sve_uqsub_u:
+    return DAG.getNode(ISD::USUBSAT, SDLoc(N), N->getValueType(0),
+                       N->getOperand(2), N->getOperand(3));
   case Intrinsic::aarch64_sve_sqadd_x:
     return DAG.getNode(ISD::SADDSAT, SDLoc(N), N->getValueType(0),
                        N->getOperand(1), N->getOperand(2));

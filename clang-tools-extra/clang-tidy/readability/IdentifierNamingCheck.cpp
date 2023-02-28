@@ -460,9 +460,9 @@ void IdentifierNamingCheck::HungarianNotation::loadFileConfig(
   }
 
   static constexpr std::pair<StringRef, StringRef> HNCStrings[] = {
-      {"CharPrinter", "char*"},
+      {"CharPointer", "char*"},
       {"CharArray", "char[]"},
-      {"WideCharPrinter", "wchar_t*"},
+      {"WideCharPointer", "wchar_t*"},
       {"WideCharArray", "wchar_t[]"}};
 
   Buffer = {Section, "CString."};
@@ -472,7 +472,7 @@ void IdentifierNamingCheck::HungarianNotation::loadFileConfig(
     Buffer.append(CStr.first);
     StringRef Val = Options.get(Buffer, "");
     if (!Val.empty())
-      HNOption.CString[CStr.first] = Val.str();
+      HNOption.CString[CStr.second] = Val.str();
   }
 
   Buffer = {Section, "PrimitiveType."};

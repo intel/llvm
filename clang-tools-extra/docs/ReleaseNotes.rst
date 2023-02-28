@@ -169,6 +169,24 @@ Changes in existing checks
   <clang-tidy/checks/misc/unused-using-decls>` check.
   Global options of the same name should be used instead.
 
+- Fixed reading `HungarianNotation.CString.*` options in
+  :doc:`readability-identifier-naming
+  <clang-tidy/checks/readability/identifier-naming>` check.
+
+- Renamed `HungarianNotation.CString` options `CharPrinter` and
+  `WideCharPrinter` to `CharPointer` and `WideCharPointer` respectively in
+  :doc:`readability-identifier-naming
+  <clang-tidy/checks/readability/identifier-naming>` check.
+
+- Fixed a false positive in :doc:`readability-container-size-empty
+  <clang-tidy/checks/readability/container-size-empty>` check when comparing
+  ``std::array`` objects to default constructed ones. The behavior for this and
+  other relevant classes can now be configured with a new option.
+
+- Improved :doc:`bugprone-too-small-loop-variable
+  <clang-tidy/checks/bugprone/too-small-loop-variable>` check. Basic support
+  for bit-field and integer members as a loop variable or upper limit were added.
+
 Removed checks
 ^^^^^^^^^^^^^^
 

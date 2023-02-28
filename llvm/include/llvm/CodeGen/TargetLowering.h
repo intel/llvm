@@ -284,10 +284,11 @@ public:
 
   /// Enum of different potentially desirable ways to fold (and/or (setcc ...),
   /// (setcc ...)).
-  enum class AndOrSETCCFoldKind {
-    None,
-    AddAnd,
-    ABS,
+  enum AndOrSETCCFoldKind : uint8_t {
+    None = 0,   // No fold is preferable.
+    AddAnd = 1, // Fold with `Add` op and `And` op is preferable.
+    NotAnd = 2, // Fold with `Not` op and `And` op is preferable.
+    ABS = 4,    // Fold with `llvm.abs` op is preferable.
   };
 
   class ArgListEntry {
@@ -792,6 +793,12 @@ public:
   /// Some targets may prefer one to the other.
   virtual bool preferIncOfAddToSubOfNot(EVT VT) const {
     // By default, let's assume that everyone prefers the form with two add's.
+    return true;
+  }
+
+  // By default prefer folding (abs (sub nsw x, y)) -> abds(x, y). Some targets
+  // may want to avoid this to prevent loss of sub_nsw pattern.
+  virtual bool preferABDSToABSWithNSW(EVT VT) const {
     return true;
   }
 
@@ -1644,6 +1651,10 @@ public:
 
     return true;
   }
+
+  /// Return true (the default) if it is profitable to remove a sext_inreg(x)
+  /// where the sext is redundant, and use x directly.
+  virtual bool shouldRemoveRedundantExtend(SDValue Op) const { return true; }
 
   /// When splitting a value of the specified type into parts, does the Lo
   /// or Hi part come first?  This usually follows the endianness, except
@@ -4956,7 +4967,7 @@ public:
   /// \param Test The test to perform.
   /// \param Flags The optimization flags.
   /// \returns The expansion result or SDValue() if it fails.
-  SDValue expandIS_FPCLASS(EVT ResultVT, SDValue Op, unsigned Test,
+  SDValue expandIS_FPCLASS(EVT ResultVT, SDValue Op, FPClassTest Test,
                            SDNodeFlags Flags, const SDLoc &DL,
                            SelectionDAG &DAG) const;
 

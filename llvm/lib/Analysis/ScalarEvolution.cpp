@@ -368,22 +368,8 @@ void SCEV::print(raw_ostream &OS) const {
   }
   case scUnknown: {
     const SCEVUnknown *U = cast<SCEVUnknown>(this);
-    Type *AllocTy;
-    if (U->isSizeOf(AllocTy)) {
-      OS << "sizeof(" << *AllocTy << ")";
-      return;
-    }
-    if (U->isAlignOf(AllocTy)) {
-      OS << "alignof(" << *AllocTy << ")";
-      return;
-    }
-
-    Type *CTy;
-    Constant *FieldNo;
-    if (U->isOffsetOf(CTy, FieldNo)) {
-      OS << "offsetof(" << *CTy << ", ";
-      FieldNo->printAsOperand(OS, false);
-      OS << ")";
+    if (U->isVScale()) {
+      OS << "vscale";
       return;
     }
 
@@ -574,65 +560,8 @@ void SCEVUnknown::allUsesReplacedWith(Value *New) {
   setValPtr(New);
 }
 
-bool SCEVUnknown::isSizeOf(Type *&AllocTy) const {
-  if (ConstantExpr *VCE = dyn_cast<ConstantExpr>(getValue()))
-    if (VCE->getOpcode() == Instruction::PtrToInt)
-      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(VCE->getOperand(0)))
-        if (CE->getOpcode() == Instruction::GetElementPtr &&
-            CE->getOperand(0)->isNullValue() &&
-            CE->getNumOperands() == 2)
-          if (ConstantInt *CI = dyn_cast<ConstantInt>(CE->getOperand(1)))
-            if (CI->isOne()) {
-              AllocTy = cast<GEPOperator>(CE)->getSourceElementType();
-              return true;
-            }
-
-  return false;
-}
-
-bool SCEVUnknown::isAlignOf(Type *&AllocTy) const {
-  if (ConstantExpr *VCE = dyn_cast<ConstantExpr>(getValue()))
-    if (VCE->getOpcode() == Instruction::PtrToInt)
-      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(VCE->getOperand(0)))
-        if (CE->getOpcode() == Instruction::GetElementPtr &&
-            CE->getOperand(0)->isNullValue()) {
-          Type *Ty = cast<GEPOperator>(CE)->getSourceElementType();
-          if (StructType *STy = dyn_cast<StructType>(Ty))
-            if (!STy->isPacked() &&
-                CE->getNumOperands() == 3 &&
-                CE->getOperand(1)->isNullValue()) {
-              if (ConstantInt *CI = dyn_cast<ConstantInt>(CE->getOperand(2)))
-                if (CI->isOne() &&
-                    STy->getNumElements() == 2 &&
-                    STy->getElementType(0)->isIntegerTy(1)) {
-                  AllocTy = STy->getElementType(1);
-                  return true;
-                }
-            }
-        }
-
-  return false;
-}
-
-bool SCEVUnknown::isOffsetOf(Type *&CTy, Constant *&FieldNo) const {
-  if (ConstantExpr *VCE = dyn_cast<ConstantExpr>(getValue()))
-    if (VCE->getOpcode() == Instruction::PtrToInt)
-      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(VCE->getOperand(0)))
-        if (CE->getOpcode() == Instruction::GetElementPtr &&
-            CE->getNumOperands() == 3 &&
-            CE->getOperand(0)->isNullValue() &&
-            CE->getOperand(1)->isNullValue()) {
-          Type *Ty = cast<GEPOperator>(CE)->getSourceElementType();
-          // Ignore vector types here so that ScalarEvolutionExpander doesn't
-          // emit getelementptrs that index into vectors.
-          if (Ty->isStructTy() || Ty->isArrayTy()) {
-            CTy = Ty;
-            FieldNo = CE->getOperand(2);
-            return true;
-          }
-        }
-
-  return false;
+bool SCEVUnknown::isVScale() const {
+  return match(getValue(), m_VScale());
 }
 
 //===----------------------------------------------------------------------===//
@@ -4384,33 +4313,26 @@ const SCEV *ScalarEvolution::getUMinExpr(SmallVectorImpl<const SCEV *> &Ops,
 }
 
 const SCEV *
-ScalarEvolution::getSizeOfScalableVectorExpr(Type *IntTy,
-                                             ScalableVectorType *ScalableTy) {
-  Constant *NullPtr = Constant::getNullValue(ScalableTy->getPointerTo());
-  Constant *One = ConstantInt::get(IntTy, 1);
-  Constant *GEP = ConstantExpr::getGetElementPtr(ScalableTy, NullPtr, One);
-  // Note that the expression we created is the final expression, we don't
-  // want to simplify it any further Also, if we call a normal getSCEV(),
-  // we'll end up in an endless recursion. So just create an SCEVUnknown.
-  return getUnknown(ConstantExpr::getPtrToInt(GEP, IntTy));
+ScalarEvolution::getSizeOfExpr(Type *IntTy, TypeSize Size) {
+  const SCEV *Res = getConstant(IntTy, Size.getKnownMinValue());
+  if (Size.isScalable()) {
+    // TODO: Why is there no ConstantExpr::getVScale()?
+    Type *SrcElemTy = ScalableVectorType::get(Type::getInt8Ty(getContext()), 1);
+    Constant *NullPtr = Constant::getNullValue(SrcElemTy->getPointerTo());
+    Constant *One = ConstantInt::get(IntTy, 1);
+    Constant *GEP = ConstantExpr::getGetElementPtr(SrcElemTy, NullPtr, One);
+    Constant *VScale = ConstantExpr::getPtrToInt(GEP, IntTy);
+    Res = getMulExpr(Res, getUnknown(VScale));
+  }
+  return Res;
 }
 
 const SCEV *ScalarEvolution::getSizeOfExpr(Type *IntTy, Type *AllocTy) {
-  if (auto *ScalableAllocTy = dyn_cast<ScalableVectorType>(AllocTy))
-    return getSizeOfScalableVectorExpr(IntTy, ScalableAllocTy);
-  // We can bypass creating a target-independent constant expression and then
-  // folding it back into a ConstantInt. This is just a compile-time
-  // optimization.
-  return getConstant(IntTy, getDataLayout().getTypeAllocSize(AllocTy));
+  return getSizeOfExpr(IntTy, getDataLayout().getTypeAllocSize(AllocTy));
 }
 
 const SCEV *ScalarEvolution::getStoreSizeOfExpr(Type *IntTy, Type *StoreTy) {
-  if (auto *ScalableStoreTy = dyn_cast<ScalableVectorType>(StoreTy))
-    return getSizeOfScalableVectorExpr(IntTy, ScalableStoreTy);
-  // We can bypass creating a target-independent constant expression and then
-  // folding it back into a ConstantInt. This is just a compile-time
-  // optimization.
-  return getConstant(IntTy, getDataLayout().getTypeStoreSize(StoreTy));
+  return getSizeOfExpr(IntTy, getDataLayout().getTypeStoreSize(StoreTy));
 }
 
 const SCEV *ScalarEvolution::getOffsetOfExpr(Type *IntTy,
@@ -7486,13 +7408,9 @@ ScalarEvolution::getOperandsToCreate(Value *V, SmallVectorImpl<Value *> &Ops) {
       return getUnknown(PoisonValue::get(V->getType()));
   } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
     return getConstant(CI);
-  else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
-    if (!GA->isInterposable()) {
-      Ops.push_back(GA->getAliasee());
-      return nullptr;
-    }
+  else if (isa<GlobalAlias>(V))
     return getUnknown(V);
-  } else if (!isa<ConstantExpr>(V))
+  else if (!isa<ConstantExpr>(V))
     return getUnknown(V);
 
   Operator *U = cast<Operator>(V);
@@ -7676,8 +7594,8 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
       return getUnknown(PoisonValue::get(V->getType()));
   } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
     return getConstant(CI);
-  else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V))
-    return GA->isInterposable() ? getUnknown(V) : getSCEV(GA->getAliasee());
+  else if (isa<GlobalAlias>(V))
+    return getUnknown(V);
   else if (!isa<ConstantExpr>(V))
     return getUnknown(V);
 
@@ -8497,6 +8415,25 @@ void ScalarEvolution::forgetAllLoops() {
   FoldCache.clear();
   FoldCacheUser.clear();
 }
+void ScalarEvolution::visitAndClearUsers(
+    SmallVectorImpl<Instruction *> &Worklist,
+    SmallPtrSetImpl<Instruction *> &Visited,
+    SmallVectorImpl<const SCEV *> &ToForget) {
+  while (!Worklist.empty()) {
+    Instruction *I = Worklist.pop_back_val();
+
+    ValueExprMapType::iterator It =
+        ValueExprMap.find_as(static_cast<Value *>(I));
+    if (It != ValueExprMap.end()) {
+      eraseValueFromMap(It->first);
+      ToForget.push_back(It->second);
+      if (PHINode *PN = dyn_cast<PHINode>(I))
+        ConstantEvolutionLoopExitValue.erase(PN);
+    }
+
+    PushDefUseChildren(I, Worklist, Visited);
+  }
+}
 
 void ScalarEvolution::forgetLoop(const Loop *L) {
   SmallVector<const Loop *, 16> LoopWorklist(1, L);
@@ -8530,21 +8467,7 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
 
     // Drop information about expressions based on loop-header PHIs.
     PushLoopPHIs(CurrL, Worklist, Visited);
-
-    while (!Worklist.empty()) {
-      Instruction *I = Worklist.pop_back_val();
-
-      ValueExprMapType::iterator It =
-          ValueExprMap.find_as(static_cast<Value *>(I));
-      if (It != ValueExprMap.end()) {
-        eraseValueFromMap(It->first);
-        ToForget.push_back(It->second);
-        if (PHINode *PN = dyn_cast<PHINode>(I))
-          ConstantEvolutionLoopExitValue.erase(PN);
-      }
-
-      PushDefUseChildren(I, Worklist, Visited);
-    }
+    visitAndClearUsers(Worklist, Visited, ToForget);
 
     LoopPropertiesCache.erase(CurrL);
     // Forget all contained loops too, to avoid dangling entries in the
@@ -8568,20 +8491,8 @@ void ScalarEvolution::forgetValue(Value *V) {
   SmallVector<const SCEV *, 8> ToForget;
   Worklist.push_back(I);
   Visited.insert(I);
+  visitAndClearUsers(Worklist, Visited, ToForget);
 
-  while (!Worklist.empty()) {
-    I = Worklist.pop_back_val();
-    ValueExprMapType::iterator It =
-      ValueExprMap.find_as(static_cast<Value *>(I));
-    if (It != ValueExprMap.end()) {
-      eraseValueFromMap(It->first);
-      ToForget.push_back(It->second);
-      if (PHINode *PN = dyn_cast<PHINode>(I))
-        ConstantEvolutionLoopExitValue.erase(PN);
-    }
-
-    PushDefUseChildren(I, Worklist, Visited);
-  }
   forgetMemoizedResults(ToForget);
 }
 

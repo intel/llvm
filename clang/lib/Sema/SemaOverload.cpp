@@ -1750,7 +1750,8 @@ static bool IsVectorConversion(Sema &S, QualType FromType, QualType ToType,
     }
   }
 
-  if (ToType->isSizelessBuiltinType() || FromType->isSizelessBuiltinType())
+  if (ToType->isSVESizelessBuiltinType() ||
+      FromType->isSVESizelessBuiltinType())
     if (S.Context.areCompatibleSveTypes(FromType, ToType) ||
         S.Context.areLaxCompatibleSveTypes(FromType, ToType)) {
       ICK = ICK_SVE_Vector_Conversion;
@@ -1770,7 +1771,7 @@ static bool IsVectorConversion(Sema &S, QualType FromType, QualType ToType,
          !ToType->hasAttr(attr::ArmMveStrictPolymorphism))) {
       if (S.isLaxVectorConversion(FromType, ToType) &&
           S.anyAltivecTypes(FromType, ToType) &&
-          !S.areSameVectorElemTypes(FromType, ToType) &&
+          !S.Context.areCompatibleVectorTypes(FromType, ToType) &&
           !InOverloadResolution && !CStyle) {
         S.Diag(From->getBeginLoc(), diag::warn_deprecated_lax_vec_conv_all)
             << FromType << ToType;

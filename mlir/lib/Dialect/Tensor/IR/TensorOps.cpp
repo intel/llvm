@@ -1829,7 +1829,7 @@ public:
         }))
       return failure();
 
-    auto castOp = sliceOp.getSource().getDefiningOp<tensor::CastOp>();
+    auto castOp = sliceOp.getSource().getDefiningOp<CastOp>();
     if (!castOp)
       return failure();
 
@@ -1837,17 +1837,20 @@ public:
       return failure();
 
     /// Deduce the type of the result to use for the canonicalized operation.
+    Location loc = sliceOp.getLoc();
+    auto sliceOpType = sliceOp.getType();
     RankedTensorType resultType =
         ExtractSliceOp::inferCanonicalRankReducedResultType(
-            sliceOp.getType().getRank(), sliceOp.getSourceType(),
+            sliceOpType.getRank(), sliceOp.getSourceType(),
             sliceOp.getMixedOffsets(), sliceOp.getMixedSizes(),
             sliceOp.getMixedStrides());
-    Value newSlice = rewriter.create<ExtractSliceOp>(
-        sliceOp.getLoc(), resultType, castOp.getSource(), sliceOp.getOffsets(),
+    Value newResult = rewriter.create<ExtractSliceOp>(
+        loc, resultType, castOp.getSource(), sliceOp.getOffsets(),
         sliceOp.getSizes(), sliceOp.getStrides(), sliceOp.getStaticOffsets(),
         sliceOp.getStaticSizes(), sliceOp.getStaticStrides());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(sliceOp, sliceOp.getType(),
-                                                newSlice);
+    if (newResult.getType() != sliceOpType)
+      newResult = rewriter.create<CastOp>(loc, sliceOpType, newResult);
+    rewriter.replaceOp(sliceOp, newResult);
     return success();
   }
 };
@@ -2227,21 +2230,15 @@ public:
 
   LogicalResult matchAndRewrite(InsertOpTy insertSliceOp,
                                 PatternRewriter &rewriter) const override {
-    // No constant operand, just return.
-    if (llvm::none_of(insertSliceOp.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    // At least one of offsets/sizes/strides is a new constant.
-    // Form the new list of operands and constant attributes from the
-    // existing.
     SmallVector<OpFoldResult> mixedOffsets(insertSliceOp.getMixedOffsets());
     SmallVector<OpFoldResult> mixedSizes(insertSliceOp.getMixedSizes());
     SmallVector<OpFoldResult> mixedStrides(insertSliceOp.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamic);
+
+    // No constant operands were folded, just return;
+    if (failed(foldDynamicIndexList(rewriter, mixedOffsets)) &&
+        failed(foldDynamicIndexList(rewriter, mixedSizes)) &&
+        failed(foldDynamicIndexList(rewriter, mixedStrides)))
+      return failure();
 
     // Create the new op in canonical form.
     auto sourceType = ExtractSliceOp::inferCanonicalRankReducedResultType(

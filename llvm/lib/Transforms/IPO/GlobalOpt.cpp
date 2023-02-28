@@ -335,10 +335,18 @@ static bool CleanupConstantGlobalUsers(GlobalVariable *GV,
   return Changed;
 }
 
+/// Part of the global at a specific offset, which is only accessed through
+/// loads and stores with the given type.
+struct GlobalPart {
+  Type *Ty;
+  bool IsLoaded = false;
+  bool IsStored = false;
+};
+
 /// Look at all uses of the global and determine which (offset, type) pairs it
 /// can be split into.
-static bool collectSRATypes(DenseMap<uint64_t, Type *> &Types, GlobalValue *GV,
-                            const DataLayout &DL) {
+static bool collectSRATypes(DenseMap<uint64_t, GlobalPart> &Parts,
+                            GlobalValue *GV, const DataLayout &DL) {
   SmallVector<Use *, 16> Worklist;
   SmallPtrSet<Use *, 16> Visited;
   auto AppendUses = [&](Value *V) {
@@ -373,14 +381,16 @@ static bool collectSRATypes(DenseMap<uint64_t, Type *> &Types, GlobalValue *GV,
       // TODO: We currently require that all accesses at a given offset must
       // use the same type. This could be relaxed.
       Type *Ty = getLoadStoreType(V);
-      auto It = Types.try_emplace(Offset.getZExtValue(), Ty).first;
-      if (Ty != It->second)
+      auto It = Parts.try_emplace(Offset.getZExtValue(), GlobalPart{Ty}).first;
+      if (Ty != It->second.Ty)
         return false;
 
       // Scalable types not currently supported.
       if (isa<ScalableVectorType>(Ty))
         return false;
 
+      It->second.IsLoaded |= isa<LoadInst>(V);
+      It->second.IsStored |= isa<StoreInst>(V);
       continue;
     }
 
@@ -459,21 +469,27 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
   assert(GV->hasLocalLinkage());
 
   // Collect types to split into.
-  DenseMap<uint64_t, Type *> Types;
-  if (!collectSRATypes(Types, GV, DL) || Types.empty())
+  DenseMap<uint64_t, GlobalPart> Parts;
+  if (!collectSRATypes(Parts, GV, DL) || Parts.empty())
     return nullptr;
 
   // Make sure we don't SRA back to the same type.
-  if (Types.size() == 1 && Types.begin()->second == GV->getValueType())
+  if (Parts.size() == 1 && Parts.begin()->second.Ty == GV->getValueType())
     return nullptr;
 
-  // Don't perform SRA if we would have to split into many globals.
-  if (Types.size() > 16)
+  // Don't perform SRA if we would have to split into many globals. Ignore
+  // parts that are either only loaded or only stored, because we expect them
+  // to be optimized away.
+  unsigned NumParts = count_if(Parts, [](const auto &Pair) {
+    return Pair.second.IsLoaded && Pair.second.IsStored;
+  });
+  if (NumParts > 16)
     return nullptr;
 
   // Sort by offset.
   SmallVector<std::pair<uint64_t, Type *>, 16> TypesVector;
-  append_range(TypesVector, Types);
+  for (const auto &Pair : Parts)
+    TypesVector.push_back({Pair.first, Pair.second.Ty});
   sort(TypesVector, llvm::less_first());
 
   // Check that the types are non-overlapping.
@@ -493,7 +509,7 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
   // Collect initializers for new globals.
   Constant *OrigInit = GV->getInitializer();
   DenseMap<uint64_t, Constant *> Initializers;
-  for (const auto &Pair : Types) {
+  for (const auto &Pair : TypesVector) {
     Constant *NewInit = ConstantFoldLoadFromConst(OrigInit, Pair.second,
                                                   APInt(64, Pair.first), DL);
     if (!NewInit) {

@@ -110,6 +110,13 @@ private:
     return AnnotationInst;
   }
 
+  void removeAnnotationInst(MCInst &Inst) const {
+    assert(getAnnotationInst(Inst) && "Expected annotation instruction.");
+    Inst.erase(std::prev(Inst.end()));
+    assert(!getAnnotationInst(Inst) &&
+           "More than one annotation instruction detected.");
+  }
+
   void setAnnotationOpValue(MCInst &Inst, unsigned Index, int64_t Value,
                             AllocatorIdTy AllocatorId = 0) {
     MCInst *AnnotationInst = getAnnotationInst(Inst);
@@ -162,6 +169,18 @@ protected:
   /// Allocate the TailCall annotation value. Clients of the target-specific
   /// MCPlusBuilder classes must use convert/lower/create* interfaces instead.
   void setTailCall(MCInst &Inst);
+
+  /// Transfer annotations from \p SrcInst to \p DstInst.
+  void moveAnnotations(MCInst &&SrcInst, MCInst &DstInst) const {
+    assert(!getAnnotationInst(DstInst) &&
+           "Destination instruction should not have annotations.");
+    const MCInst *AnnotationInst = getAnnotationInst(SrcInst);
+    if (!AnnotationInst)
+      return;
+
+    DstInst.addOperand(MCOperand::createInst(AnnotationInst));
+    removeAnnotationInst(SrcInst);
+  }
 
 public:
   class InstructionIterator {
@@ -854,6 +873,15 @@ public:
     return false;
   }
 
+  struct X86MemOperand {
+    unsigned BaseRegNum;
+    int64_t ScaleImm;
+    unsigned IndexRegNum;
+    int64_t DispImm;
+    unsigned SegRegNum;
+    const MCExpr *DispExpr = nullptr;
+  };
+
   /// Given an instruction with (compound) memory operand, evaluate and return
   /// the corresponding values. Note that the operand could be in any position,
   /// but there is an assumption there's only one compound memory operand.
@@ -862,13 +890,10 @@ public:
   ///
   /// Since a Displacement field could be either an immediate or an expression,
   /// the function sets either \p DispImm or \p DispExpr value.
-  virtual bool
-  evaluateX86MemoryOperand(const MCInst &Inst, unsigned *BaseRegNum,
-                           int64_t *ScaleImm, unsigned *IndexRegNum,
-                           int64_t *DispImm, unsigned *SegmentRegNum,
-                           const MCExpr **DispExpr = nullptr) const {
+  virtual std::optional<X86MemOperand>
+  evaluateX86MemoryOperand(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
-    return false;
+    return std::nullopt;
   }
 
   /// Given an instruction with memory addressing attempt to statically compute
@@ -1858,9 +1883,8 @@ public:
   void stripAnnotations(MCInst &Inst, bool KeepTC = false);
 
   virtual InstructionListType
-  createInstrumentedIndirectCall(const MCInst &CallInst, bool TailCall,
-                                 MCSymbol *HandlerFuncAddr, int CallSiteID,
-                                 MCContext *Ctx) {
+  createInstrumentedIndirectCall(MCInst &&CallInst, MCSymbol *HandlerFuncAddr,
+                                 int CallSiteID, MCContext *Ctx) {
     llvm_unreachable("not implemented");
     return InstructionListType();
   }

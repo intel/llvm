@@ -681,6 +681,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_ALLOC_KIND;
   case Attribute::Memory:
     return bitc::ATTR_KIND_MEMORY;
+  case Attribute::NoFPClass:
+    return bitc::ATTR_KIND_NOFPCLASS;
   case Attribute::Naked:
     return bitc::ATTR_KIND_NAKED;
   case Attribute::Nest:
@@ -899,15 +901,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
 
   uint64_t NumBits = VE.computeBitsRequiredForTypeIndicies();
 
-  // Abbrev for TYPE_CODE_POINTER.
-  auto Abbv = std::make_shared<BitCodeAbbrev>();
-  Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_POINTER));
-  Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, NumBits));
-  Abbv->Add(BitCodeAbbrevOp(0));  // Addrspace = 0
-  unsigned PtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
-
   // Abbrev for TYPE_CODE_OPAQUE_POINTER.
-  Abbv = std::make_shared<BitCodeAbbrev>();
+  auto Abbv = std::make_shared<BitCodeAbbrev>();
   Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_OPAQUE_POINTER));
   Abbv->Add(BitCodeAbbrevOp(0)); // Addrspace = 0
   unsigned OpaquePtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
@@ -993,8 +988,6 @@ void ModuleBitcodeWriter::writeTypeTable() {
         Code = bitc::TYPE_CODE_POINTER;
         TypeVals.push_back(VE.getTypeID(PTy->getNonOpaquePointerElementType()));
         TypeVals.push_back(AddressSpace);
-        if (AddressSpace == 0)
-          AbbrevToUse = PtrAbbrev;
       }
       break;
     }

@@ -804,7 +804,8 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     SDValue Op0 = Op.getOperand(0);
     EVT ExVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
     unsigned ExBits = ExVT.getScalarSizeInBits();
-    if (DemandedBits.getActiveBits() <= ExBits)
+    if (DemandedBits.getActiveBits() <= ExBits &&
+        shouldRemoveRedundantExtend(Op))
       return Op0;
     // If the input is already sign extended, just drop the extension.
     unsigned NumSignBits = DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1);
@@ -8004,7 +8005,7 @@ SDValue TargetLowering::expandFMINNUM_FMAXNUM(SDNode *Node,
 }
 
 SDValue TargetLowering::expandIS_FPCLASS(EVT ResultVT, SDValue Op,
-                                         unsigned Test, SDNodeFlags Flags,
+                                         FPClassTest Test, SDNodeFlags Flags,
                                          const SDLoc &DL,
                                          SelectionDAG &DAG) const {
   EVT OperandVT = Op.getValueType();
@@ -8027,7 +8028,7 @@ SDValue TargetLowering::expandIS_FPCLASS(EVT ResultVT, SDValue Op,
   // Some checks may be represented as inversion of simpler check, for example
   // "inf|normal|subnormal|zero" => !"nan".
   bool IsInverted = false;
-  if (unsigned InvertedCheck = getInvertedFPClassTest(Test)) {
+  if (FPClassTest InvertedCheck = getInvertedFPClassTest(Test)) {
     IsInverted = true;
     Test = InvertedCheck;
   }

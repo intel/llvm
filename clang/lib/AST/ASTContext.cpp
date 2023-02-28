@@ -349,7 +349,7 @@ RawComment *ASTContext::getRawCommentForDeclNoCacheImpl(
 
   // There should be no other declarations or preprocessor directives between
   // comment and declaration.
-  if (Text.find_first_of(";{}#@") != StringRef::npos)
+  if (Text.find_last_of(";{}#@") != StringRef::npos)
     return nullptr;
 
   return CommentBeforeDecl;
@@ -6699,10 +6699,6 @@ bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
                               FuncY->getTrailingRequiresClause()))
       return false;
 
-    // Constrained friends are different in certain cases, see: [temp.friend]p9.
-    if (FriendsDifferByConstraints(FuncX, FuncY))
-      return false;
-
     auto GetTypeAsWritten = [](const FunctionDecl *FD) {
       // Map to the first declaration that we've already merged into this one.
       // The TSI of redeclarations might not match (due to calling conventions
@@ -9556,9 +9552,10 @@ static uint64_t getSVETypeSize(ASTContext &Context, const BuiltinType *Ty) {
 
 bool ASTContext::areCompatibleSveTypes(QualType FirstType,
                                        QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsValidCast = [this](QualType FirstType, QualType SecondType) {
     if (const auto *BT = FirstType->getAs<BuiltinType>()) {
@@ -9585,9 +9582,10 @@ bool ASTContext::areCompatibleSveTypes(QualType FirstType,
 
 bool ASTContext::areLaxCompatibleSveTypes(QualType FirstType,
                                           QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsLaxCompatible = [this](QualType FirstType, QualType SecondType) {
     const auto *BT = FirstType->getAs<BuiltinType>();

@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/StringRef.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include <array>
 #include <climits>
 #include <list>
 #include <vector>
@@ -353,12 +356,23 @@ TEST(STLExtrasTest, EraseIf) {
 }
 
 TEST(STLExtrasTest, AppendRange) {
-  auto AppendVals = {3};
   std::vector<int> V = {1, 2};
-  append_range(V, AppendVals);
-  EXPECT_EQ(1, V[0]);
-  EXPECT_EQ(2, V[1]);
-  EXPECT_EQ(3, V[2]);
+  auto AppendVals1 = {3};
+  append_range(V, AppendVals1);
+  EXPECT_THAT(V, ElementsAre(1, 2, 3));
+
+  int AppendVals2[] = {4, 5};
+  append_range(V, AppendVals2);
+  EXPECT_THAT(V, ElementsAre(1, 2, 3, 4, 5));
+
+  append_range(V, llvm::seq(6, 8));
+  EXPECT_THAT(V, ElementsAre(1, 2, 3, 4, 5, 6, 7));
+
+  std::string Str;
+  append_range(Str, "abc");
+  EXPECT_THAT(Str, ElementsAre('a', 'b', 'c', '\0'));
+  append_range(Str, "def");
+  EXPECT_THAT(Str, ElementsAre('a', 'b', 'c', '\0', 'd', 'e', 'f', '\0'));
 }
 
 namespace some_namespace {
@@ -381,6 +395,10 @@ void swap(some_struct &lhs, some_struct &rhs) {
   lhs.swap_val = "lhs";
   rhs.swap_val = "rhs";
 }
+
+struct requires_move {};
+int *begin(requires_move &&) { return nullptr; }
+int *end(requires_move &&) { return nullptr; }
 } // namespace some_namespace
 
 TEST(STLExtrasTest, ADLTest) {
@@ -396,7 +414,25 @@ TEST(STLExtrasTest, ADLTest) {
 
   int count = 0;
   llvm::for_each(s, [&count](int) { ++count; });
-  EXPECT_EQ(5, count);
+  EXPECT_EQ(count, 5);
+}
+
+TEST(STLExtrasTest, ADLTestTemporaryRange) {
+  EXPECT_EQ(adl_begin(some_namespace::requires_move{}), nullptr);
+  EXPECT_EQ(adl_end(some_namespace::requires_move{}), nullptr);
+}
+
+TEST(STLExtrasTest, ADLTestConstexpr) {
+  // `std::begin`/`std::end` are marked as `constexpr`; check that
+  // `adl_begin`/`adl_end` also work in constant-evaluated contexts.
+  static constexpr int c_arr[] = {7, 8, 9};
+  static_assert(adl_begin(c_arr) == c_arr);
+  static_assert(adl_end(c_arr) == c_arr + 3);
+
+  static constexpr std::array<int, 2> std_arr = {1, 2};
+  static_assert(adl_begin(std_arr) == std_arr.begin());
+  static_assert(adl_end(std_arr) == std_arr.end());
+  SUCCEED();
 }
 
 TEST(STLExtrasTest, DropBeginTest) {
@@ -947,11 +983,29 @@ enum Doggos {
   Longboi,
 };
 
+struct WooferCmp {
+  // Not copyable.
+  WooferCmp() = default;
+  WooferCmp(const WooferCmp &) = delete;
+  WooferCmp &operator=(const WooferCmp &) = delete;
+
+  friend bool operator==(const Doggos &Doggo, const WooferCmp &) {
+    return Doggo == Doggos::Woofer;
+  }
+};
+
 TEST(STLExtrasTest, IsContainedInitializerList) {
   EXPECT_TRUE(is_contained({Woofer, SubWoofer}, Woofer));
   EXPECT_TRUE(is_contained({Woofer, SubWoofer}, SubWoofer));
   EXPECT_FALSE(is_contained({Woofer, SubWoofer}, Pupper));
-  EXPECT_FALSE(is_contained({}, Longboi));
+
+  // Check that the initializer list type and the element type do not have to
+  // match exactly.
+  EXPECT_TRUE(is_contained({Floofer, Woofer, SubWoofer}, WooferCmp{}));
+  EXPECT_FALSE(is_contained({Floofer, SubWoofer}, WooferCmp{}));
+
+  EXPECT_TRUE(is_contained({"a", "bb", "ccc", "dddd"}, llvm::StringRef("ccc")));
+  EXPECT_FALSE(is_contained({"a", "bb", "ccc", "dddd"}, llvm::StringRef("x")));
 
   static_assert(is_contained({Woofer, SubWoofer}, SubWoofer), "SubWoofer!");
   static_assert(!is_contained({Woofer, SubWoofer}, Pupper), "Missing Pupper!");
