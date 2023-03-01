@@ -602,11 +602,11 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' -
 /// perform the operation.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the
 /// returned vector for which the corresponding element in \p pred is 0
 /// are undefined.
@@ -702,12 +702,12 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed.
 /// @param old_values contains the vector which elements are copied
 /// to the returned result when the corresponding element of \p pred is 0.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -789,12 +789,12 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the returned
 /// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
@@ -880,7 +880,6 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Operation is skipped for index 'i'
@@ -888,6 +887,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// Otherwise, the operation is performed.
 /// @param old_values contains the values copied to the result when
 /// the corresponding element from \p pred is zero.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -1351,12 +1351,12 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param vals is values to store.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
@@ -1433,13 +1433,13 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Flags is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param vals is values to store.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
@@ -1450,7 +1450,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals,
                 __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  lsc_block_store<T, NElts, DS, L1H, L3H, Flags>(
+  lsc_block_store<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred, flags);
 #else
   detail::check_lsc_data_size<T, DS>();
