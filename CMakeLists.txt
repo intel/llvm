@@ -109,6 +109,7 @@ endif()
 # Obtain files for clang-format
 file(GLOB_RECURSE format_src
     "*.h"
+    "*.c"
     "*.hpp"
     "*.cpp"
 )
