@@ -318,12 +318,13 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
 }
 
 // Forward declarations
-static pi_result
-enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
-                     pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event,
-                     bool PreferCopyEngine = false);
+static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
+                                      pi_queue Queue, void *Dst,
+                                      pi_bool BlockingWrite, size_t Size,
+                                      const void *Src,
+                                      pi_uint32 NumEventsInWaitList,
+                                      const pi_event *EventWaitList,
+                                      pi_event *Event, bool PreferCopyEngine);
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, const void *SrcBuffer,
@@ -577,19 +578,30 @@ pi_result _pi_context::initialize() {
     createUSMAllocators(SingleRootDevice);
   }
 
-  // Create the immediate command list to be used for initializations
+  // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
   //
-  // TODO: get rid of using Devices[0] for the context with multiple
-  // root-devices. We should somehow make the data initialized on all devices.
+  // TODO: we use Device[0] here as the single immediate command-list
+  // for buffer creation and migration. Initialization is in
+  // in sync and is always performed to Devices[0] as well but
+  // D2D migartion, if no P2P, is broken since it should use
+  // immediate command-list for the specfic devices, and this single one.
+  //
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
 
-  // NOTE: we always submit to the "0" index compute engine with immediate
-  // command list since this is one for context.
+  // Prefer to use copy engine for initialization copies,
+  // if available and allowed (main copy engine with index 0).
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
   ZeCommandQueueDesc.ordinal =
       Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
+  if (Range.first >= 0 &&
+      Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy].ZeOrdinal !=
+          -1)
+    ZeCommandQueueDesc.ordinal =
+        Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy].ZeOrdinal;
+
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
@@ -5646,7 +5658,8 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_CALL(Src->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size, ZeHandleSrc + Offset,
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -5913,7 +5926,8 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
                               ZeHandleDst + Offset, // dst
                               BlockingWrite, Size,
                               Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              /* PreferCopyEngine */ true);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -6850,12 +6864,73 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   return mapError(ZeResult);
 }
 
-static bool ShouldUseUSMAllocator() {
+static bool UseUSMAllocator = [] {
   // Enable allocator by default if it's not explicitly disabled
   return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR") == nullptr;
-}
+}();
 
-static const bool UseUSMAllocator = ShouldUseUSMAllocator();
+enum class USMAllocationForceResidencyType {
+  // [Default] Do not force memory residency at allocation time.
+  None = 0,
+  // Force memory resident on the device of allocation at allocation time.
+  // For host allocation force residency on all devices in a context.
+  Device = 1,
+  // Force memory resident on all devices in the context with P2P
+  // access to the device of allocation.
+  // For host allocation force residency on all devices in a context.
+  P2PDevices = 2
+};
+
+// Returns the desired USM residency setting
+static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
+  const auto Str = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  if (!Str)
+    return USMAllocationForceResidencyType::None;
+  switch (std::atoi(Str)) {
+  case 1:
+    return USMAllocationForceResidencyType::Device;
+  case 2:
+    return USMAllocationForceResidencyType::P2PDevices;
+  default:
+    return USMAllocationForceResidencyType::None;
+  };
+}();
+
+// Make USM allocation resident as requested
+static pi_result
+USMAllocationMakeResident(pi_context Context,
+                          pi_device Device, // nullptr for host allocation
+                          void *Ptr, size_t Size) {
+
+  std::list<pi_device> Devices;
+
+  if (USMAllocationForceResidency == USMAllocationForceResidencyType::None)
+    return PI_SUCCESS;
+  else if (!Device) {
+    // Host allocation, make it resident on all devices in the context
+    Devices.insert(Devices.end(), Context->Devices.begin(),
+                   Context->Devices.end());
+  } else {
+    Devices.push_back(Device);
+    if (USMAllocationForceResidency ==
+        USMAllocationForceResidencyType::P2PDevices) {
+      ze_bool_t P2P;
+      for (const auto &D : Context->Devices) {
+        if (D == Device)
+          continue;
+        // TODO: Cache P2P devices for a context
+        ZE_CALL(zeDeviceCanAccessPeer, (D->ZeDevice, Device->ZeDevice, &P2P));
+        if (P2P)
+          Devices.push_back(D);
+      }
+    }
+  }
+  for (const auto &D : Devices) {
+    ZE_CALL(zeContextMakeMemoryResident,
+            (Context->ZeContext, D->ZeDevice, Ptr, Size));
+  }
+  return PI_SUCCESS;
+}
 
 static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
@@ -6888,6 +6963,7 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
@@ -6918,6 +6994,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
+
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
 }
@@ -6942,6 +7020,7 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, nullptr, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 

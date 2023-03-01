@@ -1989,7 +1989,16 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
 
+  if (PTO.OptimizeSYCLFramework)
+    addDefaultSYCLFrameworkOptimizationPipeline(MPM);
+
   return MPM;
+}
+
+void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
+    ModulePassManager &MPM) {
+  MPM.addPass(
+      buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
 }
 
 AAManager PassBuilder::buildDefaultAAPipeline() {

@@ -50,7 +50,7 @@ private:
   static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-#if (__CUDA_ARCH__ >= 800)
+#if (__SYCL_CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
     // TODO find a better way to check for NaN
@@ -126,7 +126,7 @@ public:
   friend bfloat16 operator-(bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-#if (__CUDA_ARCH__ >= 800)
+#if (__SYCL_CUDA_ARCH__ >= 800)
     return detail::bitsToBfloat16(__nvvm_neg_bf16(lhs.value));
 #else
     return -to_float(lhs.value);

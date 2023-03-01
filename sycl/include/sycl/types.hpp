@@ -58,6 +58,8 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <optional>
+#include <variant>
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv>
 #endif
@@ -2393,6 +2395,12 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 template <typename T, typename = void>
 struct is_device_copyable : std::false_type {};
 
+// NOTE: this specialization is a candidate for all T such that T is trivially
+// copyable, including std::array<T, N>, std::optional<T>, std::variant<T>,
+// sycl::marray<T> and T[N]. Thus, specializations for all these mentioned
+// types are guarded by `std::enable_if_t<!std::is_trivially_copyable<...>>`
+// so that they are candidates only for non-trivially-copyable types.
+// Otherwise, there are several candidates and the compiler can't decide.
 template <typename T>
 struct is_device_copyable<
     T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
@@ -2401,15 +2409,55 @@ struct is_device_copyable<
 template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
 
+// std::array<T, 0> is implicitly device copyable type.
+template <typename T>
+struct is_device_copyable<std::array<T, 0>> : std::true_type {};
+
+// std::array<T, N> is implicitly device copyable type if T is device copyable
+template <typename T, std::size_t N>
+struct is_device_copyable<
+    std::array<T, N>,
+    std::enable_if_t<!std::is_trivially_copyable<std::array<T, N>>::value>>
+    : is_device_copyable<T> {};
+
+// std::optional<T> is implicitly device copyable type if T is device copyable
+template <typename T>
+struct is_device_copyable<
+    std::optional<T>,
+    std::enable_if_t<!std::is_trivially_copyable<std::optional<T>>::value>>
+    : is_device_copyable<T> {};
+
+// std::pair<T1, T2> is implicitly device copyable type if T1 and T2 are device
+// copyable
+template <typename T1, typename T2>
+struct is_device_copyable<
+    std::pair<T1, T2>,
+    std::enable_if_t<!std::is_trivially_copyable<std::pair<T1, T2>>::value>>
+    : detail::bool_constant<is_device_copyable<T1>::value &&
+                            is_device_copyable<T2>::value> {};
+
 // std::tuple<> is implicitly device copyable type.
 template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
 
 // std::tuple<Ts...> is implicitly device copyable type if each type T of Ts...
 // is device copyable.
 template <typename T, typename... Ts>
-struct is_device_copyable<std::tuple<T, Ts...>>
+struct is_device_copyable<
+    std::tuple<T, Ts...>,
+    std::enable_if_t<!std::is_trivially_copyable<std::tuple<T, Ts...>>::value>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
+
+// std::variant<> is implicitly device copyable type
+template <> struct is_device_copyable<std::variant<>> : std::true_type {};
+
+// std::variant<Ts...> is implicitly device copyable type if each type T of
+// Ts... is device copyable
+template <typename... Ts>
+struct is_device_copyable<
+    std::variant<Ts...>,
+    std::enable_if_t<!std::is_trivially_copyable<std::variant<Ts...>>::value>>
+    : is_device_copyable<Ts...> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
@@ -2419,6 +2467,18 @@ struct is_device_copyable<
     sycl::marray<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
                                          !std::is_trivially_copyable<T>::value>>
     : std::true_type {};
+
+// array is device copyable if element type is device copyable
+template <typename T, std::size_t N>
+struct is_device_copyable<
+    T[N], std::enable_if_t<!std::is_trivially_copyable<T>::value>>
+    : is_device_copyable<T> {};
+
+template <typename T>
+struct is_device_copyable<
+    T, std::enable_if_t<!std::is_trivially_copyable<T>::value &&
+                        (std::is_const_v<T> || std::is_volatile_v<T>)>>
+    : is_device_copyable<std::remove_cv_t<T>> {};
 
 namespace detail {
 template <typename T, typename = void>
@@ -2433,9 +2493,13 @@ struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
                             std::is_trivially_destructible<T>::value &&
                             !is_device_copyable<T>::value>> : std::true_type {};
 
+template <typename T, int N>
+struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+    IsDeprecatedDeviceCopyable<T[N]> : IsDeprecatedDeviceCopyable<T> {};
+
 #ifdef __SYCL_DEVICE_ONLY__
-// Checks that the fields of the type T with indices 0 to (NumFieldsToCheck - 1)
-// are device copyable.
+// Checks that the fields of the type T with indices 0 to (NumFieldsToCheck -
+// 1) are device copyable.
 template <typename T, unsigned NumFieldsToCheck>
 struct CheckFieldsAreDeviceCopyable
     : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
