@@ -285,6 +285,39 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    pi_memory_order_capabilities capabilities =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    if (devVer >= OCLV::V3_0) {
+      pi_device_atomic_capabilities devCapabilities = 0;
+      ret_err = clGetDeviceInfo(
+          deviceID, PI_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+          sizeof(pi_device_atomic_capabilities), &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert(devCapabilities && PI_DEVICE_ATOMIC_ORDER_RELAXED && "Violates minimum mandate guarantee");
+      assert(devCapabilities && PI_DEVICE_ATOMIC_ORDER_ACQ_REL && "Violates minimum mandate guarantee");
+
+      if (devCapabilities && PI_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+          capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+
+      std::memcpy(paramValue, &devCapabilities, sizeof(devCapabilities));
+      return PI_SUCCESS;
+    } else {
+        // This info is only available in OpenCL version >= 3.0
+        return PI_ERROR_INVALID_ARG_VALUE;
+    }
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;

@@ -1010,6 +1010,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+    // There is no way to query this in the backend 
+    return PI_ERROR_INVALID_ARG_VALUE;
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int major = 0;
     sycl::detail::pi::assertion(

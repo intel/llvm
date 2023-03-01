@@ -275,6 +275,19 @@ struct get_device_info_impl<std::vector<memory_order>,
   }
 };
 
+// Specialization for atomic_fence_order_capabilities, PI returns a bitfield
+template <>
+struct get_device_info_impl<std::vector<memory_order>,
+                            info::device::atomic_fence_order_capabilities> {
+  static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_order_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    return readMemoryOrderBitfield(result);
+  }
+};
+
 // Specialization for atomic_memory_scope_capabilities, PI returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_scope>,
@@ -1003,6 +1016,13 @@ inline std::vector<memory_order>
 get_device_info_host<info::device::atomic_memory_order_capabilities>() {
   return {memory_order::relaxed, memory_order::acquire, memory_order::release,
           memory_order::acq_rel, memory_order::seq_cst};
+}
+
+template <>
+inline std::vector<memory_order>
+get_device_info_host<info::device::atomic_fence_order_capabilities>() {
+  return {memory_order::relaxed, memory_order::acquire, memory_order::release,
+          memory_order::acq_rel};
 }
 
 template <>

@@ -1865,6 +1865,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  // There is no way to query this in the backend 
+  case PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_DEVICE_ID:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:

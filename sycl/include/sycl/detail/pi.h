@@ -313,6 +313,7 @@ typedef enum {
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
+  PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 0x10114,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
   // Return whether bfloat16 math functions are supported by device
@@ -560,6 +561,17 @@ constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SUB_GROUP = 0x02;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_GROUP = 0x04;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_DEVICE = 0x08;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SYSTEM = 0x10;
+
+// CL equivalents are only available for OpenCL version 3.0 
+#define PI_DEVICE_ATOMIC_FENCE_CAPABILITIES 0x1064
+using pi_device_atomic_capabilities = pi_bitfield;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_RELAXED = 0x01;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_ACQ_REL = 0x02;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_SEQ_CST = 0x04;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_WORK_ITEM = 0x08;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP = 0x10;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_DEVICE = 0x20;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES = 0x40;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = 0x1280,

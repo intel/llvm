@@ -112,6 +112,9 @@ __SYCL_PARAM_TRAITS_SPEC(device, host_unified_memory, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_order_capabilities,
                          std::vector<sycl::memory_order>,
                          PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(device, atomic_fence_order_capabilities,
+                         std::vector<sycl::memory_order>,
+                         PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_scope_capabilities,
                          std::vector<sycl::memory_scope>,
                          PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
