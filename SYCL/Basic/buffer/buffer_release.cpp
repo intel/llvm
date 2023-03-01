@@ -1,3 +1,6 @@
+// UNSUPPORTED: windows
+//   DeferredMemory Destruction not presently supported on Windows.
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
