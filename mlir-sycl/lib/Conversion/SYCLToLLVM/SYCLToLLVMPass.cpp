@@ -70,6 +70,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addIllegalDialect<sycl::SYCLDialect>();
+  // TODO: connect wires to lower this operation.
   target.addLegalOp<sycl::SYCLLocalIDOp>();
   target.addLegalDialect<LLVM::LLVMDialect>();
   target.addLegalDialect<arith::ArithDialect>();
