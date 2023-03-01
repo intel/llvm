@@ -1124,11 +1124,48 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
   }
 }
 
-template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy>
-void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
-                     BinOpTy &BOp, BarrierTy Barrier) {
+template <bool WorkSizeNotGreaterThanWGSize = false, int Dim, typename LocalRedsTy,
+          typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
+void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
+                     BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
+  size_t LID = NDIt.get_local_linear_id();
+  size_t AdjustedWorkSize;
+  if constexpr (WorkSizeNotGreaterThanWGSize) {
+    if (LID < WorkSize)
+      LocalReds[LID] = AccessFunc(LID);
+    AdjustedWorkSize = WorkSize;
+  } else {
+    size_t WGSize = NDIt.get_local_range().size();
+    AdjustedWorkSize = std::min(WorkSize, WGSize);
+    if (LID < AdjustedWorkSize) {
+      auto LocalSum = AccessFunc(LID);
+      for (size_t I = LID + WGSize; I < WorkSize; I += WGSize)
+        LocalSum = BOp(LocalSum, AccessFunc(I));
+
+      LocalReds[LID] = LocalSum;
+    }
+  }
+  doTreeReductionHelper(AdjustedWorkSize, LID, Barrier,
+                        [&](size_t I, size_t J) {
+                          LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
+                        });
+}
+
+// TODO: For variadics/tuples we don't provide such a high-level abstraction as
+// for the scalar case above. Is there some C++ magic to level them?
+// TODO2: Document differences in APIs.
+template <typename... LocalAccT, typename... BOPsT, size_t... Is,
+          typename BarrierTy>
+void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
+                            ReduTupleT<LocalAccT...> &LocalAccs,
+                            ReduTupleT<BOPsT...> &BOPs,
+                            std::index_sequence<Is...> ReduIndices,
+                            BarrierTy Barrier) {
   doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
+    auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
+      LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);
+    };
+    (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
   });
 }
 
@@ -1170,11 +1207,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       size_t LID = NDId.get_local_linear_id();
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-        doTreeReduction(WGSize, LID, LocalReds, BOp,
-                        [&]() { workGroupBarrier(); });
+        doTreeReduction<true>(
+            WGSize, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         if (LID == 0) {
           auto V = LocalReds[0];
@@ -1200,19 +1235,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
-          // The last work-group may not have enough work for all its items.
-          size_t RemainingWorkSize = std::min(NWorkGroups, WGSize);
-
-          if (LID < RemainingWorkSize) {
-            auto LocalSum = PartialSums[LID * NElements + E];
-            for (size_t I = LID + WGSize; I < NWorkGroups; I += WGSize)
-              LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-
-            LocalReds[LID] = LocalSum;
-          }
-
-          doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                          [&]() { workGroupBarrier(); });
+          doTreeReduction(
+              NWorkGroups, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
+              [&](size_t I) { return PartialSums[I * NElements + E]; });
           if (LID == 0) {
             auto V = LocalReds[0];
             if (IsUpdateOfUserVar)
@@ -1293,12 +1318,10 @@ struct NDRangeReduction<
         // This prevents local memory from scaling with elements
         for (int E = 0; E < NElements; ++E) {
 
-          // Copy the element to local memory to prepare it for tree-reduction.
-          LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
           typename Reduction::binary_operation BOp;
-          doTreeReduction(WGSize, LID, LocalReds, BOp,
-                          [&]() { NDIt.barrier(); });
+          doTreeReduction<true>(
+              WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+              [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
           if (LID == 0)
             getReducerAccess(Reducer).getElement(E) = LocalReds[0];
@@ -1499,10 +1522,9 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       // This prevents local memory from scaling with elements
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-        doTreeReduction(WGSize, LID, LocalReds, BOp, [&]() { NDIt.barrier(); });
+        doTreeReduction<true>(
+            WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
@@ -1581,13 +1603,10 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
             size_t RemainingWorkSize =
                 sycl::min(WGSize, NWorkItems - GrID * WGSize);
 
-            // Copy the element to local memory to prepare it for
-            // tree-reduction.
-            if (LID < RemainingWorkSize)
-              LocalReds[LID] = In[GID * NElements + E];
-
-            doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                            [&]() { NDIt.barrier(); });
+            doTreeReduction<true>(
+                RemainingWorkSize, NDIt, LocalReds, BOp,
+                [&]() { NDIt.barrier(); },
+                [&](size_t) { return In[GID * NElements + E]; });
 
             // Compute the partial sum/reduction for the work-group.
             if (LID == 0) {
@@ -1627,29 +1646,6 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           NWorkGroups *
               std::tuple_element_t<Is, std::tuple<Reductions...>>::num_elements,
           CGH)...);
-}
-
-template <typename... LocalAccT, typename... BOPsT, size_t... Is>
-void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
-                         ReduTupleT<LocalAccT...> LocalAccs,
-                         ReduTupleT<BOPsT...> BOPs,
-                         std::index_sequence<Is...>) {
-  auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
-    LocalAcc[IndexA] = BOp(LocalAcc[IndexA], LocalAcc[IndexB]);
-  };
-  (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
-}
-
-template <typename... LocalAccT, typename... BOPsT, size_t... Is,
-          typename BarrierTy>
-void doTreeReduction(size_t WorkSize, size_t LID,
-                     ReduTupleT<LocalAccT...> &LocalAccs,
-                     ReduTupleT<BOPsT...> &BOPs,
-                     std::index_sequence<Is...> ReduIndices,
-                     BarrierTy Barrier) {
-  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    reduceReduLocalAccs(I, J, LocalAccs, BOPs, ReduIndices);
-  });
 }
 
 template <typename... Reductions, typename... OutAccT, typename... LocalAccT,
@@ -1774,8 +1770,8 @@ void reduCGFuncImplScalar(
         getReducerAccess(std::get<Is>(ReducersTuple)).getElement(0)),
    ...);
 
-  doTreeReduction(WGSize, LID, LocalAccsTuple, BOPsTuple, ReduIndices,
-                  [&]() { NDIt.barrier(); });
+  doTreeReductionOnTuple(WGSize, LID, LocalAccsTuple, BOPsTuple, ReduIndices,
+                         [&]() { NDIt.barrier(); });
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
@@ -1800,11 +1796,9 @@ void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-
-    // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-    doTreeReduction(WGSize, LID, LocalReds, BOp, [&]() { NDIt.barrier(); });
+    doTreeReduction<true>(
+        WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+        [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
@@ -1948,8 +1942,8 @@ void reduAuxCGFuncImplScalar(
   if (LID < RemainingWorkSize)
     ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(InAccsTuple)[GID]), ...);
 
-  doTreeReduction(RemainingWorkSize, LID, LocalAccsTuple, BOPsTuple,
-                  ReduIndices, [&]() { NDIt.barrier(); });
+  doTreeReductionOnTuple(RemainingWorkSize, LID, LocalAccsTuple, BOPsTuple,
+                         ReduIndices, [&]() { NDIt.barrier(); });
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
@@ -1972,13 +1966,9 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-    // The end work-group may have less work than the rest, so we only need to
-    // read the value of the elements that still have work left.
-    if (LID < RemainingWorkSize)
-      LocalReds[LID] = In[GID * NElements + E];
-
-    doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                    [&]() { NDIt.barrier(); });
+    doTreeReduction<true>(
+        RemainingWorkSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+        [&](size_t) { return In[GID * NElements + E]; });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
