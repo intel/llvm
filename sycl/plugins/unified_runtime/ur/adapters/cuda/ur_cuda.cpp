@@ -1330,10 +1330,157 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size, void *pHost, ur_mem_handle_t *phBuffer) {}
+/// Creates a UR Memory object using a CUDA memory allocation.
+/// Can trigger a manual copy depending on the mode.
+/// \TODO Implement USE_HOST_PTR using cuHostRegister
+///
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size, void *pHost, ur_mem_handle_t *phBuffer) {
+  // Need input memory object
+  assert(phBuffer != nullptr);
+  // Currently, USE_HOST_PTR is not implemented using host register
+  // since this triggers a weird segfault after program ends.
+  // Setting this constant to true enables testing that behavior.
+  const bool enableUseHostPtr = false;
+  const bool performInitialCopy =
+      (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
+      ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && !enableUseHostPtr);
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_mem_handle_t retMemObj = nullptr;
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {}
+  try {
+    ScopedContext active(hContext);
+    CUdeviceptr ptr;  
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {}
+    ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode allocMode =
+        ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic;
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {}
+    if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && enableUseHostPtr) {
+      retErr = PI_CHECK_ERROR(
+          cuMemHostRegister(pHost, size, CU_MEMHOSTREGISTER_DEVICEMAP));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
+      allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::use_host_ptr;
+    } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
+      retErr = PI_CHECK_ERROR(cuMemAllocHost(&pHost, size));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
+      allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+    } else {
+      retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
+      if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
+        allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::copy_in;
+      }
+    }
+
+    if (retErr == UR_RESULT_SUCCESS) {
+      ur_mem_handle_t parentBuffer = nullptr;
+
+      auto piMemObj = std::unique_ptr<ur_mem_handle_t_>(
+          new ur_mem_handle_t_{hContext, parentBuffer, allocMode, ptr, pHost, size});
+      if (piMemObj != nullptr) {
+        retMemObj = piMemObj.release();
+        if (performInitialCopy) {
+          // Operates on the default stream of the current CUDA context.
+          retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, pHost, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other UR call
+          // uses it.
+          if (retErr == UR_RESULT_SUCCESS) {
+            CUstream defaultStream = 0;
+            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+          }
+        }
+      } else {
+        retErr = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+      }
+    }
+  } catch (ur_result_t err) {
+    retErr = err;
+  } catch (...) {
+    retErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
+  *phBuffer = retMemObj;
+
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
+  assert(hMem != nullptr);
+  assert(hMem->get_reference_count() > 0);
+  hMem->increment_reference_count();
+  return UR_RESULT_SUCCESS;
+}
+
+/// Decreases the reference count of the Mem object.
+/// If this is zero, calls the relevant CUDA Free function
+/// \return UR_RESULT_SUCCESS unless deallocation error
+///
+UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
+  assert((hMem != nullptr) && "UR_RESULT_ERROR_INVALID_MEM_OBJECT");
+
+  ur_result_t ret = UR_RESULT_SUCCESS;
+
+  try {
+
+    // Do nothing if there are other references
+    if (hMem->decrement_reference_count() > 0) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    // make sure hMem is released in case PI_CHECK_ERROR throws
+    std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
+
+    if (hMem->is_sub_buffer()) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    ScopedContext active(uniqueMemObj->get_context());
+
+    if (hMem->mem_type_ == ur_mem_handle_t_::mem_type::buffer) {
+      switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
+      case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::copy_in:
+      case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic:
+        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
+        break;
+      case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::use_host_ptr:
+        ret = PI_CHECK_ERROR(
+            cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
+        break;
+      case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(
+            cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
+      };
+    } else if (hMem->mem_type_ == ur_mem_handle_t_::mem_type::surface) {
+      ret = PI_CHECK_ERROR(
+          cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
+      ret = PI_CHECK_ERROR(
+          cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
+    }
+
+  } catch (ur_result_t err) {
+    ret = err;
+  } catch (...) {
+    ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;    
+  }
+
+  if (ret != UR_RESULT_SUCCESS) {
+    // A reported CUDA error is either an implementation or an asynchronous CUDA
+    // error for which it is unclear if the function that reported it succeeded
+    // or not. Either way, the state of the program is compromised and likely
+    // unrecoverable.
+    sycl::detail::ur::die(
+        "Unrecoverable program state reached in cuda_piMemRelease");
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// Gets the native CUDA handle of a UR mem object
+///
+/// \param[in] hMem The UR mem to get the native CUDA object of.
+/// \param[out] phNativeMem Set to the native handle of the UR mem object.
+///
+/// \return UR_RESULT_SUCCESS
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
+  return UR_RESULT_SUCCESS;
+}
