@@ -1,7 +1,7 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm %s -o -| FileCheck %s
-// RUN: %clangxx -Xclang -opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xclang -fnative-half-type -S -Xclang -emit-llvm %s -o -| FileCheck %s
+// RUN: %clangxx -Xclang -opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xclang -fnative-half-type -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
 
 #include <sycl/ext/oneapi/experimental/cuda/builtins.hpp>
 #include <sycl/sycl.hpp>
@@ -44,9 +44,11 @@ int main() {
   auto *in_us4 = sycl::malloc_device<ushort4>(1, q);
   auto *in_ui4 = sycl::malloc_device<uint4>(1, q);
 
+  auto *in_h = sycl::malloc_device<half>(1, q);
   auto *in_f = sycl::malloc_device<float>(1, q);
   auto *in_d = sycl::malloc_device<double>(1, q);
 
+  auto *in_h2 = sycl::malloc_device<half2>(1, q);
   auto *in_f2 = sycl::malloc_device<float2>(1, q);
   auto *in_d2 = sycl::malloc_device<double2>(1, q);
 
@@ -58,6 +60,9 @@ int main() {
 
   q.submit([=](sycl::handler &h) {
     h.single_task<class check>([=] {
+      //CHECK: tail call half @llvm.nvvm.ldg.global.f.f16.p0f16(half* %{{.*}}, i32 2)
+      //CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr %{{.*}}, i32 2)
+      auto cached_h = ldg(&in_h[0]);
       //CHECK: tail call float @llvm.nvvm.ldg.global.f.f32.p0f32(float* %{{.*}}, i32 4)
       //CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr %{{.*}}, i32 4)
       auto cached_f = ldg(&in_f[0]);
@@ -65,6 +70,9 @@ int main() {
       //CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr %{{.*}}, i32 8)
       auto cached_d = ldg(&in_d[0]);
 
+      //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+      auto cached_h2 = ldg(&in_h2[0]);
       //CHECK: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0v2f32(<2 x float>* %{{.*}}, i32 8)
       //CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
       auto cached_f2 = ldg(&in_f2[0]);
@@ -158,8 +166,10 @@ int main() {
 
   q.wait();
 
+  free(in_h, q);
   free(in_f, q);
   free(in_d, q);
+  free(in_h2, q);
   free(in_f2, q);
   free(in_f4, q);
   free(in_d2, q);

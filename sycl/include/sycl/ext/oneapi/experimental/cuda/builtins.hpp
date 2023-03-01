@@ -30,7 +30,7 @@ using ldg_vector_types = sycl::detail::type_list<
     sycl::char2, sycl::char4, sycl::short2, sycl::short4, sycl::int2,
     sycl::int4, sycl::longlong2, sycl::uchar2, sycl::uchar4, sycl::ushort2,
     sycl::ushort4, sycl::uint2, sycl::uint4, sycl::ulonglong2, sycl::float2,
-    sycl::float4, sycl::double2>;
+    sycl::half2, sycl::float4, sycl::double2>;
 
 using ldg_types =
     sycl::detail::type_list<ldg_vector_types,
@@ -66,6 +66,9 @@ ldg(const T *ptr) {
     return __nvvm_ldg_ul(ptr);
   } else if constexpr (std::is_same_v<T, unsigned long long>) {
     return __nvvm_ldg_ull(ptr);
+  } else if constexpr (std::is_same_v<T, half>) {
+    auto native = reinterpret_cast<const __fp16 *>(ptr);
+    return __nvvm_ldg_h(native);
   } else if constexpr (std::is_same_v<T, float>) {
     return __nvvm_ldg_f(ptr);
   } else if constexpr (std::is_same_v<T, double>) {
@@ -180,6 +183,13 @@ ldg(const T *ptr) {
     typedef unsigned long long ull2 ATTRIBUTE_EXT_VEC_TYPE(2);
     ull2 rv = __nvvm_ldg_ull2(reinterpret_cast<const ull2 *>(ptr));
     sycl::ulonglong2 ret;
+    ret.x() = rv[0];
+    ret.y() = rv[1];
+    return ret;
+  } else if constexpr (std::is_same_v<T, sycl::half2>) {
+    typedef __fp16 h2 ATTRIBUTE_EXT_VEC_TYPE(2);
+    auto rv = __nvvm_ldg_h2(reinterpret_cast<const h2 *>(ptr));
+    sycl::half2 ret;
     ret.x() = rv[0];
     ret.y() = rv[1];
     return ret;
