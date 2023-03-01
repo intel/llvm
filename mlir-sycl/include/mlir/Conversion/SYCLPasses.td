@@ -53,10 +53,10 @@ def ConvertSYCLToGPU : Pass<"convert-sycl-to-gpu", "ModuleOp"> {
   }];
   let constructor = "mlir::sycl::createConvertSYCLToGPUPass()";
   let dependentDialects = [
-      "AffineDialect",
       "arith::ArithDialect",
       "gpu::GPUDialect",
       "memref::MemRefDialect",
+      "vector::VectorDialect"
   ];
 }
 
@@ -81,10 +81,10 @@ def ConvertSYCLToSPIRV : Pass<"convert-sycl-to-spirv", "ModuleOp"> {
   }];
   let constructor = "mlir::sycl::createConvertSYCLToSPIRVPass()";
   let dependentDialects = [
-      "AffineDialect",
       "arith::ArithDialect",
       "spirv::SPIRVDialect",
       "memref::MemRefDialect",
+      "vector::VectorDialect"
   ];
 }
 
