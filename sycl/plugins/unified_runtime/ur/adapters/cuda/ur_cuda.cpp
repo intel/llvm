@@ -1329,3 +1329,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
   ctxt->increment_reference_count();
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size, void *pHost, ur_mem_handle_t *phBuffer) {}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {}
