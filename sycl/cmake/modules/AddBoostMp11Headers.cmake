@@ -45,7 +45,7 @@ add_custom_target(boost_mp11-headers
 # ${BOOST_MP11_DESTINATION_DIR}
 add_custom_command(
   OUTPUT ${OUT_HEADERS_BOOST_MP11}
-  DEPENDS ${HEADERS_BOOST_MP11}
+  DEPENDS ${HEADERS_BOOST_MP11} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/PreprocessBoostMp11Headers.cmake
   COMMAND ${CMAKE_COMMAND}
     -DIN=${BOOST_MP11_SOURCE_DIR}/include/boost
     -DOUT=${BOOST_MP11_DESTINATION_DIR}

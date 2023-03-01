@@ -17,12 +17,13 @@ namespace access {
 
 enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
-  constant_buffer = 2015,
+  constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
-  host_buffer = 2018,
+  host_buffer __SYCL2020_DEPRECATED("use 'target::host_task' instead") = 2018,
   host_image = 2019,
   image_array = 2020,
+  host_task,
   device = global_buffer,
 };
 
@@ -74,6 +75,12 @@ inline constexpr mode_tag_t<access_mode::read_write> read_write{};
 inline constexpr mode_tag_t<access_mode::write> write_only{};
 inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
+inline constexpr mode_target_tag_t<access_mode::read, target::host_task>
+    read_only_host_task;
+inline constexpr mode_target_tag_t<access_mode::read_write, target::host_task>
+    read_write_host_task;
+inline constexpr mode_target_tag_t<access_mode::write, target::host_task>
+    write_only_host_task;
 
 namespace detail {
 
