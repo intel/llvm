@@ -263,7 +263,7 @@ params:
     - type: "size_t*"
       name: "pPropSizeRet"
       desc: |
-            [out][optional] pointer to the actual size in bytes of data copied to propName.
+            [out][optional] pointer to the actual size in bytes of data copied to pProgramInfo.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Program object build status"
