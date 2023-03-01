@@ -2066,8 +2066,8 @@ public:
 
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<
-                AccessTarget_ == access::target::host_buffer ||
-                AccessTarget_ == access::target::host_task>>
+                (AccessTarget_ == access::target::host_buffer) ||
+                (AccessTarget_ == access::target::host_task)>>
   std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
   }
@@ -2668,6 +2668,14 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
 
   // Use base classes constructors
   using local_acc::local_acc;
+
+  // template <typename DataT>
+  // using local_ptr<DataT> = local_ptr<DataT>;
+
+public:
+  local_ptr<DataT> get_pointer() const {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
+  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 
