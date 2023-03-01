@@ -1160,9 +1160,10 @@ void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
                         });
 }
 
+// Tree-reduction over tuples of accessors. This assumes that WorkSize is
+// less than or equal to the work-group size.
 // TODO: For variadics/tuples we don't provide such a high-level abstraction as
 // for the scalar case above. Is there some C++ magic to level them?
-// TODO2: Document differences in APIs.
 template <typename... LocalAccT, typename... BOPsT, size_t... Is,
           typename BarrierTy>
 void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
