@@ -1119,7 +1119,7 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_DEFAULT < advice`
+///         + `::UR_MEM_ADVICE_BIAS_UNCACHED < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2332,6 +2332,16 @@ urSamplerCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate host memory
 ///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -2339,7 +2349,6 @@ urSamplerCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMFlag`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2349,7 +2358,8 @@ urSamplerCreateWithNativeHandle(
 ur_result_t UR_APICALL
 urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_mem_flags_t *pUSMFlag, ///< [in] USM memory allocation flags
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM host memory object
@@ -2361,6 +2371,16 @@ urUSMHostAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate device memory
 ///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -2369,7 +2389,6 @@ urUSMHostAlloc(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2380,7 +2399,8 @@ ur_result_t UR_APICALL
 urUSMDeviceAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_mem_flags_t *pUSMProp, ///< [in] USM memory properties
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM device memory object
@@ -2392,6 +2412,16 @@ urUSMDeviceAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate shared memory
 ///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -2400,7 +2430,6 @@ urUSMDeviceAlloc(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -2411,7 +2440,8 @@ ur_result_t UR_APICALL
 urUSMSharedAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_mem_flags_t *pUSMProp, ///< [in] USM memory properties
+    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
     void **ppMem                  ///< [out] pointer to USM shared memory object
@@ -2467,6 +2497,62 @@ urUSMGetMemAllocInfo(
     size_t propValueSize,         ///< [in] size in bytes of the USM allocation property value
     void *pPropValue,             ///< [out][optional] value of the USM allocation property
     size_t *pPropValueSizeRet     ///< [out][optional] bytes returned in USM allocation property
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create USM memory pool with desired properties.
+///
+/// @details
+///     - UR can create multiple instances of the pool depending on allocation
+///       requests.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPoolDesc`
+///         + `NULL == ppPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `0x1 < pPoolDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL
+urUSMPoolCreate(
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_usm_pool_desc_t *pPoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
+                                   ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *ppPool   ///< [out] pointer to USM memory pool
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy USM memory pool
+///
+/// @details
+///     - All allocation belonging to the pool should be freed before calling
+///       this function.
+///     - This functions returns all memory reserved by the pool to the driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL
+urUSMPoolDestroy(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

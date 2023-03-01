@@ -207,6 +207,9 @@ class ur_result_t(c_int):
 class ur_structure_type_v(IntEnum):
     IMAGE_DESC = 0                                  ## ::ur_image_desc_t
     PROGRAM_PROPERTIES = 1                          ## ::ur_program_properties_t
+    USM_DESC = 2                                    ## ::ur_usm_desc_t
+    USM_POOL_DESC = 3                               ## ::ur_usm_pool_desc_t
+    USM_POOL_LIMITS_DESC = 4                        ## ::ur_usm_pool_limits_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -302,6 +305,14 @@ class ur_usm_migration_flags_t(c_int):
 ## @brief USM memory advice
 class ur_mem_advice_v(IntEnum):
     DEFAULT = 0                                     ## The USM memory advice is default
+    SET_READ_MOSTLY = 1                             ## Hint that memory will be read from frequently and written to rarely
+    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
+    SET_PREFERRED_LOCATION = 3                      ## Hint that the preferred memory location is the specified device
+    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
+    SET_NON_ATOMIC_MOSTLY = 5                       ## Hints that memory will mostly be accessed non-atomically
+    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    BIAS_CACHED = 7                                 ## Hints that memory should be cached
+    BIAS_UNCACHED = 8                               ## Hints that memory should be not be cached
 
 class ur_mem_advice_t(c_int):
     def __str__(self):
@@ -666,9 +677,26 @@ class ur_sampler_addressing_mode_t(c_int):
 ###############################################################################
 ## @brief USM memory property flags
 class ur_usm_mem_flags_v(IntEnum):
-    ALLOC_FLAGS_INTEL = UR_BIT(0)                   ## The USM memory allocation is from Intel USM
+    BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
+    BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
+    WRITE_COMBINED = UR_BIT(2)                      ## Memory should be allocated write-combined (WC)
+    INITIAL_PLACEMENT_DEVICE = UR_BIT(3)            ## Optimize shared allocation for first access on the device
+    INITIAL_PLACEMENT_HOST = UR_BIT(4)              ## Optimize shared allocation for first access on the host
+    DEVICE_READ_ONLY = UR_BIT(5)                    ## Memory is only possibly modified from the host, but read-only in all
+                                                    ## device code
 
 class ur_usm_mem_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM memory property flags
+class ur_usm_pool_flags_v(IntEnum):
+    ZERO_INITIALIZE_BLOCK = UR_BIT(0)               ## All coarse-grain allocations (allocations from the driver) will be
+                                                    ## zero-initialized.
+
+class ur_usm_pool_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
@@ -698,6 +726,42 @@ class ur_usm_alloc_info_t(c_int):
     def __str__(self):
         return str(ur_usm_alloc_info_v(self.value))
 
+
+###############################################################################
+## @brief Handle of USM pool
+class ur_usm_pool_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief USM allocation descriptor type
+class ur_usm_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_mem_flags_t),                                  ## [in] memory allocation flags
+        ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
+    ]
+
+###############################################################################
+## @brief USM pool descriptor type
+class ur_usm_pool_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_pool_flags_t)                                  ## [in] memory allocation flags
+    ]
+
+###############################################################################
+## @brief USM pool limits descriptor type
+class ur_usm_pool_limits_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("maxPoolSize", c_size_t),                                      ## [in] Maximum size of a memory pool
+        ("maxPoolableSize", c_size_t),                                  ## [in] Allocations up to this limit will be subject to pooling
+        ("capacity", c_size_t),                                         ## [in] When pooling, each bucket will hold a max of 4 unfreed slabs
+        ("slabMinSize", c_size_t)                                       ## [in] Minimum allocation size that will be requested from the driver
+    ]
 
 ###############################################################################
 ## @brief Supported device types
@@ -1952,23 +2016,23 @@ class ur_enqueue_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urUSMHostAlloc
 if __use_win_types:
-    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 else:
-    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMDeviceAlloc
 if __use_win_types:
-    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 else:
-    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMSharedAlloc
 if __use_win_types:
-    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 else:
-    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_mem_flags_t), c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMFree
@@ -1984,6 +2048,20 @@ if __use_win_types:
 else:
     _urUSMGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_usm_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
+###############################################################################
+## @brief Function-pointer for urUSMPoolCreate
+if __use_win_types:
+    _urUSMPoolCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
+else:
+    _urUSMPoolCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urUSMPoolDestroy
+if __use_win_types:
+    _urUSMPoolDestroy_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+else:
+    _urUSMPoolDestroy_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+
 
 ###############################################################################
 ## @brief Table of USM functions pointers
@@ -1993,7 +2071,9 @@ class ur_usm_dditable_t(Structure):
         ("pfnDeviceAlloc", c_void_p),                                   ## _urUSMDeviceAlloc_t
         ("pfnSharedAlloc", c_void_p),                                   ## _urUSMSharedAlloc_t
         ("pfnFree", c_void_p),                                          ## _urUSMFree_t
-        ("pfnGetMemAllocInfo", c_void_p)                                ## _urUSMGetMemAllocInfo_t
+        ("pfnGetMemAllocInfo", c_void_p),                               ## _urUSMGetMemAllocInfo_t
+        ("pfnPoolCreate", c_void_p),                                    ## _urUSMPoolCreate_t
+        ("pfnPoolDestroy", c_void_p)                                    ## _urUSMPoolDestroy_t
     ]
 
 ###############################################################################
@@ -2393,6 +2473,8 @@ class UR_DDI:
         self.urUSMSharedAlloc = _urUSMSharedAlloc_t(self.__dditable.USM.pfnSharedAlloc)
         self.urUSMFree = _urUSMFree_t(self.__dditable.USM.pfnFree)
         self.urUSMGetMemAllocInfo = _urUSMGetMemAllocInfo_t(self.__dditable.USM.pfnGetMemAllocInfo)
+        self.urUSMPoolCreate = _urUSMPoolCreate_t(self.__dditable.USM.pfnPoolCreate)
+        self.urUSMPoolDestroy = _urUSMPoolDestroy_t(self.__dditable.USM.pfnPoolDestroy)
 
         # call driver to get function pointers
         Global = ur_global_dditable_t()
