@@ -24,7 +24,7 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) noexcept {                           \
+  annotated_ref operator op(const T &rhs) {                                    \
     (*m_Ptr) op rhs;                                                           \
     return *this;                                                              \
   }
