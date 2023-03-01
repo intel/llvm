@@ -52,8 +52,13 @@ int main() {
 // CHECK-FOOTER-NEXT: namespace {
 // CHECK-FOOTER-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
 
+extern device_global<int> Basic;
 device_global<int> Basic;
 // CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Basic, "_Z5Basic");
+// CHECK-FOOTER-NOT: Basic
+
+extern device_global<int> ExternDevGlobal;
+// CHECK-FOOTER-NOT: ExternDevGlobal
 
 struct Wrapper {
   static device_global<int> WrapperDevGlobal;

@@ -498,21 +498,86 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 }
 
 // Native shuffles map directly to a shuffle intrinsic:
-// - The Intel SPIR-V extension natively supports all arithmetic types
+// - The Intel SPIR-V extension natively supports all arithmetic types.
+//   However, OpenCL extension natively supports float vectors,
+//   integer vectors, half scalar and double scalar.
+//   For double vectors we perform emulation with scalar version.
 // - The CUDA shfl intrinsics do not support vectors, and we use the _i32
 //   variants for all scalar types
 #ifndef __NVPTX__
+
+template <typename T>
+struct TypeIsProhibitedForShuffleEmulation
+    : bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
+
+template <typename T>
+struct VecTypeIsProhibitedForShuffleEmulation
+    : bool_constant<
+          (detail::get_vec_size<T>::size > 1) &&
+          TypeIsProhibitedForShuffleEmulation<vector_element_t<T>>::value> {};
+
 template <typename T>
 using EnableIfNativeShuffle =
-    detail::enable_if_t<detail::is_arithmetic<T>::value, T>;
-#else
+    std::enable_if_t<detail::is_arithmetic<T>::value &&
+                         !VecTypeIsProhibitedForShuffleEmulation<T>::value,
+                     T>;
+
 template <typename T>
-using EnableIfNativeShuffle = detail::enable_if_t<
+using EnableIfVectorShuffle =
+    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
+
+#else  // ifndef __NVPTX__
+
+template <typename T>
+using EnableIfNativeShuffle = std::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
 
 template <typename T>
 using EnableIfVectorShuffle =
-    detail::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+    std::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+#endif // ifndef __NVPTX__
+
+// Bitcast shuffles can be implemented using a single SubgroupShuffle
+// intrinsic, but require type-punning via an appropriate integer type
+#ifndef __NVPTX__
+template <typename T>
+using EnableIfBitcastShuffle =
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
+                         (std::is_trivially_copyable_v<T> &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
+                           sizeof(T) == 8)),
+                     T>;
+#else
+template <typename T>
+using EnableIfBitcastShuffle =
+    std::enable_if_t<!(std::is_integral_v<T> &&
+                       (sizeof(T) <= sizeof(int32_t))) &&
+                         !detail::is_vector_arithmetic<T>::value &&
+                         (std::is_trivially_copyable_v<T> &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+                     T>;
+#endif // ifndef __NVPTX__
+
+// Generic shuffles may require multiple calls to SubgroupShuffle
+// intrinsics, and should use the fewest shuffles possible:
+// - Loop over 64-bit chunks until remaining bytes < 64-bit
+// - At most one 32-bit, 16-bit and 8-bit chunk left over
+#ifndef __NVPTX__
+template <typename T>
+using EnableIfGenericShuffle =
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
+                         !(std::is_trivially_copyable_v<T> &&
+                           (sizeof(T) == 1 || sizeof(T) == 2 ||
+                            sizeof(T) == 4 || sizeof(T) == 8)),
+                     T>;
+#else
+template <typename T>
+using EnableIfGenericShuffle = std::enable_if_t<
+    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
+        !detail::is_vector_arithmetic<T>::value &&
+        !(std::is_trivially_copyable_v<T> &&
+          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+    T>;
 #endif
 
 #ifdef __NVPTX__
@@ -522,6 +587,31 @@ inline uint32_t membermask() {
   return 0xFFFFFFFF;
 }
 #endif
+
+// Forward declarations for template overloadings
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id);
+
+template <typename T>
+EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id);
+
+template <typename T>
+EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
+
+template <typename T>
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id);
+
+template <typename T>
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id);
 
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
@@ -565,7 +655,6 @@ EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #endif
 }
 
-#ifdef __NVPTX__
 template <typename T>
 EnableIfVectorShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   T result;
@@ -601,27 +690,6 @@ EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   }
   return result;
 }
-#endif
-
-// Bitcast shuffles can be implemented using a single SubgroupShuffle
-// intrinsic, but require type-punning via an appropriate integer type
-#ifndef __NVPTX__
-template <typename T>
-using EnableIfBitcastShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            (std::is_trivially_copyable<T>::value &&
-                             (sizeof(T) == 1 || sizeof(T) == 2 ||
-                              sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
-#else
-template <typename T>
-using EnableIfBitcastShuffle = detail::enable_if_t<
-    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
-        (std::is_trivially_copyable<T>::value &&
-         (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
-    T>;
-#endif
 
 template <typename T>
 using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
@@ -678,28 +746,6 @@ EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #endif
   return bit_cast<T>(Result);
 }
-
-// Generic shuffles may require multiple calls to SubgroupShuffle
-// intrinsics, and should use the fewest shuffles possible:
-// - Loop over 64-bit chunks until remaining bytes < 64-bit
-// - At most one 32-bit, 16-bit and 8-bit chunk left over
-#ifndef __NVPTX__
-template <typename T>
-using EnableIfGenericShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            !(std::is_trivially_copyable<T>::value &&
-                              (sizeof(T) == 1 || sizeof(T) == 2 ||
-                               sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
-#else
-template <typename T>
-using EnableIfGenericShuffle = detail::enable_if_t<
-    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
-        !(std::is_trivially_copyable<T>::value &&
-          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
-    T>;
-#endif
 
 template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {

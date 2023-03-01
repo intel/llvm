@@ -72,8 +72,12 @@ template <typename DataT, typename ArgT, typename... ArgTN>
 struct ArrayCreator<DataT, ArgT, ArgTN...> {
   static constexpr std::array<DataT, GetMArrayArgsSize<ArgT, ArgTN...>::value>
   Create(const ArgT &Arg, const ArgTN &...Args) {
-    return ConcatArrays(std::array<DataT, 1>{static_cast<DataT>(Arg)},
-                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    std::array<DataT, 1> ImmArray{static_cast<DataT>(Arg)};
+    if constexpr (sizeof...(Args))
+      return ConcatArrays(ImmArray,
+                          ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
   }
 };
 template <typename DataT, typename T, std::size_t N, typename... ArgTN>
@@ -81,8 +85,12 @@ struct ArrayCreator<DataT, marray<T, N>, ArgTN...> {
   static constexpr std::array<DataT,
                               GetMArrayArgsSize<marray<T, N>, ArgTN...>::value>
   Create(const marray<T, N> &Arg, const ArgTN &...Args) {
-    return ConcatArrays(MArrayToArray<DataT>(Arg),
-                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    auto ImmArray = MArrayToArray<DataT>(Arg);
+    if constexpr (sizeof...(Args))
+      return ConcatArrays(ImmArray,
+                          ArrayCreator<DataT, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
   }
 };
 template <typename DataT> struct ArrayCreator<DataT> {
@@ -208,20 +216,29 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  friend typename std::enable_if<                                              \
-      std::is_convertible<DataT, T>::value &&                                  \
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const<T>::type, half>::value),    \
-      marray>::type                                                            \
+  friend typename std::enable_if_t<                                            \
+      std::is_convertible_v<DataT, T> &&                                       \
+          (std::is_fundamental_v<T> ||                                         \
+           std::is_same_v<typename std::remove_const<T>::type, half>),         \
+      marray>                                                                  \
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
+  }                                                                            \
+  template <typename T>                                                        \
+  friend typename std::enable_if_t<                                            \
+      std::is_convertible_v<DataT, T> &&                                       \
+          (std::is_fundamental_v<T> ||                                         \
+           std::is_same_v<typename std::remove_const<T>::type, half>),         \
+      marray>                                                                  \
+  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+    return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
   template <std::size_t Num = NumElements>                                     \
-  friend typename std::enable_if<Num != 1, marray &>::type operator OPASSIGN(  \
+  friend typename std::enable_if_t<Num != 1, marray &> operator OPASSIGN(      \
       marray &Lhs, const DataT &Rhs) {                                         \
     Lhs = Lhs BINOP marray(Rhs);                                               \
     return Lhs;                                                                \
@@ -229,7 +246,7 @@ public:
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -238,23 +255,31 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T, typename BaseT = DataT>                                \
-  friend typename std::enable_if<std::is_convertible<T, DataT>::value &&       \
-                                     std::is_integral<T>::value &&             \
-                                     std::is_integral<BaseT>::value,           \
-                                 marray>::type                                 \
+  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
+                                       std::is_integral_v<T> &&                \
+                                       std::is_integral_v<BaseT>,              \
+                                   marray>                                     \
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
+  template <typename T, typename BaseT = DataT>                                \
+  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
+                                       std::is_integral_v<T> &&                \
+                                       std::is_integral_v<BaseT>,              \
+                                   marray>                                     \
+  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+    return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
+  }                                                                            \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
   template <std::size_t Num = NumElements, typename T = DataT>                 \
-  friend typename std::enable_if<Num != 1 && std::is_integral<T>::value,       \
-                                 marray &>::type                               \
-  operator OPASSIGN(marray &Lhs, const DataT &Rhs) {                           \
+  friend                                                                       \
+      typename std::enable_if_t<Num != 1 && std::is_integral_v<T>, marray &>   \
+      operator OPASSIGN(marray &Lhs, const DataT &Rhs) {                       \
     Lhs = Lhs BINOP marray(Rhs);                                               \
     return Lhs;                                                                \
   }
@@ -291,32 +316,20 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  friend typename std::enable_if<std::is_convertible<T, DataT>::value &&       \
-                                     (std::is_fundamental<T>::value ||         \
-                                      std::is_same<T, half>::value),           \
-                                 marray<bool, NumElements>>::type              \
+  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
+                                       (std::is_fundamental_v<T> ||            \
+                                        std::is_same_v<T, half>),              \
+                                   marray<bool, NumElements>>                  \
   operator RELLOGOP(const marray &Lhs, const T &Rhs) {                         \
     return Lhs RELLOGOP marray(static_cast<const DataT &>(Rhs));               \
-  }
-
-#define __SYCL_RELLOGOP_INTEGRAL(RELLOGOP)                                     \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value,                   \
-                                 marray<bool, NumElements>>::type              \
-  operator RELLOGOP(const marray &Lhs, const marray &Rhs) {                    \
-    marray<bool, NumElements> Ret;                                             \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] RELLOGOP Rhs[I];                                         \
-    }                                                                          \
-    return Ret;                                                                \
   }                                                                            \
-  template <typename T, typename BaseT = DataT>                                \
-  friend typename std::enable_if<std::is_convertible<T, DataT>::value &&       \
-                                     std::is_integral<T>::value &&             \
-                                     std::is_integral<BaseT>::value,           \
-                                 marray<bool, NumElements>>::type              \
-  operator RELLOGOP(const marray &Lhs, const T &Rhs) {                         \
-    return Lhs RELLOGOP marray(static_cast<const DataT &>(Rhs));               \
+  template <typename T>                                                        \
+  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
+                                       (std::is_fundamental_v<T> ||            \
+                                        std::is_same_v<T, half>),              \
+                                   marray<bool, NumElements>>                  \
+  operator RELLOGOP(const T &Lhs, const marray &Rhs) {                         \
+    return marray(static_cast<const DataT &>(Lhs)) RELLOGOP Rhs;               \
   }
 
   __SYCL_RELLOGOP(==)
@@ -325,12 +338,10 @@ public:
   __SYCL_RELLOGOP(<)
   __SYCL_RELLOGOP(>=)
   __SYCL_RELLOGOP(<=)
-
-  __SYCL_RELLOGOP_INTEGRAL(&&)
-  __SYCL_RELLOGOP_INTEGRAL(||)
+  __SYCL_RELLOGOP(&&)
+  __SYCL_RELLOGOP(||)
 
 #undef __SYCL_RELLOGOP
-#undef __SYCL_RELLOGOP_INTEGRAL
 
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
