@@ -55,8 +55,10 @@ if(SYCL_TEST_E2E_TARGETS)
 
     string(REPLACE "," "_" TARGET check-sycl-e2e-${TARGET_BE}-${TARGET_DEVICES})
 
+    file(STRINGS "xfail_tests.txt" XFAIL_TESTS_LIST)
+    string(REPLACE ";" "\;" XFAIL_TESTS "${XFAIL_TESTS_LIST}")
     add_custom_target(${TARGET}
-      COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
+      COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --xfail '${XFAIL_TESTS}' --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
       COMMENT "Running the SYCL tests for ${TARGET} backend"
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       USES_TERMINAL
