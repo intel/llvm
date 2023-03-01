@@ -22,7 +22,7 @@ void test_reducer(Reduction &Redu, T A, T B) {
 
   typename Reduction::binary_operation BOp;
   T ExpectedValue = BOp(A, B);
-  assert(ExpectedValue == Reducer.MValue &&
+  assert(ExpectedValue == getReducerAccess(Reducer).getElement(0)&&
          "Wrong result of binary operation.");
 }
 
@@ -33,7 +33,7 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
   Reducer.combine(B);
 
   T ExpectedValue = BOp(A, B);
-  assert(toBool(ExpectedValue == Reducer.MValue) &&
+  assert(toBool(ExpectedValue == getReducerAccess(Reducer).getElement(0)) &&
          "Wrong result of binary operation.");
 }
 
