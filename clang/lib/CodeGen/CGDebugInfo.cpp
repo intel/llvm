@@ -661,6 +661,9 @@ void CGDebugInfo::CreateCompileUnit() {
   // file. Its directory part specifies what becomes the
   // DW_AT_comp_dir (the compilation directory), even if the source
   // file was specified with an absolute path.
+  // Unless an integration footer is involved, and the directory part is
+  // specified by the FileEntryRef provided by the FileID of the main source
+  // file.
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
 
