@@ -1666,6 +1666,8 @@ def ffp_accuracy_EQ : Joined<["-"], "ffp-accuracy=">, Group<f_Group>, Flags<[CC1
   Values<"default,high,medium,low,sycl,cuda">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPA_Default", "FPA_High", "FPA_Medium", "FPA_Low", "FPA_Sycl", "FPA_Cuda"]>,
   MarshallingInfoEnum<LangOpts<"FPAccuracy">, "FPA_Default">;
+def fpbuiltin_max_error_EQ : Joined<["-"], "fpbuiltin-max-error=">, Group<f_Group>, Flags<[CC1Option]>;
+
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption, FC1Option, FlangOption], "Allow aggressive, lossy floating-point optimizations",

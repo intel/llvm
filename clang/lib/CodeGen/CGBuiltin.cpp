@@ -480,22 +480,22 @@ convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
   StringRef AccuracyVal;
   switch (FPAccuracy) {
   case LangOptions::FPA_Default:
-    AccuracyVal = "fpaccuracy.default";
+    AccuracyVal = "default";
     break;
   case LangOptions::FPA_High:
-    AccuracyVal = "fpaccuracy.high";
+    AccuracyVal = "high";
     break;
   case LangOptions::FPA_Medium:
-    AccuracyVal = "fpaccuracy.medium";
+    AccuracyVal = "medium";
     break;
   case LangOptions::FPA_Low:
-    AccuracyVal = "fpaccuracy.low";
+    AccuracyVal = "low";
     break;
   case LangOptions::FPA_Sycl:
-    AccuracyVal = "fpaccuracy.sycl";
+    AccuracyVal = "sycl";
     break;
   case LangOptions::FPA_Cuda:
-    AccuracyVal = "fpaccuracy.cuda";
+    AccuracyVal = "cuda";
     break;
   }
   return AccuracyVal;
@@ -503,7 +503,7 @@ convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
 
 // TODO: This function is only a place holder. Returning for now a hard-code value
 // of the ULP error.
-StringRef getFPAccuracy(Function* F) { return "float 2.5"; }
+StringRef getFPMaxError(Function* F, StringRef Accuracy) { return "float 2.5"; }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
@@ -522,14 +522,19 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
     // TODO: getFPAccuracy is a place holder for the ucooming function. This will
     // have to use Target (may be?) in order to calculate the accuracy allowed
     // for the function F. For now the function is retruning a hard-coded string.
-    StringRef AccuracyStr = getFPAccuracy(F);
+    StringRef AccuracyStr = getFPMaxError(F, FPAccuracyVal);
     auto *AccuracyMD = MDString::get(CGF.Builder.getContext(), AccuracyStr);
     llvm::CallInst *CI = CGF.Builder.CreateCall(F, { Src0 });
     if (CGF.getLangOpts().getFPAccuracy() !=
         LangOptions::FPAccuracyKind::FPA_Default) {
-      llvm::AttrBuilder FuncAttrs(F->getContext());
-      FuncAttrs.addAttribute("fpbuiltin-max-error", AccuracyStr);
-      F->addFnAttrs(FuncAttrs);
+      if (!CGF.getLangOpts().FuncAccMap.empty()) {
+        // TODO: Needs to go trhough the map and set the attribute
+        // for each function in the map.
+        // If this map is empty the call site should get the default
+        // attribute with the error corresponding to the accuracy
+        // given in the command line option; this should be given
+        // in the map.
+      }
       AttributeList FPBuiltinMaxErrorAttr = F->getAttributes().get(
           CGF.getLLVMContext(), AttributeList::FunctionIndex,
           Attribute::FPBuiltinMaxError);

@@ -24,6 +24,7 @@
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ADT/MapVector.h"
 #include <optional>
 #include <string>
 #include <vector>
@@ -311,6 +312,13 @@ public:
     FPA_Sycl,
     FPA_Cuda
   };
+
+  typedef llvm::MapVector<std::string, std::string, llvm::StringMap<unsigned>>
+      FPAccuracyAttrMap;
+  typedef llvm::MapVector<std::string, FPAccuracyAttrMap,
+                          llvm::StringMap<unsigned>>
+      FPAccuracyAttrFuncMap;
+  FPAccuracyAttrFuncMap FuncAccMap;
 
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };

@@ -2737,7 +2737,7 @@ def ReturnsTwice : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def FPBuiltinMaxError : InheritableAttr {
+def FPBuiltinMaxError : StmtAttr {
   let Spellings = [Clang<"fpbultin_max_error">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];

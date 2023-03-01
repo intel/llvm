@@ -31,6 +31,5 @@ void foo(void) {
 // CHECK: declare float @llvm.experimental.fpaccuracy.cos.f32(float)
 // CHECK-SAME: #1
 
-// CHECK: attributes #1 =  { {{.*}} "fpbuiltin-max-error"="float 2.5" }
 // TODO: Needs to add the value of the error.
 // CHECK: attributes #2 = { fpbultin_max_error }
