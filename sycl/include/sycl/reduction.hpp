@@ -1124,17 +1124,26 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
   }
 }
 
-template <bool WorkSizeNotGreaterThanWGSize = false, int Dim, typename LocalRedsTy,
+// Enum for specifying work size guarantees in tree-reduction.
+enum WorkSizeGuarantees { None, Equal, LessOrEqual };
+
+template <WorkSizeGuarantees WSGuarantee, int Dim, typename LocalRedsTy,
           typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
 void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
                      BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
   size_t LID = NDIt.get_local_linear_id();
   size_t AdjustedWorkSize;
-  if constexpr (WorkSizeNotGreaterThanWGSize) {
-    if (LID < WorkSize)
+  if constexpr (WSGuarantee == WorkSizeGuarantees::LessOrEqual ||
+                WSGuarantee == WorkSizeGuarantees::Equal) {
+    // If there is less-or-equal number of items and amount of work, we just
+    // load the work into the local memory and start reducing. If we know it is
+    // equal we can let the optimizer remove the check.
+    if (WSGuarantee == WorkSizeGuarantees::Equal || LID < WorkSize)
       LocalReds[LID] = AccessFunc(LID);
     AdjustedWorkSize = WorkSize;
   } else {
+    // Otherwise we have no guarantee and we need to first reduce the amount of
+    // work to fit into the local memory.
     size_t WGSize = NDIt.get_local_range().size();
     AdjustedWorkSize = std::min(WorkSize, WGSize);
     if (LID < AdjustedWorkSize) {
@@ -1207,7 +1216,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       size_t LID = NDId.get_local_linear_id();
       for (int E = 0; E < NElements; ++E) {
 
-        doTreeReduction<true>(
+        doTreeReduction<WorkSizeGuarantees::Equal>(
             WGSize, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
             [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
@@ -1235,7 +1244,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
-          doTreeReduction(
+          doTreeReduction<WorkSizeGuarantees::None>(
               NWorkGroups, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
               [&](size_t I) { return PartialSums[I * NElements + E]; });
           if (LID == 0) {
@@ -1319,7 +1328,7 @@ struct NDRangeReduction<
         for (int E = 0; E < NElements; ++E) {
 
           typename Reduction::binary_operation BOp;
-          doTreeReduction<true>(
+          doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
               [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
@@ -1522,7 +1531,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       // This prevents local memory from scaling with elements
       for (int E = 0; E < NElements; ++E) {
 
-        doTreeReduction<true>(
+        doTreeReduction<WorkSizeGuarantees::Equal>(
             WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
             [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
@@ -1603,7 +1612,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
             size_t RemainingWorkSize =
                 sycl::min(WGSize, NWorkItems - GrID * WGSize);
 
-            doTreeReduction<true>(
+            doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
                 RemainingWorkSize, NDIt, LocalReds, BOp,
                 [&]() { NDIt.barrier(); },
                 [&](size_t) { return In[GID * NElements + E]; });
@@ -1796,7 +1805,7 @@ void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-    doTreeReduction<true>(
+    doTreeReduction<WorkSizeGuarantees::Equal>(
         WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
         [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
@@ -1966,7 +1975,7 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-    doTreeReduction<true>(
+    doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
         RemainingWorkSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
         [&](size_t) { return In[GID * NElements + E]; });
 
