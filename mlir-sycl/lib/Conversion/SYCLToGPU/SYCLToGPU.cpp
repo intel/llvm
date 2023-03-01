@@ -12,10 +12,10 @@
 
 #include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -109,21 +109,20 @@ Value getDimension(OpBuilder &builder, Location loc, StringRef opName,
 /// 3. Load the value in position \p index (assumed to be inbounds)
 void convertWithIndexArg(ConversionPatternRewriter &rewriter, StringRef opName,
                          StringRef dimensionAttrname, Operation *op,
-                         int64_t dimensions, Value index) {
-  assert(dimensions <= gpu::GPUDialect::getNumWorkgroupDimensions() &&
-         "Invalid number of dimensions");
+                         Value index) {
+  constexpr int64_t dimensions{3};
+  constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
+
   const auto loc = op->getLoc();
   const auto indexTy = rewriter.getIndexType();
-  const auto alloca = static_cast<Value>(rewriter.create<memref::AllocaOp>(
-      loc, MemRefType::get({dimensions}, indexTy)));
+  const auto vecTy = VectorType::get(dimensions, indexTy);
+  Value vec = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIndexVectorAttr(vecInit), vecTy);
   for (int64_t i = 0; i < dimensions; ++i) {
-    const auto c =
-        static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, i));
     const auto val = getDimension(rewriter, loc, opName, dimensionAttrname, i);
-    rewriter.create<AffineStoreOp>(loc, val, alloca, c);
+    vec = rewriter.create<vector::InsertOp>(loc, val, vec, i);
   }
-  index = rewriter.create<arith::IndexCastOp>(loc, indexTy, index);
-  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, index);
+  rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, vec, index);
 }
 
 /// Replace \p op with a sequence of operations that:
@@ -161,9 +160,9 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
         getDimension(rewriter, loc, opName, dimensionAttrname, i)));
     const auto ptr = createGetOp(rewriter, loc, underlyingArrTy, res, index,
                                  argumentTypes, functionName);
-    rewriter.create<AffineStoreOp>(loc, val, ptr, zero);
+    rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
   }
-  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, res, zero);
+  rewriter.replaceOpWithNewOp<memref::LoadOp>(op, res, zero);
 }
 
 template <typename OpTy, typename GPUOpTy = gpu_counterpart_operation_t<OpTy>>
@@ -210,14 +209,12 @@ public:
 
   void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const override {
-    constexpr int64_t defaultDimensions{3};
     constexpr auto opName = GridOpPattern<OpTy>::GPUOpType::getOperationName();
     const auto dimension = opAdaptor.getDimension();
     const auto dimensionAttrName =
         GridOpPattern<OpTy>::GPUOpType::getDimensionAttrName(
             {opName, rewriter.getContext()});
-    convertWithIndexArg(rewriter, opName, dimensionAttrName, op,
-                        defaultDimensions, dimension);
+    convertWithIndexArg(rewriter, opName, dimensionAttrName, op, dimension);
   }
 };
 

@@ -12,12 +12,12 @@
 
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/ADT/TypeSwitch.h"
@@ -95,20 +95,21 @@ void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
                     ConversionPatternRewriter &rewriter) {
   // TODO: Get default dimensions from parent modules.
   constexpr int64_t dimensions{3};
+  constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
+
   const auto values = spirv::getBuiltinVariableValue(
       op, builtin, typeConverter.getIndexType(), rewriter);
   const auto loc = op->getLoc();
   const auto indexTy = rewriter.getIndexType();
-  const Value alloca = rewriter.create<memref::AllocaOp>(
-      loc, MemRefType::get({dimensions}, indexTy));
+  const auto vecTy = VectorType::get(dimensions, indexTy);
+  Value vec = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIndexVectorAttr(vecInit), vecTy);
   for (int64_t i = 0; i < dimensions; ++i) {
-    const Value c = rewriter.create<arith::ConstantIndexOp>(loc, i);
     const Value val = rewriter.create<arith::IndexCastOp>(
         loc, indexTy, getDimension(rewriter, loc, values, i));
-    rewriter.create<AffineStoreOp>(loc, val, alloca, c);
+    vec = rewriter.create<vector::InsertOp>(loc, val, vec, i);
   }
-  index = rewriter.create<arith::IndexCastOp>(loc, indexTy, index);
-  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, alloca, index);
+  rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, vec, index);
 }
 
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an
@@ -163,9 +164,9 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
         /*isUnsignedCast*/ false);
     const auto ptr = createGetOp(rewriter, loc, dimMtTy, res, index,
                                  argumentTypes, functionName);
-    rewriter.create<AffineStoreOp>(loc, val, ptr, zero);
+    rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
   }
-  rewriter.replaceOpWithNewOp<AffineLoadOp>(op, res, zero);
+  rewriter.replaceOpWithNewOp<memref::LoadOp>(op, res, zero);
 }
 
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an

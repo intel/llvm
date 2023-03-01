@@ -15,4 +15,5 @@ add_mlir_conversion_library(MLIRSYCLToSPIRV
   MLIRSPIRVDialect
   MLIRSYCLDialect
   MLIRTransforms
+  MLIRVectorDialect
   )

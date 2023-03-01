@@ -13,11 +13,11 @@
 #include "mlir/Conversion/SYCLToGPU/SYCLToGPUPass.h"
 
 #include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -44,8 +44,9 @@ void ConvertSYCLToGPUPass::runOnOperation() {
 
   populateSYCLToGPUConversionPatterns(patterns);
 
-  target.addLegalDialect<AffineDialect, arith::ArithDialect, gpu::GPUDialect,
-                         memref::MemRefDialect, SYCLDialect>();
+  target.addLegalDialect<arith::ArithDialect, gpu::GPUDialect,
+                         memref::MemRefDialect, SYCLDialect,
+                         vector::VectorDialect>();
 
   target
       .addIllegalOp<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,

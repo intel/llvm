@@ -13,7 +13,6 @@
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRVPass.h"
 
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -22,6 +21,7 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -58,8 +58,8 @@ void ConvertSYCLToSPIRVPass::runOnOperation() {
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<spirv::SPIRVDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<AffineDialect>();
     target.addLegalDialect<SYCLDialect>();
+    target.addLegalDialect<vector::VectorDialect>();
 
     target.addIllegalOp<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp,
                         SYCLSubGroupLocalIDOp, SYCLSubGroupMaxSizeOp>();
