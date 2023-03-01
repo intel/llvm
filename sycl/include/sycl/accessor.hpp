@@ -991,11 +991,13 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
-                 AccessTarget == access::target::host_buffer),
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task),
                 "Expected buffer type");
 
   static_assert((AccessTarget == access::target::global_buffer ||
-                 AccessTarget == access::target::host_buffer) ||
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task) ||
                     (AccessTarget == access::target::constant_buffer &&
                      AccessMode == access::mode::read),
                 "Access mode can be only read for constant buffers");
@@ -2088,6 +2090,11 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
+  }
+
   // accessor::has_property for runtime properties is only available in host
   // code. This restriction is not listed in the core spec and will be added in
   // future versions.
@@ -2769,6 +2776,11 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
+
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
   template <typename Property> bool has_property() const noexcept {

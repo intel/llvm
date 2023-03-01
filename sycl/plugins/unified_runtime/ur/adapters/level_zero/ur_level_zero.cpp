@@ -1187,7 +1187,7 @@ getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->useImmediateCommandLists())
+    if (Device->ImmCommandListUsed)
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1221,9 +1221,7 @@ bool CopyEngineRequested(const zer_device_handle_t &Device) {
 
 // Whether immediate commandlists will be used for kernel launches and copies.
 // The default is standard commandlists. Setting 1 or 2 specifies use of
-// immediate commandlists. Note: when immediate commandlists are used then
-// device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
-// (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
+// immediate commandlists.
 
 // Get value of immediate commandlists env var setting or -1 if unset
 _ur_device_handle_t::ImmCmdlistMode
@@ -1239,7 +1237,8 @@ _ur_device_handle_t::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    return ImmCommandListsPreferred ? PerQueue : NotUsed;
+    // Change this to PerQueue as default after more testing.
+    return NotUsed;
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1251,6 +1250,29 @@ _ur_device_handle_t::useImmediateCommandLists() {
     return NotUsed;
   }
 }
+
+// Get value of device scope events env var setting or default setting
+static const EventsScope DeviceEventsSetting = [] {
+  const char *DeviceEventsSettingStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  if (DeviceEventsSettingStr) {
+    // Override the default if user has explicitly chosen the events scope.
+    switch (std::stoi(DeviceEventsSettingStr)) {
+    case 0:
+      return AllHostVisible;
+    case 1:
+      return OnDemandHostVisibleProxy;
+    case 2:
+      return LastCommandInBatchHostVisible;
+    default:
+      // fallthrough to default setting
+      break;
+    }
+  }
+  // This is our default setting, which is expected to be the fastest
+  // with the modern GPU drivers.
+  return AllHostVisible;
+}();
 
 zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                                              int SubSubDeviceIndex) {
@@ -1389,12 +1411,11 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
-  // Check device id for PVC.
-  // TODO: change mechanism for detecting PVC once L0 provides an interface.
-  // At present even PVC doesn't automatically use immediate commandlists.
-  // Change this after more testing.
-  ImmCommandListsPreferred =
-      false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
+  ImmCommandListUsed = this->useImmediateCommandLists();
+
+  if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
+    ZeEventsScope = DeviceEventsSetting;
+  }
 
   return ZER_RESULT_SUCCESS;
 }
