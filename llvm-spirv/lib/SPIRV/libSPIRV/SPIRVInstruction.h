@@ -1762,6 +1762,7 @@ public:
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
     assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
             ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
             ExtSetKind == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) &&
            "not supported");
   }
@@ -1773,6 +1774,7 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Kernel_DebugInfo_100:
       getEncoder(O) << ExtOpDebug;
       break;
@@ -1791,6 +1793,7 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Kernel_DebugInfo_100:
       getDecoder(I) >> ExtOpDebug;
       break;

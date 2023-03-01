@@ -72,6 +72,8 @@ public:
     assert((DebugInst->getExtSetKind() == SPIRVEIS_Debug ||
             DebugInst->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100 ||
             DebugInst->getExtSetKind() ==
+                SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+            DebugInst->getExtSetKind() ==
                 SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) &&
            "Unexpected extended instruction set");
     auto It = DebugInstCache.find(DebugInst);

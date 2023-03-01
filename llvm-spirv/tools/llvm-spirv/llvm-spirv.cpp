@@ -237,6 +237,13 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
                    "extended instruction set. This version of SPIR-V debug "
                    "info format is compatible with the SPIRV-Tools"),
         clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100,
+            "nonsemantic-shader-100",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.100 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets."),
+        clEnumValN(
             SPIRV::DebugInfoEIS::NonSemantic_Kernel_DebugInfo_100,
             "nonsemantic-kernel-100",
             "Emit debug info compliant with the "

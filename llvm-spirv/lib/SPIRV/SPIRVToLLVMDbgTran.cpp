@@ -92,6 +92,8 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
     if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug ||
         EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100 ||
+        EI->getExtSetKind() ==
+            SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
         EI->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
       return EI;
   }
