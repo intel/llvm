@@ -1,4 +1,4 @@
-//===--- SYCLOps.td -------------------------------------------------------===//
+//===-- SYCLOps.td - SYCL dialect operation definitions *- tablegen -*------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -389,14 +389,14 @@ def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class SYCL1DGridOp<string mnemonic, list<Trait> traits = []>
-    : SYCL_Op<mnemonic, traits> {
+    : SYCL_Op<mnemonic, !listconcat(traits, [Pure])> {
   let arguments = (ins);
   let results = (outs I32:$result);
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
 class SYCL3DGridOp<string mnemonic, list<Trait> traits = []>
-    : SYCL_Op<mnemonic, traits> {
+    : SYCL_Op<mnemonic, !listconcat(traits, [Pure])> {
   let arguments = (ins Optional<I32>:$dimension);
   let assemblyFormat = "$dimension attr-dict `:` type($result)";
 }
@@ -674,7 +674,7 @@ def SYCLAccessorSubscriptIndex : AnyTypeOf<[IndexType, IDMemRef]>;
 
 def SYCLAccessorSubscriptOp
     : SYCLMethodOpInterfaceImpl<"accessor.subscript", "AccessorType",
-                                ["operator[]"], [Pure]> {
+                                ["operator[]"]> {
   let summary = "Call to accessor::operator[]";
   let description = [{
     This operation represents a call to the accessor::operator[] function.
@@ -703,7 +703,7 @@ def SYCLAccessorSubscriptOp
 def SYCLRangeGetOp
     : SYCLMethodOpInterfaceImpl<"range.get", "RangeType",
                                 ["get", "operator[]"],
-                                [Pure, SYCLGetComponent]> {
+                                [SYCLGetComponent]> {
   let summary = "Call to range::get/operator[]";
   let description = [{
     This operation represents a call to the range::get/operator[] functions.
@@ -729,7 +729,7 @@ def SYCLRangeGetOp
 
 def SYCLRangeSizeOp
     : SYCLMethodOpInterfaceImpl<"range.size", "RangeType",
-                                ["size"], [Pure]> {
+                                ["size"]> {
   let summary = "Call to range::size[]";
   let description = [{
     This operation represents a call to the range::size[] function.
@@ -750,7 +750,7 @@ def SYCLRangeSizeOp
 
 def SYCLNdRangeGetGlobalRange
     : SYCLMethodOpInterfaceImpl<"nd_range.get_global_range", "NdRangeType",
-                                ["get_global_range"], [Pure]> {
+                                ["get_global_range"]> {
   let summary = "Call to nd_range::get_global_range";
   let description = [{
     This operation represents a call to the nd_range::get_global_range function.
@@ -771,7 +771,7 @@ def SYCLNdRangeGetGlobalRange
 
 def SYCLNdRangeGetLocalRange
     : SYCLMethodOpInterfaceImpl<"nd_range.get_local_range", "NdRangeType",
-                                ["get_local_range"], [Pure]> {
+                                ["get_local_range"]> {
   let summary = "Call to nd_range::get_local_range";
   let description = [{
     This operation represents a call to the nd_range::get_local_range function.
@@ -792,7 +792,7 @@ def SYCLNdRangeGetLocalRange
 
 def SYCLNdRangeGetGroupRange
     : SYCLMethodOpInterfaceImpl<"nd_range.get_group_range", "NdRangeType",
-                                ["get_group_range"], [Pure]> {
+                                ["get_group_range"]> {
   let summary = "Call to nd_range::get_group_range";
   let description = [{
     This operation represents a call to the nd_range::get_group_range function.
@@ -814,7 +814,7 @@ def SYCLNdRangeGetGroupRange
 def SYCLIDGetOp
     : SYCLMethodOpInterfaceImpl<"id.get", "IDType",
                                 ["get", "operator[]", "operator unsigned long"],
-                                [Pure, SYCLGetComponent]> {
+                                [SYCLGetComponent]> {
   let summary = "Call to id::get/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the id::get/operator[]/operator size_t functions.
@@ -841,7 +841,7 @@ def SYCLIDGetOp
 def SYCLItemGetIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
                                 ["get_id", "operator[]", "operator unsigned long"],
-                                [Pure, SYCLGetID]> {
+                                [SYCLGetID]> {
   let summary = "Call to item::get_id/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the item::get_id/operator[]/operator size_t functions.
@@ -863,7 +863,8 @@ def SYCLItemGetIDOp
 
 def SYCLItemGetRangeOp
     : SYCLMethodOpInterfaceImpl<"item.get_range", "ItemType",
-                                ["get_range"], [Pure, SYCLGetRange]> {
+                                ["get_range"], 
+                                [SYCLGetRange]> {
   let summary = "Call to item::get_range";
   let description = [{
     This operation represents a call to the item::get_range function.
@@ -885,7 +886,7 @@ def SYCLItemGetRangeOp
 
 def SYCLItemGetLinearIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_linear_id", "ItemType",
-                                ["get_linear_id"], [Pure]> {
+                                ["get_linear_id"]> {
   let summary = "Call to item::get_linear_id";
   let description = [{
     This operation represents a call to the item::get_linear_id function.
@@ -906,7 +907,8 @@ def SYCLItemGetLinearIDOp
 
 def SYCLNDItemGetGlobalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_id", "NdItemType",
-                                ["get_global_id"], [Pure, SYCLGetID]> {
+                                ["get_global_id"], 
+                                [SYCLGetID]> {
   let summary = "Call to nd_item::get_global_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_id function.
@@ -928,7 +930,7 @@ def SYCLNDItemGetGlobalIDOp
 
 def SYCLNDItemGetGlobalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_linear_id", "NdItemType",
-                                ["get_global_linear_id"], [Pure]> {
+                                ["get_global_linear_id"]> {
   let summary = "Call to nd_item::get_global_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_linear_id function.
@@ -949,7 +951,8 @@ def SYCLNDItemGetGlobalLinearIDOp
 
 def SYCLNDItemGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_id", "NdItemType",
-                                ["get_local_id"], [Pure, SYCLGetID]> {
+                                ["get_local_id"], 
+                                [SYCLGetID]> {
   let summary = "Call to nd_item::get_local_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_id function.
@@ -971,7 +974,7 @@ def SYCLNDItemGetLocalIDOp
 
 def SYCLNDItemGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_linear_id", "NdItemType",
-                                ["get_local_linear_id"], [Pure]> {
+                                ["get_local_linear_id"]> {
   let summary = "Call to nd_item::get_local_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_linear_id function.
@@ -992,7 +995,8 @@ def SYCLNDItemGetLocalLinearIDOp
 
 def SYCLNDItemGetGroupOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group", "NdItemType",
-                                ["get_group"], [Pure, SYCLGetGroup]> {
+                                ["get_group"], 
+                                [SYCLGetGroup]> {
   let summary = "Call to nd_item::get_group";
   let description = [{
     This operation represents a call to the nd_item::get_group function.
@@ -1014,7 +1018,7 @@ def SYCLNDItemGetGroupOp
 
 def SYCLNDItemGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group_linear_id", "NdItemType",
-                                ["get_group_linear_id"], [Pure]> {
+                                ["get_group_linear_id"]> {
   let summary = "Call to nd_item::get_group_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_group_linear_id function.
@@ -1036,7 +1040,7 @@ def SYCLNDItemGetGroupLinearIDOp
 def SYCLNDItemGetGroupRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group_range", "NdItemType",
                                 ["get_group_range"],
-                                [Pure, SYCLGetRange]> {
+                                [SYCLGetRange]> {
   let summary = "Call to nd_item::get_group_range";
   let description = [{
     This operation represents a call to the nd_item::get_group_range function.
@@ -1059,7 +1063,7 @@ def SYCLNDItemGetGroupRangeOp
 def SYCLNDItemGetGlobalRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_range", "NdItemType",
                                 ["get_global_range"],
-                                [Pure, SYCLGetRange]> {
+                                [SYCLGetRange]> {
   let summary = "Call to nd_item::get_global_range";
   let description = [{
     This operation represents a call to the nd_item::get_global_range function.
@@ -1082,7 +1086,7 @@ def SYCLNDItemGetGlobalRangeOp
 def SYCLNDItemGetLocalRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_range", "NdItemType",
                                 ["get_local_range"],
-                                [Pure, SYCLGetRange]> {
+                                [SYCLGetRange]> {
   let summary = "Call to nd_item::get_local_range";
   let description = [{
     This operation represents a call to the nd_item::get_local_range function.
@@ -1104,7 +1108,7 @@ def SYCLNDItemGetLocalRangeOp
 
 def SYCLNDItemGetNdRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_nd_range", "NdItemType",
-                                ["get_nd_range"], [Pure]> {
+                                ["get_nd_range"]> {
   let summary = "Call to nd_item::get_nd_range";
   let description = [{
     This operation represents a call to the nd_item::get_nd_range function.
@@ -1126,7 +1130,7 @@ def SYCLNDItemGetNdRangeOp
 def SYCLGroupGetGroupIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_id", "GroupType",
                                 ["get_group_id", "operator[]"],
-                                [Pure, SYCLGetID]> {
+                                [SYCLGetID]> {
   let summary = "Call to group::get_group_id/operator[]";
   let description = [{
     This operation represents a call to the group::get_group_id/operator[] functions.
@@ -1149,7 +1153,7 @@ def SYCLGroupGetGroupIDOp
 def SYCLGroupGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_id", "GroupType",
                                 ["get_local_id"],
-                                [Pure, SYCLGetID]> {
+                                [SYCLGetID]> {
   let summary = "Call to group::get_local_id";
   let description = [{
     This operation represents a call to the group::get_local_id function.
@@ -1172,7 +1176,7 @@ def SYCLGroupGetLocalIDOp
 def SYCLGroupGetLocalRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_range", "GroupType",
                                 ["get_local_range"],
-                                [Pure, SYCLGetRange]> {
+                                [SYCLGetRange]> {
   let summary = "Call to group::get_local_range";
   let description = [{
     This operation represents a call to the group::get_local_range function.
@@ -1195,7 +1199,7 @@ def SYCLGroupGetLocalRangeOp
 def SYCLGroupGetGroupRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_range", "GroupType",
                                 ["get_group_range"],
-                                [Pure, SYCLGetRange]> {
+                                [SYCLGetRange]> {
   let summary = "Call to group::get_group_range";
   let description = [{
     This operation represents a call to the group::get_group_range function.
@@ -1217,7 +1221,7 @@ def SYCLGroupGetGroupRangeOp
 
 def SYCLGroupGetMaxLocalRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_max_local_range", "GroupType",
-                                ["get_max_local_range"], [Pure]> {
+                                ["get_max_local_range"]> {
   let summary = "Call to group::get_max_local_range";
   let description = [{
     This operation represents a call to the group::get_max_local_range function.
@@ -1238,7 +1242,7 @@ def SYCLGroupGetMaxLocalRangeOp
 
 def SYCLGroupGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_linear_id", "GroupType",
-                                ["get_group_linear_id"], [Pure]> {
+                                ["get_group_linear_id"]> {
   let summary = "Call to group::get_group_linear_id";
   let description = [{
     This operation represents a call to the group::get_group_linear_id function.
@@ -1259,7 +1263,7 @@ def SYCLGroupGetGroupLinearIDOp
 
 def SYCLGroupGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_linear_id", "GroupType",
-                                ["get_local_linear_id"], [Pure]> {
+                                ["get_local_linear_id"]> {
   let summary = "Call to group::get_local_linear_id";
   let description = [{
     This operation represents a call to the group::get_local_linear_id function.
@@ -1280,7 +1284,7 @@ def SYCLGroupGetLocalLinearIDOp
 
  def SYCLGroupGetGroupLinearRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_linear_range", "GroupType",
-                                ["get_group_linear_range"], [Pure]> {
+                                ["get_group_linear_range"]> {
   let summary = "Call to group::get_group_linear_range";
   let description = [{
     This operation represents a call to the group::get_group_linear_range function.
@@ -1301,7 +1305,7 @@ def SYCLGroupGetLocalLinearIDOp
 
 def SYCLGroupGetLocalLinearRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_linear_range", "GroupType",
-                                ["get_local_linear_range"], [Pure]> {
+                                ["get_local_linear_range"]> {
   let summary = "Call to group::get_local_linear_range";
   let description = [{
     This operation represents a call to the group::get_local_linear_range function.
