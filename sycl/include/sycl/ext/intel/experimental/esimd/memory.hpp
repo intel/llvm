@@ -616,7 +616,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_NS::element_aligned_tag,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
-lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
+lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
                FlagsT flags = FlagsT{}) {
   // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
@@ -716,45 +716,6 @@ __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p,
                                                       FlagsT flags) {
   return lsc_block_load<T, NElts, DS, L1H, L3H>(p, __ESIMD_NS::simd_mask<1>(1),
                                                 flags);
-}
-
-/// A variation of lsc_block_load without predicate and alignment parameters to
-/// allow use of short form of API use
-///
-/// Accesses contiguous block of memory of `NElts * S` bytes  starting from
-/// given address, where S is a byte size of an "element" defined by the \c DS
-/// template parameter. The maximum size of accessed block is 512 bytes for PVC
-/// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
-/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
-/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
-/// \c lsc_data_size::u8, \c lsc_data_size::u16.
-/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
-/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
-/// data are 1, 2, 3, 4, 8, 16, 32, 64.
-/// When NElts is greater than 64 and the data size is not \c
-/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
-/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
-/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
-/// is multiple of 8) and less than 64 words to transfer.
-/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
-/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
-/// the data must be 8 bytes aligned.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @param p is the base pointer.
-/// @return is a vector of type T and size NElts. The elements of the
-/// returned vector for which the corresponding element in \p pred is 0
-/// are undefined.
-///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p) {
-  return lsc_block_load<T, NElts, DS, L1H, L3H>(p, __ESIMD_NS::simd_mask<1>(1));
 }
 
 /// USM pointer transposed gather with 1 channel.
@@ -890,8 +851,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
-               FlagsT flags = FlagsT{}) {
+lsc_block_load(AccessorTy acc, uint32_t offset,
+               __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, flags);
@@ -981,35 +942,6 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
       acc, offset, __ESIMD_NS::simd_mask<1>(1), flags);
-}
-
-/// A variation of lsc_block_load without predicate and alignment parameters to
-/// use short form of the API
-///
-/// Collects elements located at surface and returns them
-/// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @param acc is the SYCL accessor.
-/// @param offset is the zero-based offset in bytes.
-/// @return is a vector of type T and size NElts. The elements of the returned
-/// vector for which the corresponding element in \p pred is 0 are undefined.
-///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
-                             __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(AccessorTy acc, uint32_t offset) {
-  return lsc_block_load<T, NElts, DS, L1H, L3H>(acc, offset,
-                                                __ESIMD_NS::simd_mask<1>(1));
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -1511,7 +1443,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_NS::element_aligned_tag,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                                 __ESIMD_NS::simd_mask<1> pred,
+                                 __ESIMD_NS::simd_mask<1> pred = 1,
                                  FlagsT flags = FlagsT{}) {
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
@@ -1594,25 +1526,6 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                                           flags);
 }
 
-/// A variation of lsc_block_store without predicate and alignment parameters to
-/// use the short form of the API.
-/// See comments in the  \ref lsc_block_load API
-/// for description and parameter constraints.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to store per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @param p is the base pointer.
-/// @param vals is values to store.
-///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
-  lsc_block_store<T, NElts, DS, L1H, L3H>(p, vals, __ESIMD_NS::simd_mask<1>(1));
-}
-
 /// Accessor-based transposed scatter with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
@@ -1642,8 +1555,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
-                __ESIMD_NS::simd<T, NElts> vals, __ESIMD_NS::simd_mask<1> pred,
-                FlagsT flags = FlagsT{}) {
+                __ESIMD_NS::simd<T, NElts> vals,
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_block_store<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred, flags);
@@ -1735,33 +1648,6 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
   lsc_block_store<T, NElts, DS, L1H, L3H>(acc, offset, vals,
                                           __ESIMD_NS::simd_mask<1>(1), flags);
-}
-
-/// A variation of lsc_block_store without predicate and alignment parameters to
-/// allow use of short version of the API.
-///
-/// Scatters elements to surface.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to store per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @param acc is the SYCL accessor.
-/// @param offset is the zero-based offset in bytes.
-/// @param vals is values to store.
-///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
-lsc_block_store(AccessorTy acc, uint32_t offset,
-                __ESIMD_NS::simd<T, NElts> vals) {
-  lsc_block_store<T, NElts, DS, L1H, L3H>(acc, offset, vals,
-                                          __ESIMD_NS::simd_mask<1>(1));
 }
 
 namespace detail {
