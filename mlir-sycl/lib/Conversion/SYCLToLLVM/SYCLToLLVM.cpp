@@ -443,38 +443,39 @@ public:
                           .getAddressSpace());
     const auto loc = op.getLoc();
     const auto dimension = getDimensions(op.getOperand().getType());
-    const auto newValue = [this, loc, thisArg, ptrTy, dimension,
-                           &rewriter]() -> Value {
-      switch (dimension) {
-      case 1:
-        // get_id(0)
-        return getID(rewriter, loc, ptrTy, thisArg, 0);
-      case 2: {
-        // get_id(0) * get_range(1) + get_id(1)
-        const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
-        const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
-        const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
-        const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
-        return rewriter.create<arith::AddIOp>(loc, prod, id1);
-      }
-      case 3: {
-        // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
-        // get_id(2)
-        const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
-        const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
-        const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
-        const auto r2 = getRange(rewriter, loc, ptrTy, thisArg, 2);
-        const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
-        const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
-        const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
-        const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
-        const auto id2 = getID(rewriter, loc, ptrTy, thisArg, 2);
-        return rewriter.create<arith::AddIOp>(loc, add, id2);
-      }
-      default:
-        llvm_unreachable("Invalid number of dimensions");
-      }
-    }();
+    Value newValue;
+    switch (dimension) {
+    case 1:
+      // get_id(0)
+      newValue = getID(rewriter, loc, ptrTy, thisArg, 0);
+      break;
+    case 2: {
+      // get_id(0) * get_range(1) + get_id(1)
+      const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
+      const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+      const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
+      const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+      newValue = rewriter.create<arith::AddIOp>(loc, prod, id1);
+      break;
+    }
+    case 3: {
+      // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
+      // get_id(2)
+      const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
+      const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+      const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
+      const auto r2 = getRange(rewriter, loc, ptrTy, thisArg, 2);
+      const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
+      const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+      const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
+      const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
+      const auto id2 = getID(rewriter, loc, ptrTy, thisArg, 2);
+      newValue = rewriter.create<arith::AddIOp>(loc, add, id2);
+      break;
+    }
+    default:
+      llvm_unreachable("Invalid number of dimensions");
+    }
     rewriter.replaceOp(op, newValue);
   }
 };
