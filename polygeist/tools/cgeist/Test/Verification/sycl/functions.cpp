@@ -151,11 +151,10 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-MLIR:           func.func @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%[[VAL_0:.*]]: memref<?x!sycl_nd_range_2_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 48 : i64, llvm.noundef}) -> !sycl_range_2_
 // CHECK-MLIR-NEXT:             %[[VAL_1:.*]] = arith.constant 0 : index
 // CHECK-MLIR-NEXT:             %[[VAL_2:.*]] = memref.alloca() : memref<1x!sycl_range_2_>
+// CHECK-MLIR-NEXT:             %cast = memref.cast %alloca : memref<1x!sycl_range_2_> to memref<?x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             %[[VAL_3:.*]] = "polygeist.subindex"(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_nd_range_2_, 4>, index) -> memref<?x!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
-// CHECK-MLIR-NEXT:             %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             sycl.constructor @range(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>)
+// CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = sycl.addrspacecast %cast : memref<?x!sycl_range_2_> to memref<?x!sycl_range_2_, 4>
+// CHECK-MLIR-NEXT:             sycl.constructor @range(%[[VAL_4]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>)
 // CHECK-MLIR-NEXT:             %[[VAL_7:.*]] = affine.load %[[VAL_2]][0] : memref<1x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             return %[[VAL_7]] : !sycl_range_2_
 // CHECK-MLIR-NEXT:           }
@@ -652,10 +651,8 @@ SYCL_EXTERNAL void group_get_local_linear_range(sycl::group<1> group) {
 
 // CHECK-MLIR-LABEL: func.func @_Z8method_2N4sycl3_V14itemILi2ELb1EEE(
 // CHECK-MLIR:           %arg0: memref<?x![[ITEM2]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM2]], llvm.noundef})
-// CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x![[ITEM2]]>) -> !llvm.ptr<![[ITEM2]]>
-// CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<![[ITEM2]]> to !llvm.ptr<![[ITEM2]], 4>
-// CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<![[ITEM2]], 4>) -> memref<?x![[ITEM2]], 4>
-// CHECK-MLIR-NEXT: %3 = sycl.call @"operator=="(%2, %2) {MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i1
+// CHECK-MLIR-NEXT: %0 = sycl.addrspacecast %arg0 : memref<?x![[ITEM2]]> to memref<?x![[ITEM2]], 4>
+// CHECK-MLIR-NEXT: %1 = sycl.call @"operator=="(%0, %0) {MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -672,13 +669,9 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 
 // CHECK-MLIR-LABEL: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(
 // CHECK-MLIR:         %arg0: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef}, %arg1: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})
-// CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %3 = "polygeist.memref2pointer"(%arg1) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-MLIR-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %6 = sycl.call @"operator=="(%2, %5) {MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i1
+// CHECK-MLIR-NEXT: %0 = sycl.addrspacecast %arg0 : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %1 = sycl.addrspacecast %arg1 : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %2 = sycl.call @"operator=="(%0, %1) {MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 

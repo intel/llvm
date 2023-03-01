@@ -56,10 +56,6 @@ llvm::cl::opt<std::string>
     PrefixABI("prefix-abi", llvm::cl::init(""),
               llvm::cl::desc("Prefix for emitted symbols"));
 
-llvm::cl::opt<bool>
-    GenerateAllSYCLFuncs("gen-all-sycl-funcs", llvm::cl::init(false),
-                         llvm::cl::desc("Generate all SYCL functions"));
-
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/
@@ -552,6 +548,16 @@ Value MLIRScanner::castToMemSpace(Value Val, unsigned MemSpace) {
         if (ValType.getMemorySpaceAsInt() == MemSpace)
           return Val;
 
+        if (GenerateSYCLAddrSpaceCast)
+          return Builder.create<sycl::SYCLAddrSpaceCastOp>(
+              Loc,
+              MemRefType::get(ValType.getShape(), ValType.getElementType(),
+                              ValType.getLayout(),
+                              mlirclang::wrapIntegerMemorySpace(
+                                  MemSpace, ValType.getContext())),
+              Val);
+
+        // TODO: Use memref.memory_space_cast by default.
         Value NewVal = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
             LLVM::LLVMPointerType::get(ValType.getElementType(),

@@ -22,29 +22,25 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-namespace {
 /// Returns the SYCL cast originating this value if such operation exists; None
 /// otherwise.
 ///
 /// This function relies on how arguments are casted to perform a function call.
 /// Should be updated if this changes.
-Operation *trackCasts(Value Val) {
+static Operation *trackCasts(Value Val) {
   auto *const DefiningOp = Val.getDefiningOp();
   if (!DefiningOp)
     return nullptr;
 
   return TypeSwitch<Operation *, Operation *>(DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp>(
+      .Case<mlir::sycl::SYCLCastOp, mlir::sycl::SYCLAddrSpaceCastOp>(
           [](Operation *Op) {
             if (auto *Res = trackCasts(Op->getOperand(0)))
               return Res;
             return Op;
           })
-      .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
-          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
       .Default(static_cast<Operation *>(nullptr));
 }
-} // namespace
 
 Value mlir::sycl::abstractCasts(Value Original) {
   Operation *Cast = trackCasts(Original);

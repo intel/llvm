@@ -1699,7 +1699,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  Loc, Ty, Scalar, getConstantIndex(0)),
                              /*isReference*/ false);
 
-      if (ScalarTy.getShape().size() != MT.getShape().size()) {
+      if (ScalarTy.getElementType() != MT.getElementType()) {
         auto MemRefToPtr = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
             LLVM::LLVMPointerType::get(Builder.getI8Type(),
@@ -1712,6 +1712,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         return ValueCategory(PtrToMemRef, /*isReference*/ false);
       }
 
+      assert(ScalarTy.getShape().size() == MT.getShape().size() &&
+             "Expecting memref.cast source and target types to have the same "
+             "rank");
       return ValueCategory(Builder.create<memref::CastOp>(Loc, Ty, Scalar),
                            /*isReference*/ false);
     }
