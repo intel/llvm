@@ -25,11 +25,13 @@
 // RUN: | FileCheck %s -check-prefix=COMP2
 
 // COMP1: !DICompileUnit({{.*}} file: ![[#FILE1:]]
-// COMP1: ![[#FILE1]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}checksum.cpp"
+// COMP1: ![[#FILE1]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
+// COMP1-SAME: directory: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL/Inputs"
 // COMP1-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
 
 // COMP2: !DICompileUnit({{.*}} file: ![[#FILE2:]]
-// COMP2: ![[#FILE2]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}checksum.cpp"
+// COMP2: ![[#FILE2]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
+// COMP2: directory: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL/Output"
 // COMP2-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
 
 // TODO: Fails on windows because of the use of append-file command that returns

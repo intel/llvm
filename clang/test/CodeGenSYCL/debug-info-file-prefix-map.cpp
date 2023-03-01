@@ -9,6 +9,7 @@
 
 
 // CHECK: distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: ![[#FILE1:]]
-// CHECK-NEXT: ![[#FILE1]] = !DIFile(filename: "builtin.cpp", directory: "{{.*}}")
-// CHECK: ![[#FILE2:]] = !DIFile(filename: "builtin.cpp", directory: "{{.*}}")
+// CHECK-NEXT: ![[#FILE1]] = !DIFile(filename: "builtin.cpp"
+// CHECK-SAME: directory: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL/Inputs"
+// CHECK: ![[#FILE2:]] = !DIFile(filename: "builtin.cpp", directory: "")
 // CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "__builtin_va_list", file: ![[#FILE2]]
