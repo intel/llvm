@@ -314,6 +314,7 @@ add_custom_target( sycl-toolchain
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
+	  win_proxy_loader
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
@@ -349,6 +350,8 @@ endif()
 add_subdirectory( plugins )
 
 add_subdirectory(tools)
+
+add_subdirectory(win_proxy_loader)
 
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
@@ -392,6 +395,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      libsycldevice
      level-zero-sycl-dev
+     win_proxy_loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
