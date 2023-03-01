@@ -35,6 +35,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -230,6 +231,7 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
 
   if (SYCLIsDevice) {
     Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
+    Ctx.getOrLoadDialect<mlir::spirv::SPIRVDialect>();
     // TODO: Use memref.memory_space_cast by default.
     if (GenerateSYCLAddrSpaceCast.getNumOccurrences() == 0)
       GenerateSYCLAddrSpaceCast = true;

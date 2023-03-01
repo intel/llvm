@@ -7,7 +7,7 @@
 //
 // CHECK-MLIR-DAG:  gpu.func @_ZTS8kernel_1
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
-// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \["convergent", "mustprogress", "noinline", "norecurse", "nounwind", "optnone", \["frame-pointer", "all"\], \["no-trapping-math", "true"\], \["stack-protector-buffer-size", "8"\], \["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp"\], \["uniform-work-group-size", "true"\]\]]]} {
+// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \["convergent", "mustprogress", "noinline", "norecurse", "nounwind", "optnone", \["frame-pointer", "all"\], \["no-trapping-math", "true"\], \["stack-protector-buffer-size", "8"\], \["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp"\], \["uniform-work-group-size", "true"\]\], spirv.entry_point_abi = #spirv.entry_point_abi<>]]} {
 // CHECK-MLIR-DAG:  gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, [[PASSTHROUGH]]} {
 // CHECK-MLIR-DAG:  func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEC1ENS1_8accessorIiLi1ELS3_1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS1_3ext6oneapi22accessor_property_listIJEEEEENS1_2idILi1EEERKi

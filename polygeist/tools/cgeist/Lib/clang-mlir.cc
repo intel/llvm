@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
@@ -2532,9 +2533,15 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
       AttrBuilder.addAttribute("llvm.linkage",
                                LLVM::LinkageAttr::get(Ctx, Lnk));
 
-      if (FD.hasAttr<clang::SYCLKernelAttr>())
+      if (FD.hasAttr<clang::SYCLKernelAttr>()) {
         AttrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
                                  UnitAttr::get(Ctx));
+        const auto &Triple = CGM.getTarget().getTriple();
+        if (Triple.isSPIR() || Triple.isSPIRV()) {
+          AttrBuilder.addAttribute(spirv::getEntryPointABIAttrName(),
+                                   spirv::getEntryPointABIAttr(Ctx));
+        }
+      }
 
       if (CGM.getLangOpts().SYCLIsDevice)
         AttrBuilder.addPassThroughAttribute(
