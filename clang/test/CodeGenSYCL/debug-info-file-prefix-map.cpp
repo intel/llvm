@@ -1,3 +1,7 @@
+// This test checks that in the presence of the option -fdebug-prefix-map
+// the DICompileUnit information is correct, i.e  test filename and directory
+// path are correct.
+
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -fsycl-int-header=%t.header.h -fsycl-int-footer=%t.footer.h \
 // RUN: -main-file-name %S/Inputs/builtin.cpp -fsycl-use-main-file-name \
