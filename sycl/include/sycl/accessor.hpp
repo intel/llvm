@@ -2669,9 +2669,6 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
   // Use base classes constructors
   using local_acc::local_acc;
 
-  // template <typename DataT>
-  // using local_ptr<DataT> = local_ptr<DataT>;
-
 public:
   local_ptr<DataT> get_pointer() const {
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
