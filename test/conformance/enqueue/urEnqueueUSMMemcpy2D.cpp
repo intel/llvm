@@ -22,9 +22,9 @@ struct urEnqueueUSMMemcpy2DTestWithParam
 
         const size_t num_elements = pitch * height;
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, num_elements, 0, &pSrc));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0, &pSrc));
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, num_elements, 0, &pDst));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0, &pDst));
         ur_event_handle_t memset_event = nullptr;
         ASSERT_SUCCESS(urEnqueueUSMMemset2D(queue, pSrc, pitch, memset_value,
                                             width, height, 0, nullptr,
