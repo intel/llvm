@@ -713,7 +713,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_NS::element_aligned_tag,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p,
-                                                      FlagsT flags = FlagsT{}) {
+                                                      FlagsT flags) {
   return lsc_block_load<T, NElts, DS, L1H, L3H>(p, __ESIMD_NS::simd_mask<1>(1),
                                                 flags);
 }
@@ -978,7 +978,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags = FlagsT{}) {
+lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
       acc, offset, __ESIMD_NS::simd_mask<1>(1), flags);
 }
@@ -1589,7 +1589,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_NS::element_aligned_tag,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                                 FlagsT flags = FlagsT{}) {
+                                 FlagsT flags) {
   lsc_block_store<T, NElts, DS, L1H, L3H>(p, vals, __ESIMD_NS::simd_mask<1>(1),
                                           flags);
 }
@@ -1732,7 +1732,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename = std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
-                __ESIMD_NS::simd<T, NElts> vals, FlagsT flags = FlagsT{}) {
+                __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
   lsc_block_store<T, NElts, DS, L1H, L3H>(acc, offset, vals,
                                           __ESIMD_NS::simd_mask<1>(1), flags);
 }
