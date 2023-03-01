@@ -12,11 +12,10 @@
 //===----------------------------------------------------------------------===//
 
 // Flaky with CUDA and HIP (https://github.com/intel/llvm/issues/6495).
-// TODO: Test is failing for acc backend, enable back when the issue
-// fixed.
-// UNSUPPORTED: cuda, hip, accelerator
+// UNSUPPORTED: cuda, hip
 
 #include <cassert>
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -41,6 +40,12 @@ bool verifyProfiling(event Event) {
 // The test checks that get_profiling_info waits for command asccociated with
 // event to complete execution.
 int main() {
+  device Dev;
+  if (!Dev.has(aspect::queue_profiling)) {
+    std::cout << "Profiling is not supported, skipping the test" << std::endl;
+    return 0;
+  }
+
   const size_t Size = 10000;
   int Data[Size] = {0};
   for (size_t I = 0; I < Size; ++I) {
@@ -53,7 +58,7 @@ int main() {
     buffer<int, 1> BufferTo(Values, range<1>(Size));
 
     // buffer copy
-    queue copyQueue{sycl::property::queue::enable_profiling()};
+    queue copyQueue{Dev, sycl::property::queue::enable_profiling()};
     event copyEvent = copyQueue.submit([&](sycl::handler &Cgh) {
       accessor<int, 1, access::mode::read, access::target::device> AccessorFrom(
           BufferFrom, Cgh, range<1>(Size));
@@ -63,7 +68,7 @@ int main() {
     });
 
     // kernel launch
-    queue kernelQueue{sycl::property::queue::enable_profiling()};
+    queue kernelQueue{Dev, sycl::property::queue::enable_profiling()};
     event kernelEvent = kernelQueue.submit([&](sycl::handler &CGH) {
       CGH.single_task<class EmptyKernel>([=]() {});
     });
