@@ -28,17 +28,10 @@ static inline float __bfloat162float(_iml_bf16_internal b) {
 
 static inline _iml_bf16_internal
 __float2bfloat16(float f, __iml_rounding_mode rounding_mode) {
-  union {
-    float f_val;
-    uint32_t u32_val;
-  } fp32_bits;
-
-  fp32_bits.f_val = f;
-  uint16_t bf16_sign =
-      static_cast<uint16_t>((fp32_bits.u32_val & 0x80000000) >> 31);
-  uint16_t bf16_exp =
-      static_cast<uint16_t>((fp32_bits.u32_val & 0x7F800000) >> 23);
-  uint32_t f_mant = fp32_bits.u32_val & 0x7FFFFF;
+  uint32_t u32_val = __builtin_bit_cast(uint32_t, f);
+  uint16_t bf16_sign = static_cast<uint16_t>((u32_val >> 31) & 0x1);
+  uint16_t bf16_exp = static_cast<uint16_t>((u32_val >> 23) & 0x7FF);
+  uint32_t f_mant = u32_val & 0x7F'FFFF;
   uint16_t bf16_mant = static_cast<uint16_t>(f_mant >> 16);
   // +/-infinity and NAN
   if (bf16_exp == 0xFF) {
@@ -81,19 +74,13 @@ __float2bfloat16(float f, __iml_rounding_mode rounding_mode) {
 
   return (bf16_sign << 15) | (bf16_exp << 7) | bf16_mant;
 }
+
 // We only need utils to convert double to bfloat16 with RTE
 static _iml_bf16_internal __double2bfloat16(double d) {
-  union {
-    double d_val;
-    uint64_t u64_val;
-  } fp64_bits;
-
-  fp64_bits.d_val = d;
-  uint16_t bf16_sign =
-      static_cast<uint16_t>((fp64_bits.u64_val & 0x8000000000000000) >> 63);
-  uint16_t fp64_exp =
-      static_cast<uint16_t>((fp64_bits.u64_val & 0x7FF0000000000000) >> 52);
-  uint64_t fp64_mant = (fp64_bits.u64_val & 0xFFFFFFFFFFFFF);
+  uint64_t u64_val = __builtin_bit_cast(uint64_t, d);
+  int16_t bf16_sign = (u64_val >> 63) & 0x1;
+  uint16_t fp64_exp = static_cast<uint16_t>((u64_val >> 52) & 0x7FF);
+  uint64_t fp64_mant = (u64_val & 0xF'FFFF'FFFF'FFFF);
   uint16_t bf16_mant;
   // handling +/-infinity and NAN for double input
   if (fp64_exp == 0x7FF) {
@@ -106,7 +93,7 @@ static _iml_bf16_internal __double2bfloat16(double d) {
   }
 
   // Subnormal double precision is converted to 0
-  if (!fp64_exp) {
+  if (fp64_exp == 0) {
     return bf16_sign ? 0x8000 : 0x0;
   }
 
@@ -126,12 +113,12 @@ static _iml_bf16_internal __double2bfloat16(double d) {
   // will turn into subnormal when converting to bfloat16
   uint64_t discard_bits;
   if (static_cast<int16_t>(fp64_exp) < -126) {
-    fp64_mant |= 0x10000000000000;
+    fp64_mant |= 0x10'0000'0000'0000;
     fp64_mant >>= -126 - static_cast<int16_t>(fp64_exp) - 1;
-    discard_bits = fp64_mant & 0x3FFFFFFFFFFF;
+    discard_bits = fp64_mant & 0x3FFF'FFFF'FFFF;
     bf16_mant = static_cast<uint16_t>(fp64_mant >> 46);
-    if (discard_bits > 0x200000000000 ||
-        ((discard_bits == 0x200000000000) && ((bf16_mant & 0x1) == 0x1)))
+    if (discard_bits > 0x2000'0000'0000 ||
+        ((discard_bits == 0x2000'0000'0000) && ((bf16_mant & 0x1) == 0x1)))
       bf16_mant += 1;
     fp64_exp = 0;
     if (bf16_mant == 0x80) {
@@ -142,10 +129,10 @@ static _iml_bf16_internal __double2bfloat16(double d) {
   }
 
   // For normal value, discard 45 bits from mantissa
-  discard_bits = fp64_mant & 0x1FFFFFFFFFFF;
+  discard_bits = fp64_mant & 0x1FFF'FFFF'FFFF;
   bf16_mant = static_cast<uint16_t>(fp64_mant >> 45);
-  if (discard_bits > 0x100000000000 ||
-      ((discard_bits == 0x100000000000) && ((bf16_mant & 0x1) == 0x1)))
+  if (discard_bits > 0x1000'0000'0000 ||
+      ((discard_bits == 0x1000'0000'0000) && ((bf16_mant & 0x1) == 0x1)))
     bf16_mant += 1;
 
   if (bf16_mant == 0x80) {
