@@ -326,8 +326,6 @@ CXType clang_getTypedefDeclUnderlyingType(CXCursor C) {
       QualType T = TD->getUnderlyingType();
       return MakeCXType(T, TU);
     }
-
-    return MakeCXType(QualType(), TU);
   }
 
   return MakeCXType(QualType(), TU);
@@ -344,8 +342,6 @@ CXType clang_getEnumDeclIntegerType(CXCursor C) {
       QualType T = TD->getIntegerType();
       return MakeCXType(T, TU);
     }
-
-    return MakeCXType(QualType(), TU);
   }
 
   return MakeCXType(QualType(), TU);
@@ -360,8 +356,6 @@ long long clang_getEnumConstantDeclValue(CXCursor C) {
     if (const EnumConstantDecl *TD = dyn_cast_or_null<EnumConstantDecl>(D)) {
       return TD->getInitVal().getSExtValue();
     }
-
-    return LLONG_MIN;
   }
 
   return LLONG_MIN;
@@ -376,8 +370,6 @@ unsigned long long clang_getEnumConstantDeclUnsignedValue(CXCursor C) {
     if (const EnumConstantDecl *TD = dyn_cast_or_null<EnumConstantDecl>(D)) {
       return TD->getInitVal().getZExtValue();
     }
-
-    return ULLONG_MAX;
   }
 
   return ULLONG_MAX;
