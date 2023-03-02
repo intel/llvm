@@ -134,9 +134,6 @@ the query `value`:
 possible for this device to enable peer access to USM device memory allocations
 located on the `peer` device.
 
-* `ext::oneapi::peer_access::access_enabled`: Returns true only if peer access is
-currently enabled from this device to the `peer` device.
-
 * `ext::oneapi::peer_access::atomics_supported`: When this query returns true,
 it indicates that this device may concurrently access and atomically modify USM
 device memory allocations located on the `peer` device when peer access is enabled
