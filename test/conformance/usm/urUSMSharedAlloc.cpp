@@ -3,7 +3,22 @@
 
 #include <uur/fixtures.h>
 
-using urUSMSharedAllocTest = uur::urQueueTest;
+struct urUSMSharedAllocTest : uur::urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+
+        auto sharedUSMCross = uur::GetDeviceInfo<bool>(
+            device, UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT);
+        auto sharedUSMSingle = uur::GetDeviceInfo<bool>(
+            device, UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT);
+
+        ASSERT_TRUE(sharedUSMCross.has_value() && sharedUSMSingle.has_value());
+
+        if (!(sharedUSMCross.value() || !sharedUSMCross.value())) {
+            GTEST_SKIP() << "Shared USM is not supported by the device.";
+        }
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMSharedAllocTest);
 
 TEST_P(urUSMSharedAllocTest, Success) {
@@ -11,7 +26,8 @@ TEST_P(urUSMSharedAllocTest, Success) {
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr, sizeof(int), 0, &ptr));
 
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+    ASSERT_SUCCESS(
+        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_SUCCESS(urUSMFree(context, ptr));
