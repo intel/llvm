@@ -154,7 +154,7 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if ENABLE_OPAQUE_POINTERS
+#if SPIRV_ENABLE_OPAQUE_POINTERS
 constexpr static bool SPIRVOpaquePointersDefault = true;
 #else
 constexpr static bool SPIRVOpaquePointersDefault = false;
