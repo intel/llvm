@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/SYCLPasses.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
@@ -20,6 +21,7 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -37,9 +39,7 @@ int main(int argc, char **argv) {
   // Register passes.
   registerAllPasses();
   sycl::registerSYCLPasses();
-  sycl::registerConvertSYCLToLLVMPass();
-  sycl::registerConvertSYCLToGPUPass();
-  sycl::registerConvertSYCLToSPIRVPass();
+  sycl::registerConversionPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry,

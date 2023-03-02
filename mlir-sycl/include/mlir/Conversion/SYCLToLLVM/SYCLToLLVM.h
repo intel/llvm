@@ -13,11 +13,16 @@
 #ifndef MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVM_H
 #define MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVM_H
 
-#include "mlir/Transforms/DialectConversion.h"
+#include <memory>
 
 namespace mlir {
+class Pass;
 class LLVMTypeConverter;
-namespace sycl {
+class RewritePatternSet;
+
+#define GEN_PASS_DECL_CONVERTSYCLTOLLVM
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DECL_CONVERTSYCLTOLLVM
 
 /// Populates type conversions with additional SYCL types.
 void populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter);
@@ -26,7 +31,6 @@ void populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter);
 void populateSYCLToLLVMConversionPatterns(LLVMTypeConverter &typeConverter,
                                           RewritePatternSet &patterns);
 
-} // namespace sycl
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVM_H

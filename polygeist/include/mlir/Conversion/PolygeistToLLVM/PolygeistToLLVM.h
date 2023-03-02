@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVMPASS_H
-#define MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVMPASS_H
+#ifndef MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVM_H
+#define MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVM_H
 
 #include "mlir/Pass/Pass.h"
 
@@ -20,9 +20,6 @@ class LowerToLLVMOptions;
 #include "mlir/Conversion/PolygeistPasses.h.inc"
 #undef GEN_PASS_DECL_CONVERTPOLYGEISTTOLLVM
 
-std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
-std::unique_ptr<Pass>
-createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 } // namespace mlir
 
-#endif // MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVMPASS_H
+#endif // MLIR_CONVERSION_POLYGEISTTOLLVM_POLYGEISTTOLLVM_H

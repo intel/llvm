@@ -16,8 +16,16 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSYCLTOGPU
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DEF_CONVERTSYCLTOGPU
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -248,12 +256,41 @@ void addGridOpPatterns(RewritePatternSet &patterns, MLIRContext *context) {
 }
 } // namespace
 
-void mlir::sycl::populateSYCLToGPUConversionPatterns(
-    RewritePatternSet &patterns) {
+void mlir::populateSYCLToGPUConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
   addGridOpPatterns<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
                     SYCLLocalIDOp, SYCLGlobalIDOp>(patterns, context);
   patterns.add<SingleDimGridOpPattern<SYCLSubGroupIDOp>,
                SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
                SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(context);
+}
+
+namespace {
+/// A pass converting MLIR SYCL operations into LLVM dialect.
+class ConvertSYCLToGPUPass
+    : public impl::ConvertSYCLToGPUBase<ConvertSYCLToGPUPass> {
+  void runOnOperation() override;
+};
+} // namespace
+
+void ConvertSYCLToGPUPass::runOnOperation() {
+  auto &context = getContext();
+
+  RewritePatternSet patterns(&context);
+  ConversionTarget target(context);
+
+  populateSYCLToGPUConversionPatterns(patterns);
+
+  target.addLegalDialect<arith::ArithDialect, gpu::GPUDialect,
+                         memref::MemRefDialect, SYCLDialect,
+                         vector::VectorDialect>();
+
+  target
+      .addIllegalOp<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
+                    SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp,
+                    SYCLNumSubGroupsOp, SYCLSubGroupSizeOp>();
+
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
+    signalPassFailure();
 }

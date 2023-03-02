@@ -13,15 +13,19 @@
 #ifndef MLIR_CONVERSION_SYCLTOGPU_SYCLTOGPU_H
 #define MLIR_CONVERSION_SYCLTOGPU_SYCLTOGPU_H
 
-#include "mlir/Transforms/DialectConversion.h"
+#include <memory>
 
 namespace mlir {
-namespace sycl {
+class Pass;
+class RewritePatternSet;
+
+#define GEN_PASS_DECL_CONVERTSYCLTOGPU
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DECL_CONVERTSYCLTOGPU
 
 /// Populates the given list with patterns that convert from SYCL to GPU.
 void populateSYCLToGPUConversionPatterns(RewritePatternSet &patterns);
 
-} // namespace sycl
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_SYCLTOGPU_SYCLTOGPU_H

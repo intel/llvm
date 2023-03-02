@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVMPass.h"
+#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
 
 #include <numeric>
 
@@ -484,18 +484,19 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
+  assert(converter.getOptions().useBarePtrCallConv &&
+         "This option should always be set for these patterns to work");
+
   patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
                Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
-  if (converter.getOptions().useBarePtrCallConv) {
-    // When adding these patterns (and other patterns changing the default
-    // conversion of operations on MemRef values), a higher benefit is passed
-    // (2), so that these patterns have a higher priority than the ones
-    // performing the default conversion, which should only run if the "bare
-    // pointer" ones fail.
-    patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
-                 BarePointer2MemrefOpLowering>(converter,
-                                               /*benefit*/ 2);
-  }
+  // When adding these patterns (and other patterns changing the default
+  // conversion of operations on MemRef values), a higher benefit is passed
+  // (2), so that these patterns have a higher priority than the ones
+  // performing the default conversion, which should only run if the "bare
+  // pointer" ones fail.
+  patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
+               BarePointer2MemrefOpLowering>(converter,
+                                             /*benefit*/ 2);
 }
 
 namespace {
@@ -911,15 +912,8 @@ struct GPUReturnOpLowering : public ConvertOpToLLVMPattern<gpu::ReturnOp> {
 
 struct ConvertPolygeistToLLVMPass
     : public impl::ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
-  ConvertPolygeistToLLVMPass() = default;
-  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, bool emitCWrappers,
-                             unsigned indexBitwidth, bool useAlignedAlloc,
-                             const llvm::DataLayout &dataLayout) {
-    this->useBarePtrCallConv = useBarePtrCallConv;
-    this->emitCWrappers = emitCWrappers;
-    this->indexBitwidth = indexBitwidth;
-    this->dataLayout = dataLayout.getStringRepresentation();
-  }
+  using impl::ConvertPolygeistToLLVMBase<
+      ConvertPolygeistToLLVMPass>::ConvertPolygeistToLLVMBase;
 
   void runOnOperation() override {
     ModuleOp m = getOperation();
@@ -927,7 +921,7 @@ struct ConvertPolygeistToLLVMPass
 
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
-    options.useBarePtrCallConv = useBarePtrCallConv;
+    options.useBarePtrCallConv = true;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
@@ -938,15 +932,13 @@ struct ConvertPolygeistToLLVMPass
       LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
       RewritePatternSet patterns(&getContext());
 
-      if (useBarePtrCallConv) {
-        // Keep these at the top; these should be run before the rest of
-        // function conversion patterns.
-        populateReturnOpTypeConversionPattern(patterns, converter);
-        populateCallOpTypeConversionPattern(patterns, converter);
-        populateAnyFunctionOpInterfaceTypeConversionPattern(patterns,
-                                                            converter);
-      }
-      sycl::populateSYCLToLLVMConversionPatterns(converter, patterns);
+      // Keep these at the top; these should be run before the rest of
+      // function conversion patterns.
+      populateReturnOpTypeConversionPattern(patterns, converter);
+      populateCallOpTypeConversionPattern(patterns, converter);
+      populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
+
+      populateSYCLToLLVMConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
@@ -972,8 +964,7 @@ struct ConvertPolygeistToLLVMPass
 
       // Run these instead of the ones provided by the dialect to avoid lowering
       // memrefs to a struct.
-      if (useBarePtrCallConv)
-        populateBareMemRefToLLVMConversionPatterns(converter, patterns);
+      populateBareMemRefToLLVMConversionPatterns(converter, patterns);
 
       // Legality callback for operations that checks whether their operand and
       // results types are converted.
@@ -1040,26 +1031,3 @@ struct ConvertPolygeistToLLVMPass
   }
 };
 } // namespace
-
-std::unique_ptr<Pass>
-mlir::createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options) {
-  auto allocLowering = options.allocLowering;
-  // There is no way to provide additional patterns for pass, so
-  // AllocLowering::None will always fail.
-  assert(allocLowering != LowerToLLVMOptions::AllocLowering::None &&
-         "LLVMLoweringPass doesn't support AllocLowering::None");
-  bool useAlignedAlloc =
-      (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
-  return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv, false, options.getIndexBitwidth(),
-      useAlignedAlloc, options.dataLayout);
-}
-
-std::unique_ptr<Pass> mlir::createConvertPolygeistToLLVMPass() {
-  // TODO: meaningful arguments to this pass should be specified as
-  // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
-  // default values to allow for pass creation.
-  auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, false, 64u, false,
-                                                      dl);
-}

@@ -21,12 +21,7 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
     See docs/SYCLToLLVMDialectConversion/ for more details.
     TODO: add docs referenced above.
   }];
-  let constructor = "mlir::sycl::createConvertSYCLToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
-  let options = [Option<"useBarePtrCallConv", "use-bare-ptr-call-conv", "bool",
-                        /*default=*/"false",
-			"Replace MemRef values with bare pointers to the MemRef "
-			"element types">];
 }
 
 //===----------------------------------------------------------------------===//
@@ -51,7 +46,6 @@ def ConvertSYCLToGPU : Pass<"convert-sycl-to-gpu", "ModuleOp"> {
     argument querying for a specific dimension.
 };
   }];
-  let constructor = "mlir::sycl::createConvertSYCLToGPUPass()";
   let dependentDialects = [
       "arith::ArithDialect",
       "gpu::GPUDialect",
@@ -79,7 +73,6 @@ def ConvertSYCLToSPIRV : Pass<"convert-sycl-to-spirv", "ModuleOp"> {
     operation might or might not be passed an argument querying for a specific
     dimension.
   }];
-  let constructor = "mlir::sycl::createConvertSYCLToSPIRVPass()";
   let dependentDialects = [
       "arith::ArithDialect",
       "spirv::SPIRVDialect",
