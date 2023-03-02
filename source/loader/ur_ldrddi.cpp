@@ -1905,7 +1905,7 @@ urProgramGetInfo(
                                   ///< needed to return
                                   ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                   ///< pProgramInfo is not used.
-    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of data copied to propName.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of data copied to pProgramInfo.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
