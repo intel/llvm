@@ -64,7 +64,7 @@ struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
   ~DeviceGlobalUSMMem();
 
-  void *getPtr() const noexcept { return MPtr; }
+  void *const &getPtr() const noexcept { return MPtr; }
 
   // Gets the zero-initialization event if it exists. If not the OwnedPiEvent
   // will contain no event.
@@ -82,16 +82,16 @@ struct DeviceGlobalMapEntry {
   // The unique identifier of the device_global.
   std::string MUniqueId;
   // Pointer to the device_global on host.
-  const void *MDeviceGlobalPtr;
+  const void *MDeviceGlobalPtr = nullptr;
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;
   // The kernel-set IDs for the images using the device_global.
   std::set<KernelSetId> MKSIds;
   // Size of the underlying type in the device_global.
-  std::uint32_t MDeviceGlobalTSize;
+  std::uint32_t MDeviceGlobalTSize = 0;
   // True if the device_global has been decorated with device_image_scope.
-  bool MIsDeviceImageScopeDecorated;
+  bool MIsDeviceImageScopeDecorated = false;
 
   // Constructor for only initializing ID and pointer. The other members will
   // be initialized later.
@@ -103,8 +103,7 @@ struct DeviceGlobalMapEntry {
   DeviceGlobalMapEntry(std::string UniqueId, std::uintptr_t ImgId,
                        KernelSetId KSId, std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MDeviceGlobalPtr(nullptr),
-        MImageIdentifiers{ImgId}, MKSIds{KSId},
+      : MUniqueId(UniqueId), MImageIdentifiers{ImgId}, MKSIds{KSId},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 

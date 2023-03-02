@@ -136,7 +136,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -339,7 +339,7 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       RT::PiEvent InitEvent;
-      void *USMPtr = DeviceGlobalUSM.getPtr();
+      void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
