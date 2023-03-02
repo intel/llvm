@@ -1531,64 +1531,6 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
   }
 }
 
-pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
-                              pi_kernel *kernel) {
-  assert(kernel != nullptr);
-  assert(program != nullptr);
-
-  pi_result retErr = PI_SUCCESS;
-  std::unique_ptr<_pi_kernel> retKernel{nullptr};
-
-  try {
-    // TODO: remove cast after porting the entry-point
-    ScopedContext active(reinterpret_cast<pi_context>(program->get_context()));
-
-    CUfunction cuFunc;
-    retErr = PI_CHECK_ERROR(
-        cuModuleGetFunction(&cuFunc, program->get(), kernel_name));
-
-    std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
-    CUfunction cuFuncWithOffsetParam;
-    CUresult offsetRes = cuModuleGetFunction(
-        &cuFuncWithOffsetParam, program->get(), kernel_name_woffset.c_str());
-
-    // If there is no kernel with global offset parameter we mark it as missing
-    if (offsetRes == CUDA_ERROR_NOT_FOUND) {
-      cuFuncWithOffsetParam = nullptr;
-    } else {
-      retErr = PI_CHECK_ERROR(offsetRes);
-    }
-    // TODO: remove cast after porting the entry-point
-    retKernel = std::unique_ptr<_pi_kernel>(
-        new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
-                       reinterpret_cast<pi_context>(program->get_context())});
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  *kernel = retKernel.release();
-  return retErr;
-}
-
-pi_result cuda_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                              size_t arg_size, const void *arg_value) {
-
-  assert(kernel != nullptr);
-  pi_result retErr = PI_SUCCESS;
-  try {
-    if (arg_value) {
-      kernel->set_kernel_arg(arg_index, arg_size, arg_value);
-    } else {
-      kernel->set_kernel_local_arg(arg_index, arg_size);
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  }
-  return retErr;
-}
-
 pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
                                        const pi_mem *arg_value) {
 
@@ -1637,82 +1579,6 @@ pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
     retErr = err;
   }
   return retErr;
-}
-
-pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                    pi_kernel_group_info param_name,
-                                    size_t param_value_size, void *param_value,
-                                    size_t *param_value_size_ret) {
-
-  // Here we want to query about a kernel's cuda blocks!
-
-  if (kernel != nullptr) {
-
-    switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-      int max_threads = 0;
-      sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&max_threads,
-                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     size_t(max_threads));
-    }
-    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-      size_t group_size[3] = {0, 0, 0};
-      const auto &reqd_wg_size_md_map =
-          kernel->program_->kernelReqdWorkGroupSizeMD_;
-      const auto reqd_wg_size_md = reqd_wg_size_md_map.find(kernel->name_);
-      if (reqd_wg_size_md != reqd_wg_size_md_map.end()) {
-        const auto reqd_wg_size = reqd_wg_size_md->second;
-        group_size[0] = std::get<0>(reqd_wg_size);
-        group_size[1] = std::get<1>(reqd_wg_size);
-        group_size[2] = std::get<2>(reqd_wg_size);
-      }
-      return getInfoArray(3, param_value_size, param_value,
-                          param_value_size_ret, group_size);
-    }
-    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
-      // OpenCL LOCAL == CUDA SHARED
-      int bytes = 0;
-      sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-      // Work groups should be multiples of the warp size
-      int warpSize = 0;
-      sycl::detail::pi::assertion(
-          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                               device->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     static_cast<size_t>(warpSize));
-    }
-    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-      // OpenCL PRIVATE == CUDA LOCAL
-      int bytes = 0;
-      sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      int numRegs = 0;
-      sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint32(numRegs));
-    }
-    default:
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-    }
-  }
-
-  return PI_ERROR_INVALID_KERNEL;
 }
 
 pi_result cuda_piEnqueueKernelLaunch(
@@ -2379,32 +2245,6 @@ pi_result cuda_piKernelGetSubGroupInfo(
     }
   }
   return PI_ERROR_INVALID_KERNEL;
-}
-
-pi_result cuda_piKernelRetain(pi_kernel kernel) {
-  assert(kernel != nullptr);
-  assert(kernel->get_reference_count() > 0u);
-
-  kernel->increment_reference_count();
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piKernelRelease(pi_kernel kernel) {
-  assert(kernel != nullptr);
-
-  // double delete or someone is messing with the ref count.
-  // either way, cannot safely proceed.
-  assert(kernel->get_reference_count() != 0 &&
-         "Reference count overflow detected in cuda_piKernelRelease.");
-
-  // decrement ref count. If it is 0, delete the program.
-  if (kernel->decrement_reference_count() == 0) {
-    // no internal cuda resources to clean up. Just delete it.
-    delete kernel;
-    return PI_SUCCESS;
-  }
-
-  return PI_SUCCESS;
 }
 
 // A NOP for the CUDA backend
@@ -4327,16 +4167,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramCreateWithNativeHandle,
          cuda_piextProgramCreateWithNativeHandle)
   // Kernel
-  _PI_CL(piKernelCreate, cuda_piKernelCreate)
-  _PI_CL(piKernelSetArg, cuda_piKernelSetArg)
+  _PI_CL(piKernelCreate, pi2ur::piKernelCreate)
+  _PI_CL(piKernelSetArg, pi2ur::piKernelSetArg)
   _PI_CL(piKernelGetInfo, cuda_piKernelGetInfo)
-  _PI_CL(piKernelGetGroupInfo, cuda_piKernelGetGroupInfo)
+  _PI_CL(piKernelGetGroupInfo, pi2ur::piKernelGetGroupInfo)
   _PI_CL(piKernelGetSubGroupInfo, cuda_piKernelGetSubGroupInfo)
-  _PI_CL(piKernelRetain, cuda_piKernelRetain)
-  _PI_CL(piKernelRelease, cuda_piKernelRelease)
+  _PI_CL(piKernelRetain, pi2ur::piKernelRetain)
+  _PI_CL(piKernelRelease, pi2ur::piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
   _PI_CL(piextProgramSetSpecializationConstant,
          cuda_piextProgramSetSpecializationConstant)
+  _PI_CL(piextKernelGetNativeHandle, pi2ur::piKernelGetNativeHandle)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle,
          cuda_piextKernelCreateWithNativeHandle)

@@ -673,4 +673,68 @@ inline pi_result piProgramGetNativeHandle(pi_program program,
 
   return PI_SUCCESS;
 }
+
+inline pi_result piKernelCreate(pi_program program, const char *kernel_name,
+                              pi_kernel *kernel) {
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  auto phKernel = reinterpret_cast<ur_kernel_handle_t *>(kernel);
+  HANDLE_ERRORS(urKernelCreate(hProgram, kernel_name, phKernel));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                    pi_kernel_group_info param_name,
+                                    size_t param_value_size, void *param_value,
+                                    size_t *param_value_size_ret) {
+  static std::unordered_map<pi_kernel_group_info, ur_kernel_group_info_t> InfoMapping = {
+      {PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE},
+      {PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE},
+      {PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE, UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE},
+      {PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE, UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE},
+      {PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE, UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE},
+  };
+
+  auto InfoType = InfoMapping.find(param_name);
+  if (InfoType == InfoMapping.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  auto hDevice = reinterpret_cast<ur_device_handle_t>(device);
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  HANDLE_ERRORS(urKernelGetGroupInfo(hKernel, hDevice, InfoType->second, param_value_size, param_value, param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelRetain(pi_kernel kernel) {
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  HANDLE_ERRORS(urKernelRetain(hKernel));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelRelease(pi_kernel kernel) {
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  HANDLE_ERRORS(urKernelRelease(hKernel));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelGetNativeHandle(pi_kernel kernel,
+                                           pi_native_handle *nativeHandle) {
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t*>(nativeHandle);
+  HANDLE_ERRORS(urKernelGetNativeHandle(hKernel, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
+                              size_t arg_size, const void *arg_value) {
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  HANDLE_ERRORS(urKernelSetArgValue(hKernel, arg_index, arg_size, arg_value));
+
+  return PI_SUCCESS;
+}
 } // namespace pi2ur

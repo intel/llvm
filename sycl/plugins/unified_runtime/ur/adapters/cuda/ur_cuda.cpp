@@ -1502,3 +1502,168 @@ urProgramGetNativeHandle(ur_program_handle_t program,
   *nativeHandle = reinterpret_cast<ur_native_handle_t>(program->get());
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelCreate(ur_program_handle_t hProgram, const char* pKernelName,
+                              ur_kernel_handle_t* phKernel) {
+  assert(hProgram != nullptr);
+  assert(phKernel != nullptr);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_kernel_handle_t_> retKernel{nullptr};
+
+  try {
+    ScopedContext active(hProgram->get_context());
+
+    CUfunction cuFunc;
+    retErr = PI_CHECK_ERROR(
+        cuModuleGetFunction(&cuFunc, hProgram->get(), pKernelName));
+
+    std::string kernel_name_woffset = std::string(pKernelName) + "_with_offset";
+    CUfunction cuFuncWithOffsetParam;
+    CUresult offsetRes = cuModuleGetFunction(
+        &cuFuncWithOffsetParam, hProgram->get(), kernel_name_woffset.c_str());
+
+    // If there is no kernel with global offset parameter we mark it as missing
+    if (offsetRes == CUDA_ERROR_NOT_FOUND) {
+      cuFuncWithOffsetParam = nullptr;
+    } else {
+      retErr = PI_CHECK_ERROR(offsetRes);
+    }
+    retKernel = std::unique_ptr<ur_kernel_handle_t_>(
+        new ur_kernel_handle_t_{cuFunc, cuFuncWithOffsetParam, pKernelName, hProgram,
+                       hProgram->get_context()});
+  } catch (ur_result_t err) {
+    retErr = err;
+  } catch (...) {
+    retErr = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  *phKernel = retKernel.release();
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+                                    ur_kernel_group_info_t propName,
+                                    size_t propSize, void* pPropValue,
+                                    size_t* pPropSizeRet) {
+
+  // Here we want to query about a kernel's cuda blocks!
+
+  if (hKernel != nullptr) {
+
+    switch (propName) {
+    case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+      int max_threads = 0;
+      sycl::detail::ur::assertion(
+          cuFuncGetAttribute(&max_threads,
+                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             hKernel->get()) == CUDA_SUCCESS);
+      return ur::getInfo(propSize, pPropValue, pPropSizeRet,
+                     size_t(max_threads));
+    }
+    case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+      size_t group_size[3] = {0, 0, 0};
+      const auto &reqd_wg_size_md_map =
+          hKernel->program_->kernelReqdWorkGroupSizeMD_;
+      const auto reqd_wg_size_md = reqd_wg_size_md_map.find(hKernel->name_);
+      if (reqd_wg_size_md != reqd_wg_size_md_map.end()) {
+        const auto reqd_wg_size = reqd_wg_size_md->second;
+        group_size[0] = std::get<0>(reqd_wg_size);
+        group_size[1] = std::get<1>(reqd_wg_size);
+        group_size[2] = std::get<2>(reqd_wg_size);
+      }
+      return ur::getInfoArray(3, propSize, pPropValue,
+                          pPropSizeRet, group_size);
+    }
+    case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+      // OpenCL LOCAL == CUDA SHARED
+      int bytes = 0;
+      sycl::detail::ur::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+                             hKernel->get()) == CUDA_SUCCESS);
+      return ur::getInfo(propSize, pPropValue, pPropSizeRet,
+                     pi_uint64(bytes));
+    }
+    case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      sycl::detail::ur::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               hDevice->get()) == CUDA_SUCCESS);
+      return ur::getInfo(propSize, pPropValue, pPropSizeRet,
+                     static_cast<size_t>(warpSize));
+    }
+    case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      sycl::detail::ur::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             hKernel->get()) == CUDA_SUCCESS);
+      return ur::getInfo(propSize, pPropValue, pPropSizeRet,
+                     pi_uint64(bytes));
+    }
+    default:
+      break;
+    }
+  }
+
+  sycl::detail::ur::die("Kernel info request not implemented");
+  return {};
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelRetain(ur_kernel_handle_t hKernel) {
+  assert(hKernel != nullptr);
+  assert(hKernel->get_reference_count() > 0u);
+
+  hKernel->increment_reference_count();
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelRelease(ur_kernel_handle_t hKernel) {
+  assert(hKernel != nullptr);
+
+  // double delete or someone is messing with the ref count.
+  // either way, cannot safely proceed.
+  assert(hKernel->get_reference_count() != 0 &&
+         "Reference count overflow detected in cuda_piKernelRelease.");
+
+  // decrement ref count. If it is 0, delete the program.
+  if (hKernel->decrement_reference_count() == 0) {
+    // no internal cuda resources to clean up. Just delete it.
+    delete hKernel;
+    return UR_RESULT_SUCCESS;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+// TODO: Not implemented
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetNativeHandle(ur_kernel_handle_t hKernel, ur_native_handle_t* phNativeKernel) {
+  (void*)hKernel;
+  (void*)phNativeKernel;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgValue(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                              size_t argSize, const void* pArgValue) {
+
+  assert(hKernel != nullptr);
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  try {
+    if (pArgValue) {
+      hKernel->set_kernel_arg(argIndex, argSize, pArgValue);
+    } else {
+      hKernel->set_kernel_local_arg(argIndex, argSize);
+    }
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
+}
