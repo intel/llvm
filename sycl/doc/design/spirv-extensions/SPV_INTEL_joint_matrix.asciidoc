@@ -13,7 +13,7 @@
 :packed2_capability_token: 6438
 :packed4_capability_name: JointMatrixPackedInt4ComponentTypeINTEL
 :packed4_capability_token: 6439
-:OpTypeJointMatrixINTEL_token: 6119
+:OpTypeJointMatrixINTEL_token: 6184
 :OpJointMatrixLoadINTEL_token: 6120
 :OpJointMatrixStoreINTEL_token: 6121
 :OpJointMatrixMadINTEL_token: 6122
@@ -194,7 +194,7 @@ Add section 3.XX, Joint Matrix Layout.
 | 0 | *RowMajor*               |  *{main_capability_name}*
 | 1 | *ColumnMajor*            |  *{main_capability_name}*
 | 2 | *Packed* +
-Suitable for Vector Neural Network Instructions (VNNI) used in Intel AMX
+Suitable for Vector Neural Network Instruction (VNNI) format used in Intel AMX
 and Intel XMX. It specifies that the data was prepacked by user before loading
 a joint matrix.
 More info could be found in {DPCPP_URL}[DPCPP matrix extension spec] | *{packed_capability_name}*
@@ -581,7 +581,7 @@ execute the same dynamic instance of this instruction. +
 6+|[[OpJointMatrixSUMadINTEL]]*OpJointMatrixSUMadINTEL* +
  +
 Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
-multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
 matrix and 'C' is a `M x N` matrix. +
  +
 It is invalid to have sizes of operands that do not meet the conditions above.
@@ -633,7 +633,7 @@ execute the same dynamic instance of this instruction. +
 6+|[[OpJointMatrixUSMadINTEL]]*OpJointMatrixUSMadINTEL* +
  +
 Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
-multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
 matrix and 'C' is a `M x N` matrix. +
  +
 It is invalid to have sizes of operands that do not meet the conditions above.
@@ -684,7 +684,7 @@ execute the same dynamic instance of this instruction. +
 6+|[[OpJointMatrixUUMadINTEL]]*OpJointMatrixUUMadINTEL* +
  +
 Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
-multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
 matrix and 'C' is a `M x N` matrix. +
  +
 It is invalid to have sizes of operands that do not meet the conditions above.
