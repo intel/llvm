@@ -152,7 +152,7 @@ device. This does not permit the peer device to access this device's memory.
 Once this access is enabled, SYCL kernel functions and the explicit memory
 functions may access USM device allocations on the peer device subject to the
 normal rules about context as described in the core SYCL specification.
-If this devcie does not support peer access (as defined by
+If this device does not support peer access (as defined by
 `peer_access::access_supported`), throws an `exception` with the
 `errc::feature_not_supported` error code. If access is already enabled,
 throws an exception with the `errc::invalid` error code.
