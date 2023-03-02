@@ -314,10 +314,13 @@ add_custom_target( sycl-toolchain
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
-	  win_proxy_loader
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
+
+if (WIN32)
+  add_dependencies(sycl-toolchain win_proxy_loader)
+endif()
 
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)
@@ -351,7 +354,9 @@ add_subdirectory( plugins )
 
 add_subdirectory(tools)
 
-add_subdirectory(win_proxy_loader)
+if (WIN32)
+  add_subdirectory(win_proxy_loader)
+endif()
 
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
@@ -395,10 +400,13 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      libsycldevice
      level-zero-sycl-dev
-     win_proxy_loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+if (WIN32)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS win_proxy_loader)
+endif()
 
 if (TARGET sycl-prof)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS sycl-prof)
