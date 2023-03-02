@@ -270,12 +270,9 @@ automatically to vectorize the contiguous portion of the matrix.
 ```c++
 auto wi_data_c = get_wi_data(sg, matC);
 for (int i = 0; i < wi_data_c.length(); i++)
-        wi_data_c[i] *= alpha;    // Note that the indexing here "i"
-	is in the vector owned by a WI, not in the matrix C
+  wi_data_c[i] *= alpha;    // Note that the indexing here "i"
+  //is in the vector owned by a WI, not in the matrix C
 ```
-
-IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported.
 
 ===== Work-item data to joint matrix mapping coordinates
 The `wi_data` and `wi_element` classes provide access to the matrix

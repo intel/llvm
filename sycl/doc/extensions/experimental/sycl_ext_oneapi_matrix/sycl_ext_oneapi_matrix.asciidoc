@@ -158,12 +158,8 @@ enum class layout {
 In this API, we use the terminology of `joint_matrix` instead of plain
 `matrix` to emphasize that the matrix is shared among a group of work
 items and is not private to each work item. The group scope is added
-as an additional template parameter.
-
-IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported
-
-When the group is a `sycl::sub_group`, a matrix is declared as follows:
+as an additional template parameter. `Group` template parameter must
+be `sycl::sub_group`. In this case, a matrix is declared as follows:
 
 ```c++
 joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA;
@@ -178,10 +174,7 @@ matrix hardware implements new features.
 Since the matrix functions are group operations (as defined in Section
 4.17.3 of the SYCL specification), the matrix API has to be accessed
 by all the work-items in the group in a convergent control flow. The
-`Group` template argument can be a work-group or a sub-group.
-
-IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported.
+`Group` template argument must be `sycl::sub_group`.
 
 ==== Load
 ```c++
@@ -288,8 +281,6 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
-IMPORTANT: In the current implementation, only the `sub_group` scope
-is supported.
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
@@ -422,27 +413,21 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 Most devices support only certain values for the `Rows` and `Cols`
 template parameters and only certain types for the `T` template
 parameter. Moreover, most devices support only certain combinations of
-these template parameter for the A, B, and accumulator matrices. This
-extension adds two query APIs that can be used to determine the set of
-legal parameters for a particular device. One form provides
-`constexpr` values for these parameters, which can be used when the
-application knows the specific device architecture on which it will
-run. The other form uses the standard information descriptor queries
-for the device object.
-
-Intel AMX, Intel XMX and Nvidia Tensor Cores matrix hardware support different
-sizes and types (see Appendix: Supported Combinations Per
-Hardware). The query interface is used to validate user code and
-inform them about supported types, sizes, scope, and layouts by the
-implementation. This also offers development and tuning productivity
-by both scientists and library developers. We provide two types of the
-query interface: compile-time query and runtime query.
+these template parameter for the A, B, and accumulator matrices (see
+Appendix: Supported Combinations Per Hardware). This extension adds
+two query APIs that can be used to determine the set of legal
+parameters for a particular device. One form provides `constexpr`
+values for these parameters, which can be used when the application
+knows the specific device architecture on which it will run. The other
+form uses the standard information descriptor queries for the device
+object.
 
 ==== Compile-Time Query
 This returns `constexpr` values to use in `joint_matrix` template
-arguments but depends on an enumeration of the matrix hardware that
-can be tested.  The compile-time query interface proposed here
-consists of two functionalities:
+arguments but depends on an enumeration of the matrix hardware (See
+`sycl::ext::oneapi::experimental::architecture`) that can be tested.
+The compile-time query interface proposed here consists of two
+functionalities:
 
 - Validation: at compile time, the validation functionality informs
   the user whether a specific combination is valid or not. This takes
@@ -480,10 +465,12 @@ default size for K; usually this corresponds to the maximum size the
 implementation supports. In validation mode, where the user does
 provide sizes, this is the same value K that the user provides if K is
 supported by the implementation
-|`joint_matrix_a`| type alias for `joint_matrix` for matrix A
-|`joint_matrix_b`| type alias for `joint_matrix` for matrix B |
-`joint_matrix_accumulator`| type alias for `joint_matrix` for matrix
-accumulator
+|`template <typename Group, layout Layout> using joint_matrix_a;`| type
+alias for `joint_matrix` for matrix A
+|`template <typename Group, layout Layout> using joint_matrix_b;`| type
+alias for `joint_matrix` for matrix B
+|`template <typename Group> using joint_matrix_accumulator;`| type
+alias for `joint_matrix` for matrix accumulator
 |======================
 
 ```c++
@@ -491,8 +478,9 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 // This is the validation form, when all template parameters are
 // specified.
-template<tpu Dev, typename Ta=void, typename Tb=void, typename
-         Taccumulator=void, size_t sM=0, size_t sN=0, size_t sK=0>
+template<sycl::ext::oneapi::experimental::architecture Dev, typename
+Ta=void, typename Tb=void, typename Taccumulator=void, size_t sM=0,
+size_t sN=0, size_t sK=0>
 struct matrix_params {
   // An implementation typically uses static_assert here to trigger a
   // compilation error when the matrix types or shapes are not
@@ -519,7 +507,8 @@ struct matrix_params {
 
 // This is the default values form, where the matrix dimensions are
 // omitted.
-template<tpu Dev, typename Ta, typename Tb, typename Taccumulator>
+template<sycl::ext::oneapi::experimental::architecture Dev, typename
+Ta, typename Tb, typename Taccumulator>
 struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
   // An implementation typically uses static_assert here to trigger a
   compilation error when the matrix types are not supported by the
@@ -544,12 +533,6 @@ struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
   use::accumulator, sM, sN>;
 };
 
-enum class tpu {
-  xmx8,
-  xmx16,
-  amx
-};
-
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 ===== Validation Example:
@@ -557,14 +540,18 @@ enum class tpu {
 // User can provide sizes besides the types and matrix_params can assert
   if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
-using myparams = matrix_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;
+using myparams =
+matrix_params<sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc,
+int8_t, int8_t, int, 16, 16, 32>;
 size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
 ===== Default Values Example:
 ```c++
-using myparams = matrix_params<tpu::xmx16, int8_t, int8_t, int>;
+using myparams =
+matrix_params<sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc,
+int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
 size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
@@ -577,7 +564,7 @@ myparams::joint_matrix_accumulator<sub_group> sub_c;
 ```
 ==== Runtime Query
 This provides a more general query interface with information about
-sizes, types,  and scopes that are supported by a specific matrix
+sizes and types that are supported by a specific matrix
 implementation. This is needed to avoid padding by the user, for
 tuning, and efficient code generation if used by a library.
 
@@ -587,10 +574,6 @@ descriptors that can be queried using `get_info` API.
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::scopes`
-|`std::vector<scope>`
-|tells the execution scopes that are supported by the joint matrix
-operations on this device
 |`ext::oneapi::experimental::info::device::matrix::combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
@@ -609,10 +592,6 @@ discrete list of numbers so the `msize, nsize, ksize` variant is applied.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-enum class scope {
-  sub_group,
-  work_group
-};
 enum class matrix_type {
   bf16,
   fp16,
