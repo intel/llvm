@@ -160,7 +160,7 @@ throws an exception with the `errc::invalid` error code.
 
 |void disable_peer_access(const device &peer)
 |Disables access to the peer device's memory from this device. If peer access
-is not enabled, throws an `excpetion` with the `errc::invalid` error code.
+is not enabled, throws an `exception` with the `errc::invalid` error code.
 
 |===
 
