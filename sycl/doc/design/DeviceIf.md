@@ -48,7 +48,6 @@ recognizes:
 * `intel_gpu_aml`
 * `intel_gpu_cml`
 * `intel_gpu_icllp`
-* `intel_gpu_ehl`
 * `intel_gpu_tgllp`
 * `intel_gpu_rkl`
 * `intel_gpu_adl_s`
@@ -70,7 +69,6 @@ recognizes:
 * `intel_gpu_9_6_0` (alias for `intel_gpu_aml`)
 * `intel_gpu_9_7_0` (alias for `intel_gpu_cml`)
 * `intel_gpu_11_0_0` (alias for `intel_gpu_icllp`)
-* `intel_gpu_11_2_0` (alias for `intel_gpu_ehl`)
 * `intel_gpu_12_0_0` (alias for `intel_gpu_tgllp`)
 * `intel_gpu_12_10_0` (alias for `intel_gpu_dg1`)
 * `nvidia_gpu_sm_50`

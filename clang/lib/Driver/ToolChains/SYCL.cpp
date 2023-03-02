@@ -646,7 +646,6 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
                .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
                .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_ehl", "intel_gpu_11_2_0", "ehl")
                .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
                .Case("intel_gpu_rkl", "rkl")
                .Case("intel_gpu_adl_s", "adl_s")
