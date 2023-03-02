@@ -172,16 +172,6 @@ as operands (such as a sum of all elements in a row for
 example). Quantization that is needed for conversion between low
 precision types like `int8_t` and `fp32` uses piece-wise operations.
 
-// We explored multiple options to enable this feature in the matrix
-interface: 1) Allowing non-restrictive element indexing on the matrix
-elements would result into slow indexing on the GPU, 2) Operator
-overloading can represent only element-wise operations and not the
-operations on pieces (row, column, diagonal, etc) of the matrix. 3)
-Providing specific functions for these piece-wise operations can
-resolve some of the functions we know of today like the ones involved
-in quantization but it is not general to any problem that may occur in
-the future. 
-
 ===== Explicit conversion with mapping from SIMD to SPMD
 The data elements in a `joint_matrix` are distributed or shared across
 the work-items in the Group in an implementation-defined way. There is
@@ -310,7 +300,7 @@ for a 16-bit type.
 
 ===== Example 1: 16-bit elements
       // Example of a 4 row x 4 column matrix using a 16-bit data
-      element, in row-major layout.
+      // element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
       // ---------------------------------
       // a1, b1, c1, d1
@@ -328,7 +318,7 @@ for a 16-bit type.
 ===== Example 2: 8-bit elements
 
       // Example of a 4 row x 4 column matrix using a 8-bit data
-      element, in row-major layout.
+      // element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
       // ---------------------------------
       // a1, b1, c1, d1

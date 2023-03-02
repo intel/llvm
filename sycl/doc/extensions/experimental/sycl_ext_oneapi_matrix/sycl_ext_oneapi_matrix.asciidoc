@@ -511,8 +511,8 @@ template<sycl::ext::oneapi::experimental::architecture Dev, typename
 Ta, typename Tb, typename Taccumulator>
 struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
   // An implementation typically uses static_assert here to trigger a
-  compilation error when the matrix types are not supported by the
-  device identified by "Dev".
+  // compilation error when the matrix types are not supported by the
+  // device identified by "Dev".
 
   using type_a = /* implementation defined */;
   using type_b = /* implementation defined */;
@@ -538,7 +538,7 @@ struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
 ===== Validation Example:
 ```c++
 // User can provide sizes besides the types and matrix_params can assert
-  if they are supported or not
+// if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
 using myparams =
 matrix_params<sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc,
