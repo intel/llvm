@@ -2019,7 +2019,7 @@ void mlir::populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
 void mlir::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
   assert(typeConverter.getOptions().useBarePtrCallConv &&
-         "These pattern only work with bare pointer calling convention");
+         "These patterns only work with bare pointer calling convention");
   populateSYCLToLLVMTypeConversion(typeConverter);
 
   patterns.add<CallPattern>(typeConverter);

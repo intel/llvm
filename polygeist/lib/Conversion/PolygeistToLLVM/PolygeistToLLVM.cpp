@@ -485,7 +485,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   assert(converter.getOptions().useBarePtrCallConv &&
-         "This option should always be set for these patterns to work");
+         "These patterns only work with bare pointer calling convention");
 
   patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
                Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
