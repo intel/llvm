@@ -43,11 +43,6 @@ struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
   using LICMBase<LICM>::LICMBase;
 
   void runOnOperation() override;
-
-private:
-  /// Whether to assume the program abides to strict aliasing rules (i.e type
-  /// based aliasing) or not.
-  const bool relaxedAliasing = false;
 };
 
 /// Represents the side effects associated with an operation.

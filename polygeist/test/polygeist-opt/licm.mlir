@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --licm --split-input-file %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --licm="relaxed-aliasing=false" --split-input-file %s 2>&1 | FileCheck %s
 
 // COM: Test LICM on scf.for loops.
 module {
