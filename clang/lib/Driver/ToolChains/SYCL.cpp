@@ -710,7 +710,6 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
-                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
