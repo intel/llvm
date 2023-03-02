@@ -149,7 +149,7 @@ void CUDASpecConstantToSymbolPass::fixupSpecConstantUses(
   IRBuilder B(A->getParent()->getParent()->getContext());
   SmallVector<Instruction *> ToErase;
   for (auto *U : A->users()) {
-    auto *I = dyn_cast_or_null<Instruction>(&*U);
+    auto *I = dyn_cast<Instruction>(&*U);
     assert(I && "Expected an instruction.");
     switch (I->getOpcode()) {
     default: {
@@ -193,7 +193,7 @@ void CUDASpecConstantToSymbolPass::rewriteKernelSignature(NamedMDNode *MD) {
            "is not a kernel?");
 
     // Prepare a new function type, a copy of the original without the last arg.
-    std::vector<Type *> Arguments;
+    SmallVector<Type *> Arguments;
     SmallVector<AttributeSet, 8> ArgumentAttributes;
     auto FAttrs =
         F->getAttributes().removeParamAttributes(Context, F->arg_size() - 1);
