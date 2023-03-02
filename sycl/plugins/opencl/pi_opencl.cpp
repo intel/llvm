@@ -285,6 +285,35 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // This query is missing beore OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer, platVer;
+    cl_platform_id platform;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+
+    auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                   sizeof(cl_platform_id), &platform, nullptr);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    ret_err = getPlatformVersion(platform, platVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    if (platVer < OCLV::V3_0 || devVer < OCLV::V3_0) {
+      setErrorMessage(
+          "OpenCL version for device and/or platform is less than 3.0",
+          PI_ERROR_INVALID_OPERATION);
+      return PI_ERROR_INVALID_OPERATION;
+    }
+
     // Guaranteed to return at least relaxed memory order
     cl_int result = 1;
     // TODO: Check for support for the rest of the capabilities
@@ -856,10 +885,54 @@ pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
     return PI_SUCCESS;
   }
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // Guaranteed to return at least relaxed memory order
-    cl_int result = 1;
-    // TODO: Check for support for the rest of the capabilities
-    std::memcpy(paramValue, &result, sizeof(cl_int));
+    // Get all devices in context
+    cl_uint deviceCount;
+    cl_int ret_err =
+        clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                         sizeof(cl_uint), &deviceCount, nullptr);
+    if (ret_err != CL_SUCCESS || deviceCount < 1)
+      return PI_ERROR_INVALID_CONTEXT;
+
+    std::vector<cl_device_id> devicesInCtx(deviceCount);
+    ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                              deviceCount * sizeof(cl_device_id),
+                              devicesInCtx.data(), nullptr);
+    if (ret_err != CL_SUCCESS)
+      return PI_ERROR_INVALID_CONTEXT;
+
+    // Check for valid platform OpenCL version (>=3.0)
+    cl_platform_id platform;
+    ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
+                             sizeof(cl_platform_id), &platform, nullptr);
+    if (ret_err != CL_SUCCESS)
+      return PI_ERROR_INVALID_CONTEXT;
+
+    OCLV::OpenCLVersion platVer;
+    ret_err = getPlatformVersion(platform, platVer);
+    if (ret_err != CL_SUCCESS || platVer < OCLV::V3_0)
+      return PI_ERROR_INVALID_CONTEXT;
+
+    // Get device memory order capabilities for each device
+    // Combine to get all supported capabilities on each device (as per 4.6.3.2)
+    // TODO: Check for support for the rest of the capabilities other than
+    // "relaxed" (set other 0's to 1's here)
+    cl_int commonCapabilities = 0b00001;
+
+    for (cl_device_id device : devicesInCtx) {
+      // Device version is checked by the call to piDeviceGetInfo
+      // FIXME: Catch and ignore all <3.0 devices and use all 3.0 and newer? Or
+      // exit?
+      cl_int deviceCapabilities;
+      pi_result pi_ret_err =
+          piDeviceGetInfo(cast<pi_device>(device), PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+                          sizeof(cl_int), &deviceCapabilities, nullptr);
+      if (pi_ret_err != PI_SUCCESS)
+        return pi_ret_err;
+
+      commonCapabilities &= deviceCapabilities;
+    }
+
+    std::memcpy(paramValue, &commonCapabilities, sizeof(cl_int));
     return PI_SUCCESS;
   }
   default:
