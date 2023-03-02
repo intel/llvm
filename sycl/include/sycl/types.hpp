@@ -2285,7 +2285,7 @@ template <typename... Ts>
 struct is_device_copyable<
     std::variant<Ts...>,
     std::enable_if_t<!std::is_trivially_copyable<std::variant<Ts...>>::value>>
-    : is_device_copyable<Ts...> {};
+    : std::bool_constant<(is_device_copyable<Ts>::value && ...)> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
