@@ -86,3 +86,4 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
