@@ -142,7 +142,6 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_INTEL_GPU_AML__`
 * `__SYCL_TARGET_INTEL_GPU_CML__`
 * `__SYCL_TARGET_INTEL_GPU_ICLLP__`
-* `__SYCL_TARGET_INTEL_GPU_EHL__`
 * `__SYCL_TARGET_INTEL_GPU_TGLLP__`
 * `__SYCL_TARGET_INTEL_GPU_RKL__`
 * `__SYCL_TARGET_INTEL_GPU_ADL_S__`

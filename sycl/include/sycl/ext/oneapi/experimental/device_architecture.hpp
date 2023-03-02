@@ -122,9 +122,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_INTEL_GPU_ICLLP__
 #define __SYCL_TARGET_INTEL_GPU_ICLLP__ 0
 #endif
-#ifndef __SYCL_TARGET_INTEL_GPU_EHL__
-#define __SYCL_TARGET_INTEL_GPU_EHL__ 0
-#endif
 #ifndef __SYCL_TARGET_INTEL_GPU_TGLLP__
 #define __SYCL_TARGET_INTEL_GPU_TGLLP__ 0
 #endif
@@ -284,7 +281,6 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_AML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_CML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_RKL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1) ||
