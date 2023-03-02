@@ -1934,9 +1934,6 @@ protected:
 //===----------------------------------------------------------------------===//
 
 void mlir::populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
-  assert(typeConverter.getOptions().useBarePtrCallConv &&
-         "These patterns only work with bare pointer calling convention");
-
   // Same order as in SYCLOps.td
   typeConverter.addConversion([&](sycl::AccessorCommonType type) {
     return convertAccessorCommonType(type, typeConverter);
