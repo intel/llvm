@@ -6,7 +6,9 @@
 
 #include <optional>
 #include <string>
+#include <uur/assert.h>
 #include <uur/environment.h>
+#include <vector>
 
 namespace uur {
 
@@ -127,6 +129,39 @@ std::optional<uint32_t> GetObjectReferenceCount(T object) {
     }
     return std::nullopt;
 }
+
+ur_device_type_t GetDeviceType(ur_device_handle_t device);
+uint32_t GetDeviceVendorId(ur_device_handle_t device);
+uint32_t GetDeviceId(ur_device_handle_t device);
+uint32_t GetDeviceMaxComputeUnits(ur_device_handle_t device);
+uint32_t GetDeviceMaxWorkItemDimensions(ur_device_handle_t device);
+std::vector<size_t> GetDeviceMaxWorkItemSizes(ur_device_handle_t device);
+size_t GetDeviceMaxWorkGroupSize(ur_device_handle_t device);
+ur_fp_capability_flags_t GetDeviceSingleFPCapabilities(ur_device_handle_t device);
+ur_fp_capability_flags_t GetDeviceHalfFPCapabilities(ur_device_handle_t device);
+ur_fp_capability_flags_t GetDeviceDoubleFPCapabilities(ur_device_handle_t device);
+ur_queue_flags_t GetDeviceQueueProperties(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthChar(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthShort(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthInt(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthDouble(ur_device_handle_t device);
+uint32_t GetDevicePreferredVectorWidthHalf(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithChar(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithShort(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithInt(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithLong(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithDouble(ur_device_handle_t device);
+uint32_t GetDeviceNativeVectorWithHalf(ur_device_handle_t device);
+uint32_t GetDeviceMaxClockFrequency(ur_device_handle_t device);
+uint32_t GetDeviceMemoryClockRate(ur_device_handle_t device);
+uint32_t GetDeviceAddressBits(ur_device_handle_t device);
+uint64_t GetDeviceMaxMemAllocSize(ur_device_handle_t device);
+bool GetDeviceImageSupport(ur_device_handle_t device);
+uint32_t GetDeviceMaxReadImageArgs(ur_device_handle_t device);
+
 
 } // namespace uur
 
