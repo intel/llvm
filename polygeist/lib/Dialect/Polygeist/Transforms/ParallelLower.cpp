@@ -10,7 +10,8 @@
 // a generic parallel for representation
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
@@ -22,7 +23,6 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -33,6 +33,13 @@
 #include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_PARALLELLOWER
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -72,7 +79,8 @@ namespace {
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
-struct ParallelLower : public ParallelLowerBase<ParallelLower> {
+struct ParallelLower
+    : public mlir::polygeist::impl::ParallelLowerBase<ParallelLower> {
   void runOnOperation() override;
 };
 

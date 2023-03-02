@@ -12,7 +12,9 @@
 // dead memref store's and perform more complex forwarding when support for
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
-#include "PassDetails.h"
+
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -21,7 +23,6 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Support/LLVM.h"
@@ -37,6 +38,13 @@
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 
 #define DEBUG_TYPE "mem2reg"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_MEM2REG
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -204,7 +212,7 @@ namespace {
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
-struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
+struct Mem2Reg : public mlir::polygeist::impl::Mem2RegBase<Mem2Reg> {
   void runOnOperation() override;
 
   // return if changed

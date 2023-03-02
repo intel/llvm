@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -27,6 +27,13 @@
 
 #include "llvm/Support/Debug.h"
 #define DEBUG_TYPE "LoopRestructure"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_LOOPRESTRUCTURE
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace polygeist;
@@ -188,7 +195,8 @@ struct GraphTraits<const DomTreeNodeBase<Wrapper> *>
 
 namespace {
 
-struct LoopRestructure : public LoopRestructureBase<LoopRestructure> {
+struct LoopRestructure
+    : public mlir::polygeist::impl::LoopRestructureBase<LoopRestructure> {
   void runOnRegion(DominanceInfo &domInfo, Region &region);
   bool removeIfFromRegion(DominanceInfo &domInfo, Region &region,
                           Block *pseudoExit);

@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
@@ -21,13 +20,20 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include <mlir/Dialect/Arith/IR/Arith.h>
 
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_OPENMPOPTPASS
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
+
 using namespace mlir;
 using namespace mlir::func;
 using namespace mlir::arith;
 using namespace polygeist;
 
 namespace {
-struct OpenMPOpt : public OpenMPOptPassBase<OpenMPOpt> {
+struct OpenMPOpt : public mlir::polygeist::impl::OpenMPOptPassBase<OpenMPOpt> {
   void runOnOperation() override;
 };
 } // namespace
