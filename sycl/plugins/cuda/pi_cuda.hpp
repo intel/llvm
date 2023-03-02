@@ -668,44 +668,8 @@ private:
 
 /// Implementation of PI Program on CUDA Module object
 ///
-struct _pi_program {
-  using native_type = CUmodule;
-  native_type module_;
-  const char *binary_;
-  size_t binarySizeInBytes_;
-  std::atomic_uint32_t refCount_;
-  _pi_context *context_;
-
-  // Metadata
-  std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
-      kernelReqdWorkGroupSizeMD_;
-  std::unordered_map<std::string, std::string> globalIDMD_;
-
-  constexpr static size_t MAX_LOG_SIZE = 8192u;
-
-  char errorLog_[MAX_LOG_SIZE], infoLog_[MAX_LOG_SIZE];
-  std::string buildOptions_;
-  pi_program_build_status buildStatus_ = PI_PROGRAM_BUILD_STATUS_NONE;
-
-  _pi_program(pi_context ctxt);
-  ~_pi_program();
-
-  pi_result set_metadata(const pi_device_binary_property *metadata,
-                         size_t length);
-
-  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
-
-  pi_result build_program(const char *build_options);
-
-  pi_context get_context() const { return context_; };
-
-  native_type get() const noexcept { return module_; };
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+struct _pi_program : ur_program_handle_t_ {
+  using ur_program_handle_t_::ur_program_handle_t_;
 };
 
 /// Implementation of a PI Kernel for CUDA

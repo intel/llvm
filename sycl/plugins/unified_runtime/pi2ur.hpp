@@ -625,4 +625,52 @@ inline pi_result piContextRelease(pi_context context) {
   return PI_SUCCESS;
 }
 
+inline pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  static std::unordered_map<pi_program_info, ur_program_info_t> InfoMapping = {
+      {PI_PROGRAM_INFO_REFERENCE_COUNT, UR_PROGRAM_INFO_REFERENCE_COUNT},
+      {PI_PROGRAM_INFO_CONTEXT, UR_PROGRAM_INFO_CONTEXT},
+      {PI_PROGRAM_INFO_NUM_DEVICES, UR_PROGRAM_INFO_NUM_DEVICES},
+      {PI_PROGRAM_INFO_DEVICES, UR_PROGRAM_INFO_DEVICES},
+      {PI_PROGRAM_INFO_SOURCE, UR_PROGRAM_INFO_SOURCE},
+      {PI_PROGRAM_INFO_BINARY_SIZES, UR_PROGRAM_INFO_BINARY_SIZES},
+      {PI_PROGRAM_INFO_BINARIES, UR_PROGRAM_INFO_BINARIES},
+      {PI_PROGRAM_INFO_NUM_KERNELS, UR_PROGRAM_INFO_NUM_KERNELS},
+      {PI_PROGRAM_INFO_KERNEL_NAMES, UR_PROGRAM_INFO_KERNEL_NAMES},
+  };
+
+  auto InfoType = InfoMapping.find(param_name);
+  if (InfoType == InfoMapping.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  HANDLE_ERRORS(urProgramGetInfo(hProgram, InfoType->second, param_value_size, param_value, param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piProgramRetain(pi_program program) {
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  HANDLE_ERRORS(urProgramRetain(hProgram));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piProgramRelease(pi_program program) {
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  HANDLE_ERRORS(urProgramRelease(hProgram));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piProgramGetNativeHandle(pi_program program,
+                                           pi_native_handle *nativeHandle) {
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(*nativeHandle);
+  HANDLE_ERRORS(urProgramGetNativeHandle(hProgram, &hNativeHandle));
+
+  return PI_SUCCESS;
+}
 } // namespace pi2ur
