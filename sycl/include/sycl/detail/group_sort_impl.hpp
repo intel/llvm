@@ -22,21 +22,55 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+template <typename... T, std::size_t... Indices>
+auto ptrToTupleHelper(std::byte *v, std::size_t n,
+                      std::index_sequence<Indices...>) {
+  return std::make_tuple(
+      (reinterpret_cast<T *>(v + Indices * n * sizeof(T) + alignof(T)))...);
+}
+
+template <typename... T> auto ptrToTuple(std::byte *v, std::size_t n) {
+  return ptrToTupleHelper<T...>(v, n, std::make_index_sequence<sizeof...(T)>());
+}
+
+template <template <typename...> class TBig, typename... Args>
+TBig<Args &...> get_references(TBig<Args *...> t, std::size_t i) {
+  return std::apply([&](auto... xs) { return std::tie(xs[i]...); }, t);
+}
+
+template <template <typename...> class TBig, typename... Args, size_t Extent>
+TBig<Args &...> get_references(TBig<sycl::span<Args, Extent>...> t,
+                               std::size_t i) {
+  return std::apply([&](auto... xs) { return std::tie(xs[i]...); }, t);
+}
+
+template <typename T> T get_references(T *Ptr, std::size_t i) { return Ptr[i]; }
+
+template <typename T> void swap(T first, std::size_t i, std::size_t idx) {
+  std::swap(first[i], first[idx]);
+}
+
+template <template <typename...> class TBig, typename... T>
+void swap(TBig<T *...> first, std::size_t i, std::size_t idx) {
+  auto lhs = get_references(first, i);
+  auto rhs = get_references(first, idx);
+  std::swap(lhs, rhs);
+}
+
 // ---- merge sort implementation
 
-// following two functions could be useless if std::[lower|upper]_bound worked
-// well
-template <typename Acc, typename Value, typename Compare>
-size_t lower_bound(Acc acc, size_t first, size_t last, const Value &value,
-                   Compare comp) {
-  size_t n = last - first;
-  size_t cur = n;
-  size_t it;
+template <typename _Acc, typename _Size1, typename _Value, typename _Compare>
+_Size1 lower_bound(_Acc acc, _Size1 first, _Size1 last, _Value value,
+                   _Compare comp) {
+  auto n = last - first;
+  auto cur = n;
+  _Size1 it;
   while (n > 0) {
     it = first;
     cur = n / 2;
     it += cur;
-    if (comp(acc[it], value)) {
+    const auto refs = detail::get_references(acc, it);
+    if (comp(refs, value)) {
       n -= cur + 1, first = ++it;
     } else
       n = cur;
@@ -70,10 +104,8 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space, IsDecorated>> {
   using type = ElementType;
 };
 
-// since we couldn't assign data to raw memory, it's better to use placement
-// for first assignment
-template <typename Acc, typename T>
-void set_value(Acc ptr, const size_t idx, const T &val, bool is_first) {
+template <typename T>
+void set_value(T *ptr, const std::size_t idx, const T &val, bool is_first) {
   if (is_first) {
     ::new (ptr + idx) T(val);
   } else {
@@ -81,11 +113,36 @@ void set_value(Acc ptr, const size_t idx, const T &val, bool is_first) {
   }
 }
 
-template <typename InAcc, typename OutAcc, typename Compare>
-void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
+template <template <typename...> class TBig1,
+          template <typename...> class TBig2, typename T1>
+void set_value(TBig1<T1 *> &ptr, const std::size_t idx, const TBig2<T1 &> &val,
+               bool is_first) {
+  if (is_first) {
+    ::new (std::get<0>(ptr) + idx) T1(std::get<0>(val));
+  } else {
+    std::get<0>(ptr)[idx] = std::get<0>(val);
+  }
+}
+
+template <template <typename...> class TBig1,
+          template <typename...> class TBig2, typename T1, typename T2>
+void set_value(TBig1<T1 *, T2 *> &ptr, const std::size_t idx,
+               const TBig2<T1 &, T2 &> &val, bool is_first) {
+  if (is_first) {
+    ::new (std::get<0>(ptr) + idx) T1(std::get<0>(val));
+    ::new (std::get<1>(ptr) + idx) T2(std::get<1>(val));
+  } else {
+    std::get<0>(ptr)[idx] = std::get<0>(val);
+    std::get<1>(ptr)[idx] = std::get<1>(val);
+  }
+}
+
+template <typename _InAcc, typename _OutAcc, typename _Compare>
+void merge(const size_t offset, _InAcc &in_acc, _OutAcc &out_acc,
            const size_t start_1, const size_t end_1, const size_t end_2,
-           const size_t start_out, Compare comp, const size_t chunk,
+           const size_t start_out, _Compare comp, const size_t chunk,
            bool is_first) {
+  using _Idx = size_t;
   const size_t start_2 = end_1;
   // Borders of the sequences to merge within this call
   const size_t local_start_1 =
@@ -100,89 +157,92 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
   const size_t local_size_1 = local_end_1 - local_start_1;
   const size_t local_size_2 = local_end_2 - local_start_2;
 
-  // TODO: process cases where all elements of 1st sequence > 2nd, 2nd > 1st
-  // to improve performance
+  {
+    // Process 1st sequence
+    if (local_start_1 < local_end_1) {
+      // Reduce the range for searching within the 2nd sequence and handle bound
+      // items find left border in 2nd sequence
+      const auto local_l_item_1 = detail::get_references(in_acc, local_start_1);
+      size_t l_search_bound_2 =
+          detail::lower_bound(in_acc, start_2, end_2, local_l_item_1, comp);
+      const size_t l_shift_1 = local_start_1 - start_1;
+      const size_t l_shift_2 = l_search_bound_2 - start_2;
 
-  // Process 1st sequence
-  if (local_start_1 < local_end_1) {
-    // Reduce the range for searching within the 2nd sequence and handle bound
-    // items find left border in 2nd sequence
-    const auto local_l_item_1 = in_acc1[local_start_1];
-    size_t l_search_bound_2 =
-        detail::lower_bound(in_acc1, start_2, end_2, local_l_item_1, comp);
-    const size_t l_shift_1 = local_start_1 - start_1;
-    const size_t l_shift_2 = l_search_bound_2 - start_2;
+      detail::set_value(out_acc, start_out + l_shift_1 + l_shift_2,
+                        local_l_item_1, is_first);
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1,
-              is_first);
+      size_t r_search_bound_2{};
+      // find right border in 2nd sequence
+      if (local_size_1 > 1) {
+        const auto local_r_item_1 =
+            detail::get_references(in_acc, local_end_1 - 1);
+        r_search_bound_2 = detail::lower_bound(in_acc, l_search_bound_2, end_2,
+                                               local_r_item_1, comp);
+        const auto r_shift_1 = local_end_1 - 1 - start_1;
+        const auto r_shift_2 = r_search_bound_2 - start_2;
 
-    size_t r_search_bound_2{};
-    // find right border in 2nd sequence
-    if (local_size_1 > 1) {
-      const auto local_r_item_1 = in_acc1[local_end_1 - 1];
-      r_search_bound_2 = detail::lower_bound(in_acc1, l_search_bound_2, end_2,
-                                             local_r_item_1, comp);
-      const auto r_shift_1 = local_end_1 - 1 - start_1;
-      const auto r_shift_2 = r_search_bound_2 - start_2;
+        // out_acc[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
+        detail::set_value(out_acc, start_out + r_shift_1 + r_shift_2,
+                          local_r_item_1, is_first);
+      }
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_1,
-                is_first);
+      // Handle intermediate items
+      for (size_t idx = local_start_1 + 1; idx < local_end_1 - 1; ++idx) {
+        const auto intermediate_item_1 = detail::get_references(in_acc, idx);
+        // we shouldn't seek in whole 2nd sequence. Just for the part where the
+        // 1st sequence should be
+        l_search_bound_2 =
+            detail::lower_bound(in_acc, l_search_bound_2, r_search_bound_2,
+                                intermediate_item_1, comp);
+        const size_t shift_1 = idx - start_1;
+        const size_t shift_2 = l_search_bound_2 - start_2;
+
+        detail::set_value(out_acc, start_out + shift_1 + shift_2,
+                          intermediate_item_1, is_first);
+      }
     }
+    // Process 2nd sequence
+    if (local_start_2 < local_end_2) {
+      // Reduce the range for searching within the 1st sequence and handle bound
+      // items find left border in 1st sequence
+      const auto local_l_item_2 = detail::get_references(in_acc, local_start_2);
+      size_t l_search_bound_1 =
+          detail::upper_bound(in_acc, start_1, end_1, local_l_item_2, comp);
+      const size_t l_shift_1 = l_search_bound_1 - start_1;
+      const size_t l_shift_2 = local_start_2 - start_2;
 
-    // Handle intermediate items
-    for (size_t idx = local_start_1 + 1; idx < local_end_1 - 1; ++idx) {
-      const auto intermediate_item_1 = in_acc1[idx];
-      // we shouldn't seek in whole 2nd sequence. Just for the part where the
-      // 1st sequence should be
-      l_search_bound_2 =
-          detail::lower_bound(in_acc1, l_search_bound_2, r_search_bound_2,
-                              intermediate_item_1, comp);
-      const size_t shift_1 = idx - start_1;
-      const size_t shift_2 = l_search_bound_2 - start_2;
+      detail::set_value(out_acc, start_out + l_shift_1 + l_shift_2,
+                        local_l_item_2, is_first);
 
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_1,
-                is_first);
-    }
-  }
-  // Process 2nd sequence
-  if (local_start_2 < local_end_2) {
-    // Reduce the range for searching within the 1st sequence and handle bound
-    // items find left border in 1st sequence
-    const auto local_l_item_2 = in_acc1[local_start_2];
-    size_t l_search_bound_1 =
-        detail::upper_bound(in_acc1, start_1, end_1, local_l_item_2, comp);
-    const size_t l_shift_1 = l_search_bound_1 - start_1;
-    const size_t l_shift_2 = local_start_2 - start_2;
+      size_t r_search_bound_1{};
+      // find right border in 1st sequence
+      if (local_size_2 > 1) {
+        const auto local_r_item_2 =
+            detail::get_references(in_acc, local_end_2 - 1);
+        r_search_bound_1 = detail::upper_bound(in_acc, l_search_bound_1, end_1,
+                                               local_r_item_2, comp);
+        const size_t r_shift_1 = r_search_bound_1 - start_1;
+        const size_t r_shift_2 = local_end_2 - 1 - start_2;
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_2,
-              is_first);
+        // out_acc[start_out + r_shift_1 + r_shift_2] = local_r_item_2;
+        detail::set_value(out_acc, start_out + r_shift_1 + r_shift_2,
+                          local_r_item_2, is_first);
+      }
 
-    size_t r_search_bound_1{};
-    // find right border in 1st sequence
-    if (local_size_2 > 1) {
-      const auto local_r_item_2 = in_acc1[local_end_2 - 1];
-      r_search_bound_1 = detail::upper_bound(in_acc1, l_search_bound_1, end_1,
-                                             local_r_item_2, comp);
-      const size_t r_shift_1 = r_search_bound_1 - start_1;
-      const size_t r_shift_2 = local_end_2 - 1 - start_2;
+      // Handle intermediate items
+      for (auto idx = local_start_2 + 1; idx < local_end_2 - 1; ++idx) {
+        const auto intermediate_item_2 = detail::get_references(in_acc, idx);
+        // we shouldn't seek in whole 1st sequence. Just for the part where the
+        // 2nd sequence should be
+        l_search_bound_1 =
+            detail::upper_bound(in_acc, l_search_bound_1, r_search_bound_1,
+                                intermediate_item_2, comp);
+        const size_t shift_1 = l_search_bound_1 - start_1;
+        const size_t shift_2 = idx - start_2;
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_2,
-                is_first);
-    }
-
-    // Handle intermediate items
-    for (auto idx = local_start_2 + 1; idx < local_end_2 - 1; ++idx) {
-      const auto intermediate_item_2 = in_acc1[idx];
-      // we shouldn't seek in whole 1st sequence. Just for the part where the
-      // 2nd sequence should be
-      l_search_bound_1 =
-          detail::upper_bound(in_acc1, l_search_bound_1, r_search_bound_1,
-                              intermediate_item_2, comp);
-      const size_t shift_1 = l_search_bound_1 - start_1;
-      const size_t shift_2 = idx - start_2;
-
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_2,
-                is_first);
+        detail::set_value(out_acc, start_out + shift_1 + shift_2,
+                          intermediate_item_2, is_first);
+      }
     }
   }
 }
@@ -194,18 +254,72 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
     for (size_t i = begin; i < end; ++i) {
       // Handle intermediate items
       for (size_t idx = i + 1; idx < end; ++idx) {
-        if (comp(first[idx], first[i])) {
-          detail::swap_tuples(first[i], first[idx]);
+        auto refs_1 = detail::get_references(first, idx);
+        auto refs_2 = detail::get_references(first, i);
+        if (comp(refs_1, refs_2)) {
+          detail::swap(first, i, idx);
         }
       }
     }
   }
 }
 
+template <typename Group, template <typename...> class TBig, typename... T,
+          typename Compare>
+void merge_sort(Group group, TBig<T *...> first, const size_t n, Compare comp,
+                std::byte *scratch) {
+  const size_t idx = group.get_local_linear_id();
+  const size_t local = group.get_local_range(0);
+  const size_t chunk = (n - 1) / local + 1;
+
+  // we need to sort within work item firstly
+  bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
+  sycl::group_barrier(group);
+
+  auto temp = detail::ptrToTuple<T...>(scratch, n);
+  bool data_in_temp = false;
+  bool is_first = true;
+  size_t sorted_size = 1;
+  while (sorted_size * chunk < n) {
+    const size_t start_1 =
+        sycl::min(2 * sorted_size * chunk * (idx / sorted_size), n);
+    const size_t end_1 = sycl::min(start_1 + sorted_size * chunk, n);
+    const size_t start_2 = end_1;
+    const size_t end_2 = sycl::min(start_2 + sorted_size * chunk, n);
+    const size_t offset = chunk * (idx % sorted_size);
+
+    if (!data_in_temp) {
+      merge(offset, first, temp, start_1, end_1, end_2, start_1, comp, chunk,
+            is_first);
+    } else {
+      merge(offset, temp, first, start_1, end_1, end_2, start_1, comp, chunk,
+            false);
+    }
+    sycl::group_barrier(group);
+
+    data_in_temp = !data_in_temp;
+    sorted_size *= 2;
+    if (is_first)
+      is_first = false;
+  }
+
+  // copy back if data is in a temporary storage
+  if (data_in_temp) {
+    for (size_t i = 0; i < chunk; ++i) {
+      if (idx * chunk + i < n) {
+        auto out_refs = detail::get_references(first, idx * chunk + i);
+        auto temp_refs = detail::get_references(temp, idx * chunk + i);
+        out_refs = temp_refs;
+      }
+    }
+    sycl::group_barrier(group);
+  }
+}
+
 template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const size_t n, Compare comp,
                 std::byte *scratch) {
-  using T = typename GetValueType<Iter>::type;
+  using T = typename std::iterator_traits<Iter>::value_type;
   const size_t idx = group.get_local_linear_id();
   const size_t local = group.get_local_range().size();
   const size_t chunk = (n - 1) / local + 1;
@@ -260,7 +374,7 @@ template <typename Type> struct IsCompAscending<std::less<Type>> {
 };
 
 // get number of states radix bits can represent
-constexpr uint32_t getStatesInBits(uint32_t radix_bits) {
+constexpr uint32_t getStatesInBits(std::uint32_t radix_bits) {
   return (1 << radix_bits);
 }
 
@@ -440,6 +554,8 @@ template <> struct ValuesAssigner<false> {
 };
 
 // The iteration of radix sort for unknown number of elements per work item
+/* template <uint32_t radix_bits, bool is_key_value_sort, typename KeysT, */
+/*           typename ValueT, typename CompareT, typename GroupT> */
 template <uint32_t radix_bits, bool is_key_value_sort, bool is_comp_asc,
           typename KeysT, typename ValueT, typename GroupT>
 void performRadixIterDynamicSize(GroupT group,
@@ -447,6 +563,7 @@ void performRadixIterDynamicSize(GroupT group,
                                  const uint32_t radix_iter, const size_t n,
                                  KeysT *keys_input, ValueT *vals_input,
                                  KeysT *keys_output, ValueT *vals_output,
+                                 /* uint32_t *memory, CompareT comp) { */
                                  uint32_t *memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
@@ -460,6 +577,7 @@ void performRadixIterDynamicSize(GroupT group,
   sycl::group_barrier(group);
 
   // 1.2. count values and write result to private count array and count memory
+
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
     // get value, convert it to Ordered (in terms of bitness)
@@ -500,7 +618,6 @@ void performRadixIterDynamicSize(GroupT group,
   // 3. Reorder
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
-    // get value, convert it to Ordered (in terms of bitness)
     auto val =
         convertToOrdered((val_idx < n) ? keys_input[val_idx]
                                        : getDefaultValue<ValueT>(is_comp_asc));
@@ -524,7 +641,7 @@ template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
           typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
-                                ValsT vals, std::byte *memory) {
+                                ValsT *vals, std::byte *memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
