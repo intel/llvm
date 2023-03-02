@@ -1040,73 +1040,8 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                  size_t size, void *host_ptr, pi_mem *ret_mem,
                                  const pi_mem_properties *properties) {
-  // Need input memory object
-  assert(ret_mem != nullptr);
-  assert((properties == nullptr || *properties == 0) &&
-         "no mem properties goes to cuda RT yet");
-  // Currently, USE_HOST_PTR is not implemented using host register
-  // since this triggers a weird segfault after program ends.
-  // Setting this constant to true enables testing that behavior.
-  const bool enableUseHostPtr = false;
-  const bool performInitialCopy =
-      (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
-      ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && !enableUseHostPtr);
-  pi_result retErr = PI_SUCCESS;
-  pi_mem retMemObj = nullptr;
-
-  try {
-    ScopedContext active(context);
-    CUdeviceptr ptr;
-    _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
-        _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
-
-    if ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && enableUseHostPtr) {
-      retErr = PI_CHECK_ERROR(
-          cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
-    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
-      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
-    } else {
-      retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
-      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
-      }
-    }
-
-    if (retErr == PI_SUCCESS) {
-      pi_mem parentBuffer = nullptr;
-
-      auto piMemObj = std::unique_ptr<_pi_mem>(
-          new _pi_mem{context, parentBuffer, allocMode, ptr, host_ptr, size});
-      if (piMemObj != nullptr) {
-        retMemObj = piMemObj.release();
-        if (performInitialCopy) {
-          // Operates on the default stream of the current CUDA context.
-          retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
-          // Synchronize with default stream implicitly used by cuMemcpyHtoD
-          // to make buffer data available on device before any other PI call
-          // uses it.
-          if (retErr == PI_SUCCESS) {
-            CUstream defaultStream = 0;
-            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-          }
-        }
-      } else {
-        retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
-      }
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  *ret_mem = retMemObj;
-
-  return retErr;
+  (void)properties;
+  return pi2ur::piMemBufferCreate(context, flags, size, host_ptr, ret_mem);
 }
 
 /// Decreases the reference count of the Mem object.
@@ -1114,63 +1049,7 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
 /// \return PI_SUCCESS unless deallocation error
 ///
 pi_result cuda_piMemRelease(pi_mem memObj) {
-  assert((memObj != nullptr) && "PI_ERROR_INVALID_MEM_OBJECTS");
-
-  pi_result ret = PI_SUCCESS;
-
-  try {
-
-    // Do nothing if there are other references
-    if (memObj->decrement_reference_count() > 0) {
-      return PI_SUCCESS;
-    }
-
-    // make sure memObj is released in case PI_CHECK_ERROR throws
-    std::unique_ptr<_pi_mem> uniqueMemObj(memObj);
-
-    if (memObj->is_sub_buffer()) {
-      return PI_SUCCESS;
-    }
-
-    ScopedContext active(uniqueMemObj->get_context());
-
-    if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
-      switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
-        ret = PI_CHECK_ERROR(
-            cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-        ret = PI_CHECK_ERROR(
-            cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-      };
-    } else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
-      ret = PI_CHECK_ERROR(
-          cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
-      ret = PI_CHECK_ERROR(
-          cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
-    }
-
-  } catch (pi_result err) {
-    ret = err;
-  } catch (...) {
-    ret = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (ret != PI_SUCCESS) {
-    // A reported CUDA error is either an implementation or an asynchronous CUDA
-    // error for which it is unclear if the function that reported it succeeded
-    // or not. Either way, the state of the program is compromised and likely
-    // unrecoverable.
-    sycl::detail::pi::die(
-        "Unrecoverable program state reached in cuda_piMemRelease");
-  }
-
-  return PI_SUCCESS;
+  return pi2ur::piMemRelease(memObj);
 }
 
 /// Implements a buffer partition in the CUDA backend.
@@ -1249,7 +1128,7 @@ pi_result cuda_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
 pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
                                        pi_native_handle *nativeHandle) {
   *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
-  return PI_SUCCESS;
+  return pi2ur::piextMemGetNativeHandle(mem, nativeHandle);
 }
 
 /// Created a PI mem object from a CUDA mem handle.
@@ -2160,10 +2039,7 @@ pi_result cuda_piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *,
 }
 
 pi_result cuda_piMemRetain(pi_mem mem) {
-  assert(mem != nullptr);
-  assert(mem->get_reference_count() > 0);
-  mem->increment_reference_count();
-  return PI_SUCCESS;
+  return pi2ur::piMemRetain(mem);
 }
 
 /// Not used as CUDA backend only creates programs from binary.
