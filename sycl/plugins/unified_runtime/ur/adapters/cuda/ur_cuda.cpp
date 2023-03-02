@@ -80,7 +80,7 @@ ur_result_t map_error(CUresult result) {
 
 /// Converts CUDA error into UR error codes, and outputs error information
 /// to stderr.
-/// If PI_CUDA_ABORT env variable is defined, it aborts directly instead of
+/// If UR_CUDA_ABORT env variable is defined, it aborts directly instead of
 /// throwing the error. This is intended for debugging purposes.
 /// \return UR_RESULT_SUCCESS if \param result was CUDA_SUCCESS.
 /// \throw ur_result_t exception (integer) if input was not success.
@@ -91,7 +91,7 @@ ur_result_t check_error(CUresult result, const char *function, int line,
     return UR_RESULT_SUCCESS;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *errorString = nullptr;
     const char *errorName = nullptr;
     cuGetErrorName(result, &errorName);
@@ -107,7 +107,7 @@ ur_result_t check_error(CUresult result, const char *function, int line,
     std::cerr << ss.str();
   }
 
-  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+  if (std::getenv("UR_CUDA_ABORT") != nullptr) {
     std::abort();
   }
 
@@ -1355,16 +1355,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hConte
         ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic;
 
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && enableUseHostPtr) {
-      retErr = PI_CHECK_ERROR(
+      retErr = UR_CHECK_ERROR(
           cuMemHostRegister(pHost, size, CU_MEMHOSTREGISTER_DEVICEMAP));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
+      retErr = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
       allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::use_host_ptr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-      retErr = PI_CHECK_ERROR(cuMemAllocHost(&pHost, size));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
+      retErr = UR_CHECK_ERROR(cuMemAllocHost(&pHost, size));
+      retErr = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
       allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
     } else {
-      retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
+      retErr = UR_CHECK_ERROR(cuMemAlloc(&ptr, size));
       if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
         allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::copy_in;
       }
@@ -1379,13 +1379,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hConte
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
           // Operates on the default stream of the current CUDA context.
-          retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, pHost, size));
+          retErr = UR_CHECK_ERROR(cuMemcpyHtoD(ptr, pHost, size));
           // Synchronize with default stream implicitly used by cuMemcpyHtoD
           // to make buffer data available on device before any other UR call
           // uses it.
           if (retErr == UR_RESULT_SUCCESS) {
             CUstream defaultStream = 0;
-            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+            retErr = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
           }
         }
       } else {
@@ -1426,7 +1426,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    // make sure hMem is released in case PI_CHECK_ERROR throws
+    // make sure hMem is released in case UR_CHECK_ERROR throws
     std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
 
     if (hMem->is_sub_buffer()) {
@@ -1439,20 +1439,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
       case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::copy_in:
       case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
+        ret = UR_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
       case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::use_host_ptr:
-        ret = PI_CHECK_ERROR(
+        ret = UR_CHECK_ERROR(
             cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
         break;
       case ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-        ret = PI_CHECK_ERROR(
+        ret = UR_CHECK_ERROR(
             cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
     } else if (hMem->mem_type_ == ur_mem_handle_t_::mem_type::surface) {
-      ret = PI_CHECK_ERROR(
+      ret = UR_CHECK_ERROR(
           cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
-      ret = PI_CHECK_ERROR(
+      ret = UR_CHECK_ERROR(
           cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
     }
 
