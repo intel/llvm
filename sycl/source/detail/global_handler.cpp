@@ -187,6 +187,10 @@ void GlobalHandler::releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
+  // Update: the win_proxy_loader addresses this for SYCL's own dependencies,
+  // but the GPU device dlls seem to manually load yet another DLL which may
+  // have been released when this function is called. So we still release() and
+  // leak until that is addressed. context destructs fine on CPU device.
   MPlatformToDefaultContextCache.Inst.release();
 #endif
 }
@@ -234,6 +238,18 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
+#ifdef _WIN32
+  // because of something not-yet-understood on Windows
+  // threads may be shutdown once the end of main() is reached
+  // making an orderly shutdown difficult. Fortunately, Windows
+  // itself is very aggressive about reclaiming memory. Thus,
+  // we focus solely on unloading the plugins, so as to not
+  // accidentally retain device handles. etc 
+void shutdown(){
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  Handler->unloadPlugins();
+}
+#else
 void shutdown() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -268,18 +284,36 @@ void shutdown() {
   delete Handler;
   Handler = nullptr;
 }
+#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
+  bool PrintPiTrace = false;
+  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
+  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
+    PrintPiTrace = true;
+  }
+
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (!lpReserved)
-      shutdown();
+    if (PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled())
+      return TRUE; // When doing xpti tracing, we can't safely call shutdown.
+    // TODO: figure out what XPTI is doing that prevents release.
+#endif
+
+    shutdown();
     break;
   case DLL_PROCESS_ATTACH:
+    if (PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;

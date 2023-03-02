@@ -136,7 +136,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
