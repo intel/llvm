@@ -301,3 +301,1113 @@ func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: memref<?x!sy
   %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDRANGE1:.*]]>) -> !llvm.[[RANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
+  %0 = sycl.nd_range.get_global_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_1_>], FunctionName = @"get_global_range", MangledFunctionName = @"get_global_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDRANGE1]]>) -> !llvm.[[RANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
+  %0 = sycl.nd_range.get_local_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_1_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_nd_range_3_ = !sycl.nd_range<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDRANGE3:.*]]>) -> !llvm.[[RANGE3]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[RANGE3]] : (i64) -> !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.divui %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 0] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.store %[[VAL_7]], %[[VAL_8]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 1] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = arith.divui %[[VAL_10]], %[[VAL_12]] : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 1] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.store %[[VAL_13]], %[[VAL_14]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 2] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_17:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 2] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_18:.*]] = llvm.load %[[VAL_17]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_19:.*]] = arith.divui %[[VAL_16]], %[[VAL_18]] : i64
+// CHECK-NEXT:       %[[VAL_20:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 2] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.store %[[VAL_19]], %[[VAL_20]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_21:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       llvm.return %[[VAL_21]] : !llvm.[[RANGE3]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_ {
+  %0 = sycl.nd_range.get_group_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_3_>], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_
+  return %0 : !sycl_range_3_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1:.*]]>) -> !llvm.[[ID1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
+// CHECK-NEXT:     }
+func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_id_1_ {
+  %0 = sycl.item.get_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_id", MangledFunctionName = @"get_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> !sycl_id_1_
+  return %0 : !sycl_id_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[ITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.item.get_id(%item, %i) { ArgumentTypes = [memref<?x!sycl_item_1_>, i32], FunctionName = @"get_id", MangledFunctionName = @"get_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1]]>) -> !llvm.[[RANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_range_1_ {
+  %0 = sycl.item.get_range(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[ITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.item.get_range(%item, %i) { ArgumentTypes = [memref<?x!sycl_item_1_>, i32], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"item" }  : (memref<?x!sycl_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_item_base_2_ = !sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>
+!sycl_item_2_ = !sycl.item<[2, false], (!sycl_item_base_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_item_base_3_ = !sycl.item_base<[3, false], (!sycl_range_3_, !sycl_id_3_)>
+!sycl_item_3_ = !sycl.item<[3, false], (!sycl_item_base_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM2:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_2_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM3:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_3_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_item_base_2_ = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
+!sycl_item_2_ = !sycl.item<[2, true], (!sycl_item_base_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_item_base_3_ = !sycl.item_base<[3, true], (!sycl_range_3_, !sycl_id_3_, !sycl_id_3_)>
+!sycl_item_3_ = !sycl.item<[3, true], (!sycl_item_base_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_5]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM2:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = arith.subi %[[VAL_10]], %[[VAL_12]] : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = arith.addi %[[VAL_8]], %[[VAL_13]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_14]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_2_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ITEM3:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_8]], %[[VAL_10]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.load %[[VAL_12]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.load %[[VAL_14]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_16:.*]] = arith.subi %[[VAL_13]], %[[VAL_15]] : i64
+// CHECK-NEXT:       %[[VAL_17:.*]] = arith.muli %[[VAL_16]], %[[VAL_10]] : i64
+// CHECK-NEXT:       %[[VAL_18:.*]] = arith.addi %[[VAL_11]], %[[VAL_17]] : i64
+// CHECK-NEXT:       %[[VAL_19:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_20:.*]] = llvm.load %[[VAL_19]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_21:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_22:.*]] = llvm.load %[[VAL_21]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_23:.*]] = arith.subi %[[VAL_20]], %[[VAL_22]] : i64
+// CHECK-NEXT:       %[[VAL_24:.*]] = arith.addi %[[VAL_18]], %[[VAL_23]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_24]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
+  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_3_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1:.*]]>) -> !llvm.[[ID1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
+  %0 = sycl.nd_item.get_global_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_global_id", MangledFunctionName = @"get_global_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
+  return %0 : !sycl_id_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[NDITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.nd_item.get_global_id(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_global_id", MangledFunctionName = @"get_global_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_item_base_2_ = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
+!sycl_item_2_ = !sycl.item<[2, true], (!sycl_item_base_2_)>
+!sycl_item_base_2_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_2_1_ = !sycl.item<[1, false], (!sycl_item_base_2_1_)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl_item_2_, !sycl_item_2_1_, !sycl_group_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_item_base_3_ = !sycl.item_base<[3, true], (!sycl_range_3_, !sycl_id_3_, !sycl_id_3_)>
+!sycl_item_3_ = !sycl.item<[3, true], (!sycl_item_base_3_)>
+!sycl_item_base_3_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_3_1_ = !sycl.item<[1, false], (!sycl_item_base_3_1_)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+!sycl_nd_item_3_ = !sycl.nd_item<[3], (!sycl_item_3_, !sycl_item_3_1_, !sycl_group_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
+  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM2:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
+  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_2_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM3:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
+  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_3_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[ID1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
+  %0 = sycl.nd_item.get_local_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
+  return %0 : !sycl_id_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[NDITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.nd_item.get_local_id(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_item_base_2_ = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
+!sycl_item_2_ = !sycl.item<[2, true], (!sycl_item_base_2_)>
+!sycl_item_base_2_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_2_1_ = !sycl.item<[1, false], (!sycl_item_base_2_1_)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl_item_2_, !sycl_item_2_1_, !sycl_group_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_item_base_3_ = !sycl.item_base<[3, true], (!sycl_range_3_, !sycl_id_3_, !sycl_id_3_)>
+!sycl_item_3_ = !sycl.item<[3, true], (!sycl_item_base_3_)>
+!sycl_item_base_3_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_3_1_ = !sycl.item<[1, false], (!sycl_item_base_3_1_)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+!sycl_nd_item_3_ = !sycl.nd_item<[3], (!sycl_item_3_, !sycl_item_3_1_, !sycl_group_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
+  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM2]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
+  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM3]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 0] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
+  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[GROUP1:.*]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[GROUP1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[GROUP1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[GROUP1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_ {
+  %0 = sycl.nd_item.get_group(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_group", MangledFunctionName = @"get_group", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_
+  return %0 : !sycl_group_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 3, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[NDITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.nd_item.get_group(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_group", MangledFunctionName = @"get_group", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[RANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 2] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
+  %0 = sycl.nd_item.get_group_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 2, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[NDITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.nd_item.get_group_range(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[RANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
+  %0 = sycl.nd_item.get_local_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[NDITEM1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
+  %0 = sycl.nd_item.get_local_range(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[NDRANGE1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[NDRANGE1]] : (i32) -> !llvm.ptr<[[NDRANGE1]]>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.store %[[VAL_5]], %[[VAL_3]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       llvm.store %[[VAL_8]], %[[VAL_6]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 2] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 2] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       llvm.store %[[VAL_11]], %[[VAL_9]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[NDRANGE1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_12]] : !llvm.[[NDRANGE1]]
+// CHECK-NEXT:     }
+func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_ {
+  %0 = sycl.nd_item.get_nd_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_nd_range", MangledFunctionName = @"get_nd_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_
+  return %0 : !sycl_nd_range_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> !llvm.[[ID1]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[ID1]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_1_>) -> !sycl_id_1_ {
+  %0 = sycl.group.get_group_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_id_1_
+  return %0 : !sycl_id_1_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[GROUP1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
+  %0 = sycl.group.get_group_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3:.*]]>) -> !llvm.[[ID3:.*]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[ID3]] : (i32) -> !llvm.ptr<[[ID3]]>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 0] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:       %[[VAL_5:.*]] = sycl.local_id %[[VAL_4]] : index
+// CHECK-NEXT:       %[[VAL_6:.*]] = arith.index_castui %[[VAL_5]] : index to i64
+// CHECK-NEXT:       llvm.store %[[VAL_6]], %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 1] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_9:.*]] = sycl.local_id %[[VAL_8]] : index
+// CHECK-NEXT:       %[[VAL_10:.*]] = arith.index_castui %[[VAL_9]] : index to i64
+// CHECK-NEXT:       llvm.store %[[VAL_10]], %[[VAL_7]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 2] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.constant 2 : i32
+// CHECK-NEXT:       %[[VAL_13:.*]] = sycl.local_id %[[VAL_12]] : index
+// CHECK-NEXT:       %[[VAL_14:.*]] = arith.index_castui %[[VAL_13]] : index to i64
+// CHECK-NEXT:       llvm.store %[[VAL_14]], %[[VAL_11]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[ID3]]>
+// CHECK-NEXT:       llvm.return %[[VAL_15]] : !llvm.[[ID3]]
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_id_3_ {
+  %0 = sycl.group.get_local_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_id_3_
+  return %0 : !sycl_id_3_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
+// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
+  %0 = sycl.group.get_local_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> !llvm.[[RANGE3]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE3]]
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
+  %0 = sycl.group.get_local_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
+  return %0 : !sycl_range_3_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[GROUP1]]>, i32) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
+  %0 = sycl.group.get_local_range(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> !llvm.[[RANGE3]] {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<[[RANGE3]]>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE3]]
+// CHECK-NEXT:     }
+func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
+  %0 = sycl.group.get_max_local_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_max_local_range", MangledFunctionName = @"get_max_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
+  return %0 : !sycl_range_3_
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 0] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2:.*]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 0] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 0] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
+// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
+// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = arith.muli %[[VAL_3]], %[[VAL_5]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_8:.*]] = sycl.local_id %[[VAL_7]] : index
+// CHECK-NEXT:       %[[VAL_9:.*]] = arith.index_castui %[[VAL_8]] : index to i64
+// CHECK-NEXT:       %[[VAL_10:.*]] = arith.addi %[[VAL_6]], %[[VAL_9]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
+// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = arith.muli %[[VAL_3]], %[[VAL_5]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = arith.muli %[[VAL_6]], %[[VAL_8]] : i64
+// CHECK-NEXT:       %[[VAL_10:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_11:.*]] = sycl.local_id %[[VAL_10]] : index
+// CHECK-NEXT:       %[[VAL_12:.*]] = arith.index_castui %[[VAL_11]] : index to i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = arith.muli %[[VAL_12]], %[[VAL_8]] : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = arith.addi %[[VAL_9]], %[[VAL_13]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = arith.constant 2 : i32
+// CHECK-NEXT:       %[[VAL_16:.*]] = sycl.local_id %[[VAL_15]] : index
+// CHECK-NEXT:       %[[VAL_17:.*]] = arith.index_castui %[[VAL_16]] : index to i64
+// CHECK-NEXT:       %[[VAL_18:.*]] = arith.addi %[[VAL_14]], %[[VAL_17]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_18]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = arith.muli %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
+!sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   llvm.func @test_1(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
+// CHECK-NEXT:     }
+func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
+  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_2(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
+// CHECK-NEXT:     }
+func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
+  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  return %0 : i64
+}
+
+// CHECK-LABEL:   llvm.func @test_3(
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
+// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = arith.muli %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
+// CHECK-NEXT:     }
+func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
+  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  return %0 : i64
+}
