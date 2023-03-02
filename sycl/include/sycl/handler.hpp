@@ -2106,6 +2106,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             std::shared_ptr<T_Dst> Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Src);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2131,6 +2134,9 @@ public:
   void
   copy(std::shared_ptr<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2155,6 +2161,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             T_Dst *Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Src);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2194,6 +2203,9 @@ public:
   void
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2239,6 +2251,11 @@ public:
             accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
                      IsPlaceholder_Dst>
                 Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Src);
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
                   "Invalid source accessor target for the copy method.");
@@ -2282,6 +2299,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
+    if (Acc.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Acc);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the update_host method.");
@@ -2311,6 +2331,9 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundedToCG(Dst);
+
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2870,6 +2893,25 @@ private:
   void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                               bool IsDeviceImageScoped, size_t NumBytes,
                               size_t Offset);
+
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void checkIfPlaceholderIsBoundedToCG(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Acc) {
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
+    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+    detail::AccessorImplHost *Req = AccImpl.get();
+    detail::ArgDesc AD(detail::kernel_param_kind_t::kind_accessor, Req,
+                       static_cast<int>(AccessTarget), 0);
+    if (std::find(MAssociatedAccesors.begin(), MAssociatedAccesors.end(), AD) ==
+        MAssociatedAccesors.end())
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
+  }
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
