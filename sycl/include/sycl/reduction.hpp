@@ -1125,7 +1125,7 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
 }
 
 // Enum for specifying work size guarantees in tree-reduction.
-enum WorkSizeGuarantees { None, Equal, LessOrEqual };
+enum class WorkSizeGuarantees { None, Equal, LessOrEqual };
 
 template <WorkSizeGuarantees WSGuarantee, int Dim, typename LocalRedsTy,
           typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
