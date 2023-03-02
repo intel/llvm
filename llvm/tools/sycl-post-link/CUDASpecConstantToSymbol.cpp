@@ -125,9 +125,9 @@ void CUDASpecConstantToSymbolPass::allocatePerKernelGlobals(NamedMDNode *MD) {
     LLVM_DEBUG(llvm::dbgs() << "Working on: " << KernelName << "\n");
     unsigned PerKernelSize = 0;
     // Loop over all spec constants of a kernel
-    for (unsigned i = 1; i < Node->getNumOperands(); ++i) {
-      MDNode *SC = dyn_cast<MDNode>(Node->getOperand(i));
-      assert(SC && SC->getNumOperands() >= 4 && "Invalid node.");
+    for (unsigned I = 1; I < Node->getNumOperands(); ++I) {
+      MDNode *SC = cast<MDNode>(Node->getOperand(I));
+      assert(SC->getNumOperands() >= 4 && "Invalid node.");
       // get the size and offset node to calculate the total size of spec
       // constants (size of type + offset in the composite - if any);
       PerKernelSize += uintFromMDNode(SC, SC->getNumOperands() - 1);
