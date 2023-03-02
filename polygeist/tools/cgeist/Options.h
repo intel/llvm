@@ -52,33 +52,55 @@ private:
   llvm::SmallVector<const char *> Args;
 };
 
-/// Class wrapping cgeist options.
+/// Represents command line options affecting the behaviour of cgeist.
 class CgeistOptions {
 public:
-  CgeistOptions(bool SYCLIsDevice,
-                const llvm::OptimizationLevel &OptimizationLevel)
-      : SYCLIsDevice(SYCLIsDevice), OptimizationLevel(OptimizationLevel) {}
+  void setSYCLIsDevice() { SYCLIsDevice = true; }
+  void setRelaxedAliasing() { RelaxedAliasing = true; }
+  void setOptimizationLevel(llvm::OptimizationLevel OptLevel) {
+    OptimizationLevel = OptLevel;
+  }
 
-  constexpr bool syclIsDevice() const { return SYCLIsDevice; }
-
-  constexpr const llvm::OptimizationLevel &getOptimizationLevel() const {
+  bool getSYCLIsDevice() const { return SYCLIsDevice; }
+  bool getRelaxedAliasing() const { return RelaxedAliasing; }
+  const llvm::OptimizationLevel &getOptimizationLevel() const {
     return OptimizationLevel;
   }
 
-  static constexpr const llvm::OptimizationLevel &
-  getDefaultOptimizationLevel() {
-    return llvm::OptimizationLevel::O0;
-  }
-
-  static constexpr bool DefaultSYCLIsDeviceOpt = false;
-
 private:
   /// Whether to generate MLIR only for kernels.
-  const bool SYCLIsDevice = DefaultSYCLIsDeviceOpt;
+  bool SYCLIsDevice = false;
+
+  /// Whether to assume the program respects ANSI aliasing rules (i.e. strict
+  /// aliasing).
+  bool RelaxedAliasing = false;
 
   /// Optimization level to use.
-  const llvm::OptimizationLevel OptimizationLevel =
-      getDefaultOptimizationLevel();
+  llvm::OptimizationLevel OptimizationLevel = llvm::OptimizationLevel::O0;
+};
+
+/// Categorizes command line options.
+class Options {
+public:
+  Options(int argc, char **argv) { splitCommandLineOptions(argc, argv); }
+
+  CgeistOptions &getCgeistOpts() { return CgeistOpts; }
+  llvm::ArrayRef<const char *> getMLIROpts() { return MLIROpts; }
+  llvm::ArrayRef<const char *> getLLVMOpts() { return LLVMOpts; }
+  llvm::ArrayRef<const char *> getLinkOpts() { return LinkOpts; }
+
+private:
+  /// Split the input arguments into the following buckets:
+  ///   - CgeistOpts: options affecting cgeist behaviour.
+  ///   - MLIROpts: options affecting MLIR behaviour.
+  ///   - LLVMOpts: options affecting LLVM behaviour.
+  ///   - LinkOpts: options affecting the linker behaviour.
+  void splitCommandLineOptions(int argc, char **argv);
+
+  CgeistOptions CgeistOpts;
+  llvm::SmallVector<const char *> MLIROpts;
+  llvm::SmallVector<const char *> LLVMOpts;
+  llvm::SmallVector<const char *> LinkOpts;
 };
 
 static llvm::cl::OptionCategory ToolOptions("clang to mlir - tool options");

@@ -128,7 +128,7 @@ static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
 }
 
 static int emitBinary(const char *Argv0, const char *Filename,
-                      const llvm::SmallVectorImpl<const char *> &LinkArgs,
+                      const llvm::ArrayRef<const char *> LinkArgs,
                       bool LinkOMP) {
   using namespace clang;
 
@@ -255,12 +255,12 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
 }
 
 // Register MLIR Dialects.
-static void registerDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
+static void registerDialects(MLIRContext &Ctx, const CgeistOptions &options) {
   mlir::DialectRegistry Registry;
   mlir::registerOpenMPDialectTranslation(Registry);
   mlir::registerLLVMDialectTranslation(Registry);
   Ctx.appendDialectRegistry(Registry);
-  loadDialects(Ctx, SYCLIsDevice);
+  loadDialects(Ctx, options.getSYCLIsDevice());
 }
 
 // Enable various options for the passmanager
@@ -276,7 +276,8 @@ static void enableOptionsPM(mlir::PassManager &PM) {
 
 // MLIR canonicalization & cleanup.
 static int canonicalize(mlir::MLIRContext &Ctx,
-                        mlir::OwningOpRef<mlir::ModuleOp> &Module) {
+                        mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                        Options &options) {
   mlir::PassManager PM(&Ctx);
   enableOptionsPM(PM);
 
@@ -298,7 +299,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   OptPM.addPass(polygeist::replaceAffineCFGPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (EnableLICM)
-    OptPM.addPass(polygeist::createLICMPass());
+    OptPM.addPass(polygeist::createLICMPass(
+        {options.getCgeistOpts().getRelaxedAliasing()}));
   else
     OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -318,7 +320,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      OptPM.addPass(polygeist::createLICMPass());
+      OptPM.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -347,8 +350,11 @@ static int canonicalize(mlir::MLIRContext &Ctx,
 
 // Optimize the MLIR.
 static int optimize(mlir::MLIRContext &Ctx,
-                    const llvm::OptimizationLevel &OptimizationLevel,
-                    mlir::OwningOpRef<mlir::ModuleOp> &Module) {
+                    mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                    Options &options) {
+  const llvm::OptimizationLevel OptLevel =
+      options.getCgeistOpts().getOptimizationLevel();
+
   mlir::PassManager PM(&Ctx);
   enableOptionsPM(PM);
 
@@ -359,7 +365,7 @@ static int optimize(mlir::MLIRContext &Ctx,
   if (DetectReduction)
     OptPM.addPass(polygeist::detectReductionPass());
 
-  if (OptimizationLevel != llvm::OptimizationLevel::O0) {
+  if (OptLevel != llvm::OptimizationLevel::O0) {
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine
@@ -382,7 +388,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM2.addPass(mlir::createCSEPass());
     if (EnableLICM)
-      OptPM2.addPass(polygeist::createLICMPass());
+      OptPM2.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -408,7 +415,8 @@ static int optimize(mlir::MLIRContext &Ctx,
 
 // CUDA specific optimization (add parallel loops around CUDA).
 static int optimizeCUDA(mlir::MLIRContext &Ctx,
-                        mlir::OwningOpRef<mlir::ModuleOp> &Module) {
+                        mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                        Options &options) {
   if (!CudaLower)
     return 0;
 
@@ -436,7 +444,8 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   NOptPM2.addPass(mlir::createCSEPass());
   if (EnableLICM)
-    NOptPM2.addPass(polygeist::createLICMPass());
+    NOptPM2.addPass(polygeist::createLICMPass(
+        {options.getCgeistOpts().getRelaxedAliasing()}));
   else
     NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -444,7 +453,8 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createCanonicalizeForPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass());
+      NOptPM2.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -458,7 +468,8 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createMem2RegPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass());
+      NOptPM2.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -487,7 +498,7 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
   return 0;
 }
 
-static void finalizeCUDA(mlir::PassManager &PM) {
+static void finalizeCUDA(mlir::PassManager &PM, Options &options) {
   if (!CudaLower)
     return;
 
@@ -510,7 +521,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      OptPM.addPass(polygeist::createLICMPass());
+      OptPM.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -535,7 +547,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
     OptPM.addPass(polygeist::createCanonicalizeForPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      OptPM.addPass(polygeist::createLICMPass());
+      OptPM.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -549,7 +562,8 @@ static void finalizeCUDA(mlir::PassManager &PM) {
     OptPM.addPass(polygeist::createMem2RegPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      OptPM.addPass(polygeist::createLICMPass());
+      OptPM.addPass(polygeist::createLICMPass(
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -562,7 +576,7 @@ static void finalizeCUDA(mlir::PassManager &PM) {
 }
 
 static int finalize(mlir::MLIRContext &Ctx,
-                    mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                    mlir::OwningOpRef<mlir::ModuleOp> &Module, Options &options,
                     llvm::DataLayout &DL, bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
   enableOptionsPM(PM);
@@ -570,7 +584,7 @@ static int finalize(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  finalizeCUDA(PM);
+  finalizeCUDA(PM, options);
 
   PM.addPass(mlir::createSymbolDCEPass());
 
@@ -677,26 +691,27 @@ static int finalize(mlir::MLIRContext &Ctx,
 }
 
 // Create and execute the MLIR transformations pipeline.
-static int createAndExecutePassPipeline(
-    mlir::MLIRContext &Ctx, mlir::OwningOpRef<mlir::ModuleOp> &Module,
-    llvm::DataLayout &DL, llvm::Triple &Triple,
-    const llvm::OptimizationLevel &OptimizationLevel, bool &LinkOMP) {
+static int
+createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
+                             mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                             llvm::DataLayout &DL, llvm::Triple &Triple,
+                             Options &options, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
-  int RC = canonicalize(Ctx, Module);
+  int RC = canonicalize(Ctx, Module, options);
   if (RC != 0)
     return RC;
 
   // MLIR optimizations.
-  RC = optimize(Ctx, OptimizationLevel, Module);
+  RC = optimize(Ctx, Module, options);
   if (RC != 0)
     return RC;
 
   // CUDA specific MLIR optimizations.
-  RC = optimizeCUDA(Ctx, Module);
+  RC = optimizeCUDA(Ctx, Module, options);
   if (RC != 0)
     return RC;
 
-  RC = finalize(Ctx, Module, DL, LinkOMP);
+  RC = finalize(Ctx, Module, options, DL, LinkOMP);
   if (RC != 0)
     return RC;
 
@@ -704,9 +719,7 @@ static int createAndExecutePassPipeline(
 }
 
 /// Run an optimization pipeline on the LLVM module.
-static void
-runOptimizationPipeline(llvm::Module &Module,
-                        const llvm::OptimizationLevel &OptimizationLevel) {
+static void runOptimizationPipeline(llvm::Module &Module, Options &options) {
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
@@ -732,10 +745,12 @@ runOptimizationPipeline(llvm::Module &Module,
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
+  const llvm::OptimizationLevel OptLevel =
+      options.getCgeistOpts().getOptimizationLevel();
   llvm::ModulePassManager MPM =
-      (OptimizationLevel == llvm::OptimizationLevel::O0)
-          ? PB.buildO0DefaultPipeline(OptimizationLevel)
-          : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
+      (OptLevel == llvm::OptimizationLevel::O0)
+          ? PB.buildO0DefaultPipeline(OptLevel)
+          : PB.buildPerModuleDefaultPipeline(OptLevel);
 
   // Before executing passes, print the final values of the LLVM options.
   llvm::cl::PrintOptionValues();
@@ -766,12 +781,10 @@ runOptimizationPipeline(llvm::Module &Module,
 static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
                          StringRef ModuleId, mlir::MLIRContext &Ctx,
                          llvm::DataLayout &DL, llvm::Triple &Triple,
-                         const llvm::OptimizationLevel &OptimizationLevel,
-                         const llvm::SmallVectorImpl<const char *> &LinkArgs,
-                         const char *Argv0) {
+                         Options &options, const char *Argv0) {
   bool LinkOMP = FOpenMP;
-  int RC = createAndExecutePassPipeline(Ctx, Module, DL, Triple,
-                                        OptimizationLevel, LinkOMP);
+  int RC =
+      createAndExecutePassPipeline(Ctx, Module, DL, Triple, options, LinkOMP);
   if (RC != 0) {
     llvm::errs() << "Failed to execute pass pipeline correctly, RC = " << RC
                  << ".\n";
@@ -811,7 +824,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
 
     if (EmitBC || EmitLLVM) {
       // Not needed when emitting binary for now; will be handled by the driver.
-      runOptimizationPipeline(*LLVMModule, OptimizationLevel);
+      runOptimizationPipeline(*LLVMModule, options);
     }
 
     if (EmitBC) {
@@ -847,7 +860,8 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
       Out << *LLVMModule << "\n";
       Out.flush();
 
-      int Res = emitBinary(Argv0, TmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
+      int Res = emitBinary(Argv0, TmpFile->TmpName.c_str(),
+                           options.getLinkOpts(), LinkOMP);
       if (Res != 0)
         llvm::errs() << "Compilation failed\n";
 
@@ -918,9 +932,8 @@ parseOptimizationLevel(llvm::StringRef Arg) {
 
   constexpr unsigned Radix(10);
   unsigned SpeedLevel;
-  if (!Arg.getAsInteger(Radix, SpeedLevel)) {
+  if (!Arg.getAsInteger(Radix, SpeedLevel))
     return getOptimizationLevel(SpeedLevel);
-  }
 
   assert(Arg.size() == 1 &&
          "Expecting 'g', 's' or 'z' encoding optimization level.");
@@ -928,65 +941,92 @@ parseOptimizationLevel(llvm::StringRef Arg) {
   return getOptimizationLevel(Arg.front());
 }
 
-// Split the input arguments into 2 sets (LinkageOpts, MLIROpts).
-static CgeistOptions
-splitCommandLineOptions(int argc, char **argv,
-                        SmallVector<const char *> &LinkageArgs,
-                        SmallVector<const char *> &MLIRArgs) {
-  bool SYCLIsDevice = false;
+void Options::splitCommandLineOptions(int argc, char **argv) {
+  // Collect LLVM specific options (-mllvm options).
+  {
+    SmallVector<const char *> Args;
+    for (int I = 0; I < argc; I++)
+      Args.push_back(argv[I]);
+
+    llvm::ArrayRef<const char *> Argv{Args};
+    const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
+    const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
+    unsigned MissingArgIndex, MissingArgCount;
+    llvm::opt::InputArgList InputArgs = OptTbl.ParseArgs(
+        Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
+
+    LLVMOpts.push_back(Argv[0]);
+    for (const llvm::opt::Arg *InputArg :
+         InputArgs.filtered(clang::driver::options::OPT_mllvm))
+      LLVMOpts.push_back(InputArg->getValue());
+  }
+
+  // Collect cgeist, MLIR and Linkage options.
   bool LinkOnly = false;
   bool ClangOption = false;
-  llvm::OptimizationLevel OptimizationLevel =
-      CgeistOptions::getDefaultOptimizationLevel();
 
   for (int I = 0; I < argc; I++) {
     StringRef Ref(argv[I]);
-    if (Ref == "-Wl,--start-group")
+
+    if (Ref == "-Wl,--start-group") {
+      LinkOpts.push_back(argv[I]);
       LinkOnly = true;
-    if (!LinkOnly) {
-      if (Ref == "-fPIC" || Ref == "-c" || Ref.startswith("-fsanitize"))
-        LinkageArgs.push_back(argv[I]);
-      else if (Ref == "-L" || Ref == "-l") {
-        LinkageArgs.push_back(argv[I]);
-        I++;
-        LinkageArgs.push_back(argv[I]);
-      } else if (Ref.startswith("-L") || Ref.startswith("-l") ||
-                 Ref.startswith("-Wl"))
-        LinkageArgs.push_back(argv[I]);
-      else if (Ref == "-D" || Ref == "-I") {
-        MLIRArgs.push_back(argv[I]);
-        I++;
-        MLIRArgs.push_back(argv[I]);
-      } else if (Ref.startswith("-D")) {
-        MLIRArgs.push_back("-D");
-        MLIRArgs.push_back(&argv[I][2]);
-      } else if (Ref.startswith("-I")) {
-        MLIRArgs.push_back("-I");
-        MLIRArgs.push_back(&argv[I][2]);
-      } else if (Ref == "-fsycl-is-device") {
-        SYCLIsDevice = true;
-        MLIRArgs.push_back(argv[I]);
-      } else if (Ref == "--args") {
-        ClangOption = true;
-        MLIRArgs.push_back(argv[I]);
-      } else if (Ref.consume_front("-O") || Ref.consume_front("--optimize")) {
-        // If several flags are passed, we keep the last one.
-        OptimizationLevel = ExitOnErr(parseOptimizationLevel(Ref));
-        if (ClangOption)
-          MLIRArgs.push_back(argv[I]);
-        LinkageArgs.push_back(argv[I]);
-      } else if (Ref == "-g")
-        LinkageArgs.push_back(argv[I]);
-      else
-        MLIRArgs.push_back(argv[I]);
-    } else
-      LinkageArgs.push_back(argv[I]);
+      continue;
+    }
 
-    if (Ref == "-Wl,--end-group")
+    if (Ref == "-Wl,--end-group") {
+      LinkOpts.push_back(argv[I]);
       LinkOnly = false;
-  }
+      continue;
+    }
 
-  return {SYCLIsDevice, OptimizationLevel};
+    if (LinkOnly) {
+      LinkOpts.push_back(argv[I]);
+      continue;
+    }
+
+    if (Ref == "-fPIC" || Ref == "-c" || Ref.startswith("-fsanitize"))
+      LinkOpts.push_back(argv[I]);
+    else if (Ref == "-L" || Ref == "-l") {
+      LinkOpts.push_back(argv[I]);
+      I++;
+      LinkOpts.push_back(argv[I]);
+    } else if (Ref.startswith("-L") || Ref.startswith("-l") ||
+               Ref.startswith("-Wl"))
+      LinkOpts.push_back(argv[I]);
+    else if (Ref == "-D" || Ref == "-I") {
+      MLIROpts.push_back(argv[I]);
+      I++;
+      MLIROpts.push_back(argv[I]);
+    } else if (Ref.startswith("-D")) {
+      MLIROpts.push_back("-D");
+      MLIROpts.push_back(&argv[I][2]);
+    } else if (Ref.startswith("-I")) {
+      MLIROpts.push_back("-I");
+      MLIROpts.push_back(&argv[I][2]);
+    } else if (Ref == "-fsycl-is-device") {
+      CgeistOpts.setSYCLIsDevice();
+      if (ClangOption)
+        MLIROpts.push_back(argv[I]);
+    } else if (Ref == "-relaxed-aliasing") {
+      CgeistOpts.setRelaxedAliasing();
+      if (ClangOption)
+        MLIROpts.push_back(argv[I]);
+    } else if (Ref == "--args") {
+      ClangOption = true;
+      MLIROpts.push_back(argv[I]);
+    } else if (Ref.consume_front("-O") || Ref.consume_front("--optimize")) {
+      // If several flags are passed, we keep the last one.
+      llvm::OptimizationLevel OptLevel = ExitOnErr(parseOptimizationLevel(Ref));
+      CgeistOpts.setOptimizationLevel(OptLevel);
+      if (ClangOption)
+        MLIROpts.push_back(argv[I]);
+      LinkOpts.push_back(argv[I]);
+    } else if (Ref == "-g")
+      LinkOpts.push_back(argv[I]);
+    else
+      MLIROpts.push_back(argv[I]);
+  }
 }
 
 // Fill the module with the MLIR in the inputFile.
@@ -1021,7 +1061,7 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                   const llvm::cl::list<std::string> &InputCommandArgs,
                   mlir::MLIRContext &Ctx, mlir::OwningOpRef<ModuleOp> &Module,
                   llvm::DataLayout &DL, llvm::Triple &Triple, const char *Argv0,
-                  bool SYCLIsDevice) {
+                  const CgeistOptions &options) {
   assert(!InputFiles.empty() && "inputFiles should not be empty");
 
   // Ensure all input files can be opened.
@@ -1060,7 +1100,7 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
   }
 
   // Generate MLIR for the C/C++ files.
-  std::string Fn = (!SYCLIsDevice) ? Cfunction.getValue() : "";
+  std::string Fn = (!options.getSYCLIsDevice()) ? Cfunction.getValue() : "";
   parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
             Commands);
 }
@@ -1088,31 +1128,11 @@ int main(int argc, char **argv) {
     return executeCC1Tool(Argv);
   }
 
-  // Forward '-mllvm' arguments to LLVM.
-  {
-    SmallVector<const char *> Args;
-    for (int I = 0; I < argc; I++)
-      Args.push_back(argv[I]);
+  Options options(argc, argv);
 
-    llvm::ArrayRef<const char *> Argv{Args};
-    const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
-    const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
-    unsigned MissingArgIndex, MissingArgCount;
-    llvm::opt::InputArgList InputArgs = OptTbl.ParseArgs(
-        Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
-
-    SmallVector<const char *> NewArgv = {Argv[0]};
-    for (const llvm::opt::Arg *InputArg :
-         InputArgs.filtered(clang::driver::options::OPT_mllvm))
-      NewArgv.push_back(InputArg->getValue());
-    llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
-  }
-
-  // Split up the arguments into MLIR and linkage arguments.
-  SmallVector<const char *> LinkageArgs, MLIRArgs;
-  const CgeistOptions Options =
-      splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
-  assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
+  // Process -mllvm options.
+  llvm::cl::ParseCommandLineOptions(options.getLLVMOpts().size(),
+                                    &options.getLLVMOpts()[0]);
 
   // Register any command line options.
   mlir::registerMLIRContextCLOptions();
@@ -1129,15 +1149,15 @@ int main(int argc, char **argv) {
       "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),
       llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
 
-  // Register command line options specific to cgeist.
-  int Size = MLIRArgs.size();
-  const char **Data = MLIRArgs.data();
+  // Process command line options specific to cgeist.
+  int Size = options.getMLIROpts().size();
+  auto *Data = const_cast<const char **>(&options.getMLIROpts()[0]);
   llvm::InitLLVM Y(Size, Data);
-  llvm::cl::ParseCommandLineOptions(Size, Data);
+  llvm::cl::ParseCommandLineOptions(Size, &options.getMLIROpts()[0]);
 
   // Register MLIR dialects.
   mlir::MLIRContext Ctx;
-  registerDialects(Ctx, Options.syclIsDevice());
+  registerDialects(Ctx, options.getCgeistOpts());
 
   // Generate MLIR for the input files.
   mlir::OpBuilder Builder(&Ctx);
@@ -1150,7 +1170,7 @@ int main(int argc, char **argv) {
   llvm::DataLayout DL("");
   llvm::Triple Triple;
   processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL, Triple,
-                    argv[0], Options.syclIsDevice());
+                    argv[0], options.getCgeistOpts());
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
@@ -1172,8 +1192,8 @@ int main(int argc, char **argv) {
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(
-      Module,
-      InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule", Ctx,
-      DL, Triple, Options.getOptimizationLevel(), LinkageArgs, argv[0]);
+  return compileModule(Module,
+                       InputFileNames.size() == 1 ? InputFileNames[0]
+                                                  : "LLVMDialectModule",
+                       Ctx, DL, Triple, options, argv[0]);
 }
