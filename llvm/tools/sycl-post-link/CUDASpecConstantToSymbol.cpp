@@ -49,8 +49,9 @@ static GlobalVariable *createGlobal(Module &M, size_t Size, StringRef Name,
 }
 
 static unsigned uintFromMDNode(const MDNode *Node, unsigned OpNumber) {
-  return static_cast<unsigned>(mdconst::extract<ConstantInt>(
-       Node->getOperand(OpNumber).get())->getZExtValue());
+  return static_cast<unsigned>(
+      mdconst::extract<ConstantInt>(Node->getOperand(OpNumber).get())
+          ->getZExtValue());
 }
 
 std::pair<MDNode *, Function *>
