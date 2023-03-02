@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -25,7 +25,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/BarrierUtils.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include <mlir/Dialect/Arith/IR/Arith.h>
@@ -34,6 +33,13 @@
 
 #define DEBUG_TYPE "cpuify"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_SCFCPUIFY
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -2052,9 +2058,9 @@ struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
   }
 };
 
-struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
-  CPUifyPass() = default;
-  CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
+struct CPUifyPass : public mlir::polygeist::impl::SCFCPUifyBase<CPUifyPass> {
+  using SCFCPUifyBase<CPUifyPass>::SCFCPUifyBase;
+
   void runOnOperation() override {
     StringRef method(this->method);
     if (method.startswith("distribute")) {
@@ -2141,10 +2147,11 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
 
 } // end namespace
 
-namespace mlir {
-namespace polygeist {
-std::unique_ptr<Pass> createCPUifyPass(StringRef str) {
-  return std::make_unique<CPUifyPass>(str);
+std::unique_ptr<Pass> mlir::polygeist::createCPUifyPass() {
+  return std::make_unique<CPUifyPass>();
 }
-} // namespace polygeist
-} // namespace mlir
+
+std::unique_ptr<Pass>
+mlir::polygeist::createCPUifyPass(const SCFCPUifyOptions &options) {
+  return std::make_unique<CPUifyPass>(options);
+}

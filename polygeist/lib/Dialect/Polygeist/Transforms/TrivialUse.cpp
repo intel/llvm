@@ -9,18 +9,26 @@
 // This file implements a pass to lower gpu kernels in NVVM/gpu dialects into
 // a generic parallel for representation
 //===----------------------------------------------------------------------===//
-#include "PassDetails.h"
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
+
 #define DEBUG_TYPE "trivial-use"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_REMOVETRIVIALUSE
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace polygeist;
 
 namespace {
-struct RemoveTrivialUse : public RemoveTrivialUseBase<RemoveTrivialUse> {
+struct RemoveTrivialUse
+    : public mlir::polygeist::impl::RemoveTrivialUseBase<RemoveTrivialUse> {
   void runOnOperation() override;
 };
 

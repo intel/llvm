@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IRMapping.h"
@@ -27,6 +27,13 @@
 #include <mlir/Dialect/Arith/IR/Arith.h>
 
 #define DEBUG_TYPE "affine-cfg"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_AFFINECFG
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -655,7 +662,8 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
 }
 
 namespace {
-struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
+struct AffineCFGPass
+    : public mlir::polygeist::impl::AffineCFGBase<AffineCFGPass> {
   void runOnOperation() override;
 };
 } // namespace

@@ -6,9 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_LLVMLEGALIZEFORSPIRV
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 
@@ -60,7 +68,8 @@ public:
 };
 
 struct LegalizeForSPIRVPass final
-    : public mlir::polygeist::LLVMLegalizeForSPIRVBase<LegalizeForSPIRVPass> {
+    : public mlir::polygeist::impl::LLVMLegalizeForSPIRVBase<
+          LegalizeForSPIRVPass> {
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.add<AllocaOpOfPtrToIntFolder>(patterns.getContext());

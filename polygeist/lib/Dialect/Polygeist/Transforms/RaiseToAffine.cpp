@@ -6,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
@@ -24,12 +23,20 @@
 
 #define DEBUG_TYPE "raise-to-affine"
 
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_SCFRAISETOAFFINE
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
+
 using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
 namespace {
-struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
+struct RaiseSCFToAffine
+    : public mlir::polygeist::impl::SCFRaiseToAffineBase<RaiseSCFToAffine> {
   void runOnOperation() override;
 };
 } // namespace

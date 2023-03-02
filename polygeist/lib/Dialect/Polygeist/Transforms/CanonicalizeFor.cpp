@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
@@ -18,6 +18,13 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include <mlir/Dialect/Arith/IR/Arith.h>
 
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_SCFCANONICALIZEFOR
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
+
 using namespace mlir;
 using namespace mlir::scf;
 using namespace mlir::func;
@@ -25,7 +32,8 @@ using namespace mlir::arith;
 using namespace polygeist;
 
 namespace {
-struct CanonicalizeFor : public SCFCanonicalizeForBase<CanonicalizeFor> {
+struct CanonicalizeFor
+    : public mlir::polygeist::impl::SCFCanonicalizeForBase<CanonicalizeFor> {
   void runOnOperation() override;
 };
 } // namespace

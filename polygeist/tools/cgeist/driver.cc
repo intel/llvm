@@ -524,7 +524,7 @@ static void finalizeCUDA(mlir::PassManager &PM) {
     OptPM.addPass(polygeist::createBarrierRemovalContinuation());
     // PM.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
   } else if (ToCPU.size() != 0) {
-    OptPM.addPass(polygeist::createCPUifyPass(ToCPU));
+    OptPM.addPass(polygeist::createCPUifyPass({ToCPU.getValue()}));
   }
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   OptPM.addPass(mlir::createCSEPass());

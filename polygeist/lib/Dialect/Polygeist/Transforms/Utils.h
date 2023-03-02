@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef POLYGEIST_LIB_DIALECT_POLYGEIST_TRANSFORMS_UTILS_H_
+#define POLYGEIST_LIB_DIALECT_POLYGEIST_TRANSFORMS_UTILS_H_
+
 namespace llvm {
 template <typename T> class SmallVectorImpl;
 } // namespace llvm
@@ -22,3 +25,5 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
 } // namespace mlir
+
+#endif // POLYGEIST_LIB_DIALECT_POLYGEIST_TRANSFORMS_UTILS_H_

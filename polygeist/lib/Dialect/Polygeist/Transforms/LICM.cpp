@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
@@ -26,12 +28,18 @@
 
 #define DEBUG_TYPE "licm"
 
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_LICM
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
+
 using namespace mlir;
-using namespace polygeist;
 
 namespace {
 
-struct LICM : public LICMBase<LICM> {
+struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
   void runOnOperation() override;
 };
 

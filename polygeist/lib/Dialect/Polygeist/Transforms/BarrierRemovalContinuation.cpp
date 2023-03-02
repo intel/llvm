@@ -11,14 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/BarrierUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
@@ -29,6 +28,13 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_SCFBARRIERREMOVALCONTINUATION
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -604,7 +610,8 @@ static void createContinuations(FunctionOpInterface func) {
 
 namespace {
 struct BarrierRemoval
-    : public SCFBarrierRemovalContinuationBase<BarrierRemoval> {
+    : public mlir::polygeist::impl::SCFBarrierRemovalContinuationBase<
+          BarrierRemoval> {
   void runOnOperation() override {
     auto f = getOperation();
     if (failed(convertToCFG(f)))

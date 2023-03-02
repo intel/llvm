@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -18,11 +18,19 @@
 
 #define DEBUG_TYPE "affine-reduction"
 
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_AFFINEREDUCTION
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
+
 using namespace mlir;
 using namespace polygeist;
 
 namespace {
-class AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
+class AffineReductionPass
+    : public mlir::polygeist::impl::AffineReductionBase<AffineReductionPass> {
 public:
   void runOnOperation() override;
 };
