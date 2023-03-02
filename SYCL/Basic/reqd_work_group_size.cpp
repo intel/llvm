@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // Failing negative test with HIP
-// XFAIL: hip
+// UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
 
