@@ -249,6 +249,8 @@ public:
     MPostCompleteEvents.push_back(Event);
   }
 
+  bool isContextInitialized() const noexcept { return MIsContextInitialized; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
