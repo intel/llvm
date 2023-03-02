@@ -3,7 +3,16 @@
 
 #include <uur/fixtures.h>
 
-using urUSMDeviceAllocTest = uur::urQueueTest;
+struct urUSMDeviceAllocTest : uur::urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+        const auto deviceUSMSupport = uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
+        ASSERT_TRUE(deviceUSMSupport.has_value());
+        if (!deviceUSMSupport.value()) {
+            GTEST_SKIP() << "Device USM is not supported.";
+        }
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMDeviceAllocTest);
 
 TEST_P(urUSMDeviceAllocTest, Success) {

@@ -1327,6 +1327,9 @@ urUSMHostAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM host memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1360,6 +1363,9 @@ urUSMDeviceAlloc(
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,               ///< [in] alignment of the USM memory object
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM device memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1395,7 +1401,10 @@ urUSMSharedAlloc(
     ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align,               ///< [in] alignment of the USM memory object
+    uint32_t align,               ///< [in] alignment of the USM memory object.
+                                  ///< Must be zero or a power of 2.
+                                  ///< Must be equal to or smaller than the size of the largest data type
+                                  ///< supported by `hDevice`.
     void **ppMem                  ///< [out] pointer to USM shared memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
