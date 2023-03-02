@@ -56,7 +56,7 @@ The `joint_matrix_mad` function is an optional kernel feature as defined
 in section 5.7 of the core SYCL specification.  Each device supports
 only certain values for the `M`, `N`, and `K` template parameters and
 only certain types for the `Ta`, `Tb`, and `Tc` template parameters.
-Applications can use the query API in `tpu_params` or
+Applications can use the query API in `matrix_params` or
 `get_info<experimental::info::device::matrix>` to determine the set of
 legal parameters for each device.  If the application submits a kernel using
 an unsupported `joint_matrix_mad` combination, the implementation throws a
@@ -419,6 +419,17 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 ```
 
 === Query Interface
+Most devices support only certain values for the `Rows` and `Cols`
+template parameters and only certain types for the `T` template
+parameter. Moreover, most devices support only certain combinations of
+these template parameter for the A, B, and accumulator matrices. This
+extension adds two query APIs that can be used to determine the set of
+legal parameters for a particular device. One form provides
+`constexpr` values for these parameters, which can be used when the
+application knows the specific device architecture on which it will
+run. The other form uses the standard information descriptor queries
+for the device object.
+
 Intel AMX, Intel XMX and Nvidia Tensor Cores matrix hardware support different
 sizes and types (see Appendix: Supported Combinations Per
 Hardware). The query interface is used to validate user code and
@@ -450,7 +461,7 @@ defined.
 
 [frame="none",options="header"]
 |======================
-| Member/type alias in `tpu_params` | Description
+| Member/type alias in `matrix_params` | Description
 |`type_a`| type alias for the type of matrix A
 |`type_b`| type alias for the type of matrix B
 |`type_accumulator`| type alias for the type of matrix accumulator
@@ -478,82 +489,61 @@ accumulator
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-template<tpu u, typename Ta=void, typename Tb=void, typename Tc=void,
-int sM=0, int sN=0, int sK=0>
-struct tpu_params;
+// This is the validation form, when all template parameters are
+// specified.
+template<tpu Dev, typename Ta=void, typename Tb=void, typename
+         Taccumulator=void, size_t sM=0, size_t sN=0, size_t sK=0>
+struct matrix_params {
+  // An implementation typically uses static_assert here to trigger a
+  // compilation error when the matrix types or shapes are not
+  // supported by the device identified by "Dev".
 
-// Validation form: Valid or not
-// Specialization when both types and sizes are given
-template <typename Ta, typename Tb, typename Tc, int sM, int sN, int
-sK, layout>
-struct tpu_params<
-    tpu::amx, Ta, Tb, Tc, sM, sN, sK,
-    typename std::enable_if<(
-        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
-        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
-  // Validate that parameters are supported
-  static_assert(
-      (sM == 0 && sN == 0 && sK == 0) ||
-          (is_combination_valid_amx<Ta, Tb, Tc>(sM, sN, sK)),
-      "Invalid parameters for Intel AMX, query valid types and maximum sizes "
-      "using: dev.get_info<experimental::info::device::matrix>(); and
-      then check out matrix::combinations array");
-  using type_a = Ta; // this type alias is not available in the
-  current implementation 
-  using type_b = Tb; // this type alias is not available in the
-  current implementation
-  using type_accumulator = Tc; // this type alias is not available in
-  the current implementation
+  using type_a = /* implementation defined */;
+  using type_b = /* implementation defined */;
+  using type_accumulator = /* implementation defined */;
 
-  // if combination is valid, construct the matrices
+  static constexpr size_t M = sM;
+  static constexpr size_t N = sN;
+  static constexpr size_t K = sK;
 
-  static constexpr std::size_t M = (sM != 0) ? sM : 16;
-  static constexpr std::size_t N = (sN != 0) ? sN : 16;
-  static constexpr std::size_t K =
-      (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, sM, sK, Layout>;
 
-  template <typename Group, layout LayoutA>
-  using joint_matrix_a = joint_matrix<Group, Ta, use::a, defaultM,
-  defaultK, LayoutA>;
-  template <typename Group, layout LayoutB>
-  using joint_matrix_b = joint_matrix<Group, Tb, use::b, defaultK,
-  defaultN, LayoutB>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, sK, sN, Layout>;
+
   template <typename Group>
-  using joint_matrix_accumulator = joint_matrix<Group, Tc,
-  use::accumulator, defaultM, defaultN>;
+  using joint_matrix_accumulator = joint_matrix<Group, Taccumulator,
+  use::accumulator, sM, sN>;
 };
 
-// Default values form: Sizes-only query
-// Specialization for when only types are given, need to query only sizes
-template <typename Ta, typename Tb, typename Tc>
-struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
-                  typename std::enable_if<(!std::is_same_v<Ta, void> &&
-                                           !std::is_same_v<Tb, void> &&
-                                           !std::is_same_v<Tc, void>)>::type> {
-  static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
-                "Invalid types for Intel AMX, supported types are
-                 int8_t, uint8_t, and bfloat16) ");
+// This is the default values form, where the matrix dimensions are
+// omitted.
+template<tpu Dev, typename Ta, typename Tb, typename Taccumulator>
+struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
+  // An implementation typically uses static_assert here to trigger a
+  compilation error when the matrix types are not supported by the
+  device identified by "Dev".
 
-  using type_a = Ta; // this type alias is not available in the
-  current implementation 
-  using type_b = Tb; // this type alias is not available in the
-  current implementation
-  using type_accumulator = Tc; // this type alias is not available in
-  the current implementation
+  using type_a = /* implementation defined */;
+  using type_b = /* implementation defined */;
+  using type_accumulator = /* implementation defined */;
 
-  // construct the matrices using the default sizes
-  static constexpr std::size_t M = 16;
-  static constexpr std::size_t N = 16;
-  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
+  static constexpr size_t M = /* implementation defined */;
+  static constexpr size_t N = /* implementation defined */;
+  static constexpr size_t K = /* implementation defined */;
 
-  template <typename Group, layout LayoutA>
-  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, LayoutA>;
-  template <typename Group, layout LayoutB>
-  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, LayoutB>;
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, sM, sK, Layout>;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, sK, sN, Layout>;
+
   template <typename Group>
-  using joint_matrix_accumulator = joint_matrix<Group, Tc,
-  use::accumulator, M, N>;
+  using joint_matrix_accumulator = joint_matrix<Group, Taccumulator,
+  use::accumulator, sM, sN>;
 };
+
 enum class tpu {
   xmx8,
   xmx16,
@@ -564,17 +554,17 @@ enum class tpu {
 ```
 ===== Validation Example:
 ```c++
-// User can provide sizes besides the types and tpu_params can assert
+// User can provide sizes besides the types and matrix_params can assert
   if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
-using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;
+using myparams = matrix_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;
 size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
 ===== Default Values Example:
 ```c++
-using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int>;
+using myparams = matrix_params<tpu::xmx16, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
 size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
@@ -664,9 +654,9 @@ table below provides a description of each member of the `combination` struct.
 |`max_msize`, `max_nsize`, `max_ksize`| if the matrix implementation
 supports a continuous number of element sizes, each of these members
 is non-zero, and the matrix implementation supports all element sizes
-from 1 up to (and including) that number. By contrast, if the TPU
-implementation supports a discrete number of element sizes, each of
-these members has the value zero
+from 1 up to (and including) that number. By contrast, if the matrix
+hardware implementation supports a discrete number of element sizes,
+each of these members has the value zero
 |`msize`, `nsize`, `ksize`| if the matrix implementation supports a
 discrete number of element sizes, each of these members is non-zero,
 and the value tells one of the supported element sizes. By contrast,
@@ -715,7 +705,7 @@ int msize_remainder = break_dimension_remainder(combinations, M);
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned in a parametrized way
-using the `tpu_params` query class.
+using the `matrix_params` query class.
 
 ==== Intel AMX Supported Combinations
 
