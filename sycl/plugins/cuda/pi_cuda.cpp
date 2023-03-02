@@ -671,118 +671,6 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   return PI_SUCCESS;
 }
 
-_pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
-      context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
-  cuda_piContextRetain(context_);
-}
-
-_pi_program::~_pi_program() { cuda_piContextRelease(context_); }
-
-std::pair<std::string, std::string>
-splitMetadataName(const std::string &metadataName) {
-  size_t splitPos = metadataName.rfind('@');
-  if (splitPos == std::string::npos)
-    return std::make_pair(metadataName, std::string{});
-  return std::make_pair(metadataName.substr(0, splitPos),
-                        metadataName.substr(splitPos, metadataName.length()));
-}
-
-pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
-                                    size_t length) {
-  for (size_t i = 0; i < length; ++i) {
-    const pi_device_binary_property metadataElement = metadata[i];
-    std::string metadataElementName{metadataElement->Name};
-
-    auto [prefix, tag] = splitMetadataName(metadataElementName);
-
-    if (tag == __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
-      // If metadata is reqd_work_group_size, record it for the corresponding
-      // kernel name.
-      size_t MDElemsSize = metadataElement->ValSize - sizeof(std::uint64_t);
-
-      // Expect between 1 and 3 32-bit integer values.
-      assert(MDElemsSize >= sizeof(std::uint32_t) &&
-             MDElemsSize <= sizeof(std::uint32_t) * 3 &&
-             "Unexpected size for reqd_work_group_size metadata");
-
-      // Get pointer to data, skipping 64-bit size at the start of the data.
-      const char *ValuePtr =
-          reinterpret_cast<const char *>(metadataElement->ValAddr) +
-          sizeof(std::uint64_t);
-      // Read values and pad with 1's for values not present.
-      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
-      std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
-      kernelReqdWorkGroupSizeMD_[prefix] =
-          std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
-                          reqdWorkGroupElements[2]);
-    } else if (tag == __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
-      const char *metadataValPtr =
-          reinterpret_cast<const char *>(metadataElement->ValAddr) +
-          sizeof(std::uint64_t);
-      const char *metadataValPtrEnd =
-          metadataValPtr + metadataElement->ValSize - sizeof(std::uint64_t);
-      globalIDMD_[prefix] = std::string{metadataValPtr, metadataValPtrEnd};
-    }
-  }
-  return PI_SUCCESS;
-}
-
-pi_result _pi_program::set_binary(const char *source, size_t length) {
-  assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
-         "Re-setting program binary data which has already been set");
-  binary_ = source;
-  binarySizeInBytes_ = length;
-  return PI_SUCCESS;
-}
-
-pi_result _pi_program::build_program(const char *build_options) {
-
-  this->buildOptions_ = build_options;
-
-  constexpr const unsigned int numberOfOptions = 4u;
-
-  CUjit_option options[numberOfOptions];
-  void *optionVals[numberOfOptions];
-
-  // Pass a buffer for info messages
-  options[0] = CU_JIT_INFO_LOG_BUFFER;
-  optionVals[0] = (void *)infoLog_;
-  // Pass the size of the info buffer
-  options[1] = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES;
-  optionVals[1] = (void *)(long)MAX_LOG_SIZE;
-  // Pass a buffer for error message
-  options[2] = CU_JIT_ERROR_LOG_BUFFER;
-  optionVals[2] = (void *)errorLog_;
-  // Pass the size of the error buffer
-  options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
-  optionVals[3] = (void *)(long)MAX_LOG_SIZE;
-
-  auto result = PI_CHECK_ERROR(
-      cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
-
-  const auto success = (result == PI_SUCCESS);
-
-  buildStatus_ =
-      success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
-
-  // If no exception, result is correct
-  return success ? PI_SUCCESS : PI_ERROR_BUILD_PROGRAM_FAILURE;
-}
-
-/// Finds kernel names by searching for entry points in the PTX source, as the
-/// CUDA driver API doesn't expose an operation for this.
-/// Note: This is currently only being used by the SYCL program class for the
-///       has_kernel method, so an alternative would be to move the has_kernel
-///       query to PI and use cuModuleGetFunction to check for a kernel.
-/// Note: Another alternative is to add kernel names as metadata, like with
-///       reqd_work_group_size.
-std::string getKernelNames(pi_program) {
-  sycl::detail::pi::die("getKernelNames not implemented");
-  return {};
-}
-
 //-- PI API implementation
 extern "C" {
 /// Obtains the CUDA platform.
@@ -1652,7 +1540,8 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
   std::unique_ptr<_pi_kernel> retKernel{nullptr};
 
   try {
-    ScopedContext active(program->get_context());
+    // TODO: remove cast after porting the entry-point
+    ScopedContext active(reinterpret_cast<pi_context>(program->get_context()));
 
     CUfunction cuFunc;
     retErr = PI_CHECK_ERROR(
@@ -1669,10 +1558,10 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
     } else {
       retErr = PI_CHECK_ERROR(offsetRes);
     }
-
+    // TODO: remove cast after porting the entry-point
     retKernel = std::unique_ptr<_pi_kernel>(
         new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
-                       program->get_context()});
+                       reinterpret_cast<pi_context>(program->get_context())});
   } catch (pi_result err) {
     retErr = err;
   } catch (...) {
@@ -2193,7 +2082,8 @@ pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context());
+    // TODO: remove cast after porting the entry-point
+    ScopedContext active(reinterpret_cast<pi_context>(program->get_context()));
 
     program->build_program(options);
 
@@ -2252,43 +2142,6 @@ pi_result cuda_piProgramCreateWithBinary(
   return retError;
 }
 
-pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  assert(program != nullptr);
-
-  switch (param_name) {
-  case PI_PROGRAM_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   program->get_reference_count());
-  case PI_PROGRAM_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   program->context_);
-  case PI_PROGRAM_INFO_NUM_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  case PI_PROGRAM_INFO_DEVICES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->context_->deviceId_);
-  case PI_PROGRAM_INFO_SOURCE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   program->binary_);
-  case PI_PROGRAM_INFO_BINARY_SIZES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->binarySizeInBytes_);
-  case PI_PROGRAM_INFO_BINARIES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->binary_);
-  case PI_PROGRAM_INFO_KERNEL_NAMES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   getKernelNames(program).c_str());
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Program info request not implemented");
-  return {};
-}
-
 /// Creates a new PI program object that is the outcome of linking all input
 /// programs.
 /// \TODO Implement linker options, requires mapping of OpenCL to CUDA
@@ -2325,7 +2178,7 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
       void *cubin = nullptr;
       size_t cubinSize = 0;
       retError = PI_CHECK_ERROR(cuLinkComplete(state, &cubin, &cubinSize));
-
+      // TODO: remove the extra parameter after porting the entry-point
       retError =
           retProgram->set_binary(static_cast<const char *>(cubin), cubinSize);
 
@@ -2375,7 +2228,8 @@ pi_result cuda_piProgramCompile(
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context());
+    // TODO: Remove cast after porting the entry-point
+    ScopedContext active(reinterpret_cast<pi_context>(program->get_context()));
 
     program->build_program(options);
 
@@ -2413,54 +2267,13 @@ pi_result cuda_piProgramGetBuildInfo(pi_program program, pi_device device,
 }
 
 pi_result cuda_piProgramRetain(pi_program program) {
-  assert(program != nullptr);
-  assert(program->get_reference_count() > 0);
-  program->increment_reference_count();
-  return PI_SUCCESS;
+  return pi2ur::piProgramRetain(program);
 }
-
 /// Decreases the reference count of a pi_program object.
 /// When the reference count reaches 0, it unloads the module from
 /// the context.
 pi_result cuda_piProgramRelease(pi_program program) {
-  assert(program != nullptr);
-
-  // double delete or someone is messing with the ref count.
-  // either way, cannot safely proceed.
-  assert(program->get_reference_count() != 0 &&
-         "Reference count overflow detected in cuda_piProgramRelease.");
-
-  // decrement ref count. If it is 0, delete the program.
-  if (program->decrement_reference_count() == 0) {
-
-    std::unique_ptr<_pi_program> program_ptr{program};
-
-    pi_result result = PI_ERROR_INVALID_PROGRAM;
-
-    try {
-      ScopedContext active(program->get_context());
-      auto cuModule = program->get();
-      result = PI_CHECK_ERROR(cuModuleUnload(cuModule));
-    } catch (...) {
-      result = PI_ERROR_OUT_OF_RESOURCES;
-    }
-
-    return result;
-  }
-
-  return PI_SUCCESS;
-}
-
-/// Gets the native CUDA handle of a PI program object
-///
-/// \param[in] program The PI program to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI program object.
-///
-/// \return TBD
-pi_result cuda_piextProgramGetNativeHandle(pi_program program,
-                                           pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(program->get());
-  return PI_SUCCESS;
+  return pi2ur::piProgramRelease(program);  
 }
 
 /// Created a PI program object from a CUDA program handle.
@@ -4503,14 +4316,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramCreate, cuda_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, cuda_piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, cuda_piProgramCreateWithBinary)
-  _PI_CL(piProgramGetInfo, cuda_piProgramGetInfo)
+  _PI_CL(piProgramGetInfo, pi2ur::piProgramGetInfo)
   _PI_CL(piProgramCompile, cuda_piProgramCompile)
   _PI_CL(piProgramBuild, cuda_piProgramBuild)
   _PI_CL(piProgramLink, cuda_piProgramLink)
   _PI_CL(piProgramGetBuildInfo, cuda_piProgramGetBuildInfo)
-  _PI_CL(piProgramRetain, cuda_piProgramRetain)
-  _PI_CL(piProgramRelease, cuda_piProgramRelease)
-  _PI_CL(piextProgramGetNativeHandle, cuda_piextProgramGetNativeHandle)
+  _PI_CL(piProgramRetain, pi2ur::piProgramRetain)
+  _PI_CL(piProgramRelease, pi2ur::piProgramRelease)
+  _PI_CL(piextProgramGetNativeHandle, pi2ur::piProgramGetNativeHandle)
   _PI_CL(piextProgramCreateWithNativeHandle,
          cuda_piextProgramCreateWithNativeHandle)
   // Kernel

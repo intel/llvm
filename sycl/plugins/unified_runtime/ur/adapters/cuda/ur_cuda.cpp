@@ -1299,3 +1299,206 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
   ctxt->increment_reference_count();
   return UR_RESULT_SUCCESS;
 }
+
+ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t ctxt)
+    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+      context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
+  urContextRetain(context_);
+}
+
+ur_program_handle_t_::~ur_program_handle_t_() { 
+  urContextRelease(context_); 
+}
+
+// TODO: Enable and refactor to UR when we decide the placement of metadata in UR.
+std::pair<std::string, std::string> splitMetadataName(const std::string &metadataName) {
+  size_t splitPos = metadataName.rfind('@');
+  if (splitPos == std::string::npos)
+    return std::make_pair(metadataName, std::string{});
+  return std::make_pair(metadataName.substr(0, splitPos),
+                        metadataName.substr(splitPos, metadataName.length()));
+}
+
+pi_result ur_program_handle_t_::set_metadata(const pi_device_binary_property *metadata,
+                                    size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    const pi_device_binary_property metadataElement = metadata[i];
+    std::string metadataElementName{metadataElement->Name};
+
+    auto [prefix, tag] = splitMetadataName(metadataElementName);
+
+    if (tag == __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
+      // If metadata is reqd_work_group_size, record it for the corresponding
+      // kernel name.
+      size_t MDElemsSize = metadataElement->ValSize - sizeof(std::uint64_t);
+
+      // Expect between 1 and 3 32-bit integer values.
+      assert(MDElemsSize >= sizeof(std::uint32_t) &&
+             MDElemsSize <= sizeof(std::uint32_t) * 3 &&
+             "Unexpected size for reqd_work_group_size metadata");
+
+      // Get pointer to data, skipping 64-bit size at the start of the data.
+      const char *ValuePtr =
+          reinterpret_cast<const char *>(metadataElement->ValAddr) +
+          sizeof(std::uint64_t);
+      // Read values and pad with 1's for values not present.
+      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
+      std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
+      kernelReqdWorkGroupSizeMD_[prefix] =
+          std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
+                          reqdWorkGroupElements[2]);
+    } else if (tag == __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
+      const char *metadataValPtr =
+          reinterpret_cast<const char *>(metadataElement->ValAddr) +
+          sizeof(std::uint64_t);
+      const char *metadataValPtrEnd =
+          metadataValPtr + metadataElement->ValSize - sizeof(std::uint64_t);
+      globalIDMD_[prefix] = std::string{metadataValPtr, metadataValPtrEnd};
+    }
+  }
+  return PI_SUCCESS;
+}
+
+pi_result ur_program_handle_t_::set_binary(const char *source, size_t length) {
+  assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
+         "Re-setting program binary data which has already been set");
+  binary_ = source;
+  binarySizeInBytes_ = length;
+  return PI_SUCCESS;
+}
+
+pi_result ur_program_handle_t_::build_program(const char *build_options) {
+
+  this->buildOptions_ = build_options;
+
+  constexpr const unsigned int numberOfOptions = 4u;
+
+  CUjit_option options[numberOfOptions];
+  void *optionVals[numberOfOptions];
+
+  // Pass a buffer for info messages
+  options[0] = CU_JIT_INFO_LOG_BUFFER;
+  optionVals[0] = (void *)infoLog_;
+  // Pass the size of the info buffer
+  options[1] = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES;
+  optionVals[1] = (void *)(long)MAX_LOG_SIZE;
+  // Pass a buffer for error message
+  options[2] = CU_JIT_ERROR_LOG_BUFFER;
+  optionVals[2] = (void *)errorLog_;
+  // Pass the size of the error buffer
+  options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
+  optionVals[3] = (void *)(long)MAX_LOG_SIZE;
+
+  auto result = PI_CHECK_ERROR(
+      cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
+                         numberOfOptions, options, optionVals));
+
+  const auto success = (result == UR_RESULT_SUCCESS);
+
+  buildStatus_ =
+      success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
+
+  // If no exception, result is correct
+  return success ? PI_SUCCESS : PI_ERROR_BUILD_PROGRAM_FAILURE;
+}
+
+/// Finds kernel names by searching for entry points in the PTX source, as the
+/// CUDA driver API doesn't expose an operation for this.
+/// Note: This is currently only being used by the SYCL program class for the
+///       has_kernel method, so an alternative would be to move the has_kernel
+///       query to PI and use cuModuleGetFunction to check for a kernel.
+/// Note: Another alternative is to add kernel names as metadata, like with
+///       reqd_work_group_size.
+std::string getKernelNames(ur_program_handle_t) {
+  sycl::detail::ur::die("getKernelNames not implemented");
+  return {};
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName, size_t propSize, void* pProgramInfo, size_t* pPropSizeRet) {
+  assert(hProgram != nullptr);
+
+  switch (propName) {
+  case UR_PROGRAM_INFO_REFERENCE_COUNT:
+    return ur::getInfo(propSize, pProgramInfo, pPropSizeRet,
+                   hProgram->get_reference_count());
+  case UR_PROGRAM_INFO_CONTEXT:
+    return ur::getInfo(propSize, pProgramInfo, pPropSizeRet,
+                   hProgram->context_);
+  case UR_PROGRAM_INFO_NUM_DEVICES:
+    return ur::getInfo(propSize, pProgramInfo, pPropSizeRet, 1u);
+  case UR_PROGRAM_INFO_DEVICES:
+    return ur::getInfoArray(1, propSize, pProgramInfo, pPropSizeRet,
+                        &hProgram->context_->deviceId_);
+  case UR_PROGRAM_INFO_SOURCE:
+    return ur::getInfo(propSize, pProgramInfo, pPropSizeRet,
+                   hProgram->binary_);
+  case UR_PROGRAM_INFO_BINARY_SIZES:
+    return ur::getInfoArray(1, propSize, pProgramInfo, pPropSizeRet,
+                        &hProgram->binarySizeInBytes_);
+  case UR_PROGRAM_INFO_BINARIES:
+    return ur::getInfoArray(1, propSize, pProgramInfo, pPropSizeRet,
+                        &hProgram->binary_);
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+    return ur::getInfo(propSize, pProgramInfo, pPropSizeRet,
+                   getKernelNames(hProgram).c_str());
+  default:
+    break;
+  }
+  sycl::detail::ur::die("Program info request not implemented");
+  return {};
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramRetain(ur_program_handle_t program) {
+  assert(program != nullptr);
+  assert(program->get_reference_count() > 0);
+  program->increment_reference_count();
+  return UR_RESULT_SUCCESS;
+}
+
+/// Decreases the reference count of a ur_program_handle_t object.
+/// When the reference count reaches 0, it unloads the module from
+/// the context.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramRelease(ur_program_handle_t program) {
+  assert(program != nullptr);
+
+  // double delete or someone is messing with the ref count.
+  // either way, cannot safely proceed.
+  assert(program->get_reference_count() != 0 &&
+         "Reference count overflow detected in cuda_piProgramRelease.");
+
+  // decrement ref count. If it is 0, delete the program.
+  if (program->decrement_reference_count() == 0) {
+
+    std::unique_ptr<ur_program_handle_t_> program_ptr{program};
+
+    ur_result_t result = UR_RESULT_ERROR_INVALID_PROGRAM;
+
+    try {
+      ScopedContext active(program->get_context());
+      auto cuModule = program->get();
+      result = PI_CHECK_ERROR(cuModuleUnload(cuModule));
+    } catch (...) {
+      result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    }
+
+    return result;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// Gets the native CUDA handle of a UR program object
+///
+/// \param[in] program The PI program to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI program object.
+///
+/// \return TBD
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetNativeHandle(ur_program_handle_t program,
+                                           ur_native_handle_t *nativeHandle) {
+  *nativeHandle = reinterpret_cast<ur_native_handle_t>(program->get());
+  return UR_RESULT_SUCCESS;
+}

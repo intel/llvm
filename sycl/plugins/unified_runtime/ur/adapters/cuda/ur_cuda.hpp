@@ -14,11 +14,6 @@
 
 #include <cuda.h>
 
-// struct _ur_platform_handle_t;
-// using ur_platform_handle_t = _ur_platform_handle_t *;
-// struct _ur_device_handle_t;
-// using ur_device_handle_t = _ur_device_handle_t *;
-
 struct ur_platform_handle_t_ : public _ur_platform {
   std::vector<std::unique_ptr<ur_device_handle_t_>> devices_;
 };
@@ -123,13 +118,44 @@ private:
   std::mutex mutex_;
   std::vector<deleter_data> extended_deleters_;
 };
+struct ur_program_handle_t_ : _pi_object {
+  using native_type = CUmodule;
+  native_type module_;
+  const char *binary_;
+  size_t binarySizeInBytes_;
+  std::atomic_uint32_t refCount_;
+  ur_context_handle_t context_;
 
+  // Metadata
+  std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
+      kernelReqdWorkGroupSizeMD_;
+  std::unordered_map<std::string, std::string> globalIDMD_;
 
-// Make the Unified Runtime handles definition complete.
-// This is used in various "create" API where new handles are allocated.
-// struct _zer_platform_handle_t : public _ur_platform_handle_t {
-//   using _ur_platform_handle_t::_ur_platform_handle_t;
-// };
-// struct _zer_device_handle_t : public _ur_device_handle_t {
-//   using _ur_device_handle_t::_ur_device_handle_t;
-// };
+  constexpr static size_t MAX_LOG_SIZE = 8192u;
+
+  char errorLog_[MAX_LOG_SIZE], infoLog_[MAX_LOG_SIZE];
+  std::string buildOptions_;
+  pi_program_build_status buildStatus_ = PI_PROGRAM_BUILD_STATUS_NONE;
+
+  ur_program_handle_t_(ur_context_handle_t ctxt);
+  ~ur_program_handle_t_();
+
+  // TODO: Enable and refactor to UR when we decide the placement of metadata in UR.
+  pi_result set_metadata(const pi_device_binary_property *metadata,
+                         size_t length);
+
+  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
+
+  // TODO: Change pi_result to zer_result_t once program entry-points have been ported.
+  pi_result build_program(const char *build_options);
+
+  ur_context_handle_t get_context() const { return context_; };
+
+  native_type get() const noexcept { return module_; };
+
+  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
+
+  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
+
+  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+};
