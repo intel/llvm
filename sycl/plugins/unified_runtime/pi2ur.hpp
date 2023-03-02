@@ -623,26 +623,26 @@ inline pi_result piContextRelease(pi_context context) {
 }
 
 inline pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem) {
+                                   size_t size, void *host_ptr,
+                                   pi_mem *ret_mem) {
   auto hContext = reinterpret_cast<ur_context_handle_t>(context);
 
-  static std::unordered_map<pi_mem_flags,
-                            ur_mem_flags_t>
-      MemFlagsMap = {
-          {PI_MEM_FLAGS_ACCESS_RW, UR_MEM_FLAG_READ_WRITE},
-          {PI_MEM_ACCESS_READ_ONLY, UR_MEM_FLAG_READ_ONLY},
-          {PI_MEM_FLAGS_HOST_PTR_USE, UR_MEM_FLAG_USE_HOST_POINTER},
-          {PI_MEM_FLAGS_HOST_PTR_COPY, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER},
-          {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-      };
+  static std::unordered_map<pi_mem_flags, ur_mem_flags_t> MemFlagsMap = {
+      {PI_MEM_FLAGS_ACCESS_RW, UR_MEM_FLAG_READ_WRITE},
+      {PI_MEM_ACCESS_READ_ONLY, UR_MEM_FLAG_READ_ONLY},
+      {PI_MEM_FLAGS_HOST_PTR_USE, UR_MEM_FLAG_USE_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_COPY, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+  };
 
   auto MemFlagsIt = MemFlagsMap.find(flags);
   if (MemFlagsIt == MemFlagsMap.end()) {
     return PI_ERROR_UNKNOWN;
   }
 
-  auto hRet_Mem = reinterpret_cast<ur_mem_handle_t*>(ret_mem);
-  HANDLE_ERRORS(urMemBufferCreate(hContext, MemFlagsIt->second, size, host_ptr, hRet_Mem));
+  auto hRet_Mem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
+  HANDLE_ERRORS(urMemBufferCreate(hContext, MemFlagsIt->second, size, host_ptr,
+                                  hRet_Mem));
 
   return PI_SUCCESS;
 }
@@ -650,7 +650,7 @@ inline pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags,
 inline pi_result piMemRetain(pi_mem mem) {
   auto hMem = reinterpret_cast<ur_mem_handle_t>(mem);
   HANDLE_ERRORS(urMemRetain(hMem));
-  
+
   return PI_SUCCESS;
 }
 
@@ -662,9 +662,9 @@ inline pi_result piMemRelease(pi_mem memObj) {
 }
 
 inline pi_result piextMemGetNativeHandle(pi_mem mem,
-                                       pi_native_handle *nativeHandle) {
+                                         pi_native_handle *nativeHandle) {
   auto hMem = reinterpret_cast<ur_mem_handle_t>(mem);
-  auto hNativeHandle = reinterpret_cast<ur_native_handle_t*>(nativeHandle);
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
   HANDLE_ERRORS(urMemGetNativeHandle(hMem, hNativeHandle));
 
   return PI_SUCCESS;

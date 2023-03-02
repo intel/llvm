@@ -2038,9 +2038,7 @@ pi_result cuda_piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *,
   return {};
 }
 
-pi_result cuda_piMemRetain(pi_mem mem) {
-  return pi2ur::piMemRetain(mem);
-}
+pi_result cuda_piMemRetain(pi_mem mem) { return pi2ur::piMemRetain(mem); }
 
 /// Not used as CUDA backend only creates programs from binary.
 /// See \ref cuda_piclProgramCreateWithBinary.

@@ -1334,7 +1334,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size, void *pHost, ur_mem_handle_t *phBuffer) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemBufferCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
+                  size_t size, void *pHost, ur_mem_handle_t *phBuffer) {
   // Need input memory object
   assert(phBuffer != nullptr);
   // Currently, USE_HOST_PTR is not implemented using host register
@@ -1349,7 +1351,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hConte
 
   try {
     ScopedContext active(hContext);
-    CUdeviceptr ptr;  
+    CUdeviceptr ptr;
 
     ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode allocMode =
         ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic;
@@ -1362,7 +1364,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hConte
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
       retErr = UR_CHECK_ERROR(cuMemAllocHost(&pHost, size));
       retErr = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, pHost, 0));
-      allocMode = ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+      allocMode =
+          ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
     } else {
       retErr = UR_CHECK_ERROR(cuMemAlloc(&ptr, size));
       if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
@@ -1373,8 +1376,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(ur_context_handle_t hConte
     if (retErr == UR_RESULT_SUCCESS) {
       ur_mem_handle_t parentBuffer = nullptr;
 
-      auto piMemObj = std::unique_ptr<ur_mem_handle_t_>(
-          new ur_mem_handle_t_{hContext, parentBuffer, allocMode, ptr, pHost, size});
+      auto piMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+          hContext, parentBuffer, allocMode, ptr, pHost, size});
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
@@ -1459,7 +1462,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   } catch (ur_result_t err) {
     ret = err;
   } catch (...) {
-    ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;    
+    ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
   if (ret != UR_RESULT_SUCCESS) {
@@ -1480,7 +1483,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 /// \param[out] phNativeMem Set to the native handle of the UR mem object.
 ///
 /// \return UR_RESULT_SUCCESS
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
-  *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
+  *phNativeMem =
+      reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
   return UR_RESULT_SUCCESS;
 }
