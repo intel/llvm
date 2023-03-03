@@ -5368,8 +5368,8 @@ pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  die("hip_piextEnablePeer not "
-      "implemented");
+  sycl::detail::pi::die("hip_piextEnablePeer not "
+                        "implemented");
   return {};
 }
 
@@ -5379,8 +5379,8 @@ pi_result hip_piextDisablePeer(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  die("hip_piextDisablePeer not "
-      "implemented");
+  sycl::detail::pi::die("hip_piextDisablePeer not "
+                        "implemented");
   return {};
 }
 
@@ -5391,8 +5391,8 @@ pi_result hip_piextCanAccessPeer(pi_device command_device,
   std::ignore = peer_device;
   std::ignore = attr;
 
-  die("hip_piextCanAccessPeer not "
-      "implemented");
+  sycl::detail::pi::die("hip_piextCanAccessPeer not "
+                        "implemented");
   return {};
 }
 
