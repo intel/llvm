@@ -803,9 +803,13 @@ void Sema::DiagnoseUnknownTypeName(IdentifierInfo *&II,
   // (struct, union, enum) from Parser::ParseImplicitInt here, instead?
 
   if (!SS || (!SS->isSet() && !SS->isInvalid()))
-    Diag(IILoc, IsTemplateName ? diag::err_no_template
-                               : diag::err_unknown_typename)
-        << II;
+    if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
+        II->getName() == "SYCL_EXTERNAL")
+      Diag(IILoc, diag::err_sycl_external_no_rdc);
+    else
+      Diag(IILoc,
+           IsTemplateName ? diag::err_no_template : diag::err_unknown_typename)
+          << II;
   else if (DeclContext *DC = computeDeclContext(*SS, false))
     Diag(IILoc, IsTemplateName ? diag::err_no_member_template
                                : diag::err_typename_nested_not_found)
@@ -10292,15 +10296,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocation(), diag::err_return_value_with_address_space);
       NewFD->setInvalidDecl();
     }
-  }
-
-  if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
-      NewFD->hasAttr<SYCLDeviceAttr>() &&
-      !getSourceManager().isInSystemHeader(NewFD->getLocation())) {
-    Diag(NewFD->getLocation(), diag::err_sycl_external_no_rdc)
-        << (D.getFunctionDefinitionKind() ==
-            clang::FunctionDefinitionKind::Definition);
-    NewFD->setInvalidDecl();
   }
 
   if (!getLangOpts().CPlusPlus) {
