@@ -260,6 +260,20 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     use(x);
   }
   {
+    vec<int, 8> src0 = get8i();
+    auto x = __esimd_svm_atomic1<atomic_op::smin, int, 8>(get8ui64(), src0,
+                                                          get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.atomic.imin.v8i32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> undef)
+    use(x);
+  }
+  {
+    vec<int, 8> src0 = get8i();
+    auto x = __esimd_svm_atomic1<atomic_op::smax, int, 8>(get8ui64(), src0,
+                                                          get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.atomic.imax.v8i32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> undef)
+    use(x);
+  }
+  {
     constexpr SurfaceIndex si = 0;
     vec<float, 8> x =
         __esimd_media_ld<float, 2, 4, 0, SurfaceIndex, 0, 4>(si, 0, 0);
