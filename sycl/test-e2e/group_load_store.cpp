@@ -215,28 +215,193 @@ int main() {
     int group_offset = ndi.get_group(0) * WG_SIZE * 4;
     int local_offset = ndi.get_local_id(0) * VEC_SIZE;
 
-    int init = ndi.get_global_id(0);
+    int init = ndi.get_global_id(0) + VEC_SIZE * 2;
     for (int i = 0; i < VEC_SIZE; ++i) {
-      global_mem[group_offset + local_offset + i] = init + i;
-      usm_mem[group_offset + local_offset + i] = init + i;
-      local_mem[local_offset + i] = init + i;
+      global_mem[group_offset + local_offset + i] = init - i;
+      usm_mem[group_offset + local_offset + i] = init - i;
+      local_mem[local_offset + i] = init - i;
     }
+
+    // clang-format off
+    // For int2, g_size = 4
+    // ...
+    // |  8  7 |  9  8 | 10  9 | 11 10 | <= G2
+    // | 12 11 | 13 12 | 14 13 | 15 14 | <= G3
+    //
+    // blocked:
+    //   pairs as written.
+    // striped:
+    //   ( 8 10), ( 7  9), ( 9 11), ( 8 10)
+    //   (12 14), (11 13), (13 15), (12 14)
+
+    // For int3, g_size = 8
+    //    *                           *                            *
+    // |  6  5  4 |  7  6  5 |  8  7  6 |  9  8  7 | 10  9  8 | 11 10  9 | 12 11 10 | 13 12 11 |
+    // | 14 13 12 | 15 14 13 | 16 15 14 | 17 16 15 | 18 17 16 | 19 18 17 | 20 19 18 | 21 20 19 |
+    //
+    // striped:
+    //  ( 6  6 10) ( 5  9  9) ( 4 8 12) ( 7 7 11 ) ( 6 10 10) ( 5  9  13) ( 8 8 12 ) ( 7 11 11)
+    //
+    // idx = group_local_id + vec_idx * G_SIZE
+    // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
+    // clang-format on
 
     auto g = ndi.get_group();
 
     auto Check = [&](auto Input) {
-      int2 out, out_blocked; // Must be in sync with VEC_SIZE.
-      group_load(g, Input, out);
+      vec<int, VEC_SIZE> out, out_blocked, out_striped;
       using namespace sycl::ext::oneapi::experimental;
       using namespace sycl::ext::oneapi::experimental::property;
-      auto props =
+      auto blocked =
           properties(data_placement<group_algorithm_data_placement::blocked>);
-      group_load(g, Input, out_blocked, props);
+      auto striped =
+          properties(data_placement<group_algorithm_data_placement::striped>);
+      group_load(g, Input, out);
+      group_load(g, Input, out_blocked, blocked);
+      group_load(g, Input, out_striped, striped);
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
-        success &= (out[i] == init + i);
-        // success &= (out_blocked[i] == out[i]);
+        success &= (out[i] == out_blocked[i]);
+        success &= (out_blocked[i] == init - i);
+        int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
+        success &= (out_striped[i] ==
+                    ndi.get_group(0) * WG_SIZE + VEC_SIZE * 2 +
+                        striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
+      }
+      Record(success);
+    };
+
+    Check(global_mem + group_offset);
+    Check(usm_mem + group_offset);
+    Check(local_mem);
+    Check(
+        address_space_cast<access::address_space::global_space,
+                           access::decorated::yes>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::no>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem + group_offset)
+              .get_decorated());
+  });
+
+  std::cout << "VecBlockedSGKernel" << std::endl;
+  test<class VecBlockedSGKernel>([](auto ndi, auto global_ptr, auto usm_ptr,
+                                    auto local_ptr, auto Record) {
+    auto *global_mem = reinterpret_cast<int *>(global_ptr);
+    auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
+    auto *local_mem = reinterpret_cast<int *>(local_ptr);
+
+    int marker_var = 0;
+    auto sg = ndi.get_sub_group();
+
+    constexpr int VEC_SIZE = 2;
+    // Make groups non-contiguous.
+    int wg_offset = ndi.get_group(0) * WG_SIZE * 4;
+    int sg_size = sg.get_local_range().size();
+    int sg_offset = sg.get_group_id() * sg_size * 4;
+    int group_offset = wg_offset + sg_offset;
+    int local_offset = sg.get_local_id() * VEC_SIZE;
+
+    int init = ndi.get_global_id(0) + VEC_SIZE * 2;
+    for (int i = 0; i < VEC_SIZE; ++i) {
+      global_mem[group_offset + local_offset + i] = init - i;
+      usm_mem[group_offset + local_offset + i] = init - i;
+      local_mem[sg_offset + local_offset + i] = init - i;
+    }
+
+    auto Check = [&](auto Input) {
+      vec<int, VEC_SIZE> out_blocked;
+      using namespace sycl::ext::oneapi::experimental;
+      using namespace sycl::ext::oneapi::experimental::property;
+      auto blocked =
+          properties(data_placement<group_algorithm_data_placement::blocked>);
+      group_load(sg, Input, out_blocked, blocked);
+
+      bool success = true;
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        success &= (out_blocked[i] == init - i);
+      }
+      Record(success);
+    };
+
+    Check(global_mem + group_offset);
+    Check(usm_mem + group_offset);
+    Check(local_mem);
+    Check(
+        address_space_cast<access::address_space::global_space,
+                           access::decorated::yes>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::no>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem + group_offset)
+              .get_decorated());
+  });
+
+  std::cout << "VecStripedSGKernel" << std::endl;
+  test<class VecStripedSGKernel>([](auto ndi, auto global_ptr, auto usm_ptr,
+                                    auto local_ptr, auto Record) {
+    auto *global_mem = reinterpret_cast<int *>(global_ptr);
+    auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
+    auto *local_mem = reinterpret_cast<int *>(local_ptr);
+
+    int marker_var = 0;
+    auto sg = ndi.get_sub_group();
+
+    constexpr int VEC_SIZE = 2;
+    // Make groups non-contiguous.
+    int wg_offset = ndi.get_group(0) * WG_SIZE * 4;
+    int sg_size = sg.get_local_range().size();
+    int sg_offset = sg.get_group_id() * sg_size * 4;
+    int group_offset = wg_offset + sg_offset;
+    int local_offset = sg.get_local_id() * VEC_SIZE;
+
+    int init = ndi.get_global_id(0) + VEC_SIZE * 2;
+    for (int i = 0; i < VEC_SIZE; ++i) {
+      global_mem[group_offset + local_offset + i] = init - i;
+      usm_mem[group_offset + local_offset + i] = init - i;
+      local_mem[sg_offset + local_offset + i] = init - i;
+    }
+
+    // clang-format off
+    // For int2, g_size = 4
+    // ...
+    // |  8  7 |  9  8 | 10  9 | 11 10 | <= G2
+    // | 12 11 | 13 12 | 14 13 | 15 14 | <= G3
+    //
+    // blocked:
+    //   pairs as written.
+    // striped:
+    //   ( 8 10), ( 7  9), ( 9 11), ( 8 10)
+    //   (12 14), (11 13), (13 15), (12 14)
+
+    // For int3, g_size = 8
+    //    *                           *                            *
+    // |  6  5  4 |  7  6  5 |  8  7  6 |  9  8  7 | 10  9  8 | 11 10  9 | 12 11 10 | 13 12 11 |
+    // | 14 13 12 | 15 14 13 | 16 15 14 | 17 16 15 | 18 17 16 | 19 18 17 | 20 19 18 | 21 20 19 |
+    //
+    // striped:
+    //  ( 6  6 10) ( 5  9  9) ( 4 8 12) ( 7 7 11 ) ( 6 10 10) ( 5  9  13) ( 8 8 12 ) ( 7 11 11)
+    //
+    // idx = group_local_id + vec_idx * G_SIZE
+    // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
+    // clang-format on
+
+    auto Check = [&](auto Input) {
+      vec<int, VEC_SIZE> out_striped;
+      using namespace sycl::ext::oneapi::experimental;
+      using namespace sycl::ext::oneapi::experimental::property;
+      auto striped =
+          properties(data_placement<group_algorithm_data_placement::striped>);
+      group_load(sg, Input, out_striped, striped);
+
+      bool success = true;
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        int striped_idx = sg.get_local_id() + i * sg_size;
+        success &= (out_striped[i] ==
+                    ndi.get_group(0) * WG_SIZE + sg.get_group_id() * sg_size +
+                        VEC_SIZE * 2 + striped_idx / VEC_SIZE -
+                        striped_idx % VEC_SIZE);
       }
       Record(success);
     };

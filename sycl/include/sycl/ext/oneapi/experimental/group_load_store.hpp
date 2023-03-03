@@ -143,7 +143,6 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
     else
       return true;
   }();
-  static_assert(blocked);
   auto generic = [&]() {
     for (int i = 0; i < N; ++i) {
       if constexpr (blocked) {
