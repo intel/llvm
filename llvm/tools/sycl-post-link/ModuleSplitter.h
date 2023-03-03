@@ -71,7 +71,7 @@ struct EntryPointGroup {
     }
   };
 
-  StringRef GroupId;
+  std::string GroupId;
   EntryPointSet Functions;
   Properties Props;
 
@@ -125,7 +125,7 @@ public:
   ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
              const Properties &Props)
       : M(std::move(M)), EntryPoints(std::move(EntryPoints)), Props(Props) {
-    Name = this->EntryPoints.GroupId.str();
+    Name = this->EntryPoints.GroupId;
   }
 
   ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,

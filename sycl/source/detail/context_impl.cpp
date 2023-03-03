@@ -136,7 +136,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -325,20 +325,21 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl,
-                                                          /*ZeroInit=*/true);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
 
       // If the device global still has a zero-initialization event it should be
-      // added to the initialization events list.
-      std::optional<RT::PiEvent> ZIEvent =
-          DeviceGlobalUSM.getZeroInitEvent(Plugin);
-      if (ZIEvent.has_value())
-        InitEventsRef.push_back(*ZIEvent);
+      // added to the initialization events list. Since initialization events
+      // are cleaned up separately from cleaning up the device global USM memory
+      // this must retain the event.
+      {
+        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
+          InitEventsRef.push_back(ZIEvent.TransferOwnership());
+      }
 
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       RT::PiEvent InitEvent;
-      void *USMPtr = DeviceGlobalUSM.getPtr();
+      void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
@@ -355,6 +356,38 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   for (const RT::PiEvent &Event : MDeviceGlobalInitEvents)
     Plugin.call<PiApiKind::piEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
+}
+
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+  {
+    auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
+    auto &KeyMap = LockedCache.get().KeyMap;
+    auto &Cache = LockedCache.get().Cache;
+    RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+      auto OuterKey = std::make_pair(ImageIDs, DevHandle);
+      size_t NProgs = KeyMap.count(OuterKey);
+      if (NProgs == 0)
+        continue;
+      // If the cache has multiple programs for the identifiers or if we have
+      // already found a program in the cache with the device_global, we cannot
+      // proceed.
+      if (NProgs > 1 || (BuildRes && NProgs == 1))
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "More than one image exists with the device_global.");
+      auto KeyMappingsIt = KeyMap.find(OuterKey);
+      assert(KeyMappingsIt != KeyMap.end());
+      auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+      assert(CachedProgIt != Cache.end());
+      BuildRes = &CachedProgIt->second;
+    }
+  }
+  if (!BuildRes)
+    return std::nullopt;
+  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
 } // namespace detail

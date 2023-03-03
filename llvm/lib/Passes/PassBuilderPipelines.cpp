@@ -634,9 +634,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
   // Try vectorization/scalarization transforms that are both improvements
   // themselves and can allow further folds with GVN and InstCombine.
-  // Disable for SYCL until SPIR-V reader is updated for all drivers.
-  if (!SYCLOptimizationMode)
-    FPM.addPass(VectorCombinePass(/*TryEarlyFoldsOnly=*/true));
+  FPM.addPass(VectorCombinePass(/*TryEarlyFoldsOnly=*/true));
 
   // Eliminate redundancies.
   FPM.addPass(MergedLoadStoreMotionPass());
@@ -1989,7 +1987,16 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
 
+  if (PTO.OptimizeSYCLFramework)
+    addDefaultSYCLFrameworkOptimizationPipeline(MPM);
+
   return MPM;
+}
+
+void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
+    ModulePassManager &MPM) {
+  MPM.addPass(
+      buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
 }
 
 AAManager PassBuilder::buildDefaultAAPipeline() {
