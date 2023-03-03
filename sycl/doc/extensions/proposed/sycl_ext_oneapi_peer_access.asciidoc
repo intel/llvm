@@ -101,7 +101,6 @@ namespace ext    {
 namespace oneapi {
 enum class peer_access {
   access_supported,
-  access_enabled,
   atomics_supported,
 };
 } // namespace oneapi
