@@ -124,6 +124,16 @@ template <> struct PropertyToKind<property::data_placement_key> {
 };
 template <>
 struct IsCompileTimeProperty<property::data_placement_key> : std::true_type {};
+
+template <typename Properties>
+constexpr bool is_blocked(Properties properties) {
+  if constexpr (properties
+                    .template has_property<property::data_placement_key>())
+    return properties.template get_property<property::data_placement_key>() ==
+           property::data_placement<group_algorithm_data_placement::blocked>;
+  else
+    return true;
+}
 } // namespace detail
 
 // Load API sycl::vec overload
@@ -135,14 +145,7 @@ template <typename Group, typename InputIteratorT, typename OutputT, int N,
               OutputT>>>
 void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
                 Properties properties = {}) {
-  constexpr bool blocked = [&]() {
-    if constexpr (properties
-                      .template has_property<property::data_placement_key>())
-      return properties.template get_property<property::data_placement_key>() ==
-             property::data_placement<group_algorithm_data_placement::blocked>;
-    else
-      return true;
-  }();
+  constexpr bool blocked = detail::is_blocked(properties);
   auto generic = [&]() {
     sycl::detail::dim_loop<N>([&](size_t i) {
       if constexpr (blocked)
@@ -150,6 +153,28 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
       else // striped
         out[i] =
             in_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i];
+    });
+  };
+
+  return generic();
+}
+
+// Store API sycl::vec overload
+template <typename Group, typename InputT, int N, typename OutputIteratorT,
+          typename Properties = decltype(properties()),
+          typename = std::enable_if_t<std::is_convertible_v<
+              InputT, remove_decoration_t<typename std::iterator_traits<
+                          OutputIteratorT>::value_type>>>>
+void group_store(Group g, const sycl::vec<InputT, N> &in,
+                 OutputIteratorT out_ptr, Properties properties = {}) {
+  constexpr bool blocked = detail::is_blocked(properties);
+  auto generic = [&]() {
+    sycl::detail::dim_loop<N>([&](size_t i) {
+      if constexpr (blocked)
+        out_ptr[g.get_local_linear_id() * N + i] = in[i];
+      else // striped
+        out_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i] =
+            in[i];
     });
   };
 
