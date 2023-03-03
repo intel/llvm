@@ -24,9 +24,8 @@
 #include <functional>
 
 // TODOs:
-// * (a) TODO bool translation in spmd2simd.
-// * (b) TODO enforce constness of a functor/lambda's () operator
-// * (c) TODO support lambdas and functors in BE
+// * (a) TODO enforce constness of a functor/lambda's () operator
+// * (b) TODO support lambdas and functors in BE
 
 /// Middle End - to - Back End interface to invoke explicit SIMD functions from
 /// SPMD SYCL context. Must not be used by user code. BEs are expected to
