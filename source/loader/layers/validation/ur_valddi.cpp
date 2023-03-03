@@ -7,9 +7,11 @@
  * @file ur_valddi.cpp
  *
  */
+#include "ur_leak_check.hpp"
 #include "ur_validation_layer.hpp"
 
 namespace validation_layer {
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
@@ -28,7 +30,9 @@ __urdlllocal ur_result_t UR_APICALL urInit(
         }
     }
 
-    return pfnInit(device_flags);
+    ur_result_t result = pfnInit(device_flags);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,7 +52,14 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
         }
     }
 
-    return pfnTearDown(pParams);
+    ur_result_t result = pfnTearDown(pParams);
+
+    if (context.enableLeakChecking) {
+        refCountContext.logInvalidReferences();
+        refCountContext.clear();
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,7 +86,9 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     if (context.enableParameterValidation) {
     }
 
-    return pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+    ur_result_t result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -107,8 +120,10 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
         }
     }
 
-    return pfnGetInfo(hPlatform, PlatformInfoType, Size, pPlatformInfo,
-                      pSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hPlatform, PlatformInfoType, Size, pPlatformInfo, pSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,7 +148,9 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
         }
     }
 
-    return pfnGetApiVersion(hDriver, pVersion);
+    ur_result_t result = pfnGetApiVersion(hDriver, pVersion);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -159,7 +176,9 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hPlatform, phNativePlatform);
+    ur_result_t result = pfnGetNativeHandle(hPlatform, phNativePlatform);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -187,7 +206,9 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -214,7 +235,9 @@ __urdlllocal ur_result_t UR_APICALL urGetLastResult(
         }
     }
 
-    return pfnGetLastResult(hPlatform, ppMessage);
+    ur_result_t result = pfnGetLastResult(hPlatform, ppMessage);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -250,7 +273,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
         }
     }
 
-    return pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
+    ur_result_t result =
+        pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -283,7 +309,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
         }
     }
 
-    return pfnGetInfo(hDevice, infoType, propSize, pDeviceInfo, pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hDevice, infoType, propSize, pDeviceInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -304,7 +333,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
         }
     }
 
-    return pfnRetain(hDevice);
+    ur_result_t result = pfnRetain(hDevice);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hDevice);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -324,7 +359,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
         }
     }
 
-    return pfnRelease(hDevice);
+    ur_result_t result = pfnRelease(hDevice);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hDevice);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -358,8 +399,10 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         }
     }
 
-    return pfnPartition(hDevice, pProperties, NumDevices, phSubDevices,
-                        pNumDevicesRet);
+    ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
+                                      phSubDevices, pNumDevicesRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -400,7 +443,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
         }
     }
 
-    return pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
+    ur_result_t result =
+        pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -426,7 +472,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hDevice, phNativeDevice);
+    ur_result_t result = pfnGetNativeHandle(hDevice, phNativeDevice);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -458,7 +506,14 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeDevice, hPlatform, phDevice);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeDevice, hPlatform, phDevice);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phDevice);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -485,7 +540,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
         }
     }
 
-    return pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
+    ur_result_t result =
+        pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -515,7 +573,14 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
         }
     }
 
-    return pfnCreate(DeviceCount, phDevices, pProperties, phContext);
+    ur_result_t result =
+        pfnCreate(DeviceCount, phDevices, pProperties, phContext);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phContext);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -536,7 +601,13 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
         }
     }
 
-    return pfnRetain(hContext);
+    ur_result_t result = pfnRetain(hContext);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hContext);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -556,7 +627,13 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
         }
     }
 
-    return pfnRelease(hContext);
+    ur_result_t result = pfnRelease(hContext);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hContext);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -590,8 +667,10 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
         }
     }
 
-    return pfnGetInfo(hContext, ContextInfoType, propSize, pContextInfo,
-                      pPropSizeRet);
+    ur_result_t result = pfnGetInfo(hContext, ContextInfoType, propSize,
+                                    pContextInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -617,7 +696,9 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hContext, phNativeContext);
+    ur_result_t result = pfnGetNativeHandle(hContext, phNativeContext);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -645,7 +726,13 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeContext, phContext);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeContext, phContext);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phContext);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -674,7 +761,9 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         }
     }
 
-    return pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
+    ur_result_t result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -732,8 +821,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
         }
     }
 
-    return pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost,
-                          phMem);
+    ur_result_t result =
+        pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost, phMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -785,7 +876,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         }
     }
 
-    return pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
+    ur_result_t result =
+        pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -805,7 +899,13 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
         }
     }
 
-    return pfnRetain(hMem);
+    ur_result_t result = pfnRetain(hMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hMem);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -825,7 +925,13 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
         }
     }
 
-    return pfnRelease(hMem);
+    ur_result_t result = pfnRelease(hMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hMem);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -868,7 +974,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
         }
     }
 
-    return pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
+    ur_result_t result =
+        pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -894,7 +1003,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hMem, phNativeMem);
+    ur_result_t result = pfnGetNativeHandle(hMem, phNativeMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -926,7 +1037,13 @@ __urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -960,7 +1077,10 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
         }
     }
 
-    return pfnGetInfo(hMemory, MemInfoType, propSize, pMemInfo, pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hMemory, MemInfoType, propSize, pMemInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -993,8 +1113,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
         }
     }
 
-    return pfnImageGetInfo(hMemory, ImgInfoType, propSize, pImgInfo,
-                           pPropSizeRet);
+    ur_result_t result =
+        pfnImageGetInfo(hMemory, ImgInfoType, propSize, pImgInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1027,7 +1149,13 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
         }
     }
 
-    return pfnCreate(hContext, pProps, phSampler);
+    ur_result_t result = pfnCreate(hContext, pProps, phSampler);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phSampler);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1048,7 +1176,13 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
         }
     }
 
-    return pfnRetain(hSampler);
+    ur_result_t result = pfnRetain(hSampler);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hSampler);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1069,7 +1203,13 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
         }
     }
 
-    return pfnRelease(hSampler);
+    ur_result_t result = pfnRelease(hSampler);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hSampler);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1107,8 +1247,10 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
         }
     }
 
-    return pfnGetInfo(hSampler, propName, propValueSize, pPropValue,
-                      pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hSampler, propName, propValueSize, pPropValue, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1134,7 +1276,9 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hSampler, phNativeSampler);
+    ur_result_t result = pfnGetNativeHandle(hSampler, phNativeSampler);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1167,7 +1311,14 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phSampler);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1207,7 +1358,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         }
     }
 
-    return pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
+    ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1252,7 +1405,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         }
     }
 
-    return pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+    ur_result_t result =
+        pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1297,7 +1453,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         }
     }
 
-    return pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+    ur_result_t result =
+        pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1322,7 +1481,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
         }
     }
 
-    return pfnFree(hContext, pMem);
+    ur_result_t result = pfnFree(hContext, pMem);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1358,8 +1519,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
         }
     }
 
-    return pfnGetMemAllocInfo(hContext, pMem, propName, propValueSize,
-                              pPropValue, pPropValueSizeRet);
+    ur_result_t result = pfnGetMemAllocInfo(
+        hContext, pMem, propName, propValueSize, pPropValue, pPropValueSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1395,7 +1558,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
         }
     }
 
-    return pfnPoolCreate(hContext, pPoolDesc, ppPool);
+    ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1420,7 +1585,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
         }
     }
 
-    return pfnPoolDestroy(hContext, pPool);
+    ur_result_t result = pfnPoolDestroy(hContext, pPool);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1464,7 +1631,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
         }
     }
 
-    return pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
+    ur_result_t result =
+        pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phProgram);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1514,8 +1688,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         }
     }
 
-    return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties,
-                               phProgram);
+    ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
+                                             pProperties, phProgram);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phProgram);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1542,7 +1722,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
         }
     }
 
-    return pfnBuild(hContext, hProgram, pOptions);
+    ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1570,7 +1752,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
         }
     }
 
-    return pfnCompile(hContext, hProgram, pOptions);
+    ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1609,7 +1793,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         }
     }
 
-    return pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+    ur_result_t result =
+        pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1629,7 +1816,13 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
         }
     }
 
-    return pfnRetain(hProgram);
+    ur_result_t result = pfnRetain(hProgram);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hProgram);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1649,7 +1842,13 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
         }
     }
 
-    return pfnRelease(hProgram);
+    ur_result_t result = pfnRelease(hProgram);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hProgram);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1691,8 +1890,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         }
     }
 
-    return pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
-                                 ppFunctionPointer);
+    ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
+                                               ppFunctionPointer);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1726,7 +1927,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
         }
     }
 
-    return pfnGetInfo(hProgram, propName, propSize, pProgramInfo, pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hProgram, propName, propSize, pProgramInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1766,8 +1970,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
         }
     }
 
-    return pfnGetBuildInfo(hProgram, hDevice, propName, propSize, pPropValue,
-                           pPropSizeRet);
+    ur_result_t result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
+                                         pPropValue, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1800,7 +2006,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         }
     }
 
-    return pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
+    ur_result_t result =
+        pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1826,7 +2035,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hProgram, phNativeProgram);
+    ur_result_t result = pfnGetNativeHandle(hProgram, phNativeProgram);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1859,7 +2070,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeProgram, hContext, phProgram);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeProgram, hContext, phProgram);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phProgram);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1890,7 +2108,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
         }
     }
 
-    return pfnCreate(hProgram, pKernelName, phKernel);
+    ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phKernel);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1918,7 +2142,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         }
     }
 
-    return pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+    ur_result_t result = pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1941,7 +2167,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         }
     }
 
-    return pfnSetArgLocal(hKernel, argIndex, argSize);
+    ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1976,7 +2204,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
         }
     }
 
-    return pfnGetInfo(hKernel, propName, propSize, pKernelInfo, pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hKernel, propName, propSize, pKernelInfo, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2014,8 +2245,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
         }
     }
 
-    return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                           pPropSizeRet);
+    ur_result_t result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
+                                         pPropValue, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2053,8 +2286,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         }
     }
 
-    return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                              pPropSizeRet);
+    ur_result_t result = pfnGetSubGroupInfo(hKernel, hDevice, propName,
+                                            propSize, pPropValue, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2074,7 +2309,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
         }
     }
 
-    return pfnRetain(hKernel);
+    ur_result_t result = pfnRetain(hKernel);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hKernel);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2094,7 +2335,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
         }
     }
 
-    return pfnRelease(hKernel);
+    ur_result_t result = pfnRelease(hKernel);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hKernel);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2118,7 +2365,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         }
     }
 
-    return pfnSetArgPointer(hKernel, argIndex, pArgValue);
+    ur_result_t result = pfnSetArgPointer(hKernel, argIndex, pArgValue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2151,7 +2400,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
         }
     }
 
-    return pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+    ur_result_t result =
+        pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2177,7 +2429,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
         }
     }
 
-    return pfnSetArgSampler(hKernel, argIndex, hArgValue);
+    ur_result_t result = pfnSetArgSampler(hKernel, argIndex, hArgValue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2199,7 +2453,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
         }
     }
 
-    return pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+    ur_result_t result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2231,7 +2487,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         }
     }
 
-    return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+    ur_result_t result =
+        pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2257,7 +2516,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hKernel, phNativeKernel);
+    ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2289,7 +2550,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phKernel);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2319,8 +2587,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
         }
     }
 
-    return pfnGetInfo(hQueue, propName, propValueSize, pPropValue,
-                      pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hQueue, propName, propValueSize, pPropValue, pPropSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2358,7 +2628,13 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
         }
     }
 
-    return pfnCreate(hContext, hDevice, pProps, phQueue);
+    ur_result_t result = pfnCreate(hContext, hDevice, pProps, phQueue);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phQueue);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2378,7 +2654,13 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
         }
     }
 
-    return pfnRetain(hQueue);
+    ur_result_t result = pfnRetain(hQueue);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hQueue);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2398,7 +2680,13 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
         }
     }
 
-    return pfnRelease(hQueue);
+    ur_result_t result = pfnRelease(hQueue);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hQueue);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2424,7 +2712,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hQueue, phNativeQueue);
+    ur_result_t result = pfnGetNativeHandle(hQueue, phNativeQueue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2456,7 +2746,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeQueue, hContext, phQueue);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeQueue, hContext, phQueue);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phQueue);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2476,7 +2773,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
         }
     }
 
-    return pfnFinish(hQueue);
+    ur_result_t result = pfnFinish(hQueue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2496,7 +2795,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
         }
     }
 
-    return pfnFlush(hQueue);
+    ur_result_t result = pfnFlush(hQueue);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2525,8 +2826,10 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
         }
     }
 
-    return pfnGetInfo(hEvent, propName, propValueSize, pPropValue,
-                      pPropValueSizeRet);
+    ur_result_t result = pfnGetInfo(hEvent, propName, propValueSize, pPropValue,
+                                    pPropValueSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2558,8 +2861,10 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
         }
     }
 
-    return pfnGetProfilingInfo(hEvent, propName, propValueSize, pPropValue,
-                               pPropValueSizeRet);
+    ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propValueSize,
+                                             pPropValue, pPropValueSizeRet);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2582,7 +2887,9 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
         }
     }
 
-    return pfnWait(numEvents, phEventWaitList);
+    ur_result_t result = pfnWait(numEvents, phEventWaitList);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2602,7 +2909,13 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
         }
     }
 
-    return pfnRetain(hEvent);
+    ur_result_t result = pfnRetain(hEvent);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hEvent);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2622,7 +2935,13 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
         }
     }
 
-    return pfnRelease(hEvent);
+    ur_result_t result = pfnRelease(hEvent);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hEvent);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2648,7 +2967,9 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
         }
     }
 
-    return pfnGetNativeHandle(hEvent, phNativeEvent);
+    ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2680,7 +3001,14 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         }
     }
 
-    return pfnCreateWithNativeHandle(hNativeEvent, hContext, phEvent);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeEvent, hContext, phEvent);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phEvent);
+    }
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2712,7 +3040,10 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
         }
     }
 
-    return pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
+    ur_result_t result =
+        pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2778,9 +3109,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         }
     }
 
-    return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                           pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
-                           phEventWaitList, phEvent);
+    ur_result_t result = pfnKernelLaunch(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2818,7 +3151,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
         }
     }
 
-    return pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2857,8 +3193,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         }
     }
 
-    return pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
-                                    phEventWaitList, phEvent);
+    ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                                  phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2908,8 +3246,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
         }
     }
 
-    return pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
-                            numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
+                         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2961,8 +3302,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         }
     }
 
-    return pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
-                             numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
+                          numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3054,10 +3398,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         }
     }
 
-    return pfnMemBufferReadRect(
+    ur_result_t result = pfnMemBufferReadRect(
         hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3153,10 +3499,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         }
     }
 
-    return pfnMemBufferWriteRect(
+    ur_result_t result = pfnMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3206,9 +3554,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
         }
     }
 
-    return pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
-                            dstOffset, size, numEventsInWaitList,
-                            phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
+                         size, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3295,10 +3645,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         }
     }
 
-    return pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin,
-                                dstOrigin, region, srcRowPitch, srcSlicePitch,
-                                dstRowPitch, dstSlicePitch, numEventsInWaitList,
-                                phEventWaitList, phEvent);
+    ur_result_t result = pfnMemBufferCopyRect(
+        hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
+        srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+        numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3348,9 +3700,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         }
     }
 
-    return pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
-                            size, numEventsInWaitList, phEventWaitList,
-                            phEvent);
+    ur_result_t result =
+        pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
+                         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3405,9 +3759,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
         }
     }
 
-    return pfnMemImageRead(hQueue, hImage, blockingRead, origin, region,
-                           rowPitch, slicePitch, pDst, numEventsInWaitList,
-                           phEventWaitList, phEvent);
+    ur_result_t result = pfnMemImageRead(
+        hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch,
+        pDst, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3463,9 +3819,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
         }
     }
 
-    return pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region,
-                            rowPitch, slicePitch, pSrc, numEventsInWaitList,
-                            phEventWaitList, phEvent);
+    ur_result_t result = pfnMemImageWrite(
+        hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch,
+        pSrc, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3521,9 +3879,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
         }
     }
 
-    return pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
-                           region, numEventsInWaitList, phEventWaitList,
-                           phEvent);
+    ur_result_t result =
+        pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
+                        region, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3579,9 +3939,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         }
     }
 
-    return pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size,
-                           numEventsInWaitList, phEventWaitList, phEvent,
-                           ppRetMap);
+    ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags,
+                                         offset, size, numEventsInWaitList,
+                                         phEventWaitList, phEvent, ppRetMap);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3629,8 +3991,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
         }
     }
 
-    return pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
-                       phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
+                    phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3703,8 +4068,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         }
     }
 
-    return pfnUSMFill(hQueue, ptr, patternSize, pPattern, size,
-                      numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnUSMFill(hQueue, ptr, patternSize, pPattern, size,
+                   numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3757,8 +4125,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         }
     }
 
-    return pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
-                        phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
+                     phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3810,8 +4181,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         }
     }
 
-    return pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
-                          phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
+                       phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3849,7 +4223,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
         }
     }
 
-    return pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    ur_result_t result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3938,8 +4314,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         }
     }
 
-    return pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width,
-                        height, numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result =
+        pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
+                     numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4013,9 +4392,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         }
     }
 
-    return pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch,
-                          width, height, numEventsInWaitList, phEventWaitList,
-                          phEvent);
+    ur_result_t result =
+        pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
+                       height, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4074,9 +4455,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         }
     }
 
-    return pfnDeviceGlobalVariableWrite(
+    ur_result_t result = pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4135,9 +4518,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         }
     }
 
-    return pfnDeviceGlobalVariableRead(hQueue, hProgram, name, blockingRead,
-                                       count, offset, pDst, numEventsInWaitList,
-                                       phEventWaitList, phEvent);
+    ur_result_t result = pfnDeviceGlobalVariableRead(
+        hQueue, hProgram, name, blockingRead, count, offset, pDst,
+        numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
