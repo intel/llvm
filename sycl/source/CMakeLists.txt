@@ -71,11 +71,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   # win_proxy_loader
-  include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_proxy_loader)
-  if(WIN_DUPE)
-    target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loaderd)
-  else()
-    target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loader)
+  if (WIN32)
+    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_proxy_loader)
+    if(WIN_DUPE)
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loaderd)
+    else()
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loader)
+    endif()
   endif()
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
