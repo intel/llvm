@@ -11,7 +11,7 @@ UUR_TEST_SUITE_P(urEnqueueUSMMemAdviseWithParamTest,
 
 TEST_P(urEnqueueUSMMemAdviseWithParamTest, Success) {
     ur_event_handle_t advise_event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemAdvise(queue, ptr, sizeof(int),
+    ASSERT_SUCCESS(urEnqueueUSMMemAdvise(queue, ptr, allocation_size,
                                          getParam(), &advise_event));
 
     ASSERT_NE(advise_event, nullptr);
@@ -31,19 +31,19 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMMemAdviseTest);
 
 TEST_P(urEnqueueUSMMemAdviseTest, InvalidNullHandleQueue) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urEnqueueUSMMemAdvise(nullptr, ptr, sizeof(int),
+                     urEnqueueUSMMemAdvise(nullptr, ptr, allocation_size,
                                            UR_MEM_ADVICE_DEFAULT, nullptr));
 }
 
 TEST_P(urEnqueueUSMMemAdviseTest, InvalidNullPointerMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urEnqueueUSMMemAdvise(queue, nullptr, sizeof(int),
+                     urEnqueueUSMMemAdvise(queue, nullptr, allocation_size,
                                            UR_MEM_ADVICE_DEFAULT, nullptr));
 }
 
 TEST_P(urEnqueueUSMMemAdviseTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
-                     urEnqueueUSMMemAdvise(queue, ptr, sizeof(int),
+                     urEnqueueUSMMemAdvise(queue, ptr, allocation_size,
                                            UR_MEM_ADVICE_FORCE_UINT32,
                                            nullptr));
 }
@@ -56,6 +56,6 @@ TEST_P(urEnqueueUSMMemAdviseTest, InvalidSizeZero) {
 
 TEST_P(urEnqueueUSMMemAdviseTest, InvalidSizeTooLarge) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
-                     urEnqueueUSMMemAdvise(queue, ptr, sizeof(int) * 2,
+                     urEnqueueUSMMemAdvise(queue, ptr, allocation_size * 2,
                                            UR_MEM_ADVICE_DEFAULT, nullptr));
 }
