@@ -507,3 +507,6 @@ add_custom_target(deploy-sycl-toolchain
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
+
+# SYCL In-Tree End-to-End tests
+add_subdirectory(test-e2e)
