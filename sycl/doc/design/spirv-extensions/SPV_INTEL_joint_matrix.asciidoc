@@ -222,13 +222,14 @@ To be used by 'Component Type Interpretation' optional parameter of
 [options="header"]
 |====
 2+^| Interpretation ^| Enabling capability
-| 0 | *TF32* +
+| 0 | *None* |
+| 1 | *TF32* +
 'Component Type' must be _float_. Interpret 'Component Type' of joint matrix
 as TF32. | *{tf32_capability_name}*
-| 1 | *Bfloat16* +
+| 2 | *Bfloat16* +
 'Component Type' must be 16-bit _integer_. Interpret 'Component Type' of joint
 matrix as Bfloat16. | *{bf16_capability_name}*
-| 2 | *PackedInt2* +
+| 3 | *PackedInt2* +
 'Component Type' must be _integer_. Interpret <N>-bit _integer_ 'Component Type'
 of joint matrix as a vector of 2-bit integers. Number of components of this
 vector is limited by enabled SPIR-V capabilities, which brings limitations on
@@ -237,7 +238,7 @@ If a joint matrix type that has *ComponentTypeInterpretation* operand with
 *PackedInt2* value is used in an arithmetic instruction, then to verify
 this instruction's inputs 'Column' and 'Row' of the matrix should be taken with
 a factor of a size of this packed vector.  | *{packed2_capability_name}*
-| 3 | *PackedInt4* +
+| 4 | *PackedInt4* +
 Interpret <N>-bit _integer_ 'Component Type' of joint matrix as a vector of 4-bit integers.
 Number of components of this vector is limited by enabled SPIR-V capabilities,
 which brings limitations on possible width of the _integer_. +
