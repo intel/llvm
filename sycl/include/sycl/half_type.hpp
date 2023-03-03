@@ -13,6 +13,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/vector_traits.hpp>
 
 #include <functional>
 #include <limits>
@@ -253,19 +254,7 @@ using BIsRepresentationT = half;
 // as a kernel argument which is expected to be floating point number.
 template <int NumElements> struct half_vec {
   alignas(
-      // TODO This is copied verbatim from detail/type_traits.h to avoid a
-      // circular dependency because detail/type_traits.h includes
-      // sycl/half_type.h as it templates on sycl::half
-      std::conditional<
-          NumElements == 3,
-          std::integral_constant<
-              int, sizeof(std::remove_cv<
-                          std::remove_reference<StorageT>::type>::type) *
-                       4>,
-          std::integral_constant<
-              int, sizeof(std::remove_cv<
-                          std::remove_reference<StorageT>::type>::type) *
-                       NumElements>>::type::value) StorageT s[NumElements];
+      vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
 
   __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
   constexpr void initialize_data() {
