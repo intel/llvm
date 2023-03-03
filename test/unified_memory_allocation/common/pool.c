@@ -3,13 +3,19 @@
 
 #include "pool.h"
 
+#include "provider.h"
 #include <uma/memory_pool_ops.h>
 
 #include <assert.h>
 #include <stdlib.h>
 
-static enum uma_result_t nullInitialize(void *params, void **pool) {
+static enum uma_result_t nullInitialize(uma_memory_provider_handle_t *providers,
+                                        size_t numProviders, void *params,
+                                        void **pool) {
+    (void)providers;
+    (void)numProviders;
     (void)params;
+    assert(providers && numProviders);
     *pool = NULL;
     return UMA_RESULT_SUCCESS;
 }
@@ -73,8 +79,9 @@ uma_memory_pool_handle_t nullPoolCreate(void) {
                                         .free = nullFree,
                                         .get_last_result = nullGetLastResult};
 
+    uma_memory_provider_handle_t providerDesc = nullProviderCreate();
     uma_memory_pool_handle_t hPool;
-    enum uma_result_t ret = umaPoolCreate(&ops, NULL, &hPool);
+    enum uma_result_t ret = umaPoolCreate(&ops, &providerDesc, 1, NULL, &hPool);
 
     (void)ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
@@ -86,64 +93,75 @@ struct traceParams {
     void (*trace)(const char *);
 };
 
-static enum uma_result_t traceInitialize(void *params, void **pool) {
-    struct traceParams *tracePool =
-        (struct traceParams *)malloc(sizeof(struct traceParams));
-    *tracePool = *((struct traceParams *)params);
-    *pool = tracePool;
+struct tracePool {
+    struct traceParams params;
+};
 
+static enum uma_result_t
+traceInitialize(uma_memory_provider_handle_t *providers, size_t numProviders,
+                void *params, void **pool) {
+    struct tracePool *tracePool =
+        (struct tracePool *)malloc(sizeof(struct tracePool));
+    tracePool->params = *((struct traceParams *)params);
+
+    (void)providers;
+    (void)numProviders;
+    assert(providers && numProviders);
+
+    *pool = tracePool;
     return UMA_RESULT_SUCCESS;
 }
 
 static void traceFinalize(void *pool) { free(pool); }
 
 static void *traceMalloc(void *pool, size_t size) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("malloc");
-    return umaPoolMalloc(tracePool->hUpstreamPool, size);
+    tracePool->params.trace("malloc");
+    return umaPoolMalloc(tracePool->params.hUpstreamPool, size);
 }
 
 static void *traceCalloc(void *pool, size_t num, size_t size) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("calloc");
-    return umaPoolCalloc(tracePool->hUpstreamPool, num, size);
+    tracePool->params.trace("calloc");
+    return umaPoolCalloc(tracePool->params.hUpstreamPool, num, size);
 }
 
 static void *traceRealloc(void *pool, void *ptr, size_t size) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("realloc");
-    return umaPoolRealloc(tracePool->hUpstreamPool, ptr, size);
+    tracePool->params.trace("realloc");
+    return umaPoolRealloc(tracePool->params.hUpstreamPool, ptr, size);
 }
 
 static void *traceAlignedMalloc(void *pool, size_t size, size_t alignment) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("aligned_malloc");
-    return umaPoolAlignedMalloc(tracePool->hUpstreamPool, size, alignment);
+    tracePool->params.trace("aligned_malloc");
+    return umaPoolAlignedMalloc(tracePool->params.hUpstreamPool, size,
+                                alignment);
 }
 
 static size_t traceMallocUsableSize(void *pool, void *ptr) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("malloc_usable_size");
-    return umaPoolMallocUsableSize(tracePool->hUpstreamPool, ptr);
+    tracePool->params.trace("malloc_usable_size");
+    return umaPoolMallocUsableSize(tracePool->params.hUpstreamPool, ptr);
 }
 
 static void traceFree(void *pool, void *ptr) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("free");
-    umaPoolFree(tracePool->hUpstreamPool, ptr);
+    tracePool->params.trace("free");
+    umaPoolFree(tracePool->params.hUpstreamPool, ptr);
 }
 
 enum uma_result_t traceGetLastResult(void *pool, const char **ppMsg) {
-    struct traceParams *tracePool = (struct traceParams *)pool;
+    struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->trace("get_last_result");
-    return umaPoolGetLastResult(tracePool->hUpstreamPool, ppMsg);
+    tracePool->params.trace("get_last_result");
+    return umaPoolGetLastResult(tracePool->params.hUpstreamPool, ppMsg);
 }
 
 uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
@@ -163,8 +181,11 @@ uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
     struct traceParams params = {.hUpstreamPool = hUpstreamPool,
                                  .trace = trace};
 
+    uma_memory_provider_handle_t providerDesc = nullProviderCreate();
+
     uma_memory_pool_handle_t hPool;
-    enum uma_result_t ret = umaPoolCreate(&ops, &params, &hPool);
+    enum uma_result_t ret =
+        umaPoolCreate(&ops, &providerDesc, 1, &params, &hPool);
 
     (void)ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
