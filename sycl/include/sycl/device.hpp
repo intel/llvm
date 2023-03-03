@@ -94,9 +94,10 @@ public:
 
   void ext_oneapi_enable_peer_access(const device &peer);
   void ext_oneapi_disable_peer_access(const device &peer);
-  bool ext_oneapi_can_access_peer(const device &peer,
-                                  ext::oneapi::peer_access value =
-                                      ext::oneapi::peer_access::access_supported);
+  bool
+  ext_oneapi_can_access_peer(const device &peer,
+                             ext::oneapi::peer_access value =
+                                 ext::oneapi::peer_access::access_supported);
 
   /// Get instance of device
   ///
