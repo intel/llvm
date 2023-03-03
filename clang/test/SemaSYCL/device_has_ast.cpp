@@ -57,7 +57,69 @@ void func5() {}
 // CHECK-NOT: SYCLDeviceHasAttr
 [[sycl::device_has(sycl::aspect::gpu)]] void func6() {}
 
-// CHECK: CXXRecordDecl {{.*}} KernelFunctor
+// CHECK: FunctionTemplateDecl {{.*}} func7
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... Asp
+// CHECK-NEXT: FunctionDecl {{.*}} func7
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: PackExpansionExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} NonTypeTemplateParm {{.*}} 'Asp' 'sycl::aspect'
+
+// CHECK: FunctionDecl {{.*}} func7 'void ()'
+// CHECK-NEXT: TemplateArgument pack
+// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral 2
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... Asp
+// CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
+// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... Asp
+// CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
+// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 2
+
+// CHECK: FunctionDecl {{.*}} func7 'void ()'
+// CHECK-NEXT: TemplateArgument pack
+// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... Asp
+// CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
+// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
+template <sycl::aspect... Asp>
+[[sycl::device_has(Asp...)]] void func7() {}
+
+// CHECK: FunctionTemplateDecl {{.*}} func8
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} Asp
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... AspPack
+// CHECK-NEXT: FunctionDecl {{.*}} func8
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} NonTypeTemplateParm {{.*}} 'Asp' 'sycl::aspect'
+// CHECK-NEXT: PackExpansionExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} NonTypeTemplateParm {{.*}} 'AspPack' 'sycl::aspect'
+
+// CHECK-NEXT: FunctionDecl {{.*}} func8
+// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument pack
+// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} Asp
+// CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
+// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} ... AspPack
+// CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
+// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
+template <sycl::aspect Asp, sycl::aspect... AspPack>
+[[sycl::device_has(Asp, AspPack...)]] void func8() {}
+
+// CHECK: CXXRecordDecl {{.*}} KernelFunctor definition
 class KernelFunctor {
 public:
   void operator()() const {
@@ -67,6 +129,9 @@ public:
     func4<sycl::aspect::host>();
     func5();
     func6();
+    func7<sycl::aspect::cpu, sycl::aspect::gpu>();
+    func7<sycl::aspect::cpu>();
+    func8<sycl::aspect::host, sycl::aspect::cpu>();
   }
 };
 
