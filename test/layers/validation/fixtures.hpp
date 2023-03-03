@@ -35,4 +35,55 @@ struct valPlatformsTest : urTest {
     std::vector<ur_platform_handle_t> platforms;
 };
 
+struct valPlatformTest : valPlatformsTest {
+
+    void SetUp() override {
+        valPlatformsTest::SetUp();
+        ASSERT_GE(platforms.size(), 1);
+        platform = platforms[0]; // TODO - which to choose?
+    }
+
+    ur_platform_handle_t platform;
+};
+
+struct valAllDevicesTest : valPlatformTest {
+
+    void SetUp() override {
+        valPlatformTest::SetUp();
+
+        uint32_t count = 0;
+        if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count) ||
+            count == 0) {
+            FAIL() << "Failed to get devices";
+        }
+
+        devices.resize(count);
+        if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
+                        nullptr)) {
+            FAIL() << "Failed to get devices";
+        }
+    }
+    std::vector<ur_device_handle_t> devices;
+};
+
+struct valDeviceTest : valAllDevicesTest {
+
+    void SetUp() override {
+        valAllDevicesTest::SetUp();
+        ASSERT_GE(devices.size(), 1);
+        device = devices[0];
+    }
+    ur_device_handle_t device;
+};
+
+struct valDeviceTestMultithreaded : valDeviceTest,
+                                    public ::testing::WithParamInterface<int> {
+
+    void SetUp() override {
+        valDeviceTest::SetUp();
+        threadCount = GetParam();
+    }
+    int threadCount;
+};
+
 #endif // UR_VALIDATION_TEST_HELPERS_H
