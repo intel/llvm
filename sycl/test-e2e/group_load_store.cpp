@@ -19,11 +19,14 @@ constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
 constexpr int N_RESULTS = 128;
 constexpr int BYTES_PER_WI = 64;
 
-__attribute__((noinline)) void marker(int &x) { ++x; }
+__attribute__((noinline)) __attribute__((optnone)) void
+marker(int l = __builtin_LINE()) {
+  std::ignore = l;
+}
 
 template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
   queue q;
-  buffer<bool, 2> results(range{N_RESULTS, GLOBAL_SIZE});
+  buffer<bool, 1> results(N_RESULTS * GLOBAL_SIZE);
   {
     host_accessor res_acc{results};
     for (auto &res : res_acc)
@@ -39,13 +42,18 @@ template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
     local_accessor<char, 1> local_mem_acc{WG_SIZE * BYTES_PER_WI, cgh};
     cgh.parallel_for<KernelName>(
         nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
-          int result_index = 0;
+          // Low-level pointer arithmetic and skipping 0th index to make llvm IR
+          // dumps nicer.
+          auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
           auto Record = [&](bool val) {
-            res_acc[id<2>(result_index++, ndi.get_global_id(0))] = val;
+            res_ptr++;
+            *res_ptr = val;
           };
 
-          // TODO: Use accessor::get_pointer once it starts returing raw
-          // pointer.
+          // TODO: Use
+          // accessor::get_pointer
+          // once it starts
+          // returing raw pointer.
           auto *global_mem =
               global_mem_acc.get_multi_ptr<access::decorated::no>().get_raw();
           auto *local_mem =
@@ -56,18 +64,18 @@ template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
   {
     host_accessor res_acc{results};
     if constexpr (false) {
-      for (int i = 0; i < N_RESULTS; ++i) {
+      for (int i = 1; i < N_RESULTS; ++i) {
         int errors = 0;
         for (int j = 0; j < GLOBAL_SIZE; ++j) {
-          std::cout << " " << res_acc[id<2>(i, j)];
+          std::cout << " " << res_acc[j * N_RESULTS + i];
         }
         std::cout << std::endl;
       }
     }
-    for (int i = 0; i < N_RESULTS; ++i) {
+    for (int i = 1; i < N_RESULTS; ++i) {
       int errors = 0;
       for (int j = 0; j < GLOBAL_SIZE; ++j) {
-        if (!res_acc[id<2>(i, j)]) {
+        if (!res_acc[j * N_RESULTS + i]) {
           ++errors;
           if (errors < 5)
             std::cout << "Error in condition " << i << " for work item " << j
@@ -108,6 +116,10 @@ int main() {
     Check(global_mem + group_offset);
     Check(usm_mem + group_offset);
     Check(local_mem);
+    // Optimizer would optimize all of the following to a single load (instead
+    // of three loads) but that still suffices for the purposes of this test. If
+    // someone wants to read IR dumps and have all three operations done
+    // independently, a call to marker() can be inserted in between Checks.
     Check(
         address_space_cast<access::address_space::global_space,
                            access::decorated::yes>(global_mem + group_offset));
@@ -126,7 +138,6 @@ int main() {
     auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
     auto *local_mem = reinterpret_cast<int *>(local_ptr);
 
-    int marker_var = 0;
     auto sg = ndi.get_sub_group();
 
     // Make groups non-contiguous.
@@ -147,60 +158,59 @@ int main() {
       Record(out == init);
     };
 
-    marker(marker_var);               // CHECK: call {{.*}}marker
+    marker();               // CHECK: call {{.*}}marker
     Check(global_mem + group_offset); // Dynamic address space dispatch.
-    // CHECK: tail call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var);            // CHECK: call {{.*}}marker
+    marker();            // CHECK: call {{.*}}marker
     Check(usm_mem + group_offset); // Dynamic address space dispatch.
-    // CHECK: tail call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(local_mem + sg_offset);
-    // CHECK: tail call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(
         address_space_cast<access::address_space::global_space,
                            access::decorated::yes>(global_mem + group_offset));
     // CHECK-NOT: br
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::no>(global_mem + group_offset));
     // CHECK-NOT: br
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var); // CHECK: call {{.*}}marker
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::yes>(global_mem + group_offset)
               .get_decorated());
     // CHECK-NOT: br
-    // CHECK: tail call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(address_space_cast<access::address_space::local_space,
                              access::decorated::yes>(local_mem + sg_offset));
     // CHECK-NOT: SubgroupBlockRead
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(address_space_cast<access::address_space::local_space,
                              access::decorated::no>(local_mem + sg_offset));
     // CHECK-NOT: SubgroupBlockRead
 
-    marker(marker_var); // CHECK: call {{.*}}marker
+    marker(); // CHECK: call {{.*}}marker
     Check(address_space_cast<access::address_space::local_space,
                              access::decorated::yes>(local_mem + sg_offset)
               .get_decorated());
     // CHECK-NOT: SubgroupBlockRead
 
-    marker(marker_var); // CHECK: call {{.*}}marker
-    Record(marker_var != 0);
+    marker(); // CHECK: call {{.*}}marker
   });
 
   std::cout << "VecWGKernel" << std::endl;
@@ -292,7 +302,6 @@ int main() {
     auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
     auto *local_mem = reinterpret_cast<int *>(local_ptr);
 
-    int marker_var = 0;
     auto sg = ndi.get_sub_group();
 
     constexpr int VEC_SIZE = 2;
@@ -345,7 +354,6 @@ int main() {
     auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
     auto *local_mem = reinterpret_cast<int *>(local_ptr);
 
-    int marker_var = 0;
     auto sg = ndi.get_sub_group();
 
     constexpr int VEC_SIZE = 2;
@@ -407,25 +415,24 @@ int main() {
       Record(success);
     };
 
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     Check(global_mem + group_offset);
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     Check(usm_mem + group_offset);
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     // Check(local_mem); // FIXME: Why does it fail?
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     Check(
         address_space_cast<access::address_space::global_space,
                            access::decorated::yes>(global_mem + group_offset));
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::no>(global_mem + group_offset));
-    marker(marker_var); // check: call {{.*}}marker
+    marker(); // check: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::yes>(global_mem + group_offset)
               .get_decorated());
-    marker(marker_var); // check: call {{.*}}marker
-    Record(marker_var != 0);
+    marker(); // check: call {{.*}}marker
     return;
   });
   return 0;
