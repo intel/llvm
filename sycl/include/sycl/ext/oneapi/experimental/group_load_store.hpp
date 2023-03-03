@@ -144,15 +144,13 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
       return true;
   }();
   auto generic = [&]() {
-    for (int i = 0; i < N; ++i) {
-      if constexpr (blocked) {
+    sycl::detail::dim_loop<N>([&](size_t i) {
+      if constexpr (blocked)
         out[i] = in_ptr[g.get_local_linear_id() * N + i];
-
-      } else { // striped
+      else // striped
         out[i] =
             in_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i];
-      }
-    }
+    });
   };
 
   return generic();

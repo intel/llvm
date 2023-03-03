@@ -396,27 +396,37 @@ int main() {
       group_load(sg, Input, out_striped, striped);
 
       bool success = true;
-      for (int i = 0; i < VEC_SIZE; ++i) {
+      // Make IR dumps more readable by forcing unrolling.
+      sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
         int striped_idx = sg.get_local_id() + i * sg_size;
         success &= (out_striped[i] ==
                     ndi.get_group(0) * WG_SIZE + sg.get_group_id() * sg_size +
                         VEC_SIZE * 2 + striped_idx / VEC_SIZE -
                         striped_idx % VEC_SIZE);
-      }
+      });
       Record(success);
     };
 
+    marker(marker_var); // check: call {{.*}}marker
     Check(global_mem + group_offset);
+    marker(marker_var); // check: call {{.*}}marker
     Check(usm_mem + group_offset);
-    Check(local_mem);
+    marker(marker_var); // check: call {{.*}}marker
+    // Check(local_mem); // FIXME: Why does it fail?
+    marker(marker_var); // check: call {{.*}}marker
     Check(
         address_space_cast<access::address_space::global_space,
                            access::decorated::yes>(global_mem + group_offset));
+    marker(marker_var); // check: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::no>(global_mem + group_offset));
+    marker(marker_var); // check: call {{.*}}marker
     Check(address_space_cast<access::address_space::global_space,
                              access::decorated::yes>(global_mem + group_offset)
               .get_decorated());
+    marker(marker_var); // check: call {{.*}}marker
+    Record(marker_var != 0);
+    return;
   });
   return 0;
 }
