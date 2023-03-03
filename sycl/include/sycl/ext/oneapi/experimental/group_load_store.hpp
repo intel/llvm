@@ -81,7 +81,7 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group loads/stoes are not supported on host.");
 #endif
-};
+}
 
 // Store API scalar
 template <typename Group, typename InputT, typename OutputIteratorT,
@@ -99,6 +99,64 @@ void group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group loads/stoes are not supported on host.");
 #endif
+}
+
+// TODO: Should that go into other place (shared between different extensions)?
+enum class group_algorithm_data_placement { blocked, striped };
+
+namespace property {
+struct data_placement_key {
+  template <group_algorithm_data_placement Placement>
+  using value_t =
+      property_value<data_placement_key,
+                     std::integral_constant<int, static_cast<int>(Placement)>>;
+};
+
+template <group_algorithm_data_placement Placement>
+inline constexpr data_placement_key::value_t<Placement> data_placement;
+} // namespace property
+
+template <>
+struct is_property_key<property::data_placement_key> : std::true_type {};
+namespace detail {
+template <> struct PropertyToKind<property::data_placement_key> {
+  static constexpr PropKind Kind = PropKind::DataPlacement;
+};
+template <>
+struct IsCompileTimeProperty<property::data_placement_key> : std::true_type {};
+} // namespace detail
+
+// Load API sycl::vec overload
+template <typename Group, typename InputIteratorT, typename OutputT, int N,
+          typename Properties = decltype(properties()),
+          typename = std::enable_if_t<std::is_convertible_v<
+              remove_decoration_t<
+                  typename std::iterator_traits<InputIteratorT>::value_type>,
+              OutputT>>>
+void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
+                Properties properties = {}) {
+  constexpr bool blocked = [&]() {
+    if constexpr (properties
+                      .template has_property<property::data_placement_key>())
+      return properties.template get_property<property::data_placement_key>() ==
+             property::data_placement<group_algorithm_data_placement::blocked>;
+    else
+      return true;
+  }();
+  static_assert(blocked);
+  auto generic = [&]() {
+    for (int i = 0; i < N; ++i) {
+      if constexpr (blocked) {
+        out[i] = in_ptr[g.get_local_linear_id() * N + i];
+
+      } else { // striped
+        out[i] =
+            in_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i];
+      }
+    }
+  };
+
+  return generic();
 }
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

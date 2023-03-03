@@ -203,5 +203,55 @@ int main() {
     Record(marker_var != 0);
   });
 
+  std::cout << "VecWGKernel" << std::endl;
+  test<class VecWGKernel>([](auto ndi, auto global_ptr, auto usm_ptr,
+                             auto local_ptr, auto Record) {
+    auto *global_mem = reinterpret_cast<int *>(global_ptr);
+    auto *usm_mem = reinterpret_cast<int *>(usm_ptr);
+    auto *local_mem = reinterpret_cast<int *>(local_ptr);
+
+    constexpr int VEC_SIZE = 2;
+    // Make groups non-contiguous.
+    int group_offset = ndi.get_group(0) * WG_SIZE * 4;
+    int local_offset = ndi.get_local_id(0) * VEC_SIZE;
+
+    int init = ndi.get_global_id(0);
+    for (int i = 0; i < VEC_SIZE; ++i) {
+      global_mem[group_offset + local_offset + i] = init + i;
+      usm_mem[group_offset + local_offset + i] = init + i;
+      local_mem[local_offset + i] = init + i;
+    }
+
+    auto g = ndi.get_group();
+
+    auto Check = [&](auto Input) {
+      int2 out, out_blocked; // Must be in sync with VEC_SIZE.
+      group_load(g, Input, out);
+      using namespace sycl::ext::oneapi::experimental;
+      using namespace sycl::ext::oneapi::experimental::property;
+      auto props =
+          properties(data_placement<group_algorithm_data_placement::blocked>);
+      group_load(g, Input, out_blocked, props);
+
+      bool success = true;
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        success &= (out[i] == init + i);
+        // success &= (out_blocked[i] == out[i]);
+      }
+      Record(success);
+    };
+
+    Check(global_mem + group_offset);
+    Check(usm_mem + group_offset);
+    Check(local_mem);
+    Check(
+        address_space_cast<access::address_space::global_space,
+                           access::decorated::yes>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::no>(global_mem + group_offset));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem + group_offset)
+              .get_decorated());
+  });
   return 0;
 }
