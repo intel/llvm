@@ -10,7 +10,7 @@
 #define UMA_MEMORY_POOL_H 1
 
 #include <uma/base.h>
-#include <uma/memory_pool_ops.h>
+#include <uma/memory_provider.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,13 +18,19 @@ extern "C" {
 
 typedef struct uma_memory_pool_t *uma_memory_pool_handle_t;
 
+struct uma_memory_pool_ops_t;
+
 ///
 /// \brief Creates new memory pool
 /// \param ops instance of uma_memory_pool_ops_t
+/// \param providers array of memory providers that will be used for coarse-grain allocations. Should contain at least one memory provider.
+/// \param numProvider number of elements in the providers array
 /// \param params pointer to pool-specific parameters
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
 ///
-enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops, void *params,
+enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops,
+                                uma_memory_provider_handle_t *providers,
+                                size_t numProviders, void *params,
                                 uma_memory_pool_handle_t *hPool);
 
 ///
@@ -88,6 +94,12 @@ size_t umaPoolMallocUsableSize(uma_memory_pool_handle_t hPool, void *ptr);
 void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 
 ///
+/// \brief Frees the memory space pointed by ptr if it belongs to UMA pool, does nothing otherwise
+/// \param ptr pointer to the allocated memory
+///
+void umaFree(void *ptr);
+
+///
 /// \brief Retrieve string representation of the underlying pool specific
 ///        result reported by the last API that returned
 ///        UMA_RESULT_ERROR_POOL_SPECIFIC or NULL ptr (in case of allocation
@@ -110,6 +122,12 @@ void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 ///         returned indicates that the adapter specific result is an error.
 enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
                                        const char **ppMessage);
+
+///
+/// \brief Retrieve memory pool associated with a given ptr.
+/// \param ptr pointer to memory belonging to a memory pool
+/// \return handle to a memory pool that contains ptr or NULL if pointer does not belong to any UMA pool
+uma_memory_pool_handle_t umaPoolByPtr(const void *ptr);
 
 #ifdef __cplusplus
 }

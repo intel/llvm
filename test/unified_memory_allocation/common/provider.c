@@ -32,7 +32,7 @@ static enum uma_result_t nullFree(void *provider, void *ptr, size_t size) {
     return UMA_RESULT_SUCCESS;
 }
 
-enum uma_result_t nullGetLastResult(void *provider, const char **ppMsg) {
+static enum uma_result_t nullGetLastResult(void *provider, const char **ppMsg) {
     (void)provider;
     (void)ppMsg;
     return UMA_RESULT_SUCCESS;
@@ -87,7 +87,8 @@ static enum uma_result_t traceFree(void *provider, void *ptr, size_t size) {
     return umaMemoryProviderFree(traceProvider->hUpstreamProvider, ptr, size);
 }
 
-enum uma_result_t traceGetLastResult(void *provider, const char **ppMsg) {
+static enum uma_result_t traceGetLastResult(void *provider,
+                                            const char **ppMsg) {
     struct traceParams *traceProvider = (struct traceParams *)provider;
 
     traceProvider->trace("get_last_result");
