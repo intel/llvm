@@ -499,6 +499,8 @@ desc: "Device local memory type"
 class: $xDevice
 name: $x_device_local_mem_type_t
 etors:
+    - name: NONE
+      desc: "No local memory support"
     - name: LOCAL
       desc: "Dedicated local memory"
     - name: GLOBAL

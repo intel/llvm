@@ -942,8 +942,9 @@ typedef enum ur_device_mem_cache_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device local memory type
 typedef enum ur_device_local_mem_type_t {
-    UR_DEVICE_LOCAL_MEM_TYPE_LOCAL = 0,  ///< Dedicated local memory
-    UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL = 1, ///< Global memory
+    UR_DEVICE_LOCAL_MEM_TYPE_NONE = 0,   ///< No local memory support
+    UR_DEVICE_LOCAL_MEM_TYPE_LOCAL = 1,  ///< Dedicated local memory
+    UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL = 2, ///< Global memory
     /// @cond
     UR_DEVICE_LOCAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
