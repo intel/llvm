@@ -974,7 +974,7 @@ using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
 
 typedef enum {
- access_supported,
+  access_supported,
   atomics_supported,
 } _pi_peer_attr;
 

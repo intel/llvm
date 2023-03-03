@@ -5366,7 +5366,8 @@ pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
   return {};
 }
 
-pi_result hip_piextDisablePeer(pi_device command_device, pi_device peer_device) {
+pi_result hip_piextDisablePeer(pi_device command_device,
+                               pi_device peer_device) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
@@ -5376,8 +5377,8 @@ pi_result hip_piextDisablePeer(pi_device command_device, pi_device peer_device) 
   return {};
 }
 
-pi_result hip_piextCanAccessPeer(pi_device command_device, pi_device peer_device,
-                             pi_peer_attr attr) {
+pi_result hip_piextCanAccessPeer(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr) {
 
   std::ignore = command_device;
   std::ignore = peer_device;

@@ -225,8 +225,9 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
 
   if (Device != Peer) {
     const detail::plugin Plugin = impl->getPlugin();
-    RT::PiResult Err = Plugin.call_nocheck<detail::PiApiKind::piextCanAccessPeer>(
-        Device, Peer, attr);
+    RT::PiResult Err =
+        Plugin.call_nocheck<detail::PiApiKind::piextCanAccessPeer>(Device, Peer,
+                                                                   attr);
 
     if (Err != PI_SUCCESS) {
       return false;

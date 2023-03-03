@@ -5831,7 +5831,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
-    // Peer to Peer
+  // Peer to Peer
   _PI_CL(piextEnablePeer, cuda_piextEnablePeer)
   _PI_CL(piextDisablePeer, cuda_piextDisablePeer)
   _PI_CL(piextCanAccessPeer, cuda_piextCanAccessPeer)
