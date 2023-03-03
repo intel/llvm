@@ -36,9 +36,8 @@ __DPCPP_SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 // specialization constant and should be used if native specialization constants
 // are not available.
 template <typename T>
-__DPCPP_SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID,
-                                                      const void *DefaultValue,
-                                                      const void *RTBuffer);
+__DPCPP_SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 
 template <typename T>
 __DPCPP_SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(

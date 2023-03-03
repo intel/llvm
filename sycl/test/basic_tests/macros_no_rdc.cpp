@@ -1,3 +1,4 @@
+// clang-format off
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-only -E -dD -fno-sycl-rdc %s -o %t.device
 // RUN: %clangxx %fsycl-host-only -fno-sycl-rdc -E -dD %s -o %t.host
 //

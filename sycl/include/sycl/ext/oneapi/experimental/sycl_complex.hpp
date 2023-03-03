@@ -899,7 +899,8 @@ proj(_Tp __re) {
 // polar
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
-__DPCPP_SYCL_EXTERNAL complex<_Tp> polar(const _Tp &__rho, const _Tp &__theta = _Tp()) {
+__DPCPP_SYCL_EXTERNAL complex<_Tp> polar(const _Tp &__rho,
+                                         const _Tp &__theta = _Tp()) {
   if (sycl::isnan(__rho) || sycl::signbit(__rho))
     return complex<_Tp>(_Tp(NAN), _Tp(NAN));
   if (sycl::isnan(__theta)) {
@@ -1303,8 +1304,9 @@ basic_ostream<_CharT, _Traits> &operator<<(basic_ostream<_CharT, _Traits> &__os,
 }
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
-__DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY inline const sycl::stream &
-operator<<(const sycl::stream &__ss, const complex<_Tp> &_x) {
+__DPCPP_SYCL_EXTERNAL
+    _SYCL_EXT_CPLX_INLINE_VISIBILITY inline const sycl::stream &
+    operator<<(const sycl::stream &__ss, const complex<_Tp> &_x) {
   return __ss << "(" << _x.real() << "," << _x.imag() << ")";
 }
 

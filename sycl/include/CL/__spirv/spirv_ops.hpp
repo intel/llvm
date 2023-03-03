@@ -46,12 +46,13 @@ template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *
-__spirv_JointMatrixMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *
+    __spirv_JointMatrixMadINTEL(
+        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *C,
+        __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
@@ -60,12 +61,13 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
-__spirv_JointMatrixUUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+    __spirv_JointMatrixUUMadINTEL(
+        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
+        __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
@@ -74,12 +76,13 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
-__spirv_JointMatrixUSMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+    __spirv_JointMatrixUSMadINTEL(
+        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
+        __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
@@ -88,12 +91,13 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
-__spirv_JointMatrixSUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *
+    __spirv_JointMatrixSUMadINTEL(
+        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
+        __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -231,79 +235,79 @@ template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
 
 template <typename ImageT, typename SampledType>
-extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
+extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT,
+                                                              __ocl_sampler_t);
 
 template <typename SampledType, typename TempRetT, typename TempArgT>
-extern __DPCPP_SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
-                                                             TempArgT, int,
-                                                             float);
+extern __DPCPP_SYCL_EXTERNAL TempRetT
+__spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, float);
 
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(                        \
       AS const Type *P, __spv::Scope::Flag S,                                  \
       __spv::MemorySemanticsMask::Flag O);
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
-  extern __DPCPP_SYCL_EXTERNAL void __spirv_AtomicStore(                               \
+  extern __DPCPP_SYCL_EXTERNAL void __spirv_AtomicStore(                       \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicExchange(                            \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicExchange(                    \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(                     \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(             \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag E,    \
       __spv::MemorySemanticsMask::Flag U, Type V, Type C);
 #define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicIAdd(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicIAdd(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicISub(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicISub(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_FADD(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(                             \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(                     \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMin(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMin(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMin(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMin(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_FMIN(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(                             \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(                     \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMax(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMax(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMax(                                \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMax(                        \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_FMAX(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(                             \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(                     \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(                                 \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(                         \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_OR(AS, Type)                                            \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(                                  \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(                          \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(                                 \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(                         \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 
@@ -499,18 +503,21 @@ template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupShuffleDownINTEL(
-    dataT Current, dataT Next, uint32_t Delta) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupShuffleDownINTEL(dataT Current, dataT Next,
+                                 uint32_t Delta) noexcept;
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupShuffleUpINTEL(
-    dataT Previous, dataT Current, uint32_t Delta) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupShuffleUpINTEL(dataT Previous, dataT Current,
+                               uint32_t Delta) noexcept;
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupShuffleXorINTEL(dataT Data, uint32_t Value) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
-    const __attribute__((opencl_global)) uint8_t *Ptr) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
+                               uint8_t *Ptr) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
@@ -518,8 +525,9 @@ __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint8_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
-    const __attribute__((opencl_global)) uint16_t *Ptr) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
+                               uint16_t *Ptr) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
@@ -527,8 +535,9 @@ __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint16_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
-    const __attribute__((opencl_global)) uint32_t *Ptr) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
+                               uint32_t *Ptr) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
@@ -536,8 +545,9 @@ __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
-    const __attribute__((opencl_global)) uint64_t *Ptr) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
+                               uint64_t *Ptr) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
@@ -621,28 +631,36 @@ __spirv_ArbitraryFloatCastToIntINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
                                      int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatAddINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatAddINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                               sycl::detail::ap_int<WB> B, int32_t MB,
+                               int32_t Mout, int32_t EnableSubnormals = 0,
+                               int32_t RoundingMode = 0,
+                               int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatSubINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatSubINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                               sycl::detail::ap_int<WB> B, int32_t MB,
+                               int32_t Mout, int32_t EnableSubnormals = 0,
+                               int32_t RoundingMode = 0,
+                               int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatMulINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatMulINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                               sycl::detail::ap_int<WB> B, int32_t MB,
+                               int32_t Mout, int32_t EnableSubnormals = 0,
+                               int32_t RoundingMode = 0,
+                               int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatDivINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatDivINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                               sycl::detail::ap_int<WB> B, int32_t MB,
+                               int32_t Mout, int32_t EnableSubnormals = 0,
+                               int32_t RoundingMode = 0,
+                               int32_t RoundingAccuracy = 0) noexcept;
 
 // Comparison built-ins don't use Subnormal Support, Rounding Mode and
 // Rounding Accuracy.
@@ -860,34 +878,40 @@ __spirv_ArbitraryFloatATan2INTEL(sycl::detail::ap_int<WA> A, int32_t MA,
                                  int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatPowINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatPowINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                               sycl::detail::ap_int<WB> B, int32_t MB,
+                               int32_t Mout, int32_t EnableSubnormals = 0,
+                               int32_t RoundingMode = 0,
+                               int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatPowRINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    int32_t MB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatPowRINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                                sycl::detail::ap_int<WB> B, int32_t MB,
+                                int32_t Mout, int32_t EnableSubnormals = 0,
+                                int32_t RoundingMode = 0,
+                                int32_t RoundingAccuracy = 0) noexcept;
 
 // PowN built-in calculates `A^B` where `A` is arbitrary precision floating
 // point number and `B` is signed or unsigned arbitrary precision integer,
 // i.e. its width doesn't depend on sum of exponent and mantissa.
 template <int WA, int WB, int Wout>
-extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout> __spirv_ArbitraryFloatPowNINTEL(
-    sycl::detail::ap_int<WA> A, int32_t MA, sycl::detail::ap_int<WB> B,
-    bool SignOfB, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<Wout>
+__spirv_ArbitraryFloatPowNINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
+                                sycl::detail::ap_int<WB> B, bool SignOfB,
+                                int32_t Mout, int32_t EnableSubnormals = 0,
+                                int32_t RoundingMode = 0,
+                                int32_t RoundingAccuracy = 0) noexcept;
 
 template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_ReadPipe(__ocl_RPipeTy<dataT> Pipe,
-                                              dataT *Data, int32_t Size,
-                                              int32_t Alignment) noexcept;
+extern __DPCPP_SYCL_EXTERNAL int32_t
+__spirv_ReadPipe(__ocl_RPipeTy<dataT> Pipe, dataT *Data, int32_t Size,
+                 int32_t Alignment) noexcept;
 template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_WritePipe(__ocl_WPipeTy<dataT> Pipe,
-                                               const dataT *Data, int32_t Size,
-                                               int32_t Alignment) noexcept;
+extern __DPCPP_SYCL_EXTERNAL int32_t
+__spirv_WritePipe(__ocl_WPipeTy<dataT> Pipe, const dataT *Data, int32_t Size,
+                  int32_t Alignment) noexcept;
 template <typename dataT>
 extern __DPCPP_SYCL_EXTERNAL void
 __spirv_ReadPipeBlockingINTEL(__ocl_RPipeTy<dataT> Pipe, dataT *Data,
@@ -909,11 +933,14 @@ extern __DPCPP_SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-extern __DPCPP_SYCL_EXTERNAL uint16_t __spirv_ConvertFToBF16INTEL(float) noexcept;
-extern __DPCPP_SYCL_EXTERNAL float __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__spirv_ConvertFToBF16INTEL(float) noexcept;
+extern __DPCPP_SYCL_EXTERNAL float
+    __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
-__spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
+    __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
@@ -954,7 +981,8 @@ extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
                    Args... args);
 template <typename... Args>
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, Args... args);
+extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
+                                                    Args... args);
 #else
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
@@ -1000,13 +1028,13 @@ extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
     __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
 
 #define __CLC_BF16(...)                                                        \
-  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(                   \
+  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(           \
       __VA_ARGS__) noexcept;                                                   \
-  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmin(                   \
+  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmin(           \
       __VA_ARGS__, __VA_ARGS__) noexcept;                                      \
-  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmax(                   \
+  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmax(           \
       __VA_ARGS__, __VA_ARGS__) noexcept;                                      \
-  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fma(                    \
+  extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fma(            \
       __VA_ARGS__, __VA_ARGS__, __VA_ARGS__) noexcept;
 
 #define __CLC_BF16_SCAL_VEC(TYPE)                                              \
