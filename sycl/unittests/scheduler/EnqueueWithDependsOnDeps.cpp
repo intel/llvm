@@ -13,6 +13,8 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
 
+#include <sycl/usm.hpp>
+
 #include <vector>
 
 using namespace sycl;
@@ -287,4 +289,103 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
 
   std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
   VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
+}
+
+std::vector<pi_event> EventsInWaitList;
+inline pi_result redefinedextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
+                                              void *dst_ptr,
+                                              const void *src_ptr, size_t size,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  for (auto i = 0u; i < num_events_in_waitlist; i++) {
+    EventsInWaitList.push_back(events_waitlist[i]);
+  }
+  return PI_SUCCESS;
+}
+
+inline pi_result redefinedEnqueueEventsWaitWithBarrier(
+    pi_queue command_queue, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  for (auto i = 0u; i < num_events_in_wait_list; i++) {
+    EventsInWaitList.push_back(event_wait_list[i]);
+  }
+  return PI_SUCCESS;
+}
+
+TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemcpy>(
+      redefinedextUSMEnqueueMemcpy);
+  sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
+
+  auto HostTaskEvent =
+      Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
+  std::shared_ptr<detail::event_impl> HostTaskEventImpl =
+      detail::getSyclObjImpl(HostTaskEvent);
+  HostTaskEvent.wait();
+  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
+  ASSERT_NE(Cmd, nullptr);
+  Cmd->MIsBlockable = true;
+  Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+
+  auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(HostTaskEvent);
+    cgh.single_task<TestKernel<>>([] {});
+  });
+  std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
+      detail::getSyclObjImpl(SingleTaskEvent);
+  EXPECT_EQ(SingleTaskEventImpl->getHandleRef(), nullptr);
+
+  Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+  EventsInWaitList.clear();
+
+  const size_t ArraySize = 8;
+  int *FirstBuf = (int *)sycl::malloc_device(ArraySize * sizeof(int),
+                                             QueueDevImpl->get_device(),
+                                             QueueDevImpl->get_context());
+  int *SecondBuf = (int *)sycl::malloc_host(ArraySize * sizeof(int),
+                                            QueueDevImpl->get_context());
+  auto ShortcutFuncEvent = Queue.memcpy(
+      SecondBuf, FirstBuf, sizeof(int) * ArraySize, {SingleTaskEvent});
+  EXPECT_NE(SingleTaskEventImpl->getHandleRef(), nullptr);
+  ASSERT_EQ(EventsInWaitList.size(), 1u);
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandleRef());
+  Queue.wait();
+  sycl::free(FirstBuf, Queue);
+  sycl::free(SecondBuf, Queue);
+}
+
+TEST_F(DependsOnTests, BarrierWithWaitList) {
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
+      redefinedEnqueueEventsWaitWithBarrier);
+  sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
+
+  auto HostTaskEvent =
+      Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
+  std::shared_ptr<detail::event_impl> HostTaskEventImpl =
+      detail::getSyclObjImpl(HostTaskEvent);
+  HostTaskEvent.wait();
+  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
+  ASSERT_NE(Cmd, nullptr);
+  Cmd->MIsBlockable = true;
+  Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+
+  auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(HostTaskEvent);
+    cgh.single_task<TestKernel<>>([] {});
+  });
+  std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
+      detail::getSyclObjImpl(SingleTaskEvent);
+  EXPECT_EQ(SingleTaskEventImpl->getHandleRef(), nullptr);
+
+  Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+  EventsInWaitList.clear();
+
+  Queue.ext_oneapi_submit_barrier(std::vector<sycl::event>{SingleTaskEvent});
+  EXPECT_NE(SingleTaskEventImpl->getHandleRef(), nullptr);
+  ASSERT_EQ(EventsInWaitList.size(), 1u);
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandleRef());
+  Queue.wait();
 }

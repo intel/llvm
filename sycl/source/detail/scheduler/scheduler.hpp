@@ -453,6 +453,10 @@ public:
   void releaseResources();
   bool isDeferredMemObjectsEmpty();
 
+  void enqueueCommandForCG(EventImplPtr NewEvent,
+                           std::vector<Command *> &AuxilaryCmds,
+                           BlockingT Blocking = NON_BLOCKING);
+
 protected:
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
@@ -484,9 +488,6 @@ protected:
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
   void NotifyHostTaskCompletion(Command *Cmd);
-
-  void enqueueCommandForCG(EventImplPtr NewEvent,
-                           std::vector<Command *> &AuxilaryCmds);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          ReadLockT &GraphReadLock,

@@ -17,6 +17,18 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+OwnedPiEvent::OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin)
+    : MEvent(Event), MPlugin(Plugin) {
+  // Retain the event to share ownership of it.
+  MPlugin.call<PiApiKind::piEventRetain>(*MEvent);
+}
+
+OwnedPiEvent::~OwnedPiEvent() {
+  // Release the event if the ownership was not transferred.
+  if (MEvent.has_value())
+    MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
+}
+
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
@@ -26,21 +38,24 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
          "MZeroInitEvent has not been cleaned up.");
 }
 
-std::optional<RT::PiEvent>
-DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
+OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
   std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
   // If there is a zero-init event we can remove it if it is done.
-  if (MZeroInitEvent.has_value() &&
-      get_event_info<info::event::command_execution_status>(
-          *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
-    Plugin.call<PiApiKind::piEventRelease>(*MZeroInitEvent);
-    MZeroInitEvent = {};
+  if (MZeroInitEvent.has_value()) {
+    if (get_event_info<info::event::command_execution_status>(
+            *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
+      Plugin.call<PiApiKind::piEventRelease>(*MZeroInitEvent);
+      MZeroInitEvent = {};
+      return OwnedPiEvent(Plugin);
+    } else {
+      return OwnedPiEvent(*MZeroInitEvent, Plugin);
+    }
   }
-  return MZeroInitEvent;
+  return OwnedPiEvent(Plugin);
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
-    const std::shared_ptr<queue_impl> &QueueImpl, bool ZeroInit) {
+    const std::shared_ptr<queue_impl> &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
@@ -64,8 +79,8 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
 
-  // If zero-initialization was requested, do it here and save the event.
-  if (ZeroInit) {
+  // Zero-initialize here and save the event.
+  {
     std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
     RT::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
