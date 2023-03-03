@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="use-bare-ptr-call-conv" %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm %s | FileCheck %s
 
 //===-------------------------------------------------------------------------------------------------===//
 // sycl.range.get with scalar result type

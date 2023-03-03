@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="use-bare-ptr-call-conv" -verify-diagnostics %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>

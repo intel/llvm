@@ -23,7 +23,7 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
-#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVMPass.h"
+#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
@@ -628,10 +628,9 @@ static int finalize(mlir::MLIRContext &Ctx,
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
       PM3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
-      LowerToLLVMOptions Options(&Ctx);
-      Options.dataLayout = DL;
-      Options.useBarePtrCallConv = true;
-      PM3.addPass(createConvertPolygeistToLLVMPass(Options));
+      ConvertPolygeistToLLVMOptions Options;
+      Options.dataLayout = DL.getStringRepresentation();
+      PM3.addPass(createConvertPolygeistToLLVM(Options));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 

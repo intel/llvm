@@ -13,13 +13,8 @@ include "mlir/Pass/PassBase.td"
 
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
   let summary = "Convert Polygeist dialect to LLVM dialect";
-  let constructor = "mlir::createConvertPolygeistToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
-    Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",
-           /*default=*/"false",
-           "Replace FuncOp's MemRef arguments with bare pointers to the MemRef "
-           "element types">,
     Option<"emitCWrappers", "emit-c-wrappers", "bool", /*default=*/"false",
            "Emit wrappers for C-compatible pointer-to-struct memref "
            "descriptors">,
