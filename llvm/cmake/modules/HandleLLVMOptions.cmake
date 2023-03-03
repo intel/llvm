@@ -1364,10 +1364,11 @@ if ( EXTRA_RECOMMENDED_OPTSET )
         add_link_option_ext("-fsanitize=cfi" FSANITIZE_CFI_LINK
           CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
           CMAKE_SHARED_LINKER_FLAGS)
-        add_compile_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK)
-        add_link_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK_LINK
-          CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
-          CMAKE_SHARED_LINKER_FLAGS)
+        # Recommended option although linking a DSO with SafeStack is not currently supported by compiler.
+        #add_compile_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK)
+        #add_link_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK_LINK
+        #  CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+        #  CMAKE_SHARED_LINKER_FLAGS)
       else()
         add_compile_option_ext("-fcf-protection=full -mcet" FCF_PROTECTION)
         # need to align compile and link option set, link now is set unconditionally
