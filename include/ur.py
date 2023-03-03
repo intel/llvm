@@ -491,8 +491,9 @@ class ur_device_mem_cache_type_t(c_int):
 ###############################################################################
 ## @brief Device local memory type
 class ur_device_local_mem_type_v(IntEnum):
-    LOCAL = 0                                       ## Dedicated local memory
-    GLOBAL = 1                                      ## Global memory
+    NONE = 0                                        ## No local memory support
+    LOCAL = 1                                       ## Dedicated local memory
+    GLOBAL = 2                                      ## Global memory
 
 class ur_device_local_mem_type_t(c_int):
     def __str__(self):
