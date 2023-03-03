@@ -39,7 +39,9 @@ template <typename T> struct InheritedAccessor : public AccAlias<T> {
   using AccAlias<T>::AccAlias;
 };
 
-template <typename Acc> struct AccWrapper { Acc accessor; };
+template <typename Acc> struct AccWrapper {
+  Acc accessor;
+};
 
 template <typename Acc1, typename Acc2> struct AccsWrapper {
   int a;
@@ -58,7 +60,9 @@ template <typename Acc> struct Wrapper2 {
   AccWrapper<Acc> wrapped;
 };
 
-template <typename Acc> struct Wrapper3 { Wrapper2<Acc> w2; };
+template <typename Acc> struct Wrapper3 {
+  Wrapper2<Acc> w2;
+};
 
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
   auto test = [=](auto &Res, const auto &Acc) {
@@ -1049,6 +1053,47 @@ int main() {
     testLocalAccIters(v, true, true);
     for (int i = 0; i < v.size(); ++i)
       assert(v[i] == ((i * 2 + 1) + i));
+  }
+
+  // Assignment operator test for 0-dim buffer accessor
+  {
+    sycl::queue Queue;
+    int Data = 32;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        CGH.single_task<class acc_0_dim_assignment>([=]() { Acc = 64; });
+      });
+      Queue.wait();
+    }
+
+    assert(Data == 64);
+  }
+
+  // Assignment operator test for 0-dim local accessor
+  {
+    sycl::queue Queue;
+    int Data = 0;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        sycl::local_accessor<int, 0> LocalAcc(CGH);
+        CGH.single_task<class local_acc_0_dim_assignment>([=]() {
+          LocalAcc = 64;
+          Acc = LocalAcc;
+        });
+      });
+    }
+
+    assert(Data == 64);
   }
 
   std::cout << "Test passed" << std::endl;
