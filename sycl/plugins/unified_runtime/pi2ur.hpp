@@ -7,6 +7,7 @@
 //===------------------------------------------------------------------===//
 #pragma once
 
+#include <cassert>
 #include <unordered_map>
 
 #include "ur_api.h"
@@ -693,6 +694,148 @@ inline pi_result piextContextCreateWithNativeHandle(
   // enough for CUDA, HIP and OpenCL.
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(hNativeHandle, phContext));
+
+  return PI_SUCCESS;
+}
+
+inline ur_queue_flags_t ConvertQueueFlagsBitfield(pi_queue_properties flags) {
+  ur_queue_flags_t Flags;
+  static std::unordered_map<pi_queue_properties, ur_queue_flag_t> FlagMap = {
+      {PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+       UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE},
+      {PI_QUEUE_FLAG_PROFILING_ENABLE, UR_QUEUE_FLAG_PROFILING_ENABLE},
+      {PI_QUEUE_FLAG_ON_DEVICE, UR_QUEUE_FLAG_ON_DEVICE},
+      {PI_QUEUE_FLAG_ON_DEVICE_DEFAULT, UR_QUEUE_FLAG_ON_DEVICE_DEFAULT},
+      {PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS, UR_QUEUE_FLAG_DISCARD_EVENTS},
+      {PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW, UR_QUEUE_FLAG_PRIORITY_LOW},
+      {PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH, UR_QUEUE_FLAG_PRIORITY_HIGH},
+  };
+  for (auto &FlagPair : FlagMap) {
+    if (flags & FlagPair.first) {
+      Flags |= FlagPair.second;
+    }
+  }
+
+  return Flags;
+}
+
+inline pi_result piQueueCreate(pi_context context, pi_device device,
+                               pi_queue_properties properties,
+                               pi_queue *queue) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto hDevice = reinterpret_cast<ur_device_handle_t>(device);
+  auto phQueue = reinterpret_cast<ur_queue_handle_t *>(queue);
+  ur_queue_property_t Flags = ConvertQueueFlagsBitfield(properties);
+  ur_queue_property_t URProperties[] = {UR_QUEUE_PROPERTIES_FLAGS, Flags, 0};
+
+  HANDLE_ERRORS(urQueueCreate(hContext, hDevice, URProperties, phQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextQueueCreate(pi_context context, pi_device device,
+                                  pi_queue_properties *properties,
+                                  pi_queue *queue) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto hDevice = reinterpret_cast<ur_device_handle_t>(device);
+  auto phQueue = reinterpret_cast<ur_queue_handle_t *>(queue);
+
+  assert(properties);
+  // Expect flags mask to be passed first.
+  assert(properties[0] == PI_QUEUE_FLAGS);
+  if (properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = properties[1];
+  // Extra data isn't supported yet.
+  assert(properties[2] == 0);
+  if (properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+
+  ur_queue_property_t Properties[] = {UR_QUEUE_PROPERTIES_FLAGS,
+                                      ConvertQueueFlagsBitfield(Flags), 0};
+  HANDLE_ERRORS(urQueueCreate(hContext, hDevice, Properties, phQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piQueueGetInfo(pi_queue command_queue,
+                                pi_queue_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(command_queue);
+
+  static std::unordered_map<pi_queue_info, ur_queue_info_t> InfoMapping = {
+      {PI_QUEUE_INFO_CONTEXT, UR_QUEUE_INFO_CONTEXT},
+      {PI_QUEUE_INFO_DEVICE, UR_QUEUE_INFO_DEVICE},
+      {PI_QUEUE_INFO_DEVICE_DEFAULT, UR_QUEUE_INFO_DEVICE_DEFAULT},
+      {PI_QUEUE_INFO_REFERENCE_COUNT, UR_QUEUE_INFO_REFERENCE_COUNT},
+      {PI_QUEUE_INFO_SIZE, UR_QUEUE_INFO_SIZE},
+      {PI_EXT_ONEAPI_QUEUE_INFO_EMPTY,
+       static_cast<ur_queue_info_t>(UR_EXT_QUEUE_INFO_EMPTY)},
+  };
+
+  auto InfoType = InfoMapping.find(param_name);
+  if (InfoType == InfoMapping.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  HANDLE_ERRORS(urQueueGetInfo(hQueue, InfoType->second, param_value_size,
+                               param_value, param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piQueueRetain(pi_queue command_queue) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(command_queue);
+  HANDLE_ERRORS(urQueueRetain(hQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piQueueRelease(pi_queue command_queue) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(command_queue);
+  HANDLE_ERRORS(urQueueRelease(hQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piQueueFinish(pi_queue command_queue) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(command_queue);
+  HANDLE_ERRORS(urQueueFinish(hQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piQueueFlush(pi_queue command_queue) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(command_queue);
+  HANDLE_ERRORS(urQueueFlush(hQueue));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextQueueGetNativeHandle(pi_queue queue,
+                                           pi_native_handle *nativeHandle) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(queue);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
+  HANDLE_ERRORS(urQueueGetNativeHandle(hQueue, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_context context,
+                                                  pi_device device,
+                                                  bool pluginOwnsNativeHandle,
+                                                  pi_queue *queue) {
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto phQueue = reinterpret_cast<ur_queue_handle_t *>(queue);
+
+  (void)device;
+  (void)pluginOwnsNativeHandle;
+
+  HANDLE_ERRORS(
+      urQueueCreateWithNativeHandle(hNativeHandle, hContext, phQueue));
 
   return PI_SUCCESS;
 }
