@@ -1026,6 +1026,11 @@ pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, pi_context,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextQueueCreate2(pi_context, pi_device, pi_queue_properties *,
+                            pi_queue *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
