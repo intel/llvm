@@ -144,29 +144,6 @@ static const pi_uint32 MaxNumEventsPerPool = [] {
   return Result;
 }();
 
-// Get value of device scope events env var setting or default setting
-static const int DeviceEventsSetting = [] {
-  const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
-  if (DeviceEventsSettingStr) {
-    // Override the default if user has explicitly chosen the events scope.
-    switch (std::stoi(DeviceEventsSettingStr)) {
-    case 0:
-      return AllHostVisible;
-    case 1:
-      return OnDemandHostVisibleProxy;
-    case 2:
-      return LastCommandInBatchHostVisible;
-    default:
-      // fallthrough to default setting
-      break;
-    }
-  }
-  // This is our default setting, which is expected to be the fastest
-  // with the modern GPU drivers.
-  return AllHostVisible;
-}();
-
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -385,7 +362,7 @@ inline static pi_result createEventAndAssociateQueue(
     bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
-    ForceHostVisible = DeviceEventsSetting == AllHostVisible;
+    ForceHostVisible = Queue->Device->ZeEventsScope == AllHostVisible;
 
   // If event is discarded then try to get event from the queue cache.
   *Event =
@@ -692,6 +669,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
     ZE_CALL(zeCommandListReset, (CommandList->first));
     CommandList->second.ZeFenceInUse = false;
+    CommandList->second.IsClosed = false;
   }
 
   auto &EventList = CommandList->second.EventList;
@@ -886,7 +864,6 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
     // The default when called from pre-compiled binaries is to not use
     // immediate command lists.
     UsingImmCmdLists = false;
-  zePrint("Queue %p ImmCmdList mode = %d\n", this, UsingImmCmdLists);
 
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
@@ -1203,12 +1180,12 @@ pi_result _pi_context::getAvailableCommandList(
         ze_fence_handle_t ZeFence;
         ZeStruct<ze_fence_desc_t> ZeFenceDesc;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-        CommandList =
-            Queue->CommandListMap
-                .emplace(ZeCommandList,
-                         pi_command_list_info_t{ZeFence, true, ZeCommandQueue,
-                                                QueueGroupOrdinal})
-                .first;
+        CommandList = Queue->CommandListMap
+                          .emplace(ZeCommandList,
+                                   pi_command_list_info_t{ZeFence, true, false,
+                                                          ZeCommandQueue,
+                                                          QueueGroupOrdinal})
+                          .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
       if (auto Res = Queue->insertStartBarrierIfDiscardEventsMode(CommandList))
@@ -1306,7 +1283,8 @@ _pi_queue::createCommandList(bool UseCopyEngine,
   ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-          ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
+          ZeCommandList,
+          {ZeFence, false, false, ZeCommandQueue, QueueGroupOrdinal}));
 
   PI_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
@@ -1393,6 +1371,10 @@ void _pi_queue::CaptureIndirectAccesses() {
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
+  // Do nothing if command list is already closed.
+  if (CommandList->second.IsClosed)
+    return PI_SUCCESS;
+
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // If the current LastCommandEvent is the nullptr, then it means
@@ -1486,7 +1468,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (DeviceEventsSetting == LastCommandInBatchHostVisible &&
+    if (Device->ZeEventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
@@ -1565,6 +1547,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
     // Close the command list and have it ready for dispatch.
     ZE_CALL(zeCommandListClose, (CommandList->first));
+    // Mark this command list as closed.
+    CommandList->second.IsClosed = true;
     this->LastUsedCommandList = CommandListMap.end();
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
@@ -1733,7 +1717,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
+              ZeCommandList, {nullptr, true, false, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
   // piQueueReleaseInternal
@@ -1986,7 +1970,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (DeviceEventsSetting != AllHostVisible) {
+          if (CurQueue->Device->ZeEventsScope != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
@@ -2873,7 +2857,6 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(IsImmCmdList, PI_ERROR_INVALID_VALUE);
 
-  zePrint("piextQueueGetNativeHandle(Queue=%p)\n", Queue);
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
@@ -2885,7 +2868,6 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   auto &ComputeQueueGroupRef = Result.first->second;
 
   if (Queue->UsingImmCmdLists) {
-    zePrint("The queue uses immediate cmdlists\n");
     auto ZeCmdList = pi_cast<ze_command_list_handle_t *>(NativeHandle);
     // If no activity has occured on the queue we will create an immediate
     // commandlist.
@@ -2898,15 +2880,12 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
     // Extract the Level Zero command list handle from the given PI queue
     *ZeCmdList = ComputeQueueGroupRef.ImmCmdLists[0]->first;
     *IsImmCmdList = true;
-    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeCmdList);
   } else {
-    zePrint("The queue uses standard cmdlists\n");
     auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
     // Extract a Level Zero compute queue handle from the given PI queue
     uint32_t QueueGroupOrdinalUnused;
     *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
     *IsImmCmdList = false;
-    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeQueue);
   }
   return PI_SUCCESS;
 }
@@ -2939,7 +2918,7 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
       1,
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, nullptr, 0}})
+              ZeCommandList, {nullptr, true, false, nullptr, 0}})
           .first);
 }
 
@@ -4688,7 +4667,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (DeviceEventsSetting != OnDemandHostVisibleProxy)
+    if (Queue->Device->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -5108,7 +5087,8 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (DeviceEventsSetting == OnDemandHostVisibleProxy) {
+    if (EventList[I]->Queue->Device->ZeEventsScope ==
+        OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
@@ -6985,12 +6965,73 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   return mapError(ZeResult);
 }
 
-static bool ShouldUseUSMAllocator() {
+static bool UseUSMAllocator = [] {
   // Enable allocator by default if it's not explicitly disabled
   return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR") == nullptr;
-}
+}();
 
-static const bool UseUSMAllocator = ShouldUseUSMAllocator();
+enum class USMAllocationForceResidencyType {
+  // [Default] Do not force memory residency at allocation time.
+  None = 0,
+  // Force memory resident on the device of allocation at allocation time.
+  // For host allocation force residency on all devices in a context.
+  Device = 1,
+  // Force memory resident on all devices in the context with P2P
+  // access to the device of allocation.
+  // For host allocation force residency on all devices in a context.
+  P2PDevices = 2
+};
+
+// Returns the desired USM residency setting
+static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
+  const auto Str = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  if (!Str)
+    return USMAllocationForceResidencyType::None;
+  switch (std::atoi(Str)) {
+  case 1:
+    return USMAllocationForceResidencyType::Device;
+  case 2:
+    return USMAllocationForceResidencyType::P2PDevices;
+  default:
+    return USMAllocationForceResidencyType::None;
+  };
+}();
+
+// Make USM allocation resident as requested
+static pi_result
+USMAllocationMakeResident(pi_context Context,
+                          pi_device Device, // nullptr for host allocation
+                          void *Ptr, size_t Size) {
+
+  std::list<pi_device> Devices;
+
+  if (USMAllocationForceResidency == USMAllocationForceResidencyType::None)
+    return PI_SUCCESS;
+  else if (!Device) {
+    // Host allocation, make it resident on all devices in the context
+    Devices.insert(Devices.end(), Context->Devices.begin(),
+                   Context->Devices.end());
+  } else {
+    Devices.push_back(Device);
+    if (USMAllocationForceResidency ==
+        USMAllocationForceResidencyType::P2PDevices) {
+      ze_bool_t P2P;
+      for (const auto &D : Context->Devices) {
+        if (D == Device)
+          continue;
+        // TODO: Cache P2P devices for a context
+        ZE_CALL(zeDeviceCanAccessPeer, (D->ZeDevice, Device->ZeDevice, &P2P));
+        if (P2P)
+          Devices.push_back(D);
+      }
+    }
+  }
+  for (const auto &D : Devices) {
+    ZE_CALL(zeContextMakeMemoryResident,
+            (Context->ZeContext, D->ZeDevice, Ptr, Size));
+  }
+  return PI_SUCCESS;
+}
 
 static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
@@ -7023,6 +7064,7 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
@@ -7053,6 +7095,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
+
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
 }
@@ -7077,6 +7121,7 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(Context, nullptr, *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
@@ -8057,6 +8102,10 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 }
 
 // SYCL RT calls this api to notify the end of plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
@@ -8440,4 +8489,10 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   }
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_level_zero.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 } // extern "C"

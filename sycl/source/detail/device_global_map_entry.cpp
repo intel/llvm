@@ -48,7 +48,7 @@ OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
       MZeroInitEvent = {};
       return OwnedPiEvent(Plugin);
     } else {
-      return std::move(OwnedPiEvent(*MZeroInitEvent, Plugin));
+      return OwnedPiEvent(*MZeroInitEvent, Plugin);
     }
   }
   return OwnedPiEvent(Plugin);

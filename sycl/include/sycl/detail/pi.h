@@ -78,7 +78,7 @@
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
 // 12.24 Added new queue create and get APIs for immediate commandlists
-// piextQueueCreate2, piextQueueCreateWithNativeHandle2, 
+// piextQueueCreate2, piextQueueCreateWithNativeHandle2,
 // piextQueueGetNativeHandle2
 
 #define _PI_H_VERSION_MAJOR 12
