@@ -77,6 +77,9 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added new queue create and get APIs for immediate commandlists
+// piextQueueCreate2, piextQueueCreateWithNativeHandle2, 
+// piextQueueGetNativeHandle2
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 23
@@ -1169,6 +1172,12 @@ __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
 __SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
                                          pi_queue_properties *properties,
                                          pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
+__SYCL_EXPORT pi_result piextQueueCreate2(pi_context context, pi_device device,
+                                          pi_queue_properties *properties,
+                                          pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,

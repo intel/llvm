@@ -875,12 +875,17 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
                      pi_queue_properties PiQueueProperties,
-                     int ForceComputeIndex)
+                     int ForceComputeIndex, bool OldAPI)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
 
   // Set the type of commandlists the queue will use.
-  UsingImmCmdLists = Device->useImmediateCommandLists();
+  bool Default;
+  UsingImmCmdLists = Device->useImmediateCommandLists(Default);
+  if (OldAPI && Default)
+    // The default when called from pre-compiled binaries is to not use
+    // immediate command lists.
+    UsingImmCmdLists = false;
   zePrint("Queue %p ImmCmdList mode = %d\n", this, UsingImmCmdLists);
 
   // Compute group initialization.
@@ -1253,7 +1258,9 @@ _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
   auto &InitialGroup = Map.begin()->second;
 
   // Check if thread-specifc immediate commandlists are requested.
-  if (Device->useImmediateCommandLists() == _pi_device::PerThreadPerQueue) {
+  bool Default;
+  if (Device->useImmediateCommandLists(Default) ==
+      _pi_device::PerThreadPerQueue) {
     // Thread id is used to create separate imm cmdlists per thread.
     auto Result = Map.insert({std::this_thread::get_id(), InitialGroup});
     auto &QueueGroupRef = Result.first->second;
@@ -2431,8 +2438,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
   return piextQueueCreate(Context, Device, Properties, Queue);
 }
-pi_result piextQueueCreate(pi_context Context, pi_device Device,
-                           pi_queue_properties *Properties, pi_queue *Queue) {
+pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
+                                   pi_queue_properties *Properties,
+                                   pi_queue *Queue, bool ImmCmdListOff) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
@@ -2482,8 +2490,9 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
                                                              nullptr);
 
   try {
-    *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Flags, ForceComputeIndex);
+    *Queue =
+        new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
+                      Device, true, Flags, ForceComputeIndex, ImmCmdListOff);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2530,6 +2539,16 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     // TODO: warmup event pools. Both host-visible and device-only.
   }
   return PI_SUCCESS;
+}
+
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  return piextQueueCreateInternal(Context, Device, Properties, Queue, false);
+}
+
+pi_result piextQueueCreate2(pi_context Context, pi_device Device,
+                            pi_queue_properties *Properties, pi_queue *Queue) {
+  return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
 }
 
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
@@ -2825,16 +2844,15 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+  // For a call from SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO V3 or older code if the
+  // queue is using immediate command lists then we generate an error because we
+  // cannot return a command queue.
+  PI_ASSERT(!Queue->UsingImmCmdLists, PI_ERROR_INVALID_QUEUE);
+
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-
-  // Change the queue to use command queues so that older binaries work.
-  if (Queue->UsingImmCmdLists) {
-    Queue->CommandListMap.clear();
-    Queue->UsingImmCmdLists = false;
-  }
 
   // Extract a Level Zero compute queue handle from the given PI queue
   uint32_t QueueGroupOrdinalUnused;

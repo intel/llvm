@@ -281,7 +281,7 @@ struct _ur_device_handle_t : _pi_object {
     PerThreadPerQueue
   };
   // Return whether to use immediate commandlists for this device.
-  ImmCmdlistMode useImmediateCommandLists();
+  ImmCmdlistMode useImmediateCommandLists(bool &Default);
 
   bool isSubDevice() { return RootDevice != nullptr; }
 

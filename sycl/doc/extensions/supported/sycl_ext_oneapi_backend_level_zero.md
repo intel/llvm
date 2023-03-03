@@ -9,7 +9,7 @@ The currently supported targets are all Intel GPUs starting with Gen9.
 
 This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
 
-NOTE: By necessity, this specification exposes some details about the way SYCL is layered on top of the Level Zero backend.  Although the DPC++ team makes every effort to retain backward compatibility for changes to this specification, it is occasionally necessary to change an API in this specification in a way that is not compatible with previous versions. For example, this sometimes happens when DPC++ changes the way it layers SYCL on top of Level Zero.  When an API breaking change like this occurs, we update the version of the SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO feature-test macro and describe the API breakage as part of the description for that API version.
+NOTE: By necessity, this specification exposes some details about the way SYCL is layered on top of the Level Zero backend.  Although the DPC++/SYCL implementers make every effort to retain backward compatibility for changes to this specification, it is occasionally necessary to change an API in this specification in a way that is not compatible with previous versions. For example, this sometimes happens when DPC++ changes the way it layers SYCL on top of Level Zero.  When an API breaking change like this occurs, we update the version of the SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO feature-test macro and describe the API breakage as part of the description for that API version.
 
 |Value|Description|
 |---|:---|
@@ -258,10 +258,8 @@ by the implementation of SYCL queues.
 If SYCL queues are using command queues the return value is a
 command queue and the program will work as before.
 If SYCL queues are now implemented using immediate command lists then the
-call to ```get_native``` will cause a change in the implementation of that
-queue. It will be switched back to using command queues.
-The ```get_native``` call will return a newly created Level-Zero
-command queue, and the program will continue to work.
+call to ```get_native``` will result in a runtime error that says the queue
+is invalid because a command queue handle cannot be retrieved from that queue.
 If code is recompiled with this release, then existing uses
 of ```get_native``` will result in a compilation error because
 the return type of ```get_native``` for SYCL ```queue``` is now an

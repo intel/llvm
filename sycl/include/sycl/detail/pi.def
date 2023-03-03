@@ -153,6 +153,7 @@ _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
 // Queue create and get APIs for immediate commandlists
+_PI_API(piextQueueCreate2)
 _PI_API(piextQueueGetNativeHandle2)
 _PI_API(piextQueueCreateWithNativeHandle2)
 
