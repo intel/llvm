@@ -4196,6 +4196,7 @@ urEnqueueUSMMemAdvise(
 ///         + `width == 0`
 ///         + `height == 0`
 ///         + `pitch < width`
+///         + `patternSize == 0`
 ///         + If `pitch * height` is higher than the allocation size of `pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`

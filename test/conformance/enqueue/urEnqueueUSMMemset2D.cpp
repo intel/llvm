@@ -56,7 +56,7 @@ struct urEnqueueUSMMemset2DTestWithParam
     int *ptr{nullptr};
 };
 
-std::vector<uur::TestParameters2D> test_cases{
+static std::vector<uur::TestParameters2D> test_cases{
     /* Everything set to 1 */
     {1, 1, 1},
     /* Height == 1 && Pitch > width */
@@ -146,12 +146,12 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidNullPtr) {
 TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidPitch) {
 
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, 0, memset_value, default_width,
+        urEnqueueUSMMemset2D(queue, ptr, 0, memset_value, default_width,
                              default_height, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, default_width - 1, memset_value,
+        urEnqueueUSMMemset2D(queue, ptr, default_width - 1, memset_value,
                              default_width, default_height, 0, nullptr,
                              nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
@@ -160,7 +160,7 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidPitch) {
 TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidWidth) {
 
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, default_pitch, memset_value, 0,
+        urEnqueueUSMMemset2D(queue, ptr, default_pitch, memset_value, 0,
                              default_height, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 }
@@ -168,7 +168,7 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidWidth) {
 TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidHeight) {
 
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, default_pitch, memset_value,
+        urEnqueueUSMMemset2D(queue, ptr, default_pitch, memset_value,
                              default_width, 0, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 }
@@ -179,13 +179,13 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, OutOfBounds) {
 
     /* Interpret memory as having just one row */
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, out_of_bounds, memset_value,
+        urEnqueueUSMMemset2D(queue, ptr, out_of_bounds, memset_value,
                              default_width, 1, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 
     /* Interpret memory as having just one column */
     ASSERT_EQ_RESULT(
-        urEnqueueUSMMemset2D(queue, nullptr, 1, memset_value, 1, out_of_bounds,
+        urEnqueueUSMMemset2D(queue, ptr, 1, memset_value, 1, out_of_bounds,
                              0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 }
@@ -193,7 +193,7 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, OutOfBounds) {
 TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidNullPtrEventWaitList) {
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
-                     urEnqueueUSMMemset2D(queue, nullptr, default_pitch,
+                     urEnqueueUSMMemset2D(queue, ptr, default_pitch,
                                           memset_value, default_width,
                                           default_height, 1, nullptr, nullptr));
 
@@ -201,7 +201,7 @@ TEST_P(urEnqueueUSMMemset2DNegativeTest, InvalidNullPtrEventWaitList) {
     ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
-                     urEnqueueUSMMemset2D(queue, nullptr, default_pitch,
+                     urEnqueueUSMMemset2D(queue, ptr, default_pitch,
                                           memset_value, default_width,
                                           default_height, 0, &validEvent,
                                           nullptr));

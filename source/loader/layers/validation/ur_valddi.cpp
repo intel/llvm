@@ -3641,6 +3641,10 @@ urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
+        if (patternSize == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
         if (phEventWaitList == NULL && numEventsInWaitList > 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
