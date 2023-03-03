@@ -2254,6 +2254,7 @@ extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rd(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rn(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_ru(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rz(long long x);
+extern SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double x);
 extern SYCL_EXTERNAL short __imf_bfloat16_as_short(uint16_t x);
 extern SYCL_EXTERNAL unsigned short __imf_bfloat16_as_ushort(uint16_t x);
 extern SYCL_EXTERNAL uint16_t __imf_short_as_bfloat16(short x);
