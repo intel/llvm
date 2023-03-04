@@ -8,8 +8,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 namespace detail {
-template <typename T>
-struct is_multi_ptr_impl : public std::false_type {};
+template <typename T> struct is_multi_ptr_impl : public std::false_type {};
 
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
@@ -24,7 +23,7 @@ constexpr bool is_spir = true;
 #else
 constexpr bool is_spir = false;
 #endif
-}
+} // namespace detail
 // Load API scalar
 template <typename Group, typename InputIteratorT, typename OutputT,
           typename Properties = decltype(properties()),
@@ -134,6 +133,15 @@ constexpr bool is_blocked(Properties properties) {
   else
     return true;
 }
+
+template <bool IsBlocked, int VEC_OR_ARRAY_SIZE, typename GroupHelper>
+int get_mem_idx(GroupHelper gh, int vec_or_array_idx) {
+  if constexpr (IsBlocked)
+    return gh.get_local_linear_id() * VEC_OR_ARRAY_SIZE + vec_or_array_idx;
+  else
+    return gh.get_local_linear_id() +
+           gh.get_local_linear_range() * vec_or_array_idx;
+}
 } // namespace detail
 
 // Load API sycl::vec overload
@@ -145,14 +153,11 @@ template <typename Group, typename InputIteratorT, typename OutputT, int N,
               OutputT>>>
 void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
                 Properties properties = {}) {
+  // TODO: Consider delegating to sycl::span version via sycl::bit_cast.
   constexpr bool blocked = detail::is_blocked(properties);
   auto generic = [&]() {
     sycl::detail::dim_loop<N>([&](size_t i) {
-      if constexpr (blocked)
-        out[i] = in_ptr[g.get_local_linear_id() * N + i];
-      else // striped
-        out[i] =
-            in_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i];
+      out[i] = in_ptr[detail::get_mem_idx<blocked, N>(g, i)];
     });
   };
 
@@ -167,14 +172,52 @@ template <typename Group, typename InputT, int N, typename OutputIteratorT,
                           OutputIteratorT>::value_type>>>>
 void group_store(Group g, const sycl::vec<InputT, N> &in,
                  OutputIteratorT out_ptr, Properties properties = {}) {
+  // TODO: Consider delegating to sycl::span version via sycl::bit_cast.
   constexpr bool blocked = detail::is_blocked(properties);
   auto generic = [&]() {
     sycl::detail::dim_loop<N>([&](size_t i) {
-      if constexpr (blocked)
-        out_ptr[g.get_local_linear_id() * N + i] = in[i];
-      else // striped
-        out_ptr[g.get_local_linear_id() + g.get_local_linear_range() * i] =
-            in[i];
+      out_ptr[detail::get_mem_idx<blocked, N>(g, i)] = in[i];
+    });
+  };
+
+  return generic();
+}
+
+// Load API sycl::span overload
+template <typename GroupHelper, typename InputIteratorT, typename OutputT,
+          std::size_t ElementsPerWorkItem,
+          typename Properties = decltype(properties()),
+          typename = std::enable_if_t<std::is_convertible_v<
+              remove_decoration_t<
+                  typename std::iterator_traits<InputIteratorT>::value_type>,
+              OutputT>>>
+void group_load(GroupHelper gh, InputIteratorT in_ptr,
+                sycl::span<OutputT, ElementsPerWorkItem> &out,
+                Properties properties = {}) {
+  constexpr bool blocked = detail::is_blocked(properties);
+  auto generic = [&]() {
+    sycl::detail::dim_loop<ElementsPerWorkItem>([&](size_t i) {
+      out[i] = in_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(gh, i)];
+    });
+  };
+
+  return generic();
+}
+
+// Store API sycl::span overload
+template <typename GroupHelper, typename InputT, int ElementsPerWorkItem,
+          typename OutputIteratorT,
+          typename Properties = decltype(properties()),
+          typename = std::enable_if_t<std::is_convertible_v<
+              InputT, remove_decoration_t<typename std::iterator_traits<
+                          OutputIteratorT>::value_type>>>>
+void group_store(GroupHelper gh,
+                 const sycl::span<InputT, ElementsPerWorkItem> &in,
+                 OutputIteratorT out_ptr, Properties properties = {}) {
+  constexpr bool blocked = detail::is_blocked(properties);
+  auto generic = [&]() {
+    sycl::detail::dim_loop<ElementsPerWorkItem>([&](size_t i) {
+      out_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(gh, i)] = in[i];
     });
   };
 
