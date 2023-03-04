@@ -1377,6 +1377,45 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
       __sycl_std::__invoke_SignBitSet<detail::internal_rel_ret_t<T>>(x));
 }
 
+// marray relational functions
+
+#define __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(NAME)                 \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
+  sycl::marray<bool, T::size()> NAME(T x, T y) __NOEXC {                       \
+    sycl::marray<bool, T::size()> res;                                         \
+    for (int i = 0; i < x.size(); i++) {                                       \
+      res[i] = NAME(x[i], y[i]);                                               \
+    }                                                                          \
+    return res;                                                                \
+  }
+
+#define __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(NAME)                  \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
+  sycl::marray<bool, T::size()> NAME(T x) __NOEXC {                            \
+    sycl::marray<bool, T::size()> res;                                         \
+    for (int i = 0; i < x.size(); i++) {                                       \
+      res[i] = NAME(x[i]);                                                     \
+    }                                                                          \
+    return res;                                                                \
+  }
+
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isnotequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isgreater)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isgreaterequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isless)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(islessequal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(islessgreater)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isfinite)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isinf)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isnan)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(isnormal)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isordered)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
+__SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
+
 namespace detail {
 #if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
 using anyall_ret_t = bool;
@@ -1429,6 +1468,18 @@ template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
   return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
+}
+
+// mgentype select (mgentype a, mgentype b, marray<bool, { N }> c)
+template <typename T,
+          typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>
+sycl::marray<detail::marray_element_type<T>, T::size()>
+select(T a, T b, sycl::marray<bool, T::size()> c) __NOEXC {
+  sycl::marray<detail::marray_element_type<T>, T::size()> res;
+  for (int i = 0; i < a.size(); i++) {
+    res[i] = select(a[i], b[i], c[i]);
+  }
+  return res;
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)
@@ -2203,6 +2254,7 @@ extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rd(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rn(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_ru(long long x);
 extern SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rz(long long x);
+extern SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double x);
 extern SYCL_EXTERNAL short __imf_bfloat16_as_short(uint16_t x);
 extern SYCL_EXTERNAL unsigned short __imf_bfloat16_as_ushort(uint16_t x);
 extern SYCL_EXTERNAL uint16_t __imf_short_as_bfloat16(short x);
