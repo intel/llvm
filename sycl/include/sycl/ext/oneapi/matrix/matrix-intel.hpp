@@ -71,7 +71,6 @@ struct joint_matrix;
 
 namespace intel::experimental::matrix {
 
-
 // Begin wi_element definition
 
 template <typename T, size_t NumRows, size_t NumCols,
