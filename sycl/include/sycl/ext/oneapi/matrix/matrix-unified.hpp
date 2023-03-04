@@ -59,9 +59,23 @@ class wi_data {
               joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
 
 public:
-  size_t length() { return jm.cuda_impl.wi_marray.size(); };
+  size_t length() {
+    #if defined(__NVPTX__) 
+      return jm.cuda_impl.wi_marray.size();
+    #else
+      throw runtime_error("Use the correct namespace.",
+                        PI_ERROR_INVALID_DEVICE);
+    #endif
+  };
 
-  decltype(auto) operator[](size_t i) { return (jm.cuda_impl.wi_marray[i]); };
+  decltype(auto) operator[](size_t i) {
+    #if defined(__NVPTX__)
+      return (jm.cuda_impl.wi_marray[i]);
+    #else
+      throw runtime_error("Use the correct namespace.",
+                        PI_ERROR_INVALID_DEVICE);
+    #endif
+  };
 };
 #else
 template <typename type, size_t size> class wi_data {

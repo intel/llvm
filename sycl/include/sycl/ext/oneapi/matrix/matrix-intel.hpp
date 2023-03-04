@@ -71,7 +71,6 @@ struct joint_matrix;
 
 namespace intel::experimental::matrix {
 
-// sycl::ext::oneapi::experimental::matrix::joint_matrix
 
 // Begin wi_element definition
 
@@ -142,7 +141,7 @@ public:
         idx);                                                                  \
     return *this;                                                              \
   }
-#else
+#else // __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     (void)rhs;                                                                 \
@@ -223,7 +222,7 @@ public:
         M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) op rhs, idx);        \
     return *this;                                                              \
   }
-#else
+#else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
   wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     (void)rhs;                                                                 \
@@ -278,7 +277,7 @@ public:
   OP(bool, <=)
   OP(bool, >=)
 #undef OP
-#else
+#else // __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
