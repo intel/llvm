@@ -14,13 +14,21 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSYCLTOSPIRV
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DEF_CONVERTSYCLTOSPIRV
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -222,7 +230,7 @@ void addGridOpPatterns(RewritePatternSet &patterns,
 }
 } // namespace
 
-void mlir::sycl::populateSYCLToSPIRVConversionPatterns(
+void mlir::populateSYCLToSPIRVConversionPatterns(
     SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
   addGridOpPatterns<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp>(
@@ -230,4 +238,41 @@ void mlir::sycl::populateSYCLToSPIRVConversionPatterns(
   patterns.add<SingleDimGridOpPattern<SYCLSubGroupMaxSizeOp>,
                SingleDimGridOpPattern<SYCLSubGroupLocalIDOp>>(typeConverter,
                                                               context);
+}
+
+namespace {
+/// A pass converting MLIR SYCL operations into LLVM dialect.
+class ConvertSYCLToSPIRVPass
+    : public impl::ConvertSYCLToSPIRVBase<ConvertSYCLToSPIRVPass> {
+  void runOnOperation() override;
+};
+} // namespace
+
+void ConvertSYCLToSPIRVPass::runOnOperation() {
+  auto *context = &getContext();
+  auto module = getOperation();
+
+  module.walk([&](gpu::GPUModuleOp gpuModule) {
+    // We walk the different GPU modules looking for different SPIRV target
+    // environment definitions. Currently, this does not affect the behavior of
+    // this pass.
+    RewritePatternSet patterns(context);
+    ConversionTarget target(*context);
+    auto targetAttr = spirv::lookupTargetEnvOrDefault(gpuModule);
+    SPIRVTypeConverter typeConverter(targetAttr);
+
+    populateSYCLToSPIRVConversionPatterns(typeConverter, patterns);
+
+    target.addLegalDialect<arith::ArithDialect>();
+    target.addLegalDialect<spirv::SPIRVDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<SYCLDialect>();
+    target.addLegalDialect<vector::VectorDialect>();
+
+    target.addIllegalOp<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp,
+                        SYCLSubGroupLocalIDOp, SYCLSubGroupMaxSizeOp>();
+
+    if (failed(applyPartialConversion(gpuModule, target, std::move(patterns))))
+      signalPassFailure();
+  });
 }

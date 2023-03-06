@@ -11,22 +11,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-to-llvm"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSYCLTOLLVM
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DEF_CONVERTSYCLTOLLVM
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -1922,8 +1933,7 @@ protected:
 // Pattern population
 //===----------------------------------------------------------------------===//
 
-void mlir::sycl::populateSYCLToLLVMTypeConversion(
-    LLVMTypeConverter &typeConverter) {
+void mlir::populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
   // Same order as in SYCLOps.td
   typeConverter.addConversion([&](sycl::AccessorCommonType type) {
     return convertAccessorCommonType(type, typeConverter);
@@ -2003,37 +2013,78 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
 }
 
-void mlir::sycl::populateSYCLToLLVMConversionPatterns(
+void mlir::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
+  assert(typeConverter.getOptions().useBarePtrCallConv &&
+         "These patterns only work with bare pointer calling convention");
   populateSYCLToLLVMTypeConversion(typeConverter);
 
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
-  if (typeConverter.getOptions().useBarePtrCallConv) {
-    patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
-    patterns
-        .add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
-             GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
-             GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
-             GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
-             IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
-             ItemGetRangeDimPattern, ItemGetRangePattern,
-             NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
-             NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
-             NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
-             NDItemGetNDRange, NDRangeGetGroupRangePattern,
-             NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
-             SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
-             GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
-             GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
-             GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern,
-             ItemGetIDPattern, ItemNoOffsetGetLinearIDPattern,
-             ItemOffsetGetLinearIDPattern, NDItemGetGlobalLinearIDPattern,
-             NDItemGetGroupDimPattern, NDItemGetGroupRangePattern,
-             NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
-             NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern,
-             RangeGetPattern, SubscriptIDOffset, SubscriptScalarOffset1D>(
-            typeConverter);
-  }
+  patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
+  patterns
+      .add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+           GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
+           GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
+           GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
+           IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
+           ItemGetRangeDimPattern, ItemGetRangePattern,
+           NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
+           NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
+           NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
+           NDItemGetNDRange, NDRangeGetGroupRangePattern,
+           NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
+           SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
+           GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
+           GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
+           GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern,
+           ItemGetIDPattern, ItemNoOffsetGetLinearIDPattern,
+           ItemOffsetGetLinearIDPattern, NDItemGetGlobalLinearIDPattern,
+           NDItemGetGroupDimPattern, NDItemGetGroupRangePattern,
+           NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
+           NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern,
+           RangeGetPattern, SubscriptIDOffset, SubscriptScalarOffset1D>(
+          typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
+}
+
+namespace {
+/// A pass converting MLIR SYCL operations into LLVM dialect.
+class ConvertSYCLToLLVMPass
+    : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
+public:
+  void runOnOperation() override;
+};
+} // namespace
+
+void ConvertSYCLToLLVMPass::runOnOperation() {
+  MLIRContext *context = &getContext();
+  ModuleOp module = getOperation();
+
+  LowerToLLVMOptions options(&getContext());
+  options.useBarePtrCallConv = true;
+  LLVMTypeConverter converter(&getContext(), options);
+
+  RewritePatternSet patterns(context);
+
+  // Keep these at the top; these should be run before the rest of
+  // function conversion patterns.
+  populateReturnOpTypeConversionPattern(patterns, converter);
+  populateCallOpTypeConversionPattern(patterns, converter);
+  populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
+  polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns);
+
+  populateSYCLToLLVMConversionPatterns(converter, patterns);
+  populateFuncToLLVMConversionPatterns(converter, patterns);
+
+  ConversionTarget target(*context);
+  target.addIllegalDialect<sycl::SYCLDialect>();
+  // TODO: connect wires to lower this operation.
+  target.addLegalOp<sycl::SYCLLocalIDOp>();
+  target.addLegalDialect<LLVM::LLVMDialect>();
+  target.addLegalDialect<arith::ArithDialect>();
+
+  target.addLegalOp<ModuleOp>();
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
 }

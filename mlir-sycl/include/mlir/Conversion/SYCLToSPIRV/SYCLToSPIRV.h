@@ -13,17 +13,21 @@
 #ifndef MLIR_CONVERSION_SYCLTOSPIRV_SYCLTOSPIRV_H
 #define MLIR_CONVERSION_SYCLTOSPIRV_SYCLTOSPIRV_H
 
-#include "mlir/Transforms/DialectConversion.h"
+#include <memory>
 
 namespace mlir {
+class Pass;
+class RewritePatternSet;
 class SPIRVTypeConverter;
-namespace sycl {
+
+#define GEN_PASS_DECL_CONVERTSYCLTOSPIRV
+#include "mlir/Conversion/SYCLPasses.h.inc"
+#undef GEN_PASS_DECL_CONVERTSYCLTOSPIRV
 
 /// Populates the given list with patterns that convert from SYCL to SPIRV.
 void populateSYCLToSPIRVConversionPatterns(SPIRVTypeConverter &typeConverter,
                                            RewritePatternSet &patterns);
 
-} // namespace sycl
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_SYCLTOSPIRV_SYCLTOSPIRV_H

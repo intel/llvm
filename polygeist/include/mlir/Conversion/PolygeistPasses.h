@@ -9,7 +9,7 @@
 #ifndef MLIR_CONVERSION_POLYGEISTPASSES_H
 #define MLIR_CONVERSION_POLYGEISTPASSES_H
 
-#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVMPass.h"
+#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
 
 namespace mlir {
 namespace polygeist {

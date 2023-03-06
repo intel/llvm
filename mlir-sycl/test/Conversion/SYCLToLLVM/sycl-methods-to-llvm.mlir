@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="use-bare-ptr-call-conv" %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm %s | FileCheck %s
 
 //===-------------------------------------------------------------------------------------------------===//
 // sycl.range.get with scalar result type
@@ -1000,17 +1000,17 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[NDRANGE1]] {
 // CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[NDRANGE1]] : (i32) -> !llvm.ptr<[[NDRANGE1]]>
-// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<[[RANGE1]]>
 // CHECK-NEXT:       llvm.store %[[VAL_5]], %[[VAL_3]] : !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
+// CHECK-DAG:        %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<[[RANGE1]]>
 // CHECK-NEXT:       llvm.store %[[VAL_8]], %[[VAL_6]] : !llvm.ptr<[[RANGE1]]>
-// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 2] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[ID1]]>
-// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 2] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[ID1]]>
-// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr<[[ID1]]>
+// CHECK-DAG:        %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 2] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-DAG:        %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 2] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[ID1]]>
+// CHECK-DAG:        %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr<[[ID1]]>
 // CHECK-NEXT:       llvm.store %[[VAL_11]], %[[VAL_9]] : !llvm.ptr<[[ID1]]>
 // CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[NDRANGE1]]>
 // CHECK-NEXT:       llvm.return %[[VAL_12]] : !llvm.[[NDRANGE1]]

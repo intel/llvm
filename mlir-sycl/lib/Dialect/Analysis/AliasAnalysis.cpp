@@ -15,9 +15,6 @@
 
 using namespace mlir;
 
-// TODO: PAss -fstrict-aliasing down from clang through cgeist.
-constexpr bool StrictAliasing = true;
-
 //===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
@@ -111,7 +108,7 @@ AliasResult sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs,
   //   - %2 is the result of an accessor.subscript operation, and
   //   - %alloca type (memref<1x!sycl_id_1>) is a MemRef of a SYCL type
 
-  if (StrictAliasing) {
+  if (!relaxedAliasing) {
     Type lhsTy = lhs.getType(), rhsTy = rhs.getType();
     if ((lhsSubOp && typesDoNotAlias(lhsTy, rhsTy)) ||
         (rhsSubOp && typesDoNotAlias(rhsTy, lhsTy)))

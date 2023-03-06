@@ -77,7 +77,11 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
 def LICM : Pass<"licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let constructor = "mlir::polygeist::createLICMPass()";
-
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
   let statistics = [
     Statistic<"numOpHoisted", "num-operations-hoisted", "Number of operations hoisted">
   ];
