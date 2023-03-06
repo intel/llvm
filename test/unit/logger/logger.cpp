@@ -10,10 +10,6 @@
 #include "logger/ur_logger.hpp"
 #include "logger/ur_logger_details.hpp"
 
-namespace logger {
-Logger logger = create_logger("test_adapter");
-}
-
 TEST(logger, NullSinkOneParam) {
     ASSERT_THROW(logger::Logger(nullptr), std::invalid_argument);
 }
@@ -32,7 +28,8 @@ class CreateLoggerWithEnvVar : public ::testing::TestWithParam<std::string> {
         env_var_value = GetParam();
         ret = setenv("UR_LOG_TEST_ADAPTER", env_var_value.c_str(), 1);
         ASSERT_EQ(ret, 0);
-        logger::logger = logger::create_logger("test_adapter");
+        logger::init("test_adapter");
+        logger::info("{} initialized successfully!", "test_adapter");
     }
 
     void TearDown() override {
@@ -53,7 +50,8 @@ TEST_P(CreateLoggerWithEnvVar, EnvVarSetupStd) {
 class FileSink : public ::testing::Test {
   protected:
     std::string file_path = "ur_test_logger.log";
-    std::string test_msg = "";
+    std::string logger_name = "test";
+    std::string test_msg = "<" + logger_name + ">";
 
     void TearDown() override {
         auto test_log = std::ifstream(file_path, std::ios::in);
@@ -69,71 +67,81 @@ class FileSink : public ::testing::Test {
 
 class FileSinkDefaultLevel : public FileSink {
   protected:
+    int ret = -1;
+    std::string env_var_value = "output:file," + file_path;
+
     void SetUp() override {
-        logger::logger =
-            logger::Logger(std::make_unique<logger::FileSink>(file_path));
+        ret = setenv("UR_LOG_TEST_ADAPTER", env_var_value.c_str(), 1);
+        ASSERT_EQ(ret, 0);
+        logger::init("test_adapter");
+        logger::info("{} initialized successfully!", "test_adapter");
+    }
+
+    void TearDown() override {
+        ret = unsetenv("UR_LOG_TEST_ADAPTER");
+        ASSERT_EQ(ret, 0);
     }
 };
 
 TEST_F(FileSink, MultipleLines) {
     logger::Level level = logger::Level::WARN;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(file_path));
+    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.warning("Test message: {}", "success");
     logger.debug("This should not be printed: {}", 42);
     logger.error("Test message: {}", "success");
 
-    test_msg = "[WARNING]:Test message: success\n"
-               "[ERROR]:Test message: success\n";
+    test_msg += "[WARNING]: Test message: success\n"
+                "<test>[ERROR]: Test message: success\n";
 }
 
 TEST_F(FileSink, ThreeParams) {
     logger::Level level = logger::Level::DEBUG;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(file_path));
+    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.setFlushLevel(level);
     logger.debug("{} {}: {}", "Test", 42, 3.8);
-    test_msg = "[DEBUG]:Test 42: 3.8\n";
+    test_msg += "[DEBUG]: Test 42: 3.8\n";
 }
 
 TEST_F(FileSink, DoubleBraces) {
     logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(file_path));
+                          std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("{{}} {}: {}", "Test", 42);
-    test_msg = "[ERROR]:{} Test: 42\n";
+    test_msg += "[ERROR]: {} Test: 42\n";
 }
 
 TEST_F(FileSink, DoubleBraces2) {
     logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(file_path));
+                          std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("200 {{ {}: {{{}}} 3.8", "Test", 42);
-    test_msg = "[ERROR]:200 { Test: {42} 3.8\n";
+    test_msg += "[ERROR]: 200 { Test: {42} 3.8\n";
 }
 
 TEST_F(FileSink, DoubleBraces3) {
     logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(file_path));
+                          std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("{{ {}:}} {}}}", "Test", 42);
-    test_msg = "[ERROR]:{ Test:} 42}\n";
+    test_msg += "[ERROR]: { Test:} 42}\n";
 }
 
 TEST_F(FileSink, NoBraces) {
     logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(file_path));
+                          std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error(" Test: 42");
-    test_msg = "[ERROR]: Test: 42\n";
+    test_msg += "[ERROR]:  Test: 42\n";
 }
 
 TEST_F(FileSink, SetFlushLevelDebugCtor) {
     auto level = logger::Level::DEBUG;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(file_path, level));
+    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path, level));
 
     logger.debug("Test message: {}", "success");
-    test_msg = "[DEBUG]:Test message: success\n";
+    test_msg += "[DEBUG]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, DefaultLevelNoOutput) {
@@ -146,7 +154,7 @@ TEST_F(FileSinkDefaultLevel, SetLevelDebug) {
     logger::setFlushLevel(level);
     logger::debug("Test message: {}", "success");
 
-    test_msg = "[DEBUG]:Test message: success\n";
+    test_msg += "[DEBUG]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelInfo) {
@@ -156,7 +164,7 @@ TEST_F(FileSinkDefaultLevel, SetLevelInfo) {
     logger::info("Test message: {}", "success");
     logger::debug("This should not be printed: {}", 42);
 
-    test_msg = "[INFO]:Test message: success\n";
+    test_msg += "[INFO]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelWarning) {
@@ -166,7 +174,7 @@ TEST_F(FileSinkDefaultLevel, SetLevelWarning) {
     logger::warning("Test message: {}", "success");
     logger::info("This should not be printed: {}", 42);
 
-    test_msg = "[WARNING]:Test message: success\n";
+    test_msg += "[WARNING]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelError) {
@@ -174,5 +182,5 @@ TEST_F(FileSinkDefaultLevel, SetLevelError) {
     logger::error("Test message: {}", "success");
     logger::warning("This should not be printed: {}", 42);
 
-    test_msg = "[ERROR]:Test message: success\n";
+    test_msg += "[ERROR]: Test message: success\n";
 }

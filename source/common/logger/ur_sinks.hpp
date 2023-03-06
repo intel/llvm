@@ -13,7 +13,8 @@ class Sink {
   public:
     template <typename... Args>
     void log(logger::Level level, const char *fmt, Args &&...args) {
-        *ostream << "[" << level_to_str(level) << "]:";
+        *ostream << "<" << logger_name << ">";
+        *ostream << "[" << level_to_str(level) << "]: ";
         format(fmt, std::forward<Args &&>(args)...);
         *ostream << "\n";
         if (level >= flush_level) {
@@ -29,9 +30,11 @@ class Sink {
     std::ostream *ostream;
     logger::Level flush_level;
 
-    Sink() { flush_level = logger::Level::ERR; }
+    Sink(std::string logger_name) : logger_name(logger_name) { flush_level = logger::Level::ERR; }
 
   private:
+    std::string logger_name;
+
     void format(const char *fmt) {
         while (*fmt != '\0') {
             while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
@@ -112,9 +115,9 @@ class Sink {
 
 class StdoutSink : public Sink {
   public:
-    StdoutSink() { this->ostream = &std::cout; }
+    StdoutSink(std::string logger_name) : Sink(logger_name) { this->ostream = &std::cout; }
 
-    StdoutSink(Level flush_lvl) : StdoutSink() {
+    StdoutSink(std::string logger_name, Level flush_lvl) : StdoutSink(logger_name) {
         this->flush_level = flush_lvl;
     }
 
@@ -123,9 +126,9 @@ class StdoutSink : public Sink {
 
 class StderrSink : public Sink {
   public:
-    StderrSink() { this->ostream = &std::cerr; }
+    StderrSink(std::string logger_name) : Sink(logger_name) { this->ostream = &std::cerr; }
 
-    StderrSink(Level flush_lvl) : StderrSink() {
+    StderrSink(std::string logger_name, Level flush_lvl) : StderrSink(logger_name) {
         this->flush_level = flush_lvl;
     }
 
@@ -134,7 +137,7 @@ class StderrSink : public Sink {
 
 class FileSink : public Sink {
   public:
-    FileSink(std::string file_path) {
+    FileSink(std::string logger_name, std::string file_path) : Sink(logger_name) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
         if (ofstream.rdstate() != std::ofstream::goodbit) {
             throw std::invalid_argument(
@@ -144,7 +147,7 @@ class FileSink : public Sink {
         this->ostream = &ofstream;
     }
 
-    FileSink(std::string file_path, Level flush_lvl) : FileSink(file_path) {
+    FileSink(std::string logger_name, std::string file_path, Level flush_lvl) : FileSink(logger_name, file_path) {
         this->flush_level = flush_lvl;
     }
 
@@ -152,13 +155,13 @@ class FileSink : public Sink {
     std::ofstream ofstream;
 };
 
-inline std::unique_ptr<Sink> sink_from_str(std::string name, std::string file_path = "") {
+inline std::unique_ptr<Sink> sink_from_str(std::string logger_name, std::string name, std::string file_path = "") {
     if (name == "stdout") {
-        return std::make_unique<logger::StdoutSink>();
+        return std::make_unique<logger::StdoutSink>(logger_name);
     } else if (name == "stderr") {
-        return std::make_unique<logger::StderrSink>();
+        return std::make_unique<logger::StderrSink>(logger_name);
     } else if (name == "file" && !file_path.empty()) {
-        return std::make_unique<logger::FileSink>(file_path.c_str());
+        return std::make_unique<logger::FileSink>(logger_name, file_path.c_str());
     }
 
     throw std::invalid_argument(
