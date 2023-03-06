@@ -169,6 +169,32 @@ and followed by a digit or uppercase letter are reserved for use by the implemen
 Applications which use Unified Runtime must not provide definitions of these symbols.
 This allows the Unified Runtime shared library to be updated with additional symbols for new API versions or extensions without causing symbol conflicts with existing applications.
 
+Tracing
+---------------------
+
+Unified Runtime loader implements tracing support through the `XPTI framework <https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md>`__.
+
+.. list-table:: UR Stream `"ur"` Notification Signatures
+   :header-rows: 1
+
+   * - Trace Point Type
+     - Parameter Description
+     -  Metadata
+   * - `function_with_args_begin`
+     - | **trace_type**: `xpti::trace_point_type_t::function_with_args_begin` that marks the beginning of a function
+       | **parent**: nullptr
+       | **event**: nullptr
+       | **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event.
+       | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, and arguments. 
+     - None
+   * - `function_with_args_end`
+     - | **trace_type**: `xpti::trace_point_type_t::function_with_args_end` that marks the end of a function
+       | **parent**: nullptr
+       | **event**: nullptr
+       | **instance**: Unique ID to allow the correlation of the `function_with_args_end` event with the `function_with_args_begin` event.
+       | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value.
+     - None
+
 Environment Variables
 ---------------------
 
