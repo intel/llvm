@@ -2107,8 +2107,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
-pi_result piextEnablePeer(pi_device command_device,
-                          pi_device peer_device) {
+pi_result piextEnablePeer(pi_device command_device, pi_device peer_device) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
@@ -2116,8 +2115,7 @@ pi_result piextEnablePeer(pi_device command_device,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDisablePeer(pi_device command_device,
-                           pi_device peer_device) {
+pi_result piextDisablePeer(pi_device command_device, pi_device peer_device) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
@@ -2125,8 +2123,8 @@ pi_result piextDisablePeer(pi_device command_device,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextCanAccessPeer(pi_device command_device,
-                             pi_device peer_device, pi_peer_attr attr) {
+pi_result piextCanAccessPeer(pi_device command_device, pi_device peer_device,
+                             pi_peer_attr attr) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
