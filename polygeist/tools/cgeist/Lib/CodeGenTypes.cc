@@ -409,6 +409,28 @@ const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
   return CGM.getCodeGenOpts();
 }
 
+// Gets the declared type of a function parameter when given the index of the
+// parameter and the decayed type of the parameter.
+static QualType getDeclArgTy(const FunctionDecl &FD, int32_t ArgNo,
+                             QualType ABIArgTy) {
+  const bool IsMethodDecl = isa<CXXMethodDecl>(FD);
+  const bool IsMethodInstance =
+      IsMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
+  if (IsMethodInstance) // account for the fact the 'this' type is not
+    ArgNo--;            // present in the function declaration.
+  const QualType DeclArgTy =
+      (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "ABIArgTy: ";
+    ABIArgTy.dump();
+    llvm::dbgs() << "DeclArgTy: ";
+    DeclArgTy.dump();
+  });
+
+  return DeclArgTy;
+}
+
 mlir::FunctionType
 CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
                               const clang::FunctionDecl &FD) {
@@ -426,24 +448,6 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     if (IsArrayReturn)
       llvm::dbgs() << "IsArrayReturn = true\n";
   });
-
-  // This lambda function returns the declared type of a function parameter when
-  // given the index of the parameter and the decayed type of the parameter.
-  auto GetDeclArgTy = [&](int32_t ArgNo, QualType ABIArgTy) {
-    if (IsMethodInstance) // account for the fact the 'this' type is not
-      ArgNo--;            // present in the function declaration.
-    const QualType DeclArgTy =
-        (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "ABIArgTy: ";
-      ABIArgTy.dump();
-      llvm::dbgs() << "DeclArgTy: ";
-      DeclArgTy.dump();
-    });
-
-    return DeclArgTy;
-  };
 
   // This lambda function returns the MLIR type corresponding to the given clang
   // type.
@@ -571,7 +575,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     // Note: 'DeclArgTy' is the original type of the parameter in the
     // function declaration. In order to avoid premature loss of information
     // (e.g. extent of array dimensions) we want to use the original type.
-    const QualType DeclArgTy = GetDeclArgTy(ArgNo, ArgTy);
+    const QualType DeclArgTy = getDeclArgTy(FD, ArgNo, ArgTy);
 
     clang::CodeGen::ABIArgInfo::Kind Kind = ArgInfo.getKind();
     LLVM_DEBUG(llvm::dbgs() << "ArgInfo: " << Kind << "\n");
@@ -1064,6 +1068,14 @@ void CodeGenTypes::constructAttributeList(
     QualType ParamType = I->type;
     const clang::CodeGen::ABIArgInfo &AI = I->info;
     mlirclang::AttrBuilder ParamAttrsBuilder(*Ctx);
+
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
+      auto DeclArgTy = getDeclArgTy(*FD, ArgNo, ParamType);
+
+      // Set 'noalias' if an argument type has the `restrict` qualifier.
+      if (DeclArgTy.isRestrictQualified())
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+    }
 
     // Add attribute for padding argument, if necessary.
     if (IRFunctionArgs.hasPaddingArg(ArgNo)) {
