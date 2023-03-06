@@ -25,7 +25,7 @@ TEST_P(urUSMHostAllocTest, Success) {
 
     size_t allocation_size = sizeof(int);
     int *ptr = nullptr;
-    ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocation_size, 0,
+    ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, sizeof(int),
                                   reinterpret_cast<void **>(&ptr)));
     ASSERT_NE(ptr, nullptr);
 
@@ -59,24 +59,27 @@ TEST_P(urUSMHostAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), 0, &ptr));
+        urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), &ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidNullPtrMem) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0, nullptr));
+        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), nullptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
-                     urUSMHostAlloc(context, nullptr, nullptr, 13, 0, &ptr));
+                     urUSMHostAlloc(context, nullptr, nullptr, 13, &ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
+    ur_usm_desc_t desc = {};
+    desc.stype = UR_STRUCTURE_TYPE_USM_DESC;
+    desc.align = 1;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
-        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 1, &ptr));
+        urUSMHostAlloc(context, &desc, nullptr, sizeof(int), &ptr));
 }
