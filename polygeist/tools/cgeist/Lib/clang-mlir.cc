@@ -67,12 +67,10 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
                          LowerToInfo &LTInfo)
     : Glob(Glob), Function(), Module(Module), Builder(Module->getContext()),
       Loc(Builder.getUnknownLoc()), EntryBlock(nullptr), Loops(),
-      AllocationScope(nullptr), UnsupportedFuncs(), Bufs(), Constants(),
-      Labels(), EmittingFunctionDecl(nullptr), Params(), Captures(),
-      CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
+      AllocationScope(nullptr), Bufs(), Constants(), Labels(),
+      EmittingFunctionDecl(nullptr), Params(), Captures(), CaptureKinds(),
+      ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
       LTInfo(LTInfo) {}
-
-void MLIRScanner::initUnsupportedFunctions() {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
@@ -126,7 +124,6 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
                  << "\tfunctionDecl:" << *FD << "\n"
                  << "function:" << Function << "\n";
 
-  initUnsupportedFunctions();
   // This is needed, as GPUFuncOps are already created with an entry Block.
   setEntryAndAllocBlock(isa<gpu::GPUFuncOp>(Function)
                             ? &Function.getBlocks().front()
@@ -196,7 +193,7 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
     FunctionToEmit FTE(*FD);
     auto DeviceStub = cast<func::FuncOp>(
-        Glob.getOrCreateMLIRFunction(FTE, true /* ShouldEmit*/,
+        Glob.getOrCreateMLIRFunction(FTE,
                                      /* getDeviceStub */ true));
 
     Builder.create<func::CallOp>(Loc, DeviceStub, Function.getArguments());
@@ -1885,7 +1882,7 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
 }
 
 FunctionOpInterface
-MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
+MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                          bool GetDeviceStub) {
   assert(FTE.getDecl().getTemplatedKind() !=
              clang::FunctionDecl::TemplatedKind::TK_FunctionTemplate &&
@@ -1910,8 +1907,7 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
     return *OptFunction;
 
   // Create the MLIR function and set its various attributes.
-  FunctionOpInterface Function =
-      createMLIRFunction(FTE, MangledName, ShouldEmit);
+  FunctionOpInterface Function = createMLIRFunction(FTE, MangledName);
   checkFunctionParent(Function, FTE.getContext(), Module);
 
   // Decide whether the MLIR function should be emitted.
@@ -1925,13 +1921,11 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
            Def->getTemplatedKind() !=
                clang::FunctionDecl::TemplatedKind::
                    TK_DependentFunctionTemplateSpecialization);
-    if (ShouldEmit) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << __LINE__ << ": Pushing " << FTE.getContext() << " function "
-                 << Def->getNameAsString() << " to FunctionsToEmit\n");
-      FunctionsToEmit.emplace_back(*Def, FTE.getContext());
-    }
-  } else if (ShouldEmit) {
+    LLVM_DEBUG(llvm::dbgs()
+               << __LINE__ << ": Pushing " << FTE.getContext() << " function "
+               << Def->getNameAsString() << " to FunctionsToEmit\n");
+    FunctionsToEmit.emplace_back(*Def, FTE.getContext());
+  } else {
     EmitIfFound.insert(MangledName);
   }
 
@@ -1993,8 +1987,7 @@ void MLIRASTConsumer::run() {
 
     Done.insert(DoneKey);
     MLIRScanner MS(*this, Module, LTInfo);
-    FunctionOpInterface Function =
-        getOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
+    FunctionOpInterface Function = getOrCreateMLIRFunction(FTE);
     MS.init(Function, FTE);
 
     LLVM_DEBUG({
@@ -2154,9 +2147,8 @@ Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation Loc) {
 }
 
 llvm::GlobalValue::LinkageTypes
-MLIRASTConsumer::getLLVMLinkageType(const clang::FunctionDecl &FD,
-                                    bool ShouldEmit) {
-  if (!FD.hasBody() || !ShouldEmit)
+MLIRASTConsumer::getLLVMLinkageType(const clang::FunctionDecl &FD) {
+  if (!FD.hasBody())
     return llvm::GlobalValue::LinkageTypes::ExternalLinkage;
   if (const auto *CC = dyn_cast<clang::CXXConstructorDecl>(&FD))
     return CGM.getFunctionLinkage(
@@ -2200,7 +2192,7 @@ MLIRASTConsumer::getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV) {
 
 FunctionOpInterface
 MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
-                                    std::string MangledName, bool ShouldEmit) {
+                                    std::string MangledName) {
   const clang::FunctionDecl &FD = FTE.getDecl();
   Location Loc = getMLIRLocation(FD.getLocation());
   OpBuilder Builder(Module->getContext());
@@ -2213,8 +2205,8 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
           ? Builder.create<gpu::GPUFuncOp>(Loc, MangledName, FuncTy)
           : Builder.create<func::FuncOp>(Loc, MangledName, FuncTy);
 
-  setMLIRFunctionVisibility(Function, FTE, ShouldEmit);
-  setMLIRFunctionAttributes(Function, FTE, ShouldEmit);
+  setMLIRFunctionVisibility(Function, FTE);
+  setMLIRFunctionAttributes(Function, FTE);
 
   /// Inject the MLIR function created in either the device module or in the
   /// host module, depending on the calling context.
@@ -2235,16 +2227,15 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
 }
 
 void MLIRASTConsumer::setMLIRFunctionVisibility(FunctionOpInterface Function,
-                                                const FunctionToEmit &FTE,
-                                                bool ShouldEmit) {
+                                                const FunctionToEmit &FTE) {
   const clang::FunctionDecl &FD = FTE.getDecl();
   SymbolTable::Visibility Visibility = SymbolTable::Visibility::Public;
 
-  if (!ShouldEmit || !FD.isDefined() || FD.hasAttr<clang::CUDAGlobalAttr>() ||
+  if (!FD.isDefined() || FD.hasAttr<clang::CUDAGlobalAttr>() ||
       FD.hasAttr<clang::CUDADeviceAttr>())
     Visibility = SymbolTable::Visibility::Private;
   else {
-    llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD, ShouldEmit);
+    llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD);
     if (LV == llvm::GlobalValue::InternalLinkage ||
         LV == llvm::GlobalValue::PrivateLinkage)
       Visibility = SymbolTable::Visibility::Private;
@@ -2482,8 +2473,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
 }
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
-                                                const FunctionToEmit &FTE,
-                                                bool ShouldEmit) {
+                                                const FunctionToEmit &FTE) {
   using Attribute = llvm::Attribute;
 
   const clang::FunctionDecl &FD = FTE.getDecl();
@@ -2496,7 +2486,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
                << FD.getNameAsString() << "\n");
 
     mlirclang::AttrBuilder AttrBuilder(*Ctx);
-    LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+    LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD));
     AttrBuilder.addAttribute("llvm.linkage", LLVM::LinkageAttr::get(Ctx, Lnk));
 
     // HACK: we want to avoid setting additional attributes on non-sycl
@@ -2529,7 +2519,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
           "llvm.cconv", LLVM::CConvAttr::get(
                             Ctx, static_cast<LLVM::cconv::CConv>(CallingConv)));
 
-      LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+      LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD));
       AttrBuilder.addAttribute("llvm.linkage",
                                LLVM::LinkageAttr::get(Ctx, Lnk));
 
@@ -2655,7 +2645,7 @@ public:
 FunctionOpInterface MLIRScanner::EmitDirectCallee(const clang::FunctionDecl *FD,
                                                   FunctionContext Context) {
   FunctionToEmit FTE(*FD, Context);
-  return Glob.getOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
+  return Glob.getOrCreateMLIRFunction(FTE);
 }
 
 Location MLIRScanner::getMLIRLocation(clang::SourceLocation Loc) {

@@ -227,10 +227,6 @@ llvm::cl::opt<bool> OmitOptionalMangledFunctionName(
     llvm::cl::desc("Whether to omit optional \"MangledFunctionName\" fields"));
 
 llvm::cl::opt<bool>
-    GenerateAllSYCLFuncs("gen-all-sycl-funcs", llvm::cl::init(false),
-                         llvm::cl::desc("Generate all SYCL functions"));
-
-llvm::cl::opt<bool>
     GenerateSYCLAddrSpaceCast("gen-sycl-addrspacecast", llvm::cl::init(false),
                               llvm::cl::desc("Generate sycl.addrspacecast"));
 
