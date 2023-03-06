@@ -134,7 +134,7 @@ public:
     return Dom.properlyDominates(A, B);
   }
 
-  /// Returns true if all operations in \P Bs properly dominate operation \p A
+  /// Returns true if all operations in \p Bs properly dominate operation \p A
   /// and false otherwise.
   bool allProperlyDominate(ArrayRef<Operation *> Bs, Operation *A) const {
     return llvm::all_of(Bs,
@@ -159,12 +159,13 @@ public:
     WalkResult Result = ForOp.getBody()->walk([&](AffineLoadOp Load) {
       LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
 
-      // Skip the load if any of its subscript indices are the loop induction
-      // variable (i.e. the load is not loop invariant).
-      if (llvm::any_of(Load.getIndices(), [&ForOp](Value Index) {
-            return Index == ForOp.getInductionVar();
+      // Ensure operands are loop invariant.
+      if (llvm::any_of(Load.getOperands(), [&ForOp](Value value) {
+            return !ForOp.isDefinedOutsideOfLoop(value);
           })) {
-        LLVM_DEBUG(llvm::dbgs().indent(2) << "Skip - not loop invariant\n");
+        LLVM_DEBUG({
+          llvm::dbgs().indent(2) << "Skip: operand(s) not loop invariant\n";
+        });
         return WalkResult::advance();
       }
 
