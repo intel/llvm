@@ -37,9 +37,6 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
   // Default implementation.
   auto generic = [&]() { out = in_ptr[g.get_local_linear_id()]; };
 
-  // TODO: HIP?
-  constexpr bool intel_block_read_supported =
-      detail::is_spir && std::is_same_v<Group, sub_group>;
   using value_type = std::iterator_traits<InputIteratorT>::value_type;
   using input_iter_no_cv = std::remove_cv_t<InputIteratorT>;
 
@@ -47,32 +44,45 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
   constexpr bool supported_size =
       size == 1 || size == 2 || size == 4 || size == 8;
 
-  if constexpr (!intel_block_read_supported || !supported_size) {
+  // TODO: HIP?
+  if constexpr (!detail::is_spir || !supported_size) {
     return generic();
   } else if constexpr (detail::is_multi_ptr_v<InputIteratorT>) {
-    group_load(g, in_ptr.get_decorated(), out, properties);
+    return group_load(g, in_ptr.get_decorated(), out, properties);
   } else if constexpr (!std::is_pointer_v<input_iter_no_cv>) {
     return generic();
   } else {
     // Pointer.
-    constexpr auto AS = sycl::detail::deduce_AS<input_iter_no_cv>::value;
-    if constexpr (AS == access::address_space::global_space) {
-      using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
-      using PtrT = sycl::detail::DecoratedType<BlockT, AS>::type *;
+    if constexpr (std::is_same_v<Group, sub_group>) {
+      constexpr auto AS = sycl::detail::deduce_AS<input_iter_no_cv>::value;
+      if constexpr (AS == access::address_space::global_space) {
+        using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
+        using PtrT = sycl::detail::DecoratedType<BlockT, AS>::type *;
 
-      BlockT load = __spirv_SubgroupBlockReadINTEL<BlockT>(
-          reinterpret_cast<PtrT>(in_ptr));
-      out = sycl::bit_cast<value_type>(load);
-      return;
+        BlockT load = __spirv_SubgroupBlockReadINTEL<BlockT>(
+            reinterpret_cast<PtrT>(in_ptr));
+        out = sycl::bit_cast<value_type>(load);
+        return;
 
-    } else if constexpr (AS == access::address_space::generic_space) {
-      if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
-              remove_decoration_t<value_type>>(in_ptr))
-        return group_load(g, global_ptr, out, properties);
+      } else if constexpr (AS == access::address_space::generic_space) {
+        if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
+                remove_decoration_t<value_type>>(in_ptr))
+          return group_load(g, global_ptr, out, properties);
 
-      return generic();
+        return generic();
+      } else {
+        return generic();
+      }
     } else {
-      return generic();
+      // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
+      // once it is implemented instead of this free function.
+      auto ndi =
+          sycl::ext::oneapi::experimental::this_nd_item<Group::dimensions>();
+      auto sg = ndi.get_sub_group();
+      // TODO: Do we have guarantees that all SGs are of the same size? Should
+      // get_max_local_range be used instead?
+      return group_load(sg, in_ptr + sg.get_group_id() * sg.get_local_range(),
+                        out, properties);
     }
   }
 #else

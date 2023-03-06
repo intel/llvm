@@ -12,6 +12,13 @@ using namespace sycl;
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::property;
+using namespace access;
+
+// Using-enum-declaration is C++20.
+constexpr auto global_space = address_space::global_space;
+constexpr auto local_space = address_space::local_space;
+constexpr auto blocked = group_algorithm_data_placement::blocked;
+constexpr auto striped = group_algorithm_data_placement::striped;
 
 constexpr int WG_SIZE = 32;
 constexpr int N_WGS = 2;
@@ -57,9 +64,9 @@ void test(FuncTy Func) {
           // TODO: Use accessor::get_pointer once it starts returing raw
           // pointer.
           auto *global_mem =
-              global_mem_acc.get_multi_ptr<access::decorated::no>().get_raw();
+              global_mem_acc.get_multi_ptr<decorated::no>().get_raw();
           auto *local_mem =
-              local_mem_acc.get_multi_ptr<access::decorated::no>().get_raw();
+              local_mem_acc.get_multi_ptr<decorated::no>().get_raw();
 
           // Each WG receives its own "local" sub-region.
           global_mem += WG_SIZE * ELEMS_PER_WI * ndi.get_group(0);
@@ -121,16 +128,52 @@ int main() {
       Record(out == init);
     };
 
-    Check(global_mem);
-    Check(usm_mem);
+    // CHECK: define weak_odr dso_local spir_kernel {{.*}}ScalarWGKernel
+    Check(global_mem); // Dynamic address space dispatch.
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(usm_mem); // Dynamic address space dispatch.
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK-NOT: br
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK-NOT: br
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK-NOT: br
+    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
   });
 
   std::cout << "ScalarSGKernel" << std::endl;
@@ -166,39 +209,33 @@ int main() {
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 3]]
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
-    Check(address_space_cast<access::address_space::local_space,
-                             access::decorated::yes>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
-    Check(address_space_cast<access::address_space::local_space,
-                             access::decorated::no>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
-    Check(address_space_cast<access::address_space::local_space,
-                             access::decorated::yes>(local_mem)
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 3]]
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
     // CHECK-NOT: SubgroupBlockRead
 
     marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
@@ -221,14 +258,12 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      vec<int, VEC_SIZE> out_blocked;
-      auto blocked =
-          properties(data_placement<group_algorithm_data_placement::blocked>);
-      group_load(g, Input, out_blocked, blocked);
+      vec<int, VEC_SIZE> out;
+      group_load(g, Input, out, properties(data_placement<blocked>));
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
-        success &= (out_blocked[i] == init - i);
+        success &= (out[i] == init - i);
       }
       Record(success);
     };
@@ -236,12 +271,9 @@ int main() {
     Check(global_mem);
     Check(usm_mem);
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
   });
 
@@ -286,17 +318,15 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      vec<int, VEC_SIZE> out_striped;
-      auto striped =
-          properties(data_placement<group_algorithm_data_placement::striped>);
-      group_load(g, Input, out_striped, striped);
+      vec<int, VEC_SIZE> out;
+      group_load(g, Input, out, properties(data_placement<striped>));
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
         int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
-        success &= (out_striped[i] ==
-                    ndi.get_group(0) * WG_SIZE + VEC_SIZE * 2 +
-                        striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
+        success &=
+            (out[i] == ndi.get_group(0) * WG_SIZE + VEC_SIZE * 2 +
+                           striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
       }
       Record(success);
     };
@@ -304,12 +334,9 @@ int main() {
     Check(global_mem);
     Check(usm_mem);
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
   });
 
@@ -327,14 +354,13 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      vec<int, VEC_SIZE> out_blocked;
-      auto blocked =
-          properties(data_placement<group_algorithm_data_placement::blocked>);
-      group_load(ndi.get_sub_group(), Input, out_blocked, blocked);
+      vec<int, VEC_SIZE> out;
+      group_load(ndi.get_sub_group(), Input, out,
+                 properties(data_placement<blocked>));
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
-        success &= (out_blocked[i] == init - i);
+        success &= (out[i] == init - i);
       }
       Record(success);
     };
@@ -342,12 +368,9 @@ int main() {
     Check(global_mem);
     Check(usm_mem);
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
   });
 
@@ -393,19 +416,17 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      vec<int, VEC_SIZE> out_striped;
-      auto striped =
-          properties(data_placement<group_algorithm_data_placement::striped>);
-      group_load(sg, Input, out_striped, striped);
+      vec<int, VEC_SIZE> out;
+      group_load(sg, Input, out, properties(data_placement<striped>));
 
       bool success = true;
       // Make IR dumps more readable by forcing unrolling.
       sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
         int striped_idx = sg.get_local_id() + i * sg_size;
-        success &= (out_striped[i] ==
-                    ndi.get_group(0) * WG_SIZE + sg.get_group_id() * sg_size +
-                        VEC_SIZE * 2 + striped_idx / VEC_SIZE -
-                        striped_idx % VEC_SIZE);
+        success &=
+            (out[i] == ndi.get_group(0) * WG_SIZE +
+                           sg.get_group_id() * sg_size + VEC_SIZE * 2 +
+                           striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
       });
       Record(success);
     };
@@ -418,16 +439,13 @@ int main() {
     // Check(local_mem); // FIXME: Why does it fail?
     // check: call {{.*}}marker
 
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 3]]
+    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
     marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
     return;
   });
@@ -450,15 +468,13 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      int out_blocked_arr[SPAN_SIZE];
-      sycl::span<int, SPAN_SIZE> out_blocked(out_blocked_arr);
-      auto blocked =
-          properties(data_placement<group_algorithm_data_placement::blocked>);
-      group_load(g, Input, out_blocked, blocked);
+      int out_arr[SPAN_SIZE];
+      sycl::span<int, SPAN_SIZE> out(out_arr);
+      group_load(g, Input, out, properties(data_placement<blocked>));
 
       bool success = true;
       for (int i = 0; i < SPAN_SIZE; ++i) {
-        success &= (out_blocked[i] == init - i);
+        success &= (out[i] == init - i);
       }
       Record(success);
     };
@@ -466,12 +482,9 @@ int main() {
     Check(global_mem);
     Check(usm_mem);
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
   });
 
@@ -517,18 +530,16 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      int out_striped_arr[SPAN_SIZE];
-      sycl::span<int, SPAN_SIZE> out_striped(out_striped_arr);
-      auto striped =
-          properties(data_placement<group_algorithm_data_placement::striped>);
-      group_load(g, Input, out_striped, striped);
+      int out_arr[SPAN_SIZE];
+      sycl::span<int, SPAN_SIZE> out(out_arr);
+      group_load(g, Input, out, properties(data_placement<striped>));
 
       bool success = true;
       for (int i = 0; i < SPAN_SIZE; ++i) {
         int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
-        success &= (out_striped[i] ==
-                    ndi.get_group(0) * WG_SIZE + SPAN_SIZE * 2 +
-                        striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
+        success &=
+            (out[i] == ndi.get_group(0) * WG_SIZE + SPAN_SIZE * 2 +
+                           striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
       }
       Record(success);
     };
@@ -536,12 +547,9 @@ int main() {
     Check(global_mem);
     Check(usm_mem);
     Check(local_mem);
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::no>(global_mem));
-    Check(address_space_cast<access::address_space::global_space,
-                             access::decorated::yes>(global_mem)
+    Check(address_space_cast<global_space, decorated::yes>(global_mem));
+    Check(address_space_cast<global_space, decorated::no>(global_mem));
+    Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
   });
 
