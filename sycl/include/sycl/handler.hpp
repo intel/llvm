@@ -2107,7 +2107,7 @@ public:
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             std::shared_ptr<T_Dst> Dst) {
     if (Src.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Src);
+      checkIfPlaceholderIsBoundToHandler(Src);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2135,7 +2135,7 @@ public:
   copy(std::shared_ptr<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
     if (Dst.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Dst);
+      checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2162,7 +2162,7 @@ public:
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             T_Dst *Dst) {
     if (Src.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Src);
+      checkIfPlaceholderIsBoundToHandler(Src);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2204,7 +2204,7 @@ public:
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
     if (Dst.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Dst);
+      checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2252,9 +2252,9 @@ public:
                      IsPlaceholder_Dst>
                 Dst) {
     if (Src.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Src);
+      checkIfPlaceholderIsBoundToHandler(Src);
     if (Dst.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Dst);
+      checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
@@ -2300,7 +2300,7 @@ public:
   void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
     if (Acc.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Acc);
+      checkIfPlaceholderIsBoundToHandler(Acc);
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2332,7 +2332,7 @@ public:
            Dst,
        const T &Pattern) {
     if (Dst.is_placeholder())
-      checkIfPlaceholderIsBoundedToCG(Dst);
+      checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
@@ -2898,7 +2898,7 @@ private:
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t,
             typename PropertyListT = property_list>
-  void checkIfPlaceholderIsBoundedToCG(
+  void checkIfPlaceholderIsBoundToHandler(
       accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
           Acc) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
