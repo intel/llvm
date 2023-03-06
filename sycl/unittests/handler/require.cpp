@@ -36,7 +36,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
       EXPECT_EQ(e.what(), msg);
     }
 
-    // Should pass without any exception throwed
+    // Should pass without any exception thrown
     {
       sycl::buffer<int, 1> buf(&data, 1);
       sycl::accessor acc(buf);
@@ -60,7 +60,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
       EXPECT_EQ(e.what(), msg);
     }
 
-    // Should pass without any exception throwed
+    // Should pass without any exception thrown
     {
       sycl::buffer<int, 1> buf(&data, 1);
       sycl::accessor acc(buf);
@@ -87,7 +87,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
         EXPECT_EQ(e.what(), msg);
       }
 
-      // Should pass without any exception throwed
+      // Should pass without any exception thrown
       {
         sycl::buffer<int, 1> buf(&data, 1);
         sycl::accessor acc(buf);
@@ -113,7 +113,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
         EXPECT_EQ(e.what(), msg);
       }
 
-      // Should pass without any exception throwed
+      // Should pass without any exception thrown
       {
         sycl::buffer<int, 1> buf(&data, 1);
         sycl::accessor acc(buf);
@@ -138,7 +138,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
         EXPECT_EQ(e.what(), msg);
       }
 
-      // Should pass without any exception throwed
+      // Should pass without any exception thrown
       {
         sycl::buffer<int, 1> buf(&data, 1);
         sycl::accessor acc(buf);
@@ -164,7 +164,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
         EXPECT_EQ(e.what(), msg);
       }
 
-      // Should pass without any exception throwed
+      // Should pass without any exception thrown
       {
         sycl::buffer<int, 1> buf(&data, 1);
         sycl::accessor acc(buf);
@@ -218,7 +218,7 @@ TEST(Require, checkIfAccBoundedToHandler) {
         EXPECT_EQ(e.what(), msg);
       }
 
-      // Should pass without any exception throwed
+      // Should pass without any exception thrown
       {
         sycl::buffer<int, 1> buf(&data, 1);
         sycl::buffer<int, 1> buf2(&data2, 1);
