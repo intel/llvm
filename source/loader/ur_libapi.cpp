@@ -1467,7 +1467,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::UR_DEVICE_INFO_USM_HOST_SUPPORT is false.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + `pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`
 ///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
 ///         + `size == 0`
@@ -1482,10 +1482,6 @@ ur_result_t UR_APICALL urUSMHostAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
     auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
@@ -1493,7 +1489,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnHostAlloc(hContext, pUSMDesc, pool, size, align, ppMem);
+    return pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1522,7 +1518,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::UR_DEVICE_INFO_USM_HOST_SUPPORT is false.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + `pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`
 ///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
 ///         + `size == 0`
@@ -1538,10 +1534,6 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
     auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
@@ -1549,8 +1541,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, align,
-                          ppMem);
+    return pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1577,7 +1568,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + `align != 0 && ((align & (align-1)) != 0)`
+///         + `pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`
 ///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
 ///         + `size == 0`
@@ -1595,10 +1586,6 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object.
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
     auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
@@ -1606,8 +1593,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, align,
-                          ppMem);
+    return pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1203,7 +1203,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMHostAlloc_t)(
     ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,
-    uint32_t,
     void **);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1214,7 +1213,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMDeviceAlloc_t)(
     ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,
-    uint32_t,
     void **);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1225,7 +1223,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMSharedAlloc_t)(
     ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,
-    uint32_t,
     void **);
 
 ///////////////////////////////////////////////////////////////////////////////

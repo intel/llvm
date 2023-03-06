@@ -1378,10 +1378,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1401,7 +1397,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
                   : nullptr;
 
     // forward to device-platform
-    result = pfnHostAlloc(hContext, pUSMDesc, pool, size, align, ppMem);
+    result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 
     return result;
 }
@@ -1417,10 +1413,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1443,8 +1435,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
                   : nullptr;
 
     // forward to device-platform
-    result =
-        pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, align, ppMem);
+    result = pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     return result;
 }
@@ -1460,10 +1451,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object.
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1486,8 +1473,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
                   : nullptr;
 
     // forward to device-platform
-    result =
-        pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, align, ppMem);
+    result = pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     return result;
 }

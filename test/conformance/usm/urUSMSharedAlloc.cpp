@@ -25,7 +25,7 @@ TEST_P(urUSMSharedAllocTest, Success) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                    allocation_size, 0, &ptr));
+                                    allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
@@ -39,34 +39,37 @@ TEST_P(urUSMSharedAllocTest, Success) {
 
 TEST_P(urUSMSharedAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urUSMSharedAlloc(nullptr, device, nullptr, nullptr,
-                                      sizeof(int), 0, &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urUSMSharedAlloc(nullptr, device, nullptr, nullptr, sizeof(int), &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidNullHandleDevice) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMSharedAlloc(context, nullptr, nullptr, nullptr,
-                                      sizeof(int), 0, &ptr));
+                                      sizeof(int), &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                      sizeof(int), 0, nullptr));
+                                      sizeof(int), nullptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_USM_SIZE,
-        urUSMSharedAlloc(context, device, nullptr, nullptr, 13, 0, &ptr));
+        urUSMSharedAlloc(context, device, nullptr, nullptr, 13, &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                     urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                      sizeof(int), 1, &ptr));
+    ur_usm_desc_t desc = {};
+    desc.stype = UR_STRUCTURE_TYPE_USM_DESC;
+    desc.align = 1;
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urUSMSharedAlloc(context, device, &desc, nullptr, sizeof(int), &ptr));
 }

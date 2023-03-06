@@ -38,7 +38,7 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
     uint8_t fill_pattern = 0;
     void *fill_ptr = nullptr;
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                    big_allocation, 0, &fill_ptr));
+                                    big_allocation, &fill_ptr));
 
     ur_event_handle_t fill_event;
     ASSERT_SUCCESS(urEnqueueUSMFill(fill_queue, fill_ptr, 1, &fill_pattern,

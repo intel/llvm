@@ -114,6 +114,12 @@ members:
     - type: $x_mem_advice_t
       name: hints
       desc: "[in] Memory advice hints"
+    - type: uint32_t
+      name: align      
+      desc: |
+            [in] alignment of the USM memory object
+            Must be zero or a power of 2.
+            Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM pool descriptor type"
@@ -168,12 +174,6 @@ params:
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
-    - type: uint32_t
-      name: align      
-      desc: |
-            [in] alignment of the USM memory object
-            Must be zero or a power of 2.
-            Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM host memory object"
@@ -182,7 +182,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_OPERATION:
       - "If $X_DEVICE_INFO_USM_HOST_SUPPORT is false."    
     - $X_RESULT_ERROR_INVALID_VALUE:
-      - "`align != 0 && ((align & (align-1)) != 0)`" # alignment must be power of two
+      - "`pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`" # alignment must be power of two
       - "If `align` is greater that the size of the largest data type supported by `hDevice`."
     - $X_RESULT_ERROR_INVALID_USM_SIZE:
       - "`size == 0`"
@@ -217,12 +217,6 @@ params:
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
-    - type: uint32_t
-      name: align      
-      desc: |
-            [in] alignment of the USM memory object
-            Must be zero or a power of 2.
-            Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM device memory object"
@@ -231,7 +225,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_OPERATION:
       - "If $X_DEVICE_INFO_USM_HOST_SUPPORT is false."
     - $X_RESULT_ERROR_INVALID_VALUE:
-      - "`align != 0 && ((align & (align-1)) != 0)`" # alignment must be power of two
+      - "`pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`" # alignment must be power of two
       - "If `align` is greater that the size of the largest data type supported by `hDevice`."
     - $X_RESULT_ERROR_INVALID_USM_SIZE:
       - "`size == 0`"
@@ -266,19 +260,13 @@ params:
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the USM memory object to be allocated"
-    - type: uint32_t
-      name: align      
-      desc: |
-            [in] alignment of the USM memory object.
-            Must be zero or a power of 2.
-            Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM shared memory object"
 returns:      
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE:
-      - "`align != 0 && ((align & (align-1)) != 0)`" # alignment must be power of two
+      - "`pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`" # alignment must be power of two
       - "If `align` is greater that the size of the largest data type supported by `hDevice`."
     - $X_RESULT_ERROR_INVALID_USM_SIZE:
       - "`size == 0`"
