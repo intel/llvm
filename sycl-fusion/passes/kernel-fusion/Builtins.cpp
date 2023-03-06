@@ -1,5 +1,7 @@
 #include "Builtins.h"
 
+#include "NDRangesHelper.h"
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/ModRef.h"
@@ -118,14 +120,8 @@ static bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
     return SrcNDRange.hasSpecificLocalSize();
   case BuiltinKind::GlobalIDRemapper:
   case BuiltinKind::LocalIDRemapper:
-  case BuiltinKind::GroupIDRemapper: {
-    // No need to remap when all but the dimensions and the left-most components
-    // of the global size range are equal.
-    const auto &GS0 = SrcNDRange.getGlobalSize();
-    const auto &GS1 = FusedNDRange.getGlobalSize();
-    return SrcNDRange.getDimensions() != FusedNDRange.getDimensions() ||
-           !std::equal(GS0.begin() + 1, GS0.end(), GS1.begin() + 1);
-  }
+  case BuiltinKind::GroupIDRemapper:
+    return requireIDRemapping(SrcNDRange, FusedNDRange);
   }
   llvm_unreachable("Unhandled kind");
 }
