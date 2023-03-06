@@ -21,6 +21,10 @@ namespace sycl {
 
 /// Specialized alias analysis for SYCL dialect operations.
 class AliasAnalysis : public LocalAliasAnalysis {
+public:
+  AliasAnalysis(bool relaxedAliasing)
+      : LocalAliasAnalysis(), relaxedAliasing(relaxedAliasing) {}
+
 protected:
   AliasResult aliasImpl(Value lhs, Value rhs) override;
 
@@ -38,6 +42,10 @@ private:
   /// 'accessor.subscript' operations. It returns 'NoAlias' if it can prove that
   /// values do not alias and 'MayAlias' otherwise.
   AliasResult handleAccessorSubscriptAlias(Value lhs, Value rhs);
+
+  /// Whether to assume the program abides to strict aliasing rules (i.e type
+  /// based aliasing) or not.
+  const bool relaxedAliasing = false;
 };
 
 } // namespace sycl

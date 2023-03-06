@@ -40,6 +40,8 @@ using namespace mlir;
 namespace {
 
 struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
+  using LICMBase<LICM>::LICMBase;
+
   void runOnOperation() override;
 };
 
@@ -902,7 +904,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
 void LICM::runOnOperation() {
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis());
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
     Operation *parentOp = loop;
@@ -956,4 +958,9 @@ void LICM::runOnOperation() {
 
 std::unique_ptr<Pass> mlir::polygeist::createLICMPass() {
   return std::make_unique<LICM>();
+}
+
+std::unique_ptr<Pass>
+mlir::polygeist::createLICMPass(const LICMOptions &options) {
+  return std::make_unique<LICM>(options);
 }

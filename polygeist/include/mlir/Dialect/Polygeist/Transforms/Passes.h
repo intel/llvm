@@ -31,9 +31,9 @@ void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
 #define GEN_PASS_DECL
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 
-std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
 std::unique_ptr<Pass> createLICMPass();
+std::unique_ptr<Pass> createLICMPass(const LICMOptions &options);
 std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createInnerSerializationPass();
 std::unique_ptr<Pass> replaceAffineCFGPass();

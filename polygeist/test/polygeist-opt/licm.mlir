@@ -1,4 +1,5 @@
-// RUN: polygeist-opt --licm --split-input-file %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --licm="relaxed-aliasing=false" --split-input-file %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --licm="relaxed-aliasing=true" --split-input-file %s 2>&1 | FileCheck --check-prefix=CHECK-RELAXED-ALIASING %s
 
 // COM: Test LICM on scf.for loops.
 module {
@@ -308,6 +309,19 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-NEXT:         affine.store %6, %4[0] : memref<?xf32, 4>
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }    
+
+  // CHECK-RELAXED-ALIASING:         func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+  // CHECK-RELAXED-ALIASING-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
+  // CHECK-RELAXED-ALIASING-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
+  // CHECK-RELAXED-ALIASING:          sycl.constructor @id(%2, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+  // CHECK-RELAXED-ALIASING-NEXT:     affine.for %arg1 = 0 to 10 {
+  // CHECK-RELAXED-ALIASING-NEXT:      %3 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
+  // CHECK-RELAXED-ALIASING-NEXT:    affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1_>
+  // CHECK-RELAXED-ALIASING-NEXT:      %4 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %5 = affine.load %4[0] : memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %6 = arith.addf %5, %cst : f32
+  // CHECK-RELAXED-ALIASING-NEXT:      affine.store %6, %4[0] : memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:    }
 
   %alloca = memref.alloca() : memref<1x!sycl_id_1>  
   %alloca_0 = memref.alloca() : memref<1x!sycl_id_1>
