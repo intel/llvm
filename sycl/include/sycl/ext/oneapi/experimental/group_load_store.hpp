@@ -44,6 +44,14 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
   constexpr bool supported_size =
       size == 1 || size == 2 || size == 4 || size == 8;
 
+  bool is_aligned = [&]() {
+    constexpr int reqd_read_align = 4; // bytes.
+    if constexpr (alignof(value_type) >= reqd_read_align)
+      return true;
+    else
+      return (reinterpret_cast<uintptr_t>(in_ptr) % reqd_read_align) != 0;
+  }();
+
   // TODO: HIP?
   if constexpr (!detail::is_spir || !supported_size) {
     return generic();
@@ -56,6 +64,10 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
     if constexpr (std::is_same_v<Group, sub_group>) {
       constexpr auto AS = sycl::detail::deduce_AS<input_iter_no_cv>::value;
       if constexpr (AS == access::address_space::global_space) {
+        if (!is_aligned)
+          // Not properly aligned.
+          return generic();
+
         using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
         using PtrT = sycl::detail::DecoratedType<BlockT, AS>::type *;
 
@@ -65,6 +77,10 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
         return;
 
       } else if constexpr (AS == access::address_space::generic_space) {
+        if (!is_aligned)
+          // Not properly aligned.
+          return generic();
+
         if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
                 remove_decoration_t<value_type>>(in_ptr))
           return group_load(g, global_ptr, out, properties);
