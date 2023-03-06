@@ -1,5 +1,5 @@
-// RUN: cgeist %s -O2 --function=kernel_correlation --raise-scf-to-affine -S | FileCheck %s
-// RUN: cgeist %s -O2 --function=kernel_correlation --raise-scf-to-affine -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s -O2 --function=kernel_correlation -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
 
@@ -36,26 +36,26 @@ void kernel_correlation(int n, double alpha, double beta,
 // CHECK-NEXT:     affine.for %arg8 = 0 to %0 {
 // CHECK-NEXT:       affine.store %cst, %arg5[%arg8] : memref<?xf64>
 // CHECK-NEXT:       affine.store %cst, %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       affine.for %arg9 = 0 to %0 {
-// CHECK-NEXT:         %6 = affine.load %arg3[%arg8, %arg9] : memref<?x28xf64>
-// CHECK-NEXT:         %7 = affine.load %arg6[%arg9] : memref<?xf64>
-// CHECK-NEXT:         %8 = arith.mulf %6, %7 : f64
-// CHECK-NEXT:         %9 = affine.load %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:         %10 = arith.addf %8, %9 : f64
-// CHECK-NEXT:         affine.store %10, %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:         %11 = affine.load %arg4[%arg8, %arg9] : memref<?x28xf64>
-// CHECK-NEXT:         %12 = affine.load %arg6[%arg9] : memref<?xf64>
-// CHECK-NEXT:         %13 = arith.mulf %11, %12 : f64
-// CHECK-NEXT:         %14 = affine.load %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:         %15 = arith.addf %13, %14 : f64
-// CHECK-NEXT:         affine.store %15, %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       }
 // CHECK-NEXT:       %1 = affine.load %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %2 = arith.mulf %arg1, %1 : f64
-// CHECK-NEXT:       %3 = affine.load %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %4 = arith.mulf %arg2, %3 : f64
-// CHECK-NEXT:       %5 = arith.addf %2, %4 : f64
-// CHECK-NEXT:       affine.store %5, %arg7[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %2 = affine.load %arg7[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %3:2 = affine.for %arg9 = 0 to %0 iter_args(%arg10 = %1, %arg11 = %2) -> (f64, f64) {
+// CHECK-NEXT:         %9 = affine.load %arg3[%arg8, %arg9] : memref<?x28xf64>
+// CHECK-NEXT:         %10 = affine.load %arg6[%arg9] : memref<?xf64>
+// CHECK-NEXT:         %11 = arith.mulf %9, %10 : f64
+// CHECK-NEXT:         %12 = arith.addf %11, %arg10 : f64
+// CHECK-NEXT:         %13 = affine.load %arg4[%arg8, %arg9] : memref<?x28xf64>
+// CHECK-NEXT:         %14 = arith.mulf %13, %10 : f64
+// CHECK-NEXT:         %15 = arith.addf %14, %arg11 : f64
+// CHECK-NEXT:         affine.yield %12, %15 : f64, f64
+// CHECK-NEXT:       }
+// CHECK-NEXT:       affine.store %3#1, %arg7[%arg8] : memref<?xf64>
+// CHECK-NEXT:       affine.store %3#0, %arg5[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %4 = affine.load %arg5[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %5 = arith.mulf %arg1, %4 : f64
+// CHECK-NEXT:       %6 = affine.load %arg7[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %7 = arith.mulf %arg2, %6 : f64
+// CHECK-NEXT:       %8 = arith.addf %5, %7 : f64
+// CHECK-NEXT:       affine.store %8, %arg7[%arg8] : memref<?xf64>
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

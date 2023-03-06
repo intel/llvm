@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* --detect-reduction -S | FileCheck %s
+// RUN: cgeist -O2 %s --function=* -S | FileCheck %s
 
 extern int print(double);
 

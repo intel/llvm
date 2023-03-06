@@ -362,10 +362,10 @@ static int optimize(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  if (DetectReduction)
-    OptPM.addPass(polygeist::detectReductionPass());
-
   if (OptLevel != llvm::OptimizationLevel::O0) {
+    if (DetectReduction)
+      OptPM.addPass(polygeist::detectReductionPass());
+
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine

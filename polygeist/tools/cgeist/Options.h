@@ -145,7 +145,7 @@ static llvm::cl::opt<bool> LoopUnroll("unroll-loops", llvm::cl::init(true),
                                       llvm::cl::desc("Unroll Affine Loops"));
 
 static llvm::cl::opt<bool>
-    DetectReduction("detect-reduction", llvm::cl::init(false),
+    DetectReduction("detect-reduction", llvm::cl::init(true),
                     llvm::cl::desc("Detect reduction in inner most loop"));
 
 static llvm::cl::opt<std::string> Standard("std", llvm::cl::init(""),
