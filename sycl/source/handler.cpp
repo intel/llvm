@@ -359,8 +359,8 @@ event handler::finalize() {
   }
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        HostPipeName, HostPipeBlocking, HostPipePtr, HostPipeTypeSize,
-        HostPipeRead, std::move(MArgsStorage), std::move(MAccStorage),
+        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr, MImpl->HostPipeTypeSize,
+        MImpl->HostPipeRead, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
@@ -863,13 +863,11 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 
 void handler::read_write_host_pipe(const std::string &Name, void *Ptr,
                                    size_t Size, bool Block, bool Read) {
-  // throwIfActionIsCreated(); // Need this?? Zibai
-  std::clog << "Zibai remove this read_write_host_pipe is invoked \n";
-  HostPipeName = Name;
-  HostPipePtr = Ptr;
-  HostPipeTypeSize = Size;
-  HostPipeBlocking = Block;
-  HostPipeRead = Read;
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = Read;
   setType(detail::CG::ReadWriteHostPipe);
 }
 

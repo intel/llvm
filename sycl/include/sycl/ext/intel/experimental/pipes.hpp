@@ -89,9 +89,74 @@ public:
 
   // Host API
   static _dataT read(queue & q, bool &success_code, 
-                     memory_order order = memory_order::seq_cst);
+                     memory_order order = memory_order::seq_cst)
+  {
+     std::cout << "Zibai pipes.hpp non-blocking read is being called \n";
+     const device Dev = q.get_device();
+      bool IsPipeSupported =
+          Dev.has_extension("cl_intel_program_scope_host_pipe");
+      if (!IsPipeSupported) {
+        std::cout << "Zibai pipes.hpp read is being called not supported 2\n";
+        return _dataT();
+      }
+      _dataT data;
+      void *data_ptr = &data;
+      const void *HostPipePtr = &m_Storage;
+      const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+
+      event e = q.submit([=](handler &CGH) {
+        CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
+                                true /* read */);
+      });
+      e.wait(); // Zibai double check, I think wait() is still needed even it's non-blocking?
+      // Note: below code is making assumption that the negative open event value (failing) will be propagated to SYCL runtime, and not return complete if fail
+      if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
+         success_code = true;
+         return *(_dataT *)data_ptr;
+      }else{
+        success_code = false;
+        return _dataT();
+      }
+  }
+
   static void write(queue & q, const _dataT &data, bool &success_code, 
-                    memory_order order = memory_order::seq_cst);
+                    memory_order order = memory_order::seq_cst)
+  {
+  const device Dev = q.get_device();
+  bool IsPipeSupported =
+      Dev.has_extension("cl_intel_program_scope_host_pipe");
+  if (!IsPipeSupported) {
+    std::cout << "Zibai pipes.hpp write is being called not supported\n";
+    return;
+  }
+
+  const void *HostPipePtr = &m_Storage;
+  const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+  const void *data_ptr = &data;
+
+  event e = q.submit([=](handler &CGH) {
+    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
+                             false /* write */);
+  });
+  e.wait(); // Zibai double check, I think wait() is still needed even it's non-blocking?
+  // Note: below code is making assumption that the negative open event value (failing) will be propagated to SYCL runtime, and not return complete if fail
+  // If it always return complete, need to figure out how to propagate the error back.
+  // https://intel.github.io/llvm-docs/doxygen/namespacesycl_1_1__V1_1_1info.html#a614308c11885e0d8171d1ce5480bcbb0ad9a22d7a8178d5b42a8750123cbfe5b1
+  // event_command_status::ext_oneapi_unknown = -1, hopefully this -1 is returned.
+  // In pi.h, PI_EVENT_COMPLETE is 0
+  //   typedef enum {
+  //   PI_EVENT_COMPLETE = 0x0,
+  //   PI_EVENT_RUNNING = 0x1,
+  //   PI_EVENT_SUBMITTED = 0x2,
+  //   PI_EVENT_QUEUED = 0x3
+  // } _pi_event_status;
+  // Question: why pi_event status has no failure?
+  if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
+      success_code = true;
+  }else{
+    success_code = false;
+  }
+}
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -196,40 +261,41 @@ public:
   // Host API
   static _dataT read(queue & q, memory_order order = memory_order::seq_cst)
   {
-     const device Dev = q.get_device();
-      bool IsReadPipeSupported =
+      const device Dev = q.get_device();
+      bool IsPipeSupported =
           Dev.has_extension("cl_intel_program_scope_host_pipe");
-      if (!IsReadPipeSupported) {
+      if (!IsPipeSupported) {
         return &_dataT();
       }
       _dataT data;
+      void *data_ptr = &data;
       const void *HostPipePtr = &m_Storage;
       const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
       event e = q.submit([=](handler &CGH) {
-        CGH.read_write_host_pipe(pipe_name, (void *)(&data), sizeof(_dataT), false,
-                                true /* read */);
+        CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
+                                true /*blocking read */);
       });
       e.wait();
-      return data;
+      return *(_dataT *)data_ptr;
   }
 
   static void write(queue & q, const _dataT &data,
                     memory_order order = memory_order::seq_cst)
   {
-  const device Dev = q.get_device();
-  bool IsReadPipeSupported =
-      Dev.has_extension("cl_intel_program_scope_host_pipe");
-  if (!IsReadPipeSupported) {
-    return;
-  }
-  const void *HostPipePtr = &m_Storage;
-  const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-  const void *data_ptr = &data;
-  event e = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
-                             false /* write */);
-  });
-  e.wait();
+    const device Dev = q.get_device();
+    bool IsPipeSupported =
+        Dev.has_extension("cl_intel_program_scope_host_pipe");
+    if (!IsPipeSupported) {
+      return;
+    }
+    const void *HostPipePtr = &m_Storage;
+    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+    const void *data_ptr = &data;
+    event e = q.submit([=](handler &CGH) {
+      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), true,
+                              false /*blocking write */);
+    });
+    e.wait();
 }
   
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
@@ -332,7 +398,7 @@ private:
 
   static constexpr int32_t m_ready_latency = detail::ValueOrDefault<_propertiesT, ready_latency_key>::template get<int32_t>(0);
   static constexpr int32_t m_bits_per_symbol = detail::ValueOrDefault<_propertiesT, bits_per_symbol_key>::template get<int32_t>(0);
-  static constexpr bool m_uses_valid = detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(0);
+  static constexpr bool m_uses_valid = detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(true);
   static constexpr bool m_first_symbol_in_high_order_bits = detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
   static constexpr protocol_name m_protocol = detail::ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(protocol_name::AVALON_STREAMING);
 

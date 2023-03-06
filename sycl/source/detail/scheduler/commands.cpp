@@ -2361,6 +2361,7 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEvent);
   }
+  std::cout << "Zibai debug enqueueReadWriteHostPipe, ptr address is " << ptr << "\n";
   return Error;
 }
 
@@ -2784,7 +2785,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (!Event) {
       Event = &MEvent->getHandleRef();
     }
-
+    std::cout << "ReadWriteHostPipe hostPtr address is " << hostPtr << "\n";
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
   }
