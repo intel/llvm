@@ -362,7 +362,7 @@ static int optimize(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  if (OptimizationLevel != llvm::OptimizationLevel::O0) {
+  if (OptLevel != llvm::OptimizationLevel::O0) {
     if (DetectReduction)
       OptPM.addPass(polygeist::detectReductionPass());
 
