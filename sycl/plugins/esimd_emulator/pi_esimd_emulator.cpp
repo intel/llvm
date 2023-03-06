@@ -2081,6 +2081,32 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     return PI_ERROR_INVALID_VALUE;
   }
 
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
+
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(_PI_H_VERSION_STRING) >= PluginVersionSize) {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
+
+  PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
+  // 'version' to be compared with 'ESIMD_EMULATOR_DEVICE_REQUIRED_VER' defined
+  // in device interface file
+  PiESimdDeviceAccess->version = ESIMDEmuPluginDataVersion;
+  PiESimdDeviceAccess->data =
+      reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
+
+  // Registering pre-defined surface index dedicated for SLM
+  (*PiESimdSurfaceMap)[__ESIMD_DNS::SLM_BTI] = nullptr;
+
+#define _PI_API(api)                                                           \
+  (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
+#include <sycl/detail/pi.def>
+
+  return PI_SUCCESS;
+}
+
 pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
 
   std::ignore = command_device;
@@ -2106,32 +2132,6 @@ pi_result hip_piextCanAccessPeer(pi_device command_device,
   std::ignore = attr;
 
   DIE_NO_IMPLEMENTATION;
-}
-
-  // Check that the major version matches in PiVersion and SupportedVersion
-  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
-
-  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
-  if (strlen(_PI_H_VERSION_STRING) >= PluginVersionSize) {
-    return PI_ERROR_INVALID_VALUE;
-  }
-  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
-
-  PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
-  // 'version' to be compared with 'ESIMD_EMULATOR_DEVICE_REQUIRED_VER' defined
-  // in device interface file
-  PiESimdDeviceAccess->version = ESIMDEmuPluginDataVersion;
-  PiESimdDeviceAccess->data =
-      reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
-
-  // Registering pre-defined surface index dedicated for SLM
-  (*PiESimdSurfaceMap)[__ESIMD_DNS::SLM_BTI] = nullptr;
-
-#define _PI_API(api)                                                           \
-  (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <sycl/detail/pi.def>
-
-  return PI_SUCCESS;
 }
 
 #ifdef _WIN32
