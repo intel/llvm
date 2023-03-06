@@ -68,7 +68,11 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
 
+  std::vector<char> SpecConstData;
+  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+
   PiPropertySet PropSet;
+  addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
@@ -256,7 +260,7 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
-  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache";
+  EXPECT_EQ(Cache.size(), 2U) << "Expect an entry for each build in the cache.";
 }
 
 // Check that kernel_bundle created through join() is not cached.
