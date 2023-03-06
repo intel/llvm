@@ -459,7 +459,8 @@ static bool isSafeToNotRemapBuiltin(Function *F) {
   Name = Name.drop_front(Name.find(SPIRVBuiltinPrefix) +
                          SPIRVBuiltinPrefix.size());
   // Check that Name does not start with any name in UnsafeBuiltIns
-  const auto *Iter = llvm::upper_bound(UnsafeBuiltIns, Name);
+  const auto *Iter =
+      std::upper_bound(UnsafeBuiltIns.begin(), UnsafeBuiltIns.end(), Name);
   return Iter == UnsafeBuiltIns.begin() || !Name.starts_with(*(Iter - 1));
 }
 
