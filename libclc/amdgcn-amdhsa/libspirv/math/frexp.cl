@@ -12,6 +12,7 @@
 
 double __ocml_frexp_f64(double, int *);
 float __ocml_frexp_f32(float, int *);
+half __ocml_frexp_f16(half, int *);
 
 #define FUNCNAME(IN, OUT)                                                      \
   __CLC_XCONCAT(__CLC_XCONCAT(_Z17__spirv_ocl_frexp, IN), OUT)
@@ -92,7 +93,7 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS5i), FNAME_PRIVATE, double,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, Dh, PU3AS3, i)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, Dh, PU3AS5, i)
 
-__CLC_FREXP(__ocml_frexp_f32, half, Dh)
+__CLC_FREXP(__ocml_frexp_f16, half, Dh)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, Pi), FNAME_GENERIC, half, 0, int)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS1i), FNAME_GLOBAL, half, 1,
                                   int)

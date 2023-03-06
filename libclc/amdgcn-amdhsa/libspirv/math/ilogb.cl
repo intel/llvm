@@ -11,6 +11,7 @@
  
 int __ocml_ilogb_f64(double);
 int __ocml_ilogb_f32(float);
+int __ocml_ilogb_f16(half);
 
 _CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f32, float)
 
@@ -23,10 +24,7 @@ _CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f64, double)
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(half x) {
-  float t = x;
-  return __spirv_ocl_ilogb(t);
-}
+_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f16, half)
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, half);
 #endif

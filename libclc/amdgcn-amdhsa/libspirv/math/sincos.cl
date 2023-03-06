@@ -12,6 +12,7 @@
 
 double __ocml_sincos_f64(double, double *);
 float __ocml_sincos_f32(float, float *);
+half __ocml_sincos_f16(half, half *);
 
 #define FUNCNAME(IN, OUT)                                                      \
   __CLC_XCONCAT(__CLC_XCONCAT(_Z18__spirv_ocl_sincos, IN), OUT)
@@ -98,7 +99,7 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS5d), FNAME_PRIVATE, double,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, Dh, PU3AS3)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, Dh, PU3AS5)
 
-__CLC_SINCOS(__ocml_sincos_f32, half, Dh, float)
+__CLC_SINCOS(__ocml_sincos_f16, half, Dh, half)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PDh), FNAME_GENERIC, half, 0,
                                   half)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS1Dh), FNAME_GLOBAL, half, 1,
