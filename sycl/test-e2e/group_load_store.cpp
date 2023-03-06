@@ -16,7 +16,6 @@ using sycl::ext::oneapi::experimental::group_store;
 constexpr int WG_SIZE = 32;
 constexpr int N_WGS = 2;
 constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
-constexpr int N_RESULTS = 128;
 // Not greater than 8 vec/array size + gap between WGs.
 constexpr int ELEMS_PER_WI = 8 * 2;
 
@@ -27,6 +26,7 @@ marker(int l = __builtin_LINE()) {
 
 template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
   queue q;
+  constexpr int N_RESULTS = 128;
   buffer<bool, 1> results(N_RESULTS * GLOBAL_SIZE);
   {
     host_accessor res_acc{results};
@@ -57,6 +57,9 @@ template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
               global_mem_acc.get_multi_ptr<access::decorated::no>().get_raw();
           auto *local_mem =
               local_mem_acc.get_multi_ptr<access::decorated::no>().get_raw();
+
+#define ARGS                                                                   \
+  auto ndi, auto global_mem, auto usm_mem, auto local_mem, auto Record
           Func(ndi, global_mem, usm_mem, local_mem, Record);
         });
   });
@@ -89,8 +92,7 @@ template <typename KernelName, typename FuncTy> void test(FuncTy Func) {
 
 int main() {
   std::cout << "ScalarWGKernel" << std::endl;
-  test<class ScalarWGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                                auto local_mem, auto Record) {
+  test<class ScalarWGKernel>([](ARGS) {
     // Make groups non-contiguous.
     int group_offset = ndi.get_group(0) * WG_SIZE * 2;
     int local_offset = ndi.get_local_id(0);
@@ -127,8 +129,7 @@ int main() {
   });
 
   std::cout << "ScalarSGKernel" << std::endl;
-  test<class ScalarSGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                                auto local_mem, auto Record) {
+  test<class ScalarSGKernel>([](ARGS) {
     auto sg = ndi.get_sub_group();
 
     // Make groups non-contiguous.
@@ -206,8 +207,7 @@ int main() {
   });
 
   std::cout << "VecWGKernel" << std::endl;
-  test<class VecWGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                             auto local_mem, auto Record) {
+  test<class VecWGKernel>([](ARGS) {
     constexpr int VEC_SIZE = 2;
     // Make groups non-contiguous.
     int group_offset = ndi.get_group(0) * WG_SIZE * 4;
@@ -285,8 +285,7 @@ int main() {
   });
 
   std::cout << "VecBlockedSGKernel" << std::endl;
-  test<class VecBlockedSGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                                    auto local_mem, auto Record) {
+  test<class VecBlockedSGKernel>([](ARGS) {
     auto sg = ndi.get_sub_group();
 
     constexpr int VEC_SIZE = 2;
@@ -334,8 +333,7 @@ int main() {
   });
 
   std::cout << "VecStripedSGKernel" << std::endl;
-  test<class VecStripedSGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                                    auto local_mem, auto Record) {
+  test<class VecStripedSGKernel>([](ARGS) {
     auto sg = ndi.get_sub_group();
 
     constexpr int VEC_SIZE = 2;
@@ -422,8 +420,7 @@ int main() {
   });
 
   std::cout << "SpanWGKernel" << std::endl;
-  test<class SpanWGKernel>([](auto ndi, auto global_mem, auto usm_mem,
-                              auto local_mem, auto Record) {
+  test<class SpanWGKernel>([](ARGS) {
     constexpr int SPAN_SIZE = 2;
     // Make groups non-contiguous.
     int group_offset = ndi.get_group(0) * WG_SIZE * 4;
