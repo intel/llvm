@@ -89,6 +89,7 @@ List of options provided by CMake:
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
 | UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
+| UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
 
 **General**:
 

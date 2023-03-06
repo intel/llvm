@@ -250,6 +250,30 @@ def _mako_validation_layer_cpp(path, namespace, tags, version, specs, meta):
         meta=meta)
 
 """
+    generates c/c++ files from the specification documents
+"""
+def _mako_tracing_layer_cpp(path, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, "tracing")
+    os.makedirs(dstpath, exist_ok=True)
+
+    template = "trcddi.cpp.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_trcddi"%(namespace)
+    filename = "%s.cpp"%(name)
+    fout = os.path.join(dstpath, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
 Entry-point:
     generates lib code
 """
@@ -300,3 +324,8 @@ def generate_layers(path, section, namespace, tags, version, specs, meta):
     loc = 0
     loc += _mako_validation_layer_cpp(layer_dstpath, namespace, tags, version, specs, meta)
     print("VALIDATION Generated %s lines of code.\n"%loc)
+
+    loc = 0
+    loc += _mako_tracing_layer_cpp(layer_dstpath, namespace, tags, version, specs, meta)
+    print("TRACING Generated %s lines of code.\n"%loc)
+

@@ -48,7 +48,7 @@ if __name__ == '__main__':
             if args.loader:
                 generate_code.generate_loader(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
             if args.layers:
-               generate_code.generate_layers(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
+                generate_code.generate_layers(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
             if args.drivers:
                 generate_code.generate_drivers(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
 
