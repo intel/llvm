@@ -13,6 +13,7 @@
 
 double __ocml_ldexp_f64(double, int);
 float __ocml_ldexp_f32(float, int);
+half __ocml_ldexp_f16(half, int);
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, int)
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, uint)
@@ -25,6 +26,6 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __ocml_ldexp_f64, double, 
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f32, half, int)
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f32, half, uint)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f16, half, int)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f16, half, uint)
 #endif
