@@ -181,6 +181,8 @@ using is_vigeninteger = is_contained<T, gtl::vector_signed_integer_list>;
 template <typename T>
 using is_vugeninteger = is_contained<T, gtl::vector_unsigned_integer_list>;
 
+template <typename T> using is_genbool = is_contained<T, gtl::bool_list>;
+
 template <typename T> using is_gentype = is_contained<T, gtl::basic_list>;
 
 template <typename T>
