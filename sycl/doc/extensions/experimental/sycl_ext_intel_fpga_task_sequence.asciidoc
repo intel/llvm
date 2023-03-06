@@ -208,7 +208,7 @@ that each `f` be statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
 enable the generation of more efficient hardware. Furthermore, the partial
 specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)`
-helps make it easier to write the class member functions (eg: `get()`).
+helps make it easier to write the class member functions (eg: `get`).
 
 The `task_sequence` interface consists of two member functions, `async` and
 `get`. The `async` function asynchronously invokes `f`, and stores the return
@@ -221,11 +221,10 @@ asynchronous `f` invocation completes executing, and potentially before `f` even
 begins executing (return from the `async` provides no implicit information on
 the execution status of `f`).
 
-The `get` member function retrieves the oldest result from this logical FIFO
-queue, and blocks (waits) until a result is available if none are available
-immediately upon the call to `get`. Both functions may only be invoked on the
-device on which a `task_sequence` object has been instantiated. Calling `async`
-or `get` on a different device results in undefined behavior.
+The `get` member function retrieves results in the same order in which
+`async` was invoked. Both functions may only be invoked on the device on which
+a `task_sequence` object has been instantiated. Calling `async` or `get` on
+a different device results in undefined behavior.
 
 [frame="topbot",options="header"]
 |===
@@ -376,13 +375,14 @@ and `get` s over the object's lifetime (i.e. before the `task_sequence`
 destructor is invoked). 
 
 | invocation_capacity | This property defines the minimum number of 'async'd
-invocations that may be outstanding at any time without causing `async()` calls
-to block. An outstanding invocation is a call to `async()` whose corresponding
-result has not yet been retrieved by a call to `get()`.
+invocations that may be outstanding at any time without causing `async` calls
+to block. An outstanding invocation is a call to `async` whose corresponding
+result has not yet been retrieved by a call to `get`.
 
 | response_capacity | Given a response capacity of `N`, the user is guaranteed
-that up to `N` outstanding calls can make progress. However, if there are more
-than `N`, the `N+1th` call may block until at least one more `get()` is called.
+at least one outstanding call will make progress as long as the number of
+outstanding invocations is less than `N`. However, if there are more than `N`,
+the `N+1th` call may block until at least one more `get` is called.
 |===
 --
 
