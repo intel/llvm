@@ -16,10 +16,10 @@ int main(void) {
   srand(Seed);
 
   bool Passed = true;
-  Passed &= test_lsc_gather<0, uint8_t>();
-  Passed &= test_lsc_gather<10, uint16_t>();
-  Passed &= test_lsc_gather<20, sycl::ext::oneapi::bfloat16>();
-  Passed &= test_lsc_gather<30, half>();
+  Passed &= test_lsc_gather<uint8_t>();
+  Passed &= test_lsc_gather<uint16_t>();
+  Passed &= test_lsc_gather<sycl::ext::oneapi::bfloat16>();
+  Passed &= test_lsc_gather<half>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

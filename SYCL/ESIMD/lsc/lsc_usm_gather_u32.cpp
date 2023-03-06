@@ -16,10 +16,9 @@ int main(void) {
   srand(Seed);
 
   bool Passed = true;
-  Passed &= test_lsc_gather<0, uint32_t>();
-  Passed &= test_lsc_gather<10, float>();
-  Passed &=
-      test_lsc_gather<20, sycl::ext::intel::experimental::esimd::tfloat32>();
+  Passed &= test_lsc_gather<uint32_t>();
+  Passed &= test_lsc_gather<float>();
+  Passed &= test_lsc_gather<sycl::ext::intel::experimental::esimd::tfloat32>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

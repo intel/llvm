@@ -12,20 +12,13 @@
 #include "Inputs/lsc_usm_block_load_prefetch.hpp"
 
 constexpr uint32_t Seed = 187;
-template <typename T> bool tests() {
-  bool Passed = true;
-  Passed &= test<T, 32>(1, 4);
-  Passed &= test<T, 16>(2, 2);
-  Passed &= test<T, 4>(4, 4);
-  return Passed;
-}
 
 int main(void) {
   srand(Seed);
-  bool Passed = true;
 
-  Passed &= tests<uint64_t>();
-  Passed &= tests<double>();
+  bool Passed = true;
+  Passed &= test_lsc_block_load<uint64_t>();
+  Passed &= test_lsc_block_load<double>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

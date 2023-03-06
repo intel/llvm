@@ -1,5 +1,4 @@
-// REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc || esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -7,45 +6,64 @@
 
 #include "Inputs/lsc_slm_load.hpp"
 
-// Id - test id.
-// NGroups - number of work groups.
-// LocalSize - number work items in each work group.
-// VL - number of offsets used in the gather operation.
-// NChannels - number of loads per each address/offset.
-template <int TestId, int NGroups, int LocalSize, int VL, int NChannels>
-bool test_gather(uint32_t Mask) {
+template <typename T, bool CheckMerging> bool test_gather(queue Q) {
+  constexpr bool Transpose = true;
+
   bool Passed = true;
-  Passed &=
-      test<TestId, uint32_t, NGroups, LocalSize, VL, NChannels, false>(Mask);
-  Passed &=
-      test<TestId + 1, uint64_t, NGroups, LocalSize, VL, NChannels, false>(
-          Mask);
+  Passed &= test<T, 1, 1, 1, 1, !Transpose, CheckMerging>(Q, 1);
+  Passed &= test<T, 2, 7, 4, 1, !Transpose, CheckMerging>(Q, 0x5f74);
+  Passed &= test<T, 2, 7, 16, 2, !Transpose, CheckMerging>(Q, 0x5f7f);
+  Passed &= test<T, 2, 4, 32, 2, !Transpose, CheckMerging>(Q, 0x32475f7a);
+
+  // Do not exceed 8 registers per read (i.e. 512 bytes).
+  if constexpr (sizeof(T) * 32 * 3 <= 512)
+    Passed &= test<T, 2, 4, 32, 3, !Transpose, CheckMerging>(Q, 0x32475f7a);
+  if constexpr (sizeof(T) * 32 * 4 <= 512)
+    Passed &= test<T, 2, 4, 32, 4, !Transpose, CheckMerging>(Q, 0x32475f7a);
+
+  if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
+    Passed &=
+        test<T, 1, 2, 16, 1, !Transpose, CheckMerging, lsc_data_size::u16u32>(
+            Q, 0x5f7f);
+    Passed &=
+        test<T, 2, 7, 32, 1, !Transpose, CheckMerging, lsc_data_size::u16u32>(
+            Q, 0x3a8b5f7f);
+
+    Passed &=
+        test<T, 1, 2, 16, 1, !Transpose, CheckMerging, lsc_data_size::u8u32>(
+            Q, 0x5f7f);
+    Passed &=
+        test<T, 2, 7, 32, 1, !Transpose, CheckMerging, lsc_data_size::u8u32>(
+            Q, 0x3a8b5f7f);
+  }
+
   return Passed;
 }
 
 int main() {
+  constexpr bool CheckMerging = true;
+
+  auto Q = queue{gpu_selector_v};
+  std::cout << "Running lsc_slm_gather() tests on "
+            << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
+
   bool Passed = true;
+  Passed &= test_gather<uint32_t, !CheckMerging>(Q);
+  Passed &= test_gather<uint32_t, CheckMerging>(Q);
 
-  Passed &= test_gather<0, 1, 1, 1, 1>(1);
-  Passed &= test_gather<2, 2, 7, 4, 1>(0x5f74);
-  Passed &= test_gather<4, 2, 7, 16, 2>(0x5f7f);
-  Passed &= test_gather<6, 2, 4, 32, 2>(0x32475f7a);
-  // These test_gather<>() calls exceeds 8 register per read for uint64_t.
-  // Thus call them for uint32_t only.
-  //  Passed &= test_gather<8, 2, 4, 32, 3>(0x32475f7a);
-  //  Passed &= test_gather<10, 2, 4, 32, 4>(0x32475f7a);
-  Passed &= test<8, uint32_t, 2, 4, 32, 3, false>(0x32475f7a);
-  Passed &= test<10, uint32_t, 2, 4, 32, 4, false>(0x32475f7a);
+  Passed &= test_gather<uint64_t, !CheckMerging>(Q);
+  Passed &= test_gather<uint64_t, CheckMerging>(Q);
 
-  Passed &=
-      test<100, uint32_t, 1, 2, 16, 1, false, lsc_data_size::u16u32>(0x5f7f);
-  Passed &= test<101, uint32_t, 2, 7, 32, 1, false, lsc_data_size::u16u32>(
-      0x3a8b5f7f);
+  Passed &= test_gather<float, !CheckMerging>(Q);
+  Passed &= test_gather<float, CheckMerging>(Q);
 
-  Passed &=
-      test<200, uint32_t, 1, 2, 16, 1, false, lsc_data_size::u8u32>(0x5f7f);
-  Passed &=
-      test<201, uint32_t, 2, 7, 32, 1, false, lsc_data_size::u8u32>(0x3a8b5f7f);
+  Passed &= test_gather<double, !CheckMerging>(Q);
+  Passed &= test_gather<double, CheckMerging>(Q);
+
+  Passed &= test_gather<sycl::ext::intel::experimental::esimd::tfloat32,
+                        !CheckMerging>(Q);
+  Passed &= test_gather<sycl::ext::intel::experimental::esimd::tfloat32,
+                        CheckMerging>(Q);
 
   std::cout << (Passed ? "Passed" : "FAILED") << std::endl;
   return Passed ? 0 : 1;

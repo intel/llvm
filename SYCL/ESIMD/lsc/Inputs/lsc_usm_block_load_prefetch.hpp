@@ -22,7 +22,7 @@ template <typename T, uint16_t N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           bool UsePrefetch = false, bool UseOldValuesOperand = true>
-bool test(uint32_t Groups, uint32_t Threads) {
+bool test(queue Q, uint32_t Groups, uint32_t Threads) {
   static_assert(DS != lsc_data_size::u8u32 && DS != lsc_data_size::u16u32,
                 "unsupported DS for lsc_block_load()");
   static_assert(DS != lsc_data_size::u16u32h, "D16U32h not supported in HW");
@@ -30,10 +30,7 @@ bool test(uint32_t Groups, uint32_t Threads) {
   uint32_t Size = Groups * Threads * N;
   using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
 
-  auto Q = queue{gpu_selector_v};
-  auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<sycl::info::device::name>()
-            << ", T=" << esimd_test::type_name<T>() << ",N=" << N
+  std::cout << "Running case: T=" << esimd_test::type_name<T>() << ",N=" << N
             << ",UsePrefetch=" << UsePrefetch
             << ",UseOldValuesOperand=" << UseOldValuesOperand;
 
@@ -121,46 +118,57 @@ template <typename T> bool test_lsc_block_load() {
   constexpr bool CheckMerge = true;
   constexpr bool NoCheckMerge = false;
 
-  bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(1, 4);
-  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(2, 2);
-  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(3, 3);
-  if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(5, 5);
-  if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(3, 5);
+  auto Q = queue{gpu_selector_v};
+  std::cout << "Running lsc_block_load() tests for T="
+            << esimd_test::type_name<T>() << " on "
+            << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
-  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, CheckMerge>(1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, CheckMerge>(2, 2);
-  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, CheckMerge>(4, 4);
-  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, CheckMerge>(2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, CheckMerge>(3, 3);
+  bool Passed = true;
+  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 2, 2);
+  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 3, 3);
   if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, CheckMerge>(5, 5);
+    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, CheckMerge>(3, 5);
+    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 3, 5);
+
+  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 2, 2);
+  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 4, 4);
+  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 3, 3);
+  if constexpr (sizeof(T) * 2 >= sizeof(int))
+    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 5, 5);
+  if constexpr (sizeof(T) >= sizeof(int))
+    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 3, 5);
 
   return Passed;
 }
 
-template <typename T, lsc_data_size DS = lsc_data_size::default_size>
-bool test_lsc_prefetch() {
+template <typename T, lsc_data_size DS = lsc_data_size::default_size,
+          bool IsGatherLikePrefetch = false>
+std::enable_if_t<!IsGatherLikePrefetch, bool> test_lsc_prefetch() {
   constexpr cache_hint L1H = cache_hint::cached;
   constexpr cache_hint L3H = cache_hint::uncached;
   constexpr bool DoPrefetch = true;
 
+  auto Q = queue{gpu_selector_v};
+  std::cout << "Running block-load-like lsc_prefetch() tests for T="
+            << esimd_test::type_name<T>() << " on "
+            << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
+
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L3H, DoPrefetch>(1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, DoPrefetch>(1, 4);
-  Passed &= test<T, 16, DS, L1H, L3H, DoPrefetch>(2, 2);
-  Passed &= test<T, 8, DS, L1H, L3H, DoPrefetch>(2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, DoPrefetch>(3, 3);
+  Passed &= test<T, 64, DS, L1H, L3H, DoPrefetch>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L3H, DoPrefetch>(Q, 1, 4);
+  Passed &= test<T, 16, DS, L1H, L3H, DoPrefetch>(Q, 2, 2);
+  Passed &= test<T, 8, DS, L1H, L3H, DoPrefetch>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L3H, DoPrefetch>(Q, 3, 3);
   if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, DoPrefetch>(5, 5);
+    Passed &= test<T, 2, DS, L1H, L3H, DoPrefetch>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, DoPrefetch>(3, 5);
+    Passed &= test<T, 1, DS, L1H, L3H, DoPrefetch>(Q, 3, 5);
 
   return Passed;
 }

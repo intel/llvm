@@ -16,8 +16,8 @@ int main(void) {
   srand(Seed);
 
   bool Passed = true;
-  Passed &= test_lsc_gather<0, uint64_t>();
-  Passed &= test_lsc_gather<10, double>();
+  Passed &= test_lsc_gather<uint64_t>();
+  Passed &= test_lsc_gather<double>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

@@ -15,9 +15,10 @@ int main(void) {
   constexpr lsc_data_size DS = lsc_data_size::u16u32;
   constexpr uint32_t Seed = 186;
   srand(Seed);
+  constexpr bool GatherLikePrefetch = true;
 
   bool Passed = true;
-  Passed &= test_lsc_prefetch<0, uint32_t, DS>();
+  Passed &= test_lsc_prefetch<uint32_t, DS>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

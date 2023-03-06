@@ -12,20 +12,13 @@
 #include "Inputs/lsc_usm_block_load_prefetch.hpp"
 #include "Inputs/lsc_usm_gather_prefetch.hpp"
 
-template <int TestCastNum, typename T> bool tests() {
+template <typename T> bool tests() {
   constexpr lsc_data_size DS = lsc_data_size::u32;
-  constexpr cache_hint L1H = cache_hint::cached;
-  constexpr cache_hint L3H = cache_hint::uncached;
-  constexpr bool DoPrefetch = true;
+  constexpr bool GatherLikePrefetch = true;
 
   bool Passed = true;
-  // non transpose
-#ifndef USE_SCALAR_OFFSET
-  Passed &= test_lsc_prefetch<T, DS>();
-#endif // !USE_SCALAR_OFFSET
-
-  // transpose
-  Passed &= test_lsc_prefetch<TestCastNum, T, DS>();
+  Passed &= test_lsc_prefetch<T, DS, GatherLikePrefetch>();
+  Passed &= test_lsc_prefetch<T, DS, !GatherLikePrefetch>();
 
   return Passed;
 }
@@ -35,9 +28,9 @@ int main(void) {
   srand(Seed);
   bool Passed = true;
 
-  Passed &= tests<0, uint32_t>();
-  Passed &= tests<10, float>();
-  Passed &= tests<20, sycl::ext::intel::experimental::esimd::tfloat32>();
+  Passed &= tests<uint32_t>();
+  Passed &= tests<float>();
+  Passed &= tests<sycl::ext::intel::experimental::esimd::tfloat32>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

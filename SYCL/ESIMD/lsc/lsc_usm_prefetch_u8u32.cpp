@@ -17,7 +17,7 @@ int main(void) {
   srand(Seed);
 
   bool Passed = true;
-  Passed &= test_lsc_prefetch<0, uint32_t, DS>();
+  Passed &= test_lsc_prefetch<uint32_t, DS>();
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
