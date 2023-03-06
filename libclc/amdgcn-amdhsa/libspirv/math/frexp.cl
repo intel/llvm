@@ -10,10 +10,6 @@
 #include <spirv/spirv.h>
 #include <utils.h>
 
-double __ocml_frexp_f64(double, int *);
-float __ocml_frexp_f32(float, int *);
-half __ocml_frexp_f16(half, int *);
-
 #define FUNCNAME(IN, OUT)                                                      \
   __CLC_XCONCAT(__CLC_XCONCAT(_Z17__spirv_ocl_frexp, IN), OUT)
 #define VEC_TYPE(T, N) __CLC_XCONCAT(__CLC_XCONCAT(__CLC_XCONCAT(Dv, N), _), T)
@@ -44,6 +40,7 @@ half __ocml_frexp_f16(half, int *);
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, f, PU3AS3, i)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, f, PU3AS5, i)
 
+float __ocml_frexp_f32(float, int *);
 __CLC_FREXP(__ocml_frexp_f32, float, f)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, Pi), FNAME_GENERIC, float, 0, int)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS1i), FNAME_GLOBAL, float, 1,
@@ -67,6 +64,7 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS5i), FNAME_PRIVATE, float, 5,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, d, PU3AS3, i)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, d, PU3AS5, i)
 
+double __ocml_frexp_f64(double, int *);
 __CLC_FREXP(__ocml_frexp_f64, double, d)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, Pi), FNAME_GENERIC, double, 0,
                                   int)
@@ -93,6 +91,7 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS5i), FNAME_PRIVATE, double,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, Dh, PU3AS3, i)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, Dh, PU3AS5, i)
 
+half __ocml_frexp_f16(half, int *);
 __CLC_FREXP(__ocml_frexp_f16, half, Dh)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, Pi), FNAME_GENERIC, half, 0, int)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS1i), FNAME_GLOBAL, half, 1,
