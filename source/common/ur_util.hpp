@@ -223,4 +223,11 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
     return map;
 }
 
+inline std::size_t combine_hashes(std::size_t seed) { return seed; }
+
+template <typename T, typename... Args>
+inline std::size_t combine_hashes(std::size_t seed, const T &v, Args... args) {
+    return combine_hashes(seed ^ std::hash<T>{}(v), args...);
+}
+
 #endif /* UR_UTIL_H */
