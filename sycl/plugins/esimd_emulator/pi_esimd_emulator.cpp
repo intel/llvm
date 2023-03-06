@@ -2081,6 +2081,33 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     return PI_ERROR_INVALID_VALUE;
   }
 
+pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result hip_piextDisablePeer(pi_device command_device,
+                               pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result hip_piextCanAccessPeer(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  DIE_NO_IMPLEMENTATION;
+}
+
   // Check that the major version matches in PiVersion and SupportedVersion
   _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
