@@ -737,7 +737,7 @@ This is currently available in
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |======================
 
-==== Intel XMX Supported
+==== Intel XMX Supported Combinations
 This is currently available in
 `sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc` and
 `sycl::ext::oneapi::experimental::architecture::intel_gpu_dg2`.
