@@ -438,6 +438,9 @@ static bool isIndexSpaceGetterBuiltin(Function *F) {
 static bool isSafeToNotRemapBuiltin(Function *F) {
   constexpr std::size_t NumUnsafeBuiltins{8};
   // SPIRV builtins with kernel capabilities in alphabetical order.
+  //
+  // These builtins might need remapping, but are not supported by the remapper,
+  // so we should abort kernel fusion if we find them during remapping.
   constexpr std::array<StringLiteral, NumUnsafeBuiltins> UnsafeBuiltIns{
       "EnqueuedWorkgroupSize",
       "NumEnqueuedSubgroups",
@@ -489,6 +492,9 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
                                    inconvertibleErrorCode());
   }
 
+  // As we clone the called function and remap the clone, we can have
+  // more than one callee to the same function being remapped and a different
+  // remapping will be performed each time.
   ValueToValueMapTy Map;
   ClonedCodeInfo CodeInfo;
   auto *Clone = CloneFunction(F, Map, &CodeInfo);
