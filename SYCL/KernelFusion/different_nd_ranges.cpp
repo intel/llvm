@@ -36,7 +36,7 @@ public:
 
 protected:
   template <typename F> static DataTy getValue(F gen) {
-    DataTy x;
+    DataTy x{0};
     for (std::size_t i = 0; i < Dimensions; ++i) {
       x[i] = gen(i);
     }
