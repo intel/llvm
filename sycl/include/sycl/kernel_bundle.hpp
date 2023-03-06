@@ -315,8 +315,7 @@ public:
     using SCType =
         typename std::remove_reference_t<decltype(SpecName)>::value_type;
 
-    std::array<char *, sizeof(SCType)> RetValue;
-
+    std::array<char, sizeof(SCType)> RetValue;
     get_specialization_constant_impl(SpecSymName, RetValue.data());
 
     return *reinterpret_cast<SCType *>(RetValue.data());
