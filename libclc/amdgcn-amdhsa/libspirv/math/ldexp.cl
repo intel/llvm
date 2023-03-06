@@ -11,21 +11,20 @@
 #include <math/math.h>
 #include <spirv/spirv.h>
 
-double __ocml_ldexp_f64(double, int);
 float __ocml_ldexp_f32(float, int);
-half __ocml_ldexp_f16(half, int);
-
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, int)
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, uint)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+double __ocml_ldexp_f64(double, int);
 _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __ocml_ldexp_f64, double, int)
 _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __ocml_ldexp_f64, double, uint)
 #endif
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+half __ocml_ldexp_f16(half, int);
 _CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f16, half, int)
 _CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __ocml_ldexp_f16, half, uint)
 #endif
