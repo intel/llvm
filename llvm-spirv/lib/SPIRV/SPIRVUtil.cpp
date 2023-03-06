@@ -655,6 +655,37 @@ static StringRef stringify(const itanium_demangle::NameType *Node) {
   return StringRef(Str.begin(), Str.size());
 }
 
+/// Convert a mangled name that represents a basic integer, floating-point,
+/// etc. type into the corresponding LLVM type.
+static Type *getPrimitiveType(LLVMContext &Ctx,
+                              const llvm::itanium_demangle::Node *N) {
+  using namespace llvm::itanium_demangle;
+  if (auto *Name = dyn_cast<NameType>(N)) {
+    return parsePrimitiveType(Ctx, stringify(Name));
+  }
+  if (auto *BitInt = dyn_cast<BitIntType>(N)) {
+    unsigned BitWidth = 0;
+    BitInt->match([&](const Node *NodeSize, bool) {
+      const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
+      SizeStr.getAsInteger(10, BitWidth);
+    });
+    return Type::getIntNTy(Ctx, BitWidth);
+  }
+  if (auto *FP = dyn_cast<BinaryFPType>(N)) {
+    StringRef SizeStr;
+    FP->match([&](const Node *NodeDimension) {
+      SizeStr = stringify(cast<NameType>(NodeDimension));
+    });
+    return StringSwitch<Type *>(SizeStr)
+        .Case("16", Type::getHalfTy(Ctx))
+        .Case("32", Type::getFloatTy(Ctx))
+        .Case("64", Type::getDoubleTy(Ctx))
+        .Case("128", Type::getFP128Ty(Ctx))
+        .Default(nullptr);
+  }
+  return nullptr;
+}
+
 template <typename FnType>
 static TypedPointerType *
 parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
@@ -726,21 +757,15 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       } else {
         PointeeTy = parsePrimitiveType(M->getContext(), MangledStructName);
       }
-    } else if (auto *BitInt = dyn_cast<BitIntType>(Pointee)) {
-      unsigned BitWidth = 0;
-      BitInt->match([&](const Node *NodeSize, bool) {
-        const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
-        SizeStr.getAsInteger(10, BitWidth);
-      });
-      PointeeTy = Type::getIntNTy(M->getContext(), BitWidth);
+    } else if (auto *Ty = getPrimitiveType(M->getContext(), Pointee)) {
+      PointeeTy = Ty;
     } else if (auto *Vec = dyn_cast<itanium_demangle::VectorType>(Pointee)) {
       unsigned ElemCount = 0;
       const StringRef ElemCountStr(
           stringify(cast<NameType>(Vec->getDimension())));
       ElemCountStr.getAsInteger(10, ElemCount);
-      if (auto *Name = dyn_cast<NameType>(Vec->getBaseType())) {
-        PointeeTy = parsePrimitiveType(M->getContext(), stringify(Name));
-        PointeeTy = llvm::VectorType::get(PointeeTy, ElemCount, false);
+      if (auto *Ty = getPrimitiveType(M->getContext(), Vec->getBaseType())) {
+        PointeeTy = llvm::VectorType::get(Ty, ElemCount, false);
       }
     } else if (llvm::isa<itanium_demangle::PointerType>(Pointee)) {
       PointeeTy = parseNode(M, Pointee, GetStructType);
