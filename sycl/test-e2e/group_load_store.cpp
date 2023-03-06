@@ -204,8 +204,49 @@ int main() {
     marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
   });
 
-  std::cout << "VecWGKernel" << std::endl;
-  test<class VecWGKernel, WG>([](ARGS) {
+  std::cout << "VecBlockedWGKernel" << std::endl;
+  test<class VecBlockedWGKernel, WG>([](ARGS) {
+    constexpr int VEC_SIZE = 2;
+
+    int init = ndi.get_global_id(0) + VEC_SIZE * 2;
+
+    for (int i = 0; i < VEC_SIZE; ++i) {
+      int idx = lid * VEC_SIZE + i;
+      global_mem[idx] = init - i;
+      usm_mem[idx] = init - i;
+      local_mem[idx] = init - i;
+    }
+
+    auto g = ndi.get_group();
+
+    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+      marker(l);
+      vec<int, VEC_SIZE> out_blocked;
+      auto blocked =
+          properties(data_placement<group_algorithm_data_placement::blocked>);
+      group_load(g, Input, out_blocked, blocked);
+
+      bool success = true;
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        success &= (out_blocked[i] == init - i);
+      }
+      Record(success);
+    };
+
+    Check(global_mem);
+    Check(usm_mem);
+    Check(local_mem);
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::no>(global_mem));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem)
+              .get_decorated());
+  });
+
+  std::cout << "VecStripedWGKernel" << std::endl;
+  test<class VecStripedWGKernel, WG>([](ARGS) {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -245,21 +286,13 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      vec<int, VEC_SIZE> out, out_blocked, out_striped;
-      using namespace sycl::ext::oneapi::experimental;
-      using namespace sycl::ext::oneapi::experimental::property;
-      auto blocked =
-          properties(data_placement<group_algorithm_data_placement::blocked>);
+      vec<int, VEC_SIZE> out_striped;
       auto striped =
           properties(data_placement<group_algorithm_data_placement::striped>);
-      group_load(g, Input, out);
-      group_load(g, Input, out_blocked, blocked);
       group_load(g, Input, out_striped, striped);
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
-        success &= (out[i] == out_blocked[i]);
-        success &= (out_blocked[i] == init - i);
         int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
         success &= (out_striped[i] ==
                     ndi.get_group(0) * WG_SIZE + VEC_SIZE * 2 +
@@ -399,8 +432,51 @@ int main() {
     return;
   });
 
-  std::cout << "SpanWGKernel" << std::endl;
-  test<class SpanWGKernel, WG>([](ARGS) {
+  std::cout << "SpanBlockedWGKernel" << std::endl;
+  test<class SpanBlockedWGKernel, WG>([](ARGS) {
+    constexpr int SPAN_SIZE = 2;
+
+    int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
+
+    for (int i = 0; i < SPAN_SIZE; ++i) {
+      int idx = lid * SPAN_SIZE + i;
+      global_mem[idx] = init - i;
+      usm_mem[idx] = init - i;
+      local_mem[idx] = init - i;
+    }
+
+    // TODO: group_helper with scratchpad
+    auto g = ndi.get_group();
+
+    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+      marker(l);
+      int out_blocked_arr[SPAN_SIZE];
+      sycl::span<int, SPAN_SIZE> out_blocked(out_blocked_arr);
+      auto blocked =
+          properties(data_placement<group_algorithm_data_placement::blocked>);
+      group_load(g, Input, out_blocked, blocked);
+
+      bool success = true;
+      for (int i = 0; i < SPAN_SIZE; ++i) {
+        success &= (out_blocked[i] == init - i);
+      }
+      Record(success);
+    };
+
+    Check(global_mem);
+    Check(usm_mem);
+    Check(local_mem);
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::no>(global_mem));
+    Check(address_space_cast<access::address_space::global_space,
+                             access::decorated::yes>(global_mem)
+              .get_decorated());
+  });
+
+  std::cout << "SpanStripedWGKernel" << std::endl;
+  test<class SpanStripedWGKernel, WG>([](ARGS) {
     constexpr int SPAN_SIZE = 2;
 
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
@@ -441,22 +517,14 @@ int main() {
 
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
-      int out_arr[SPAN_SIZE], out_blocked_arr[SPAN_SIZE],
-          out_striped_arr[SPAN_SIZE];
-      sycl::span<int, SPAN_SIZE> out(out_arr), out_blocked(out_blocked_arr),
-          out_striped(out_striped_arr);
-      auto blocked =
-          properties(data_placement<group_algorithm_data_placement::blocked>);
+      int out_striped_arr[SPAN_SIZE];
+      sycl::span<int, SPAN_SIZE> out_striped(out_striped_arr);
       auto striped =
           properties(data_placement<group_algorithm_data_placement::striped>);
-      group_load(g, Input, out);
-      group_load(g, Input, out_blocked, blocked);
       group_load(g, Input, out_striped, striped);
 
       bool success = true;
       for (int i = 0; i < SPAN_SIZE; ++i) {
-        success &= (out[i] == out_blocked[i]);
-        success &= (out_blocked[i] == init - i);
         int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
         success &= (out_striped[i] ==
                     ndi.get_group(0) * WG_SIZE + SPAN_SIZE * 2 +
