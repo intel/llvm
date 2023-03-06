@@ -470,7 +470,7 @@ static bool isSafeToNotRemapBuiltin(Function *F) {
 Expected<Function *>
 jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
                                       const NDRange &FusedNDRange) {
-  auto &Cached = Cache[decltype(Cache)::key_type{F, SrcNDRange}];
+  auto &Cached = Cache[decltype(Cache)::key_type{F, SrcNDRange, FusedNDRange}];
   if (Cached) {
     // Cache hit. Return cached function.
     return Cached;

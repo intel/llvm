@@ -79,7 +79,8 @@ public:
                                                  const NDRange &FusedNDRange);
 
 private:
-  std::map<std::tuple<llvm::Function *, const NDRange &>, llvm::Function *>
+  std::map<std::tuple<llvm::Function *, const NDRange &, const NDRange &>,
+           llvm::Function *>
       Cache;
 };
 } // namespace jit_compiler
