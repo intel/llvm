@@ -85,9 +85,9 @@ void GlobalHandler::InitXPTIStuff() {
 }
 
 void GlobalHandler::TraceEventXPTI(const char *Message) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!Message)
     return;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     // We have to handle the cases where: (1) we may have just the code location
     // set and not UID and (2) UID set

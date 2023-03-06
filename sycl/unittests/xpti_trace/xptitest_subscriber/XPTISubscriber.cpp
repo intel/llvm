@@ -1,4 +1,4 @@
-//==---------------------- XPTISubscriber.cpp --------------------------==//
+//==---------------------- XPTISubscriber.cpp ------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,23 +21,24 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t /*Instance*/,
                                     const void *UserData) {
-  if (TraceType == xpti::trace_diagnostics) {
-    std::string AggregatedData;
-    if (Event && Event->reserved.payload && Event->reserved.payload->name &&
-        Event->reserved.payload->source_file) {
-      auto Payload = Event->reserved.payload;
-      const char Delimiter[] = ";";
-      AggregatedData.append(Payload->name);
-      AggregatedData.append(Delimiter);
-      AggregatedData.append(Payload->source_file);
-      AggregatedData.append(Delimiter);
-      AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
-                            std::to_string(Payload->column_no) + Delimiter);
-    } else
-      AggregatedData.append("code location unknown;");
-    AggregatedData.append(static_cast<const char *>(UserData));
-    GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
-  }
+  if (TraceType != xpti::trace_diagnostics)
+    return;
+
+  std::string AggregatedData;
+  if (Event && Event->reserved.payload && Event->reserved.payload->name &&
+      Event->reserved.payload->source_file) {
+    auto Payload = Event->reserved.payload;
+    const char Delimiter[] = ";";
+    AggregatedData.append(Payload->name);
+    AggregatedData.append(Delimiter);
+    AggregatedData.append(Payload->source_file);
+    AggregatedData.append(Delimiter);
+    AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
+                          std::to_string(Payload->column_no) + Delimiter);
+  } else
+    AggregatedData.append("code location unknown;");
+  AggregatedData.append(static_cast<const char *>(UserData));
+  GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
 }
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
