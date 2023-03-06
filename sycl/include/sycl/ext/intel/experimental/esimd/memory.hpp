@@ -253,6 +253,31 @@ __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
       0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
 }
 
+/// Create explicit scoreboard dependency to avoid device code motion
+/// across this call and preserve the \p value computation even
+/// if it is unused.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<(sizeof(T) * N >= 2)>
+wait(__ESIMD_NS::simd<T, N> value) {
+#ifdef __SYCL_DEVICE_ONLY__
+  uint16_t Word = value.template bit_cast_view<uint16_t>()[0];
+  __esimd_wait(Word);
+#endif // __SYCL_DEVICE_ONLY__
+}
+
+/// Create explicit scoreboard dependency to avoid device code motion
+/// across this call and preserve the \p value computation even
+/// if it is unused.
+template <typename T, typename RegionT>
+__ESIMD_API std::enable_if_t<
+    (RegionT::length * sizeof(typename RegionT::element_type) >= 2)>
+wait(__ESIMD_NS::simd_view<T, RegionT> value) {
+#ifdef __SYCL_DEVICE_ONLY__
+  uint16_t Word = value.template bit_cast_view<uint16_t>()[0];
+  __esimd_wait(Word);
+#endif // __SYCL_DEVICE_ONLY__
+}
+
 /// @} sycl_esimd_memory_nbarrier
 
 /// @defgroup sycl_esimd_memory_lsc LSC memory access APIs.
@@ -1214,7 +1239,7 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
-                "Number of elements is not supported by Transposed load");
+                "Number of elements is not supported by Transposed store");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
@@ -1276,7 +1301,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr int SmallIntFactor =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
-                "Number of elements is not supported by Transposed load");
+                "Number of elements is not supported by Transposed store");
   detail::check_lsc_vector_size<NElts / SmallIntFactor>();
 
   // Prepare template arguments for the call of intrinsic.
@@ -1303,7 +1328,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
 }
 
 namespace detail {
-// Compile-time checks for lsc_load2d/store2d restrictions.
+// Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
 template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
           bool Transposed, bool Transformed, bool IsStore = false>
 constexpr void check_lsc_block_2d_restrictions() {
