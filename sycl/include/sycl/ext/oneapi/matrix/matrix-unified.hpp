@@ -125,7 +125,9 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
 #else // NVPTX
   auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    lambda(wi_data_c[i]);
+    T element = wi_data_c[i];
+    lambda(element);
+    wi_data_c[i] = element;
   }
 #endif
 #else
