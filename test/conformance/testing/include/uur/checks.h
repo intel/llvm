@@ -111,20 +111,23 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT
-#define ASSERT_EQ_RESULT(EXPECTED, ACTUAL) ASSERT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
+#define ASSERT_EQ_RESULT(EXPECTED, ACTUAL) \
+    ASSERT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
 #endif
 #ifndef ASSERT_SUCCESS
 #define ASSERT_SUCCESS(ACTUAL) ASSERT_EQ_RESULT(UR_RESULT_SUCCESS, ACTUAL)
 #endif
 
 #ifndef EXPECT_EQ_RESULT
-#define EXPECT_EQ_RESULT(EXPECTED, ACTUAL) EXPECT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
+#define EXPECT_EQ_RESULT(EXPECTED, ACTUAL) \
+    EXPECT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
 #endif
 #ifndef EXPECT_SUCCESS
 #define EXPECT_SUCCESS(ACTUAL) EXPECT_EQ_RESULT(UR_RESULT_SUCCESS, ACTUAL)
 #endif
 
-inline std::ostream &operator<<(std::ostream &out, const ur_device_info_t &info_type) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_device_info_t &info_type) {
     switch (info_type) {
 
 #define CASE(VALUE)    \
@@ -238,7 +241,8 @@ inline std::ostream &operator<<(std::ostream &out, const ur_device_info_t &info_
     return out;
 }
 
-inline std::ostream &operator<<(std::ostream &out, const ur_platform_info_t &info) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_platform_info_t &info) {
 
     switch (info) {
 #define CASE(VALUE)    \
@@ -347,7 +351,8 @@ inline std::ostream &operator<<(std::ostream &out, const ur_mem_flag_t &flag) {
     return out;
 }
 
-inline std::ostream &operator<<(std::ostream &out, const ur_usm_alloc_info_t &info) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_usm_alloc_info_t &info) {
     switch (info) {
 #define CASE(name)    \
     case name:        \
@@ -368,7 +373,8 @@ inline std::ostream &operator<<(std::ostream &out, const ur_usm_alloc_info_t &in
     return out;
 }
 
-inline std::ostream &operator<<(std::ostream &out, const ur_event_info_t &info) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_event_info_t &info) {
     switch (info) {
 #define CASE(name)    \
     case name:        \
@@ -390,7 +396,8 @@ inline std::ostream &operator<<(std::ostream &out, const ur_event_info_t &info) 
     return out;
 }
 
-inline std::ostream &operator<<(std::ostream &out, const ur_profiling_info_t &info) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const ur_profiling_info_t &info) {
     switch (info) {
 #define CASE(name)    \
     case name:        \
