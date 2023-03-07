@@ -1,3 +1,7 @@
+// Temporarily disabled due to regressions introduced by
+// https://github.com/intel/llvm/pull/8412.
+// REQUIRES: TEMPORARY_DISABLED
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
