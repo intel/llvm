@@ -127,7 +127,14 @@ auto get_native(const SyclObjectT &Obj)
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  return Obj.getNative2();
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+  if (std::is_same<SyclObjectT, queue>::value)
+    return Obj.getNative2();
+  else
+    return Obj.getNative();
+#else
+  return Obj.getNative();
+#endif
 }
 
 template <backend BackendName, bundle_state State>
