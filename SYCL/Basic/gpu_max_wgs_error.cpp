@@ -1,3 +1,4 @@
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
