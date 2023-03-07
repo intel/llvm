@@ -5548,7 +5548,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       if (Queue->Device->ImmCommandListUsed) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+        for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
           if (ImmCmdList != Queue->CommandListMap.end())
             CmdLists.push_back(ImmCmdList);
       } else {
@@ -7989,7 +7989,7 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
