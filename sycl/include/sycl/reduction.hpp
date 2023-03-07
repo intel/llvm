@@ -1856,8 +1856,6 @@ auto getLastCombine(OutAccT OutAcc, LocalAccT LocalAcc, BOPT BOP,
                     ReduTupleT<Ts...> IdentityVals,
                     bool IsInitializeToIdentity) {
   if constexpr (!Reduction::has_identity) {
-    // If there are no identity values we are in an identityless path and
-    // and cannot initialize to identity.
     return BOP(LocalAcc[0], OutAcc[0]);
   } else {
     return BOP(LocalAcc[0], IsInitializeToIdentity
