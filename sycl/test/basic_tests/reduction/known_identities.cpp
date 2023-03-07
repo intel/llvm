@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 // Tests the existance and specializations of known identities.
 
@@ -16,25 +15,23 @@ template <typename BinOp, typename OperandT> constexpr void checkNoIdentity() {
                 "Operation should not have a known identity!");
 }
 
-template <typename BinOp, typename OperandT>
-void checkIdentity(OperandT Expected) {
-  static_assert(sycl::has_known_identity<BinOp, OperandT>::value,
-                "No trait specialization for known identity!");
-  static_assert(sycl::has_known_identity_v<BinOp, OperandT>,
-                "No trait specialization for known identity!");
-  assert((sycl::known_identity<BinOp, OperandT>::value == Expected) &&
-         "Identity does not match expected.");
-  assert((sycl::known_identity_v<BinOp, OperandT> == Expected) &&
-         "Identity does not match expected.");
-}
+#define CHECK_IDENTITY(BINOP, OPERAND, EXPECTED)                               \
+  static_assert(sycl::has_known_identity<BINOP, OPERAND>::value,               \
+                "No trait specialization for known identity!");                \
+  static_assert(sycl::has_known_identity_v<BINOP, OPERAND>,                    \
+                "No trait specialization for known identity!");                \
+  static_assert(sycl::known_identity<BINOP, OPERAND>::value == EXPECTED,       \
+                "Identity does not match expected.");                          \
+  static_assert(sycl::known_identity_v<BINOP, OPERAND> == EXPECTED,            \
+                "Identity does not match expected.");
 
 template <typename OperandT> constexpr void checkAll() {
   if constexpr (std::is_arithmetic_v<OperandT> ||
                 std::is_same_v<std::remove_cv_t<OperandT>, sycl::half>) {
-    checkIdentity<sycl::plus<OperandT>, OperandT>(OperandT{});
-    checkIdentity<sycl::plus<>, OperandT>(OperandT{});
-    checkIdentity<sycl::multiplies<OperandT>, OperandT>(OperandT{1});
-    checkIdentity<sycl::multiplies<>, OperandT>(OperandT{1});
+    CHECK_IDENTITY(sycl::plus<OperandT>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::plus<>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::multiplies<OperandT>, OperandT, OperandT{1});
+    CHECK_IDENTITY(sycl::multiplies<>, OperandT, OperandT{1});
   } else {
     checkNoIdentity<sycl::plus<OperandT>, OperandT>();
     checkNoIdentity<sycl::plus<>, OperandT>();
@@ -43,20 +40,22 @@ template <typename OperandT> constexpr void checkAll() {
   }
 
   if constexpr (std::is_integral_v<OperandT>) {
-    checkIdentity<sycl::bit_and<OperandT>, OperandT>(~OperandT{});
-    checkIdentity<sycl::bit_and<>, OperandT>(~OperandT{});
-    checkIdentity<sycl::bit_or<OperandT>, OperandT>(OperandT{});
-    checkIdentity<sycl::bit_or<>, OperandT>(OperandT{});
-    checkIdentity<sycl::bit_xor<OperandT>, OperandT>(OperandT{});
-    checkIdentity<sycl::bit_xor<>, OperandT>(OperandT{});
-    checkIdentity<sycl::minimum<OperandT>, OperandT>(
-        std::numeric_limits<OperandT>::max());
-    checkIdentity<sycl::minimum<>, OperandT>(
-        std::numeric_limits<OperandT>::max());
-    checkIdentity<sycl::maximum<OperandT>, OperandT>(
-        std::numeric_limits<OperandT>::lowest());
-    checkIdentity<sycl::maximum<>, OperandT>(
-        std::numeric_limits<OperandT>::lowest());
+    CHECK_IDENTITY(sycl::bit_and<OperandT>, OperandT,
+                   static_cast<OperandT>(~OperandT{}));
+    CHECK_IDENTITY(sycl::bit_and<>, OperandT,
+                   static_cast<OperandT>(~OperandT{}));
+    CHECK_IDENTITY(sycl::bit_or<OperandT>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::bit_or<>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::bit_xor<OperandT>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::bit_xor<>, OperandT, OperandT{});
+    CHECK_IDENTITY(sycl::minimum<OperandT>, OperandT,
+                   std::numeric_limits<OperandT>::max());
+    CHECK_IDENTITY(sycl::minimum<>, OperandT,
+                   std::numeric_limits<OperandT>::max());
+    CHECK_IDENTITY(sycl::maximum<OperandT>, OperandT,
+                   std::numeric_limits<OperandT>::lowest());
+    CHECK_IDENTITY(sycl::maximum<>, OperandT,
+                   std::numeric_limits<OperandT>::lowest());
   } else {
     checkNoIdentity<sycl::bit_and<OperandT>, OperandT>();
     checkNoIdentity<sycl::bit_and<>, OperandT>();
@@ -70,22 +69,22 @@ template <typename OperandT> constexpr void checkAll() {
   // conversions for logical operators, so negative checks are not used for this
   // case.
   if constexpr (std::is_same_v<std::remove_cv_t<OperandT>, bool>) {
-    checkIdentity<sycl::logical_and<OperandT>, OperandT>(true);
-    checkIdentity<sycl::logical_and<>, OperandT>(true);
-    checkIdentity<sycl::logical_or<OperandT>, OperandT>(false);
-    checkIdentity<sycl::logical_or<>, OperandT>(false);
+    CHECK_IDENTITY(sycl::logical_and<OperandT>, OperandT, true);
+    CHECK_IDENTITY(sycl::logical_and<>, OperandT, true);
+    CHECK_IDENTITY(sycl::logical_or<OperandT>, OperandT, false);
+    CHECK_IDENTITY(sycl::logical_or<>, OperandT, false);
   }
 
   if constexpr (std::is_floating_point_v<OperandT> ||
                 std::is_same_v<std::remove_cv_t<OperandT>, sycl::half>) {
-    checkIdentity<sycl::minimum<OperandT>, OperandT>(
-        std::numeric_limits<OperandT>::infinity());
-    checkIdentity<sycl::minimum<>, OperandT>(
-        std::numeric_limits<OperandT>::infinity());
-    checkIdentity<sycl::maximum<OperandT>, OperandT>(
-        -std::numeric_limits<OperandT>::infinity());
-    checkIdentity<sycl::maximum<>, OperandT>(
-        -std::numeric_limits<OperandT>::infinity());
+    CHECK_IDENTITY(sycl::minimum<OperandT>, OperandT,
+                   std::numeric_limits<OperandT>::infinity());
+    CHECK_IDENTITY(sycl::minimum<>, OperandT,
+                   std::numeric_limits<OperandT>::infinity());
+    CHECK_IDENTITY(sycl::maximum<OperandT>, OperandT,
+                   -std::numeric_limits<OperandT>::infinity());
+    CHECK_IDENTITY(sycl::maximum<>, OperandT,
+                   -std::numeric_limits<OperandT>::infinity());
   }
 
   if constexpr (!std::is_integral_v<OperandT> &&
