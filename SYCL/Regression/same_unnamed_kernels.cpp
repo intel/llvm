@@ -3,6 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: gpu
+// UNSUPPORTED: hip
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //

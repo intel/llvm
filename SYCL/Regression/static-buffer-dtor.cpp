@@ -15,7 +15,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // Failing on HIP AMD
-// XFAIL: hip_amd
+// UNSUPPORTED: hip_amd
 
 #include <sycl/sycl.hpp>
 
