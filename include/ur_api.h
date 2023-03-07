@@ -233,6 +233,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
     UR_STRUCTURE_TYPE_USM_POOL_DESC = 8,                    ///< ::ur_usm_pool_desc_t
     UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 9,             ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 10,                   ///< ::ur_device_binary_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -548,6 +549,77 @@ urGetLastResult(
 #if !defined(__GNUC__)
 #pragma region device
 #endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_UNKNOWN
+/// @brief Target identification strings for
+///        ::ur_device_binary_t.pDeviceTargetSpec
+///        A device type represented by a particular target triple requires
+///        specific
+///        binary images. We need to map the image type onto the device target triple
+#define UR_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
+#endif // UR_DEVICE_BINARY_TARGET_UNKNOWN
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_SPIRV32
+/// @brief SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
+#define UR_DEVICE_BINARY_TARGET_SPIRV32 "spir"
+#endif // UR_DEVICE_BINARY_TARGET_SPIRV32
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_SPIRV64
+/// @brief SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
+#define UR_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
+#endif // UR_DEVICE_BINARY_TARGET_SPIRV64
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+/// @brief Device-specific binary images produced from SPIR-V 64-bit <-> various
+///        "spir64_*" triples for specific 64-bit OpenCL CPU devices
+#define UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
+#endif // UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_SPIRV64_GEN
+/// @brief Generic GPU device (64-bit OpenCL)
+#define UR_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
+#endif // UR_DEVICE_BINARY_TARGET_SPIRV64_GEN
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA
+/// @brief 64-bit OpenCL FPGA device
+#define UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
+#endif // UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_NVPTX64
+/// @brief PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
+#define UR_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#endif // UR_DEVICE_BINARY_TARGET_NVPTX64
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_AMDGCN
+/// @brief AMD GCN
+#define UR_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
+#endif // UR_DEVICE_BINARY_TARGET_AMDGCN
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Device Binary Type
+typedef struct ur_device_binary_t {
+    ur_structure_type_t stype;     ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_DEVICE_BINARY
+    const void *pNext;             ///< [in][optional] pointer to extension-specific structure
+    const char *pDeviceTargetSpec; ///< [in] null-terminated string representation of the device's target architecture.
+                                   ///< For example:
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_UNKNOWN
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_SPIRV32
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_SPIRV64
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_SPIRV64_GEN
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_NVPTX64
+                                   ///< + ::UR_DEVICE_BINARY_TARGET_AMDGCN
+
+} ur_device_binary_t;
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device types
 typedef enum ur_device_type_t {
@@ -896,18 +968,19 @@ urDevicePartition(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppBinaries`
+///         + `NULL == pBinaries`
 ///         + `NULL == pSelectedBinary`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NumBinaries == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceSelectBinary(
-    ur_device_handle_t hDevice, ///< [in] handle of the device to select binary for.
-    const uint8_t **ppBinaries, ///< [in] the array of binaries to select from.
-    uint32_t NumBinaries,       ///< [in] the number of binaries passed in ppBinaries.
-                                ///< Must greater than or equal to zero otherwise
-                                ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
-    uint32_t *pSelectedBinary   ///< [out] the index of the selected binary in the input array of binaries.
-                                ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+    ur_device_handle_t hDevice,          ///< [in] handle of the device to select binary for.
+    const ur_device_binary_t *pBinaries, ///< [in] the array of binaries to select from.
+    uint32_t NumBinaries,                ///< [in] the number of binaries passed in ppBinaries.
+                                         ///< Must greater than or equal to zero otherwise
+                                         ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
+    uint32_t *pSelectedBinary            ///< [out] the index of the selected binary in the input array of binaries.
+                                         ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2829,16 +2902,6 @@ typedef struct ur_specialization_constant_info_t {
 ///       entry point.
 ///     - Any spec constants set with this entry point will apply only to
 ///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
-///
-/// @details
-///     - `hProgram` must have been created with the ::urProgramCreateWithIL
-///       entry point.
-///     - Any spec constants set with this entry point will apply only to
-///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetProgramSpecializationConstant**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7929,7 +7992,7 @@ typedef void(UR_APICALL *ur_pfnDevicePartitionCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_device_select_binary_params_t {
     ur_device_handle_t *phDevice;
-    const uint8_t ***pppBinaries;
+    const ur_device_binary_t **ppBinaries;
     uint32_t *pNumBinaries;
     uint32_t **ppSelectedBinary;
 } ur_device_select_binary_params_t;

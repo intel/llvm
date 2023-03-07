@@ -209,6 +209,7 @@ class ur_structure_type_v(IntEnum):
     USM_DESC = 7                                    ## ::ur_usm_desc_t
     USM_POOL_DESC = 8                               ## ::ur_usm_pool_desc_t
     USM_POOL_LIMITS_DESC = 9                        ## ::ur_usm_pool_limits_desc_t
+    DEVICE_BINARY = 10                              ## ::ur_device_binary_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -292,6 +293,61 @@ class ur_api_version_t(c_int):
     def __str__(self):
         return str(ur_api_version_v(self.value))
 
+
+###############################################################################
+## @brief Target identification strings for
+##        ::ur_device_binary_t.pDeviceTargetSpec 
+##        A device type represented by a particular target triple requires
+##        specific 
+##        binary images. We need to map the image type onto the device target triple
+UR_DEVICE_BINARY_TARGET_UNKNOWN = "<unknown>"
+
+###############################################################################
+## @brief SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
+UR_DEVICE_BINARY_TARGET_SPIRV32 = "spir"
+
+###############################################################################
+## @brief SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
+UR_DEVICE_BINARY_TARGET_SPIRV64 = "spir64"
+
+###############################################################################
+## @brief Device-specific binary images produced from SPIR-V 64-bit <-> various 
+##        "spir64_*" triples for specific 64-bit OpenCL CPU devices
+UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64 = "spir64_x86_64"
+
+###############################################################################
+## @brief Generic GPU device (64-bit OpenCL)
+UR_DEVICE_BINARY_TARGET_SPIRV64_GEN = "spir64_gen"
+
+###############################################################################
+## @brief 64-bit OpenCL FPGA device
+UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA = "spir64_fpga"
+
+###############################################################################
+## @brief PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
+UR_DEVICE_BINARY_TARGET_NVPTX64 = "nvptx64"
+
+###############################################################################
+## @brief AMD GCN
+UR_DEVICE_BINARY_TARGET_AMDGCN = "amdgcn"
+
+###############################################################################
+## @brief Device Binary Type
+class ur_device_binary_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_DEVICE_BINARY
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("pDeviceTargetSpec", c_char_p)                                 ## [in] null-terminated string representation of the device's target architecture.
+                                                                        ## For example: 
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_UNKNOWN
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_SPIRV32
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_SPIRV64
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_SPIRV64_GEN
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_NVPTX64
+                                                                        ## + ::UR_DEVICE_BINARY_TARGET_AMDGCN
+    ]
 
 ###############################################################################
 ## @brief Supported device types
@@ -2385,9 +2441,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary
 if __use_win_types:
-    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(POINTER(c_ubyte)), c_ulong, POINTER(c_ulong) )
+    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_binary_t), c_ulong, POINTER(c_ulong) )
 else:
-    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(POINTER(c_ubyte)), c_ulong, POINTER(c_ulong) )
+    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_binary_t), c_ulong, POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceGetNativeHandle
