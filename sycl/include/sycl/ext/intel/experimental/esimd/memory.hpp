@@ -2462,7 +2462,7 @@ __ESIMD_API int32_t get_subdevice_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return __spirv_BuiltInSubDeviceIDINTEL();
 #else
-  return std::rand();
+  return 0;
 #endif
 }
 
