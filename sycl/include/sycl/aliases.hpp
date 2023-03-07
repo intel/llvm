@@ -27,6 +27,9 @@ class half;
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::vec<TYPE, N>;
 
+#define __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(ALIAS, TYPE, N, MESSAGE)      \
+  using ALIAS##N __SYCL2020_DEPRECATED(MESSAGE) = sycl::vec<TYPE, N>;
+
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
   __SYCL_MAKE_VECTOR_ALIAS(char, char, N)                                      \
   __SYCL_MAKE_VECTOR_ALIAS(short, short, N)                                    \
@@ -36,18 +39,19 @@ class half;
   __SYCL_MAKE_VECTOR_ALIAS(double, double, N)                                  \
   __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
+// There are no 'cl_*' vec aliases in SYCL 2020
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_char, sycl::cl_char, N)                          \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, sycl::cl_uchar, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_short, sycl::cl_short, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, sycl::cl_ushort, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_int, sycl::cl_int, N)                            \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, sycl::cl_uint, N)                          \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_long, sycl::cl_long, N)                          \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, sycl::cl_ulong, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_float, sycl::cl_float, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_double, sycl::cl_double, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_half, sycl::cl_half, N)
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_char, sycl::cl_char, N, "")      \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uchar, sycl::cl_uchar, N, "")    \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_short, sycl::cl_short, N, "")    \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ushort, sycl::cl_ushort, N, "")  \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_int, sycl::cl_int, N, "")        \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uint, sycl::cl_uint, N, "")      \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_long, sycl::cl_long, N, "")      \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ulong, sycl::cl_ulong, N, "")    \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_float, sycl::cl_float, N, "")    \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_double, sycl::cl_double, N, "")  \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_half, sycl::cl_half, N, "")
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
   __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
@@ -64,16 +68,16 @@ class half;
   __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
 // FIXME: OpenCL vector aliases are not defined by SYCL 2020 spec and should be
-//        removed from here. See intel/llvm#7888
+//        removed from here. See intel/llvm#7888. They are deprecated for now.
 // FIXME: schar, longlong and ulonglong aliases are not defined by SYCL 2020
 //        spec, but they are preserved in SYCL 2020 mode, because SYCL-CTS is
 //        still using them.
 //        See KhronosGroup/SYCL-CTS#446 and KhronosGroup/SYCL-Docs#335
 #define __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                   \
   __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
-  __SYCL_MAKE_VECTOR_ALIAS(schar, std::int8_t, N)                              \
-  __SYCL_MAKE_VECTOR_ALIAS(longlong, std::int64_t, N)                          \
-  __SYCL_MAKE_VECTOR_ALIAS(ulonglong, std::uint64_t, N)                        \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(schar, std::int8_t, N, "")          \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(longlong, std::int64_t, N, "")      \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(ulonglong, std::uint64_t, N, "")    \
   __SYCL_MAKE_VECTOR_ALIAS(char, std::int8_t, N)                               \
   __SYCL_MAKE_VECTOR_ALIAS(uchar, std::uint8_t, N)                             \
   __SYCL_MAKE_VECTOR_ALIAS(short, std::int16_t, N)                             \
