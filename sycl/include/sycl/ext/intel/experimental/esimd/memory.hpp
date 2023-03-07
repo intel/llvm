@@ -2454,7 +2454,7 @@ __ESIMD_API int32_t get_hw_thread_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return __spirv_BuiltInGlobalHWThreadIDINTEL();
 #else
-  return 0;
+  return std::rand();
 #endif // __SYCL_DEVICE_ONLY__
 }
 /// Get subdevice ID
@@ -2462,7 +2462,7 @@ __ESIMD_API int32_t get_subdevice_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return __spirv_BuiltInSubDeviceIDINTEL();
 #else
-  return 0;
+  return std::rand();
 #endif
 }
 
