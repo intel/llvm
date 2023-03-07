@@ -3,7 +3,7 @@
 // Check that uses of SYCL_EXTERNAL throw an error if -fno-gpu-rdc is passed
 #include "sycl.hpp"
 
-// expected-error@+1{{invalid use of SYCL_EXTERNAL macro in non-relocatable device code mode}}
+// expected-error@+1{{unknown type name 'SYCL_EXTERNAL'}}
 SYCL_EXTERNAL void syclExternal() {}
 
 using namespace sycl;

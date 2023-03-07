@@ -803,13 +803,9 @@ void Sema::DiagnoseUnknownTypeName(IdentifierInfo *&II,
   // (struct, union, enum) from Parser::ParseImplicitInt here, instead?
 
   if (!SS || (!SS->isSet() && !SS->isInvalid()))
-    if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
-        II->getName() == "SYCL_EXTERNAL")
-      Diag(IILoc, diag::err_sycl_external_no_rdc);
-    else
-      Diag(IILoc,
-           IsTemplateName ? diag::err_no_template : diag::err_unknown_typename)
-          << II;
+    Diag(IILoc,
+         IsTemplateName ? diag::err_no_template : diag::err_unknown_typename)
+        << II;
   else if (DeclContext *DC = computeDeclContext(*SS, false))
     Diag(IILoc, IsTemplateName ? diag::err_no_member_template
                                : diag::err_typename_nested_not_found)
