@@ -5635,7 +5635,7 @@ pi_result cuda_piextCanAccessPeer(pi_device command_device,
   } catch (pi_result err) {
     result = err;
   }
-  if (value == 0) {
+  if (value != 1) {
     return PI_ERROR_INVALID_OPERATION;
   }
   return result;
