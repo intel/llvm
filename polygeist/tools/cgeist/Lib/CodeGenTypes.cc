@@ -413,11 +413,12 @@ const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
 // parameter and the decayed type of the parameter.
 static QualType getDeclArgTy(const FunctionDecl &FD, int32_t ArgNo,
                              QualType ABIArgTy) {
-  const bool IsMethodDecl = isa<CXXMethodDecl>(FD);
-  const bool IsMethodInstance =
-      IsMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
-  if (IsMethodInstance) // account for the fact the 'this' type is not
-    ArgNo--;            // present in the function declaration.
+  // Account for the fact the 'this' type is not present in the function
+  // declaration.
+  if (const auto *MethodDecl = dyn_cast<CXXMethodDecl>(&FD))
+    if (MethodDecl->isInstance())
+      --ArgNo;
+
   const QualType DeclArgTy =
       (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
 
