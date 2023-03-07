@@ -940,25 +940,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
     assert(Obj.isReference);
   }
 
-  /// If the constructor is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
-  /// since we will create it's equivalent with SYCL operations. Please note
-  /// that we still generate some constructors that we need for lowering some
-  /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
-  /// looking them up in our "registry" of supported constructors.
-  const auto IsSyclCtor =
-      mlirclang::getNamespaceKind(CtorDecl->getEnclosingNamespaceContext()) !=
-      mlirclang::NamespaceKind::Other;
-  bool ShouldEmit = !IsSyclCtor;
-
-  std::string MangledName = MLIRScanner::getMangledFuncName(
-      cast<FunctionDecl>(*CtorDecl), Glob.getCGM());
-  MangledName = (PrefixABI + MangledName);
-  if (GenerateAllSYCLFuncs || !isUnsupportedFunction(MangledName))
-    ShouldEmit = true;
-
   FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
-  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
   Args.reserve(Cons->getNumArgs() + 1);

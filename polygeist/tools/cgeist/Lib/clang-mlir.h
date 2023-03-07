@@ -177,7 +177,6 @@ public:
   ::ScopLocList &getScopLocList() { return ScopLocs; }
 
   mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
-                                                    const bool ShouldEmit,
                                                     bool GetDeviceStub = false);
   mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
                                                  FunctionContext FuncContext);
@@ -215,7 +214,7 @@ public:
 private:
   /// Returns the LLVM linkage type of the given function declaration \p FD.
   llvm::GlobalValue::LinkageTypes
-  getLLVMLinkageType(const clang::FunctionDecl &FD, bool ShouldEmit);
+  getLLVMLinkageType(const clang::FunctionDecl &FD);
 
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
@@ -234,16 +233,15 @@ private:
   /// in the host module (ModuleOp), depending on the calling context embedded
   /// in the FTE).
   mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
-                                               std::string MangledName,
-                                               bool ShouldEmit);
+                                               std::string MangledName);
 
   /// Set the symbol visibility on the given \p function.
   void setMLIRFunctionVisibility(mlir::FunctionOpInterface Function,
-                                 const FunctionToEmit &FTE, bool ShouldEmit);
+                                 const FunctionToEmit &FTE);
 
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface Function,
-                                 const FunctionToEmit &FTE, bool ShouldEmit);
+                                 const FunctionToEmit &FTE);
 
   void setMLIRFunctionAttributesForDefinition(
       const clang::Decl *D, mlir::FunctionOpInterface Function) const;
@@ -261,7 +259,6 @@ private:
   mlir::Block *EntryBlock;
   std::vector<LoopContext> Loops;
   mlir::Block *AllocationScope;
-  llvm::SmallSet<std::string, 4> UnsupportedFuncs;
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> Bufs;
   std::map<int, mlir::Value> Constants;
   std::map<clang::LabelStmt *, mlir::Block *> Labels;
@@ -275,13 +272,6 @@ private:
   ValueCategory ThisVal;
   mlir::Value ReturnVal;
   LowerToInfo &LTInfo;
-
-  // Initialize a exclude list of SYCL functions to emit instead just the
-  // declaration. Eventually, this list should be removed.
-  void initUnsupportedFunctions();
-  bool isUnsupportedFunction(std::string Name) const {
-    return UnsupportedFuncs.contains(Name);
-  }
 
   // Get the \p FNum field of MemRef Value \p V of element type T. \p Shape is
   // the shape of the result MemRef.

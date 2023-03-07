@@ -1125,24 +1125,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     return ValueCategory(Called, IsReference);
   }
 
-  /// If the callee is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
-  /// since we will create it's equivalent with SYCL operations. Please note
-  /// that we still generate some functions that we need for lowering some
-  /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
-  /// looking them up in our "registry" of supported functions.
-  const auto IsSyclFunc =
-      mlirclang::getNamespaceKind(Callee->getEnclosingNamespaceContext()) !=
-      mlirclang::NamespaceKind::Other;
-  bool ShouldEmit = !IsSyclFunc;
-
-  std::string MangledName =
-      MLIRScanner::getMangledFuncName(*Callee, Glob.getCGM());
-  if (GenerateAllSYCLFuncs || !isUnsupportedFunction(MangledName))
-    ShouldEmit = true;
-
   FunctionToEmit F(*Callee, mlirclang::getInputContext(Builder));
-  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> Args;
   clang::QualType ObjType;
