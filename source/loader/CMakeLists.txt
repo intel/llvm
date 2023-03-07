@@ -79,6 +79,7 @@ target_sources(loader
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform_discovery.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_valddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_validation_layer.cpp
 )
@@ -95,14 +96,12 @@ if(WIN32)
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/windows/platform_discovery_win.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
     )
 else()
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/linux/platform_discovery_lin.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
     )
 endif()
