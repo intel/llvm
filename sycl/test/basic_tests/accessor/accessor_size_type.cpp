@@ -8,7 +8,7 @@ int main() {
   using local_accessor_size_type = sycl::local_accessor<int, 3>::size_type;
   using host_accessor_size_type = sycl::host_accessor<int, 3>::size_type;
 
-  static_assert(std::is_same_v<accessor_size_type, size_t>);
-  static_assert(std::is_same_v<local_accessor_size_type, size_t>);
-  static_assert(std::is_same_v<host_accessor_size_type, size_t>);
+  static_assert(std::is_same_v<accessor_size_type, std::size_t>);
+  static_assert(std::is_same_v<local_accessor_size_type, std::size_t>);
+  static_assert(std::is_same_v<host_accessor_size_type, std::size_t>);
 }

@@ -1253,7 +1253,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
-  using size_type = size_t;
+  using size_type = std::size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -2734,7 +2734,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
-  using size_type = size_t;
+  using size_type = std::size_t;
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
