@@ -824,7 +824,7 @@ public:
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
-      for (auto A : Args)
+      for (auto &A : Args)
         TheArgs.emplace_back(A.str());
     }
 
