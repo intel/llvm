@@ -2784,43 +2784,70 @@ public:
   }
 };
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec,
-                                        FunctionDecl *KernelCallerFunc,
-                                        Sema &SemaRef) {
+// This function traverses the static call graph from the root of the kernel
+// (e.g. “kernel_parallel_for”) and returns the version of “operator()()” that
+// is called by kernelFunc()”. There will only be one call to kernelFunc()” in
+// that call graph because the DPC++ headers are structured such that the user’s
+// kernel function is only called once. This ensures that the correct
+// “operator()()” function call is returned, when a named function object used
+// to define a kernel has more than one “operator()()” calls defined in it. For
+// example, in the code below, 'operator()(sycl::id<1> id)' is returned based on
+// the 'parallel_for' invocation.
+//   class MyKernel {
+//    public:
+//      void operator()() const {
+//        // code
+//      }
+//
+//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
+//      {
+//        // code
+//      }
+//    };
+//
+//    int main() {
+//
+//    Q.submit([&](sycl::handler& cgh) {
+//      MyKernel kernelFunctorObject;
+//      cgh.parallel_for(sycl::range<1>(16), kernelFunctorObject);
+//    });
+//      return 0;
+//    }
+
+static CXXMethodDecl *
+getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
+                                 FunctionDecl *KernelCallerFunc,
+                                 Sema &SemaRef) {
 
   CallGraph SYCLCG;
   SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
-  // assert(SYCLCG.getNode(KernelCallerFunc) && "No call graph entry for a
-  // kernel?");
 
-  CallGraphNode *KernelCallerFuncNode = SYCLCG.getNode(KernelCallerFunc);
-  CXXMethodDecl *OperatorCall = nullptr;
+  if (KernelCallerFunc && KernelCallerFunc->hasBody() &&
+      KernelCallerFunc->hasAttr<SYCLKernelAttr>()) {
 
-  for (const CallGraphNode *CI : *KernelCallerFuncNode) {
-    if (auto *Callee = dyn_cast<CXXMethodDecl>(CI->getDecl())) {
-      Callee = Callee->getMostRecentDecl();
-      if (Callee->getParent() == Rec && Callee->isCXXClassMember() &&
-          Callee->getOverloadedOperator() == OO_Call)
-        OperatorCall = Callee;
-      return OperatorCall;
+    CallGraphNode *KernelCallerFuncNode = SYCLCG.getNode(KernelCallerFunc);
+    CXXMethodDecl *OperatorCall = nullptr;
+
+    // Iterate through each funtion invoked from the kernel root, find the
+    // function call operator and make sure it is a member of the kernel fuctor.
+    for (const CallGraphNode *CI : *KernelCallerFuncNode) {
+      if (auto *Callee = dyn_cast<CXXMethodDecl>(CI->getDecl())) {
+        Callee = Callee->getMostRecentDecl();
+        if (Callee->getParent() == KernelFuncObjType &&
+            Callee->isCXXClassMember() &&
+            Callee->getOverloadedOperator() == OO_Call)
+          OperatorCall = Callee;
+        return OperatorCall;
+      }
     }
   }
-
   return nullptr;
-
-  /*
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
-  */
 }
 
 static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType,
                               FunctionDecl *KernelCallerFunc, Sema &SemaRef) {
-  const CXXMethodDecl *OpParens =
-      getOperatorParens(KernelObjType, KernelCallerFunc, SemaRef);
+  const CXXMethodDecl *OpParens = getCallOperatorInvokedFromKernel(
+      KernelObjType, KernelCallerFunc, SemaRef);
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
@@ -2913,7 +2940,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     if (KernelObj->isLambda())
       WGLambdaFn = KernelObj->getLambdaCallOperator();
     else
-      WGLambdaFn = getOperatorParens(KernelObj, KernelCallerFunc, SemaRef);
+      WGLambdaFn = getCallOperatorInvokedFromKernel(KernelObj, KernelCallerFunc,
+                                                    SemaRef);
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is
@@ -4064,7 +4092,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj,
                                FunctionDecl *KernelCallerFunc) {
   // Get the operator() function of the wrapper.
   CXXMethodDecl *OpParens =
-      getOperatorParens(KernelObj, KernelCallerFunc, *this);
+      getCallOperatorInvokedFromKernel(KernelObj, KernelCallerFunc, *this);
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;

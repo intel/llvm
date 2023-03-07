@@ -441,6 +441,15 @@ kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
+template <typename KernelName, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_parallel_for(const KernelType &kernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+  kernelFunc();
+#else
+  (void)kernelFunc;
+#endif
+}
+
 // Dummy parallel_for_work_item function to mimic calls from
 // parallel_for_work_group.
 void parallel_for_work_item() {
@@ -458,6 +467,13 @@ kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 
 class handler {
 public:
+
+  template <typename KernelName = auto_name, typename KernelType>
+  void parallel_for(const KernelType &kernelObj) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+    kernel_parallel_for<NameT>(kernelObj);
+  }
+
   template <typename KernelName = auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;

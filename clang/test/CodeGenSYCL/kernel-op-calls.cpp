@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device %s -o /dev/null
-// RUN: FileCheck %s --input-file=%t.h --check-prefixes=UL,CHECK
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
    
 // Checks that functors are supported as SYCL kernels.
 
@@ -8,10 +7,17 @@
 constexpr auto sycl_read_write = sycl::access::mode::read_write;
 constexpr auto sycl_global_buffer = sycl::access::target::global_buffer;
 
-// Case 2:
+template<bool B, typename V = void>
+struct enable_if { };
+template<typename V>
+struct enable_if<true, V> {
+  using type = V;
+};
+template<bool B, typename V = void>
+using enable_if_t = typename enable_if<B, V>::type;
+
 // - functor class is templated and defined in the translation unit scope
-// - the '()' operator:
-//   * has a parameter of type sycl::id<1> (to be used in 'parallel_for').
+// - the '()' operator has a parameter of type sycl::id<1> (to be used in 'parallel_for').
 template <typename T> class TmplConstFunctor {
 public:
   TmplConstFunctor(T X_, sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> &Acc_) :
@@ -26,14 +32,49 @@ public:
     Acc.use();
   }
 
-  
-
 private:
   T X;
   sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
 };
 
 
+template <typename T> class Functor2 {
+public:
+  Functor2(T X_, sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> &Acc_) :
+    X(X_), Acc(Acc_)
+  {}
+
+  [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const {
+    Acc.use(id, X);
+  }
+
+ [[sycl::work_group_size_hint(1, 2, 3)]] void operator()(sycl::id<2> id) const {
+    Acc.use(id, X);
+  }
+
+private:
+  T X;
+  sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
+};
+
+template <typename T> class Functor3 {
+public:
+  Functor3(T X_, sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> &Acc_) :
+    X(X_), Acc(Acc_)
+  {}
+
+  [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const {
+    Acc.use(id, X);
+  }
+
+ [[sycl::work_group_size_hint(1, 2, 3)]] void operator()(sycl::id<2> id) const {
+    Acc.use(id, X);
+  }
+
+private:
+  T X;
+  sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
+};
 
 #define ARR_LEN(x) sizeof(x)/sizeof(x[0])
 
@@ -47,9 +88,25 @@ template <typename T> T bar(T X) {
     Q.submit([&](sycl::handler& cgh) {
       auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
       TmplConstFunctor<T> F(X, Acc);
-
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS16TmplConstFunctorIiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !11 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14 {
       cgh.parallel_for(sycl::range<1>(ARR_LEN(A)), F);
+      //cgh.parallel_for<class name>(F);
     });
+
+    Q.submit([&](sycl::handler& cgh) {
+      auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      Functor2<T> FuncOp2(X, Acc);
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor2IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !22 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !work_group_size_hint !23 {
+      cgh.parallel_for(sycl::range<2>(ARR_LEN(A)), FuncOp2);
+    });
+
+    Q.submit([&](sycl::handler& cgh) {
+      auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      Functor3<T> FuncOp1(X, Acc);
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor3IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !25 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14
+      cgh.parallel_for(sycl::range<1>(ARR_LEN(A)), FuncOp1);
+    });
+
   }
   T res = (T)0;
 
@@ -61,17 +118,6 @@ template <typename T> T bar(T X) {
 
 int main() {
   const int Res2 = bar(10);
-  const int Gold1 = 40;
-  const int Gold2 = 80;
-
-#ifndef __SYCL_DEVICE_ONLY__
-  
-  sycl::detail::KernelInfo<TmplConstFunctor<int>>::getName();
-  // NUL: KernelInfo<::TmplConstFunctor<int>>
-  // UL: KernelInfoData<'_', 'Z', 'T', 'S', '1', '6', 'T', 'm', 'p', 'l', 'C', 'o', 'n', 's', 't', 'F', 'u', 'n', 'c', 't', 'o', 'r', 'I', 'i', 'E'>
-  // CHECK: getName() { return "_ZTS16TmplConstFunctorIiE"; }
-#endif // __SYCL_DEVICE_ONLY__
-
   return 0;
 }
 
