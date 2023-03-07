@@ -32,6 +32,7 @@ umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params,
     void *provider_priv;
     enum uma_result_t ret = ops->initialize(params, &provider_priv);
     if (ret != UMA_RESULT_SUCCESS) {
+        free(provider);
         return ret;
     }
 

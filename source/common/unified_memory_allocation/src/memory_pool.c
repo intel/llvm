@@ -30,6 +30,7 @@ enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops, void *params,
     void *pool_priv;
     enum uma_result_t ret = ops->initialize(params, &pool_priv);
     if (ret != UMA_RESULT_SUCCESS) {
+        free(pool);
         return ret;
     }
 
