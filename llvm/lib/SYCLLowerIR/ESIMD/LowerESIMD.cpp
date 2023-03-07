@@ -1195,6 +1195,25 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     return;
   }
 
+  // As an optimization of accesses of the first element for vector SPIRV
+  // globals sometimes the load will return a scalar and the uses can be of any
+  // pattern. In this case, generate GenX calls to access the first element and
+  // update the use to instead use the GenX call result rather than the load
+  // result.
+  if (!LI->getType()->isVectorTy()) {
+    // Copy users to seperate container for safe modification
+    // during iteration.
+    SmallVector<User *> Users(LI->users());
+    for (User *LU : Users) {
+      Instruction *Inst = cast<Instruction>(LU);
+      NewInst =
+          generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0);
+      LU->replaceUsesOfWith(LI, NewInst);
+    }
+    InstsToErase.push_back(LI);
+    return;
+  }
+
   // Only loads from _vector_ SPIRV globals reach here now. Their users are
   // expected to be ExtractElementInst only, and they are
   // replaced in this loop. When loads from _scalar_ SPIRV globals are handled

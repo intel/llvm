@@ -10,11 +10,18 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/sycl.hpp>
+
+#include <algorithm>
+
 using namespace sycl;
 
 #define CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, MARRAY_SIZE)               \
   static_assert(std::is_same_v<sycl::marray<ELEM_TYPE, MARRAY_SIZE>,           \
                                sycl::ALIAS_MTYPE##MARRAY_SIZE>);
+
+template <size_t N> bool AllTrue(sycl::marray<bool, N> M) {
+  return std::all_of(M.begin(), M.end(), [](const bool &V) { return V; });
+}
 
 #define CHECK_ALIAS(ALIAS_MTYPE, ELEM_TYPE)                                    \
   CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 2)                               \
@@ -27,8 +34,9 @@ using namespace sycl;
 // scalar values with the marrays, which is valid as all elements in the marrays
 // should be the same.
 #define CHECK_BINOP(OP, LHS, RHS)                                              \
-  assert((LHS[0] OP RHS) == (LHS OP RHS) && (LHS OP RHS[0]) == (LHS OP RHS) && \
-         (LHS[0] OP RHS[0]) == (LHS OP RHS));
+  assert(AllTrue((LHS[0] OP RHS) == (LHS OP RHS)) &&                           \
+         AllTrue((LHS OP RHS[0]) == (LHS OP RHS)) &&                           \
+         AllTrue((LHS[0] OP RHS[0]) == (LHS OP RHS)));
 
 struct NotDefaultConstructible {
   NotDefaultConstructible() = delete;
