@@ -1120,7 +1120,7 @@ static void eraseHostCode(mlir::ModuleOp Module) {
     Op.get().erase();
 }
 
-static void filterDeviceFunctions(mlir::gpu::GPUModuleOp Module) {
+template <typename T> static void filterFunctions(T Module) {
   if (Cfunction.getNumOccurrences() == 0 || Cfunction == "*")
     return;
 
@@ -1128,6 +1128,10 @@ static void filterDeviceFunctions(mlir::gpu::GPUModuleOp Module) {
   LLVM_DEBUG(llvm::dbgs() << "Filtering device functions\n");
   SmallVector<gpu::GPUFuncOp> ToRemove;
   for (Operation &Op : Module) {
+    if (auto GPUModule = dyn_cast<gpu::GPUModuleOp>(Op)) {
+      filterFunctions(GPUModule);
+      continue;
+    }
     if (auto Func = dyn_cast<FunctionOpInterface>(Op))
       if (!MatchName.match(Func.getName())) {
         if (auto GPUFunc = dyn_cast<gpu::GPUFuncOp>(Op)) {
@@ -1208,11 +1212,11 @@ int main(int argc, char **argv) {
   // on the host code otherwise.
   if (containsFunctions(DeviceModule)) {
     eraseHostCode(*Module);
-    filterDeviceFunctions(DeviceModule);
     Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
   } else
     DeviceModule.erase();
+  filterFunctions(*Module);
 
   LLVM_DEBUG({
     llvm::dbgs() << "MLIR before compilation:\n";
