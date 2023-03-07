@@ -109,7 +109,7 @@ TEST_F(QueueApiFailures, QueueSubmit) {
     ExceptionCaught = true;
   }
   Q.wait();
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -131,7 +131,7 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
     ExceptionCaught = true;
   }
   Q.wait();
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -163,7 +163,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   }
   Q.wait();
   sycl::free(HostAlloc, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -198,7 +198,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   Q.wait();
   sycl::free(HostAllocSrc, Q);
   sycl::free(HostAllocDst, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -224,7 +224,7 @@ TEST_F(QueueApiFailures, QueueCopy) {
   Q.wait();
   sycl::free(HostAllocSrc, Q);
   sycl::free(HostAllocDst, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -257,7 +257,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   }
   Q.wait();
   sycl::free(HostAlloc, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -290,7 +290,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   }
   Q.wait();
   sycl::free(HostAlloc, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -321,7 +321,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   }
   Q.wait();
   sycl::free(HostAlloc, Q);
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -344,7 +344,7 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
     ExceptionCaught = true;
   }
   Q.wait();
-  EXPECT_TRUE(ExceptionCaught);
+  ASSERT_TRUE(ExceptionCaught);
   uint16_t TraceType = 0;
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));

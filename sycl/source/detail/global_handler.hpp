@@ -79,7 +79,7 @@ public:
   void drainThreadPool();
   void prepareSchedulerToRelease();
 
-  void InitXPTIStuff();
+  void InitXPTI();
   void TraceEventXPTI(const char *Message);
 
   // For testing purposes only

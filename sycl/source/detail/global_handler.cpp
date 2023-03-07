@@ -124,9 +124,9 @@ GlobalHandler &GlobalHandler::instance() {
   assert(RTGlobalObjHandler && "Handler must not be deallocated earlier");
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  static std::once_flag InitXPTI;
+  static std::once_flag InitXPTIFlag;
   if (xptiTraceEnabled()) {
-    std::call_once(InitXPTI, [&]() { RTGlobalObjHandler->InitXPTIStuff(); });
+    std::call_once(InitXPTIFlag, [&]() { RTGlobalObjHandler->InitXPTI(); });
   }
 #endif
   return *RTGlobalObjHandler;
