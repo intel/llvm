@@ -1069,14 +1069,6 @@ void CodeGenTypes::constructAttributeList(
     const clang::CodeGen::ABIArgInfo &AI = I->info;
     mlirclang::AttrBuilder ParamAttrsBuilder(*Ctx);
 
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
-      auto DeclArgTy = getDeclArgTy(*FD, ArgNo, ParamType);
-
-      // Set 'noalias' if an argument type has the `restrict` qualifier.
-      if (DeclArgTy.isRestrictQualified())
-        ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
-    }
-
     // Add attribute for padding argument, if necessary.
     if (IRFunctionArgs.hasPaddingArg(ArgNo)) {
       if (AI.getPaddingInReg()) {
@@ -1093,9 +1085,6 @@ void CodeGenTypes::constructAttributeList(
       ParamAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
     }
 
-    // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we
-    // have the corresponding parameter variable.  It doesn't make
-    // sense to do it here because parameters are so messed up.
     switch (AI.getKind()) {
     case clang::CodeGen::ABIArgInfo::Extend:
       if (AI.isSignExt())
@@ -1246,6 +1235,14 @@ void CodeGenTypes::constructAttributeList(
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())
       ParamAttrsBuilder.addAttribute(llvm::Attribute::NoCapture);
+
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
+      auto DeclArgTy = getDeclArgTy(*FD, ArgNo, ParamType);
+
+      // Set 'noalias' if an argument type has the `restrict` qualifier.
+      if (DeclArgTy.isRestrictQualified())
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+    }
 
     if (ParamAttrsBuilder.hasAttributes()) {
       unsigned FirstIRArg, NumIRArgs;
