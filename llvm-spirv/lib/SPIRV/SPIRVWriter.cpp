@@ -614,7 +614,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
 
 // Representation in LLVM IR before the translator is a pointer to an opaque
 // structure:
-// %spirv.JointMatrixINTEL._%element_type%_%rows%_%cols%_%scope%_%use%
+// %spirv.JointMatrixINTEL._%element_type%_%rows%_%cols%_%layout%_%scope%_%use%
 // Here we check the structure name yet again. Another option would be to
 // check SPIR-V friendly function calls (by their name) and obtain return
 // or their parameter types, assuming, that the appropriate types are Matrix
@@ -625,6 +625,18 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
 // simply not true.
 SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
     SmallVector<std::string, 8> Postfixes) {
+  auto ParseInteger = [this](StringRef Postfix) -> ConstantInt * {
+    unsigned long long N = 0;
+    if (consumeUnsignedInteger(Postfix, 10, N))
+      BM->getErrorLog().checkError(
+          false, SPIRVEC_InvalidLlvmModule,
+          "TypeJointMatrixINTEL expects integer parameters");
+    return getUInt32(M, N);
+  };
+  std::vector<SPIRVValue *> Args;
+  for (size_t I = 1; I != Postfixes.size(); ++I)
+    Args.emplace_back(transConstant(ParseInteger(Postfixes[I])));
+
   Type *ElemTy = nullptr;
   StringRef Ty{Postfixes[0]};
   auto NumBits = llvm::StringSwitch<unsigned>(Ty)
@@ -633,32 +645,30 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
                      .Case("int", 32)
                      .Case("long", 64)
                      .Default(0);
-  if (NumBits)
+  if (NumBits) {
     ElemTy = IntegerType::get(M->getContext(), NumBits);
-  else if (Ty == "half")
+  } else if (Ty == "half") {
     ElemTy = Type::getHalfTy(M->getContext());
-  else if (Ty == "float")
+  } else if (Ty == "float") {
     ElemTy = Type::getFloatTy(M->getContext());
-  else if (Ty == "double")
+  } else if (Ty == "double") {
     ElemTy = Type::getDoubleTy(M->getContext());
-  else if (Ty == "bfloat16")
+  } else if (Ty == "bfloat16") {
     ElemTy = Type::getInt16Ty(M->getContext());
-  else
+    // TODO: add BF16 CTI when we do breaking change
+    // auto *CTI = transConstant(getUInt32(M, static_cast<uint64_t>(
+    //        internal::InternalJointMatrixCTI::Bfloat16)));
+    // Args.push_back(CTI);
+    // BM->addCapability(internal::CapabilityJointMatrixBF16ComponentTypeINTEL);
+  } else if (Ty == "tf32") {
+    ElemTy = Type::getFloatTy(M->getContext());
+    auto *CTI = transConstant(getUInt32(
+        M, static_cast<uint64_t>(internal::InternalJointMatrixCTI::TF32)));
+    Args.push_back(CTI);
+    BM->addCapability(internal::CapabilityJointMatrixTF32ComponentTypeINTEL);
+  } else {
     llvm_unreachable("Unexpected type for matrix!");
-
-  auto ParseInteger = [this](StringRef Postfix) -> ConstantInt * {
-    unsigned long long N = 0;
-    if (consumeUnsignedInteger(Postfix, 10, N)) {
-      BM->getErrorLog().checkError(
-          false, SPIRVEC_InvalidLlvmModule,
-          "TypeJointMatrixINTEL expects integer parameters");
-      return 0;
-    }
-    return getUInt32(M, N);
-  };
-  std::vector<SPIRVValue *> Args;
-  for (size_t I = 1; I != Postfixes.size(); ++I)
-    Args.emplace_back(transConstant(ParseInteger(Postfixes[I])));
+  }
   return BM->addJointMatrixINTELType(transType(ElemTy), Args);
 }
 

@@ -649,6 +649,14 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "TensorFloat32ConversionINTEL");
   add(internal::CapabilityJointMatrixWIInstructionsINTEL,
       "JointMatrixWIInstructionsINTEL");
+  add(internal::CapabilityJointMatrixTF32ComponentTypeINTEL,
+      "JointMatrixTF32ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixBF16ComponentTypeINTEL,
+      "JointMatrixBF16ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixPackedInt2ComponentTypeINTEL,
+      "JointMatrixPackedInt2ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
+      "JointMatrixPackedInt4ComponentTypeINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
