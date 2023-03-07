@@ -15,6 +15,9 @@
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
+extern SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
+extern SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel {
@@ -2439,6 +2442,31 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 }
 
 /// @} sycl_esimd_memory_lsc
+
+/// @defgroup sycl_esimd_hw_thread_queries HW thread .
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_hw_thread_queries
+/// @{
+
+/// Get HW Thread ID
+__ESIMD_API int32_t get_hw_thread_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInGlobalHWThreadIDINTEL();
+#else
+  return 0;
+#endif // __SYCL_DEVICE_ONLY__
+}
+/// Get subdevice ID
+__ESIMD_API int32_t get_subdevice_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInSubDeviceIDINTEL();
+#else
+  return 0;
+#endif
+}
+
+/// @} sycl_esimd_hw_thread_queries
 
 } // namespace experimental::esimd
 
