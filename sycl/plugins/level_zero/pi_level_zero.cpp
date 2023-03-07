@@ -8379,8 +8379,7 @@ pi_result piextEnablePeer(pi_device command_device, pi_device peer_device) {
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  die("piextEnablePeer not "
-      "implemented");
+  die("piextEnablePeer not implemented");
   return {};
 }
 
