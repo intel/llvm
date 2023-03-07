@@ -665,7 +665,7 @@ class OffloadWrapperJobAction : public JobAction {
 public:
   OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
   OffloadWrapperJobAction(Action *Input, types::ID OutputType,
-                          bool IsEmbeddedIR = false);
+                          bool EmbedIR = false);
 
   bool isEmbeddedIR() const { return EmbedIR; }
 

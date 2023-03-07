@@ -94,5 +94,5 @@ SPIRVLLVMTranslator::translateLLVMtoSPIRV(Module &Mod, JITContext &JITCtx) {
         "Translation of LLVM IR to SPIR-V failed with error %s",
         ErrMsg.c_str());
   }
-  return &JITCtx.emplaceSPIRVBinary(BinaryStream.str(), BinaryFormat::SPIRV);
+  return &JITCtx.emplaceKernelBinary(BinaryStream.str(), BinaryFormat::SPIRV);
 }

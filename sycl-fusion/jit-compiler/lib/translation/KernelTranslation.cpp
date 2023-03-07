@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "KernelTranslation.h"
+
 #include "SPIRVLLVMTranslation.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Constants.h"
@@ -182,7 +183,8 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
     break;
   }
   case BinaryFormat::PTX: {
-    llvm::Expected<KernelBinary *> BinaryOrError = translateToPTX(Mod, JITCtx);
+    llvm::Expected<KernelBinary *> BinaryOrError =
+        translateToPTX(Kernel, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
@@ -215,12 +217,20 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
 }
 
 llvm::Expected<KernelBinary *>
-KernelTranslator::translateToPTX(llvm::Module &Mod, JITContext &JITCtx) {
-  // FIXME: Can we limit this to the NVPTX specific target?
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllAsmParsers();
-  llvm::InitializeAllAsmPrinters();
-  llvm::InitializeAllTargetMCs();
+KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+                                 JITContext &JITCtx) {
+#ifndef FUSION_JIT_SUPPORT_PTX
+  return createStringError(inconvertibleErrorCode(),
+                           "PTX translation not supported in this build");
+#else  // FUSION_JIT_SUPPORT_PTX
+  LLVMInitializeNVPTXTargetInfo();
+  LLVMInitializeNVPTXTarget();
+  LLVMInitializeNVPTXAsmPrinter();
+  LLVMInitializeNVPTXTargetMC();
+#endif // FUSION_JIT_SUPPORT_PTX
+
+  static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
+  static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
 
   std::string TargetTriple{"nvptx64-nvidia-cuda"};
 
@@ -231,13 +241,26 @@ KernelTranslator::translateToPTX(llvm::Module &Mod, JITContext &JITCtx) {
   if (!Target) {
     return createStringError(
         inconvertibleErrorCode(),
-        "Failed to load and translate SPIR-V module with error %s",
+        "Failed to load and translate PTX LLVM IR module with error %s",
         ErrorMessage.c_str());
+  }
+
+  llvm::StringRef TargetCPU{"sm_50"};
+  llvm::StringRef TargetFeatures{"+sm_50,+ptx76"};
+  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name)) {
+    if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
+      TargetCPU =
+          KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
+    }
+    if (KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
+      TargetFeatures = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
+                           .getValueAsString();
+    }
   }
 
   // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, "sm_50", "+sm_50,+ptx76", {}, llvm::Reloc::PIC_,
+      TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
       std::nullopt, llvm::CodeGenOpt::Default);
 
   llvm::legacy::PassManager PM;
@@ -259,5 +282,5 @@ KernelTranslator::translateToPTX(llvm::Module &Mod, JITContext &JITCtx) {
     ASMStream.flush();
   }
 
-  return &JITCtx.emplaceSPIRVBinary(PTXASM, BinaryFormat::PTX);
+  return &JITCtx.emplaceKernelBinary(std::move(PTXASM), BinaryFormat::PTX);
 }

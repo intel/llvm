@@ -138,7 +138,7 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
       AM.getResult<SYCLModuleInfoAnalysis>(M).ModuleInfo;
   assert(ModuleInfo && "No module information available");
 
-  auto TFI = TargetFusionInfo::getTargetFusionInfo(&M);
+  TargetFusionInfo TFI{&M};
 
   // Iterate over the functions in the module and locate all
   // stub functions identified by metadata.
@@ -456,11 +456,20 @@ Error SYCLKernelFusion::fuseKernel(
       FT, GlobalValue::LinkageTypes::ExternalLinkage,
       M.getDataLayout().getProgramAddressSpace(), KernelName->getString(), &M);
   {
+    auto DefaultAttr = FusedFunction->getAttributes();
+    // Add uniform function attributes, i.e., attributes with identical value on
+    // each input function, to the fused function.
+    auto *FirstFunction = InputFunctions.front().F;
+    for (const auto &UniformKey : TargetInfo.getUniformKernelAttributes()) {
+      if (FirstFunction->hasFnAttribute(UniformKey)) {
+        DefaultAttr = DefaultAttr.addFnAttribute(
+            LLVMCtx, FirstFunction->getFnAttribute(UniformKey));
+      }
+    }
     // Add the collected parameter attributes to the fused function.
     // Copying the parameter attributes from their original definition in the
     // input kernels should be safe and they most likely can't be deducted later
     // on, as no caller is present in the module.
-    auto DefaultAttr = FusedFunction->getAttributes();
     auto FusedFnAttrs =
         AttributeList::get(LLVMCtx, DefaultAttr.getFnAttrs(),
                            DefaultAttr.getRetAttrs(), FusedParamAttributes);

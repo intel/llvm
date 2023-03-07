@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_PASSES_TARGETFUSIONINFO_H
-#define SYCL_FUSION_PASSES_TARGETFUSIONINFO_H
+#ifndef SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
+#define SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -15,90 +15,7 @@
 
 namespace llvm {
 
-class TargetFusionInfoImpl {
-
-public:
-  virtual ~TargetFusionInfoImpl() = default;
-
-  virtual void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const {
-    (void)Funcs;
-  }
-
-  virtual void addKernelFunction(Function *KernelFunc) const {
-    (void)KernelFunc;
-  }
-
-  virtual void postProcessKernel(Function *KernelFunc) const {
-    (void)KernelFunc;
-  }
-
-  virtual ArrayRef<StringRef> getKernelMetadataKeys() const { return {}; }
-
-  virtual void createBarrierCall(IRBuilderBase &Builder,
-                                 int BarrierFlags) const = 0;
-
-  virtual unsigned getPrivateAddressSpace() const = 0;
-
-  virtual unsigned getLocalAddressSpace() const = 0;
-
-  virtual void updateAddressSpaceMetadata(Function *KernelFunc,
-                                          ArrayRef<size_t> LocalSize,
-                                          unsigned AddressSpace) const {
-    (void)KernelFunc;
-    (void)LocalSize;
-  }
-
-protected:
-  explicit TargetFusionInfoImpl(llvm::Module *Mod) : LLVMMod{Mod} {};
-
-  llvm::Module *LLVMMod;
-
-  friend class TargetFusionInfo;
-};
-
-class SPIRVTargetFusionInfo : public TargetFusionInfoImpl {
-public:
-  void addKernelFunction(Function *KernelFunc) const override;
-
-  ArrayRef<StringRef> getKernelMetadataKeys() const override;
-
-  void postProcessKernel(Function *KernelFunc) const override;
-
-  void createBarrierCall(IRBuilderBase &Builder,
-                         int BarrierFlags) const override;
-
-  // Corresponds to definition of spir_private and spir_local in
-  // "clang/lib/Basic/Target/SPIR.h", "SPIRDefIsGenMap".
-  unsigned getPrivateAddressSpace() const override { return 0; }
-  unsigned getLocalAddressSpace() const override { return 3; }
-
-  void updateAddressSpaceMetadata(Function *KernelFunc,
-                                  ArrayRef<size_t> LocalSize,
-                                  unsigned AddressSpace) const override;
-
-private:
-  using TargetFusionInfoImpl::TargetFusionInfoImpl;
-};
-
-class NVPTXTargetFusionInfo : public TargetFusionInfoImpl {
-public:
-  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override;
-
-  void addKernelFunction(Function *KernelFunc) const override;
-
-  ArrayRef<StringRef> getKernelMetadataKeys() const override;
-
-  void createBarrierCall(IRBuilderBase &Builder,
-                         int BarrierFlags) const override;
-
-  // Corresponds to the definitions in the LLVM NVPTX backend user guide:
-  // https://llvm.org/docs/NVPTXUsage.html#address-spaces
-  unsigned getPrivateAddressSpace() const override { return 0; }
-  unsigned getLocalAddressSpace() const override { return 3; }
-
-private:
-  using TargetFusionInfoImpl::TargetFusionInfoImpl;
-};
+class TargetFusionInfoImpl;
 
 ///
 /// Common interface to target-specific logic around handling of kernel
@@ -108,58 +25,48 @@ public:
   ///
   /// Create the correct target-specific implementation based on the target
   /// triple of \p Module.
-  static TargetFusionInfo getTargetFusionInfo(llvm::Module *Module);
+  explicit TargetFusionInfo(llvm::Module *Module);
 
   ///
   /// Notify the target-specific implementation that set of functions \p Funcs
   /// is about to be erased from the module. This should be called BEFORE
   /// erasing the functions.
-  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const {
-    Impl->notifyFunctionsDelete(Funcs);
-  }
+  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const;
 
   ///
   /// Notify the target-specific implementation that the function \p KernelFunc
   /// was added as a new kernel. This should be called AFTER the function has
   /// been added.
-  void addKernelFunction(llvm::Function *KernelFunc) const {
-    Impl->addKernelFunction(KernelFunc);
-  }
+  void addKernelFunction(llvm::Function *KernelFunc) const;
 
   ///
   /// Target-specific post-processing of the new kernel function \p KernelFunc.
   /// This should be called AFTER the function has been added and defined.
-  void postProcessKernel(Function *KernelFunc) const {
-    Impl->postProcessKernel(KernelFunc);
-  }
+  void postProcessKernel(Function *KernelFunc) const;
 
   ///
   /// Get the target-specific list of argument metadata attached to each
   /// function that should be collected and attached to the fused kernel.
-  llvm::ArrayRef<llvm::StringRef> getKernelMetadataKeys() const {
-    return Impl->getKernelMetadataKeys();
-  }
+  llvm::ArrayRef<llvm::StringRef> getKernelMetadataKeys() const;
 
-  void createBarrierCall(IRBuilderBase &Builder, int BarrierFlags) const {
-    Impl->createBarrierCall(Builder, BarrierFlags);
-  }
+  ///
+  /// Get the target-specific list of kernel function attributes that are
+  /// uniform across all input kernels and should be attached to the fused
+  /// kernel.
+  llvm::ArrayRef<llvm::StringRef> getUniformKernelAttributes() const;
 
-  unsigned getPrivateAddressSpace() const {
-    return Impl->getPrivateAddressSpace();
-  }
+  void createBarrierCall(IRBuilderBase &Builder, int BarrierFlags) const;
 
-  unsigned getLocalAddressSpace() const { return Impl->getLocalAddressSpace(); }
+  unsigned getPrivateAddressSpace() const;
+
+  unsigned getLocalAddressSpace() const;
 
   void updateAddressSpaceMetadata(Function *KernelFunc,
                                   ArrayRef<size_t> LocalSize,
-                                  unsigned AddressSpace) const {
-    Impl->updateAddressSpaceMetadata(KernelFunc, LocalSize, AddressSpace);
-  }
+                                  unsigned AddressSpace) const;
 
 private:
   using ImplPtr = std::shared_ptr<TargetFusionInfoImpl>;
-
-  TargetFusionInfo(ImplPtr &&I) : Impl{I} {}
 
   ImplPtr Impl;
 };
@@ -183,4 +90,4 @@ private:
 };
 } // namespace llvm
 
-#endif // SYCL_FUSION_PASSES_TARGETFUSIONINFO_H
+#endif // SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H

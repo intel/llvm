@@ -289,7 +289,7 @@ public:
   // XPTI instrumentation. Copy code location details to the internal struct.
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
-  
+
   /// Clear all dependency events for device and host dependencies. This should
   /// only be used if a command is about to be deleted without being executed
   /// before that.

@@ -5,12 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
+#define SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
 
 #include "JITContext.h"
 #include "Kernel.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include <llvm/Support/Error.h>
+#include "llvm/Support/Error.h"
 #include <vector>
 
 namespace jit_compiler {
@@ -39,8 +41,10 @@ private:
   static llvm::Expected<KernelBinary *> translateToSPIRV(llvm::Module &Mod,
                                                          JITContext &JITCtx);
 
-  static llvm::Expected<KernelBinary *> translateToPTX(llvm::Module &Mod,
-                                                       JITContext &JITCtx);
+  static llvm::Expected<KernelBinary *>
+  translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler
+
+#endif // SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H

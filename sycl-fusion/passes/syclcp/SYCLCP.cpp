@@ -249,7 +249,7 @@ PreservedAnalyses SYCLCP::run(Module &M, ModuleAnalysisManager &AM) {
     Changed = propagateConstants(F, *ConstantsOrErr) || Changed;
   }
 
-  auto TFI = TargetFusionInfo::getTargetFusionInfo(&M);
+  TargetFusionInfo TFI{&M};
 
   if (Changed) {
     moduleCleanup(M, AM, TFI);

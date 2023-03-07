@@ -62,21 +62,16 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
                   backend::ext_oneapi_cuda;
   if (isNvidia) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds;
-    KernelIds.push_back(KernelID);
+    std::vector<kernel_id> KernelIds{KernelID};
     auto DeviceImages =
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
-    const RTDeviceBinaryImage *DeviceImage = nullptr;
-    for (auto *DI : DeviceImages) {
-      // We are looking for a device image with LLVM IR format and target spec
-      // "llvm_nvptx64", which has been set by the offload-wrapper action.
-      if (DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
-          DI->getRawData().DeviceTargetSpec == std::string("llvm_nvptx64")) {
-        DeviceImage = DI;
-        break;
-      }
-    }
-    if (!DeviceImage) {
+    auto DeviceImage = std::find_if(
+        DeviceImages.begin(), DeviceImages.end(), [](RTDeviceBinaryImage *DI) {
+          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+                 DI->getRawData().DeviceTargetSpec ==
+                     std::string("llvm_nvptx64");
+        });
+    if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};
     }
     auto ContextImpl = Queue->getContextImplPtr();
@@ -84,9 +79,9 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     RT::PiProgram Program =
-        detail::ProgramManager::getInstance().createPIProgram(*DeviceImage,
+        detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
                                                               Context, Device);
-    return {DeviceImage, Program};
+    return {*DeviceImage, Program};
   }
 
   const RTDeviceBinaryImage *DeviceImage = nullptr;
@@ -460,6 +455,11 @@ static ParamIterator preProcessArguments(
     if (Arg->Arg.MPtr) {
       Arg->Arg.MPtr =
           storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+      // Propagate values of scalar parameters as constants to the JIT
+      // compiler.
+      JITConstants.emplace_back(
+          ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+          Arg->Arg.MPtr, Arg->Arg.MSize);
     }
     // Standard layout arguments do not participate in identical argument
     // detection, but we still add it to the list here. As the SYCL runtime can
@@ -468,16 +468,10 @@ static ParamIterator preProcessArguments(
     // not be materialized by the JIT compiler. Instead of removing some
     // standard layout arguments due to identity and missing some in case the
     // materialization is not possible, we rely on constant propagation to
-    // replace standard layout arguments by constants (see below).
+    // replace standard layout arguments by constants.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
                                     true);
-    // Propagate values of scalar parameters as constants to the JIT
-    // compiler.
-    JITConstants.emplace_back(
-        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
-        Arg->Arg.MPtr, Arg->Arg.MSize);
     return ++Arg;
-    
   }
   // First check if there's already another parameter with identical
   // value.

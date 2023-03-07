@@ -22,9 +22,8 @@ add_llvm_library(sycl-fusion
    InstCombine
    Target
    TargetParser
-   NVPTX
-   X86
    MC
+   ${LLVM_TARGETS_TO_BUILD}
 )
 
 target_include_directories(sycl-fusion
@@ -46,6 +45,10 @@ target_link_libraries(sycl-fusion
   SYCLKernelFusionPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
 
 if (BUILD_SHARED_LIBS)
   if(NOT MSVC AND NOT APPLE)

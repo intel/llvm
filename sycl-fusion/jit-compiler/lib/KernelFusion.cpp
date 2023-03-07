@@ -48,6 +48,22 @@ gatherNDRanges(llvm::ArrayRef<SYCLKernelInfo> KernelInformation) {
   return NDRanges;
 }
 
+static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
+  switch (TargetFormat) {
+  case BinaryFormat::SPIRV:
+    return true;
+  case BinaryFormat::PTX: {
+#ifdef FUSION_JIT_SUPPORT_PTX
+    return true;
+#else  // FUSION_JIT_SUPPORT_PTX
+    return false;
+#endif // FUSION_JIT_SUPPORT_PTX
+  }
+  default:
+    return false;
+  }
+}
+
 FusionResult KernelFusion::fuseKernels(
     JITContext &JITCtx, Config &&JITConfig,
     const std::vector<SYCLKernelInfo> &KernelInformation,
@@ -71,6 +87,12 @@ FusionResult KernelFusion::fuseKernels(
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
 
   BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+
+  if (!isTargetFormatSupported(TargetFormat)) {
+    return FusionResult(
+        "Fusion output target format not supported by this build");
+  }
+
   if (TargetFormat == BinaryFormat::PTX && IsHeterogeneousList) {
     return FusionResult{"Heterogeneous ND ranges not supported for CUDA"};
   }

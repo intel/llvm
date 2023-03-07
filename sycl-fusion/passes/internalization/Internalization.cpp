@@ -631,7 +631,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
 
 PreservedAnalyses llvm::SYCLInternalizer::run(Module &M,
                                               ModuleAnalysisManager &AM) {
-  auto TFI = TargetFusionInfo::getTargetFusionInfo(&M);
+  TargetFusionInfo TFI{&M};
   // Private promotion
   const PreservedAnalyses Tmp = SYCLInternalizerImpl{
       TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M, AM);

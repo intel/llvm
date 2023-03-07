@@ -11,7 +11,7 @@
 
 using namespace jit_compiler;
 
-KernelBinary::KernelBinary(std::string Binary, BinaryFormat Fmt)
+KernelBinary::KernelBinary(std::string &&Binary, BinaryFormat Fmt)
     : Blob{std::move(Binary)}, Format{Fmt} {}
 
 jit_compiler::BinaryAddress KernelBinary::address() const {
@@ -28,15 +28,6 @@ JITContext::JITContext() : LLVMCtx{new llvm::LLVMContext}, Binaries{} {}
 JITContext::~JITContext() = default;
 
 llvm::LLVMContext *JITContext::getLLVMContext() { return LLVMCtx.get(); }
-
-KernelBinary &JITContext::emplaceSPIRVBinary(std::string Binary,
-                                             BinaryFormat Format) {
-  WriteLockT WriteLock{BinariesMutex};
-  // NOTE: With C++17, which returns a reference from emplace_back, the
-  // following code would be even simpler.
-  Binaries.emplace_back(std::move(Binary), Format);
-  return Binaries.back();
-}
 
 std::optional<SYCLKernelInfo>
 JITContext::getCacheEntry(CacheKeyT &Identifier) const {

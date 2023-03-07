@@ -39,7 +39,7 @@ using CacheKeyT =
 /// Wrapper around a kernel binary.
 class KernelBinary {
 public:
-  explicit KernelBinary(std::string Binary, BinaryFormat Format);
+  explicit KernelBinary(std::string &&Binary, BinaryFormat Format);
 
   jit_compiler::BinaryAddress address() const;
 
@@ -65,7 +65,10 @@ public:
 
   llvm::LLVMContext *getLLVMContext();
 
-  KernelBinary &emplaceSPIRVBinary(std::string Binary, BinaryFormat Format);
+  template <typename... Ts> KernelBinary &emplaceKernelBinary(Ts &&...Args) {
+    WriteLockT WriteLock{BinariesMutex};
+    return Binaries.emplace_back(std::forward<Ts>(Args)...);
+  }
 
   std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
 

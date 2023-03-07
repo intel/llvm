@@ -478,7 +478,7 @@ void OffloadWrapperJobAction::anchor() {}
 
 OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
                                                  types::ID Type)
-  : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+    : JobAction(OffloadWrapperJobClass, Inputs, Type), EmbedIR(false) {}
 
 OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input, types::ID Type,
                                                  bool IsEmbeddedIR)

@@ -23,8 +23,8 @@
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
-#include "llvm/ADT/Triple.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
@@ -103,7 +103,7 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
     // to/from generic address-space as possible, because these hinder
     // internalization.
     // Ideally, the static compiler should have performed that job.
-    unsigned FlatAddressSpace = getFlatAddressSpace(Mod);
+    const unsigned FlatAddressSpace = getFlatAddressSpace(Mod);
     FPM.addPass(InferAddressSpacesPass(FlatAddressSpace));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }

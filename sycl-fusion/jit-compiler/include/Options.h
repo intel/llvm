@@ -10,6 +10,7 @@
 #define SYCL_FUSION_JIT_COMPILER_OPTIONS_H
 
 #include "Kernel.h"
+
 #include <memory>
 #include <unordered_map>
 

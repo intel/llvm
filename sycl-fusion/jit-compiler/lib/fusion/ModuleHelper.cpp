@@ -24,7 +24,7 @@ helper::ModuleHelper::cloneAndPruneModule(Module *Mod,
   identifyUnusedFunctions(Mod, CGRoots, UnusedFunctions);
 
   {
-    auto TFI = llvm::TargetFusionInfo::getTargetFusionInfo(Mod);
+    TargetFusionInfo TFI{Mod};
     SmallVector<Function *> Unused{UnusedFunctions.begin(),
                                    UnusedFunctions.end()};
     TFI.notifyFunctionsDelete(Unused);
