@@ -55,10 +55,8 @@ TEST_F(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
 TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
     for (auto device : devices) {
         // get the timer resolution of the device
-        size_t deviceTimerResolutionNanoSecs = 0;
-        ASSERT_SUCCESS(urDeviceGetInfo(
-            device, UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION, sizeof(size_t),
-            &deviceTimerResolutionNanoSecs, nullptr));
+        size_t deviceTimerResolutionNanoSecs =
+            uur::GetDeviceProfilingTimerResolution(device);
         size_t delayAmountNanoSecs =
             delayTimerMultiplier * deviceTimerResolutionNanoSecs;
 

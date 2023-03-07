@@ -39,7 +39,9 @@ struct DevicesEnvironment : PlatformEnvironment {
     virtual void SetUp() override;
     virtual void TearDown() override;
 
-    inline const std::vector<ur_device_handle_t> &GetDevices() const { return devices; }
+    inline const std::vector<ur_device_handle_t> &GetDevices() const {
+        return devices;
+    }
 
     std::vector<ur_device_handle_t> devices;
     static DevicesEnvironment *instance;

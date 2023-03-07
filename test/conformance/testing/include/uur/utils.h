@@ -72,8 +72,25 @@ auto GetContextInfo = [](ur_context_handle_t context, ur_context_info_t info) {
 };
 
 template <class T>
-auto GetDeviceInfo = [](ur_device_handle_t device, ur_device_info_t info) {
-    return GetInfo<T>(device, info, urDeviceGetInfo);
+auto GetDeviceInfo =
+    [](ur_device_handle_t device, ur_device_info_t info) -> std::optional<T> {
+    if constexpr (std::is_same_v<T, std::string>) {
+        size_t size = 0;
+        ur_result_t result =
+            urDeviceGetInfo(device, UR_DEVICE_INFO_NAME, 0, nullptr, &size);
+        if (result != UR_RESULT_SUCCESS || size == 0) {
+            return std::nullopt;
+        }
+        std::vector<char> data(size);
+        result = urDeviceGetInfo(device, UR_DEVICE_INFO_NAME, size, data.data(),
+                                 nullptr);
+        if (result != UR_RESULT_SUCCESS) {
+            return std::nullopt;
+        }
+        return std::string(data.data(), data.size());
+    } else {
+        return GetInfo<T>(device, info, urDeviceGetInfo);
+    }
 };
 
 template <class T>
@@ -137,9 +154,11 @@ uint32_t GetDeviceMaxComputeUnits(ur_device_handle_t device);
 uint32_t GetDeviceMaxWorkItemDimensions(ur_device_handle_t device);
 std::vector<size_t> GetDeviceMaxWorkItemSizes(ur_device_handle_t device);
 size_t GetDeviceMaxWorkGroupSize(ur_device_handle_t device);
-ur_fp_capability_flags_t GetDeviceSingleFPCapabilities(ur_device_handle_t device);
+ur_fp_capability_flags_t
+GetDeviceSingleFPCapabilities(ur_device_handle_t device);
 ur_fp_capability_flags_t GetDeviceHalfFPCapabilities(ur_device_handle_t device);
-ur_fp_capability_flags_t GetDeviceDoubleFPCapabilities(ur_device_handle_t device);
+ur_fp_capability_flags_t
+GetDeviceDoubleFPCapabilities(ur_device_handle_t device);
 ur_queue_flags_t GetDeviceQueueProperties(ur_device_handle_t device);
 uint32_t GetDevicePreferredVectorWidthChar(ur_device_handle_t device);
 uint32_t GetDevicePreferredVectorWidthShort(ur_device_handle_t device);
@@ -161,7 +180,80 @@ uint32_t GetDeviceAddressBits(ur_device_handle_t device);
 uint64_t GetDeviceMaxMemAllocSize(ur_device_handle_t device);
 bool GetDeviceImageSupport(ur_device_handle_t device);
 uint32_t GetDeviceMaxReadImageArgs(ur_device_handle_t device);
-
+uint32_t GetDeviceMaxWriteImageArgs(ur_device_handle_t device);
+uint32_t GetDeviceMaxReadWriteImageArgs(ur_device_handle_t device);
+size_t GetDeviceImage2DMaxWidth(ur_device_handle_t device);
+size_t GetDeviceImage2DMaxHeight(ur_device_handle_t device);
+size_t GetDeviceImage3DMaxWidth(ur_device_handle_t device);
+size_t GetDeviceImage3DMaxHeight(ur_device_handle_t device);
+size_t GetDeviceImage3DMaxDepth(ur_device_handle_t device);
+size_t GetDeviceImageMaxBufferSize(ur_device_handle_t device);
+size_t GetDeviceImageMaxArraySize(ur_device_handle_t device);
+uint32_t GetDeviceMaxSamplers(ur_device_handle_t device);
+size_t GetDeviceMaxParameterSize(ur_device_handle_t device);
+uint32_t GetDeviceMemBaseAddressAlign(ur_device_handle_t device);
+ur_device_mem_cache_type_t GetDeviceMemCacheType(ur_device_handle_t device);
+uint32_t GetDeviceMemCachelineSize(ur_device_handle_t device);
+uint64_t GetDeviceMemCacheSize(ur_device_handle_t device);
+uint64_t GetDeviceGlobalMemSize(ur_device_handle_t device);
+uint64_t GetDeviceGlobalMemFree(ur_device_handle_t device);
+uint64_t GetDeviceMaxConstantBufferSize(ur_device_handle_t device);
+uint32_t GetDeviceMaxConstantArgs(ur_device_handle_t device);
+ur_device_local_mem_type_t GetDeviceLocalMemType(ur_device_handle_t device);
+uint64_t GetDeviceLocalMemSize(ur_device_handle_t device);
+bool GetDeviceErrorCorrectionSupport(ur_device_handle_t device);
+size_t GetDeviceProfilingTimerResolution(ur_device_handle_t device);
+bool GetDeviceLittleEndian(ur_device_handle_t device);
+bool GetDeviceAvailable(ur_device_handle_t device);
+bool GetDeviceCompilerAvailable(ur_device_handle_t device);
+bool GetDeviceLinkerAvailable(ur_device_handle_t device);
+ur_device_exec_capability_flags_t
+GetDeviceExecutionCapabilities(ur_device_handle_t device);
+ur_queue_flags_t GetDeviceQueueOnDeviceProperties(ur_device_handle_t device);
+ur_queue_flags_t GetDeviceQueueOnHostProperties(ur_device_handle_t device);
+std::vector<std::string> GetDeviceBuiltInKernels(ur_device_handle_t device);
+ur_platform_handle_t GetDevicePlatform(ur_device_handle_t device);
+uint32_t GetDeviceReferenceCount(ur_device_handle_t device);
+std::string GetDeviceILVersion(ur_device_handle_t device);
+std::string GetDeviceVendor(ur_device_handle_t device);
+std::string GetDeviceDriverVersion(ur_device_handle_t device);
+std::string GetDeviceProfile(ur_device_handle_t device);
+std::string GetDeviceVersion(ur_device_handle_t device);
+std::string GetDeviceBackendRuntimeVersion(ur_device_handle_t device);
+std::vector<std::string> GetDeviceExtensions(ur_device_handle_t device);
+size_t GetDevicePrintfBufferSize(ur_device_handle_t device);
+bool GetDevicePreferredInteropUserSync(ur_device_handle_t device);
+ur_device_handle_t GetDeviceParentDevice(ur_device_handle_t device);
+std::vector<ur_device_partition_property_t>
+GetDevicePartitionProperties(ur_device_handle_t device);
+uint32_t GetDevicePartitionMaxSubDevices(ur_device_handle_t device);
+ur_device_affinity_domain_flags_t
+GetDevicePartitionAffinityDomainFlags(ur_device_handle_t device);
+std::vector<ur_device_partition_property_t>
+GetDevicePartitionType(ur_device_handle_t device);
+uint32_t GetDeviceMaxNumberSubGroups(ur_device_handle_t device);
+bool GetDeviceSubGroupIndependentForwardProgress(ur_device_handle_t device);
+std::vector<uint32_t> GetDeviceSubGroupSizesIntel(ur_device_handle_t device);
+bool GetDeviceUSMHostSupport(ur_device_handle_t device);
+bool GetDeviceUSMDeviceSupport(ur_device_handle_t device);
+bool GetDeviceUSMSingleSharedSupport(ur_device_handle_t device);
+bool GetDeviceUSMCrossSharedSupport(ur_device_handle_t device);
+bool GetDeviceUSMSystemSharedSupport(ur_device_handle_t device);
+std::string GetDeviceUUID(ur_device_handle_t device);
+std::string GetDevicePCIAddress(ur_device_handle_t device);
+uint32_t GetDeviceGPUEUCount(ur_device_handle_t device);
+uint32_t GetDeviceGPUEUSIMDWidth(ur_device_handle_t device);
+uint32_t GetDeviceGPUEUSlices(ur_device_handle_t device);
+uint32_t GetDeviceGPUSubslicesPerSlice(ur_device_handle_t device);
+uint32_t GetDeviceMaxMemoryBandwidth(ur_device_handle_t device);
+bool GetDeviceImageSRGB(ur_device_handle_t device);
+bool GetDeviceAtomic64Support(ur_device_handle_t device);
+ur_memory_order_capability_flags_t
+GetDeviceMemoryOrderCapabilities(ur_device_handle_t device);
+ur_memory_scope_capability_flags_t
+GetDeviceMemoryScopeCapabilities(ur_device_handle_t device);
+bool GetDeviceBFloat16Support(ur_device_handle_t device);
+uint32_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device);
 
 } // namespace uur
 
