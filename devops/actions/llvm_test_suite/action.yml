@@ -12,20 +12,6 @@ inputs:
     description: 'Name of SYCL toolchain archive file'
     required: false
     default: 'llvm_sycl.tar.xz'
-  lit_artifact:
-    description: 'Name of the artifact, that contains LIT tool'
-    required: true
-  lit_archive:
-    description: 'Name of LIT archive file'
-    required: false
-    default: 'lit.tar.xz'
-  e2e_tests_artifact:
-    description: 'Name of the artifact, that contains End-to-End LIT Tests'
-    required: true
-  e2e_tests_archive:
-    description: 'Name of End-to-End LIT Tests archive file'
-    required: false
-    default: 'e2e_tests.tar.xz'
   results_name_suffix:
     description: 'Name suffix of the results artifact'
     required: true
@@ -35,10 +21,6 @@ inputs:
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
-  in_tree_e2e:
-    description: "Flag directing to use in-tree End-to-End LIT tests"
-    required: false
-    default: false
 
 post-if: false
 runs:
@@ -66,44 +48,14 @@ runs:
       mkdir toolchain
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
-  - name: Download LIT
-    uses: actions/download-artifact@v3
-    with:
-      name: ${{ inputs.lit_artifact }}
-  - name: Extract LIT
-    shell: bash
-    run: |
-      mkdir lit
-      ls -la
-      tar -xf ${{ inputs.lit_archive }} -C lit
-      rm -f ${{ inputs.lit_archive }}
-  - name: Download End-to-End LIT Tests
-    if: inputs.in_tree_e2e
-    uses: actions/download-artifact@v3
-    with:
-      name: ${{ inputs.e2e_tests_artifact }}
-  - name: Extract End-to-End LIT Tests
-    if: inputs.in_tree_e2e
-    shell: bash
-    run: |
-      mkdir test_e2e
-      ls -la
-      tar -xf ${{ inputs.e2e_tests_archive }} -C test_e2e
-      ls -R test_e2e
-      rm -f ${{ inputs.e2e_tests_archive }}
   - name: Configure
     shell: bash
     run: |
       echo "::group::CMake configuration"
-      mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
-      if ${{ inputs.in_tree_e2e }}
-      then
-        # TODO: Rename check_sycl_all input
-        cmake  -GNinja -B./build -S./test_e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
-      else
-        cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
-      fi
+      # TODO: Rename check_sycl_all input
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
+      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
     shell: bash
@@ -112,7 +64,7 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
-      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e }}.json"
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
@@ -133,25 +85,21 @@ runs:
       echo $LD_LIBRARY_PATH
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
-      cd build
-      if ${{ inputs.in_tree_e2e }}
-      then
-        ninja check-sycl-e2e
-      else
-        ninja check-sycl-all
-      fi
+      echo "::group::SYCL In-Tree End-to-End tests"
+      ninja -C build-e2e check-sycl-e2e
+      echo "::endgroup::"
+      ninja -C build check-sycl-all
   - name: Upload test results
     uses: actions/upload-artifact@v1
     if: always()
     with:
       name: lit_results
-      path: build/results_${{ inputs.results_name_suffix }}_${{ inputs.in_tree_e2e}}.json
+      path: build/results_${{ inputs.results_name_suffix }}.json
   - name: Cleanup
     shell: bash
     if: always()
     run: |
       rm -rf toolchain
-      rm -rf lit
       rm -rf build
+      rm -rf build-e2e
       rm -rf llvm_test_suite
-      rm -rf test-e2e

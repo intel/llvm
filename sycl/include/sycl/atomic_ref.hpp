@@ -595,7 +595,8 @@ public:
 
   using base_type::is_lock_free;
 
-  atomic_ref_impl(T *&ref) : base_type(reinterpret_cast<uintptr_t &>(ref)) {}
+  explicit atomic_ref_impl(T *&ref)
+      : base_type(reinterpret_cast<uintptr_t &>(ref)) {}
 
   void store(T *operand, memory_order order = default_write_order,
              memory_scope scope = default_scope) const noexcept {

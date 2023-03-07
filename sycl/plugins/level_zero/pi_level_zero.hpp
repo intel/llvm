@@ -158,21 +158,6 @@ public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
 };
 
-enum EventsScope {
-  // All events are created host-visible.
-  AllHostVisible,
-  // All events are created with device-scope and only when
-  // host waits them or queries their status that a proxy
-  // host-visible event is created and set to signal after
-  // original event signals.
-  OnDemandHostVisibleProxy,
-  // All events are created with device-scope and only
-  // when a batch of commands is submitted for execution a
-  // last command in that batch is added to signal host-visible
-  // completion of each command in this batch (the default mode).
-  LastCommandInBatchHostVisible
-};
-
 struct _pi_device : _ur_device_handle_t {
   using _ur_device_handle_t::_ur_device_handle_t;
 };
@@ -191,6 +176,10 @@ struct pi_command_list_info_t {
   // completed (we are polling the fence at events completion). The fence
   // may be still "in-use" due to sporadic delay in HW.
   bool ZeFenceInUse{false};
+
+  // Indicates if command list is in closed state. This is needed to avoid
+  // appending commands to the closed command list.
+  bool IsClosed{false};
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};

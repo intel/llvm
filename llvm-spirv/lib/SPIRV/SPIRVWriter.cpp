@@ -1488,9 +1488,12 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
       // PartialCount must not be used with the DontUnroll bit
       else if (S == "llvm.loop.unroll.count" &&
                !(LoopControl & LoopControlDontUnrollMask)) {
-        size_t I = getMDOperandAsInt(Node, 1);
-        ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
-        LoopControl |= spv::LoopControlPartialCountMask;
+        if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
+          size_t I = getMDOperandAsInt(Node, 1);
+          ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
+          LoopControl |= spv::LoopControlPartialCountMask;
+        }
       } else if (S == "llvm.loop.ivdep.enable")
         LoopControl |= spv::LoopControlDependencyInfiniteMask;
       else if (S == "llvm.loop.ivdep.safelen") {
@@ -2653,10 +2656,10 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
 
   if (auto BVO = dyn_cast_or_null<OverflowingBinaryOperator>(V)) {
     if (BVO->hasNoSignedWrap()) {
-      BV->setNoSignedWrap(true);
+      BV->setNoIntegerDecorationWrap<DecorationNoSignedWrap>(true);
     }
     if (BVO->hasNoUnsignedWrap()) {
-      BV->setNoUnsignedWrap(true);
+      BV->setNoIntegerDecorationWrap<DecorationNoUnsignedWrap>(true);
     }
   }
 
@@ -4963,22 +4966,19 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         }
       } break;
       case spv::ExecutionModeNoGlobalOffsetINTEL: {
-        if (BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_kernel_attributes)) {
-          BF->addExecutionMode(BM->add(
-              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
-          BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
-          BM->addCapability(CapabilityKernelAttributesINTEL);
-        }
+        if (!BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes))
+          break;
+        BF->addExecutionMode(BM->add(
+            new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
+        BM->addCapability(CapabilityKernelAttributesINTEL);
       } break;
       case spv::ExecutionModeVecTypeHint:
       case spv::ExecutionModeSubgroupSize:
-      case spv::ExecutionModeSubgroupsPerWorkgroup: {
-        unsigned X;
-        N.get(X);
-        BF->addExecutionMode(BM->add(
-            new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode), X)));
-      } break;
+      case spv::ExecutionModeSubgroupsPerWorkgroup:
+        AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
+        break;
       case spv::ExecutionModeNumSIMDWorkitemsINTEL:
       case spv::ExecutionModeSchedulerTargetFmaxMhzINTEL:
       case spv::ExecutionModeMaxWorkDimINTEL:
@@ -4993,10 +4993,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       case spv::ExecutionModeSharedLocalMemorySizeINTEL: {
         if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
           break;
-        unsigned SLMSize;
-        N.get(SLMSize);
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), SLMSize)));
+        AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
       case spv::ExecutionModeNamedBarrierCountINTEL: {
         if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
@@ -5014,12 +5011,14 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       case spv::ExecutionModeSignedZeroInfNanPreserve:
       case spv::ExecutionModeRoundingModeRTE:
       case spv::ExecutionModeRoundingModeRTZ: {
-        if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls))
-          break;
-        unsigned TargetWidth;
-        N.get(TargetWidth);
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
+        if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
+          AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
+        } else if (BM->isAllowedToUseExtension(
+                       ExtensionID::SPV_KHR_float_controls)) {
+          BM->addExtension(ExtensionID::SPV_KHR_float_controls);
+          AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
+        }
       } break;
       case spv::ExecutionModeRoundingModeRTPINTEL:
       case spv::ExecutionModeRoundingModeRTNINTEL:
@@ -5028,10 +5027,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         if (!BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_float_controls2))
           break;
-        unsigned TargetWidth;
-        N.get(TargetWidth);
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
+        AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
       case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
         if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))

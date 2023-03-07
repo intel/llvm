@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 message("Configuring SYCL End-to-End Tests")
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  project(sycl-e2e-test-suite C CXX)
+  project(sycl-e2e-test-suite CXX)
   set(SYCL_TEST_E2E_STANDALONE TRUE)
 endif()
 

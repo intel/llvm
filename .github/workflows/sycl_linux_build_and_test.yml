@@ -158,31 +158,17 @@ jobs:
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
-    - name: Pack LIT
-      run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
-    - name: Pack End-to-End LIT tests
-      run: tar -cJf e2e_tests.tar.xz -C $GITHUB_WORKSPACE/src/sycl/test-e2e .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
-    - name: Upload LIT
-      uses: actions/upload-artifact@v3
-      with:
-        name: sycl_lit_${{ inputs.build_artifact_suffix }}
-        path: lit.tar.xz
-    - name: Upload End-to-End LIT tests
-      uses: actions/upload-artifact@v3
-      with:
-        name: sycl_e2e_tests_${{ inputs.build_artifact_suffix }}
-        path: e2e_tests.tar.xz
 
   aws-start:
     name: Start AWS
     needs: build
     if: ${{ inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script
@@ -246,14 +232,9 @@ jobs:
         test_ref: ${{ inputs.lts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ inputs.build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        e2e_tests_artifact: sycl_e2e_tests_${{ inputs.build_artifact_suffix }}
-        e2e_tests_archive: e2e_tests.tar.xz
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
-        in_tree_e2e: ${{ matrix.in_tree_e2e }}
 
   khronos_sycl_cts:
     needs: build
@@ -308,7 +289,7 @@ jobs:
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script

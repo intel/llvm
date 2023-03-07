@@ -646,7 +646,6 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
                .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
                .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_ehl", "intel_gpu_11_2_0", "ehl")
                .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
                .Case("intel_gpu_rkl", "rkl")
                .Case("intel_gpu_adl_s", "adl_s")
@@ -711,7 +710,6 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
-                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
@@ -901,17 +899,14 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple())
+      StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          GenDevice.empty())
         // Provided triple does not match current tool chain.
         continue;
-      if (getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-        if (Device.empty() && StringRef(A->getValue()).startswith("intel_gpu"))
-          continue;
-        if (!Device.empty() &&
-            getDriver().MakeSYCLDeviceTriple(A->getValue()) == getTriple())
-          continue;
-      }
+      if (Device != GenDevice && getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+        continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
       // passed in -X<Opt>

@@ -5392,9 +5392,12 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Note that isLocalVarDeclorParm excludes thread-local and static-local
   // intentionally, as there is no way to 'spell' one of those in the
   // specialization. We just don't generate the specialization for those, and
-  // let an error happen during host compilation.
-  if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
+  // let an error happen during host compilation. To avoid multiple entries for
+  // redeclarations, variables with external storage are omitted.
+  if (VD->hasLocalStorage() || VD->isLocalVarDeclOrParm() ||
+      VD->hasExternalStorage())
     return;
+
   // Step 3: Add to collection.
   GlobalVars.push_back(VD);
 }

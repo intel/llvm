@@ -241,16 +241,6 @@ struct AccHostDataT {
   void *Reserved = nullptr;
 };
 
-// To ensure loop unrolling is done when processing dimensions.
-template <size_t... Inds, class F>
-void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(Inds), ...);
-}
-
-template <size_t count, class F> void dim_loop(F &&f) {
-  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
-}
-
 void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
@@ -1001,11 +991,13 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
-                 AccessTarget == access::target::host_buffer),
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task),
                 "Expected buffer type");
 
   static_assert((AccessTarget == access::target::global_buffer ||
-                 AccessTarget == access::target::host_buffer) ||
+                 AccessTarget == access::target::host_buffer ||
+                 AccessTarget == access::target::host_task) ||
                     (AccessTarget == access::target::constant_buffer &&
                      AccessMode == access::mode::read),
                 "Access mode can be only read for constant buffers");
@@ -1253,6 +1245,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1980,11 +1973,11 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getAccessRange().size(); }
+  size_type size() const noexcept { return getAccessRange().size(); }
 
-  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2096,6 +2089,11 @@ public:
                                            access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
+  }
+
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
 
   // accessor::has_property for runtime properties is only available in host
@@ -2749,15 +2747,16 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
-  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2779,6 +2778,11 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
+
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
   template <typename Property> bool has_property() const noexcept {

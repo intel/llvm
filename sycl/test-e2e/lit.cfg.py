@@ -83,7 +83,7 @@ llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 if config.extra_environment:
     lit_config.note("Extra environment variables")
     for env_pair in config.extra_environment.split(','):
-        [var,val]=env_pair.split("=")
+        [var,val]=env_pair.split("=", 1)
         if val:
            llvm_config.with_environment(var,val,append_path=True)
            lit_config.note("\t"+var+"="+val)
@@ -312,6 +312,9 @@ if 'cpu' in config.target_devices.split(','):
     if platform.system() == "Linux":
         cpu_run_on_linux_substitute = cpu_run_substitute
         cpu_check_on_linux_substitute = "| FileCheck %s"
+
+    if config.run_launcher:
+        cpu_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("CPU device not used")
 
@@ -353,6 +356,8 @@ if 'gpu' in config.target_devices.split(','):
     if config.sycl_be == "ext_oneapi_cuda":
         gpu_run_substitute += "SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 "
 
+    if config.run_launcher:
+        gpu_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("GPU device not used")
 
@@ -370,10 +375,17 @@ if 'acc' in config.target_devices.split(','):
     acc_run_substitute = " env ONEAPI_DEVICE_SELECTOR='*:acc' "
     acc_check_substitute = "| FileCheck %s"
     config.available_features.add('accelerator')
+
+    if config.run_launcher:
+        acc_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("Accelerator device not used")
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
+
+if config.run_launcher:
+    config.substitutions.append(('%e2e_tests_root', config.test_source_root))
+    config.recursiveExpansionLimit = 10
 
 if config.sycl_be == 'ext_oneapi_cuda' or (config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'NVIDIA'):
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
@@ -426,6 +438,23 @@ for aot_tool in aot_tools:
         config.available_features.add(aot_tool)
     else:
         lit_config.warning("Couldn't find pre-installed AOT device compiler " + aot_tool)
+
+# Check if kernel fusion is available by compiling a small program that will
+# be ill-formed (compilation stops with non-zero exit code) if the feature
+# test macro for kernel fusion is not defined.
+check_fusion_file = 'check_fusion.cpp'
+with open(check_fusion_file, 'w') as ff:
+    ff.write('#include <sycl/sycl.hpp>\n')
+    ff.write('#ifndef SYCL_EXT_CODEPLAY_KERNEL_FUSION\n')
+    ff.write('#error \"Feature test for fusion failed\"\n')
+    ff.write('#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION\n')
+    ff.write('int main() { return 0; }\n')
+
+status = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' +
+                                    check_fusion_file)
+if status[0] == 0:
+    lit_config.note('Kernel fusion extension enabled')
+    config.available_features.add('fusion')
 
 # Set timeout for a single test
 try:

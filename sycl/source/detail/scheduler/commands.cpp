@@ -230,6 +230,47 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   return RetPiEvents;
 }
 
+// This function is implemented (duplicating getPiEvents a lot) as short term
+// solution for the issue that barrier with wait list could not
+// handle empty pi event handles when kernel is enqueued on host task
+// completion.
+std::vector<RT::PiEvent> Command::getPiEventsBlocking(
+    const std::vector<EventImplPtr> &EventImpls) const {
+  std::vector<RT::PiEvent> RetPiEvents;
+  for (auto &EventImpl : EventImpls) {
+    // Throwaway events created with empty constructor will not have a context
+    // (which is set lazily) calling getContextImpl() would set that
+    // context, which we wish to avoid as it is expensive.
+    // Skip host task also.
+    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
+      continue;
+    // In this path nullptr native event means that the command has not been
+    // enqueued. It may happen if async enqueue in a host task is involved.
+    if (EventImpl->getHandleRef() == nullptr) {
+      if (!EventImpl->getCommand() ||
+          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
+        continue;
+      std::vector<Command *> AuxCmds;
+      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
+                                                   BLOCKING);
+    }
+    // Do not add redundant event dependencies for in-order queues.
+    // At this stage dependency is definitely pi task and need to check if
+    // current one is a host task. In this case we should not skip pi event due
+    // to different sync mechanisms for different task types on in-order queue.
+    const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
+    if (EventImpl->getWorkerQueue() == WorkerQueue &&
+        WorkerQueue->isInOrder() && !isHostTask())
+      continue;
+
+    RetPiEvents.push_back(EventImpl->getHandleRef());
+  }
+
+  return RetPiEvents;
+}
+
 bool Command::isHostTask() const {
   return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
          ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
@@ -1703,6 +1744,12 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::Memset2DUSM:
     return "memset 2d usm";
     break;
+  case detail::CG::CopyToDeviceGlobal:
+    return "copy to device_global";
+    break;
+  case detail::CG::CopyFromDeviceGlobal:
+    return "copy from device_global";
+    break;
   default:
     return "unknown";
     break;
@@ -2576,7 +2623,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
+    std::vector<RT::PiEvent> PiEvents = getPiEventsBlocking(Events);
     if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
@@ -2587,6 +2634,25 @@ pi_int32 ExecCGCommand::enqueueImp() {
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
     return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyToDeviceGlobal: {
+    CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_to_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::CopyFromDeviceGlobal: {
+    CGCopyFromDeviceGlobal *Copy =
+        (CGCopyFromDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_from_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

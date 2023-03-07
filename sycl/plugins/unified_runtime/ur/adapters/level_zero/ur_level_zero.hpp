@@ -183,12 +183,26 @@ struct _ur_platform_handle_t : public _ur_platform {
   zer_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
 };
 
+enum EventsScope {
+  // All events are created host-visible.
+  AllHostVisible,
+  // All events are created with device-scope and only when
+  // host waits them or queries their status that a proxy
+  // host-visible event is created and set to signal after
+  // original event signals.
+  OnDemandHostVisibleProxy,
+  // All events are created with device-scope and only
+  // when a batch of commands is submitted for execution a
+  // last command in that batch is added to signal host-visible
+  // completion of each command in this batch (the default mode).
+  LastCommandInBatchHostVisible
+};
+
 struct _ur_device_handle_t : _pi_object {
   _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
                       zer_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ImmCommandListsPreferred{false}, ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
   }
@@ -267,21 +281,25 @@ struct _ur_device_handle_t : _pi_object {
   // _ur_device_handle_t.
   const zer_device_handle_t RootDevice;
 
-  // Whether to use immediate commandlists for queues on this device.
-  // For some devices (e.g. PVC) immediate commandlists are preferred.
-  bool ImmCommandListsPreferred;
-
   enum ImmCmdlistMode {
     // Immediate commandlists are not used.
-    NotUsed,
+    NotUsed = 0,
     // One set of compute and copy immediate commandlists per queue.
     PerQueue,
     // One set of compute and copy immediate commandlists per host thread that
     // accesses the queue.
     PerThreadPerQueue
   };
-  // Return whether to use immediate commandlists for this device.
+  // Read env settings to select immediate commandlist mode.
   ImmCmdlistMode useImmediateCommandLists();
+
+  // Returns whether immediate command lists are used on this device.
+  ImmCmdlistMode ImmCommandListUsed{};
+
+  // Scope of events used for events on the device
+  // Can be adjusted with SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS
+  // for non-immediate command lists
+  EventsScope ZeEventsScope = AllHostVisible;
 
   bool isSubDevice() { return RootDevice != nullptr; }
 

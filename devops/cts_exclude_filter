@@ -24,3 +24,7 @@ math_builtin_api
 stream
 marray
 image_accessor
+atomic_fence
+function_objects
+group_functions
+image

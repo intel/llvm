@@ -116,6 +116,7 @@ private:
 /// @brief Helper class to enable XPTI implementation
 /// @details This class simplifies the instrumentation and encapsulates the
 /// verbose call sequences
+#if XPTI_ENABLE_INSTRUMENTATION
 class XPTIScope {
 public:
   using TracePoint = xpti::framework::tracepoint_t;
@@ -130,7 +131,6 @@ public:
             const char *UserData)
       : MUserData(UserData), MStreamID(0), MInstanceID(0), MScopedNotify(false),
         MTraceType(0) {
-#if XPTI_ENABLE_INSTRUMENTATION
     detail::tls_code_loc_t Tls;
     auto TData = Tls.query();
     // If TLS is not set, we can still genertate universal IDs with user data
@@ -152,7 +152,6 @@ public:
       MStreamID = MTP->stream_id();
       MInstanceID = MTP->instance_id();
     }
-#endif
   }
 
   xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
@@ -163,13 +162,11 @@ public:
 
   XPTIScope &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
-#if XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled() && MTP) {
       auto TEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
       Callback(TEvent);
     }
     return *this;
-#endif
   }
 
   XPTIScope &notify() {
@@ -180,7 +177,6 @@ public:
   /// @brief Method that emits begin/end trace notifications
   /// @return Current class
   XPTIScope &scopedNotify(uint16_t TraceType) {
-#if XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled() && MTP) {
       MTraceType = TraceType & 0xfffe;
       MScopedNotify = true;
@@ -188,10 +184,8 @@ public:
                             MInstanceID, static_cast<const void *>(MUserData));
     }
     return *this;
-#endif
   }
   ~XPTIScope() {
-#if XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled() && MTP && MScopedNotify) {
       if (MTraceType == (uint16_t)xpti::trace_point_type_t::signal ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
@@ -223,7 +217,6 @@ public:
     // Delete the tracepoint object which will clear TLS if it is the top of
     // the scope
     delete MTP;
-#endif
   }
 
 private:
@@ -243,6 +236,7 @@ private:
   // The trace type information for scoped notifications
   uint16_t MTraceType;
 }; // class XPTIScope
+#endif
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
