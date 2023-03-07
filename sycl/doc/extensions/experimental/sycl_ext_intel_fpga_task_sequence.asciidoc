@@ -183,10 +183,10 @@ public:
   void async(ArgsT... args);
 
   ReturnT get();
-  
+
   template <typename propertyT>
   static constexpr bool has_property();
-  
+
   template <typename propertyT>
   static constexpr auto get_property();
 
@@ -211,10 +211,9 @@ specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)`
 helps make it easier to write the class member functions (eg: `get`).
 
 The `task_sequence` interface consists of two member functions, `async` and
-`get`. The `async` function asynchronously invokes `f`, and stores the return
-value into a FIFO queue upon completion of `f`. By calling async on a
+`get`. The `async` function asynchronously invokes `f`. By calling async on a
 `task_sequence` more than once, the user implies that the invocations of `f` can
-be run in parallel, although the implementation is by no means obligated to do so.  
+be run in parallel, although the implementation is not obligated to do so.
 
 The `async` function call is non-blocking in that it may return before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
@@ -222,9 +221,10 @@ begins executing (return from the `async` provides no implicit information on
 the execution status of `f`).
 
 The `get` member function retrieves results in the same order in which
-`async` was invoked. Both functions may only be invoked on the device on which
-a `task_sequence` object has been instantiated. Calling `async` or `get` on
-a different device results in undefined behavior.
+`async` was invoked. The call blocks if there is no result to retrieve. Both
+functions may only be invoked on the device on which a `task_sequence` object
+has been instantiated. Calling `async` or `get` on a different device results in
+undefined behavior.
 
 [frame="topbot",options="header"]
 |===
@@ -238,7 +238,7 @@ task_sequence(const propertyListT &);
 task_sequence();
 ----
 |
-Constructor for `task_sequence`. 
+Constructor for `task_sequence`.
 
 // --- ROW BREAK ---
 a|
@@ -247,7 +247,7 @@ a|
 void async(ArgsT... args);
 ----
 |
-Asynchronously calls +f+ with +args+. 
+Asynchronously calls +f+ with +args+.
 
 // --- ROW BREAK ---
 a|
@@ -256,9 +256,9 @@ a|
 ReturnT get();
 ----
 |
-Synchronously retrieves the result of an `async` call. 
+Synchronously retrieves the result of an `async` call.
 
-Results are retrieved in FIFO order of their `async` invocations. 
+Results are retrieved in the order in which the `async` calls were made.
 
 // --- ROW BREAK ---
 a|
@@ -267,7 +267,7 @@ a|
 ~task_sequence();
 ----
 |
-Destructor for `task_sequence`. 
+Destructor for `task_sequence`.
 
 Implicitly invokes `get` on all outstanding invocations launched through `async
 unless this `task_sequence` object was instantiated with the `balanced` property
@@ -372,7 +372,7 @@ struct is_property_key_of<response_capacity_key,
 | balanced | The `balanced` property is a guarantee to the SYCL device compiler
 that the `task_sequence` object will call exactly the same number of `async` s
 and `get` s over the object's lifetime (i.e. before the `task_sequence`
-destructor is invoked). 
+destructor is invoked).
 
 | invocation_capacity | This property defines the maximum number of 'async'd
 invocations that may be outstanding at any time without causing `async` calls
@@ -397,13 +397,13 @@ extension supports applying the property to task sequences.
 
 C{plus}{plus} defines a framework for describing the
 http://eel.is/c++draft/intro.progress[forward progress] of individual threads
-with respect to one another in a multi-threaded program. 
+with respect to one another in a multi-threaded program.
 
 Applying this framework to `task_sequence`, `async` tasks belonging to the same
 `task_sequence` object provide a http://eel.is/c++draft/intro.progress#11[
 weakly parallel forward progress guarantee]. That is, tasks belonging to a
 `task_sequence` object are not guaranteed to make forward progress with respect
-to each other. 
+to each other.
 
 Tasks belonging to different `task_sequence` objects provide a
 http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
