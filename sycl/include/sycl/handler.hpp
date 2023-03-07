@@ -2904,10 +2904,13 @@ private:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
-    detail::ArgDesc AD(detail::kernel_param_kind_t::kind_accessor, Req,
-                       static_cast<int>(AccessTarget), 0);
-    if (std::find(MAssociatedAccesors.begin(), MAssociatedAccesors.end(), AD) ==
-        MAssociatedAccesors.end())
+    if (std::find_if(MAssociatedAccesors.begin(), MAssociatedAccesors.end(),
+                     [&](const detail::ArgDesc &AD) {
+                       return AD.MType ==
+                                  detail::kernel_param_kind_t::kind_accessor &&
+                              AD.MPtr == Req &&
+                              AD.MSize == static_cast<int>(AccessTarget);
+                     }) == MAssociatedAccesors.end())
       throw sycl::exception(make_error_code(errc::kernel_argument),
                             "placeholder accessor must be bound by calling "
                             "handler::require() before it can be used.");

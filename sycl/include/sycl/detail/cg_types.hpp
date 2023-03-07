@@ -34,11 +34,6 @@ public:
   void *MPtr;
   int MSize;
   int MIndex;
-
-  constexpr bool operator==(const ArgDesc &rhs) {
-    return MType == rhs.MType && MPtr == rhs.MPtr && MSize == rhs.MSize &&
-           MIndex == rhs.MIndex;
-  }
 };
 
 // The structure represents NDRange - global, local sizes, global offset and
