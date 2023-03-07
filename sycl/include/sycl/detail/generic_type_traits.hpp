@@ -543,14 +543,14 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
+template <typename T /* MatchingOpencCLTypeT */>
+using ConvertToOpenCLTypeImpl_t =
+    conditional_t<TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
+                  conditional_t<TryToGetPointerT<T>::value,
+                                typename TryToGetPointerVecT<T>::type, T>>;
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
-    TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
-    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
-        TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
-        typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
-        SelectMatchingOpenCLType_t<T>>>;
+using ConvertToOpenCLType_t =
+    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.
