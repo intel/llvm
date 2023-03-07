@@ -502,7 +502,7 @@ __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
+  constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
@@ -512,7 +512,7 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
   constexpr int N = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
   return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
-                              AddressScale, ImmOffset, FDS, VS, _Transposed, N>(
+                              AddressScale, ImmOffset, FDS, VS, Transposed, N>(
       pred.data(), offsets.data());
 }
 
@@ -528,7 +528,7 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// @tparam DS is the data size.
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param pred is the predicate; if it contains 0, then the actual load
-/// is not performed and the returned value is undefined.
+/// is not performed and \p old_values is returned.
 /// @param old_values contains the vector that is returned if
 /// the parameter \p pred contains 0.
 /// @return is a vector of type T and size NElts.
