@@ -9,9 +9,13 @@
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
-#include <stdlib.h>
+#include <iostream>
+#include <map>
+#include <optional>
+#include <sstream>
 #include <string.h>
 #include <string>
+#include <vector>
 
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)
@@ -87,23 +91,151 @@ inline std::string create_library_path(const char *name, const char *path) {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-inline bool getenv_tobool(const char *name) {
-    const char *env = nullptr;
-
+inline std::optional<std::string> ur_getenv(const char *name) {
 #if defined(_WIN32)
-    char buffer[8];
-    auto rc = GetEnvironmentVariable(name, buffer, 8);
-    if (0 != rc && rc <= 8) {
-        env = buffer;
+    constexpr int buffer_size = 1024;
+    char buffer[buffer_size];
+    auto rc = GetEnvironmentVariable(name, buffer, buffer_size);
+    if (0 != rc && rc < buffer_size) {
+        return std::string(buffer);
+    } else if (rc >= buffer_size) {
+        std::stringstream ex_ss;
+        ex_ss << "Environment variable " << name << " value too long!"
+              << " Maximum length is " << buffer_size - 1 << " characters.";
+        throw std::invalid_argument(ex_ss.str());
     }
+    return std::nullopt;
 #else
-    env = getenv(name);
-#endif
-
-    if (nullptr == env) {
-        return false;
+    const char *tmp_env = getenv(name);
+    if (tmp_env != nullptr) {
+        return std::string(tmp_env);
+    } else {
+        return std::nullopt;
     }
-    return 0 == strcmp("1", env);
+#endif
+}
+
+inline bool getenv_tobool(const char *name) {
+    auto env = ur_getenv(name);
+    return env.has_value();
+}
+
+static void throw_wrong_format_vec(const char *env_var_name) {
+    std::stringstream ex_ss;
+    ex_ss << "Wrong format of the " << env_var_name << " environment variable!"
+          << " Proper format is: ENV_VAR=\"value_1,value_2,value_3\"";
+    throw std::invalid_argument(ex_ss.str());
+}
+
+static void throw_wrong_format_map(const char *env_var_name) {
+    std::stringstream ex_ss;
+    ex_ss << "Wrong format of the " << env_var_name << " environment variable!"
+          << " Proper format is: ENV_VAR=\"param_1:value_1,value_2;param_2:value_1";
+    throw std::invalid_argument(ex_ss.str());
+}
+
+/// @brief Get a vector of values from an environment variable \p env_var_name
+///        A comma is a delimiter for extracting values from env var string.
+///        Colons and semicolons are not allowed to align with the similar
+///        getenv_to_map() util function and avoid confusion.
+///        A vector with a single value is allowed.
+///        Env var must consist of strings separated by commas, ie.:
+///        ENV_VAR=1,4K,2M
+/// @param env_var_name name of an environment variable to be parsed
+/// @return std::optional with a possible vector of strings containing parsed values
+///         and std::nullopt when the environment variable is not set or is empty
+/// @throws std::invalid_argument() when the parsed environment variable has wrong format
+inline std::optional<std::vector<std::string>> getenv_to_vec(const char *env_var_name) {
+    char values_delim = ',';
+
+    auto env_var = ur_getenv(env_var_name);
+    if (!env_var.has_value()) {
+        return std::nullopt;
+    }
+
+    if (env_var->find(':') == std::string::npos && env_var->find(';') == std::string::npos) {
+        std::stringstream values_ss(*env_var);
+        std::string value;
+        std::vector<std::string> values_vec;
+        while (std::getline(values_ss, value, values_delim)) {
+            if (value.empty()) {
+                throw_wrong_format_vec(env_var_name);
+            }
+            values_vec.push_back(value);
+        }
+        return values_vec;
+    } else {
+        throw_wrong_format_vec(env_var_name);
+    }
+    return std::nullopt;
+}
+
+using EnvVarMap = std::map<std::string, std::vector<std::string>>;
+
+/// @brief Get a map of parameters and their values from an environment variable
+///        \p env_var_name
+///        Semicolon is a delimiter for extracting key-values pairs from
+///        an env var string. Colon is a delimiter for splitting key-values pairs
+///        into keys and their values. Comma is a delimiter for values.
+///        All special characters in parameter and value strings are allowed except
+///        the delimiters.
+///        Env vars without parameter names are not allowed, use the getenv_to_vec()
+///        util function instead.
+///        Keys in a map are parsed parameters and values are vectors of strings
+///        containing parameters' values, ie.:
+///        ENV_VAR="param_1:value_1,value_2;param_2:value_1"
+///        result map:
+///             map[param_1] = [value_1, value_2]
+///             map[param_2] = [value_1]
+/// @param env_var_name name of an environment variable to be parsed
+/// @return std::optional with a possible map with parsed parameters as keys and
+///         vectors of strings containing parsed values as keys.
+///         Otherwise, optional is set to std::nullopt when the environment variable
+///         is not set or is empty.
+/// @throws std::invalid_argument() when the parsed environment variable has wrong format
+inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
+    char main_delim = ';';
+    char key_value_delim = ':';
+    char values_delim = ',';
+    EnvVarMap map;
+
+    auto env_var = ur_getenv(env_var_name);
+    if (!env_var.has_value()) {
+        return std::nullopt;
+    }
+
+    std::stringstream ss(*env_var);
+    std::string key_value;
+    while (std::getline(ss, key_value, main_delim)) {
+        std::string key;
+        std::string values;
+        std::stringstream kv_ss(key_value);
+
+        if (key_value.find(':') == std::string::npos) {
+            throw_wrong_format_map(env_var_name);
+        }
+
+        std::getline(kv_ss, key, key_value_delim);
+        std::getline(kv_ss, values);
+        if (key.empty() || values.empty() || values.find(':') != std::string::npos || map.find(key) != map.end()) {
+            throw_wrong_format_map(env_var_name);
+        }
+
+        std::vector<std::string> values_vec;
+        std::stringstream values_ss(values);
+        std::string value;
+        while (std::getline(values_ss, value, values_delim)) {
+            if (value.empty()) {
+                throw_wrong_format_map(env_var_name);
+            }
+            values_vec.push_back(value);
+        }
+        if (values_vec.empty()) {
+            throw_wrong_format_map(env_var_name);
+        }
+        map[key] = values_vec;
+    }
+    return map;
 }
 
 #endif /* UR_UTIL_H */
