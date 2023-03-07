@@ -443,19 +443,21 @@ ur_result_t UR_APICALL urDevicePartition(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppBinaries`
+///         + `NULL == pBinaries`
 ///         + `NULL == pSelectedBinary`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NumBinaries == 0`
 ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t
         hDevice, ///< [in] handle of the device to select binary for.
-    const uint8_t **ppBinaries, ///< [in] the array of binaries to select from.
+    const ur_device_binary_t
+        *pBinaries,       ///< [in] the array of binaries to select from.
     uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
                           ///< Must greater than or equal to zero otherwise
                           ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
     uint32_t *
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
-    ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+    ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -1876,16 +1878,6 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 ///       entry point.
 ///     - Any spec constants set with this entry point will apply only to
 ///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
-///
-/// @details
-///     - `hProgram` must have been created with the ::urProgramCreateWithIL
-///       entry point.
-///     - Any spec constants set with this entry point will apply only to
-///       subsequent calls to ::urProgramBuild or ::urProgramCompile.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetProgramSpecializationConstant**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
