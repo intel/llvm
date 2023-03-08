@@ -2104,6 +2104,7 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
             auto targetAttr = spirv::lookupTargetEnvOrDefault(gpuModule);
             auto target = SPIRVConversionTarget::get(targetAttr);
             SPIRVConversionOptions options;
+            // TODO: Add 32 bits support.
             options.use64bitIndex = true;
             SPIRVTypeConverter typeConverter{targetAttr, options};
 
@@ -2175,6 +2176,9 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM() {
 
   auto &context = getContext();
   auto module = getOperation();
+
+  // TODO: As we may have device modules with different index widths, we may
+  // need to revamp how we run this.
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
