@@ -35,6 +35,14 @@ add_executable(example example.cpp)
 target_link_libraries(example PUBLIC unified-runtime::headers)
 ```
 
+### Weekly Tags
+
+Each Friday at 23:00 UTC time a [prerelease
+tag](https://github.com/oneapi-src/unified-runtime/releases) is created which
+takes the form `weekly-YYYY-MM-DD`. These tags should be used by downstream
+projects which intend to track development closely but maintain a fixed point in
+history to avoid pulling potentially breaking changes from the `main` branch.
+
 ## Source Code Generation
 
 Code is generated using included [Python scripts](/scripts/README.md).
