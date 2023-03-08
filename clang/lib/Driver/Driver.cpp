@@ -88,7 +88,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/Path.h"
@@ -98,6 +97,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
@@ -206,7 +206,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       DriverTitle(Title), CCCPrintBindings(false), CCPrintOptions(false),
       CCLogDiagnostics(false), CCGenDiagnostics(false),
       CCPrintProcessStats(false), TargetTriple(TargetTriple), Saver(Alloc),
-      CheckInputsExist(true), ProbePrecompiled(true),
+      PrependArg(nullptr), CheckInputsExist(true), ProbePrecompiled(true),
       SuppressMissingInputWarning(false) {
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
@@ -328,8 +328,8 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     std::string Nearest;
     if (getOpts().findNearest(ArgString, Nearest, IncludedFlagsBitmask,
                               ExcludedFlagsBitmask) > 1) {
-      if (getOpts().findNearest(ArgString, Nearest, options::CC1Option) == 0 &&
-          !IsCLMode()) {
+      if (!IsCLMode() &&
+          getOpts().findExact(ArgString, Nearest, options::CC1Option)) {
         DiagID = diag::err_drv_unknown_argument_with_suggestion;
         Diags.Report(DiagID) << ArgString << "-Xclang " + Nearest;
       } else {
@@ -354,8 +354,8 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     // Warn on joined arguments that are similar to a long argument.
     std::string ArgString = ArgStrings[A->getIndex()];
     std::string Nearest;
-    if (getOpts().findNearest("-" + ArgString, Nearest, IncludedFlagsBitmask,
-                              ExcludedFlagsBitmask) == 0)
+    if (getOpts().findExact("-" + ArgString, Nearest, IncludedFlagsBitmask,
+                            ExcludedFlagsBitmask))
       Diags.Report(diag::warn_drv_potentially_misspelled_joined_argument)
           << A->getAsString(Args) << Nearest;
   }
@@ -2253,14 +2253,12 @@ int Driver::ExecuteCompilation(
         C.CleanupFileMap(C.getFailureResultFiles(), JA, true);
     }
 
-#if LLVM_ON_UNIX
-    // llvm/lib/Support/Unix/Signals.inc will exit with a special return code
+    // llvm/lib/Support/*/Signals.inc will exit with a special return code
     // for SIGPIPE. Do not print diagnostics for this case.
     if (CommandRes == EX_IOERR) {
       Res = CommandRes;
       continue;
     }
-#endif
 
     // Print extra information about abnormal failures, if possible.
     //
@@ -3026,17 +3024,21 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
     }
     if (ShowNote)
       Diag(clang::diag::note_drv_t_option_is_global);
-
-    // No driver mode exposes -x and /TC or /TP; we don't support mixing them.
-    assert(!Args.hasArg(options::OPT_x) && "-x and /TC or /TP is not allowed");
   }
 
   // Warn -x after last input file has no effect
-  {
+  if (!IsCLMode()) {
     Arg *LastXArg = Args.getLastArgNoClaim(options::OPT_x);
     Arg *LastInputArg = Args.getLastArgNoClaim(options::OPT_INPUT);
-    if (LastXArg && LastInputArg && LastInputArg->getIndex() < LastXArg->getIndex())
+    if (LastXArg && LastInputArg &&
+        LastInputArg->getIndex() < LastXArg->getIndex())
       Diag(clang::diag::warn_drv_unused_x) << LastXArg->getValue();
+  } else {
+    // In CL mode suggest /TC or /TP since -x doesn't make sense if passed via
+    // /clang:.
+    if (auto *A = Args.getLastArg(options::OPT_x))
+      Diag(diag::err_drv_unsupported_opt_with_suggestion)
+          << A->getAsString(Args) << "/TC' or '/TP";
   }
 
   for (Arg *A : Args) {
@@ -4263,7 +4265,7 @@ class OffloadingActionBuilder final {
                      const Driver::InputList &Inputs,
                      OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP, OAB) {
-      DefaultCudaArch = CudaArch::GFX803;
+      DefaultCudaArch = CudaArch::GFX906;
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))
         BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
@@ -7256,6 +7258,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       I.second->claim();
   }
 
+  // Call validator for dxil when -Vd not in Args.
+  if (C.getDefaultToolChain().getTriple().isDXIL()) {
+    // Only add action when needValidation.
+    const auto &TC =
+        static_cast<const toolchains::HLSLToolChain &>(C.getDefaultToolChain());
+    if (TC.requiresValidation(Args)) {
+      Action *LastAction = Actions.back();
+      Actions.push_back(C.MakeAction<BinaryAnalyzeJobAction>(
+          LastAction, types::TY_DX_CONTAINER));
+    }
+  }
+
   // Claim ignored clang-cl options.
   Args.ClaimAllArgs(options::OPT_cl_ignored_Group);
 }
@@ -7696,7 +7710,14 @@ Action *Driver::ConstructPhaseAction(
                        false) ||
           TargetDeviceOffloadKind == Action::OFK_OpenMP))) {
       types::ID Output =
-          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
+          Args.hasArg(options::OPT_S) &&
+                  (TargetDeviceOffloadKind == Action::OFK_None ||
+                   offloadDeviceOnly() ||
+                   (TargetDeviceOffloadKind == Action::OFK_HIP &&
+                    !Args.hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false)))
+              ? types::TY_LLVM_IR
+              : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
@@ -7738,6 +7759,7 @@ void Driver::BuildJobs(Compilation &C) const {
     unsigned NumIfsOutputs = 0;
     for (const Action *A : C.getActions()) {
       if (A->getType() != types::TY_Nothing &&
+          A->getType() != types::TY_DX_CONTAINER &&
           !(A->getKind() == Action::IfsMergeJobClass ||
             (A->getType() == clang::driver::types::TY_IFS_CPP &&
              A->getKind() == clang::driver::Action::CompileJobClass &&
@@ -9405,6 +9427,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
     case llvm::Triple::Solaris:
       TC = std::make_unique<toolchains::Solaris>(*this, Target, Args);
       break;
+    case llvm::Triple::CUDA:
+      TC = std::make_unique<toolchains::NVPTXToolChain>(*this, Target, Args);
+      break;
     case llvm::Triple::AMDHSA:
       TC = std::make_unique<toolchains::ROCMToolChain>(*this, Target, Args);
       break;
@@ -9523,11 +9548,6 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       }
     }
   }
-
-  // Intentionally omitted from the switch above: llvm::Triple::CUDA.  CUDA
-  // compiles always need two toolchains, the CUDA toolchain and the host
-  // toolchain.  So the only valid way to create a CUDA toolchain is via
-  // CreateOffloadingDeviceToolChains.
 
   return *TC;
 }
