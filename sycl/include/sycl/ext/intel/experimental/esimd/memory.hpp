@@ -1868,7 +1868,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_send_load(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
+  raw_send_store(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
