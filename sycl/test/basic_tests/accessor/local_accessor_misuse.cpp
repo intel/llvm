@@ -22,7 +22,7 @@ int main() {
 
   try {
     testQueue.submit([&](sycl::handler &cgh) {
-      auto local_acc = local_accessor<int, 1>({42}, cgh);
+      auto local_acc = local_accessor<int, 1>({size}, cgh);
       cgh.parallel_for<class parallel_kernel>(
           sycl::range<1>{size}, [=](sycl::id<1> ID) { (void)local_acc; });
     });
