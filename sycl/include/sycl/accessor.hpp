@@ -1141,20 +1141,6 @@ public:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
 
-  id<3> getOffset() {
-    if constexpr (IsHostBuf)
-      return MAccData ? MAccData->MOffset : id<3>();
-    else
-      return AccessorBaseHost::getOffset();
-  }
-
-  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
-  range<3> getMemoryRange() {
-    if constexpr (IsHostBuf)
-      return MAccData ? MAccData->MMemoryRange : range(0, 0, 0);
-    else
-      return AccessorBaseHost::getMemoryRange();
-  }
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
   const id<3> getOffset() const {
