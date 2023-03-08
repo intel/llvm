@@ -77,8 +77,17 @@ bool test(queue Q, uint32_t PMask = ~0) {
        barrier();
 
        if constexpr (Transpose) {
-         auto Vals = lsc_slm_block_load<T, VL, DS>(LID * VL * sizeof(T));
-         Vals.copy_to(Out + GID * VL);
+         if constexpr (TestMergeOperand) {
+           simd_mask<1> Pred =
+               (GID & 0x1) == 0; // Do actual load of even elements.
+           simd<T, VL> OldValues(GID, 1);
+           auto Vals = lsc_slm_block_load<T, VL, DS>(LID * VL * sizeof(T), Pred,
+                                                     OldValues);
+           Vals.copy_to(Out + GID * VL);
+         } else {
+           auto Vals = lsc_slm_block_load<T, VL, DS>(LID * VL * sizeof(T));
+           Vals.copy_to(Out + GID * VL);
+         }
        } else {
          simd<uint32_t, VL> Offsets(LID * VL * NChannels * sizeof(T),
                                     NChannels * sizeof(T));
@@ -111,7 +120,12 @@ bool test(queue Q, uint32_t PMask = ~0) {
     for (uint32_t I = 0; I < OutSize; I++) {
       uint32_t GroupId = I / (LocalRange * VL * NChannels);
       uint32_t LID = I % (LocalRange * VL * NChannels);
+      uint32_t GID = I / VL;
+      bool Pred = (GID & 0x1) == 0;
       T ExpectedVal = GroupId * 1000000 + LID;
+      if (TestMergeOperand && !Pred)
+        ExpectedVal = GID + (I % VL);
+
       if (Out[I] != ExpectedVal && NErrors++ < 32) {
         std::cout << "Error: " << I << ": Value = " << Out[I]
                   << ", Expected value = " << ExpectedVal << std::endl;

@@ -2,12 +2,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test verifies the correctness of LSC intrinsics loading
-// from SLM memory.
+// This test verifies the correctness of LSC SLM block load intrinsics.
 
 #include "Inputs/lsc_slm_load.hpp"
-
-// This test verifies the correctness of LSC SLM block load intrinsics.
 
 template <typename T, bool TestMerging> bool test_load(queue Q) {
   constexpr bool Transpose = true;
@@ -36,10 +33,8 @@ int main() {
   Passed &= test_load<uint32_t, !TestMerging>(Q);
   Passed &= test_load<uint64_t, !TestMerging>(Q);
 
-  // TODO: Enable the test with 'TestMerging' when lsc_slm_block_load() with
-  // 'old_values' operand is supported.
-  // Passed &= test_load<uint32_t, TestMerging>(Q);
-  // Passed &= test_load<uint64_t, TestMerging>(Q);
+  Passed &= test_load<uint32_t, TestMerging>(Q);
+  Passed &= test_load<uint64_t, TestMerging>(Q);
 
   // TODO: Enable the test with 1- and 2-byte element types, with floating point
   // types when lsc_slm_block_load() API is ready.
