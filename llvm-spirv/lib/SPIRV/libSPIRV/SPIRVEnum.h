@@ -277,6 +277,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
                {internal::CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(ExecutionModeRegisterMapInterfaceINTEL,
+               {CapabilityFPGAKernelAttributesv2INTEL});
   ADD_VEC_INIT(ExecutionModeStreamingInterfaceINTEL,
                {CapabilityFPGAKernelAttributesINTEL});
   ADD_VEC_INIT(ExecutionModeNamedBarrierCountINTEL,
