@@ -37,6 +37,49 @@ using namespace llvm::module_split;
 
 namespace {
 
+DenseMap<FunctionType *, EntryPointSet> getFunctionTypeToFunctionMap(Module &M) {
+  DenseMap<FunctionType *, EntryPointSet> Result;
+
+  for (auto &F : M.functions()) {
+    Result[F.getFunctionType()].insert(&F);
+  }
+
+  return Result;
+}
+
+DenseMap<Function *, EntryPointSet> getFunctionToFunctionMap(Module &M) {
+  DenseMap<Function *, EntryPointSet> Result;
+
+  for (auto &F : M.functions()) {
+    for (auto *U : F.users()) {
+      if (isa<GlobalVariable>(U))
+        continue;
+      if (!isa<CallInst>(U) && !isa<Constant>(U)) {
+        auto *I = cast<Instruction>(U);
+        auto *FF = I->getFunction();
+        Result[FF].insert(&F);
+      }
+    }
+  }
+
+  return Result;
+}
+
+SmallPtrSet<FunctionType *, 2> getUsedIndirectCallSignatures(Function &F) {
+  SmallPtrSet<FunctionType *, 2> Result;
+  for (auto &It : instructions(&F)) {
+    if (auto *CI = dyn_cast<CallInst>(&It)) {
+      if (!CI->isIndirectCall())
+        continue;
+
+      Result.insert(CI->getFunctionType());
+    }
+  }
+
+  return Result;
+}
+
+
 // Identifying name for global scope
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
@@ -81,7 +124,7 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
     return Scope_PerKernel;
 
   case SPLIT_AUTO: {
-    if (hasIndirectFunctionsOrCalls(M) || AutoSplitIsGlobalScope)
+    if (AutoSplitIsGlobalScope)
       return Scope_Global;
 
     // At the moment, we assume that per-source split is the best way of
@@ -213,6 +256,9 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   MapVector<StringRef, EntryPointSet> EntryPointMap;
   Module &M = MD.getModule();
 
+  auto FTToF = getFunctionTypeToFunctionMap(M);
+  auto FToF = getFunctionToFunctionMap(M);
+
   // Only process module entry points:
   for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
@@ -220,9 +266,17 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
       continue;
 
     switch (EntryScope) {
-    case Scope_PerKernel:
-      EntryPointMap[F.getName()].insert(&F);
-      break;
+    case Scope_PerKernel: {
+      auto &It = EntryPointMap[F.getName()];
+      It.insert(&F);
+      auto S = getUsedIndirectCallSignatures(F);
+      for (auto *FT : S) {
+        It.insert(FTToF[FT].begin(), FTToF[FT].end());
+      }
+      for (auto *FF : FToF[&F]) {
+        It.insert(FF);
+      }
+    } break;
 
     case Scope_PerModule: {
       if (!llvm::sycl::utils::isSYCLExternalFunction(&F))
@@ -235,7 +289,15 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
 
       Attribute Id = F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      EntryPointMap[Val].insert(&F);
+      auto &It = EntryPointMap[Val];
+      It.insert(&F);
+      auto S = getUsedIndirectCallSignatures(F);
+      for (auto *FT : S) {
+        It.insert(FTToF[FT].begin(), FTToF[FT].end());
+      }
+      for (auto *FF : FToF[&F]) {
+        It.insert(FF);
+      }
       break;
     }
 
@@ -844,6 +906,9 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
 
   Module &M = MD.getModule();
 
+  auto FTToF = getFunctionTypeToFunctionMap(M);
+  auto FToF = getFunctionToFunctionMap(M);
+
   // Only process module entry points:
   for (auto &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
@@ -852,7 +917,16 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     }
 
     auto Key = UsedOptionalFeatures(&F);
-    PropertiesToFunctionsMap[std::move(Key)].insert(&F);
+    auto &It = PropertiesToFunctionsMap[std::move(Key)];
+
+    It.insert(&F);
+    auto S = getUsedIndirectCallSignatures(F);
+    for (auto *FT : S) {
+      It.insert(FTToF[FT].begin(), FTToF[FT].end());
+    }
+    for (auto *FF: FToF[&F]) {
+      It.insert(FF);
+    }
   }
 
   if (PropertiesToFunctionsMap.empty()) {
