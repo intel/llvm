@@ -57,6 +57,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/WithColor.h"
 
 #include "Options.h"
@@ -1119,6 +1120,37 @@ static void eraseHostCode(mlir::ModuleOp Module) {
     Op.get().erase();
 }
 
+template <typename T> static void filterFunctions(T Module) {
+  if (Cfunction.getNumOccurrences() == 0 || Cfunction == "*")
+    return;
+
+  llvm::Regex MatchName(Cfunction);
+  LLVM_DEBUG(llvm::dbgs() << "Filtering device functions\n");
+  SmallVector<gpu::GPUFuncOp> ToRemove;
+  for (Operation &Op : Module) {
+    if (auto GPUModule = dyn_cast<gpu::GPUModuleOp>(Op)) {
+      filterFunctions(GPUModule);
+      continue;
+    }
+    if (auto Func = dyn_cast<FunctionOpInterface>(Op))
+      if (!MatchName.match(Func.getName())) {
+        if (auto GPUFunc = dyn_cast<gpu::GPUFuncOp>(Op)) {
+          // 'gpu.func' op expected body with at least one block.
+          ToRemove.push_back(GPUFunc);
+          continue;
+        }
+
+        // Change to declaration.
+        Func.eraseBody();
+        // Declaration cannot have public visibility.
+        SymbolTable::setSymbolVisibility(Func,
+                                         SymbolTable::Visibility::Private);
+      }
+  }
+  for (gpu::GPUFuncOp Func : ToRemove)
+    Func.erase();
+}
+
 int main(int argc, char **argv) {
   if (argc >= 1 && std::string(argv[1]) == "-cc1") {
     SmallVector<const char *> Argv;
@@ -1184,6 +1216,7 @@ int main(int argc, char **argv) {
                           Builder.getUnitAttr());
   } else
     DeviceModule.erase();
+  filterFunctions(*Module);
 
   LLVM_DEBUG({
     llvm::dbgs() << "MLIR before compilation:\n";
