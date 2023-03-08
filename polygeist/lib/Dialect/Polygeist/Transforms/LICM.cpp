@@ -27,6 +27,7 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "licm"
+#define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
 
 namespace mlir {
 namespace polygeist {
@@ -912,7 +913,7 @@ void LICM::runOnOperation() {
       parentOp = parentOp->getParentOp();
     } while (parentOp && !isa<func::FuncOp>(parentOp));
     assert(parentOp && "Failed to find parent function");
-    return parentOp;
+    return cast<func::FuncOp>(parentOp);
   };
 
   getOperation()->walk([&](LoopLikeOpInterface loop) {
@@ -952,6 +953,13 @@ void LICM::runOnOperation() {
         }
         llvm::dbgs() << "----------------\n";
       });
+
+      DEBUG_WITH_TYPE(
+          REPORT_DEBUG_TYPE, if (OpHoisted) {
+            llvm::dbgs() << "LICM: hoisted " << OpHoisted
+                         << " operations(s) in : "
+                         << getParentFunction(loop).getSymName() << "\n";
+          });
     }
   });
 }

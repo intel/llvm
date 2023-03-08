@@ -32,6 +32,10 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
 def AffineReduction : Pass<"detect-reduction"> {
   let summary = "Detect reductions in affine.for";
   let constructor = "mlir::polygeist::detectReductionPass()";
+  let statistics = [
+    Statistic<"numReductions", "num-reductions", "Number of reductions detected">
+  ];
+
 }
 
 def SCFCPUify : Pass<"cpuify"> {
