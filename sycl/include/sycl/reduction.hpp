@@ -1353,10 +1353,8 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     auto IdentityContainer = Redu.getIdentityContainer();
     auto BOp = Redu.getBinaryOperation();
 
-    using Name =
-        __sycl_reduction_kernel<reduction::MainKrn, KernelName,
-                                reduction::strategy::range_basic,
-                                std::bool_constant<Reduction::has_identity>>;
+    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                         reduction::strategy::range_basic>;
 
     CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
@@ -1671,10 +1669,8 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     auto BOp = Redu.getBinaryOperation();
     auto IdentityContainer = Redu.getIdentityContainer();
 
-    using Name =
-        __sycl_reduction_kernel<reduction::MainKrn, KernelName,
-                                reduction::strategy::basic,
-                                std::bool_constant<Reduction::has_identity>>;
+    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                         reduction::strategy::basic>;
 
     CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
       // Call user's functions. Reducer.MValue gets initialized there.
