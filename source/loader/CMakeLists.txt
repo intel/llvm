@@ -79,7 +79,6 @@ target_sources(loader
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/platform_discovery.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_valddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_validation_layer.cpp
 )
