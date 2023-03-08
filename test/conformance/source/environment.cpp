@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <cstring>
+#include <fstream>
 #include <uur/environment.h>
 #include <uur/utils.h>
 
@@ -175,5 +176,148 @@ void DevicesEnvironment::TearDown() {
             return;
         }
     }
+}
+
+KernelsEnvironment *KernelsEnvironment::instance = nullptr;
+
+KernelsEnvironment::KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir) : DevicesEnvironment(argc, argv), kernel_options(parseKernelOptions(argc, argv, kernels_default_dir)) {
+    instance = this;
+    if (!error.empty()) {
+        return;
+    }
+}
+
+KernelsEnvironment::KernelOptions KernelsEnvironment::parseKernelOptions(int argc, char **argv, std::string kernels_default_dir) {
+    KernelOptions options;
+    for (int argi = 1; argi < argc; ++argi) {
+        const char *arg = argv[argi];
+        if (std::strncmp(arg, "--kernel_directory=", sizeof("--kernel_directory=") - 1) == 0) {
+            options.kernel_directory = std::string(&arg[std::strlen("--kernel_directory=")]);
+        }
+    }
+    if (options.kernel_directory.empty()) {
+        options.kernel_directory = kernels_default_dir;
+    }
+
+    return options;
+}
+
+std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
+    std::stringstream IL;
+
+    if (instance->GetDevices().size() == 0) {
+        error = "no devices available on the platform";
+        return {};
+    }
+
+    auto device = instance->GetDevices()[device_index];
+    size_t size;
+    if (urDeviceGetInfo(device, UR_DEVICE_INFO_IL_VERSION, 0, nullptr, &size)) {
+        error = "failed getting device IL version";
+        return {};
+    }
+    std::string IL_version(size, '\0');
+    if (urDeviceGetInfo(device, UR_DEVICE_INFO_IL_VERSION, size, &IL_version[0],
+                        nullptr)) {
+        error = "failed getting device IL version";
+        return {};
+    }
+
+    // Delete the ETX character at the end as it is not part of the name.
+    IL_version.pop_back();
+
+    IL << "_" << IL_version;
+
+    // TODO: Add other IL types like ptx when they are defined how they will be
+    // reported.
+    if (IL_version.find("SPIR-V") != std::string::npos) {
+        IL << ".spv";
+    } else {
+        error = "Undefined IL version: " + IL_version;
+        return {};
+    }
+
+    return IL.str();
+}
+
+std::string KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name, uint32_t device_index) {
+    std::stringstream path;
+    path << instance->getKernelDirectory();
+    // il_postfix = supported_IL(SPIRV-PTX-...) + IL_version + extension(.spv -
+    // .ptx - ....)
+    std::string il_postfix = getSupportedILPostfix(device_index);
+
+    if (il_postfix.empty()) {
+        error = "failed getting device supported IL";
+        return {};
+    }
+
+    path << "/" << kernel_name << il_postfix;
+
+    uint32_t address_bits;
+    auto device = instance->GetDevices()[device_index];
+    if (urDeviceGetInfo(device, UR_DEVICE_INFO_ADDRESS_BITS, sizeof(uint32_t),
+                        &address_bits, nullptr)) {
+        error = "failed getting device address bits supported";
+        return {};
+    }
+    path << address_bits;
+
+    return path.str();
+}
+
+KernelsEnvironment::KernelSource KernelsEnvironment::LoadSource(const std::string &kernel_name, uint32_t device_index) {
+    std::string source_path =
+        instance->getKernelSourcePath(kernel_name, device_index);
+
+    if (source_path.empty()) {
+        error = "failed retrieving kernel source path for kernel: " + kernel_name;
+        return KernelSource{&kernel_name[0], nullptr, 0,
+                            UR_RESULT_ERROR_INVALID_BINARY};
+    }
+
+    if (cached_kernels.find(source_path) != cached_kernels.end()) {
+        return cached_kernels[source_path];
+    }
+
+    std::ifstream source_file;
+    source_file.open(source_path, std::ios::binary | std::ios::in | std::ios::ate);
+
+    if (!source_file.is_open()) {
+        error = "failed opening kernel path: " + source_path;
+        return KernelSource{&kernel_name[0], nullptr, 0,
+                            UR_RESULT_ERROR_INVALID_BINARY};
+    }
+
+    uint32_t source_size = static_cast<uint32_t>(source_file.tellg());
+    source_file.seekg(0, std::ios::beg);
+
+    char *source = new char[source_size];
+    source_file.read(source, source_size);
+    if (!source_file) {
+        source_file.close();
+        delete[] source;
+        error = "failed reading kernel source data from file: " + source_path;
+        return KernelSource{&kernel_name[0], nullptr, 0,
+                            UR_RESULT_ERROR_INVALID_BINARY};
+    }
+    source_file.close();
+
+    KernelSource kernel_source =
+        KernelSource{&kernel_name[0], reinterpret_cast<uint32_t *>(source), source_size, UR_RESULT_SUCCESS};
+
+    return cached_kernels[source_path] = kernel_source;
+}
+
+void KernelsEnvironment::SetUp() {
+    DevicesEnvironment::SetUp();
+    if (!error.empty()) {
+        FAIL() << error;
+    }
+}
+
+void KernelsEnvironment::TearDown() {
+    cached_kernels.clear();
+    DevicesEnvironment::TearDown();
 }
 } // namespace uur

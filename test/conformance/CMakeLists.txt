@@ -21,6 +21,13 @@ function(add_conformance_test name)
     set_tests_properties(${name} PROPERTIES LABELS "conformance")
 endfunction()
 
+function(add_conformance_test_with_kernels_environment name)
+    add_conformance_test(${name}
+        ${ARGN})
+    set(KERNELS_DEFAULT_DIR "${PROJECT_SOURCE_DIR}/test/kernels")
+    target_compile_definitions("test-${name}" PRIVATE KERNELS_ENVIRONMENT PRIVATE KERNELS_DEFAULT_DIR="${KERNELS_DEFAULT_DIR}")
+endfunction()
+
 function(add_conformance_test_with_devices_environment name)
     add_conformance_test(${name}
         ${ARGN})
