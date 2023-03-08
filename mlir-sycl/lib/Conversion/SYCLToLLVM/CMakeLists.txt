@@ -13,11 +13,17 @@ add_mlir_conversion_library(MLIRSYCLToLLVM
   MLIRArithToLLVM
   MLIRFuncToLLVM
   MLIRFuncTransforms
+  MLIRGPUToSPIRV
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
   MLIRMemRefToLLVM
   MLIRPolygeistTransforms
+  MLIRReconcileUnrealizedCasts
+  MLIRSPIRVToLLVM
   MLIRSYCLDialect  
+  MLIRSYCLToGPU
+  MLIRSYCLToSPIRV
   MLIRTransforms
+  MLIRVectorToLLVM
   )
