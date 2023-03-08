@@ -4169,9 +4169,10 @@ TemplateDeclInstantiator::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
     OMPVarListLocTy Locs(OldC->getBeginLoc(), OldC->getLParenLoc(),
                          OldC->getEndLoc());
     OMPClause *NewC = SemaRef.ActOnOpenMPMapClause(
-        OldC->getMapTypeModifiers(), OldC->getMapTypeModifiersLoc(), SS,
-        NewNameInfo, OldC->getMapType(), OldC->isImplicitMapType(),
-        OldC->getMapLoc(), OldC->getColonLoc(), NewVars, Locs);
+        OldC->getIteratorModifier(), OldC->getMapTypeModifiers(),
+        OldC->getMapTypeModifiersLoc(), SS, NewNameInfo, OldC->getMapType(),
+        OldC->isImplicitMapType(), OldC->getMapLoc(), OldC->getColonLoc(),
+        NewVars, Locs);
     Clauses.push_back(NewC);
   }
   SemaRef.EndOpenMPDSABlock(nullptr);
