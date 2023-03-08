@@ -2719,8 +2719,8 @@ urEnqueueMemImageWrite(
     ur_rect_offset_t origin,                  ///< [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
     ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
                                               ///< image
-    size_t inputRowPitch,                     ///< [in] length of each row in bytes
-    size_t inputSlicePitch,                   ///< [in] length of each 2D slice of the 3D image
+    size_t rowPitch,                          ///< [in] length of each row in bytes
+    size_t slicePitch,                        ///< [in] length of each 2D slice of the 3D image
     void *pSrc,                               ///< [in] pointer to host memory where image is to be read into
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -2736,10 +2736,10 @@ urEnqueueMemImageWrite(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_enqueue_mem_image_write_params_t params = {&hQueue, &hImage, &blockingWrite, &origin, &region, &inputRowPitch, &inputSlicePitch, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
+    ur_enqueue_mem_image_write_params_t params = {&hQueue, &hImage, &blockingWrite, &origin, &region, &rowPitch, &slicePitch, &pSrc, &numEventsInWaitList, &phEventWaitList, &phEvent};
     uint64_t instance = context.notify_begin(103, "urEnqueueMemImageWrite", &params);
 
-    ur_result_t result = pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region, inputRowPitch, inputSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result = pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(103, "urEnqueueMemImageWrite", &params, &result, instance);
 
