@@ -77,6 +77,9 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added new PI_GPU_CACHE_CONFIG property to the _pi_kernel_exec_info.
+// Defined _pi_kernel_gpu_cache_config enum with values of the new
+// PI_GPU_CACHE_CONFIG property.
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 23
@@ -621,6 +624,15 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
+typedef enum {
+  // No preference for SLM or data cache.
+  PI_GPU_CACHE_DEFAULT,
+  // Large SLM size.
+  PI_GPU_CACHE_LARGE_SLM,
+  // Large General Data size.
+  PI_GPU_CACHE_LARGE_DATA
+} _pi_kernel_gpu_cache_config;
+
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
 using pi_device_type = _pi_device_type;
@@ -650,6 +662,7 @@ using pi_program_build_status = _pi_program_build_status;
 using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
+using pi_kernel_gpu_cache_config = _pi_kernel_gpu_cache_config;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -1357,7 +1370,9 @@ typedef enum {
   /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
   /// provides an explicit list of pointers that the kernel will access
-  PI_USM_PTRS = 0x4203
+  PI_USM_PTRS = 0x4203,
+  /// provides the preferred cache configuration (large slm or large data)
+  PI_GPU_CACHE_CONFIG
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;

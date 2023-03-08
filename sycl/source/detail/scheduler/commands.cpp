@@ -2225,7 +2225,8 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelGpuCacheConfig KernelGpuCacheConfig) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2315,6 +2316,17 @@ pi_int32 enqueueImpKernel(
   {
     assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);
+
+    // Set SLM/Cache configuration for the kernel if non-default value is
+    // provided.
+    if (KernelGpuCacheConfig == PI_GPU_CACHE_LARGE_SLM ||
+        KernelGpuCacheConfig == PI_GPU_CACHE_LARGE_DATA) {
+      const detail::plugin &Plugin = Queue->getPlugin();
+      Plugin.call<PiApiKind::piKernelSetExecInfo>(
+          Kernel, PI_GPU_CACHE_CONFIG, sizeof(RT::PiKernelGpuCacheConfig),
+          &KernelGpuCacheConfig);
+    }
+
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
@@ -2551,7 +2563,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
+        ExecKernel->MKernelGpuCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

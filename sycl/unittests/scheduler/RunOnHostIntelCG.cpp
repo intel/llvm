@@ -27,7 +27,8 @@ public:
                      /*SharedPtrStorage*/ {}, /*Requirements*/ {},
                      /*Events*/ {}, /*Args*/ {}, /*KernelName*/ "",
                      detail::OSUtil::ExeModuleHandle, /*Streams*/ {},
-                     /*AuxilaryResources*/ {}, detail::CG::RunOnHostIntel) {}
+                     /*AuxilaryResources*/ {}, detail::CG::RunOnHostIntel,
+                     /*KernelGpuCacheConfig*/ {}) {}
   ~MockCGExecKernel() override { CGDeleted = true; }
 };
 

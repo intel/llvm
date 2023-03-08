@@ -18,6 +18,7 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/intel/experimental/gpu_kernel_properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -712,6 +713,29 @@ private:
     }
   }
 
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <typename PropertiesT =
+                ext::oneapi::experimental::detail::empty_properties_t>
+  void processProperties() {
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::intel::experimental::gpu_cache_config_key>()) {
+      constexpr auto Config = PropertiesT::template get_property<
+          sycl::ext::intel::experimental::gpu_cache_config_key>();
+      if constexpr (Config == sycl::ext::intel::experimental::
+                                  gpu_cache_config_large_slm) {
+        setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_SLM);
+      } else if constexpr (Config == sycl::ext::intel::experimental::
+                                         gpu_cache_config_large_data) {
+        setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_DATA);
+      }
+    }
+  }
+
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
   /// copying by regions of memory and not copying element by element
@@ -1004,6 +1028,7 @@ private:
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+      processProperties<PropertiesT>();
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1046,6 +1071,7 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    processProperties<PropertiesT>();
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1099,6 +1125,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    processProperties<PropertiesT>();
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1137,6 +1164,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    processProperties<PropertiesT>();
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1275,17 +1303,23 @@ private:
 
     template <typename... TypesToForward, typename... ArgsTy>
     static void kernel_single_task_unpack(handler *h, ArgsTy... Args) {
+      h->processProperties<
+          ext::oneapi::experimental::detail::properties_t<Props...>>();
       h->kernel_single_task<TypesToForward..., Props...>(Args...);
     }
 
     template <typename... TypesToForward, typename... ArgsTy>
     static void kernel_parallel_for_unpack(handler *h, ArgsTy... Args) {
+      h->processProperties<
+          ext::oneapi::experimental::detail::properties_t<Props...>>();
       h->kernel_parallel_for<TypesToForward..., Props...>(Args...);
     }
 
     template <typename... TypesToForward, typename... ArgsTy>
     static void kernel_parallel_for_work_group_unpack(handler *h,
                                                       ArgsTy... Args) {
+      h->processProperties<
+          ext::oneapi::experimental::detail::properties_t<Props...>>();
       h->kernel_parallel_for_work_group<TypesToForward..., Props...>(Args...);
     }
   };
@@ -1397,7 +1431,7 @@ private:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
-
+    processProperties<PropertiesT>();
     StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
@@ -3008,6 +3042,9 @@ private:
                             "placeholder accessor must be bound by calling "
                             "handler::require() before it can be used.");
   }
+
+  // Set value of the gpu cache configuration for the kernel.
+  void setKernelGpuCacheConfig(RT::PiKernelGpuCacheConfig);
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

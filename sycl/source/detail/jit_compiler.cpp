@@ -808,7 +808,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
       std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      {}, CG::CGTYPE::Kernel, {}));
   return FusedCG;
 }
 
