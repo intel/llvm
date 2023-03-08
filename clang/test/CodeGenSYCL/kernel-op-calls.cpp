@@ -66,7 +66,7 @@ template <typename T> T bar(T X) {
     Q.submit([&](sycl::handler& cgh) {
       auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
       Functor1<T> F(X, Acc);
-      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS16TmplConstFunctorIiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !11 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14 {
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor1IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !11 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14 {
       cgh.parallel_for(sycl::range<1>(ARR_LEN(A)), F);
       //cgh.parallel_for<class name>(F);
     });

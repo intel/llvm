@@ -2786,13 +2786,13 @@ public:
 
 // This function traverses the static call graph from the root of the kernel
 // (e.g. “kernel_parallel_for”) and returns the version of “operator()()” that
-// is called by kernelFunc()”. There will only be one call to kernelFunc()” in
+// is called by kernelFunc(). There will only be one call to kernelFunc() in
 // that call graph because the DPC++ headers are structured such that the user’s
 // kernel function is only called once. This ensures that the correct
 // “operator()()” function call is returned, when a named function object used
 // to define a kernel has more than one “operator()()” calls defined in it. For
 // example, in the code below, 'operator()(sycl::id<1> id)' is returned based on
-// the 'parallel_for' invocation.
+// the 'parallel_for' invocation which takes a 'sycl::range<1>(16)' argument.
 //   class MyKernel {
 //    public:
 //      void operator()() const {
@@ -2822,6 +2822,15 @@ getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
   CallGraph SYCLCG;
   SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
 
+  // This code returns the 'lambda' call operator.
+  if (KernelFuncObjType->isLambda()) {
+    for (auto *MD : KernelFuncObjType->methods()) {
+      if (MD->getOverloadedOperator() == OO_Call)
+        return MD;
+    }
+  }
+
+  // This code returns the functor's call operator.
   if (KernelCallerFunc && KernelCallerFunc->hasBody() &&
       KernelCallerFunc->hasAttr<SYCLKernelAttr>()) {
 
@@ -2830,8 +2839,8 @@ getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
 
     // Iterate through each funtion invoked from the kernel root, find the
     // function call operator and make sure it is a member of the kernel fuctor.
-    for (const CallGraphNode *CI : *KernelCallerFuncNode) {
-      if (auto *Callee = dyn_cast<CXXMethodDecl>(CI->getDecl())) {
+    for (const CallGraphNode *ChildNode : *KernelCallerFuncNode) {
+      if (auto *Callee = dyn_cast<CXXMethodDecl>(ChildNode->getDecl())) {
         Callee = Callee->getMostRecentDecl();
         if (Callee->getParent() == KernelFuncObjType &&
             Callee->isCXXClassMember() &&
@@ -2841,6 +2850,7 @@ getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
       }
     }
   }
+
   return nullptr;
 }
 
