@@ -219,8 +219,8 @@ primary_domain = 'cpp'
 highlight_language = 'cpp'
 
 rst_prolog = """
-.. |l0_full_name| replace:: oneAPI Unified Runtime
-.. |l0_spec_version| replace:: ${ver}
+.. |full_name| replace:: oneAPI Unified Runtime
+.. |spec_version| replace:: ${ver}
 """
 
 def setup(app):

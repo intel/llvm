@@ -4,7 +4,7 @@
  SPDX-License-Identifier: MIT
 
  @file ur.py
- @version v0.5-r0.5
+ @version v0.6-r0
 
  """
 import platform

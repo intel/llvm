@@ -60,7 +60,7 @@ def build():
     revision is number of commits since tag 'v0'
 """
 def revision():
-    return '0.5'
+    return '0'
     result = subprocess.run(['git', 'describe', '--tags', '--dirty'], cwd=os.path.dirname(os.path.abspath(__file__)), stdout=subprocess.PIPE)
     if result.returncode:
         print('ERROR: Could not get revision number from git', file=sys.stderr)
@@ -178,4 +178,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-# END OF FILE

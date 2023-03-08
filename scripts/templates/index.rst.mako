@@ -6,7 +6,7 @@
 .. _l0-section:
 
 ===================================
- |l0_full_name|: |l0_spec_version|
+|full_name|: |spec_version|
 ===================================
 
 .. toctree::
