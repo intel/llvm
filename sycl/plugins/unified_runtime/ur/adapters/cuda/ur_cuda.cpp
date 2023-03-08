@@ -1489,3 +1489,248 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
       reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
+                                                 ur_mem_info_t MemInfoType,
+                                                 size_t propSize,
+                                                 void *pMemInfo,
+                                                 size_t *pPropSizeRet) {
+  sycl::detail::ur::die("urMemGetInfo not implemented");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
+    ur_mem_handle_t *phMem) {
+  sycl::detail::ur::die(
+      "Creation of UR mem from native handle not implemented");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+/// \TODO Not implemented
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
+    ur_context_handle_t hContext, ur_mem_flags_t flags,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    void *pHost, ur_mem_handle_t *phMem) {
+  // Need input memory object
+  assert(phMem != nullptr);
+  const bool performInitialCopy = (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
+                                  ((flags & PI_MEM_FLAGS_HOST_PTR_USE));
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+
+  // We only support RBGA channel order
+  // TODO: check SYCL CTS and spec. May also have to support BGRA
+  if (pImageFormat->channelOrder !=
+      ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBA) {
+    sycl::detail::ur::die("urMemImageCreate only supports RGBA channel order");
+  }
+
+  // We have to use cuArray3DCreate, which has some caveats. The height and
+  // depth parameters must be set to 0 produce 1D or 2D arrays. pImageDesc gives
+  // a minimum value of 1, so we need to convert the answer.
+  CUDA_ARRAY3D_DESCRIPTOR array_desc;
+  array_desc.NumChannels = 4; // Only support 4 channel image
+  array_desc.Flags = 0;       // No flags required
+  array_desc.Width = pImageDesc->width;
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+    array_desc.Height = 0;
+    array_desc.Depth = 0;
+  } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = 0;
+  } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = pImageDesc->depth;
+  }
+
+  // We need to get this now in bytes for calculating the total image size later
+  size_t pixel_type_size_bytes;
+
+  switch (pImageFormat->channelType) {
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+    array_desc.Format = CU_AD_FORMAT_HALF;
+    pixel_type_size_bytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+    array_desc.Format = CU_AD_FORMAT_FLOAT;
+    pixel_type_size_bytes = 4;
+    break;
+  default:
+    sycl::detail::ur::die(
+        "urMemImageCreate given unsupported image_channel_data_type");
+  }
+
+  // When a dimension isn't used pImageDesc has the size set to 1
+  size_t pixel_size_bytes =
+      pixel_type_size_bytes * 4; // 4 is the only number of channels we support
+  size_t image_size_bytes = pixel_size_bytes * pImageDesc->width *
+                            pImageDesc->height * pImageDesc->depth;
+
+  ScopedContext active(hContext);
+  CUarray image_array;
+  retErr = UR_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
+
+  try {
+    if (performInitialCopy) {
+      // We have to use a different copy function for each image dimensionality
+      if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        retErr = UR_CHECK_ERROR(
+            cuMemcpyHtoA(image_array, 0, phMem, image_size_bytes));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = phMem;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = image_array;
+        cpy_desc.WidthInBytes = pixel_size_bytes * pImageDesc->width;
+        cpy_desc.Height = pImageDesc->height;
+        retErr = UR_CHECK_ERROR(cuMemcpy2D(&cpy_desc));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = phMem;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = image_array;
+        cpy_desc.WidthInBytes = pixel_size_bytes * pImageDesc->width;
+        cpy_desc.Height = pImageDesc->height;
+        cpy_desc.Depth = pImageDesc->depth;
+        retErr = UR_CHECK_ERROR(cuMemcpy3D(&cpy_desc));
+      }
+    }
+
+    // CUDA_RESOURCE_DESC is a union of different structs, shown here
+    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
+    // We need to fill it as described here to use it for a surface or texture
+    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__SURFOBJECT.html
+    // CUDA_RESOURCE_DESC::resType must be CU_RESOURCE_TYPE_ARRAY and
+    // CUDA_RESOURCE_DESC::res::array::hArray must be set to a valid CUDA array
+    // handle.
+    // CUDA_RESOURCE_DESC::flags must be set to zero
+
+    CUDA_RESOURCE_DESC image_res_desc;
+    image_res_desc.res.array.hArray = image_array;
+    image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+    image_res_desc.flags = 0;
+
+    CUsurfObject surface;
+    retErr = UR_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
+
+    auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_(
+        hContext, image_array, surface, pImageDesc->type, phMem));
+
+    if (urMemObj == nullptr) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *phMem = urMemObj.release();
+  } catch (ur_result_t err) {
+    cuArrayDestroy(image_array);
+    return err;
+  } catch (...) {
+    cuArrayDestroy(image_array);
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+/// \TODO Not implemented
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t ImgInfoType,
+                  size_t propSize, void *pImgInfo, size_t *pPropSizeRet) {
+  sycl::detail::ur::die("cuda_piMemImageGetInfo not implemented");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+/// Implements a buffer partition in the CUDA backend.
+/// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
+/// as an offset over an existing CUDA allocation.
+///
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
+    ur_buffer_create_type_t bufferCreateType,
+    ur_buffer_region_t *pBufferCreateInfo, ur_mem_handle_t *phMem) {
+  assert((hBuffer != nullptr) && "UR_RESULT_ERROR_INVALID_MEM_OBJECT");
+  assert(hBuffer->is_buffer() && "UR_RESULT_ERROR_INVALID_MEM_OBJECT");
+  assert(!hBuffer->is_sub_buffer() && "UR_RESULT_ERROR_INVALID_MEM_OBJECT");
+
+  // Default value for flags means UR_MEM_FLAG_READ_WRITE.
+  if (flags == 0) {
+    flags = UR_MEM_FLAG_READ_WRITE;
+  }
+
+  assert((flags == UR_MEM_FLAG_READ_WRITE) && "UR_RESULT_ERROR_INVALID_VALUE");
+  assert((bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION) &&
+         "UR_RESULT_ERROR_INVALID_VALUE");
+  assert((pBufferCreateInfo != nullptr) && "UR_RESULT_ERROR_INVALID_VALUE");
+  assert(phMem != nullptr);
+
+  const auto bufferRegion =
+      *reinterpret_cast<ur_buffer_region_t *>(pBufferCreateInfo);
+  assert((bufferRegion.size != 0u) && "UR_RESULT_ERROR_INVALID_BUFFER_SIZE");
+
+  assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
+         "Overflow");
+  assert(((bufferRegion.origin + bufferRegion.size) <=
+          hBuffer->mem_.buffer_mem_.get_size()) &&
+         "UR_RESULT_ERROR_INVALID_BUFFER_SIZE");
+  // Retained indirectly due to retaining parent buffer below.
+  ur_context_handle_t context = hBuffer->context_;
+
+  ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode allocMode =
+      ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::classic;
+
+  assert(hBuffer->mem_.buffer_mem_.ptr_ !=
+         ur_mem_handle_t_::mem_::buffer_mem_::native_type{0});
+  ur_mem_handle_t_::mem_::buffer_mem_::native_type ptr =
+      hBuffer->mem_.buffer_mem_.ptr_ + bufferRegion.origin;
+
+  void *hostPtr = nullptr;
+  if (hBuffer->mem_.buffer_mem_.hostPtr_) {
+    hostPtr = static_cast<char *>(hBuffer->mem_.buffer_mem_.hostPtr_) +
+              bufferRegion.origin;
+  }
+
+  std::unique_ptr<ur_mem_handle_t_> retMemObj{nullptr};
+  try {
+    retMemObj = std::unique_ptr<ur_mem_handle_t_>{new ur_mem_handle_t_{
+        context, hBuffer, allocMode, ptr, hostPtr, bufferRegion.size}};
+  } catch (ur_result_t err) {
+    *phMem = nullptr;
+    return err;
+  } catch (...) {
+    *phMem = nullptr;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  *phMem = retMemObj.release();
+  return UR_RESULT_SUCCESS;
+}

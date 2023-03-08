@@ -161,6 +161,23 @@ public:
   }
 };
 
+// Convert bitfield flags from PI to UR for MemFlags
+inline pi_result pi2urMemFlags(pi_mem_flags piFlags, ur_mem_flags_t *urFlags) {
+  static std::unordered_map<pi_mem_flags, ur_mem_flags_t> MemFlagsMap = {
+      {PI_MEM_FLAGS_ACCESS_RW, UR_MEM_FLAG_READ_WRITE},
+      {PI_MEM_ACCESS_READ_ONLY, UR_MEM_FLAG_READ_ONLY},
+      {PI_MEM_FLAGS_HOST_PTR_USE, UR_MEM_FLAG_USE_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_COPY, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+  };
+
+  size_t piSize = sizeof(piFlags);
+  size_t urSize = sizeof(urFlags);
+
+  ConvertHelper Value(sizeof(piFlags), urFlags, &urSize);
+  return Value.convertBitSet(MemFlagsMap);
+}
+
 // Translate UR device info values to PI info values
 inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
                                       size_t ParamValueSizePI,
@@ -627,22 +644,11 @@ inline pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                    pi_mem *ret_mem) {
   auto hContext = reinterpret_cast<ur_context_handle_t>(context);
 
-  static std::unordered_map<pi_mem_flags, ur_mem_flags_t> MemFlagsMap = {
-      {PI_MEM_FLAGS_ACCESS_RW, UR_MEM_FLAG_READ_WRITE},
-      {PI_MEM_ACCESS_READ_ONLY, UR_MEM_FLAG_READ_ONLY},
-      {PI_MEM_FLAGS_HOST_PTR_USE, UR_MEM_FLAG_USE_HOST_POINTER},
-      {PI_MEM_FLAGS_HOST_PTR_COPY, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER},
-      {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-  };
-
-  auto MemFlagsIt = MemFlagsMap.find(flags);
-  if (MemFlagsIt == MemFlagsMap.end()) {
-    return PI_ERROR_UNKNOWN;
-  }
+  ur_mem_flags_t urFlags{};
+  pi2urMemFlags(flags, &urFlags);
 
   auto hRet_Mem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
-  HANDLE_ERRORS(urMemBufferCreate(hContext, MemFlagsIt->second, size, host_ptr,
-                                  hRet_Mem));
+  HANDLE_ERRORS(urMemBufferCreate(hContext, urFlags, size, host_ptr, hRet_Mem));
 
   return PI_SUCCESS;
 }
@@ -666,6 +672,114 @@ inline pi_result piextMemGetNativeHandle(pi_mem mem,
   auto hMem = reinterpret_cast<ur_mem_handle_t>(mem);
   auto hNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
   HANDLE_ERRORS(urMemGetNativeHandle(hMem, hNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemGetInfo(pi_mem mem, pi_mem_info memInfo, size_t size,
+                              void *pMemInfo, size_t *pMemInfoSize) {
+  auto hMem = reinterpret_cast<ur_mem_handle_t>(mem);
+
+  static std::unordered_map<pi_mem_info, ur_mem_info_t> MemInfoMap = {
+      {PI_MEM_CONTEXT, UR_MEM_INFO_SIZE},
+      {PI_MEM_SIZE, UR_MEM_INFO_CONTEXT},
+  };
+
+  auto MemInfoMapIt = MemInfoMap.find(memInfo);
+  if (MemInfoMapIt == MemInfoMap.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  HANDLE_ERRORS(
+      urMemGetInfo(hMem, MemInfoMapIt->second, size, pMemInfo, pMemInfoSize));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                bool ownNativeHandle,
+                                                pi_mem *mem) {
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto hMem = reinterpret_cast<ur_mem_handle_t *>(mem);
+  (void)ownNativeHandle;
+  HANDLE_ERRORS(urMemCreateWithNativeHandle(hNativeHandle, hContext, hMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
+                                  const pi_image_format *image_format,
+                                  const pi_image_desc *image_desc,
+                                  void *host_ptr, pi_mem *ret_mem) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto hImageFormat = const_cast<ur_image_format_t *>(
+      reinterpret_cast<const ur_image_format_t *>(image_format));
+  auto hImageDesc = const_cast<ur_image_desc_t *>(
+      reinterpret_cast<const ur_image_desc_t *>(image_desc));
+  auto hMem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
+
+  ur_mem_flags_t urFlags{};
+  pi2urMemFlags(flags, &urFlags);
+
+  HANDLE_ERRORS(urMemImageCreate(hContext, urFlags, hImageFormat, hImageDesc,
+                                 host_ptr, hMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemImageGetInfo(pi_mem mem, pi_image_info info, size_t size,
+                                   void *pImgInfo, size_t *ret_size) {
+  auto hMem = reinterpret_cast<ur_mem_handle_t>(mem);
+
+  static std::unordered_map<pi_image_info, ur_image_info_t> ImageInfoMap = {
+      {PI_IMAGE_INFO_FORMAT, UR_IMAGE_INFO_FORMAT},
+      {PI_IMAGE_INFO_ELEMENT_SIZE, UR_IMAGE_INFO_ELEMENT_SIZE},
+      {PI_IMAGE_INFO_ROW_PITCH, UR_IMAGE_INFO_ROW_PITCH},
+      {PI_IMAGE_INFO_SLICE_PITCH, UR_IMAGE_INFO_SLICE_PITCH},
+      {PI_IMAGE_INFO_WIDTH, UR_IMAGE_INFO_WIDTH},
+      {PI_IMAGE_INFO_HEIGHT, UR_IMAGE_INFO_HEIGHT},
+      {PI_IMAGE_INFO_DEPTH, UR_IMAGE_INFO_DEPTH},
+  };
+
+  auto ImageInfoMapIt = ImageInfoMap.find(info);
+  if (ImageInfoMapIt == ImageInfoMap.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  HANDLE_ERRORS(urMemImageGetInfo(hMem, ImageInfoMapIt->second, size, pImgInfo,
+                                  ret_size));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
+                                      pi_buffer_create_type buffer_create_type,
+                                      void *buffer_create_info,
+                                      pi_mem *memObj) {
+  auto hParentBuffer = reinterpret_cast<ur_mem_handle_t>(parent_buffer);
+
+  ur_mem_flags_t urFlags{};
+  pi2urMemFlags(flags, &urFlags);
+
+  static std::unordered_map<pi_buffer_create_type, ur_buffer_create_type_t>
+      BufferCreateTypeMap = {
+          {PI_BUFFER_CREATE_TYPE_REGION, UR_BUFFER_CREATE_TYPE_REGION},
+      };
+
+  auto BufferCreateTypeIt = BufferCreateTypeMap.find(buffer_create_type);
+  if (BufferCreateTypeIt == BufferCreateTypeMap.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  auto hMemObj = reinterpret_cast<ur_mem_handle_t *>(memObj);
+  auto hBufferCreateInfo =
+      reinterpret_cast<ur_buffer_region_t *>(buffer_create_info);
+
+  HANDLE_ERRORS(urMemBufferPartition(hParentBuffer, urFlags,
+                                     BufferCreateTypeIt->second,
+                                     hBufferCreateInfo, hMemObj));
 
   return PI_SUCCESS;
 }
