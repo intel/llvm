@@ -15,9 +15,6 @@
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
-extern SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
-extern SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel {
