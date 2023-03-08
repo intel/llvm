@@ -659,10 +659,6 @@ effect and the pass may elect to ignore these aspects. To avoid repeating
 warnings issued by the previous execution of the pass, this run will not issue
 any warning diagnostics.
 
-For users that want the strict requirements from all aspects, the driver offers
-a `--strict-aspect-requirements` option which excludes no aspects in the first
-run of the pass and skips the second run altogether. 
-
 ### Assumptions on other phases of clang
 
 The post-link tool (described below) uses the `!sycl_used_aspects` and
