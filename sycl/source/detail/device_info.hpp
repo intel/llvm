@@ -301,6 +301,19 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
+// Specialization for atomic_fence_scope_capabilities, PI returns a bitfield
+template <>
+struct get_device_info_impl<std::vector<memory_scope>,
+                            info::device::atomic_fence_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
+  }
+};
+
 // Specialization for bf16 math functions
 template <>
 struct get_device_info_impl<bool,
@@ -1028,6 +1041,13 @@ get_device_info_host<info::device::atomic_fence_order_capabilities>() {
 template <>
 inline std::vector<memory_scope>
 get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
+}
+
+template <>
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_fence_scope_capabilities>() {
   return {memory_scope::work_item, memory_scope::sub_group,
           memory_scope::work_group, memory_scope::device, memory_scope::system};
 }

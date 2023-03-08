@@ -96,6 +96,7 @@ namespace device {
 // il_version.
 
 struct atomic_fence_order_capabilities;
+struct atomic_fence_scope_capabilities;
 
 #define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
   struct __SYCL2020_DEPRECATED(Message) Desc;

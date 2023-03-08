@@ -1011,6 +1011,7 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     // There is no way to query this in the backend 
     return PI_ERROR_INVALID_ARG_VALUE;
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {

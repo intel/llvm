@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------------===//
+#include <sycl/detail/pi.h>
 
 #include <algorithm>
 #include <climits>
@@ -1159,6 +1160,26 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
   case ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
+  }
+  case ZER_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    pi_memory_order_capabilities result =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
+        PI_MEMORY_ORDER_SEQ_CST;
+
+    return ReturnValue(result);
+  }
+  case ZER_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    pi_memory_scope_capabilities result =
+        PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+        PI_MEMORY_SCOPE_SYSTEM;
+
+    return ReturnValue(result);
   }
 
   // TODO: Implement.

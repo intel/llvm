@@ -488,6 +488,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
        (zer_device_info_t)ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS},
       {PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
        (zer_device_info_t)ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
+       (zer_device_info_t)ZER_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES},
+      {PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
+       (zer_device_info_t)ZER_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES},
   };
 
   auto InfoType = InfoMapping.find(ParamName);
