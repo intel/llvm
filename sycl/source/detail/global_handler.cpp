@@ -71,7 +71,7 @@ std::atomic_uint ObjectUsageCounter::MCounter{0};
 GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
-void GlobalHandler::InitXPTIStuff() {
+void GlobalHandler::InitXPTI() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Let subscribers know a new stream is being initialized
   getXPTIRegistry().initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer,
