@@ -613,7 +613,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
@@ -622,19 +622,16 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
 
   static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
                     FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
 
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
@@ -717,7 +714,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(const T *p, FlagsT flags) {
@@ -764,7 +761,7 @@ lsc_block_load(const T *p, FlagsT flags) {
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
@@ -774,17 +771,14 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
   static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
                     FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -859,7 +853,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy, typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
                                  __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
@@ -874,19 +869,16 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
 
   constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
 
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
                     FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -953,7 +945,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy, typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
                                  __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
@@ -989,7 +982,8 @@ lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy, typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
                                  __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
@@ -1004,17 +998,14 @@ lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
   constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
   static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
                     FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
   constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
@@ -1463,19 +1454,18 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
                 __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
 
   // Prepare template arguments for the call of intrinsic.
   constexpr uint16_t _AddressScale = 1;
@@ -1484,8 +1474,6 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
   static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
                     _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
@@ -1546,7 +1534,7 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
   lsc_block_store<T, NElts, DS, L1H, L3H>(p, vals, __ESIMD_NS::simd_mask<1>(1),
@@ -1577,7 +1565,8 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy, typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
                              __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, uint32_t offset,
@@ -1590,13 +1579,11 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr auto Alignment =
-      __ESIMD_NS::element_aligned_tag::template alignment<
-          __ESIMD_DNS::__raw_t<T>> >=
-              FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>
-          ? __ESIMD_NS::element_aligned_tag::template alignment<
-                __ESIMD_DNS::__raw_t<T>>
-          : FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
-
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
   // Prepare template arguments for the call of intrinsic.
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
@@ -1604,8 +1591,6 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
                     _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
                 "Conversion data types are not supported");
-  static_assert(Alignment >= __ESIMD_DNS::OperandSize::DWORD,
-                "Alignment of at least 4 bytes is required");
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
@@ -1672,7 +1657,8 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy, typename FlagsT = __ESIMD_NS::overaligned_tag<4>>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_NS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
                              __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, uint32_t offset,
