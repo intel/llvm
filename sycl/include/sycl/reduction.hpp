@@ -171,32 +171,21 @@ public:
     return MReducerRef.getElement(E);
   }
 
-  template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                        typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type> constexpr getIdentity() {
-    return getIdentityStatic();
-  }
-
-  template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      !IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                         typename ReducerRelayT::binary_operation>::value &&
-          ReducerTraits<ReducerRelayT>::has_identity,
-      typename ReducerRelayT::value_type>
-  getIdentity() {
-    return MReducerRef.identity();
+  template <typename ReducerRelayT = ReducerT> constexpr auto getIdentity() {
+    static_assert(ReducerTraits<ReducerRelayT>::has_identity,
+                  "Identity unavailable.");
+    return MReducerRef.getIdentity();
   }
 
   // MSVC does not like static overloads of non-static functions, even if they
   // are made mutually exclusive through SFINAE. Instead we use a new static
   // function to be used when a static function is needed.
   template <typename ReducerRelayT = ReducerT>
-  enable_if_t<
-      IsKnownIdentityOp<typename ReducerRelayT::value_type,
-                        typename ReducerRelayT::binary_operation>::value,
-      typename ReducerRelayT::value_type> static constexpr getIdentityStatic() {
+  static constexpr auto getIdentityStatic() {
+    static_assert(
+        IsKnownIdentityOp<typename ReducerTraits<ReducerRelayT>::type,
+                          typename ReducerTraits<ReducerRelayT>::op>::value,
+        "Static identity unavailable.");
     return ReducerT::getIdentity();
   }
 
