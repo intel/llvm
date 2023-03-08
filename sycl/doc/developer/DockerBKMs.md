@@ -105,6 +105,10 @@ passthrough a host directory or a file.
 Add `--device=/dev/dri` argument to `run` command to passthrough you Intel GPU.
 Make sure you're a member of `video` group to be able to access GPU.
 
+In case the container is running under WSL, add one more argument to `run` command: 
+`-v /usr/lib/wsl:/usr/lib/wsl`. See [official guide](https://github.com/microsoft/wslg/blob/main/samples/container/Containers.md#containerized-applications-access-to-the-vgpu) 
+for more information.
+
 ### AMD
 
 Follow the [official guide](https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html).
