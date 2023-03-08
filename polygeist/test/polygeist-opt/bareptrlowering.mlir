@@ -30,23 +30,23 @@ func.func private @ptr_args_and_ret(%arg0: memref<1xi64>, %arg1: memref<?xi64>) 
 
 // -----
 
-// CHECK-LABEL:   llvm.func @ptr_args_and_ret_with_attrs(!llvm.ptr<i64> {llvm.byval = !llvm.ptr<i64>}, !llvm.ptr<i64> {llvm.byval = !llvm.ptr<i64>}) -> !llvm.ptr<i64>
+// CHECK-LABEL:   llvm.func @ptr_args_and_ret_with_attrs(!llvm.ptr<i64> {llvm.byval = i64}, !llvm.ptr<i64> {llvm.byval = i64}) -> !llvm.ptr<i64>
 
-func.func private @ptr_args_and_ret_with_attrs(%arg0: memref<1xi64> {llvm.byval = memref<1xi64>},
-                                               %arg1: memref<?xi64> {llvm.byval = memref<?xi64>}) -> memref<?x4x4xi64>
+func.func private @ptr_args_and_ret_with_attrs(%arg0: memref<1xi64> {llvm.byval = i64},
+                                               %arg1: memref<?xi64> {llvm.byval = i64}) -> memref<?x4x4xi64>
 
 // -----
 
 gpu.module @kernels {
 
 // CHECK-LABEL:   llvm.func @kernel(
-// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<i64> {llvm.byval = !llvm.ptr<i64>},
-// CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<i64> {llvm.byval = !llvm.ptr<i64>}) attributes {gpu.kernel, workgroup_attributions = 0 : i64} {
+// CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<i64> {llvm.byval = i64},
+// CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<i64> {llvm.byval = i64}) attributes {gpu.kernel, workgroup_attributions = 0 : i64} {
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:         }
 
-  gpu.func @kernel(%arg0: memref<1xi64> {llvm.byval = memref<1xi64>},
-                   %arg1: memref<?xi64> {llvm.byval = memref<?xi64>}) kernel {
+  gpu.func @kernel(%arg0: memref<1xi64> {llvm.byval = i64},
+                   %arg1: memref<?xi64> {llvm.byval = i64}) kernel {
     gpu.return
   }
 }

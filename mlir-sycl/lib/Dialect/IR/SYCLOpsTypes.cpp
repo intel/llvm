@@ -30,26 +30,26 @@ llvm::StringRef mlir::sycl::memoryAccessModeAsString(
   llvm_unreachable("Invalid MemoryAccessMode");
 }
 
-mlir::LogicalResult mlir::sycl::parseMemoryAccessMode(
-    mlir::AsmParser &Parser,
-    mlir::FailureOr<mlir::sycl::MemoryAccessMode> &MemAccessMode) {
+mlir::LogicalResult
+mlir::sycl::parseMemoryAccessMode(mlir::AsmParser &Parser,
+                                  mlir::sycl::MemoryAccessMode &MemAccessMode) {
   mlir::StringRef Keyword;
   if (Parser.parseKeyword(&Keyword)) {
     return mlir::ParseResult::failure();
   }
 
   if (Keyword == "read") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Read);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::Read;
   } else if (Keyword == "write") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Write);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::Write;
   } else if (Keyword == "read_write") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::ReadWrite);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::ReadWrite;
   } else if (Keyword == "discard_write") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::DiscardWrite);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::DiscardWrite;
   } else if (Keyword == "discard_read_write") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::DiscardReadWrite);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::DiscardReadWrite;
   } else if (Keyword == "atomic") {
-    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Atomic);
+    MemAccessMode = mlir::sycl::MemoryAccessMode::Atomic;
   } else {
     return Parser.emitError(Parser.getCurrentLocation(),
                             "expected valid MemoryAccessMode keyword");
@@ -84,28 +84,28 @@ llvm::StringRef mlir::sycl::memoryTargetModeAsString(
   llvm_unreachable("Invalid MemoryTargetMode");
 }
 
-mlir::LogicalResult mlir::sycl::parseMemoryTargetMode(
-    mlir::AsmParser &Parser,
-    mlir::FailureOr<mlir::sycl::MemoryTargetMode> &MemTargetMode) {
+mlir::LogicalResult
+mlir::sycl::parseMemoryTargetMode(mlir::AsmParser &Parser,
+                                  mlir::sycl::MemoryTargetMode &MemTargetMode) {
   mlir::StringRef Keyword;
   if (Parser.parseKeyword(&Keyword)) {
     return mlir::ParseResult::failure();
   }
 
   if (Keyword == "global_buffer") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::GlobalBuffer);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::GlobalBuffer;
   } else if (Keyword == "constant_buffer") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::ConstantBuffer);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::ConstantBuffer;
   } else if (Keyword == "local") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::Local);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::Local;
   } else if (Keyword == "image") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::Image);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::Image;
   } else if (Keyword == "host_buffer") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::HostBuffer);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::HostBuffer;
   } else if (Keyword == "host_image") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::HostImage);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::HostImage;
   } else if (Keyword == "image_array") {
-    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::ImageArray);
+    MemTargetMode = mlir::sycl::MemoryTargetMode::ImageArray;
   } else {
     return Parser.emitError(Parser.getCurrentLocation(),
                             "expected valid MemoryTargetMode keyword");
@@ -124,9 +124,9 @@ mlir::sycl::accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress) {
   return std::to_string(static_cast<int>(AccAddress));
 }
 
-mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
-    mlir::AsmParser &Parser,
-    mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
+mlir::LogicalResult
+mlir::sycl::parseAccessAddrSpace(mlir::AsmParser &Parser,
+                                 mlir::sycl::AccessAddrSpace &AccAddress) {
 
   int AddSpaceInt;
   if (Parser.parseInteger<int>(AddSpaceInt)) {
@@ -137,7 +137,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
   assert(0 <= AddSpaceInt && AddSpaceInt <= 6 &&
          "Expecting address space value between 0 and 6 (inclusive)");
 
-  AccAddress.emplace(static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt));
+  AccAddress = static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt);
   return mlir::ParseResult::success();
 }
 
@@ -151,9 +151,9 @@ mlir::sycl::decoratedAccessAsString(mlir::sycl::DecoratedAccess DecAccess) {
   return std::to_string(static_cast<int>(DecAccess));
 }
 
-mlir::LogicalResult mlir::sycl::parseDecoratedAccess(
-    mlir::AsmParser &Parser,
-    mlir::FailureOr<mlir::sycl::DecoratedAccess> &DecAccess) {
+mlir::LogicalResult
+mlir::sycl::parseDecoratedAccess(mlir::AsmParser &Parser,
+                                 mlir::sycl::DecoratedAccess &DecAccess) {
 
   int DecAccessInt;
   if (Parser.parseInteger<int>(DecAccessInt)) {
@@ -163,7 +163,7 @@ mlir::LogicalResult mlir::sycl::parseDecoratedAccess(
   assert(0 <= DecAccessInt && DecAccessInt <= 2 &&
          "Expecting Decorated Access value between 0 and 2 (inclusive)");
 
-  DecAccess.emplace(static_cast<mlir::sycl::DecoratedAccess>(DecAccessInt));
+  DecAccess = static_cast<mlir::sycl::DecoratedAccess>(DecAccessInt);
   return mlir::ParseResult::success();
 }
 

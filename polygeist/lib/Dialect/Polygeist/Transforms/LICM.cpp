@@ -493,9 +493,8 @@ Value SCFForGuardBuilder::createGuardExpr() const {
 }
 
 scf::IfOp SCFForGuardBuilder::createGuard() const {
-  TypeRange types(loop->getResults());
   return builder.create<scf::IfOp>(
-      loop.getLoc(), types, createGuardExpr(),
+      loop.getLoc(), createGuardExpr(),
       [&](OpBuilder &b, Location loc) {
         b.create<scf::YieldOp>(loc, loop.getResults());
       },
@@ -535,9 +534,8 @@ Value SCFParallelGuardBuilder::createGuardExpr() const {
 }
 
 scf::IfOp SCFParallelGuardBuilder::createGuard() const {
-  TypeRange types(loop->getResults());
   return builder.create<scf::IfOp>(
-      loop.getLoc(), types, createGuardExpr(),
+      loop.getLoc(), createGuardExpr(),
       [&](OpBuilder &b, Location loc) {
         b.create<scf::YieldOp>(loc, loop.getResults());
       },

@@ -544,12 +544,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
           assert(0);
 
         if (A0.getType().isa<MemRefType>())
-          return ValueCategory(Builder.create<memref::AtomicRMWOp>(
-                                   Loc, A1.getType(), Op, A1, A0,
-                                   std::vector<Value>({getConstantIndex(0)})),
-                               /*isReference*/ false);
+          return ValueCategory(
+              Builder.create<memref::AtomicRMWOp>(
+                  Loc, Op, A1, A0, std::vector<Value>({getConstantIndex(0)})),
+              /*isReference*/ false);
         return ValueCategory(
-            Builder.create<LLVM::AtomicRMWOp>(Loc, A1.getType(), Lop, A0, A1,
+            Builder.create<LLVM::AtomicRMWOp>(Loc, Lop, A0, A1,
                                               LLVM::AtomicOrdering::acq_rel),
             /*isReference*/ false);
       }

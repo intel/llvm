@@ -56,6 +56,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/WithColor.h"
@@ -81,7 +82,8 @@ extern int cc1_main(llvm::ArrayRef<const char *> Argv, const char *Argv0,
 extern int cc1as_main(llvm::ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 extern int cc1gen_reproducer_main(llvm::ArrayRef<const char *> Argv,
-                                  const char *Argv0, void *MainAddr);
+                                  const char *Argv0, void *MainAddr,
+                                  const llvm::ToolContext &);
 
 static llvm::ExitOnError ExitOnErr;
 
@@ -102,7 +104,8 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
       Argv0, reinterpret_cast<void *>(GetExecutablePath));
 }
 
-static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
+static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV,
+                          const llvm::ToolContext &ToolContext) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
   // are currently global, and they might have been used previously by the
@@ -121,7 +124,8 @@ static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
   if (Tool == "-cc1as")
     return cc1as_main(argv.slice(2), ArgV[0], GetExecutablePathVP);
   if (Tool == "-cc1gen-reproducer")
-    return cc1gen_reproducer_main(argv.slice(2), ArgV[0], GetExecutablePathVP);
+    return cc1gen_reproducer_main(argv.slice(2), ArgV[0], GetExecutablePathVP,
+                                  ToolContext);
   // Reject unknown tools.
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
@@ -1156,7 +1160,8 @@ int main(int argc, char **argv) {
     SmallVector<const char *> Argv;
     for (int I = 0; I < argc; I++)
       Argv.push_back(argv[I]);
-    return executeCC1Tool(Argv);
+    const llvm::ToolContext ToolContext = {argv[0], nullptr, false};
+    return executeCC1Tool(Argv, ToolContext);
   }
 
   Options options(argc, argv);
