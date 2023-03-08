@@ -26,8 +26,8 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
                            false, OffsetInBytes, IsSubBuffer, PropertyList));
-}
 
+}
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
