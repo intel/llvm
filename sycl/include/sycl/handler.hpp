@@ -2901,7 +2901,7 @@ private:
   void checkIfPlaceholderIsBoundToHandler(
       accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
           Acc) {
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
+    auto *AccBase = reinterpret_cast<detail::AccessorBaseHost *>(&Acc);
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
     if (std::find_if(MAssociatedAccesors.begin(), MAssociatedAccesors.end(),
