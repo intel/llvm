@@ -271,9 +271,6 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
-    - type: "size_t"
-      name: argSize
-      desc: "[in] size of argument type"
     - type: "const void*"
       name: pArgValue
       desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
