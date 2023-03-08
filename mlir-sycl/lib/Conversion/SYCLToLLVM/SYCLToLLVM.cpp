@@ -2096,9 +2096,8 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
       module
           .walk([&context](gpu::GPUModuleOp gpuModule) {
             // We walk the different GPU modules looking for different SPIRV
-            // target
-            // environment definitions. Currently, this does not affect the
-            // behavior of this pass.
+            // target environment definitions. Currently, this does not affect
+            // the behavior of this pass.
             RewritePatternSet patterns(&context);
 
             auto targetAttr = spirv::lookupTargetEnvOrDefault(gpuModule);
@@ -2133,8 +2132,7 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
             });
 
             // Add generic source and target materializations to handle cases
-            // where
-            // non-LLVM types persist after an LLVM conversion.
+            // where non-LLVM types persist after an LLVM conversion.
             typeConverter.addSourceMaterialization(
                 [&](OpBuilder &builder, Type resultType, ValueRange inputs,
                     Location loc) -> std::optional<Value> {
