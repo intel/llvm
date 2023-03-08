@@ -104,9 +104,12 @@ inline void addCfgConversionPass(mlir::PassManager &pm) {
       pm, disableCfgConversion, fir::createFirToCfgPass);
 }
 
-inline void addAVC(mlir::PassManager &pm) {
+inline void addAVC(
+    mlir::PassManager &pm, const llvm::OptimizationLevel &optLevel) {
+  ArrayValueCopyOptions options;
+  options.optimizeConflicts = optLevel.isOptimizingForSpeed();
   addNestedPassConditionally<mlir::func::FuncOp>(
-      pm, disableFirAvc, fir::createArrayValueCopyPass);
+      pm, disableFirAvc, [&]() { return createArrayValueCopyPass(options); });
 }
 
 inline void addMemoryAllocationOpt(mlir::PassManager &pm) {
@@ -163,13 +166,14 @@ inline void addExternalNameConversionPass(mlir::PassManager &pm) {
 /// incremental conversion of FIR.
 ///
 /// \param pm - MLIR pass manager that will hold the pipeline definition
-inline void createDefaultFIROptimizerPassPipeline(
-    mlir::PassManager &pm, llvm::OptimizationLevel optLevel = defaultOptLevel) {
+inline void createDefaultFIROptimizerPassPipeline(mlir::PassManager &pm,
+    llvm::OptimizationLevel optLevel = defaultOptLevel,
+    bool stackArrays = false) {
   // simplify the IR
   mlir::GreedyRewriteConfig config;
   config.enableRegionSimplification = false;
   pm.addPass(mlir::createCSEPass());
-  fir::addAVC(pm);
+  fir::addAVC(pm, optLevel);
   pm.addNestedPass<mlir::func::FuncOp>(fir::createCharacterConversionPass());
   pm.addPass(mlir::createCanonicalizerPass(config));
   pm.addPass(fir::createSimplifyRegionLitePass());
@@ -179,7 +183,11 @@ inline void createDefaultFIROptimizerPassPipeline(
     pm.addPass(fir::createAlgebraicSimplificationPass(config));
   }
   pm.addPass(mlir::createCSEPass());
-  fir::addMemoryAllocationOpt(pm);
+
+  if (stackArrays)
+    pm.addPass(fir::createStackArraysPass());
+  else
+    fir::addMemoryAllocationOpt(pm);
 
   // The default inliner pass adds the canonicalizer pass with the default
   // configuration. Create the inliner pass with tco config.
@@ -217,10 +225,11 @@ inline void createDefaultFIRCodeGenPassPipeline(
 /// \param pm - MLIR pass manager that will hold the pipeline definition
 /// \param optLevel - optimization level used for creating FIR optimization
 ///   passes pipeline
-inline void createMLIRToLLVMPassPipeline(
-    mlir::PassManager &pm, llvm::OptimizationLevel optLevel = defaultOptLevel) {
+inline void createMLIRToLLVMPassPipeline(mlir::PassManager &pm,
+    llvm::OptimizationLevel optLevel = defaultOptLevel,
+    bool stackArrays = false) {
   // Add default optimizer pass pipeline.
-  fir::createDefaultFIROptimizerPassPipeline(pm, optLevel);
+  fir::createDefaultFIROptimizerPassPipeline(pm, optLevel, stackArrays);
 
   // Add codegen pass pipeline.
   fir::createDefaultFIRCodeGenPassPipeline(pm, optLevel);

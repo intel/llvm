@@ -130,9 +130,10 @@ SimplifyBoundedAffineOpsOp::apply(TransformResults &results,
   patterns.insert<SimplifyAffineMinMaxOp<AffineMinOp>,
                   SimplifyAffineMinMaxOp<AffineMaxOp>>(getContext(), cstr);
   FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+  GreedyRewriteConfig config;
+  config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
   // Apply the simplification pattern to a fixpoint.
-  if (failed(
-          applyOpPatternsAndFold(targets, frozenPatterns, /*strict=*/true))) {
+  if (failed(applyOpPatternsAndFold(targets, frozenPatterns, config))) {
     auto diag = emitDefiniteFailure()
                 << "affine.min/max simplification did not converge";
     return diag;

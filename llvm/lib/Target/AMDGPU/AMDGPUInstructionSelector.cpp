@@ -1807,7 +1807,7 @@ bool AMDGPUInstructionSelector::selectImageIntrinsic(
     }
   } else {
     DMask = MI.getOperand(ArgOffset + Intr->DMaskIndex).getImm();
-    DMaskLanes = BaseOpcode->Gather4 ? 4 : countPopulation(DMask);
+    DMaskLanes = BaseOpcode->Gather4 ? 4 : llvm::popcount(DMask);
 
     if (BaseOpcode->Store) {
       VDataIn = MI.getOperand(1).getReg();
@@ -1824,7 +1824,7 @@ bool AMDGPUInstructionSelector::selectImageIntrinsic(
   }
 
   // Set G16 opcode
-  if (IsG16 && !IsA16) {
+  if (Subtarget->hasG16() && IsG16) {
     const AMDGPU::MIMGG16MappingInfo *G16MappingInfo =
         AMDGPU::getMIMGG16MappingInfo(Intr->BaseOpcode);
     assert(G16MappingInfo);
@@ -2137,7 +2137,7 @@ static int sizeToSubRegIndex(unsigned Size) {
       return AMDGPU::sub0;
     if (Size > 256)
       return -1;
-    return sizeToSubRegIndex(PowerOf2Ceil(Size));
+    return sizeToSubRegIndex(llvm::bit_ceil(Size));
   }
 }
 
@@ -3446,9 +3446,9 @@ bool AMDGPUInstructionSelector::select(MachineInstr &I) {
   case TargetOpcode::G_ATOMICRMW_MAX:
   case TargetOpcode::G_ATOMICRMW_UMIN:
   case TargetOpcode::G_ATOMICRMW_UMAX:
+  case TargetOpcode::G_ATOMICRMW_UINC_WRAP:
+  case TargetOpcode::G_ATOMICRMW_UDEC_WRAP:
   case TargetOpcode::G_ATOMICRMW_FADD:
-  case AMDGPU::G_AMDGPU_ATOMIC_INC:
-  case AMDGPU::G_AMDGPU_ATOMIC_DEC:
   case AMDGPU::G_AMDGPU_ATOMIC_FMIN:
   case AMDGPU::G_AMDGPU_ATOMIC_FMAX:
     return selectG_LOAD_STORE_ATOMICRMW(I);

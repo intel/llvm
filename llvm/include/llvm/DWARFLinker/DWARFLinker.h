@@ -68,10 +68,6 @@ public:
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
 
-  /// Relocate the given address offset if a valid relocation exists.
-  virtual llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t StartOffset,
-                                                       uint64_t EndOffset) = 0;
-
   /// Returns all valid functions address ranges(i.e., those ranges
   /// which points to sections with code).
   virtual RangesTy &getValidAddressRanges() = 0;
@@ -121,13 +117,10 @@ public:
   virtual void
   emitAppleTypes(AccelTable<AppleAccelTableStaticTypeData> &Table) = 0;
 
-  /// Emit .debug_ranges for \p FuncRange by translating the
-  /// original \p Entries.
-  virtual void emitRangesEntries(
-      int64_t UnitPcOffset, uint64_t OrigLowPc,
-      std::optional<std::pair<AddressRange, int64_t>> FuncRange,
-      const std::vector<DWARFDebugRangeList::RangeListEntry> &Entries,
-      unsigned AddressSize) = 0;
+  /// Emit piece of .debug_ranges for \p Ranges.
+  virtual void
+  emitDwarfDebugRangesTableFragment(const CompileUnit &Unit,
+                                    const AddressRanges &LinkedRanges) = 0;
 
   /// Emit .debug_aranges entries for \p Unit and if \p DoRangesSection is true,
   /// also emit the .debug_ranges entries for the DW_TAG_compile_unit's
@@ -208,8 +201,8 @@ public:
 
 using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 
-/// this class represents DWARF information for source file
-/// and it`s address map.
+/// This class represents DWARF information for source file
+/// and its address map.
 class DWARFFile {
 public:
   DWARFFile(StringRef Name, DWARFContext *Dwarf, AddressesMap *Addresses,
@@ -217,13 +210,16 @@ public:
       : FileName(Name), Dwarf(Dwarf), Addresses(Addresses), Warnings(Warnings) {
   }
 
-  /// object file name.
+  /// The object file name.
   StringRef FileName;
-  /// source DWARF information.
+
+  /// The source DWARF information.
   DWARFContext *Dwarf = nullptr;
-  /// helpful address information(list of valid address ranges, relocations).
+
+  /// Helpful address information(list of valid address ranges, relocations).
   AddressesMap *Addresses = nullptr;
-  /// warnings for object file.
+
+  /// Warnings for this object file.
   const std::vector<std::string> &Warnings;
 };
 
@@ -635,18 +631,6 @@ private:
       uint32_t NameOffset = 0;
       uint32_t MangledNameOffset = 0;
 
-      /// Value of AT_low_pc in the input DIE
-      uint64_t OrigLowPc = std::numeric_limits<uint64_t>::max();
-
-      /// Value of AT_high_pc in the input DIE
-      uint64_t OrigHighPc = 0;
-
-      /// Value of DW_AT_call_return_pc in the input DIE
-      uint64_t OrigCallReturnPc = 0;
-
-      /// Value of DW_AT_call_pc in the input DIE
-      uint64_t OrigCallPc = 0;
-
       /// Offset to apply to PC addresses inside a function.
       int64_t PCOffset = 0;
 
@@ -704,8 +688,9 @@ private:
     /// Clone an attribute referencing another DIE and add
     /// it to \p Die.
     /// \returns the size of the new attribute.
-    unsigned cloneAddressAttribute(DIE &Die, AttributeSpec AttrSpec,
-                                   unsigned AttrSize, const DWARFFormValue &Val,
+    unsigned cloneAddressAttribute(DIE &Die, const DWARFDie &InputDIE,
+                                   AttributeSpec AttrSpec, unsigned AttrSize,
+                                   const DWARFFormValue &Val,
                                    const CompileUnit &Unit,
                                    AttributesInfo &Info);
 
