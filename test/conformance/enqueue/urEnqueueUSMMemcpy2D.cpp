@@ -20,18 +20,15 @@ struct urEnqueueUSMMemcpy2DTestWithParam
             std::make_tuple(inPitch, inWidth, inHeight);
 
         const size_t num_elements = pitch * height;
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0,
-                             &pSrc));
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0,
-                             &pDst));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                        num_elements, 0, &pSrc));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                        num_elements, 0, &pDst));
         ur_event_handle_t memset_event = nullptr;
 
-        ASSERT_SUCCESS(
-            urEnqueueUSMFill2D(queue, pSrc, pitch, sizeof(memset_value),
-                               &memset_value, width, height, 0, nullptr,
-                               &memset_event));
+        ASSERT_SUCCESS(urEnqueueUSMFill2D(
+            queue, pSrc, pitch, sizeof(memset_value), &memset_value, width,
+            height, 0, nullptr, &memset_event));
 
         ASSERT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &memset_event));
@@ -102,8 +99,8 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
     ASSERT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
     ur_event_status_t event_status;
-    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(memcpy_event,
-                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
+        memcpy_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
 
     ASSERT_NO_FATAL_FAILURE(verifyMemcpySucceeded());

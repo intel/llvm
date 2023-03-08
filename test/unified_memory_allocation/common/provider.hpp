@@ -24,9 +24,7 @@ auto wrapProviderUnique(uma_memory_provider_handle_t hProvider) {
 }
 
 struct provider_base {
-    uma_result_t initialize() noexcept {
-        return UMA_RESULT_SUCCESS;
-    };
+    uma_result_t initialize() noexcept { return UMA_RESULT_SUCCESS; };
     enum uma_result_t alloc(size_t, size_t, void **) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;
     }

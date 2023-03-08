@@ -85,7 +85,8 @@ class FileSinkDefaultLevel : public FileSink {
 
 TEST_F(FileSink, MultipleLines) {
     logger::Level level = logger::Level::WARN;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        level, std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.warning("Test message: {}", "success");
     logger.debug("This should not be printed: {}", 42);
@@ -97,7 +98,8 @@ TEST_F(FileSink, MultipleLines) {
 
 TEST_F(FileSink, ThreeParams) {
     logger::Level level = logger::Level::DEBUG;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        level, std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.setFlushLevel(level);
     logger.debug("{} {}: {}", "Test", 42, 3.8);
@@ -105,32 +107,36 @@ TEST_F(FileSink, ThreeParams) {
 }
 
 TEST_F(FileSink, DoubleBraces) {
-    logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        logger::Level::ERR,
+        std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("{{}} {}: {}", "Test", 42);
     test_msg += "[ERROR]: {} Test: 42\n";
 }
 
 TEST_F(FileSink, DoubleBraces2) {
-    logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        logger::Level::ERR,
+        std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("200 {{ {}: {{{}}} 3.8", "Test", 42);
     test_msg += "[ERROR]: 200 { Test: {42} 3.8\n";
 }
 
 TEST_F(FileSink, DoubleBraces3) {
-    logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        logger::Level::ERR,
+        std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error("{{ {}:}} {}}}", "Test", 42);
     test_msg += "[ERROR]: { Test:} 42}\n";
 }
 
 TEST_F(FileSink, NoBraces) {
-    logger::Logger logger(logger::Level::ERR,
-                          std::make_unique<logger::FileSink>(logger_name, file_path));
+    logger::Logger logger(
+        logger::Level::ERR,
+        std::make_unique<logger::FileSink>(logger_name, file_path));
 
     logger.error(" Test: 42");
     test_msg += "[ERROR]:  Test: 42\n";
@@ -138,7 +144,8 @@ TEST_F(FileSink, NoBraces) {
 
 TEST_F(FileSink, SetFlushLevelDebugCtor) {
     auto level = logger::Level::DEBUG;
-    logger::Logger logger(level, std::make_unique<logger::FileSink>(logger_name, file_path, level));
+    logger::Logger logger(level, std::make_unique<logger::FileSink>(
+                                     logger_name, file_path, level));
 
     logger.debug("Test message: {}", "success");
     test_msg += "[DEBUG]: Test message: success\n";

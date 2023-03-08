@@ -12,23 +12,27 @@ constexpr char ERROR_NO_ADAPTER[] = "Could not load adapter";
 
 PlatformEnvironment *PlatformEnvironment::instance = nullptr;
 
-std::ostream &operator<<(std::ostream &out, const ur_platform_handle_t &platform) {
+std::ostream &operator<<(std::ostream &out,
+                         const ur_platform_handle_t &platform) {
     size_t size;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr, &size);
     std::vector<char> name(size);
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, size, name.data(), nullptr);
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, size, name.data(),
+                      nullptr);
     out << name.data();
     return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const std::vector<ur_platform_handle_t> &platforms) {
+std::ostream &operator<<(std::ostream &out,
+                         const std::vector<ur_platform_handle_t> &platforms) {
     for (auto platform : platforms) {
         out << "\n  * \"" << platform << "\"";
     }
     return out;
 }
 
-uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv) : platform_options{parsePlatformOptions(argc, argv)} {
+uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
+    : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
     ur_device_init_flags_t device_flags = 0;
     switch (urInit(device_flags)) {
@@ -74,12 +78,14 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv) : platform_
     } else {
         for (auto candidate : platforms) {
             size_t size;
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0, nullptr, &size)) {
+            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0, nullptr,
+                                  &size)) {
                 error = "urPlatformGetInfoFailed";
                 return;
             }
             std::vector<char> platform_name(size);
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size, platform_name.data(), nullptr)) {
+            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size,
+                                  platform_name.data(), nullptr)) {
                 error = "urPlatformGetInfo() failed";
                 return;
             }
@@ -121,15 +127,18 @@ void uur::PlatformEnvironment::TearDown() {
     }
 }
 
-PlatformEnvironment::PlatformOptions PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
+PlatformEnvironment::PlatformOptions
+PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
     PlatformOptions options;
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
         if (!(std::strcmp(arg, "-h") && std::strcmp(arg, "--help"))) {
             // TODO - print help
             break;
-        } else if (std::strncmp(arg, "--platform=", sizeof("--platform=") - 1) == 0) {
-            options.platform_name = std::string(&arg[std::strlen("--platform=")]);
+        } else if (std::strncmp(
+                       arg, "--platform=", sizeof("--platform=") - 1) == 0) {
+            options.platform_name =
+                std::string(&arg[std::strlen("--platform=")]);
         }
     }
     return options;
@@ -137,7 +146,8 @@ PlatformEnvironment::PlatformOptions PlatformEnvironment::parsePlatformOptions(i
 
 DevicesEnvironment *DevicesEnvironment::instance = nullptr;
 
-DevicesEnvironment::DevicesEnvironment(int argc, char **argv) : PlatformEnvironment(argc, argv) {
+DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
+    : PlatformEnvironment(argc, argv) {
     instance = this;
     if (!error.empty()) {
         return;
@@ -152,7 +162,8 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv) : PlatformEnvironm
         return;
     }
     devices.resize(count);
-    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(), nullptr)) {
+    if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
+                    nullptr)) {
         error = "urDeviceGet() failed to get devices.";
         return;
     }
@@ -180,19 +191,26 @@ void DevicesEnvironment::TearDown() {
 
 KernelsEnvironment *KernelsEnvironment::instance = nullptr;
 
-KernelsEnvironment::KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir) : DevicesEnvironment(argc, argv), kernel_options(parseKernelOptions(argc, argv, kernels_default_dir)) {
+KernelsEnvironment::KernelsEnvironment(int argc, char **argv,
+                                       std::string kernels_default_dir)
+    : DevicesEnvironment(argc, argv),
+      kernel_options(parseKernelOptions(argc, argv, kernels_default_dir)) {
     instance = this;
     if (!error.empty()) {
         return;
     }
 }
 
-KernelsEnvironment::KernelOptions KernelsEnvironment::parseKernelOptions(int argc, char **argv, std::string kernels_default_dir) {
+KernelsEnvironment::KernelOptions
+KernelsEnvironment::parseKernelOptions(int argc, char **argv,
+                                       std::string kernels_default_dir) {
     KernelOptions options;
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
-        if (std::strncmp(arg, "--kernel_directory=", sizeof("--kernel_directory=") - 1) == 0) {
-            options.kernel_directory = std::string(&arg[std::strlen("--kernel_directory=")]);
+        if (std::strncmp(arg, "--kernel_directory=",
+                         sizeof("--kernel_directory=") - 1) == 0) {
+            options.kernel_directory =
+                std::string(&arg[std::strlen("--kernel_directory=")]);
         }
     }
     if (options.kernel_directory.empty()) {
@@ -234,7 +252,9 @@ std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
     return IL.str();
 }
 
-std::string KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name, uint32_t device_index) {
+std::string
+KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
+                                        uint32_t device_index) {
     std::stringstream path;
     path << instance->getKernelDirectory();
     // il_postfix = supported_IL(SPIRV-PTX-...) + IL_version + extension(.spv -
@@ -259,12 +279,15 @@ std::string KernelsEnvironment::getKernelSourcePath(const std::string &kernel_na
     return path.str();
 }
 
-KernelsEnvironment::KernelSource KernelsEnvironment::LoadSource(const std::string &kernel_name, uint32_t device_index) {
+KernelsEnvironment::KernelSource
+KernelsEnvironment::LoadSource(const std::string &kernel_name,
+                               uint32_t device_index) {
     std::string source_path =
         instance->getKernelSourcePath(kernel_name, device_index);
 
     if (source_path.empty()) {
-        error = "failed retrieving kernel source path for kernel: " + kernel_name;
+        error =
+            "failed retrieving kernel source path for kernel: " + kernel_name;
         return KernelSource{&kernel_name[0], nullptr, 0,
                             UR_RESULT_ERROR_INVALID_BINARY};
     }
@@ -274,7 +297,8 @@ KernelsEnvironment::KernelSource KernelsEnvironment::LoadSource(const std::strin
     }
 
     std::ifstream source_file;
-    source_file.open(source_path, std::ios::binary | std::ios::in | std::ios::ate);
+    source_file.open(source_path,
+                     std::ios::binary | std::ios::in | std::ios::ate);
 
     if (!source_file.is_open()) {
         error = "failed opening kernel path: " + source_path;
@@ -297,7 +321,8 @@ KernelsEnvironment::KernelSource KernelsEnvironment::LoadSource(const std::strin
     source_file.close();
 
     KernelSource kernel_source =
-        KernelSource{&kernel_name[0], reinterpret_cast<uint32_t *>(source), source_size, UR_RESULT_SUCCESS};
+        KernelSource{&kernel_name[0], reinterpret_cast<uint32_t *>(source),
+                     source_size, UR_RESULT_SUCCESS};
 
     return cached_kernels[source_path] = kernel_source;
 }

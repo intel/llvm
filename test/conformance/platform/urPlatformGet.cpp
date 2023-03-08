@@ -20,5 +20,6 @@ TEST_F(urPlatformGetTest, InvalidNumEntries) {
     uint32_t count;
     ASSERT_SUCCESS(urPlatformGet(0, nullptr, &count));
     std::vector<ur_platform_handle_t> platforms(count);
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE, urPlatformGet(0, platforms.data(), nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urPlatformGet(0, platforms.data(), nullptr));
 }

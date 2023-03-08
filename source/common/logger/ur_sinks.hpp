@@ -30,7 +30,9 @@ class Sink {
     std::ostream *ostream;
     logger::Level flush_level;
 
-    Sink(std::string logger_name) : logger_name(logger_name) { flush_level = logger::Level::ERR; }
+    Sink(std::string logger_name) : logger_name(logger_name) {
+        flush_level = logger::Level::ERR;
+    }
 
   private:
     std::string logger_name;
@@ -45,20 +47,21 @@ class Sink {
                 if (*(++fmt) == '{') {
                     *ostream << *fmt++;
                 } else {
-                    throw std::runtime_error("No arguments provided and braces not escaped!");
+                    throw std::runtime_error(
+                        "No arguments provided and braces not escaped!");
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
                     *ostream << *fmt++;
                 } else {
-                    throw std::runtime_error("Closing curly brace not escaped!");
+                    throw std::runtime_error(
+                        "Closing curly brace not escaped!");
                 }
             }
         }
     }
 
-    template <typename Arg>
-    void format(const char *fmt, Arg &&arg) {
+    template <typename Arg> void format(const char *fmt, Arg &&arg) {
         while (*fmt != '\0') {
             while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
                 *ostream << *fmt++;
@@ -77,7 +80,8 @@ class Sink {
                 if (*(++fmt) == '}') {
                     *ostream << *fmt++;
                 } else {
-                    throw std::runtime_error("Closing curly brace not escaped!");
+                    throw std::runtime_error(
+                        "Closing curly brace not escaped!");
                 }
             }
         }
@@ -104,7 +108,8 @@ class Sink {
                 if (*(++fmt) == '}') {
                     *ostream << *fmt++;
                 } else {
-                    throw std::runtime_error("Closing curly brace not escaped!");
+                    throw std::runtime_error(
+                        "Closing curly brace not escaped!");
                 }
             }
         }
@@ -115,9 +120,12 @@ class Sink {
 
 class StdoutSink : public Sink {
   public:
-    StdoutSink(std::string logger_name) : Sink(logger_name) { this->ostream = &std::cout; }
+    StdoutSink(std::string logger_name) : Sink(logger_name) {
+        this->ostream = &std::cout;
+    }
 
-    StdoutSink(std::string logger_name, Level flush_lvl) : StdoutSink(logger_name) {
+    StdoutSink(std::string logger_name, Level flush_lvl)
+        : StdoutSink(logger_name) {
         this->flush_level = flush_lvl;
     }
 
@@ -126,9 +134,12 @@ class StdoutSink : public Sink {
 
 class StderrSink : public Sink {
   public:
-    StderrSink(std::string logger_name) : Sink(logger_name) { this->ostream = &std::cerr; }
+    StderrSink(std::string logger_name) : Sink(logger_name) {
+        this->ostream = &std::cerr;
+    }
 
-    StderrSink(std::string logger_name, Level flush_lvl) : StderrSink(logger_name) {
+    StderrSink(std::string logger_name, Level flush_lvl)
+        : StderrSink(logger_name) {
         this->flush_level = flush_lvl;
     }
 
@@ -137,7 +148,8 @@ class StderrSink : public Sink {
 
 class FileSink : public Sink {
   public:
-    FileSink(std::string logger_name, std::string file_path) : Sink(logger_name) {
+    FileSink(std::string logger_name, std::string file_path)
+        : Sink(logger_name) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
         if (ofstream.rdstate() != std::ofstream::goodbit) {
             throw std::invalid_argument(
@@ -147,7 +159,8 @@ class FileSink : public Sink {
         this->ostream = &ofstream;
     }
 
-    FileSink(std::string logger_name, std::string file_path, Level flush_lvl) : FileSink(logger_name, file_path) {
+    FileSink(std::string logger_name, std::string file_path, Level flush_lvl)
+        : FileSink(logger_name, file_path) {
         this->flush_level = flush_lvl;
     }
 
@@ -155,13 +168,16 @@ class FileSink : public Sink {
     std::ofstream ofstream;
 };
 
-inline std::unique_ptr<Sink> sink_from_str(std::string logger_name, std::string name, std::string file_path = "") {
+inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
+                                           std::string name,
+                                           std::string file_path = "") {
     if (name == "stdout") {
         return std::make_unique<logger::StdoutSink>(logger_name);
     } else if (name == "stderr") {
         return std::make_unique<logger::StderrSink>(logger_name);
     } else if (name == "file" && !file_path.empty()) {
-        return std::make_unique<logger::FileSink>(logger_name, file_path.c_str());
+        return std::make_unique<logger::FileSink>(logger_name,
+                                                  file_path.c_str());
     }
 
     throw std::invalid_argument(

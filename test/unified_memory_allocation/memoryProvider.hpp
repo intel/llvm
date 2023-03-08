@@ -9,7 +9,10 @@
 #ifndef UMA_TEST_MEMORY_PROVIDER_OPS_HPP
 #define UMA_TEST_MEMORY_PROVIDER_OPS_HPP
 
-struct umaProviderTest : uma_test::test, ::testing::WithParamInterface<std::function<std::pair<uma_result_t, uma::provider_unique_handle_t>()>> {
+struct umaProviderTest
+    : uma_test::test,
+      ::testing::WithParamInterface<std::function<
+          std::pair<uma_result_t, uma::provider_unique_handle_t>()>> {
     umaProviderTest() : provider(nullptr, nullptr) {}
     void SetUp() {
         test::SetUp();
@@ -18,9 +21,7 @@ struct umaProviderTest : uma_test::test, ::testing::WithParamInterface<std::func
         EXPECT_NE(provider, nullptr);
         this->provider = std::move(provider);
     }
-    void TearDown() override {
-        test::TearDown();
-    }
+    void TearDown() override { test::TearDown(); }
     uma::provider_unique_handle_t provider;
 };
 

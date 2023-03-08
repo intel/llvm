@@ -22,8 +22,7 @@ struct dditable_t {
 };
 
 //////////////////////////////////////////////////////////////////////////
-template <typename _handle_t>
-class __urdlllocal object_t {
+template <typename _handle_t> class __urdlllocal object_t {
   public:
     using handle_t = _handle_t;
 
@@ -32,7 +31,8 @@ class __urdlllocal object_t {
 
     object_t() = delete;
 
-    object_t(handle_t _handle, dditable_t *_dditable) : handle(_handle), dditable(_dditable) {}
+    object_t(handle_t _handle, dditable_t *_dditable)
+        : handle(_handle), dditable(_dditable) {}
 
     ~object_t() = default;
 };

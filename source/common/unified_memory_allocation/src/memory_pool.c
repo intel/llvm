@@ -71,7 +71,7 @@ void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr) {
     hPool->ops.free(hPool->pool_priv, ptr);
 }
 
-enum uma_result_t
-umaPoolGetLastResult(uma_memory_pool_handle_t hPool, const char **ppMessage) {
+enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
+                                       const char **ppMessage) {
     return hPool->ops.get_last_result(hPool->pool_priv, ppMessage);
 }
