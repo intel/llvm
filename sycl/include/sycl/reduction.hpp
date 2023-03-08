@@ -373,10 +373,15 @@ public:
 template <typename T, class BinaryOperation, bool ExplicitIdentity,
           typename CondT = void>
 class ReductionIdentityContainer {
-  static_assert(
-      IsKnownIdentityOp<T, BinaryOperation>::value,
-      "Unspecialized case should not be hit when identity is unknown.");
+  static_assert(!std::is_same_v<T, T>,
+                "Partial specializations don't cover all possible options!");
+};
 
+// Specialization for reductions with explicit identity.
+template <typename T, class BinaryOperation, bool ExplicitIdentity>
+class ReductionIdentityContainer<
+    T, BinaryOperation, ExplicitIdentity,
+    enable_if_t<IsKnownIdentityOp<T, BinaryOperation>::value>> {
 public:
   static constexpr bool has_identity = true;
 
