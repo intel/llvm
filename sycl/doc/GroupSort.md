@@ -4,7 +4,7 @@ Group sorting algorithms are needed to sort data without calling additional kern
 They are described by SYCL 2020 Extension specification:
 [direct link to the specification's extension][group_sort_spec].
 
-[group_sort_spec]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc
+[group_sort_spec]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc
 
 Example usage:
 
