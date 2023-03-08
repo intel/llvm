@@ -1860,7 +1860,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
                                   << 17;
-  constexpr uint32_t base_desc = 0x2000403;
+  constexpr uint32_t base_desc = 0x2800403;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
   __ESIMD_NS::simd<T, N> oldDst;
@@ -1872,8 +1872,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = 0x0;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_sends_store(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
-                  numSrc0, numDst);
+  raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
+                numSrc0, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
