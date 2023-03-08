@@ -43,13 +43,6 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-static cl::opt<bool>
-    ExperimentalAssignmentTracking("experimental-assignment-tracking",
-                                   cl::init(false));
-bool llvm::getEnableAssignmentTracking() {
-  return ExperimentalAssignmentTracking;
-}
-
 /// Finds all intrinsics declaring local variables as living in the memory that
 /// 'V' points to. This may include a mix of dbg.declare and
 /// dbg.addr intrinsics.
@@ -417,16 +410,80 @@ static bool isDILocationReachable(SmallPtrSetImpl<Metadata *> &Visited,
   for (auto &OpIt : N->operands()) {
     Metadata *Op = OpIt.get();
     if (isDILocationReachable(Visited, Reachable, Op)) {
+      // Don't return just yet as we want to visit all MD's children to
+      // initialize DILocationReachable in stripDebugLocFromLoopID
       Reachable.insert(N);
-      return true;
     }
   }
-  return false;
+  return Reachable.count(N);
+}
+
+static bool isAllDILocation(SmallPtrSetImpl<Metadata *> &Visited,
+                            SmallPtrSetImpl<Metadata *> &AllDILocation,
+                            const SmallPtrSetImpl<Metadata *> &DIReachable,
+                            Metadata *MD) {
+  MDNode *N = dyn_cast_or_null<MDNode>(MD);
+  if (!N)
+    return false;
+  if (isa<DILocation>(N) || AllDILocation.count(N))
+    return true;
+  if (!DIReachable.count(N))
+    return false;
+  if (!Visited.insert(N).second)
+    return false;
+  for (auto &OpIt : N->operands()) {
+    Metadata *Op = OpIt.get();
+    if (Op == MD)
+      continue;
+    if (!isAllDILocation(Visited, AllDILocation, DIReachable, Op)) {
+      return false;
+    }
+  }
+  AllDILocation.insert(N);
+  return true;
+}
+
+static Metadata *
+stripLoopMDLoc(const SmallPtrSetImpl<Metadata *> &AllDILocation,
+               const SmallPtrSetImpl<Metadata *> &DIReachable, Metadata *MD) {
+  if (isa<DILocation>(MD) || AllDILocation.count(MD))
+    return nullptr;
+
+  if (!DIReachable.count(MD))
+    return MD;
+
+  MDNode *N = dyn_cast_or_null<MDNode>(MD);
+  if (!N)
+    return MD;
+
+  SmallVector<Metadata *, 4> Args;
+  bool HasSelfRef = false;
+  for (unsigned i = 0; i < N->getNumOperands(); ++i) {
+    Metadata *A = N->getOperand(i);
+    if (!A) {
+      Args.push_back(nullptr);
+    } else if (A == MD) {
+      assert(i == 0 && "expected i==0 for self-reference");
+      HasSelfRef = true;
+      Args.push_back(nullptr);
+    } else if (Metadata *NewArg =
+                   stripLoopMDLoc(AllDILocation, DIReachable, A)) {
+      Args.push_back(NewArg);
+    }
+  }
+  if (Args.empty() || (HasSelfRef && Args.size() == 1))
+    return nullptr;
+
+  MDNode *NewMD = N->isDistinct() ? MDNode::getDistinct(N->getContext(), Args)
+                                  : MDNode::get(N->getContext(), Args);
+  if (HasSelfRef)
+    NewMD->replaceOperandWith(0, NewMD);
+  return NewMD;
 }
 
 static MDNode *stripDebugLocFromLoopID(MDNode *N) {
   assert(!N->operands().empty() && "Missing self reference?");
-  SmallPtrSet<Metadata *, 8> Visited, DILocationReachable;
+  SmallPtrSet<Metadata *, 8> Visited, DILocationReachable, AllDILocation;
   // If we already visited N, there is nothing to do.
   if (!Visited.insert(N).second)
     return N;
@@ -435,27 +492,27 @@ static MDNode *stripDebugLocFromLoopID(MDNode *N) {
   // MDNode. This loop also initializes DILocationReachable, later
   // needed by updateLoopMetadataDebugLocationsImpl; the use of
   // count_if avoids an early exit.
-  if (!std::count_if(N->op_begin() + 1, N->op_end(),
+  if (!llvm::count_if(llvm::drop_begin(N->operands()),
                      [&Visited, &DILocationReachable](const MDOperand &Op) {
                        return isDILocationReachable(
                                   Visited, DILocationReachable, Op.get());
                      }))
     return N;
 
+  Visited.clear();
   // If there is only the debug location without any actual loop metadata, we
   // can remove the metadata.
   if (llvm::all_of(llvm::drop_begin(N->operands()),
-                   [&Visited, &DILocationReachable](const MDOperand &Op) {
-                     return isDILocationReachable(Visited, DILocationReachable,
-                                                  Op.get());
+                   [&Visited, &AllDILocation,
+                    &DILocationReachable](const MDOperand &Op) {
+                     return isAllDILocation(Visited, AllDILocation,
+                                            DILocationReachable, Op.get());
                    }))
     return nullptr;
 
   return updateLoopMetadataDebugLocationsImpl(
-      N, [&DILocationReachable](Metadata *MD) -> Metadata * {
-        if (isa<DILocation>(MD) || DILocationReachable.count(MD))
-          return nullptr;
-        return MD;
+      N, [&AllDILocation, &DILocationReachable](Metadata *MD) -> Metadata * {
+        return stripLoopMDLoc(AllDILocation, DILocationReachable, MD);
       });
 }
 
@@ -813,7 +870,7 @@ bool llvm::stripNonLineTableDebugInfo(Module &M) {
 
   // Create a new llvm.dbg.cu, which is equivalent to the one
   // -gline-tables-only would have created.
-  for (auto &NMD : M.getNamedMDList()) {
+  for (auto &NMD : M.named_metadata()) {
     SmallVector<MDNode *, 8> Ops;
     for (MDNode *Op : NMD.operands())
       Ops.push_back(remap(Op));
@@ -1451,6 +1508,10 @@ LLVMDIBuilderCreateArtificialType(LLVMDIBuilderRef Builder,
   return wrap(unwrap(Builder)->createArtificialType(unwrapDI<DIType>(Type)));
 }
 
+uint16_t LLVMGetDINodeTag(LLVMMetadataRef MD) {
+  return unwrapDI<DINode>(MD)->getTag();
+}
+
 const char *LLVMDITypeGetName(LLVMMetadataRef DType, size_t *Length) {
   StringRef Str = unwrap<DIType>(DType)->getName();
   *Length = Str.size();
@@ -1959,9 +2020,33 @@ void AssignmentTrackingPass::runOnFunction(Function &F) {
   }
 }
 
+static const char *AssignmentTrackingModuleFlag =
+    "debug-info-assignment-tracking";
+
+static void setAssignmentTrackingModuleFlag(Module &M) {
+  M.setModuleFlag(Module::ModFlagBehavior::Max, AssignmentTrackingModuleFlag,
+                  ConstantAsMetadata::get(
+                      ConstantInt::get(Type::getInt1Ty(M.getContext()), 1)));
+}
+
+static bool getAssignmentTrackingModuleFlag(const Module &M) {
+  Metadata *Value = M.getModuleFlag(AssignmentTrackingModuleFlag);
+  return Value && !cast<ConstantAsMetadata>(Value)->getValue()->isZeroValue();
+}
+
+bool llvm::isAssignmentTrackingEnabled(const Module &M) {
+  return getAssignmentTrackingModuleFlag(M);
+}
+
 PreservedAnalyses AssignmentTrackingPass::run(Function &F,
                                               FunctionAnalysisManager &AM) {
   runOnFunction(F);
+
+  // Record that this module uses assignment tracking. It doesn't matter that
+  // some functons in the module may not use it - the debug info in those
+  // functions will still be handled properly.
+  setAssignmentTrackingModuleFlag(*F.getParent());
+
   // Q: Can we return a less conservative set than just CFGAnalyses? Can we
   // return PreservedAnalyses::all()?
   PreservedAnalyses PA;
@@ -1973,6 +2058,10 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
                                               ModuleAnalysisManager &AM) {
   for (auto &F : M)
     runOnFunction(F);
+
+  // Record that this module uses assignment tracking.
+  setAssignmentTrackingModuleFlag(M);
+
   // Q: Can we return a less conservative set than just CFGAnalyses? Can we
   // return PreservedAnalyses::all()?
   PreservedAnalyses PA;

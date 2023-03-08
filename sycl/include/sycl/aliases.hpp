@@ -89,29 +89,37 @@ class half;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
-using schar = signed char;
-using uchar = unsigned char;
-using ushort = unsigned short;
-using uint = unsigned int;
-using ulong = unsigned long;
-using longlong = long long;
-using ulonglong = unsigned long long;
+using schar __SYCL2020_DEPRECATED("") = signed char;
+using uchar __SYCL2020_DEPRECATED("") = unsigned char;
+using ushort __SYCL2020_DEPRECATED("") = unsigned short;
+using uint __SYCL2020_DEPRECATED("") = unsigned int;
+using ulong __SYCL2020_DEPRECATED("") = unsigned long;
+using longlong __SYCL2020_DEPRECATED("") = long long;
+using ulonglong __SYCL2020_DEPRECATED("") = unsigned long long;
 using half = sycl::detail::half_impl::half;
 
-// FIXME: SYCL 2020 spec says that cl_* aliases should reside in sycl::opencl
-// namespace.
-using cl_bool = bool;
-using cl_char = std::int8_t;
-using cl_uchar = std::uint8_t;
-using cl_short = std::int16_t;
-using cl_ushort = std::uint16_t;
-using cl_int = std::int32_t;
-using cl_uint = std::uint32_t;
-using cl_long = std::int64_t;
-using cl_ulong = std::uint64_t;
-using cl_half = half;
-using cl_float = float;
-using cl_double = double;
+using cl_bool __SYCL2020_DEPRECATED("use sycl::opencl::cl_bool instead") = bool;
+using cl_char
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_char instead") = std::int8_t;
+using cl_uchar
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_uchar instead") = std::uint8_t;
+using cl_short
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_short instead") = std::int16_t;
+using cl_ushort __SYCL2020_DEPRECATED("use sycl::opencl::cl_ushort instead") =
+    std::uint16_t;
+using cl_int
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_int instead") = std::int32_t;
+using cl_uint
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_uint instead") = std::uint32_t;
+using cl_long
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_long instead") = std::int64_t;
+using cl_ulong
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_ulong instead") = std::uint64_t;
+using cl_half __SYCL2020_DEPRECATED("use sycl::opencl::cl_half instead") = half;
+using cl_float
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_float instead") = float;
+using cl_double
+    __SYCL2020_DEPRECATED("use sycl::opencl::cl_double instead") = double;
 
 namespace opencl {
 // Strictly speaking, cl_* aliases should not be defined in opencl namespace in
