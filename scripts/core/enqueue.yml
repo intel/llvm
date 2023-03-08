@@ -619,10 +619,10 @@ params:
       name: region
       desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
     - type: size_t
-      name: inputRowPitch
+      name: rowPitch
       desc: "[in] length of each row in bytes"
     - type: size_t
-      name: inputSlicePitch
+      name: slicePitch
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void*
       name: pSrc
