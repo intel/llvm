@@ -223,7 +223,8 @@ def generate_common(dstpath, sections, ver, rev):
         loc += util.makoWrite(
             "./templates/%s.mako" % fn,
             os.path.join(sourcepath, fn),
-            ver=rev,
+            ver=ver,
+            rev=rev,
             sourcepath=sourcepath,
             sections=sections)
 

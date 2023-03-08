@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @file ur_ddi.h
- * @version v0.5-r0.5
+ * @version v0.6-r0
  *
  */
 #ifndef UR_DDI_H_INCLUDED
