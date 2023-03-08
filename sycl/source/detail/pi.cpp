@@ -364,12 +364,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
-  return loadOsLibrary(PluginPath);
+  return loadOsPluginLibrary(PluginPath);
 }
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
+int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.

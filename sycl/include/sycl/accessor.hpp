@@ -1247,6 +1247,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1974,11 +1975,11 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getAccessRange().size(); }
+  size_type size() const noexcept { return getAccessRange().size(); }
 
-  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2750,15 +2751,16 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
-  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
