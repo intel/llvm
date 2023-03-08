@@ -24,19 +24,37 @@ int main() {
     context Context = Queue.get_context();
 
     // Check constructor and getters
-    Queue.submit([&](handler &CGH) {
-      stream Out(1024, 80, CGH,
-                 property_list{property::buffer::context_bound{Context}});
-      assert(Out.size() == 1024);
-      assert(Out.get_work_item_buffer_size() == 80);
-      assert(Out.has_property<property::buffer::context_bound>());
-      assert(!Out.has_property<property::queue::in_order>());
-      assert(
-          Out.get_property<property::buffer::context_bound>().get_context() ==
-          Context);
+    size_t sizeInKernel = 0;
+    size_t workItemBufferSizeInKernel = 0;
+    {
+      sycl::buffer<size_t> bufSize(&sizeInKernel, 1);
+      sycl::buffer<size_t> bufWorkItemBufferSize(&workItemBufferSizeInKernel,
+                                                 1);
 
-      CGH.single_task<class DummyTask1>([=]() {});
-    });
+      // Check constructor and getters
+      Queue.submit([&](handler &CGH) {
+        stream Out(1024, 80, CGH,
+                   property_list{property::buffer::context_bound{Context}});
+        assert(Out.size() == 1024);
+        assert(Out.get_work_item_buffer_size() == 80);
+        assert(Out.has_property<property::buffer::context_bound>());
+        assert(!Out.has_property<property::queue::in_order>());
+        assert(
+            Out.get_property<property::buffer::context_bound>().get_context() ==
+            Context);
+
+        sycl::accessor accSize(bufSize, CGH, sycl::write_only);
+        sycl::accessor accWorkItemBufferSize(bufWorkItemBufferSize, CGH,
+                                             sycl::write_only);
+
+        CGH.single_task<class DummyTask1>([=]() {
+          accSize[0] = Out.size();
+          accWorkItemBufferSize[0] = Out.get_work_item_buffer_size();
+        });
+      });
+    }
+    assert(sizeInKernel == 1024);
+    assert(workItemBufferSizeInKernel == 80);
 
     // Check common reference semantics
     std::hash<stream> Hasher;
