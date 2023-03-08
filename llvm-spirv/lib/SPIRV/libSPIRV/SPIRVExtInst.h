@@ -226,6 +226,7 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::TypeBasic, "DebugTypeBasic");
   add(SPIRVDebug::TypePointer, "DebugTypePointer");
   add(SPIRVDebug::TypeArray, "DebugTypeArray");
+  add(SPIRVDebug::TypeArrayDynamic, "DebugTypeArrayDynamic");
   add(SPIRVDebug::TypeVector, "DebugTypeVector");
   add(SPIRVDebug::TypeQualifier, "DebugTypeQualifier");
   add(SPIRVDebug::TypeFunction, "DebugTypeFunction");

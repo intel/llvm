@@ -481,6 +481,14 @@ SPIRVWord adjustAccessFlags(DIScope *Scope, SPIRVWord Flags) {
   return Flags;
 }
 
+// Fortran dynamic arrays can have following 'dataLocation', 'associated'
+// 'allocated' and 'rank' debug metadata. Such arrays are being mapped on
+// DebugTypeArrayDynamic from NonSemantic.Kernel.100 debug spec
+inline bool isFortranArrayDynamic(const DICompositeType *AT) {
+  return (AT->getRawDataLocation() || AT->getRawAssociated() ||
+          AT->getRawAllocated() || AT->getRawRank());
+}
+
 /// The following methods (till the end of the file) implement translation of
 /// debug instrtuctions described in the spec.
 
@@ -561,8 +569,11 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgQualifiedType(const DIDerivedType *QT) {
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
-  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) {
+    if (isFortranArrayDynamic(AT))
+      return transDbgArrayTypeDynamic(AT);
     return transDbgArrayTypeNonSemantic(AT);
+  }
 
   return transDbgArrayTypeOpenCL(AT);
 }
@@ -571,8 +582,7 @@ SPIRVEntry *
 LLVMToSPIRVDbgTran::transDbgArrayTypeOpenCL(const DICompositeType *AT) {
   using namespace SPIRVDebug::Operand::TypeArray;
   SPIRVWordVec Ops(MinOperandCount);
-  SPIRVEntry *Base = transDbgEntry(AT->getBaseType());
-  Ops[BaseTypeIdx] = Base->getId();
+  Ops[BaseTypeIdx] = transDbgEntry(AT->getBaseType())->getId();
 
   DINodeArray AR(AT->getElements());
   // For N-dimensianal arrays AR.getNumElements() == N
@@ -615,8 +625,7 @@ SPIRVEntry *
 LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
   using namespace SPIRVDebug::Operand::TypeArray;
   SPIRVWordVec Ops(MinOperandCount);
-  SPIRVEntry *Base = transDbgEntry(AT->getBaseType());
-  Ops[BaseTypeIdx] = Base->getId();
+  Ops[BaseTypeIdx] = transDbgEntry(AT->getBaseType())->getId();
 
   DINodeArray AR(AT->getElements());
   // For N-dimensianal arrays AR.getNumElements() == N
@@ -633,6 +642,43 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
     Ops[SubrangesIdx + I] = transDbgEntry(SR)->getId();
   }
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
+}
+
+// The function is used to translate Fortran's dynamic arrays
+SPIRVEntry *
+LLVMToSPIRVDbgTran::transDbgArrayTypeDynamic(const DICompositeType *AT) {
+  using namespace SPIRVDebug::Operand::TypeArrayDynamic;
+  SPIRVWordVec Ops(MinOperandCount);
+  Ops[BaseTypeIdx] = transDbgEntry(AT->getBaseType())->getId();
+
+  // DataLocation, Associated, Allocated and Rank can be either DIExpression
+  // metadata or DIVariable
+  auto TransOperand = [&](llvm::Metadata *DIMD) -> SPIRVWord {
+    if (auto *DIExpr = dyn_cast_or_null<DIExpression>(DIMD))
+      return transDbgExpression(DIExpr)->getId();
+    if (auto *DIVar = dyn_cast_or_null<DIVariable>(DIMD)) {
+      if (const DILocalVariable *LV = dyn_cast<DILocalVariable>(DIVar))
+        return transDbgLocalVariable(LV)->getId();
+      if (const DIGlobalVariable *GV = dyn_cast<DIGlobalVariable>(DIVar))
+        return transDbgGlobalVariable(GV)->getId();
+    }
+    return getDebugInfoNoneId();
+  };
+
+  Ops[DataLocationIdx] = TransOperand(AT->getRawDataLocation());
+  Ops[AssociatedIdx] = TransOperand(AT->getRawAssociated());
+  Ops[AllocatedIdx] = TransOperand(AT->getRawAllocated());
+  Ops[RankIdx] = TransOperand(AT->getRawRank());
+
+  DINodeArray AR(AT->getElements());
+  // For N-dimensianal arrays AR.getNumElements() == N
+  const unsigned N = AR.size();
+  Ops.resize(SubrangesIdx + N);
+  for (unsigned I = 0; I < N; ++I) {
+    DISubrange *SR = cast<DISubrange>(AR[I]);
+    Ops[SubrangesIdx + I] = transDbgEntry(SR)->getId();
+  }
+  return BM->addDebugInfo(SPIRVDebug::TypeArrayDynamic, getVoidTy(), Ops);
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {

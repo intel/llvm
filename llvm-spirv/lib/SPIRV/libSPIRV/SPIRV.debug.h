@@ -52,7 +52,8 @@ enum Instruction {
   Source                        = 35,
   ModuleINTEL                   = 36,
   InstCount                     = 37,
-  TypeSubrange                  = 110
+  TypeSubrange                  = 110,
+  TypeArrayDynamic              = 202
 };
 
 enum Flag {
@@ -327,6 +328,18 @@ enum {
   ComponentCountIdx = 1,
   SubrangesIdx      = 1,
   MinOperandCount   = 2
+};
+}
+
+namespace TypeArrayDynamic {
+enum {
+  BaseTypeIdx     = 0,
+  DataLocationIdx = 1,
+  AssociatedIdx   = 2,
+  AllocatedIdx    = 3,
+  RankIdx         = 4,
+  SubrangesIdx    = 5,
+  MinOperandCount = 6
 };
 }
 

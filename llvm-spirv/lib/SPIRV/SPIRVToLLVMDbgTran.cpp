@@ -273,13 +273,54 @@ SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
     for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
       auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
       if (auto *Count = SR->getCount().get<ConstantInt *>())
-        TotalCount *= Count->getZExtValue() > 0 ? Count->getZExtValue() : 0;
+        TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
       Subscripts.push_back(SR);
     }
   }
   DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
   size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
   return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray);
+}
+
+DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeArrayDynamic;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  DIType *BaseTy =
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+  size_t TotalCount = 1;
+  SmallVector<llvm::Metadata *, 8> Subscripts;
+  for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
+    auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
+    if (auto *Count = SR->getCount().get<ConstantInt *>())
+      TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
+    Subscripts.push_back(SR);
+  }
+  DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
+
+  auto TransOperand = [&](SPIRVWord Idx) -> PointerUnion<DIExpression *,
+                                                         DIVariable *> {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
+      if (const auto *GV = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx]))
+        return transDebugInst<DIGlobalVariable>(GV);
+      if (const auto *LV = getDbgInst<SPIRVDebug::LocalVariable>(Ops[Idx]))
+        return transDebugInst<DILocalVariable>(LV);
+      if (const auto *DIExpr = getDbgInst<SPIRVDebug::Expression>(Ops[Idx]))
+        return transDebugInst<DIExpression>(DIExpr);
+    }
+    return nullptr;
+  };
+  PointerUnion<DIExpression *, DIVariable *> DataLocation =
+      TransOperand(DataLocationIdx);
+  PointerUnion<DIExpression *, DIVariable *> Associated =
+      TransOperand(AssociatedIdx);
+  PointerUnion<DIExpression *, DIVariable *> Allocated =
+      TransOperand(AllocatedIdx);
+  PointerUnion<DIExpression *, DIVariable *> Rank = TransOperand(RankIdx);
+  return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray,
+                                 DataLocation, Associated, Allocated, Rank);
 }
 
 DICompositeType *
@@ -1036,6 +1077,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::Expression:
     return transExpression(DebugInst);
+
+  case SPIRVDebug::TypeArrayDynamic:
+    return transTypeArrayDynamic(DebugInst);
 
   default:
     llvm_unreachable("Not implemented SPIR-V debug instruction!");
