@@ -6,7 +6,7 @@
  *
  */
 #include "ur_loader.hpp"
-#include "platform_discovery.hpp"
+#include "ur_adapter_registry.hpp"
 
 namespace loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -14,13 +14,12 @@ context_t *context;
 
 ///////////////////////////////////////////////////////////////////////////////
 ur_result_t context_t::init() {
-    auto discoveredPlatforms = discoverEnabledPlatforms();
+    AdapterRegistry ar;
 
-    for (auto name : discoveredPlatforms) {
-        auto handle = LOAD_DRIVER_LIBRARY(name.c_str());
-        if (NULL != handle) {
-            platforms.emplace_back();
-            platforms.rbegin()->handle = handle;
+    for (const auto &name : ar.discoveredPlatforms) {
+        auto handle = LibLoader::loadAdapterLibrary(name.c_str());
+        if (handle) {
+            platforms.emplace_back(std::move(handle));
         }
     }
 
@@ -35,13 +34,6 @@ ur_result_t context_t::init() {
     }
 
     return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-context_t::~context_t() {
-    for (auto &drv : platforms) {
-        FREE_DRIVER_LIBRARY(drv.handle);
-    }
 }
 
 } // namespace loader

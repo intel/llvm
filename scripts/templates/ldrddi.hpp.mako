@@ -9,7 +9,7 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -18,6 +18,8 @@ from templates import helper as th
  */
 #ifndef UR_LOADER_LDRDDI_H
 #define UR_LOADER_LDRDDI_H 1
+
+#include "${x}_object.hpp"
 
 namespace loader
 {
