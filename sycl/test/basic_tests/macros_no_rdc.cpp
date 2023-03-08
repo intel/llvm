@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-only -E -dD -fno-sycl-rdc %s -o %t.device
 // RUN: %clangxx %fsycl-host-only -fno-sycl-rdc -E -dD %s -o %t.host
 //
-// RUN: FileCheck --match-full-lines %s < %t.device --check-prefixes=DEVICE-FULL-LINE
+// RUN: FileCheck --match-full-lines %s < %t.device --check-prefixes=DEVICE-FULL-LINE --implicit-check-not="#define SYCL_EXTERNAL"
 // RUN: FileCheck --match-full-lines %s < %t.host --check-prefixes=HOST
 //
 // Remove __DPCPP_SYCL_EXTERNAL to simplify regex for DEVICE prefix
@@ -10,8 +10,7 @@
 // RUN: FileCheck %s < %t.device --check-prefixes=DEVICE
 //
 // With -fno-sycl-rdc, device code should not define or use SYCL_EXTERNAL
-// DEVICE-FULL-LINE-NOT: #define SYCL_EXTERNAL
-// DEVICE-FULL-LINE-DAG: #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+// DEVICE-FULL-LINE: #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
 // DEVICE-NOT:SYCL_EXTERNAL
 //
 // With -fno-sycl-rdc, host code should have SYCL_EXTERNAL defined to empty
