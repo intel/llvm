@@ -824,7 +824,7 @@ class ur_usm_pool_flags_t(c_int):
 ###############################################################################
 ## @brief USM allocation type
 class ur_usm_type_v(IntEnum):
-    UNKOWN = 0                                      ## Unkown USM type
+    UNKNOWN = 0                                     ## Unknown USM type
     HOST = 1                                        ## Host USM type
     DEVICE = 2                                      ## Device USM type
     SHARED = 3                                      ## Shared USM type
@@ -1750,9 +1750,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgPointer
 if __use_win_types:
-    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
 else:
-    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetExecInfo

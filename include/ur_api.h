@@ -1972,7 +1972,7 @@ urSamplerCreateWithNativeHandle(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Unified Rutime APIs
+// Intel 'oneAPI' Unified Runtime APIs
 #if !defined(__GNUC__)
 #pragma region usm
 #endif
@@ -2008,10 +2008,10 @@ typedef enum ur_usm_pool_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation type
 typedef enum ur_usm_type_t {
-    UR_USM_TYPE_UNKOWN = 0, ///< Unkown USM type
-    UR_USM_TYPE_HOST = 1,   ///< Host USM type
-    UR_USM_TYPE_DEVICE = 2, ///< Device USM type
-    UR_USM_TYPE_SHARED = 3, ///< Shared USM type
+    UR_USM_TYPE_UNKNOWN = 0, ///< Unknown USM type
+    UR_USM_TYPE_HOST = 1,    ///< Host USM type
+    UR_USM_TYPE_DEVICE = 2,  ///< Device USM type
+    UR_USM_TYPE_SHARED = 3,  ///< Shared USM type
     /// @cond
     UR_USM_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3137,7 +3137,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,             ///< [in] size of argument type
     const void *pArgValue       ///< [in][optional] SVM pointer to memory location holding the argument
                                 ///< value. If null then argument value is considered null.
 );
@@ -6157,7 +6156,6 @@ typedef void(UR_APICALL *ur_pfnKernelSetArgLocalCb_t)(
 typedef struct ur_kernel_set_arg_pointer_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
-    size_t *pargSize;
     const void **ppArgValue;
 } ur_kernel_set_arg_pointer_params_t;
 

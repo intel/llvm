@@ -7,7 +7,7 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Unified Rutime APIs"
+desc: "Intel $OneApi Unified Runtime APIs"
 ordinal: "4"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -48,8 +48,8 @@ desc: "USM allocation type"
 class: $xUSM
 name: $x_usm_type_t
 etors:
-    - name: UNKOWN
-      desc: "Unkown USM type"
+    - name: UNKNOWN
+      desc: "Unknown USM type"
     - name: HOST
       desc: "Host USM type"
     - name: DEVICE
