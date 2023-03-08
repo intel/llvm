@@ -160,20 +160,15 @@ class GetenvToMap : public GetEnvFailureWithParam {};
 
 class GetenvToVec : public GetEnvFailureWithParam {};
 
-INSTANTIATE_TEST_SUITE_P(WrongValuesForMap, GetenvToMap,
-                         testing::Values("value_1;value_2",
-                                         "param_1:value_1,value_2;param_2:",
-                                         "param_1:value_1,value_2;:value_1",
-                                         ",;:", ",;", "rvrawerv)(*&)($@#93939854;;)",
-                                         "simple", ",", ":", ";", "value,value",
-                                         "param:value;param:value",
-                                         "param,value;param:value",
-                                         "param:value;param_2,value",
-                                         "param:value;param_2",
-                                         "param:value;param_2;param_3",
-                                         "param:value:value_2",
-                                         "param:value;:",
-                                         "param:value;,"));
+INSTANTIATE_TEST_SUITE_P(
+    WrongValuesForMap, GetenvToMap,
+    testing::Values("value_1;value_2", "param_1:value_1,value_2;param_2:",
+                    "param_1:value_1,value_2;:value_1", ",;:", ",;",
+                    "rvrawerv)(*&)($@#93939854;;)", "simple", ",", ":", ";",
+                    "value,value", "param:value;param:value",
+                    "param,value;param:value", "param:value;param_2,value",
+                    "param:value;param_2", "param:value;param_2;param_3",
+                    "param:value:value_2", "param:value;:", "param:value;,"));
 
 TEST_P(GetenvToMap, WrongEnvVarValues) {
     ASSERT_THROW(getenv_to_map("UR_TEST_ENV_VAR"), std::invalid_argument);
@@ -181,8 +176,8 @@ TEST_P(GetenvToMap, WrongEnvVarValues) {
 
 INSTANTIATE_TEST_SUITE_P(WrongValuesForVec, GetenvToVec,
                          testing::Values("value_1;value_2",
-                                         "param_1:value_1,value_2;param_2",
-                                         ",", ";", ":", ",,,",
+                                         "param_1:value_1,value_2;param_2", ",",
+                                         ";", ":", ",,,",
                                          "rvrawerv)(*&)($@#93939854,,)",
                                          "value,,", "value;"));
 

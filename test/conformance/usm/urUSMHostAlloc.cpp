@@ -33,9 +33,8 @@ TEST_P(urUSMHostAllocTest, Success) {
     ur_event_handle_t event = nullptr;
 
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
@@ -43,9 +42,8 @@ TEST_P(urUSMHostAllocTest, Success) {
 
     // Set 1, in all bytes of int
     pattern = 1;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
@@ -59,15 +57,15 @@ TEST_P(urUSMHostAllocTest, Success) {
 
 TEST_P(urUSMHostAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), 0,
-                                    &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), 0, &ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidNullPtrMem) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0,
-                                    nullptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0, nullptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
@@ -78,7 +76,7 @@ TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
 
 TEST_P(urUSMHostAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                     urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 1,
-                                    &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 1, &ptr));
 }

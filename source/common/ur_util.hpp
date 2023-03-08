@@ -45,8 +45,8 @@
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
 #define MAKE_LAYER_NAME(NAME) NAME ".dll"
 #define LOAD_DRIVER_LIBRARY(NAME) LoadLibraryExA(NAME, nullptr, 0)
-#define FREE_DRIVER_LIBRARY(LIB) \
-    if (LIB)                     \
+#define FREE_DRIVER_LIBRARY(LIB)                                               \
+    if (LIB)                                                                   \
     FreeLibrary(LIB)
 #define GET_FUNCTION_PTR(LIB, FUNC_NAME) GetProcAddress(LIB, FUNC_NAME)
 #define string_copy_s strncpy_s
@@ -54,14 +54,16 @@
 #include <dlfcn.h>
 #define HMODULE void *
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
-#define MAKE_LAYER_NAME(NAME) "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
+#define MAKE_LAYER_NAME(NAME)                                                  \
+    "lib" NAME ".so." L0_VALIDATION_LAYER_SUPPORTED_VERSION
 #if defined(SANITIZER_ANY)
 #define LOAD_DRIVER_LIBRARY(NAME) dlopen(NAME, RTLD_LAZY | RTLD_LOCAL)
 #else
-#define LOAD_DRIVER_LIBRARY(NAME) dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
+#define LOAD_DRIVER_LIBRARY(NAME)                                              \
+    dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
 #endif
-#define FREE_DRIVER_LIBRARY(LIB) \
-    if (LIB)                     \
+#define FREE_DRIVER_LIBRARY(LIB)                                               \
+    if (LIB)                                                                   \
     dlclose(LIB)
 #define GET_FUNCTION_PTR(LIB, FUNC_NAME) dlsym(LIB, FUNC_NAME)
 #define string_copy_s strncpy
@@ -130,7 +132,8 @@ static void throw_wrong_format_vec(const char *env_var_name) {
 static void throw_wrong_format_map(const char *env_var_name) {
     std::stringstream ex_ss;
     ex_ss << "Wrong format of the " << env_var_name << " environment variable!"
-          << " Proper format is: ENV_VAR=\"param_1:value_1,value_2;param_2:value_1";
+          << " Proper format is: "
+             "ENV_VAR=\"param_1:value_1,value_2;param_2:value_1";
     throw std::invalid_argument(ex_ss.str());
 }
 
@@ -145,7 +148,8 @@ static void throw_wrong_format_map(const char *env_var_name) {
 /// @return std::optional with a possible vector of strings containing parsed values
 ///         and std::nullopt when the environment variable is not set or is empty
 /// @throws std::invalid_argument() when the parsed environment variable has wrong format
-inline std::optional<std::vector<std::string>> getenv_to_vec(const char *env_var_name) {
+inline std::optional<std::vector<std::string>>
+getenv_to_vec(const char *env_var_name) {
     char values_delim = ',';
 
     auto env_var = ur_getenv(env_var_name);
@@ -153,7 +157,8 @@ inline std::optional<std::vector<std::string>> getenv_to_vec(const char *env_var
         return std::nullopt;
     }
 
-    if (env_var->find(':') == std::string::npos && env_var->find(';') == std::string::npos) {
+    if (env_var->find(':') == std::string::npos &&
+        env_var->find(';') == std::string::npos) {
         std::stringstream values_ss(*env_var);
         std::string value;
         std::vector<std::string> values_vec;
@@ -217,7 +222,9 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
 
         std::getline(kv_ss, key, key_value_delim);
         std::getline(kv_ss, values);
-        if (key.empty() || values.empty() || values.find(':') != std::string::npos || map.find(key) != map.end()) {
+        if (key.empty() || values.empty() ||
+            values.find(':') != std::string::npos ||
+            map.find(key) != map.end()) {
             throw_wrong_format_map(env_var_name);
         }
 

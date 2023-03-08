@@ -7,7 +7,8 @@ struct urUSMDeviceAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
         bool deviceUSMSupport = false;
-        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
+        ASSERT_SUCCESS(
+            uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
         if (!deviceUSMSupport) {
             GTEST_SKIP() << "Device USM is not supported.";
         }
@@ -18,16 +19,14 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMDeviceAllocTest);
 TEST_P(urUSMDeviceAllocTest, Success) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(
-        urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0,
-                         &ptr));
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, 0, &ptr));
     ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
@@ -57,15 +56,14 @@ TEST_P(urUSMDeviceAllocTest, InvalidNullPtrResult) {
 
 TEST_P(urUSMDeviceAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
-                     urUSMDeviceAlloc(context, device, nullptr, nullptr, 13, 0,
-                                      &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_USM_SIZE,
+        urUSMDeviceAlloc(context, device, nullptr, nullptr, 13, 0, &ptr));
 }
 
 TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_VALUE,
-        urUSMDeviceAlloc(context, device, nullptr, nullptr, sizeof(int), 1,
-                         &ptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+                     urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                      sizeof(int), 1, &ptr));
 }

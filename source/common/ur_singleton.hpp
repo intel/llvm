@@ -15,11 +15,11 @@
 
 //////////////////////////////////////////////////////////////////////////
 /// a abstract factory for creation of singleton objects
-template <typename singleton_tn, typename key_tn>
-class singleton_factory_t {
+template <typename singleton_tn, typename key_tn> class singleton_factory_t {
   protected:
     using singleton_t = singleton_tn;
-    using key_t = typename std::conditional<std::is_pointer<key_tn>::value, size_t, key_tn>::type;
+    using key_t = typename std::conditional<std::is_pointer<key_tn>::value,
+                                            size_t, key_tn>::type;
 
     using ptr_t = std::unique_ptr<singleton_t>;
     using map_t = std::unordered_map<key_t, ptr_t>;
@@ -29,8 +29,9 @@ class singleton_factory_t {
 
     //////////////////////////////////////////////////////////////////////////
     /// extract the key from parameter list and if necessary, convert type
-    template <typename... Ts>
-    key_t getKey(key_tn key, Ts &&...params) { return reinterpret_cast<key_t>(key); }
+    template <typename... Ts> key_t getKey(key_tn key, Ts &&...params) {
+        return reinterpret_cast<key_t>(key);
+    }
 
   public:
     //////////////////////////////////////////////////////////////////////////
@@ -43,8 +44,7 @@ class singleton_factory_t {
     /// if no instance exists, then creates a new instance
     /// the params are forwarded to the ctor of the singleton
     /// the first parameter must be the unique identifier of the instance
-    template <typename... Ts>
-    singleton_tn *getInstance(Ts &&...params) {
+    template <typename... Ts> singleton_tn *getInstance(Ts &&...params) {
         auto key = getKey(std::forward<Ts>(params)...);
 
         if (key == 0) { // No zero keys allowed in map
@@ -55,7 +55,8 @@ class singleton_factory_t {
         auto iter = map.find(key);
 
         if (map.end() == iter) {
-            auto ptr = std::make_unique<singleton_t>(std::forward<Ts>(params)...);
+            auto ptr =
+                std::make_unique<singleton_t>(std::forward<Ts>(params)...);
             iter = map.emplace(key, std::move(ptr)).first;
         }
         return iter->second.get();

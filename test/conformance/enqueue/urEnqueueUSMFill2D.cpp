@@ -12,16 +12,17 @@ struct testParametersFill2D {
 };
 
 template <typename T>
-inline std::string printFill2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
+inline std::string printFill2DTestString(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
     const auto device_handle = std::get<0>(info.param);
-    const auto
-        platform_device_name = uur::GetPlatformAndDeviceName(device_handle);
+    const auto platform_device_name =
+        uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
     test_name << platform_device_name << "__pitch__"
-              << std::get<1>(info.param).pitch
-              << "__width__" << std::get<1>(info.param).width
-              << "__height__" << std::get<1>(info.param).height
-              << "__patternSize__" << std::get<1>(info.param).pattern_size;
+              << std::get<1>(info.param).pitch << "__width__"
+              << std::get<1>(info.param).width << "__height__"
+              << std::get<1>(info.param).height << "__patternSize__"
+              << std::get<1>(info.param).pattern_size;
     return test_name.str();
 }
 
@@ -45,9 +46,8 @@ struct urEnqueueUSMFill2DTestWithParam
             GTEST_SKIP() << "Device USM is not supported";
         }
 
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
-                             0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                        allocation_size, 0, &ptr));
     }
 
     void TearDown() override {
@@ -72,9 +72,9 @@ struct urEnqueueUSMFill2DTestWithParam
     }
 
     void verifyData() {
-        ASSERT_SUCCESS(
-            urEnqueueUSMMemcpy2D(queue, true, host_mem.data(), pitch, ptr,
-                                 pitch, width, height, 0, nullptr, nullptr));
+        ASSERT_SUCCESS(urEnqueueUSMMemcpy2D(queue, true, host_mem.data(), pitch,
+                                            ptr, pitch, width, height, 0,
+                                            nullptr, nullptr));
 
         size_t pattern_index = 0;
         for (size_t w = 0; w < width; ++w) {
@@ -108,7 +108,8 @@ static std::vector<testParametersFill2D> test_cases{
     {1024, 256, 1, 256},
     /* Height == 1 && Pitch > width && pattern_size < width*/
     {1024, 256, 1, 4},
-    /* Height == 1 && Pitch > width && width != power_of_2 && pattern_size == 1*/
+    /* Height == 1 && Pitch > width && width != power_of_2 && pattern_size ==
+       1*/
     {1024, 57, 1, 1},
     /* Height == 1 && Pitch == width && pattern_size < width */
     {1024, 1024, 1, 256},
@@ -127,23 +128,22 @@ static std::vector<testParametersFill2D> test_cases{
     /* Height != power_of_2 && width == power_of_2 && pattern_size == 128 */
     {1024, 256, 35, 128}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam,
-                 testing::ValuesIn(test_cases),
+UUR_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam, testing::ValuesIn(test_cases),
                  printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
 
 TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
     ur_event_handle_t event = nullptr;
 
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
-                           width, height, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                      pattern.data(), width, height, 0, nullptr,
+                                      &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
     ur_event_status_t event_status;
-    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(event,
-                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
+        event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
     EXPECT_SUCCESS(urEventRelease(event));
 
@@ -160,9 +160,8 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
             GTEST_SKIP() << "Device USM is not supported";
         }
 
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
-                             0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                        allocation_size, 0, &ptr));
     }
 
     void TearDown() override {
@@ -185,58 +184,58 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMFill2DNegativeTest);
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullQueueHandle) {
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(nullptr, ptr, pitch, pattern_size, pattern.data(),
-                           width, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(nullptr, ptr, pitch, pattern_size,
+                                        pattern.data(), width, height, 0,
+                                        nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtr) {
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, nullptr, pitch, pattern_size, pattern.data(),
-                           width, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, nullptr, pitch, pattern_size,
+                                        pattern.data(), width, height, 0,
+                                        nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, nullptr,
-                           width, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        nullptr, width, height, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidPitch) {
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, 0, pattern_size, pattern.data(),
-                           width, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, 0, pattern_size,
+                                        pattern.data(), width, height, 0,
+                                        nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, width - 1, pattern_size, pattern.data(),
-                           width, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, width - 1, pattern_size,
+                                        pattern.data(), width, height, 0,
+                                        nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidWidth) {
 
     /* width is 0 */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
-                           0, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), 0, height, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 
     /* width is not a multiple of pattern_size */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
-                           7, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), 7, height, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidHeight) {
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
-                           width, 0, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), width, 0, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, OutOfBounds) {
@@ -244,58 +243,48 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, OutOfBounds) {
     size_t out_of_bounds = pitch * height + 1;
 
     /* Interpret memory as having just one row */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, out_of_bounds, pattern_size,
-                           pattern.data(),
-                           width, 1, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, out_of_bounds, pattern_size,
+                                        pattern.data(), width, 1, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 
     /* Interpret memory as having just one column */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, out_of_bounds, pattern_size,
-                           pattern.data(),
-                           1, height, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, out_of_bounds, pattern_size,
+                                        pattern.data(), 1, height, 0, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, invalidPatternSize) {
 
     /* pattern size is 0 */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, 0,
-                           pattern.data(),
-                           width, 1, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, 0, pattern.data(),
+                                        width, 1, 0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 
     /* pattern_size is not a power of 2 */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, 3,
-                           pattern.data(),
-                           width, 1, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, 3, pattern.data(),
+                                        width, 1, 0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 
     /* pattern_size is larger than size */
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, 32,
-                           pattern.data(),
-                           width, 1, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, 32, pattern.data(),
+                                        width, 1, 0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtrEventWaitList) {
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
-                           pattern.data(),
-                           width, 1, 1, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), width, 1, 1, nullptr,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ur_event_handle_t validEvent;
     ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
 
-    ASSERT_EQ_RESULT(
-        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
-                           pattern.data(),
-                           width, 1, 0, &validEvent, nullptr),
-        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), width, 1, 0,
+                                        &validEvent, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }

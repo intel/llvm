@@ -37,9 +37,11 @@ struct uma_memory_provider_ops_t {
     void (*finalize)(void *pool);
 
     /// Refer to memory_provider.h for description of those functions
-    enum uma_result_t (*alloc)(void *provider, size_t size, size_t alignment, void **ptr);
+    enum uma_result_t (*alloc)(void *provider, size_t size, size_t alignment,
+                               void **ptr);
     enum uma_result_t (*free)(void *provider, void *ptr, size_t size);
-    enum uma_result_t (*get_last_result)(void *provider, const char **ppMessage);
+    enum uma_result_t (*get_last_result)(void *provider,
+                                         const char **ppMessage);
 };
 
 #ifdef __cplusplus

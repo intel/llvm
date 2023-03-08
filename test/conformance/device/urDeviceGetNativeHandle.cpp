@@ -14,7 +14,8 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
 
 TEST_F(urDeviceGetNativeHandleTest, InvalidNullHandleDevice) {
     ur_native_handle_t native_handle = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urDeviceGetNativeHandle(nullptr, &native_handle));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urDeviceGetNativeHandle(nullptr, &native_handle));
 }
 
 TEST_F(urDeviceGetNativeHandleTest, InvalidNullPointerNativeDevice) {

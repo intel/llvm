@@ -26,35 +26,20 @@ auto wrapPoolUnique(uma_memory_pool_handle_t hPool) {
 }
 
 struct pool_base {
-    uma_result_t initialize() noexcept {
-        return UMA_RESULT_SUCCESS;
-    };
-    void *malloc(size_t size) noexcept {
-        return nullptr;
-    }
-    void *calloc(size_t, size_t) noexcept {
-        return nullptr;
-    }
-    void *realloc(void *, size_t) noexcept {
-        return nullptr;
-    }
-    void *aligned_malloc(size_t, size_t) noexcept {
-        return nullptr;
-    }
-    size_t malloc_usable_size(void *) noexcept {
-        return 0;
-    }
-    void free(void *) noexcept {
-    }
+    uma_result_t initialize() noexcept { return UMA_RESULT_SUCCESS; };
+    void *malloc(size_t size) noexcept { return nullptr; }
+    void *calloc(size_t, size_t) noexcept { return nullptr; }
+    void *realloc(void *, size_t) noexcept { return nullptr; }
+    void *aligned_malloc(size_t, size_t) noexcept { return nullptr; }
+    size_t malloc_usable_size(void *) noexcept { return 0; }
+    void free(void *) noexcept {}
     enum uma_result_t get_last_result(const char **ppMessage) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;
     }
 };
 
 struct malloc_pool : public pool_base {
-    void *malloc(size_t size) noexcept {
-        return ::malloc(size);
-    }
+    void *malloc(size_t size) noexcept { return ::malloc(size); }
     void *calloc(size_t num, size_t size) noexcept {
         return ::calloc(num, size);
     }
@@ -76,9 +61,7 @@ struct malloc_pool : public pool_base {
         return ::malloc_usable_size(ptr);
 #endif
     }
-    void free(void *ptr) noexcept {
-        return ::free(ptr);
-    }
+    void free(void *ptr) noexcept { return ::free(ptr); }
 };
 
 } // namespace uma_test

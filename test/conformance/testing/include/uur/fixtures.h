@@ -8,11 +8,11 @@
 #include <uur/environment.h>
 #include <uur/utils.h>
 
-#define UUR_RETURN_ON_FATAL_FAILURE(...)                \
-    __VA_ARGS__;                                        \
-    if (this->HasFatalFailure() || this->IsSkipped()) { \
-        return;                                         \
-    }                                                   \
+#define UUR_RETURN_ON_FATAL_FAILURE(...)                                       \
+    __VA_ARGS__;                                                               \
+    if (this->HasFatalFailure() || this->IsSkipped()) {                        \
+        return;                                                                \
+    }                                                                          \
     (void)0
 
 namespace uur {
@@ -76,12 +76,12 @@ struct urDeviceTest : urPlatformTest,
 };
 } // namespace uur
 
-#define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                     \
-    INSTANTIATE_TEST_SUITE_P(                                            \
-        , FIXTURE,                                                       \
-        ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices), \
-        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) {   \
-            return uur::GetPlatformAndDeviceName(info.param);            \
+#define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),       \
+        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) {         \
+            return uur::GetPlatformAndDeviceName(info.param);                  \
         })
 
 namespace uur {
@@ -135,18 +135,17 @@ struct urMemBufferTest : urContextTest {
 
 } // namespace uur
 
-#define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                           \
-    INSTANTIATE_TEST_SUITE_P(                                                \
-        , FIXTURE,                                                           \
-        testing::Combine(                                                    \
-            ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices), \
-            VALUES),                                                         \
+#define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                             \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        testing::Combine(                                                      \
+            ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),   \
+            VALUES),                                                           \
         PRINTER)
 
 namespace uur {
 
-template <class T>
-struct urContextTestWithParam : urDeviceTestWithParam<T> {
+template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urContextCreate(1, &this->device, nullptr, &context));
@@ -159,8 +158,7 @@ struct urContextTestWithParam : urDeviceTestWithParam<T> {
     ur_context_handle_t context;
 };
 
-template <class T>
-struct urMemBufferTestWithParam : urContextTestWithParam<T> {
+template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
@@ -194,8 +192,7 @@ struct urQueueTest : urContextTest {
     ur_queue_handle_t queue = nullptr;
 };
 
-template <class T>
-struct urQueueTestWithParam : urContextTestWithParam<T> {
+template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
@@ -322,15 +319,14 @@ struct urUSMDeviceAllocTest : urQueueTest {
         if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";
         }
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
-                             0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                        allocation_size, 0, &ptr));
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;
-        ASSERT_SUCCESS(
-            urEnqueueUSMFill(queue, ptr, sizeof(fillPattern), &fillPattern,
-                             allocation_size, 0, nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(fillPattern),
+                                        &fillPattern, allocation_size, 0,
+                                        nullptr, &event));
 
         EXPECT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &event));
@@ -361,9 +357,9 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;
-        ASSERT_SUCCESS(
-            urEnqueueUSMFill(this->queue, ptr, sizeof(fillPattern), &fillPattern,
-                             allocation_size, 0, nullptr, &event));
+        ASSERT_SUCCESS(urEnqueueUSMFill(this->queue, ptr, sizeof(fillPattern),
+                                        &fillPattern, allocation_size, 0,
+                                        nullptr, &event));
 
         EXPECT_SUCCESS(urQueueFlush(this->queue));
         ASSERT_SUCCESS(urEventWait(1, &event));

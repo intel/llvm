@@ -17,7 +17,8 @@ TEST_F(test, memoryPoolTrace) {
     auto trace = [](const char *name) { calls[name]++; };
 
     auto nullPool = uma_test::wrapPoolUnique(nullPoolCreate());
-    auto tracingPool = uma_test::wrapPoolUnique(tracePoolCreate(nullPool.get(), trace));
+    auto tracingPool =
+        uma_test::wrapPoolUnique(tracePoolCreate(nullPool.get(), trace));
 
     size_t call_count = 0;
 
@@ -51,22 +52,24 @@ TEST_F(test, memoryPoolTrace) {
     ASSERT_EQ(calls.size(), ++call_count);
 }
 
-INSTANTIATE_TEST_SUITE_P(mallocPoolTest, umaPoolTest,
-                         ::testing::Values(
-                             [] { return uma::poolMakeUnique<uma_test::malloc_pool>(); }));
+INSTANTIATE_TEST_SUITE_P(
+    mallocPoolTest, umaPoolTest, ::testing::Values([] {
+        return uma::poolMakeUnique<uma_test::malloc_pool>();
+    }));
 
-//////////////////////////// Negative test cases ////////////////////////////////
+//////////////////////////// Negative test cases
+///////////////////////////////////
 
-struct poolInitializeTest : uma_test::test, ::testing::WithParamInterface<uma_result_t> {};
+struct poolInitializeTest : uma_test::test,
+                            ::testing::WithParamInterface<uma_result_t> {};
 
-INSTANTIATE_TEST_SUITE_P(poolInitializeTest,
-                         poolInitializeTest,
-                         ::testing::Values(
-                             UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-                             UMA_RESULT_ERROR_POOL_SPECIFIC,
-                             UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
-                             UMA_RESULT_ERROR_INVALID_ARGUMENT,
-                             UMA_RESULT_ERROR_UNKNOWN));
+INSTANTIATE_TEST_SUITE_P(
+    poolInitializeTest, poolInitializeTest,
+    ::testing::Values(UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
+                      UMA_RESULT_ERROR_POOL_SPECIFIC,
+                      UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
+                      UMA_RESULT_ERROR_INVALID_ARGUMENT,
+                      UMA_RESULT_ERROR_UNKNOWN));
 
 TEST_P(poolInitializeTest, errorPropagation) {
     struct pool : public uma_test::pool_base {

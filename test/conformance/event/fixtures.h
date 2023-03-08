@@ -15,8 +15,7 @@ namespace event {
  * - Execution Status: UR_EVENT_STATUS_COMPLETE
  * - Reference Count: 1
  */
-template <class T>
-struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
+template <class T> struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());

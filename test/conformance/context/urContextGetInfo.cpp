@@ -22,7 +22,8 @@ TEST_P(urContextGetInfoTestWithInfoParam, Success) {
     ASSERT_SUCCESS(urContextGetInfo(context, info, 0, nullptr, &info_size));
     ASSERT_NE(info_size, 0);
     std::vector<uint8_t> info_data(info_size);
-    ASSERT_SUCCESS(urContextGetInfo(context, info, info_size, info_data.data(), nullptr));
+    ASSERT_SUCCESS(
+        urContextGetInfo(context, info, info_size, info_data.data(), nullptr));
 }
 
 using urContextGetInfoTest = uur::urContextTest;

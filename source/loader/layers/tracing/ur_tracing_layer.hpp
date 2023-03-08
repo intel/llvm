@@ -29,10 +29,12 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     bool isEnabled();
     ur_result_t init(ur_dditable_t *dditable);
     uint64_t notify_begin(uint32_t id, const char *name, void *args);
-    void notify_end(uint32_t id, const char *name, void *args, ur_result_t *resultp, uint64_t instance);
+    void notify_end(uint32_t id, const char *name, void *args,
+                    ur_result_t *resultp, uint64_t instance);
 
   private:
-    void notify(uint16_t trace_type, uint32_t id, const char *name, void *args, ur_result_t *resultp, uint64_t instance);
+    void notify(uint16_t trace_type, uint32_t id, const char *name, void *args,
+                ur_result_t *resultp, uint64_t instance);
     uint8_t call_stream_id;
 };
 
