@@ -22,6 +22,7 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "raise-to-affine"
+#define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
 
 namespace mlir {
 namespace polygeist {
@@ -41,23 +42,9 @@ struct RaiseSCFToAffine
 };
 } // namespace
 
+/// Attempt to transform an scf.ForOp loop to an AffineForOp loop.
 struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
-
-  // TODO: remove me or rename me.
-  bool isAffine(scf::ForOp loop) const {
-    // return true;
-    // enforce step to be a ConstantIndexOp (maybe too restrictive).
-    return isValidSymbol(loop.getStep());
-  }
-
-  int64_t getStep(mlir::Value value) const {
-    ConstantIndexOp cstOp = value.getDefiningOp<ConstantIndexOp>();
-    if (cstOp)
-      return cstOp.value();
-    else
-      return 1;
-  }
 
   AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
     SmallVector<AffineExpr, 4> dimExprs;
@@ -69,128 +56,142 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   }
   LogicalResult matchAndRewrite(scf::ForOp loop,
                                 PatternRewriter &rewriter) const final {
-    if (isAffine(loop)) {
-      OpBuilder builder(loop);
+    LLVM_DEBUG({
+      llvm::dbgs() << "\n----------------\n";
+      loop.print(llvm::dbgs() << "Original loop:\n");
+      llvm::dbgs() << "\n";
+    });
 
-      SmallVector<Value> lbs;
-      {
-        SmallVector<Value> todo = {loop.getLowerBound()};
-        while (todo.size()) {
-          auto cur = todo.back();
-          todo.pop_back();
-          if (isValidIndex(cur)) {
-            lbs.push_back(cur);
-            continue;
-          } else if (auto selOp = cur.getDefiningOp<SelectOp>()) {
-            // LB only has max of operands
-            if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
-              if (cmp.getLhs() == selOp.getTrueValue() &&
-                  cmp.getRhs() == selOp.getFalseValue() &&
-                  cmp.getPredicate() == CmpIPredicate::sge) {
-                todo.push_back(cmp.getLhs());
-                todo.push_back(cmp.getRhs());
-                continue;
-              }
-            }
-          }
-          return failure();
-        }
-      }
-
-      SmallVector<Value> ubs;
-      {
-        SmallVector<Value> todo = {loop.getUpperBound()};
-        while (todo.size()) {
-          auto cur = todo.back();
-          todo.pop_back();
-          if (isValidIndex(cur)) {
-            ubs.push_back(cur);
-            continue;
-          } else if (auto selOp = cur.getDefiningOp<SelectOp>()) {
-            // UB only has min of operands
-            if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
-              if (cmp.getLhs() == selOp.getTrueValue() &&
-                  cmp.getRhs() == selOp.getFalseValue() &&
-                  cmp.getPredicate() == CmpIPredicate::sle) {
-                todo.push_back(cmp.getLhs());
-                todo.push_back(cmp.getRhs());
-                continue;
-              }
-            }
-          }
-          return failure();
-        }
-      }
-
-      bool rewrittenStep = false;
-      if (!loop.getStep().getDefiningOp<ConstantIndexOp>()) {
-        if (ubs.size() != 1 || lbs.size() != 1)
-          return failure();
-        ubs[0] = rewriter.create<DivUIOp>(
-            loop.getLoc(),
-            rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
-                                    loop.getLowerBound()),
-            loop.getStep());
-        lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
-        rewrittenStep = true;
-      }
-
-      auto *scope = getAffineScope(loop)->getParentOp();
-      DominanceInfo DI(scope);
-
-      AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
-      {
-        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
-        canonicalizeMapAndOperands(&lbMap, &lbs);
-        lbMap = removeDuplicateExprs(lbMap);
-      }
-      AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
-      {
-        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
-        canonicalizeMapAndOperands(&ubMap, &ubs);
-        ubMap = removeDuplicateExprs(ubMap);
-      }
-
-      AffineForOp affineLoop = rewriter.create<AffineForOp>(
-          loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
-          loop.getIterOperands());
-
-      auto mergedYieldOp =
-          cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
-
-      Block &newBlock = affineLoop.getRegion().front();
-
-      // The terminator is added if the iterator args are not provided.
-      // see the ::build method.
-      if (affineLoop.getNumIterOperands() == 0) {
-        auto *affineYieldOp = newBlock.getTerminator();
-        rewriter.eraseOp(affineYieldOp);
-      }
-
-      SmallVector<Value> vals;
-      rewriter.setInsertionPointToStart(&affineLoop.getRegion().front());
-      for (Value arg : affineLoop.getRegion().front().getArguments()) {
-        if (rewrittenStep && arg == affineLoop.getInductionVar()) {
-          arg = rewriter.create<AddIOp>(
-              loop.getLoc(), loop.getLowerBound(),
-              rewriter.create<MulIOp>(loop.getLoc(), arg, loop.getStep()));
-        }
-        vals.push_back(arg);
-      }
-      assert(vals.size() == loop.getRegion().front().getNumArguments());
-      rewriter.mergeBlocks(&loop.getRegion().front(),
-                           &affineLoop.getRegion().front(), vals);
-
-      rewriter.setInsertionPoint(mergedYieldOp);
-      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
-                                     mergedYieldOp.getOperands());
-      rewriter.eraseOp(mergedYieldOp);
-
-      rewriter.replaceOp(loop, affineLoop.getResults());
-
-      return success();
+    if (!isValidSymbol(loop.getStep())) {
+      LLVM_DEBUG(llvm::dbgs() << "Failed: step is not valid\n");
+      return failure();
     }
-    return failure();
+
+    auto getBounds = [](TypedValue<IndexType> bound, CmpIPredicate cmpPred,
+                        SmallVectorImpl<Value> &bounds) {
+      SmallVector<Value> todo = {bound};
+      while (todo.size()) {
+        Value cur = todo.back();
+        todo.pop_back();
+        if (isValidIndex(cur)) {
+          bounds.push_back(cur);
+          continue;
+        }
+        if (auto selOp = cur.getDefiningOp<SelectOp>()) {
+          if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
+            if (cmp.getLhs() == selOp.getTrueValue() &&
+                cmp.getRhs() == selOp.getFalseValue() &&
+                cmp.getPredicate() == cmpPred) {
+              todo.push_back(cmp.getLhs());
+              todo.push_back(cmp.getRhs());
+              continue;
+            }
+          }
+        }
+        return false;
+      }
+      return true;
+    };
+
+    SmallVector<Value> lbs;
+    if (!getBounds(loop.getLowerBound(), CmpIPredicate::sge, lbs)) {
+      LLVM_DEBUG(llvm::dbgs() << "Failed: cannot get lower bounds\n");
+      return failure();
+    }
+
+    SmallVector<Value> ubs;
+    if (!getBounds(loop.getUpperBound(), CmpIPredicate::sle, ubs)) {
+      LLVM_DEBUG(llvm::dbgs() << "Failed: cannot get upper bounds\n");
+      return failure();
+    }
+
+    bool rewrittenStep = false;
+    if (!loop.getStep().getDefiningOp<ConstantIndexOp>()) {
+      if (ubs.size() != 1 || lbs.size() != 1) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Failed: more than one lower/upper bounds\n");
+        return failure();
+      }
+      ubs[0] = rewriter.create<DivUIOp>(
+          loop.getLoc(),
+          rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
+                                  loop.getLowerBound()),
+          loop.getStep());
+      lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
+      rewrittenStep = true;
+    }
+
+    DominanceInfo DI(getAffineScope(loop)->getParentOp());
+    OpBuilder builder(loop);
+
+    AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
+    canonicalizeMapAndOperands(&lbMap, &lbs);
+    lbMap = removeDuplicateExprs(lbMap);
+
+    AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
+    canonicalizeMapAndOperands(&ubMap, &ubs);
+    ubMap = removeDuplicateExprs(ubMap);
+
+    ConstantIndexOp cstOp = loop.getStep().getDefiningOp<ConstantIndexOp>();
+    AffineForOp affineLoop = rewriter.create<AffineForOp>(
+        loop.getLoc(), lbs, lbMap, ubs, ubMap, cstOp ? cstOp.value() : 1,
+        loop.getIterOperands());
+
+    auto mergedYieldOp =
+        cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
+
+    Block &newBlock = affineLoop.getRegion().front();
+
+    // The terminator is added if the iterator args are not provided.
+    // see the ::build method.
+    if (affineLoop.getNumIterOperands() == 0) {
+      Operation *affineYieldOp = newBlock.getTerminator();
+      rewriter.eraseOp(affineYieldOp);
+    }
+
+    SmallVector<Value> vals;
+    rewriter.setInsertionPointToStart(&affineLoop.getRegion().front());
+    for (Value arg : affineLoop.getRegion().front().getArguments()) {
+      if (rewrittenStep && arg == affineLoop.getInductionVar())
+        arg = rewriter.create<AddIOp>(
+            loop.getLoc(), loop.getLowerBound(),
+            rewriter.create<MulIOp>(loop.getLoc(), arg, loop.getStep()));
+      vals.push_back(arg);
+    }
+    assert(vals.size() == loop.getRegion().front().getNumArguments());
+    rewriter.mergeBlocks(&loop.getRegion().front(),
+                         &affineLoop.getRegion().front(), vals);
+
+    rewriter.setInsertionPoint(mergedYieldOp);
+    rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
+                                   mergedYieldOp.getOperands());
+    rewriter.eraseOp(mergedYieldOp);
+
+    [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
+      Operation *parentOp = loop;
+      do {
+        parentOp = parentOp->getParentOp();
+      } while (parentOp && !isa<func::FuncOp>(parentOp));
+      assert(parentOp && "Failed to find parent function");
+      return cast<func::FuncOp>(parentOp);
+    };
+
+    DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
+      llvm::dbgs()
+          << "RaiseSCFForToAffine: raised scf::ForOp to AffineForOp in: "
+          << getParentFunction(loop).getSymName() << "\n";
+    });
+
+    LLVM_DEBUG({
+      affineLoop.print(llvm::dbgs() << "\nNew Loop:\n");
+      llvm::dbgs() << "\n----------------\n";
+    });
+
+    rewriter.replaceOp(loop, affineLoop.getResults());
+
+    return success();
   }
 };
 
