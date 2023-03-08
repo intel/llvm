@@ -832,6 +832,17 @@ def make_func_name(namespace, tags, obj):
 
 """
 Public:
+    returns the etor of a function
+"""
+def make_func_etor(namespace, tags, obj):
+    etags = tags.copy()
+    etags['$x'] += 'Function'
+    fname = re.sub('(.)([A-Z][a-z]+)', r'\1_\2',
+        make_func_name(namespace, etags, obj))
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', fname).upper()
+
+"""
+Public:
     returns the name of a function pointer
 """
 def make_pfn_name(namespace, tags, obj):

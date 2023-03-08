@@ -1243,6 +1243,128 @@ def ur_event_callback_t(user_defined_callback):
     return ur_event_callback_t_wrapper
 
 ###############################################################################
+## @brief Defines unique stable identifiers for all functions
+class ur_function_v(IntEnum):
+    CONTEXT_CREATE = 1                              ## Enumerator for ::urContextCreate
+    CONTEXT_RETAIN = 2                              ## Enumerator for ::urContextRetain
+    CONTEXT_RELEASE = 3                             ## Enumerator for ::urContextRelease
+    CONTEXT_GET_INFO = 4                            ## Enumerator for ::urContextGetInfo
+    CONTEXT_GET_NATIVE_HANDLE = 5                   ## Enumerator for ::urContextGetNativeHandle
+    CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6           ## Enumerator for ::urContextCreateWithNativeHandle
+    CONTEXT_SET_EXTENDED_DELETER = 7                ## Enumerator for ::urContextSetExtendedDeleter
+    DEVICE_GET = 8                                  ## Enumerator for ::urDeviceGet
+    DEVICE_GET_INFO = 9                             ## Enumerator for ::urDeviceGetInfo
+    DEVICE_RETAIN = 10                              ## Enumerator for ::urDeviceRetain
+    DEVICE_RELEASE = 11                             ## Enumerator for ::urDeviceRelease
+    DEVICE_PARTITION = 12                           ## Enumerator for ::urDevicePartition
+    DEVICE_SELECT_BINARY = 13                       ## Enumerator for ::urDeviceSelectBinary
+    DEVICE_GET_NATIVE_HANDLE = 14                   ## Enumerator for ::urDeviceGetNativeHandle
+    DEVICE_CREATE_WITH_NATIVE_HANDLE = 15           ## Enumerator for ::urDeviceCreateWithNativeHandle
+    DEVICE_GET_GLOBAL_TIMESTAMPS = 16               ## Enumerator for ::urDeviceGetGlobalTimestamps
+    ENQUEUE_KERNEL_LAUNCH = 17                      ## Enumerator for ::urEnqueueKernelLaunch
+    ENQUEUE_EVENTS_WAIT = 18                        ## Enumerator for ::urEnqueueEventsWait
+    ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19           ## Enumerator for ::urEnqueueEventsWaitWithBarrier
+    ENQUEUE_MEM_BUFFER_READ = 20                    ## Enumerator for ::urEnqueueMemBufferRead
+    ENQUEUE_MEM_BUFFER_WRITE = 21                   ## Enumerator for ::urEnqueueMemBufferWrite
+    ENQUEUE_MEM_BUFFER_READ_RECT = 22               ## Enumerator for ::urEnqueueMemBufferReadRect
+    ENQUEUE_MEM_BUFFER_WRITE_RECT = 23              ## Enumerator for ::urEnqueueMemBufferWriteRect
+    ENQUEUE_MEM_BUFFER_COPY = 24                    ## Enumerator for ::urEnqueueMemBufferCopy
+    ENQUEUE_MEM_BUFFER_COPY_RECT = 25               ## Enumerator for ::urEnqueueMemBufferCopyRect
+    ENQUEUE_MEM_BUFFER_FILL = 26                    ## Enumerator for ::urEnqueueMemBufferFill
+    ENQUEUE_MEM_IMAGE_READ = 27                     ## Enumerator for ::urEnqueueMemImageRead
+    ENQUEUE_MEM_IMAGE_WRITE = 28                    ## Enumerator for ::urEnqueueMemImageWrite
+    ENQUEUE_MEM_IMAGE_COPY = 29                     ## Enumerator for ::urEnqueueMemImageCopy
+    ENQUEUE_MEM_BUFFER_MAP = 30                     ## Enumerator for ::urEnqueueMemBufferMap
+    ENQUEUE_MEM_UNMAP = 31                          ## Enumerator for ::urEnqueueMemUnmap
+    ENQUEUE_USM_FILL = 32                           ## Enumerator for ::urEnqueueUSMFill
+    ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
+    ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
+    ENQUEUE_USM_MEM_ADVISE = 35                     ## Enumerator for ::urEnqueueUSMMemAdvise
+    ENQUEUE_USM_FILL2_D = 36                        ## Enumerator for ::urEnqueueUSMFill2D
+    ENQUEUE_USM_MEMCPY2_D = 37                      ## Enumerator for ::urEnqueueUSMMemcpy2D
+    ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
+    ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39        ## Enumerator for ::urEnqueueDeviceGlobalVariableRead
+    EVENT_GET_INFO = 40                             ## Enumerator for ::urEventGetInfo
+    EVENT_GET_PROFILING_INFO = 41                   ## Enumerator for ::urEventGetProfilingInfo
+    EVENT_WAIT = 42                                 ## Enumerator for ::urEventWait
+    EVENT_RETAIN = 43                               ## Enumerator for ::urEventRetain
+    EVENT_RELEASE = 44                              ## Enumerator for ::urEventRelease
+    EVENT_GET_NATIVE_HANDLE = 45                    ## Enumerator for ::urEventGetNativeHandle
+    EVENT_CREATE_WITH_NATIVE_HANDLE = 46            ## Enumerator for ::urEventCreateWithNativeHandle
+    EVENT_SET_CALLBACK = 47                         ## Enumerator for ::urEventSetCallback
+    KERNEL_CREATE = 48                              ## Enumerator for ::urKernelCreate
+    KERNEL_SET_ARG_VALUE = 49                       ## Enumerator for ::urKernelSetArgValue
+    KERNEL_SET_ARG_LOCAL = 50                       ## Enumerator for ::urKernelSetArgLocal
+    KERNEL_GET_INFO = 51                            ## Enumerator for ::urKernelGetInfo
+    KERNEL_GET_GROUP_INFO = 52                      ## Enumerator for ::urKernelGetGroupInfo
+    KERNEL_GET_SUB_GROUP_INFO = 53                  ## Enumerator for ::urKernelGetSubGroupInfo
+    KERNEL_RETAIN = 54                              ## Enumerator for ::urKernelRetain
+    KERNEL_RELEASE = 55                             ## Enumerator for ::urKernelRelease
+    KERNEL_SET_ARG_POINTER = 56                     ## Enumerator for ::urKernelSetArgPointer
+    KERNEL_SET_EXEC_INFO = 57                       ## Enumerator for ::urKernelSetExecInfo
+    KERNEL_SET_ARG_SAMPLER = 58                     ## Enumerator for ::urKernelSetArgSampler
+    KERNEL_SET_ARG_MEM_OBJ = 59                     ## Enumerator for ::urKernelSetArgMemObj
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 60        ## Enumerator for ::urKernelSetSpecializationConstants
+    KERNEL_GET_NATIVE_HANDLE = 61                   ## Enumerator for ::urKernelGetNativeHandle
+    KERNEL_CREATE_WITH_NATIVE_HANDLE = 62           ## Enumerator for ::urKernelCreateWithNativeHandle
+    MEM_IMAGE_CREATE = 63                           ## Enumerator for ::urMemImageCreate
+    MEM_BUFFER_CREATE = 64                          ## Enumerator for ::urMemBufferCreate
+    MEM_RETAIN = 65                                 ## Enumerator for ::urMemRetain
+    MEM_RELEASE = 66                                ## Enumerator for ::urMemRelease
+    MEM_BUFFER_PARTITION = 67                       ## Enumerator for ::urMemBufferPartition
+    MEM_GET_NATIVE_HANDLE = 68                      ## Enumerator for ::urMemGetNativeHandle
+    MEM_CREATE_WITH_NATIVE_HANDLE = 69              ## Enumerator for ::urMemCreateWithNativeHandle
+    MEM_GET_INFO = 70                               ## Enumerator for ::urMemGetInfo
+    MEM_IMAGE_GET_INFO = 71                         ## Enumerator for ::urMemImageGetInfo
+    PLATFORM_GET = 72                               ## Enumerator for ::urPlatformGet
+    PLATFORM_GET_INFO = 73                          ## Enumerator for ::urPlatformGetInfo
+    PLATFORM_GET_API_VERSION = 74                   ## Enumerator for ::urPlatformGetApiVersion
+    PLATFORM_GET_NATIVE_HANDLE = 75                 ## Enumerator for ::urPlatformGetNativeHandle
+    PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76         ## Enumerator for ::urPlatformCreateWithNativeHandle
+    GET_LAST_RESULT = 77                            ## Enumerator for ::urGetLastResult
+    PROGRAM_CREATE_WITH_IL = 78                     ## Enumerator for ::urProgramCreateWithIL
+    PROGRAM_CREATE_WITH_BINARY = 79                 ## Enumerator for ::urProgramCreateWithBinary
+    PROGRAM_BUILD = 80                              ## Enumerator for ::urProgramBuild
+    PROGRAM_COMPILE = 81                            ## Enumerator for ::urProgramCompile
+    PROGRAM_LINK = 82                               ## Enumerator for ::urProgramLink
+    PROGRAM_RETAIN = 83                             ## Enumerator for ::urProgramRetain
+    PROGRAM_RELEASE = 84                            ## Enumerator for ::urProgramRelease
+    PROGRAM_GET_FUNCTION_POINTER = 85               ## Enumerator for ::urProgramGetFunctionPointer
+    PROGRAM_GET_INFO = 86                           ## Enumerator for ::urProgramGetInfo
+    PROGRAM_GET_BUILD_INFO = 87                     ## Enumerator for ::urProgramGetBuildInfo
+    PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88       ## Enumerator for ::urProgramSetSpecializationConstants
+    PROGRAM_GET_NATIVE_HANDLE = 89                  ## Enumerator for ::urProgramGetNativeHandle
+    PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90          ## Enumerator for ::urProgramCreateWithNativeHandle
+    QUEUE_GET_INFO = 91                             ## Enumerator for ::urQueueGetInfo
+    QUEUE_CREATE = 92                               ## Enumerator for ::urQueueCreate
+    QUEUE_RETAIN = 93                               ## Enumerator for ::urQueueRetain
+    QUEUE_RELEASE = 94                              ## Enumerator for ::urQueueRelease
+    QUEUE_GET_NATIVE_HANDLE = 95                    ## Enumerator for ::urQueueGetNativeHandle
+    QUEUE_CREATE_WITH_NATIVE_HANDLE = 96            ## Enumerator for ::urQueueCreateWithNativeHandle
+    QUEUE_FINISH = 97                               ## Enumerator for ::urQueueFinish
+    QUEUE_FLUSH = 98                                ## Enumerator for ::urQueueFlush
+    INIT = 99                                       ## Enumerator for ::urInit
+    TEAR_DOWN = 100                                 ## Enumerator for ::urTearDown
+    SAMPLER_CREATE = 101                            ## Enumerator for ::urSamplerCreate
+    SAMPLER_RETAIN = 102                            ## Enumerator for ::urSamplerRetain
+    SAMPLER_RELEASE = 103                           ## Enumerator for ::urSamplerRelease
+    SAMPLER_GET_INFO = 104                          ## Enumerator for ::urSamplerGetInfo
+    SAMPLER_GET_NATIVE_HANDLE = 105                 ## Enumerator for ::urSamplerGetNativeHandle
+    SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106         ## Enumerator for ::urSamplerCreateWithNativeHandle
+    USM_HOST_ALLOC = 107                            ## Enumerator for ::urUSMHostAlloc
+    USM_DEVICE_ALLOC = 108                          ## Enumerator for ::urUSMDeviceAlloc
+    USM_SHARED_ALLOC = 109                          ## Enumerator for ::urUSMSharedAlloc
+    USM_FREE = 110                                  ## Enumerator for ::urUSMFree
+    USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
+    USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
+    USM_POOL_DESTROY = 113                          ## Enumerator for ::urUSMPoolDestroy
+
+class ur_function_t(c_int):
+    def __str__(self):
+        return str(ur_function_v(self.value))
+
+
+###############################################################################
 ## @brief Map flags
 class ur_map_flags_v(IntEnum):
     READ = UR_BIT(0)                                ## Map for read access
