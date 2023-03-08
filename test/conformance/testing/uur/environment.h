@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <gtest/gtest.h>
 #include <string>
+#include <unordered_map>
 #include <ur_api.h>
 namespace uur {
 
@@ -42,6 +43,42 @@ struct DevicesEnvironment : PlatformEnvironment {
 
     std::vector<ur_device_handle_t> devices;
     static DevicesEnvironment *instance;
+};
+
+struct KernelsEnvironment : DevicesEnvironment {
+    struct KernelOptions {
+        std::string kernel_directory;
+    };
+
+    struct KernelSource {
+        const char *kernel_name;
+        uint32_t *source;
+        uint32_t source_length;
+        ur_result_t status;
+
+        ~KernelSource() { delete[] source; }
+    };
+
+    KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir);
+    virtual ~KernelsEnvironment() override = default;
+
+    virtual void SetUp() override;
+    virtual void TearDown() override;
+
+    KernelSource LoadSource(const std::string &kernel_name, uint32_t device_index);
+
+    static KernelsEnvironment *instance;
+
+  private:
+    KernelOptions parseKernelOptions(int argc, char **argv, std::string kernels_default_dir);
+    std::string getKernelDirectory() { return kernel_options.kernel_directory; }
+    std::string getKernelSourcePath(const std::string &kernel_name,
+                                    uint32_t device_index);
+    std::string getSupportedILPostfix(uint32_t device_index);
+
+    KernelOptions kernel_options;
+    // mapping between kernels (full_path + kernel_name) and their saved source.
+    std::unordered_map<std::string, KernelSource> cached_kernels;
 };
 
 } // namespace uur
