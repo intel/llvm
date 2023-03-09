@@ -79,6 +79,133 @@ SmallPtrSet<FunctionType *, 2> getUsedIndirectCallSignatures(Function &F) {
   return Result;
 }
 
+// U is a user of F. This function tries to determine which other function U
+// belongs to in order to record that they should be bundled together with F.
+// If U is a global variable, then we trace its users recursively.
+void traceUser(User *U, Function *F, DenseMap<Function *, EntryPointSet> &Cache) {
+  if (isa<Instruction>(U)) {
+    // Simple case: F is used by an instruction U.
+    // We simply look up which Function FB instruction U belongs to and record
+    // that.
+    auto *I = cast<Instruction>(U);
+    auto *FB = I->getFunction();
+    Cache[F].insert(FB);
+
+    return;
+  }
+
+  if (isa<Constant>(U)) {
+    for (auto *UU : U->users())
+      traceUser(UU, F, Cache);
+
+    return;
+  }
+
+  llvm_unreachable("Unhandled type of function user");
+}
+
+void propagateThroughCallGraph(
+    DenseMap<Function *, EntryPointSet> &CallGraph,
+    DenseMap<Function *, EntryPointSet> &Cache) {
+  SmallVector<std::pair<Function *, Function *>, 32> Pairs;
+
+  SmallPtrSet<Function *, 32> Visited;
+
+  for (auto &It : CallGraph) {
+    Function *F = It.first;
+
+    if (!Visited.insert(F).second)
+      continue;
+
+    SmallVector<Function *, 16> WorkList;
+    WorkList.push_back(F);
+
+    while (!WorkList.empty()) {
+      Function *To = WorkList.back();
+      WorkList.pop_back();
+
+      if (!CallGraph.count(To))
+        continue;
+
+      for (auto *From : CallGraph[To]) {
+        if (Visited.insert(From).second) {
+          Pairs.emplace_back(From, To);
+          WorkList.push_back(From);
+        }
+      }
+    }
+
+  }
+
+  for (auto &P : Pairs) {
+    Cache[P.second].insert(Cache[P.first].begin(), Cache[P.first].end());
+  }
+}
+
+// This function analyses a Module passed to it and returns a map
+// Function -> set<Function>, which indicates which functions has to be grouped
+// together, because they potentially call one another through indirect calls.
+//
+// There are several checks done to perform this analysis:
+//
+// 1. if a function A is used within a function B in any way other than a direct
+//    call, then they has to be bundled together. Examples of uses are: stores,
+//    phi nodes, bitcasts, etc. We specifically ignore direct calls, because
+//    they will be anyway handled later during regular call graph analysis.
+// 2. if a function A is used by a global variable GV, then function A has to
+//    bundled together with any other function which uses that global variable
+//    GV.
+//    TODO: implement this check
+// 3. if a function A performs an indirect call of a function with signature S,
+//    then all other functions with the same signature S has to be bundled
+//    together with function A.
+//
+// The algorithm is the following: we analyze each function and perform checks
+// above; once we know which other functions they may be using, we go through a
+// module call graph and propagate information in a bottom-up manner to ensure
+// that we have full knowledge about functions which should be bundled with each
+// entry point.
+DenseMap<Function *, EntryPointSet> getIndirectCallsMap(Module &M) {
+  DenseMap<Function *, EntryPointSet> Result;
+
+  // Group functions by their signature to use that later in check (3)
+  DenseMap<FunctionType *, EntryPointSet> FT2F;
+  for (auto &F : M.functions()) {
+    FT2F[F.getFunctionType()].insert(&F);
+  }
+
+  DenseMap<Function *, EntryPointSet> CallGraph;
+
+  for (auto &FA : M.functions()) {
+    // checks (1) and (2)
+    for (auto *U : FA.users())
+      traceUser(U, &FA, Result);
+
+    // check (3)
+    for (auto &I : instructions(FA)) {
+      if (!isa<CallInst>(&I))
+        continue;
+      auto *CI = cast<CallInst>(&I);
+      if (!CI->isIndirectCall()) {
+        // Direct calls are handled during code split
+        CallGraph[&FA].insert(CI->getCalledFunction());
+        continue;
+      }
+
+      // if indirect call is encountered, we say that all functions with the
+      // same signature must be bundled together with FA
+      FunctionType *Signature = CI->getFunctionType();
+      auto &Funcs = FT2F[Signature];
+      Result[&FA].insert(Funcs.begin(), Funcs.end());
+    }
+  }
+
+  // Now we need to propagate information upwards to entry points using a
+  // call graph
+  propagateThroughCallGraph(CallGraph, Result);
+
+  return Result;
+}
 
 // Identifying name for global scope
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
@@ -256,8 +383,7 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   MapVector<StringRef, EntryPointSet> EntryPointMap;
   Module &M = MD.getModule();
 
-  auto FTToF = getFunctionTypeToFunctionMap(M);
-  auto FToF = getFunctionToFunctionMap(M);
+  auto ICM = getIndirectCallsMap(M);
 
   // Only process module entry points:
   for (Function &F : M.functions()) {
@@ -269,12 +395,8 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
     case Scope_PerKernel: {
       auto &It = EntryPointMap[F.getName()];
       It.insert(&F);
-      auto S = getUsedIndirectCallSignatures(F);
-      for (auto *FT : S) {
-        It.insert(FTToF[FT].begin(), FTToF[FT].end());
-      }
-      for (auto *FF : FToF[&F]) {
-        It.insert(FF);
+      if (ICM.count(&F)) {
+        It.insert(ICM[&F].begin(), ICM[&F].end());
       }
     } break;
 
@@ -291,12 +413,8 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
       StringRef Val = Id.getValueAsString();
       auto &It = EntryPointMap[Val];
       It.insert(&F);
-      auto S = getUsedIndirectCallSignatures(F);
-      for (auto *FT : S) {
-        It.insert(FTToF[FT].begin(), FTToF[FT].end());
-      }
-      for (auto *FF : FToF[&F]) {
-        It.insert(FF);
+      if (ICM.count(&F)) {
+        It.insert(ICM[&F].begin(), ICM[&F].end());
       }
       break;
     }
