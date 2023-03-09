@@ -932,9 +932,9 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to set USM memory object value" 
+desc: "Enqueue a command to fill USM memory."
 class: $xEnqueue
-name: USMMemset
+name: USMFill
 ordinal: "0"
 params:
     - type: $x_queue_handle_t
@@ -943,12 +943,15 @@ params:
     - type: void*
       name: ptr
       desc: "[in] pointer to USM memory object"
-    - type: int
-      name: value
-      desc: "[in] value to fill. It is interpreted as an 8-bit value and the upper 24 bits are ignored"
     - type: size_t
-      name: count
-      desc: "[in] size in bytes to be set"
+      name: patternSize
+      desc: "[in] the size in bytes of the pattern. Must be a power of 2 and less than or equal to width."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer with the bytes of the pattern to set."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be set. Must be a multiple of patternSize."
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -960,13 +963,17 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
-returns:      
+            [in,out][optional] return an event object that identifies this particular command instance.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`count == 0`"
-        - "If `count` is higher than the allocation size of `ptr`"
+        - "`size == 0`"
+        - "`size % patternSize != 0`"
+        - "`patternSize == 0`"
+        - "`patternSize > size`"
+        - "`patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`"
+        - "If `size` is higher than the allocation size of `ptr`"
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
@@ -1115,13 +1122,13 @@ params:
       desc: "[in] the total width of the destination memory including padding."
     - type: size_t
       name: patternSize
-      desc: "[in] the size in bytes of the pattern."
+      desc: "[in] the size in bytes of the pattern. Must be a power of 2 and less than or equal to width."
     - type: "const void*"
       name: pPattern
       desc: "[in] pointer with the bytes of the pattern to set."
     - type: size_t
       name: width
-      desc: "[in] the width in bytes of each row to fill." 
+      desc: "[in] the width in bytes of each row to fill. Must be a multiple of patternSize."
     - type: size_t
       name: height
       desc: "[in] the height of the columns to fill."
@@ -1140,67 +1147,18 @@ params:
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`pitch == 0`"
-      - "`width == 0`"
-      - "`height == 0`"
       - "`pitch < width`"
+      - "`width == 0`"
+      - "`width % patternSize != 0`"
+      - "`height == 0`"
       - "`patternSize == 0`"
+      - "`patternSize > width`"
+      - "`patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`"
       - "If `pitch * height` is higher than the allocation size of `pMem`"
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
       - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
       - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
       - "If event objects in phEventWaitList are not valid events."
-  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
-  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-  - $X_RESULT_ERROR_OUT_OF_RESOURCES
-  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
---- #--------------------------------------------------------------------------
-type: function
-desc: "Enqueue a command to set 2D USM memory."
-class: $xEnqueue
-name: USMMemset2D
-ordinal: "0"
-params:
-    - type: $x_queue_handle_t
-      name: hQueue
-      desc: "[in] handle of the queue to submit to."
-    - type: void*
-      name: pMem
-      desc: "[in] pointer to memory to be filled."
-    - type: size_t
-      name: pitch
-      desc: "[in] the total width of the destination memory including padding."
-    - type: int
-      name: value
-      desc: "[in] the value to fill into the region in pMem. It is interpreted as an 8-bit value and the upper 24 bits are ignored"
-    - type: size_t
-      name: width
-      desc: "[in] the width in bytes of each row to set." 
-    - type: size_t
-      name: height
-      desc: "[in] the height of the columns to set."
-    - type: uint32_t
-      name: numEventsInWaitList
-      desc: "[in] size of the event wait list"
-    - type: "const $x_event_handle_t*"
-      name: phEventWaitList
-      desc: |
-            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
-    - type: $x_event_handle_t*
-      name: phEvent
-      desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
-returns:
-  - $X_RESULT_ERROR_INVALID_SIZE:
-      - "`pitch == 0`"
-      - "`width == 0`"
-      - "`height == 0`"
-      - "`pitch < width`"
-      - "`pitch * height` is higher than the memory allocation size"
-  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
-    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
-    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
-    - "If event objects in phEventWaitList are not valid events."
   - $X_RESULT_ERROR_INVALID_MEM_OBJECT
   - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
   - $X_RESULT_ERROR_OUT_OF_RESOURCES

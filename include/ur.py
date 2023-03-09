@@ -1925,11 +1925,11 @@ else:
     _urEnqueueMemUnmap_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urEnqueueUSMMemset
+## @brief Function-pointer for urEnqueueUSMFill
 if __use_win_types:
-    _urEnqueueUSMMemset_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMFill_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemset_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMFill_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemcpy
@@ -1958,13 +1958,6 @@ if __use_win_types:
     _urEnqueueUSMFill2D_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_size_t, c_void_p, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
     _urEnqueueUSMFill2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_size_t, c_void_p, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urEnqueueUSMMemset2D
-if __use_win_types:
-    _urEnqueueUSMMemset2D_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_int, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
-else:
-    _urEnqueueUSMMemset2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_int, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemcpy2D
@@ -2007,12 +2000,11 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnMemImageCopy", c_void_p),                                  ## _urEnqueueMemImageCopy_t
         ("pfnMemBufferMap", c_void_p),                                  ## _urEnqueueMemBufferMap_t
         ("pfnMemUnmap", c_void_p),                                      ## _urEnqueueMemUnmap_t
-        ("pfnUSMMemset", c_void_p),                                     ## _urEnqueueUSMMemset_t
+        ("pfnUSMFill", c_void_p),                                       ## _urEnqueueUSMFill_t
         ("pfnUSMMemcpy", c_void_p),                                     ## _urEnqueueUSMMemcpy_t
         ("pfnUSMPrefetch", c_void_p),                                   ## _urEnqueueUSMPrefetch_t
         ("pfnUSMMemAdvise", c_void_p),                                  ## _urEnqueueUSMMemAdvise_t
         ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
-        ("pfnUSMMemset2D", c_void_p),                                   ## _urEnqueueUSMMemset2D_t
         ("pfnUSMMemcpy2D", c_void_p),                                   ## _urEnqueueUSMMemcpy2D_t
         ("pfnDeviceGlobalVariableWrite", c_void_p),                     ## _urEnqueueDeviceGlobalVariableWrite_t
         ("pfnDeviceGlobalVariableRead", c_void_p)                       ## _urEnqueueDeviceGlobalVariableRead_t
@@ -2444,12 +2436,11 @@ class UR_DDI:
         self.urEnqueueMemImageCopy = _urEnqueueMemImageCopy_t(self.__dditable.Enqueue.pfnMemImageCopy)
         self.urEnqueueMemBufferMap = _urEnqueueMemBufferMap_t(self.__dditable.Enqueue.pfnMemBufferMap)
         self.urEnqueueMemUnmap = _urEnqueueMemUnmap_t(self.__dditable.Enqueue.pfnMemUnmap)
-        self.urEnqueueUSMMemset = _urEnqueueUSMMemset_t(self.__dditable.Enqueue.pfnUSMMemset)
+        self.urEnqueueUSMFill = _urEnqueueUSMFill_t(self.__dditable.Enqueue.pfnUSMFill)
         self.urEnqueueUSMMemcpy = _urEnqueueUSMMemcpy_t(self.__dditable.Enqueue.pfnUSMMemcpy)
         self.urEnqueueUSMPrefetch = _urEnqueueUSMPrefetch_t(self.__dditable.Enqueue.pfnUSMPrefetch)
         self.urEnqueueUSMMemAdvise = _urEnqueueUSMMemAdvise_t(self.__dditable.Enqueue.pfnUSMMemAdvise)
         self.urEnqueueUSMFill2D = _urEnqueueUSMFill2D_t(self.__dditable.Enqueue.pfnUSMFill2D)
-        self.urEnqueueUSMMemset2D = _urEnqueueUSMMemset2D_t(self.__dditable.Enqueue.pfnUSMMemset2D)
         self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)
         self.urEnqueueDeviceGlobalVariableWrite = _urEnqueueDeviceGlobalVariableWrite_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableWrite)
         self.urEnqueueDeviceGlobalVariableRead = _urEnqueueDeviceGlobalVariableRead_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableRead)

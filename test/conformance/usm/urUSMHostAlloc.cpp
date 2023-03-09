@@ -7,7 +7,8 @@
 struct urUSMHostAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        const auto hostUSMSupport = uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT);
+        const auto hostUSMSupport =
+            uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT);
         ASSERT_TRUE(hostUSMSupport.has_value());
         if (!hostUSMSupport.value()) {
             GTEST_SKIP() << "Device USM is not supported.";
@@ -24,28 +25,35 @@ TEST_P(urUSMHostAllocTest, Success) {
         GTEST_SKIP() << "Host USM is not supported.";
     }
 
+    size_t allocation_size = sizeof(int);
     int *ptr = nullptr;
-    ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0, reinterpret_cast<void **>(&ptr)));
+    ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocation_size, 0,
+                                  reinterpret_cast<void **>(&ptr)));
     ASSERT_NE(ptr, nullptr);
 
     // Set 0
     ur_event_handle_t event = nullptr;
+
+    uint8_t pattern = 0;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
+                         0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
     ASSERT_EQ(*ptr, 0);
 
     // Set 1, in all bytes of int
+    pattern = 1;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(queue, ptr, 1, sizeof(int), 0, nullptr, &event));
+        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
+                         0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
     EXPECT_SUCCESS(urEventRelease(event));
     // replicate it on host
     int set_data = 0;
-    std::memset(&set_data, 1, sizeof(int));
+    std::memset(&set_data, 1, allocation_size);
     ASSERT_EQ(*ptr, set_data);
 
     ASSERT_SUCCESS(urUSMFree(context, ptr));
@@ -53,11 +61,15 @@ TEST_P(urUSMHostAllocTest, Success) {
 
 TEST_P(urUSMHostAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), 0, &ptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urUSMHostAlloc(nullptr, nullptr, nullptr, sizeof(int), 0,
+                                    &ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidNullPtrMem) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0, nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0,
+                                    nullptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
@@ -69,5 +81,6 @@ TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
 TEST_P(urUSMHostAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                     urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 1, &ptr));
+                     urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 1,
+                                    &ptr));
 }

@@ -10,19 +10,24 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
 
         bool device_usm{false};
         ASSERT_SUCCESS(
-            urDeviceGetInfo(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT, sizeof(bool), &device_usm, nullptr));
+            urDeviceGetInfo(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
+                            sizeof(bool), &device_usm, nullptr));
 
         if (!device_usm) {
             GTEST_SKIP_("Device USM is not supported");
         }
 
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0, reinterpret_cast<void **>(&device_src)));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
+                             0, reinterpret_cast<void **>(&device_src)));
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0, reinterpret_cast<void **>(&device_dst)));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
+                             0, reinterpret_cast<void **>(&device_dst)));
 
         ASSERT_SUCCESS(
-            urEnqueueUSMMemset(queue, device_src, memset_value, allocation_size, 0, nullptr, &memset_event));
+            urEnqueueUSMFill(queue, device_src, sizeof(memset_value),
+                             &memset_value, allocation_size, 0, nullptr,
+                             &memset_event));
         ASSERT_SUCCESS(urQueueFlush(queue));
     }
 
@@ -58,9 +63,9 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
         ASSERT_TRUE(good);
     }
 
-    const uint32_t num_elements = 1024;
-    const uint8_t memset_value = 12;
-    const uint32_t allocation_size = sizeof(uint8_t) * num_elements;
+    static constexpr uint32_t num_elements = 1024;
+    static constexpr uint8_t memset_value = 12;
+    static constexpr uint32_t allocation_size = sizeof(uint8_t) * num_elements;
     std::vector<uint8_t> host_mem = std::vector<uint8_t>(num_elements);
 
     ur_event_handle_t memset_event = nullptr;

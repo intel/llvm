@@ -19,11 +19,10 @@ add_conformance_test_with_devices_environment(enqueue
     urEnqueueMemImageRead.cpp
     urEnqueueMemImageWrite.cpp
     urEnqueueMemUnmap.cpp
+    urEnqueueUSMFill.cpp
     urEnqueueUSMFill2D.cpp
     urEnqueueUSMMemAdvise.cpp
     urEnqueueUSMMemcpy.cpp
     urEnqueueUSMMemcpy2D.cpp
-    urEnqueueUSMMemset.cpp
-    urEnqueueUSMMemset2D.cpp
     urEnqueueUSMPrefetch.cpp
     )

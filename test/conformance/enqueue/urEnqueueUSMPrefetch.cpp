@@ -33,31 +33,32 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
  */
 TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
 
-    ur_queue_handle_t memset_queue;
-    ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &memset_queue));
+    ur_queue_handle_t fill_queue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &fill_queue));
 
     size_t big_allocation = 65536;
-    void *memset_ptr = nullptr;
+    uint8_t fill_pattern = 0;
+    void *fill_ptr = nullptr;
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                         big_allocation, 0, &memset_ptr));
+                         big_allocation, 0, &fill_ptr));
 
-    ur_event_handle_t memset_event;
+    ur_event_handle_t fill_event;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(memset_queue, memset_ptr, 0, big_allocation, 0,
-                           nullptr, &memset_event));
+        urEnqueueUSMFill(fill_queue, fill_ptr, 1, &fill_pattern, big_allocation,
+                         0, nullptr, &fill_event));
 
     ur_event_handle_t prefetch_event = nullptr;
     ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        getParam(), 1, &memset_event,
+                                        getParam(), 1, &fill_event,
                                         &prefetch_event));
 
     ASSERT_SUCCESS(urQueueFlush(queue));
-    ASSERT_SUCCESS(urQueueFlush(memset_queue));
+    ASSERT_SUCCESS(urQueueFlush(fill_queue));
     ASSERT_SUCCESS(urEventWait(1, &prefetch_event));
 
     const auto memset_status =
-        uur::GetEventInfo<ur_event_status_t>(memset_event,
+        uur::GetEventInfo<ur_event_status_t>(fill_event,
                                              UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
     ASSERT_TRUE(memset_status.has_value());
     ASSERT_EQ(memset_status.value(), UR_EVENT_STATUS_COMPLETE);
@@ -69,9 +70,10 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
     ASSERT_EQ(event_status.value(), UR_EVENT_STATUS_COMPLETE);
 
     ASSERT_SUCCESS(urEventRelease(prefetch_event));
-    ASSERT_SUCCESS(urEventRelease(memset_event));
+    ASSERT_SUCCESS(urEventRelease(fill_event));
+    ASSERT_SUCCESS(urQueueRelease(fill_queue));
 
-    ASSERT_SUCCESS(urUSMFree(context, memset_ptr));
+    ASSERT_SUCCESS(urUSMFree(context, fill_ptr));
 }
 
 using urEnqueueUSMPrefetchTest = uur::urUSMDeviceAllocTest;

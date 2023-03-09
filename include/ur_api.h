@@ -4648,7 +4648,7 @@ urEnqueueMemUnmap(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to set USM memory object value
+/// @brief Enqueue a command to fill USM memory.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -4658,11 +4658,16 @@ urEnqueueMemUnmap(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ptr`
+///         + `NULL == pPattern`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `count == 0`
-///         + If `count` is higher than the allocation size of `ptr`
+///         + `size == 0`
+///         + `size % patternSize != 0`
+///         + `patternSize == 0`
+///         + `patternSize > size`
+///         + `patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`
+///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
@@ -4671,12 +4676,13 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMMemset(
+urEnqueueUSMFill(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     void *ptr,                                ///< [in] pointer to USM memory object
-    int value,                                ///< [in] value to fill. It is interpreted as an 8-bit value and the upper
-                                              ///< 24 bits are ignored
-    size_t count,                             ///< [in] size in bytes to be set
+    size_t patternSize,                       ///< [in] the size in bytes of the pattern. Must be a power of 2 and less
+                                              ///< than or equal to width.
+    const void *pPattern,                     ///< [in] pointer with the bytes of the pattern to set.
+    size_t size,                              ///< [in] size in bytes to be set. Must be a multiple of patternSize.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before this command can be executed.
@@ -4811,10 +4817,13 @@ urEnqueueUSMMemAdvise(
 ///         + `NULL == pPattern`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `pitch == 0`
-///         + `width == 0`
-///         + `height == 0`
 ///         + `pitch < width`
+///         + `width == 0`
+///         + `width % patternSize != 0`
+///         + `height == 0`
 ///         + `patternSize == 0`
+///         + `patternSize > width`
+///         + `patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`
 ///         + If `pitch * height` is higher than the allocation size of `pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
@@ -4829,53 +4838,12 @@ urEnqueueUSMFill2D(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.
     void *pMem,                               ///< [in] pointer to memory to be filled.
     size_t pitch,                             ///< [in] the total width of the destination memory including padding.
-    size_t patternSize,                       ///< [in] the size in bytes of the pattern.
+    size_t patternSize,                       ///< [in] the size in bytes of the pattern. Must be a power of 2 and less
+                                              ///< than or equal to width.
     const void *pPattern,                     ///< [in] pointer with the bytes of the pattern to set.
-    size_t width,                             ///< [in] the width in bytes of each row to fill.
+    size_t width,                             ///< [in] the width in bytes of each row to fill. Must be a multiple of
+                                              ///< patternSize.
     size_t height,                            ///< [in] the height of the columns to fill.
-    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
-    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-                                              ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to set 2D USM memory.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pMem`
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `pitch == 0`
-///         + `width == 0`
-///         + `height == 0`
-///         + `pitch < width`
-///         + `pitch * height` is higher than the memory allocation size
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMMemset2D(
-    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.
-    void *pMem,                               ///< [in] pointer to memory to be filled.
-    size_t pitch,                             ///< [in] the total width of the destination memory including padding.
-    int value,                                ///< [in] the value to fill into the region in pMem. It is interpreted as
-                                              ///< an 8-bit value and the upper 24 bits are ignored
-    size_t width,                             ///< [in] the width in bytes of each row to set.
-    size_t height,                            ///< [in] the height of the columns to set.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
@@ -6934,27 +6902,28 @@ typedef void(UR_APICALL *ur_pfnEnqueueMemUnmapCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEnqueueUSMMemset
+/// @brief Callback function parameters for urEnqueueUSMFill
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_memset_params_t {
+typedef struct ur_enqueue_usm_fill_params_t {
     ur_queue_handle_t *phQueue;
     void **pptr;
-    int *pvalue;
-    size_t *pcount;
+    size_t *ppatternSize;
+    const void **ppPattern;
+    size_t *psize;
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
-} ur_enqueue_usm_memset_params_t;
+} ur_enqueue_usm_fill_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEnqueueUSMMemset
+/// @brief Callback function-pointer for urEnqueueUSMFill
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnEnqueueUSMMemsetCb_t)(
-    ur_enqueue_usm_memset_params_t *params,
+typedef void(UR_APICALL *ur_pfnEnqueueUSMFillCb_t)(
+    ur_enqueue_usm_fill_params_t *params,
     ur_result_t result,
     void *pTracerUserData,
     void **ppTracerInstanceUserData);
@@ -7066,34 +7035,6 @@ typedef void(UR_APICALL *ur_pfnEnqueueUSMFill2DCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEnqueueUSMMemset2D
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_memset2_d_params_t {
-    ur_queue_handle_t *phQueue;
-    void **ppMem;
-    size_t *ppitch;
-    int *pvalue;
-    size_t *pwidth;
-    size_t *pheight;
-    uint32_t *pnumEventsInWaitList;
-    const ur_event_handle_t **pphEventWaitList;
-    ur_event_handle_t **pphEvent;
-} ur_enqueue_usm_memset2_d_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEnqueueUSMMemset2D
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnEnqueueUSMMemset2DCb_t)(
-    ur_enqueue_usm_memset2_d_params_t *params,
-    ur_result_t result,
-    void *pTracerUserData,
-    void **ppTracerInstanceUserData);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urEnqueueUSMMemcpy2D
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -7199,12 +7140,11 @@ typedef struct ur_enqueue_callbacks_t {
     ur_pfnEnqueueMemImageCopyCb_t pfnMemImageCopyCb;
     ur_pfnEnqueueMemBufferMapCb_t pfnMemBufferMapCb;
     ur_pfnEnqueueMemUnmapCb_t pfnMemUnmapCb;
-    ur_pfnEnqueueUSMMemsetCb_t pfnUSMMemsetCb;
+    ur_pfnEnqueueUSMFillCb_t pfnUSMFillCb;
     ur_pfnEnqueueUSMMemcpyCb_t pfnUSMMemcpyCb;
     ur_pfnEnqueueUSMPrefetchCb_t pfnUSMPrefetchCb;
     ur_pfnEnqueueUSMMemAdviseCb_t pfnUSMMemAdviseCb;
     ur_pfnEnqueueUSMFill2DCb_t pfnUSMFill2DCb;
-    ur_pfnEnqueueUSMMemset2DCb_t pfnUSMMemset2DCb;
     ur_pfnEnqueueUSMMemcpy2DCb_t pfnUSMMemcpy2DCb;
     ur_pfnEnqueueDeviceGlobalVariableWriteCb_t pfnDeviceGlobalVariableWriteCb;
     ur_pfnEnqueueDeviceGlobalVariableReadCb_t pfnDeviceGlobalVariableReadCb;

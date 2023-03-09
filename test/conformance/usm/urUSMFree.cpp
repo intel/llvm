@@ -7,19 +7,25 @@ using urUSMFreeTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
-    const auto deviceUSMSupport = uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
+    const auto deviceUSMSupport =
+        uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
     ASSERT_TRUE(deviceUSMSupport.has_value());
     if (!deviceUSMSupport.value()) {
         GTEST_SKIP() << "Device USM not supported.";
     }
 
     void *ptr = nullptr;
+    size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
-        urUSMDeviceAlloc(context, device, nullptr, nullptr, sizeof(int), 0, &ptr));
+        urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0,
+                         &ptr));
 
     ur_event_handle_t event = nullptr;
+
+    uint8_t pattern = 0;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
+                         0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
@@ -27,19 +33,23 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 TEST_P(urUSMFreeTest, SuccessHostAlloc) {
-    const auto hostUSMSupport = uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT);
+    const auto hostUSMSupport =
+        uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT);
     ASSERT_TRUE(hostUSMSupport.has_value());
     if (!hostUSMSupport.value()) {
         GTEST_SKIP() << "Host USM not supported.";
     }
 
     void *ptr = nullptr;
+    size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
-        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), 0, &ptr));
+        urUSMHostAlloc(context, nullptr, nullptr, allocation_size, 0, &ptr));
 
     ur_event_handle_t event = nullptr;
+    uint8_t pattern = 0;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
+                         0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
@@ -60,12 +70,16 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
     }
 
     void *ptr = nullptr;
+    size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
-        urUSMSharedAlloc(context, device, nullptr, nullptr, sizeof(int), 0, &ptr));
+        urUSMSharedAlloc(context, device, nullptr, nullptr, allocation_size, 0,
+                         &ptr));
 
     ur_event_handle_t event = nullptr;
+    uint8_t pattern = 0;
     ASSERT_SUCCESS(
-        urEnqueueUSMMemset(queue, ptr, 0, sizeof(int), 0, nullptr, &event));
+        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
+                         0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
