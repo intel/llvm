@@ -475,7 +475,7 @@ getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
 
   Builder.CreateRet(Res);
 
-  setFunctionMetadata(F, Remapper::RemapperCommonName, Context);
+  setFunctionMetadata(F, RemapperCommonName, Context);
 
   return F;
 }
