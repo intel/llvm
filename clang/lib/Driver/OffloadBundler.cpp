@@ -23,7 +23,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
@@ -40,7 +39,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
@@ -50,6 +48,8 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -827,7 +827,7 @@ public:
       if (!SymbolsOrErr->empty()) {
         // Add section with symbols names to fat object.
         Expected<StringRef> SymbolsFileOrErr =
-            TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+            TempFiles.Create(ArrayRef<char>(*SymbolsOrErr));
         if (!SymbolsFileOrErr)
           return SymbolsFileOrErr.takeError();
 
@@ -1071,7 +1071,7 @@ public:
   Expected<std::optional<StringRef>>
   ReadBundleStart(MemoryBuffer &Input) override {
     if (NextBundle == Bundles.end())
-      return None;
+      return std::nullopt;
     CurrBundle = NextBundle++;
     return CurrBundle->first();
   }
@@ -1498,7 +1498,8 @@ Error OffloadBundler::UnbundleFiles() {
 
   // If we found elements, we emit an error if none of those were for the host
   // in case host bundle name was provided in command line.
-  if (!FoundHostBundle && BundlerConfig.HostInputIndex != ~0u)
+  if (!(FoundHostBundle || BundlerConfig.HostInputIndex == ~0u ||
+        BundlerConfig.AllowMissingBundles))
     return createStringError(inconvertibleErrorCode(),
                              "Can't find bundle for the host target");
 

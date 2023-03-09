@@ -5,7 +5,7 @@ on:
   - cron: '0 */1 * * *'
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
       - uses: actions/checkout@v3

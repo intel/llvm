@@ -371,6 +371,13 @@ public:
     NeedToEmitDeviceGlobalRegistration = true;
   }
 
+  /// Signals that emission of __sycl_host_pipe_registration type and
+  /// declaration of variable __sycl_host_pipe_registrar of this type in
+  /// integration header is required.
+  void addHostPipeRegistration() {
+    NeedToEmitHostPipeRegistration = true;
+  }
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -454,6 +461,10 @@ private:
   /// Keeps track of whether declaration of __sycl_device_global_registration
   /// type and __sycl_device_global_registrar variable are required to emit.
   bool NeedToEmitDeviceGlobalRegistration = false;
+
+  /// Keeps track of whether declaration of __sycl_host_pipe_registration
+  /// type and __sycl_host_pipe_registrar variable are required to emit.
+  bool NeedToEmitHostPipeRegistration = false;
 };
 
 class SYCLIntegrationFooter {
@@ -658,6 +669,12 @@ public:
     PSK_Show      = 0x8,                // #pragma (show) -- only for "pack"!
     PSK_Push_Set  = PSK_Push | PSK_Set, // #pragma (push[, id], value)
     PSK_Pop_Set   = PSK_Pop | PSK_Set,  // #pragma (pop[, id], value)
+  };
+
+  struct PragmaPackInfo {
+    PragmaMsStackAction Action;
+    StringRef SlotLabel;
+    Token Alignment;
   };
 
   // #pragma pack and align.
@@ -2533,8 +2550,6 @@ private:
     SourceLocation BeginLoc;
     clang::Module *Module = nullptr;
     bool ModuleInterface = false;
-    bool IsPartition = false;
-    bool ImplicitGlobalModuleFragment = false;
     VisibleModuleSet OuterVisibleModules;
   };
   /// The modules we're currently parsing.
@@ -3405,12 +3420,15 @@ public:
   /// fragments and imports.  If we are not parsing a C++20 TU, or we find
   /// an error in state transition, the state is set to NotACXX20Module.
   enum class ModuleImportState {
-    FirstDecl,       ///< Parsing the first decl in a TU.
-    GlobalFragment,  ///< after 'module;' but before 'module X;'
-    ImportAllowed,   ///< after 'module X;' but before any non-import decl.
-    ImportFinished,  ///< after any non-import decl.
-    PrivateFragment, ///< after 'module :private;'.
-    NotACXX20Module  ///< Not a C++20 TU, or an invalid state was found.
+    FirstDecl,      ///< Parsing the first decl in a TU.
+    GlobalFragment, ///< after 'module;' but before 'module X;'
+    ImportAllowed,  ///< after 'module X;' but before any non-import decl.
+    ImportFinished, ///< after any non-import decl.
+    PrivateFragmentImportAllowed,  ///< after 'module :private;' but before any
+                                   ///< non-import decl.
+    PrivateFragmentImportFinished, ///< after 'module :private;' but a
+                                   ///< non-import decl has already been seen.
+    NotACXX20Module ///< Not a C++20 TU, or an invalid state was found.
   };
 
 private:
@@ -7544,24 +7562,34 @@ private:
 
 private:
   // The current stack of constraint satisfactions, so we can exit-early.
-  llvm::SmallVector<llvm::FoldingSetNodeID, 10> SatisfactionStack;
+  using SatisfactionStackEntryTy =
+      std::pair<const NamedDecl *, llvm::FoldingSetNodeID>;
+  llvm::SmallVector<SatisfactionStackEntryTy, 10>
+      SatisfactionStack;
 
 public:
-  void PushSatisfactionStackEntry(const llvm::FoldingSetNodeID &ID) {
-    SatisfactionStack.push_back(ID);
+  void PushSatisfactionStackEntry(const NamedDecl *D,
+                                  const llvm::FoldingSetNodeID &ID) {
+    const NamedDecl *Can = cast<NamedDecl>(D->getCanonicalDecl());
+    SatisfactionStack.emplace_back(Can, ID);
   }
 
   void PopSatisfactionStackEntry() { SatisfactionStack.pop_back(); }
 
-  bool SatisfactionStackContains(const llvm::FoldingSetNodeID &ID) const {
-    return llvm::find(SatisfactionStack, ID) != SatisfactionStack.end();
+  bool SatisfactionStackContains(const NamedDecl *D,
+                                 const llvm::FoldingSetNodeID &ID) const {
+    const NamedDecl *Can = cast<NamedDecl>(D->getCanonicalDecl());
+    return llvm::find(SatisfactionStack,
+                      SatisfactionStackEntryTy{Can, ID}) !=
+           SatisfactionStack.end();
   }
 
   // Resets the current SatisfactionStack for cases where we are instantiating
   // constraints as a 'side effect' of normal instantiation in a way that is not
   // indicative of recursive definition.
   class SatisfactionStackResetRAII {
-    llvm::SmallVector<llvm::FoldingSetNodeID, 10> BackupSatisfactionStack;
+    llvm::SmallVector<SatisfactionStackEntryTy, 10>
+        BackupSatisfactionStack;
     Sema &SemaRef;
 
   public:
@@ -7574,8 +7602,8 @@ public:
     }
   };
 
-  void
-  SwapSatisfactionStack(llvm::SmallVectorImpl<llvm::FoldingSetNodeID> &NewSS) {
+  void SwapSatisfactionStack(
+      llvm::SmallVectorImpl<SatisfactionStackEntryTy> &NewSS) {
     SatisfactionStack.swap(NewSS);
   }
 
@@ -10456,7 +10484,7 @@ public:
       ArrayRef<ParsedType> SuperTypeArgs, SourceRange SuperTypeArgsRange,
       Decl *const *ProtoRefs, unsigned NumProtoRefs,
       const SourceLocation *ProtoLocs, SourceLocation EndProtoLoc,
-      const ParsedAttributesView &AttrList);
+      const ParsedAttributesView &AttrList, SkipBodyInfo *SkipBody);
 
   void ActOnSuperClassOfClassInterface(Scope *S,
                                        SourceLocation AtInterfaceLoc,
@@ -11617,6 +11645,7 @@ public:
                                                       QualType MapperType,
                                                       SourceLocation StartLoc,
                                                       DeclarationName VN);
+  void ActOnOpenMPIteratorVarDecl(VarDecl *VD);
   bool isOpenMPDeclareMapperVarDeclAllowed(const VarDecl *VD) const;
   const ValueDecl *getOpenMPDeclareMapperVarName() const;
 
@@ -12361,6 +12390,7 @@ public:
   /// Data used for processing a list of variables in OpenMP clauses.
   struct OpenMPVarListDataTy final {
     Expr *DepModOrTailExpr = nullptr;
+    Expr *IteratorExpr = nullptr;
     SourceLocation ColonLoc;
     SourceLocation RLoc;
     CXXScopeSpec ReductionOrMapperIdScopeSpec;
@@ -12487,7 +12517,7 @@ public:
                                      SourceLocation EndLoc);
   /// Called on well-formed 'map' clause.
   OMPClause *ActOnOpenMPMapClause(
-      ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
+      Expr *IteratorModifier, ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
       ArrayRef<SourceLocation> MapTypeModifiersLoc,
       CXXScopeSpec &MapperIdScopeSpec, DeclarationNameInfo &MapperId,
       OpenMPMapClauseKind MapType, bool IsMapTypeImplicit,
@@ -12577,6 +12607,11 @@ public:
                                    SourceLocation StartLoc,
                                    SourceLocation LParenLoc,
                                    SourceLocation EndLoc);
+
+  /// Called on a well-formed 'ompx_dyn_cgroup_mem' clause.
+  OMPClause *ActOnOpenMPXDynCGroupMemClause(Expr *Size, SourceLocation StartLoc,
+                                            SourceLocation LParenLoc,
+                                            SourceLocation EndLoc);
 
   /// The kind of conversion being performed.
   enum CheckedConversionKind {
@@ -13894,6 +13929,9 @@ private:
                                      CallExpr *TheCall);
   bool CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID, CallExpr *TheCall);
+  bool CheckWebAssemblyBuiltinFunctionCall(const TargetInfo &TI,
+                                           unsigned BuiltinID,
+                                           CallExpr *TheCall);
 
   bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
   bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
@@ -13969,6 +14007,8 @@ private:
   bool PrepareBuiltinElementwiseMathOneArgCall(CallExpr *TheCall);
   bool PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall);
 
+  bool SemaBuiltinNonDeterministicValue(CallExpr *TheCall);
+
   // Matrix builtin handling.
   ExprResult SemaBuiltinMatrixTranspose(CallExpr *TheCall,
                                         ExprResult CallResult);
@@ -13976,6 +14016,9 @@ private:
                                               ExprResult CallResult);
   ExprResult SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
                                                ExprResult CallResult);
+
+  // WebAssembly builtin handling.
+  bool BuiltinWasmRefNullExtern(CallExpr *TheCall);
 
 public:
   enum FormatStringType {

@@ -21,6 +21,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 namespace sycl {
@@ -209,6 +210,11 @@ public:
   std::vector<RT::PiEvent>
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
+
+  /// Gets a program associated with a device global from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForDeviceGlobal(const device &Device,
+                            DeviceGlobalMapEntry *DeviceGlobalEntry);
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 

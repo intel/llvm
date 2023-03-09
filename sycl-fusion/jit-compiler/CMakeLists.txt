@@ -12,6 +12,7 @@ add_llvm_library(sycl-fusion
    Core
    Support
    Analysis
+   IPO
    TransformUtils
    Passes
    Linker
@@ -33,6 +34,7 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-fusion
   PRIVATE
+  sycl-fusion-common
   LLVMSPIRVLib
   SYCLKernelFusionPasses
   ${CMAKE_THREAD_LIBS_INIT}

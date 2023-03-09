@@ -457,7 +457,7 @@ struct _pi_queue {
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
       return false;
     }
-    return last_sync_compute_streams_ >= stream_token;
+    return last_sync_compute_streams_ > stream_token;
   }
 
   bool can_reuse_stream(pi_uint32 stream_token) {
@@ -548,9 +548,6 @@ struct _pi_queue {
       unsigned int end = num_compute_streams_ < size
                              ? num_compute_streams_
                              : compute_stream_idx_.load();
-      if (ResetUsed) {
-        last_sync_compute_streams_ = end;
-      }
       if (end - start >= size) {
         sync_compute(0, size);
       } else {
@@ -563,6 +560,9 @@ struct _pi_queue {
           sync_compute(0, end);
         }
       }
+      if (ResetUsed) {
+        last_sync_compute_streams_ = end;
+      }
     }
     {
       unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
@@ -572,9 +572,6 @@ struct _pi_queue {
         unsigned int end = num_transfer_streams_ < size
                                ? num_transfer_streams_
                                : transfer_stream_idx_.load();
-        if (ResetUsed) {
-          last_sync_transfer_streams_ = end;
-        }
         if (end - start >= size) {
           sync_transfer(0, size);
         } else {
@@ -586,6 +583,9 @@ struct _pi_queue {
             sync_transfer(start, size);
             sync_transfer(0, end);
           }
+        }
+        if (ResetUsed) {
+          last_sync_transfer_streams_ = end;
         }
       }
     }

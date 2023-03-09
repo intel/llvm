@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Bitcode/BitcodeCommon.h"
 #include "llvm/Bitcode/LLVMBitCodes.h"
@@ -72,6 +71,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1256,6 +1256,10 @@ static AtomicRMWInst::BinOp getDecodedRMWOperation(unsigned Val) {
   case bitc::RMW_FSUB: return AtomicRMWInst::FSub;
   case bitc::RMW_FMAX: return AtomicRMWInst::FMax;
   case bitc::RMW_FMIN: return AtomicRMWInst::FMin;
+  case bitc::RMW_UINC_WRAP:
+    return AtomicRMWInst::UIncWrap;
+  case bitc::RMW_UDEC_WRAP:
+    return AtomicRMWInst::UDecWrap;
   }
 }
 
@@ -3691,7 +3695,7 @@ Error BitcodeReader::globalCleanup() {
       UpgradedVariables.emplace_back(&GV, Upgraded);
   for (auto &Pair : UpgradedVariables) {
     Pair.first->eraseFromParent();
-    TheModule->getGlobalList().push_back(Pair.second);
+    TheModule->insertGlobalVariable(Pair.second);
   }
 
   // Force deallocation of memory for these vectors to favor the client that
@@ -3866,7 +3870,8 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   GlobalVariable *NewGV =
       new GlobalVariable(*TheModule, Ty, isConstant, Linkage, nullptr, Name,
                          nullptr, TLM, AddressSpace, ExternallyInitialized);
-  NewGV->setAlignment(Alignment);
+  if (Alignment)
+    NewGV->setAlignment(*Alignment);
   if (!Section.empty())
     NewGV->setSection(Section);
   NewGV->setVisibility(Visibility);
@@ -4025,7 +4030,8 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   MaybeAlign Alignment;
   if (Error Err = parseAlignmentValue(Record[5], Alignment))
     return Err;
-  Func->setAlignment(Alignment);
+  if (Alignment)
+    Func->setAlignment(*Alignment);
   if (Record[6]) {
     if (Record[6] - 1 >= SectionTable.size())
       return error("Invalid ID");
