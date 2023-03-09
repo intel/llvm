@@ -145,7 +145,7 @@ class
     Props::meta_value...
     )]]
   [[__sycl_detail__::global_variable_allowed]]
-  [[__sycl_detail__::device_global]]
+  [[__sycl_detail__::sycl_type(device_global)]]
 #endif
   device_global<T, property_list<Props...>> {/*...*/};
 ```
@@ -187,7 +187,7 @@ could then remove the support for `sycl_global_var`.
 [3]: <https://github.com/intel/llvm/pull/3767>
 [4]: <https://github.com/intel/llvm/pull/3746>
 
-The last attribute `[[__sycl_detail__::device_global]]` controls error
+The last attribute `[[__sycl_detail__::sycl_type(device_global)]]` controls error
 reporting for variables declared of this type.  The device global extension
 specification places restrictions on where a `device_global` variable can be
 declared.  Rather than have the front-end recognize the name of the
@@ -213,9 +213,10 @@ There are several changes to the device compiler front-end:
 
 * The front-end checks for restrictions on variable declarations using the
   `device_global` type.  As described above, the front-end uses the
-  `[[__sycl_detail__::device_global]]` attribute (rather than the class name)
-  to know which set of restrictions to check.  The restrictions specific to
-  device global variables are documented in the [extension specification][1].
+  `[[__sycl_detail__::sycl_type(device_global)]]` attribute (rather than the
+  class name) to know which set of restrictions to check.  The restrictions
+  specific to device global variables are documented in the
+  [extension specification][1].
 
 * The front-end *avoids* diagnosing an error when variables of type
   `device_global` are referenced in device code because the type is decorated

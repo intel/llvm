@@ -7799,14 +7799,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (getLangOpts().SYCLIsDevice) {
     // device_global array is not allowed.
     if (const ArrayType *AT = getASTContext().getAsArrayType(NewVD->getType()))
-      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              AT->getElementType()))
+      if (isSyclType(AT->getElementType(), SYCLTypeAttr::device_global))
         Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
 
     // Global variables with types decorated with device_global attribute must
     // be static if they are declared in SYCL device code.
-    if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            NewVD->getType())) {
+    if (isSyclType(NewVD->getType(), SYCLTypeAttr::device_global)) {
       if (SCSpec == DeclSpec::SCS_static) {
         const DeclContext *DC = NewVD->getDeclContext();
         while (!DC->isTranslationUnit()) {

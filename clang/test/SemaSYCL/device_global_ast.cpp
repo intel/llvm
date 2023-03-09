@@ -9,8 +9,8 @@ using namespace sycl::ext::oneapi;
 device_global<int> glob;
 // CHECK: ClassTemplateDecl {{.*}} device_global
 // CHECK: CXXRecordDecl {{.*}} struct device_global definition
-// CHECK: SYCLDeviceGlobalAttr {{.*}}
+// CHECK: SYCLTypeAttr {{.*}} device_global
 // CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
 // CHECK: ClassTemplateSpecializationDecl {{.*}} struct device_global definition
-// CHECK: SYCLDeviceGlobalAttr {{.*}}
+// CHECK: SYCLTypeAttr {{.*}} device_global
 // CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
