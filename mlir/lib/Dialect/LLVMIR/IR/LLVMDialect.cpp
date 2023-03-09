@@ -1551,8 +1551,7 @@ LogicalResult ReturnOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult ResumeOp::verify() {
-  auto *parentFunc =
-      getOperation()->getParentWithTrait<FunctionOpInterface::Trait>();
+  auto parentFunc = getOperation()->getParentOfType<FunctionOpInterface>();
   assert(parentFunc && "Expecting parent function");
   const auto ty = getOperand().getType();
   if (!parentFunc
