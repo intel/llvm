@@ -1010,10 +1010,6 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
-  case PI_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
-    // There is no way to query this in the backend 
-    return PI_ERROR_INVALID_ARG_VALUE;
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int major = 0;
     sycl::detail::pi::assertion(
@@ -1319,6 +1315,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
+    // There is no way to query this in the backend
+    return PI_ERROR_INVALID_ARG_VALUE;
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     int major = 0;
     sycl::detail::pi::assertion(
