@@ -1319,7 +1319,7 @@ template <typename... LocalAccT, typename... BOPsT, size_t... Is>
 void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
                             ReduTupleT<LocalAccT...> &LocalAccs,
                             ReduTupleT<BOPsT...> &BOPs,
-                            std::index_sequence<Is...> ReduIndices) {
+                            std::index_sequence<Is...>) {
   doTreeReductionHelper(WorkSize, LID, [&](size_t I, size_t J) {
     auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
       LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);

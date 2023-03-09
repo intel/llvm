@@ -156,6 +156,89 @@ TEST(TransferTest, IntVarDecl) {
       });
 }
 
+TEST(TransferTest, StructIncomplete) {
+  std::string Code = R"(
+    struct A;
+
+    void target() {
+      A* Foo;
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+        ASSERT_THAT(FooDecl, NotNull());
+        auto *FooValue = dyn_cast_or_null<PointerValue>(
+            Env.getValue(*FooDecl, SkipPast::None));
+        ASSERT_THAT(FooValue, NotNull());
+
+        EXPECT_TRUE(isa<AggregateStorageLocation>(FooValue->getPointeeLoc()));
+        auto *FooPointeeValue = Env.getValue(FooValue->getPointeeLoc());
+        ASSERT_THAT(FooPointeeValue, NotNull());
+        EXPECT_TRUE(isa<StructValue>(FooPointeeValue));
+      });
+}
+
+// As a memory optimization, we prevent modeling fields nested below a certain
+// level (currently, depth 3). This test verifies this lack of modeling. We also
+// include a regression test for the case that the unmodeled field is a
+// reference to a struct; previously, we crashed when accessing such a field.
+TEST(TransferTest, StructFieldUnmodeled) {
+  std::string Code = R"(
+    struct S { int X; };
+    S GlobalS;
+    struct A { S &Unmodeled = GlobalS; };
+    struct B { A F3; };
+    struct C { B F2; };
+    struct D { C F1; };
+
+    void target() {
+      D Bar;
+      A Foo = Bar.F1.F2.F3;
+      int Zab = Foo.Unmodeled.X;
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+        ASSERT_THAT(FooDecl, NotNull());
+        ASSERT_TRUE(FooDecl->getType()->isStructureType());
+        auto FooFields = FooDecl->getType()->getAsRecordDecl()->fields();
+
+        FieldDecl *UnmodeledDecl = nullptr;
+        for (FieldDecl *Field : FooFields) {
+          if (Field->getNameAsString() == "Unmodeled") {
+            UnmodeledDecl = Field;
+          } else {
+            FAIL() << "Unexpected field: " << Field->getNameAsString();
+          }
+        }
+        ASSERT_THAT(UnmodeledDecl, NotNull());
+
+        const auto *FooLoc = cast<AggregateStorageLocation>(
+            Env.getStorageLocation(*FooDecl, SkipPast::None));
+        const auto *UnmodeledLoc = &FooLoc->getChild(*UnmodeledDecl);
+        ASSERT_TRUE(isa<ScalarStorageLocation>(UnmodeledLoc));
+        ASSERT_THAT(Env.getValue(*UnmodeledLoc), IsNull());
+
+        const ValueDecl *ZabDecl = findValueDecl(ASTCtx, "Zab");
+        ASSERT_THAT(ZabDecl, NotNull());
+        EXPECT_THAT(Env.getValue(*ZabDecl, SkipPast::None), NotNull());
+      });
+}
+
 TEST(TransferTest, StructVarDecl) {
   std::string Code = R"(
     struct A {
@@ -3810,6 +3893,8 @@ TEST(TransferTest, StructuredBindingAssignFromTupleLikeType) {
         const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
         ASSERT_THAT(BazDecl, NotNull());
 
+        // BindingDecls always map to references -- either lvalue or rvalue, so
+        // we still need to skip here.
         const Value *BoundFooValue =
             Env1.getValue(*BoundFooDecl, SkipPast::Reference);
         ASSERT_THAT(BoundFooValue, NotNull());
@@ -3821,13 +3906,13 @@ TEST(TransferTest, StructuredBindingAssignFromTupleLikeType) {
         EXPECT_TRUE(isa<IntegerValue>(BoundBarValue));
 
         // Test that a `DeclRefExpr` to a `BindingDecl` works as expected.
-        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::None), BoundFooValue);
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
 
         // Test that `BoundFooDecl` retains the value we expect, after the join.
         BoundFooValue = Env2.getValue(*BoundFooDecl, SkipPast::Reference);
-        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::None), BoundFooValue);
       });
 }
 
@@ -3905,16 +3990,15 @@ TEST(TransferTest, StructuredBindingAssignRefFromTupleLikeType) {
         // works as expected. We don't test aliasing properties of the
         // reference, because we don't model `std::get` and so have no way to
         // equate separate references into the tuple.
-        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::None), BoundFooValue);
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
 
         // Test that `BoundFooDecl` retains the value we expect, after the join.
         BoundFooValue = Env2.getValue(*BoundFooDecl, SkipPast::Reference);
-        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::None), BoundFooValue);
       });
 }
-// TODO: ref binding
 
 TEST(TransferTest, BinaryOperatorComma) {
   std::string Code = R"(
