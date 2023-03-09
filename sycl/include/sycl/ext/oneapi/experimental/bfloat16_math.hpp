@@ -232,6 +232,20 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+template <typename T>
+std::enable_if_t<std::is_same<T, bfloat16>::value, T> ceil(T x) {
+  return sycl::ext::oneapi::bfloat16{sycl::ceil(float{x})};
+}
+
+template <size_t N>
+sycl::marray<bfloat16, N> ceil(sycl::marray<bfloat16, N> x) {
+  sycl::marray<bfloat16, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = ceil(x[i]);
+  }
+  return res;
+}
+
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
