@@ -225,6 +225,11 @@ public:
   /// in order queue
   std::vector<RT::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  /// event but has empty native handle.
+  std::vector<RT::PiEvent>
+  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
