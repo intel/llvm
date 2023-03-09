@@ -37,8 +37,10 @@ TEST(LocalAccessorDefaultCtorTest, LocalAcessorDefaultCtorPtrQueries) {
   // unspecified. Just check they can run without any issue.
   auto ptr = acc.get_pointer();
   (void)ptr;
-  // TODO: uncomment check with get_multi_ptr() when SYCL 2020 multi_ptr feature
-  // will be merged
-  // auto multi_ptr = acc.get_multi_ptr();
-  // (void)multi_ptr;
+  auto multi_ptr = acc.get_multi_ptr<access::decorated::yes>();
+  (void)multi_ptr;
+  auto multi_ptr_no_decorated = acc.get_multi_ptr<access::decorated::no>();
+  (void)multi_ptr_no_decorated;
+  auto multi_ptr_legacy = acc.get_multi_ptr<access::decorated::legacy>();
+  (void)multi_ptr_legacy;
 }

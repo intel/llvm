@@ -24,7 +24,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -61,11 +61,12 @@ extension.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Overview
 
@@ -561,10 +562,11 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
+    annotated_ref(T*);
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    annotated_ref& operator=(const T&) const;
-    annotated_ref& operator=(const annotated_ref&) const = default;
+    annotated_ref& operator=(const T &);
+    annotated_ref& operator=(const annotated_ref&) = default;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -598,7 +600,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const T &) const;
+annotated_ref& operator=(const T &);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -608,7 +610,7 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const annotated_ref&) const = default;
+annotated_ref& operator=(const annotated_ref&) = default;
 ----
 |
 Assign from another `annotated_ref` object.

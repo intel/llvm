@@ -128,13 +128,14 @@ template <typename T, int N, typename V = void> struct VecStorage;
 // Element type for relational operator return value.
 template <typename DataT>
 using rel_t = typename detail::conditional_t<
-    sizeof(DataT) == sizeof(cl_char), cl_char,
+    sizeof(DataT) == sizeof(opencl::cl_char), opencl::cl_char,
     typename detail::conditional_t<
-        sizeof(DataT) == sizeof(cl_short), cl_short,
+        sizeof(DataT) == sizeof(opencl::cl_short), opencl::cl_short,
         typename detail::conditional_t<
-            sizeof(DataT) == sizeof(cl_int), cl_int,
-            typename detail::conditional_t<sizeof(DataT) == sizeof(cl_long),
-                                           cl_long, bool>>>>;
+            sizeof(DataT) == sizeof(opencl::cl_int), opencl::cl_int,
+            typename detail::conditional_t<sizeof(DataT) ==
+                                               sizeof(opencl::cl_long),
+                                           opencl::cl_long, bool>>>>;
 
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
@@ -349,12 +350,13 @@ convertImpl(T Value) {
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  detail::enable_if_t<is_sint_to_sint<T, R>::value &&                          \
-                          !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           (std::is_same<OpenCLR, signed char>::value &&       \
-                            std::is_same<DestType, char>::value)),             \
-                      R>                                                       \
+  detail::enable_if_t<                                                         \
+      is_sint_to_sint<T, R>::value &&                                          \
+          !std::is_same<OpenCLT, OpenCLR>::value &&                            \
+          (std::is_same<OpenCLR, opencl::cl_##DestType>::value ||              \
+           (std::is_same<OpenCLR, signed char>::value &&                       \
+            std::is_same<DestType, char>::value)),                             \
+      R>                                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = sycl::detail::convertDataToType<T, OpenCLT>(Value);      \
     return __spirv_SConvert##_R##DestType(OpValue);                            \
@@ -373,7 +375,7 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_uint_to_uint<T, R>::value &&                          \
                           !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          std::is_same<OpenCLR, cl_##DestType>::value,         \
+                          std::is_same<OpenCLR, opencl::cl_##DestType>::value, \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = sycl::detail::convertDataToType<T, OpenCLT>(Value);      \
@@ -474,12 +476,13 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
-                          (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           (std::is_same<OpenCLR, signed char>::value &&       \
-                            std::is_same<DestType, char>::value)) &&           \
-                          RoundingModeCondition<roundingMode>::value,          \
-                      R>                                                       \
+  detail::enable_if_t<                                                         \
+      is_float_to_int<T, R>::value &&                                          \
+          (std::is_same<OpenCLR, opencl::cl_##DestType>::value ||              \
+           (std::is_same<OpenCLR, signed char>::value &&                       \
+            std::is_same<DestType, char>::value)) &&                           \
+          RoundingModeCondition<roundingMode>::value,                          \
+      R>                                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = sycl::detail::convertDataToType<T, OpenCLT>(Value);      \
     return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue);   \
@@ -2140,12 +2143,12 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
-// sizeof(IN).  expected to handle scalar types in IN.
-template <typename IN, typename T8, typename T16, typename T32, typename T64>
+// sizeof(_IN).  expected to handle scalar types in _IN.
+template <typename _IN, typename T8, typename T16, typename T32, typename T64>
 using select_apply_cl_t =
-    conditional_t<sizeof(IN) == 1, T8,
-                  conditional_t<sizeof(IN) == 2, T16,
-                                conditional_t<sizeof(IN) == 4, T32, T64>>>;
+    conditional_t<sizeof(_IN) == 1, T8,
+                  conditional_t<sizeof(_IN) == 2, T16,
+                                conditional_t<sizeof(_IN) == 4, T32, T64>>>;
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
@@ -2282,7 +2285,7 @@ template <typename... Ts>
 struct is_device_copyable<
     std::variant<Ts...>,
     std::enable_if_t<!std::is_trivially_copyable<std::variant<Ts...>>::value>>
-    : is_device_copyable<Ts...> {};
+    : std::bool_constant<(is_device_copyable<Ts>::value && ...)> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
