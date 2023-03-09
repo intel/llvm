@@ -283,8 +283,61 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    pi_memory_scope_capabilities result =
+        PI_MEMORY_SCOPE_SUB_GROUP | PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    pi_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, PI_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+                                sizeof(pi_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert(devCapabilities && PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes (except work_item which is a special case). SUB_GROUP was
+      // already included in the initialization, since WORK_GROUP is mandated
+      // minimum capality.
+
+      // Special case, only enable if it is explicitly enabled in the backend
+      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_WORK_ITEM)
+        result |= PI_MEMORY_SCOPE_WORK_ITEM;
+
+      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    std::memcpy(paramValue, &result, sizeof(result));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;

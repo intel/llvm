@@ -6,6 +6,8 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include <sycl/detail/pi.h>
+
 #include <algorithm>
 #include <climits>
 #include <string.h>
@@ -1160,9 +1162,17 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }
+  case ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    pi_memory_scope_capabilities result =
+        PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+        PI_MEMORY_SCOPE_SYSTEM;
 
-  // TODO: Implement.
-  case ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+    return ReturnValue(result);
+  }
+
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
