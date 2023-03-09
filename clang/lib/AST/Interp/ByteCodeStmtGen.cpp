@@ -385,37 +385,39 @@ bool ByteCodeStmtGen<Emitter>::visitCXXForRangeStmt(const CXXForRangeStmt *S) {
   LabelTy EndLabel = this->getLabel();
   LabelTy CondLabel = this->getLabel();
   LabelTy IncLabel = this->getLabel();
-  ExprScope<Emitter> ES(this);
   LoopScope<Emitter> LS(this, EndLabel, IncLabel);
+  {
+    ExprScope<Emitter> ES(this);
 
-  // Emit declarations needed in the loop.
-  if (Init && !this->visitStmt(Init))
-    return false;
-  if (!this->visitStmt(RangeStmt))
-    return false;
-  if (!this->visitStmt(BeginStmt))
-    return false;
-  if (!this->visitStmt(EndStmt))
-    return false;
+    // Emit declarations needed in the loop.
+    if (Init && !this->visitStmt(Init))
+      return false;
+    if (!this->visitStmt(RangeStmt))
+      return false;
+    if (!this->visitStmt(BeginStmt))
+      return false;
+    if (!this->visitStmt(EndStmt))
+      return false;
 
-  // Now the condition as well as the loop variable assignment.
-  this->emitLabel(CondLabel);
-  if (!this->visitBool(Cond))
-    return false;
-  if (!this->jumpFalse(EndLabel))
-    return false;
+    // Now the condition as well as the loop variable assignment.
+    this->emitLabel(CondLabel);
+    if (!this->visitBool(Cond))
+      return false;
+    if (!this->jumpFalse(EndLabel))
+      return false;
 
-  if (!this->visitVarDecl(LoopVar))
-    return false;
+    if (!this->visitVarDecl(LoopVar))
+      return false;
 
-  // Body.
-  if (!this->visitStmt(Body))
-    return false;
-  this->emitLabel(IncLabel);
-  if (!this->discard(Inc))
-    return false;
-  if (!this->jump(CondLabel))
-    return false;
+    // Body.
+    if (!this->visitStmt(Body))
+      return false;
+    this->emitLabel(IncLabel);
+    if (!this->discard(Inc))
+      return false;
+    if (!this->jump(CondLabel))
+      return false;
+  }
 
   this->emitLabel(EndLabel);
   return true;

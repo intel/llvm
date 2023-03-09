@@ -8378,6 +8378,102 @@ TEST_P(ImportInjectedClassNameType, ImportTypedefType) {
   EXPECT_TRUE(ToCtx.hasSameType(ToInjTypedef, ToInjParmVar));
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase, ImportCorrectTemplateName) {
+  constexpr auto TestCode = R"(
+      template <class T>
+      struct A;
+      template <class T>
+      struct A {};
+      template <template<class> class T = A>
+      struct B {};
+      using C = B<>;
+      )";
+  Decl *ToTU = getToTuDecl(TestCode, Lang_CXX11);
+  Decl *FromTU = getTuDecl(TestCode, Lang_CXX11);
+
+  auto *ToUsingFirst = FirstDeclMatcher<TypeAliasDecl>().match(
+      ToTU, typeAliasDecl(hasName("C")));
+
+  auto *FromUsing = FirstDeclMatcher<TypeAliasDecl>().match(
+      FromTU, typeAliasDecl(hasName("C")));
+  auto *ToUsing = Import(FromUsing, Lang_CXX11);
+  EXPECT_TRUE(ToUsing);
+
+  auto *ToB = FirstDeclMatcher<ClassTemplateDecl>().match(
+      ToTU, classTemplateDecl(hasName("B")));
+  auto *ToB1 = LastDeclMatcher<ClassTemplateDecl>().match(
+      ToTU, classTemplateDecl(hasName("B")));
+  // One template definition of 'B' should exist.
+  EXPECT_EQ(ToB, ToB1);
+
+  // These declarations are imported separately.
+  EXPECT_NE(ToUsingFirst, ToUsing);
+
+  auto SpB = ToB->spec_begin();
+  auto SpE = ToB->spec_end();
+  EXPECT_TRUE(SpB != SpE);
+  ClassTemplateSpecializationDecl *Spec1 = *SpB;
+  ++SpB;
+  // The template 'B' should have one specialization (with default argument).
+  EXPECT_TRUE(SpB == SpE);
+
+  // Even if 'B' has one specialization with the default arguments, the AST
+  // contains after the import two specializations that are linked in the
+  // declaration chain. The 'spec_begin' iteration does not find these because
+  // the template arguments are the same. But the imported type alias has the
+  // link to the second specialization. The template name object in these
+  // specializations must point to the same (and one) instance of definition of
+  // 'B'.
+  auto *Spec2 = cast<ClassTemplateSpecializationDecl>(
+      ToUsing->getUnderlyingType()
+          ->getAs<TemplateSpecializationType>()
+          ->getAsRecordDecl());
+  EXPECT_NE(Spec1, Spec2);
+  EXPECT_TRUE(Spec1->getPreviousDecl() == Spec2 ||
+              Spec2->getPreviousDecl() == Spec1);
+  TemplateDecl *Templ1 =
+      Spec1->getTemplateArgs()[0].getAsTemplate().getAsTemplateDecl();
+  TemplateDecl *Templ2 =
+      Spec2->getTemplateArgs()[0].getAsTemplate().getAsTemplateDecl();
+  EXPECT_EQ(Templ1, Templ2);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, VaListC) {
+  Decl *FromTU = getTuDecl(R"(typedef __builtin_va_list va_list;)", Lang_C99);
+
+  auto *FromVaList = FirstDeclMatcher<TypedefDecl>().match(
+      FromTU, typedefDecl(hasName("va_list")));
+  ASSERT_TRUE(FromVaList);
+
+  auto *ToVaList = Import(FromVaList, Lang_C99);
+  ASSERT_TRUE(ToVaList);
+
+  auto *ToBuiltinVaList = FirstDeclMatcher<TypedefDecl>().match(
+      ToAST->getASTContext().getTranslationUnitDecl(),
+      typedefDecl(hasName("__builtin_va_list")));
+
+  ASSERT_TRUE(ToAST->getASTContext().hasSameType(
+      ToVaList->getUnderlyingType(), ToBuiltinVaList->getUnderlyingType()));
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, VaListCpp) {
+  Decl *FromTU = getTuDecl(R"(typedef __builtin_va_list va_list;)", Lang_CXX03);
+
+  auto *FromVaList = FirstDeclMatcher<TypedefDecl>().match(
+      FromTU, typedefDecl(hasName("va_list")));
+  ASSERT_TRUE(FromVaList);
+
+  auto *ToVaList = Import(FromVaList, Lang_CXX03);
+  ASSERT_TRUE(ToVaList);
+
+  auto *ToBuiltinVaList = FirstDeclMatcher<TypedefDecl>().match(
+      ToAST->getASTContext().getTranslationUnitDecl(),
+      typedefDecl(hasName("__builtin_va_list")));
+
+  ASSERT_TRUE(ToAST->getASTContext().hasSameType(
+      ToVaList->getUnderlyingType(), ToBuiltinVaList->getUnderlyingType()));
+}
+
 INSTANTIATE_TEST_SUITE_P(ParameterizedTests, ASTImporterLookupTableTest,
                          DefaultTestValuesForRunOptions);
 
