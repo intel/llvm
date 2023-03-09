@@ -1162,7 +1162,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     return ReturnValue(bool{false});
   }
 
-  case ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+  case ZER_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     return ReturnValue(uint32_t{PI_MEMORY_ORDER_RELAXED |
                                 PI_MEMORY_ORDER_ACQ_REL |
                                 PI_MEMORY_ORDER_SEQ_CST});
