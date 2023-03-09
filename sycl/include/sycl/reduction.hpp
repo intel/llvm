@@ -1995,8 +1995,8 @@ void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
 }
 
 template <typename... Reductions, int Dims, typename... LocalAccT,
-          typename... OutAccT, typename... ReducerT, typename... Ts,
-          typename... BOPsT, size_t... Is>
+          typename... OutAccT, typename... ReducerT, typename... BOPsT,
+          size_t... Is>
 void reduCGFuncImplArray(
     bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
