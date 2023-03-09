@@ -36,49 +36,6 @@ using namespace llvm;
 using namespace llvm::module_split;
 
 namespace {
-
-DenseMap<FunctionType *, EntryPointSet> getFunctionTypeToFunctionMap(Module &M) {
-  DenseMap<FunctionType *, EntryPointSet> Result;
-
-  for (auto &F : M.functions()) {
-    Result[F.getFunctionType()].insert(&F);
-  }
-
-  return Result;
-}
-
-DenseMap<Function *, EntryPointSet> getFunctionToFunctionMap(Module &M) {
-  DenseMap<Function *, EntryPointSet> Result;
-
-  for (auto &F : M.functions()) {
-    for (auto *U : F.users()) {
-      if (isa<GlobalVariable>(U))
-        continue;
-      if (!isa<CallInst>(U) && !isa<Constant>(U)) {
-        auto *I = cast<Instruction>(U);
-        auto *FF = I->getFunction();
-        Result[FF].insert(&F);
-      }
-    }
-  }
-
-  return Result;
-}
-
-SmallPtrSet<FunctionType *, 2> getUsedIndirectCallSignatures(Function &F) {
-  SmallPtrSet<FunctionType *, 2> Result;
-  for (auto &It : instructions(&F)) {
-    if (auto *CI = dyn_cast<CallInst>(&It)) {
-      if (!CI->isIndirectCall())
-        continue;
-
-      Result.insert(CI->getFunctionType());
-    }
-  }
-
-  return Result;
-}
-
 // U is a user of F. This function tries to determine which other function U
 // belongs to in order to record that they should be bundled together with F.
 // If U is a global variable, then we trace its users recursively.
@@ -220,33 +177,6 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
-
-bool hasIndirectFunctionsOrCalls(const Module &M) {
-  for (const auto &F : M.functions()) {
-    // There are functions marked with [[intel::device_indirectly_callable]]
-    // attribute, because it instructs us to make this function available to the
-    // whole program as it was compiled as a single module.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return true;
-    if (F.isDeclaration())
-      continue;
-    // There are indirect calls in the module, which means that we don't know
-    // how to group functions so both caller and callee of indirect call are in
-    // the same module.
-    for (const auto &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I))
-        if (!CI->getCalledFunction())
-          return true;
-    }
-
-    // Function pointer is used somewhere. Follow the same rule as above.
-    for (const auto *U : F.users())
-      if (!isa<CallInst>(U))
-        return true;
-  }
-
-  return false;
-}
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
