@@ -354,20 +354,13 @@ public:
 
     numReductionsDetected += ReductionOps.size();
 
-    [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
-      Operation *parentOp = loop;
-      do {
-        parentOp = parentOp->getParentOp();
-      } while (parentOp && !isa<func::FuncOp>(parentOp));
-      assert(parentOp && "Failed to find parent function");
-      return cast<func::FuncOp>(parentOp);
-    };
-
     DEBUG_WITH_TYPE(
         REPORT_DEBUG_TYPE, if (!ReductionOps.empty()) {
-          llvm::dbgs() << "AffineReduction: detected " << ReductionOps.size()
-                       << " reduction(s) in: "
-                       << getParentFunction(ForOp).getSymName() << "\n";
+          llvm::dbgs()
+              << "AffineReduction: detected " << ReductionOps.size()
+              << " reduction(s) in: "
+              << ForOp->getParentOfType<FunctionOpInterface>().getName()
+              << "\n";
         });
 
     Rewriter.replaceOp(ForOp, NewYieldedRes);
