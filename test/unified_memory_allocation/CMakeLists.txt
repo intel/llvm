@@ -17,6 +17,7 @@ function(add_uma_test name)
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
         ${PROJECT_NAME}::unified_memory_allocation
+        ${PROJECT_NAME}::common
         uma_test_helpers
         GTest::gtest_main)
     target_include_directories(${TEST_TARGET_NAME} PRIVATE
@@ -27,6 +28,6 @@ function(add_uma_test name)
     set_tests_properties(uma-${name} PROPERTIES LABELS "uma")
 endfunction()
 
-add_uma_test(memoryProvider memoryProvider.cpp)
-add_uma_test(memoryPool memoryPool.cpp)
+add_uma_test(memoryProvider memoryProviderAPI.cpp)
+add_uma_test(memoryPool memoryPoolAPI.cpp)
 add_uma_test(base base.cpp)
