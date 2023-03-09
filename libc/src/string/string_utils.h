@@ -15,7 +15,7 @@
 #define LIBC_SRC_STRING_STRING_UTILS_H
 
 #include "src/__support/CPP/bitset.h"
-#include "src/__support/common.h"
+#include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 #include "src/string/memory_utils/bzero_implementations.h"
 #include "src/string/memory_utils/memcpy_implementations.h"
 #include <stddef.h> // For size_t
@@ -58,7 +58,7 @@ template <typename Word> constexpr bool has_zeroes(Word block) {
 }
 
 template <typename Word>
-static inline size_t string_length_wide_read(const char *src) {
+LIBC_INLINE size_t string_length_wide_read(const char *src) {
   const char *char_ptr = src;
   // Step 1: read 1 byte at a time to align to block size
   for (; reinterpret_cast<uintptr_t>(char_ptr) % sizeof(Word) != 0;
@@ -78,7 +78,7 @@ static inline size_t string_length_wide_read(const char *src) {
   return char_ptr - src;
 }
 
-static inline size_t string_length_byte_read(const char *src) {
+LIBC_INLINE size_t string_length_byte_read(const char *src) {
   size_t length;
   for (length = 0; *src; ++src, ++length)
     ;
@@ -87,8 +87,8 @@ static inline size_t string_length_byte_read(const char *src) {
 
 // Returns the length of a string, denoted by the first occurrence
 // of a null terminator.
-static inline size_t string_length(const char *src) {
-#ifdef LIBC_UNSAFE_STRING_WIDE_READ
+LIBC_INLINE size_t string_length(const char *src) {
+#ifdef LIBC_COPT_UNSAFE_STRING_WIDE_READ
   // Unsigned int is the default size for most processors, and on x86-64 it
   // performs better than larger sizes when the src pointer can't be assumed to
   // be aligned to a word boundary, so it's the size we use for reading the
@@ -100,8 +100,8 @@ static inline size_t string_length(const char *src) {
 }
 
 template <typename Word>
-static inline void *find_first_character_wide_read(const unsigned char *src,
-                                                   unsigned char ch, size_t n) {
+LIBC_INLINE void *find_first_character_wide_read(const unsigned char *src,
+                                                 unsigned char ch, size_t n) {
   const unsigned char *char_ptr = src;
   size_t cur = 0;
 
@@ -132,8 +132,8 @@ static inline void *find_first_character_wide_read(const unsigned char *src,
   return const_cast<unsigned char *>(char_ptr);
 }
 
-static inline void *find_first_character_byte_read(const unsigned char *src,
-                                                   unsigned char ch, size_t n) {
+LIBC_INLINE void *find_first_character_byte_read(const unsigned char *src,
+                                                 unsigned char ch, size_t n) {
   for (; n && *src != ch; --n, ++src)
     ;
   return n ? const_cast<unsigned char *>(src) : nullptr;
@@ -141,9 +141,9 @@ static inline void *find_first_character_byte_read(const unsigned char *src,
 
 // Returns the first occurrence of 'ch' within the first 'n' characters of
 // 'src'. If 'ch' is not found, returns nullptr.
-static inline void *find_first_character(const unsigned char *src,
-                                         unsigned char ch, size_t max_strlen) {
-#ifdef LIBC_UNSAFE_STRING_WIDE_READ
+LIBC_INLINE void *find_first_character(const unsigned char *src,
+                                       unsigned char ch, size_t max_strlen) {
+#ifdef LIBC_COPT_UNSAFE_STRING_WIDE_READ
   // If the maximum size of the string is small, the overhead of aligning to a
   // word boundary and generating a bitmask of the appropriate size may be
   // greater than the gains from reading larger chunks. Based on some testing,
@@ -161,7 +161,7 @@ static inline void *find_first_character(const unsigned char *src,
 
 // Returns the maximum length span that contains only characters not found in
 // 'segment'. If no characters are found, returns the length of 'src'.
-static inline size_t complementary_span(const char *src, const char *segment) {
+LIBC_INLINE size_t complementary_span(const char *src, const char *segment) {
   const char *initial = src;
   cpp::bitset<256> bitset;
 
@@ -181,11 +181,11 @@ static inline size_t complementary_span(const char *src, const char *segment) {
 // is found is then stored within 'context' for subsequent calls. Subsequent
 // calls will use 'context' when a nullptr is passed in for 'src'. Once the null
 // terminating character is reached, returns a nullptr.
-static inline char *string_token(char *__restrict src,
-                                 const char *__restrict delimiter_string,
-                                 char **__restrict saveptr) {
+LIBC_INLINE char *string_token(char *__restrict src,
+                               const char *__restrict delimiter_string,
+                               char **__restrict saveptr) {
   // Return nullptr immediately if both src AND saveptr are nullptr
-  if (unlikely(src == nullptr && ((src = *saveptr) == nullptr)))
+  if (LIBC_UNLIKELY(src == nullptr && ((src = *saveptr) == nullptr)))
     return nullptr;
 
   cpp::bitset<256> delimiter_set;
@@ -210,8 +210,8 @@ static inline char *string_token(char *__restrict src,
   return token;
 }
 
-static inline size_t strlcpy(char *__restrict dst, const char *__restrict src,
-                             size_t size) {
+LIBC_INLINE size_t strlcpy(char *__restrict dst, const char *__restrict src,
+                           size_t size) {
   size_t len = internal::string_length(src);
   if (!size)
     return len;

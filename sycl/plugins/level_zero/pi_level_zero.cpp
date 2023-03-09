@@ -3827,9 +3827,16 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
-    ZeModule = nullptr;
     Program->State = _pi_program::Invalid;
     Result = mapError(ZeResult);
+    if (Program->ZeBuildLog) {
+      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+      Program->ZeBuildLog = nullptr;
+    }
+    if (ZeModule) {
+      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+      ZeModule = nullptr;
+    }
   } else {
     // The call to zeModuleCreate does not report an error if there are
     // unresolved symbols because it thinks these could be resolved later via a
@@ -3842,6 +3849,10 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
       Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
                    ? PI_ERROR_BUILD_PROGRAM_FAILURE
                    : mapError(ZeResult);
+      if (ZeModule) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+        ZeModule = nullptr;
+      }
     }
   }
 
