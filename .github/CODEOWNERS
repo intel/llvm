@@ -85,3 +85,11 @@ devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
 sycl-fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
