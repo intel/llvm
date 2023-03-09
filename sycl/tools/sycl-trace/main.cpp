@@ -101,7 +101,7 @@ int main(int argc, char **argv, char *env[]) {
     EnablePITrace();
     EnableZETrace();
     EnableCUTrace();
-    // Intentionally do not enable sycl api traces -> to not break existing
+    // Intentionally do not enable SYCL API traces -> to not break existing
     // tests.
     // EnableSYTrace();
   }
