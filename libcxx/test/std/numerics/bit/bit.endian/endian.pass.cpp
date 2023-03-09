@@ -12,9 +12,10 @@
 // <bit>
 
 #include <bit>
-#include <cstring>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 #include "test_macros.h"
 

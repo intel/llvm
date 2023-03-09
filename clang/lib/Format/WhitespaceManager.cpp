@@ -609,7 +609,8 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
       ++CommasBeforeMatch;
     } else if (Changes[i].indentAndNestingLevel() > IndentAndNestingLevel) {
       // Call AlignTokens recursively, skipping over this scope block.
-      unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i, ACS);
+      unsigned StoppedAt =
+          AlignTokens(Style, Matches, Changes, i, ACS, RightJustify);
       i = StoppedAt - 1;
       continue;
     }
@@ -837,7 +838,12 @@ void WhitespaceManager::alignConsecutiveAssignments() {
 
         return Style.AlignConsecutiveAssignments.AlignCompound
                    ? C.Tok->getPrecedence() == prec::Assignment
-                   : C.Tok->is(tok::equal);
+                   : (C.Tok->is(tok::equal) ||
+                      // In Verilog the '<=' is not a compound assignment, thus
+                      // it is aligned even when the AlignCompound option is not
+                      // set.
+                      (Style.isVerilog() && C.Tok->is(tok::lessequal) &&
+                       C.Tok->getPrecedence() == prec::Assignment));
       },
       Changes, /*StartAt=*/0, Style.AlignConsecutiveAssignments,
       /*RightJustify=*/true);

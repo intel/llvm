@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Test that all public C++ headers define the verbose termination function.
+// Test that all public C++ headers define the verbose termination function, which
+// is required for users to be able to include any public header and then override
+// the function using a strong definition.
 
 // The system-provided <uchar.h> seems to be broken on AIX, which trips up this test.
 // XFAIL: LIBCXX-AIX-FIXME
@@ -199,7 +201,7 @@ int main(int, char**) { return 0; }
 #endif
 
 // RUN: %{build} -DTEST_26
-#if defined(TEST_26)
+#if defined(TEST_26) && (defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L) || (defined(__cpp_coroutines) && __cpp_coroutines >= 201703L)
 #   include <coroutine>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
@@ -524,139 +526,139 @@ int main(int, char**) { return 0; }
 
 // RUN: %{build} -DTEST_89
 #if defined(TEST_89)
-#   include <span>
+#   include <source_location>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_90
-#if defined(TEST_90) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
-#   include <sstream>
+#if defined(TEST_90)
+#   include <span>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_91
-#if defined(TEST_91)
+#if defined(TEST_91) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#   include <sstream>
+    using HandlerType = decltype(std::__libcpp_verbose_abort);
+#endif
+
+// RUN: %{build} -DTEST_92
+#if defined(TEST_92)
 #   include <stack>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_95
-#if defined(TEST_95)
+// RUN: %{build} -DTEST_96
+#if defined(TEST_96)
 #   include <stdexcept>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_99
-#if defined(TEST_99) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+// RUN: %{build} -DTEST_100
+#if defined(TEST_100) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
 #   include <streambuf>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_100
-#if defined(TEST_100)
+// RUN: %{build} -DTEST_101
+#if defined(TEST_101)
 #   include <string>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_102
-#if defined(TEST_102)
+// RUN: %{build} -DTEST_103
+#if defined(TEST_103)
 #   include <string_view>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_103
-#if defined(TEST_103) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+// RUN: %{build} -DTEST_104
+#if defined(TEST_104) && !defined(_LIBCPP_HAS_NO_LOCALIZATION)
 #   include <strstream>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_104
-#if defined(TEST_104)
+// RUN: %{build} -DTEST_105
+#if defined(TEST_105)
 #   include <system_error>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_106
-#if defined(TEST_106) && !defined(_LIBCPP_HAS_NO_THREADS)
-#   include <thread>
-    using HandlerType = decltype(std::__libcpp_verbose_abort);
-#endif
-
 // RUN: %{build} -DTEST_107
-#if defined(TEST_107)
-#   include <tuple>
+#if defined(TEST_107) && !defined(_LIBCPP_HAS_NO_THREADS)
+#   include <thread>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_108
 #if defined(TEST_108)
-#   include <type_traits>
+#   include <tuple>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_109
 #if defined(TEST_109)
-#   include <typeindex>
+#   include <type_traits>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_110
 #if defined(TEST_110)
-#   include <typeinfo>
+#   include <typeindex>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_112
-#if defined(TEST_112)
-#   include <unordered_map>
+// RUN: %{build} -DTEST_111
+#if defined(TEST_111)
+#   include <typeinfo>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_113
 #if defined(TEST_113)
-#   include <unordered_set>
+#   include <unordered_map>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_114
 #if defined(TEST_114)
-#   include <utility>
+#   include <unordered_set>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_115
 #if defined(TEST_115)
-#   include <valarray>
+#   include <utility>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_116
 #if defined(TEST_116)
-#   include <variant>
+#   include <valarray>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_117
 #if defined(TEST_117)
-#   include <vector>
+#   include <variant>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
 // RUN: %{build} -DTEST_118
 #if defined(TEST_118)
+#   include <vector>
+    using HandlerType = decltype(std::__libcpp_verbose_abort);
+#endif
+
+// RUN: %{build} -DTEST_119
+#if defined(TEST_119)
 #   include <version>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 
-// RUN: %{build} -DTEST_121
-#if defined(TEST_121) && __cplusplus >= 201103L
-#   include <experimental/algorithm>
-    using HandlerType = decltype(std::__libcpp_verbose_abort);
-#endif
-
 // RUN: %{build} -DTEST_122
-#if defined(TEST_122) && __cplusplus >= 201103L && !defined(_LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES)
-#   include <experimental/coroutine>
+#if defined(TEST_122) && __cplusplus >= 201103L
+#   include <experimental/algorithm>
     using HandlerType = decltype(std::__libcpp_verbose_abort);
 #endif
 

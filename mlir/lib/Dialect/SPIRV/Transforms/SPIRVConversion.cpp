@@ -252,8 +252,6 @@ convertVectorType(const spirv::TargetEnv &targetEnv,
     return convertScalarType(targetEnv, options, scalarType, storageClass);
 
   if (!spirv::CompositeType::isValid(type)) {
-    // TODO: Vector types with more than four elements can be translated into
-    // array types.
     LLVM_DEBUG(llvm::dbgs() << type << " illegal: > 4-element unimplemented\n");
     return nullptr;
   }
@@ -711,7 +709,7 @@ Value spirv::getPushConstantValue(Operation *op, unsigned elementCount,
       loc, integerType, builder.getI32IntegerAttr(offset));
   auto addrOp = builder.create<spirv::AddressOfOp>(loc, varOp);
   auto acOp = builder.create<spirv::AccessChainOp>(
-      loc, addrOp, llvm::makeArrayRef({zeroOp, offsetOp}));
+      loc, addrOp, llvm::ArrayRef({zeroOp, offsetOp}));
   return builder.create<spirv::LoadOp>(loc, acOp);
 }
 

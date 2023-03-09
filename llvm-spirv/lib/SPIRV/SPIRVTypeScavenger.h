@@ -42,6 +42,7 @@
 #define SPIRVTYPESCAVENGER_H
 
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueMap.h"
 
@@ -98,9 +99,17 @@ class SPIRVTypeScavenger {
   /// analysis on the module.
   void deduceFunctionType(Function &F);
 
-  /// This assigns known pointer element types for parameters of LLVM
-  /// intrinsics.
-  void deduceIntrinsicTypes(Function &F, Intrinsic::ID Id);
+  /// This computes the known types of a call to an LLVM intrinsic or specific
+  /// well-known function name. Returns true if the call filled in type
+  /// information.
+  ///
+  /// The ArgTys parameter contains a list of known type uses for the parameters
+  /// of the function call. Each element is a pair, with the first being the
+  /// operand number, and the second indicating either a known type or an
+  /// unknown type variable (DeferredType).
+  bool
+  typeIntrinsicCall(CallBase &CB,
+                    SmallVectorImpl<std::pair<unsigned, DeducedType>> &ArgTys);
 
   /// Compute pointer element types for all pertinent values in the module.
   void typeModule(Module &M);

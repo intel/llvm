@@ -26,6 +26,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VersionTuple.h"
+#include <optional>
 #include <type_traits>
 
 using namespace clang;
@@ -37,14 +38,14 @@ namespace {
 
 /// Helper function to inject a JSON object \p Obj into another object \p Paren
 /// at position \p Key.
-void serializeObject(Object &Paren, StringRef Key, Optional<Object> Obj) {
+void serializeObject(Object &Paren, StringRef Key, std::optional<Object> Obj) {
   if (Obj)
     Paren[Key] = std::move(*Obj);
 }
 
 /// Helper function to inject a JSON array \p Array into object \p Paren at
 /// position \p Key.
-void serializeArray(Object &Paren, StringRef Key, Optional<Array> Array) {
+void serializeArray(Object &Paren, StringRef Key, std::optional<Array> Array) {
   if (Array)
     Paren[Key] = std::move(*Array);
 }
@@ -65,7 +66,7 @@ void serializeArray(Object &Paren, StringRef Key, Optional<Array> Array) {
 ///
 /// \returns \c std::nullopt if the version \p V is empty, or an \c Object
 /// containing the semantic version representation of \p V.
-Optional<Object> serializeSemanticVersion(const VersionTuple &V) {
+std::optional<Object> serializeSemanticVersion(const VersionTuple &V) {
   if (V.empty())
     return std::nullopt;
 
@@ -151,7 +152,8 @@ Object serializeSourceRange(const PresumedLoc &BeginLoc,
 ///
 /// \returns \c std::nullopt if the symbol has default availability attributes,
 /// or an \c Array containing the formatted availability information.
-Optional<Array> serializeAvailability(const AvailabilitySet &Availabilities) {
+std::optional<Array>
+serializeAvailability(const AvailabilitySet &Availabilities) {
   if (Availabilities.isDefault())
     return std::nullopt;
 
@@ -237,7 +239,7 @@ Object serializeIdentifier(const APIRecord &Record, Language Lang) {
 ///
 /// \returns \c std::nullopt if \p Comment is empty, or an \c Object containing
 /// the formatted lines.
-Optional<Object> serializeDocComment(const DocComment &Comment) {
+std::optional<Object> serializeDocComment(const DocComment &Comment) {
   if (Comment.empty())
     return std::nullopt;
 
@@ -289,7 +291,8 @@ Optional<Object> serializeDocComment(const DocComment &Comment) {
 ///
 /// \returns \c std::nullopt if \p DF is empty, or an \c Array containing the
 /// formatted declaration fragments array.
-Optional<Array> serializeDeclarationFragments(const DeclarationFragments &DF) {
+std::optional<Array>
+serializeDeclarationFragments(const DeclarationFragments &DF) {
   if (DF.getFragments().empty())
     return std::nullopt;
 
@@ -420,8 +423,8 @@ Object serializeSymbolKind(const APIRecord &Record, Language Lang) {
 }
 
 template <typename RecordTy>
-Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
-                                                     std::true_type) {
+std::optional<Object>
+serializeFunctionSignatureMixinImpl(const RecordTy &Record, std::true_type) {
   const auto &FS = Record.Signature;
   if (FS.empty())
     return std::nullopt;
@@ -446,8 +449,8 @@ Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
 }
 
 template <typename RecordTy>
-Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
-                                                     std::false_type) {
+std::optional<Object>
+serializeFunctionSignatureMixinImpl(const RecordTy &Record, std::false_type) {
   return std::nullopt;
 }
 
@@ -484,6 +487,7 @@ bool generatePathComponents(
   SmallVector<PathComponent, 4> ReverseComponenents;
   ReverseComponenents.emplace_back(Record.USR, Record.Name, Record.getKind());
   const auto *CurrentParent = &Record.ParentInformation;
+  bool FailedToFindParent = false;
   while (CurrentParent && !CurrentParent->empty()) {
     PathComponent CurrentParentComponent(CurrentParent->ParentUSR,
                                          CurrentParent->ParentName,
@@ -506,8 +510,10 @@ bool generatePathComponents(
 
     // The parent record doesn't exist which means the symbol shouldn't be
     // treated as part of the current product.
-    if (!ParentRecord)
-      return true;
+    if (!ParentRecord) {
+      FailedToFindParent = true;
+      break;
+    }
 
     ReverseComponenents.push_back(std::move(CurrentParentComponent));
     CurrentParent = &ParentRecord->ParentInformation;
@@ -516,8 +522,9 @@ bool generatePathComponents(
   for (const auto &PC : reverse(ReverseComponenents))
     ComponentTransformer(PC);
 
-  return false;
+  return FailedToFindParent;
 }
+
 Object serializeParentContext(const PathComponent &PC, Language Lang) {
   Object ParentContextElem;
   ParentContextElem["usr"] = PC.USR;
@@ -530,12 +537,15 @@ template <typename RecordTy>
 Array generateParentContexts(const RecordTy &Record, const APISet &API,
                              Language Lang) {
   Array ParentContexts;
-  if (generatePathComponents(
-          Record, API, [Lang, &ParentContexts](const PathComponent &PC) {
-            ParentContexts.push_back(serializeParentContext(PC, Lang));
-          }))
-    ParentContexts.clear();
-  ParentContexts.pop_back();
+  generatePathComponents(Record, API,
+                         [Lang, &ParentContexts](const PathComponent &PC) {
+                           ParentContexts.push_back(
+                               serializeParentContext(PC, Lang));
+                         });
+
+  // The last component would be the record itself so let's remove it.
+  if (!ParentContexts.empty())
+    ParentContexts.pop_back();
 
   return ParentContexts;
 }
@@ -582,7 +592,7 @@ bool SymbolGraphSerializer::shouldSkip(const APIRecord &Record) const {
 }
 
 template <typename RecordTy>
-Optional<Object>
+std::optional<Object>
 SymbolGraphSerializer::serializeAPIRecord(const RecordTy &Record) const {
   if (shouldSkip(Record))
     return std::nullopt;
@@ -855,11 +865,14 @@ void SymbolGraphSerializer::serialize(raw_ostream &os) {
     os << formatv("{0:2}", Value(std::move(root))) << "\n";
 }
 
-Optional<Object>
+std::optional<Object>
 SymbolGraphSerializer::serializeSingleSymbolSGF(StringRef USR,
                                                 const APISet &API) {
   APIRecord *Record = API.findRecordForUSR(USR);
   if (!Record)
+    return {};
+
+  if (isa<ObjCCategoryRecord>(Record))
     return {};
 
   Object Root;

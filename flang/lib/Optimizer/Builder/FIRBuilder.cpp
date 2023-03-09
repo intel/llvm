@@ -12,6 +12,7 @@
 #include "flang/Optimizer/Builder/Complex.h"
 #include "flang/Optimizer/Builder/MutableBox.h"
 #include "flang/Optimizer/Builder/Runtime/Assign.h"
+#include "flang/Optimizer/Builder/Runtime/Derived.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRAttr.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
@@ -23,6 +24,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MD5.h"
+#include <optional>
 
 static llvm::cl::opt<std::size_t>
     nameLengthHashSize("length-to-hash-string-literal",
@@ -509,8 +511,11 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
   }
   mlir::Type boxTy = fir::BoxType::get(elementType);
   mlir::Value tdesc;
-  if (isPolymorphic)
+  if (isPolymorphic) {
+    elementType = fir::updateTypeForUnlimitedPolymorphic(elementType);
     boxTy = fir::ClassType::get(elementType);
+  }
+
   return exv.match(
       [&](const fir::ArrayBoxValue &box) -> mlir::Value {
         mlir::Value empty;
@@ -518,7 +523,7 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::Value s = createShape(loc, exv);
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, s, /*slice=*/empty,
                                     /*typeparams=*/emptyRange,
-                                    isPolymorphic ? box.getTdesc() : tdesc);
+                                    isPolymorphic ? box.getSourceBox() : tdesc);
       },
       [&](const fir::CharArrayBoxValue &box) -> mlir::Value {
         mlir::Value s = createShape(loc, exv);
@@ -547,7 +552,7 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::ValueRange emptyRange;
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
                                     emptyRange,
-                                    isPolymorphic ? p.getTdesc() : tdesc);
+                                    isPolymorphic ? p.getSourceBox() : tdesc);
       },
       [&](const auto &) -> mlir::Value {
         mlir::Value empty;
@@ -1053,17 +1058,13 @@ fir::ExtendedValue fir::factory::arrayElementToExtendedValue(
         if (box.isDerivedWithLenParameters())
           TODO(loc, "get length parameters from derived type BoxValue");
         if (box.isPolymorphic()) {
-          mlir::Type tdescType =
-              fir::TypeDescType::get(mlir::NoneType::get(builder.getContext()));
-          mlir::Value tdesc = builder.create<fir::BoxTypeDescOp>(
-              loc, tdescType, fir::getBase(box));
-          return fir::PolymorphicValue(element, tdesc);
+          return fir::PolymorphicValue(element, fir::getBase(box));
         }
         return element;
       },
       [&](const fir::ArrayBoxValue &box) -> fir::ExtendedValue {
-        if (box.getTdesc())
-          return fir::PolymorphicValue(element, box.getTdesc());
+        if (box.getSourceBox())
+          return fir::PolymorphicValue(element, box.getSourceBox());
         return element;
       },
       [&](const auto &) -> fir::ExtendedValue { return element; });
@@ -1138,7 +1139,7 @@ static void genComponentByComponentAssignment(fir::FirOpBuilder &builder,
     auto fieldRefType = builder.getRefType(lFieldTy);
     mlir::Value toCoor = builder.create<fir::CoordinateOp>(
         loc, fieldRefType, fir::getBase(lhs), field);
-    llvm::Optional<fir::DoLoopOp> outerLoop;
+    std::optional<fir::DoLoopOp> outerLoop;
     if (auto sequenceType = lFieldTy.dyn_cast<fir::SequenceType>()) {
       // Create loops to assign array components elements by elements.
       // Note that, since these are components, they either do not overlap,
@@ -1208,7 +1209,8 @@ static bool recordTypeCanBeMemCopied(fir::RecordType recordType) {
 void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
                                        mlir::Location loc,
                                        const fir::ExtendedValue &lhs,
-                                       const fir::ExtendedValue &rhs) {
+                                       const fir::ExtendedValue &rhs,
+                                       bool needFinalization) {
   assert(lhs.rank() == 0 && rhs.rank() == 0 && "assume scalar assignment");
   auto baseTy = fir::dyn_cast_ptrOrBoxEleTy(fir::getBase(lhs).getType());
   assert(baseTy && "must be a memory type");
@@ -1232,6 +1234,13 @@ void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
     fir::runtime::genAssign(builder, loc, toMutableBox, from);
     return;
   }
+
+  // Finalize LHS on intrinsic assignment.
+  if (needFinalization) {
+    mlir::Value box = builder.createBox(loc, lhs);
+    fir::runtime::genDerivedTypeDestroy(builder, loc, box);
+  }
+
   // Otherwise, the derived type has compile time constant size and for which
   // the component by component assignment can be replaced by a memory copy.
   // Since we do not know the size of the derived type in lowering, do a
@@ -1330,11 +1339,11 @@ mlir::Value fir::factory::createZeroValue(fir::FirOpBuilder &builder,
                            "numeric or logical type");
 }
 
-llvm::Optional<std::int64_t>
+std::optional<std::int64_t>
 fir::factory::getExtentFromTriplet(mlir::Value lb, mlir::Value ub,
                                    mlir::Value stride) {
-  std::function<llvm::Optional<std::int64_t>(mlir::Value)> getConstantValue =
-      [&](mlir::Value value) -> llvm::Optional<std::int64_t> {
+  std::function<std::optional<std::int64_t>(mlir::Value)> getConstantValue =
+      [&](mlir::Value value) -> std::optional<std::int64_t> {
     if (auto valInt = fir::getIntIfConstant(value))
       return *valInt;
     auto *definingOp = value.getDefiningOp();

@@ -131,7 +131,14 @@ public:
     EnsureDest(E->getType());
 
     if (llvm::Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
-      CGF.EmitAggregateStore(Result, Dest.getAddress(),
+      Address StoreDest = Dest.getAddress();
+      // The emitted value is guaranteed to have the same size as the
+      // destination but can have a different type. Just do a bitcast in this
+      // case to avoid incorrect GEPs.
+      if (Result->getType() != StoreDest.getType())
+        StoreDest =
+            CGF.Builder.CreateElementBitCast(StoreDest, Result->getType());
+      CGF.EmitAggregateStore(Result, StoreDest,
                              E->getType().isVolatileQualified());
       return;
     }
@@ -205,7 +212,16 @@ public:
       return EmitFinalDestCopy(E->getType(), LV);
     }
 
-    CGF.EmitPseudoObjectRValue(E, EnsureSlot(E->getType()));
+    AggValueSlot Slot = EnsureSlot(E->getType());
+    bool NeedsDestruction =
+        !Slot.isExternallyDestructed() &&
+        E->getType().isDestructedType() == QualType::DK_nontrivial_c_struct;
+    if (NeedsDestruction)
+      Slot.setExternallyDestructed();
+    CGF.EmitPseudoObjectRValue(E, Slot);
+    if (NeedsDestruction)
+      CGF.pushDestroy(QualType::DK_nontrivial_c_struct, Slot.getAddress(),
+                      E->getType());
   }
 
   void VisitVAArgExpr(VAArgExpr *E);
@@ -1601,20 +1617,8 @@ void AggExprEmitter::EmitNullInitializationToLValue(LValue lv) {
 }
 
 void AggExprEmitter::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
-  ArrayRef<Expr *> InitExprs = E->getInitExprs();
-  FieldDecl *InitializedFieldInUnion = nullptr;
-  if (E->getType()->isUnionType()) {
-    auto *RD =
-        dyn_cast<CXXRecordDecl>(E->getType()->castAs<RecordType>()->getDecl());
-    for (FieldDecl *FD : RD->fields()) {
-      if (FD->isUnnamedBitfield())
-        continue;
-      InitializedFieldInUnion = FD;
-      break;
-    }
-  }
-
-  VisitCXXParenListOrInitListExpr(E, InitExprs, InitializedFieldInUnion,
+  VisitCXXParenListOrInitListExpr(E, E->getInitExprs(),
+                                  E->getInitializedFieldInUnion(),
                                   E->getArrayFiller());
 }
 

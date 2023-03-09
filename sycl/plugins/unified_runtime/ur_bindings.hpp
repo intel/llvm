@@ -15,3 +15,6 @@
 struct _zer_platform_handle_t : public _ur_platform_handle_t {
   using _ur_platform_handle_t::_ur_platform_handle_t;
 };
+struct _zer_device_handle_t : public _ur_device_handle_t {
+  using _ur_device_handle_t::_ur_device_handle_t;
+};

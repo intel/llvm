@@ -219,7 +219,8 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
@@ -234,7 +235,8 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {
@@ -472,8 +474,11 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-        .getAsInteger(10, Len);
+    if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+            .getAsInteger(10, Len)) {
+      SPIRVDBG(errs() << "Error in extracting integer value");
+      return false;
+    }
     DemangledName = Name.substr(Start, Len);
   } else {
     size_t Start = Name.find_first_not_of("0123456789", 2);

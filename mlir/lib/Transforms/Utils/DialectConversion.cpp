@@ -8,10 +8,10 @@
 
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
@@ -20,6 +20,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -104,7 +105,7 @@ static void logFailure(llvm::ScopedPrinter &os, StringRef fmt, Args &&...args) {
 //===----------------------------------------------------------------------===//
 
 namespace {
-/// This class wraps a BlockAndValueMapping to provide recursive lookup
+/// This class wraps a IRMapping to provide recursive lookup
 /// functionality, i.e. we will traverse if the mapped value also has a mapping.
 struct ConversionValueMapping {
   /// Lookup a mapped value within the map. If a mapping for the provided value
@@ -145,7 +146,7 @@ struct ConversionValueMapping {
 
 private:
   /// Current value mappings.
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
 };
 } // namespace
 
@@ -1620,9 +1621,10 @@ void ConversionPatternRewriter::inlineRegionBefore(Region &region,
   PatternRewriter::inlineRegionBefore(region, parent, before);
 }
 
-void ConversionPatternRewriter::cloneRegionBefore(
-    Region &region, Region &parent, Region::iterator before,
-    BlockAndValueMapping &mapping) {
+void ConversionPatternRewriter::cloneRegionBefore(Region &region,
+                                                  Region &parent,
+                                                  Region::iterator before,
+                                                  IRMapping &mapping) {
   if (region.empty())
     return;
   PatternRewriter::cloneRegionBefore(region, parent, before, mapping);
@@ -2299,21 +2301,19 @@ unsigned OperationLegalizer::applyCostModelToPatterns(
     return minDepth;
 
   // Sort the patterns by those likely to be the most beneficial.
-  llvm::array_pod_sort(patternsByDepth.begin(), patternsByDepth.end(),
-                       [](const std::pair<const Pattern *, unsigned> *lhs,
-                          const std::pair<const Pattern *, unsigned> *rhs) {
-                         // First sort by the smaller pattern legalization
-                         // depth.
-                         if (lhs->second != rhs->second)
-                           return llvm::array_pod_sort_comparator<unsigned>(
-                               &lhs->second, &rhs->second);
+  std::stable_sort(patternsByDepth.begin(), patternsByDepth.end(),
+                   [](const std::pair<const Pattern *, unsigned> &lhs,
+                      const std::pair<const Pattern *, unsigned> &rhs) {
+                     // First sort by the smaller pattern legalization
+                     // depth.
+                     if (lhs.second != rhs.second)
+                       return lhs.second < rhs.second;
 
-                         // Then sort by the larger pattern benefit.
-                         auto lhsBenefit = lhs->first->getBenefit();
-                         auto rhsBenefit = rhs->first->getBenefit();
-                         return llvm::array_pod_sort_comparator<PatternBenefit>(
-                             &rhsBenefit, &lhsBenefit);
-                       });
+                     // Then sort by the larger pattern benefit.
+                     auto lhsBenefit = lhs.first->getBenefit();
+                     auto rhsBenefit = rhs.first->getBenefit();
+                     return lhsBenefit > rhsBenefit;
+                   });
 
   // Update the legalization pattern to use the new sorted list.
   patterns.clear();
@@ -3055,6 +3055,54 @@ auto TypeConverter::convertBlockSignature(Block *block)
 }
 
 //===----------------------------------------------------------------------===//
+// Type attribute conversion
+//===----------------------------------------------------------------------===//
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::result(Attribute attr) {
+  return AttributeConversionResult(attr, resultTag);
+}
+
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::na() {
+  return AttributeConversionResult(nullptr, naTag);
+}
+
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::abort() {
+  return AttributeConversionResult(nullptr, abortTag);
+}
+
+bool TypeConverter::AttributeConversionResult::hasResult() const {
+  return impl.getInt() == resultTag;
+}
+
+bool TypeConverter::AttributeConversionResult::isNa() const {
+  return impl.getInt() == naTag;
+}
+
+bool TypeConverter::AttributeConversionResult::isAbort() const {
+  return impl.getInt() == abortTag;
+}
+
+Attribute TypeConverter::AttributeConversionResult::getResult() const {
+  assert(hasResult() && "Cannot get result from N/A or abort");
+  return impl.getPointer();
+}
+
+std::optional<Attribute> TypeConverter::convertTypeAttribute(Type type,
+                                                             Attribute attr) {
+  for (TypeAttributeConversionCallbackFn &fn :
+       llvm::reverse(typeAttributeConversions)) {
+    AttributeConversionResult res = fn(type, attr);
+    if (res.hasResult())
+      return res.getResult();
+    if (res.isAbort())
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+//===----------------------------------------------------------------------===//
 // FunctionOpInterfaceSignatureConversion
 //===----------------------------------------------------------------------===//
 
@@ -3364,7 +3412,7 @@ LogicalResult
 mlir::applyPartialConversion(Operation *op, ConversionTarget &target,
                              const FrozenRewritePatternSet &patterns,
                              DenseSet<Operation *> *unconvertedOps) {
-  return applyPartialConversion(llvm::makeArrayRef(op), target, patterns,
+  return applyPartialConversion(llvm::ArrayRef(op), target, patterns,
                                 unconvertedOps);
 }
 
@@ -3380,7 +3428,7 @@ mlir::applyFullConversion(ArrayRef<Operation *> ops, ConversionTarget &target,
 LogicalResult
 mlir::applyFullConversion(Operation *op, ConversionTarget &target,
                           const FrozenRewritePatternSet &patterns) {
-  return applyFullConversion(llvm::makeArrayRef(op), target, patterns);
+  return applyFullConversion(llvm::ArrayRef(op), target, patterns);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3401,6 +3449,6 @@ mlir::applyAnalysisConversion(Operation *op, ConversionTarget &target,
                               const FrozenRewritePatternSet &patterns,
                               DenseSet<Operation *> &convertedOps,
                               function_ref<void(Diagnostic &)> notifyCallback) {
-  return applyAnalysisConversion(llvm::makeArrayRef(op), target, patterns,
+  return applyAnalysisConversion(llvm::ArrayRef(op), target, patterns,
                                  convertedOps, notifyCallback);
 }

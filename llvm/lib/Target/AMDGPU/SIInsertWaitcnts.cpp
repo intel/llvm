@@ -35,7 +35,7 @@
 #include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/DebugCounter.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "si-insert-waitcnts"
@@ -1177,6 +1177,11 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
         MachineOperand &Op = MI.getOperand(I);
         if (!Op.isReg())
           continue;
+
+        // If the instruction does not read tied source, skip the operand.
+        if (Op.isTied() && Op.isUse() && TII->doesNotReadTiedSource(MI))
+          continue;
+
         RegInterval Interval =
             ScoreBrackets.getRegInterval(&MI, TII, MRI, TRI, I);
 

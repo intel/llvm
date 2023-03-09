@@ -50,6 +50,18 @@ xptifw/ @intel/llvm-reviewers-runtime
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
 
+# OpenCL CPU RT
+opencl-cpu/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes on CPU
+llvm/lib/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes header files
+llvm/include/llvm/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes LIT test
+llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
 # Clang offload tools
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 

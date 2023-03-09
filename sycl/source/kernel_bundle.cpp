@@ -294,7 +294,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
       detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
   return std::all_of(BinImages.begin(), BinImages.end(),
                      [&Dev](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportImgAspects(Dev, *Img);
+                       return doesDevSupportDeviceRequirements(Dev, *Img);
                      });
 }
 

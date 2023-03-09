@@ -20,7 +20,7 @@ target triple = "spir64"
 ; Function Attrs: nounwind
 define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
- %0 = atomicrmw fadd float addrspace(1)* @f, float 42.000000e+00 seq_cst
+ %0 = atomicrmw fadd ptr addrspace(1) @f, float 42.000000e+00 seq_cst
 ; CHECK: AtomicFAddEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[FPValue]]
 
   ret void

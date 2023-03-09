@@ -23,10 +23,10 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 // Let COND_RES(X, Y) be:
 template <class _Tp, class _Up>
-using __cond_type = decltype(false ? declval<_Tp>() : declval<_Up>());
+using __cond_type = decltype(false ? std::declval<_Tp>() : std::declval<_Up>());
 
 template <class _Tp, class _Up, class = void>
 struct __common_type3 {};
@@ -47,10 +47,10 @@ struct __common_type2_imp {};
 
 // sub-bullet 3 - "if decay_t<decltype(false ? declval<D1>() : declval<D2>())> ..."
 template <class _Tp, class _Up>
-struct __common_type2_imp<_Tp, _Up, __void_t<decltype(true ? declval<_Tp>() : declval<_Up>())> >
+struct __common_type2_imp<_Tp, _Up, __void_t<decltype(true ? std::declval<_Tp>() : std::declval<_Up>())> >
 {
   typedef _LIBCPP_NODEBUG typename decay<decltype(
-                         true ? declval<_Tp>() : declval<_Up>()
+                         true ? std::declval<_Tp>() : std::declval<_Up>()
                          )>::type type;
 };
 
@@ -125,7 +125,7 @@ struct _LIBCPP_TEMPLATE_VIS
 
 #undef _LIBCPP_OPTIONAL_PACK
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class ..._Tp> using common_type_t = typename common_type<_Tp...>::type;
 #endif
 

@@ -1536,7 +1536,7 @@ struct m_SplatOrUndefMask {
   int &SplatIndex;
   m_SplatOrUndefMask(int &SplatIndex) : SplatIndex(SplatIndex) {}
   bool match(ArrayRef<int> Mask) {
-    auto First = find_if(Mask, [](int Elem) { return Elem != -1; });
+    const auto *First = find_if(Mask, [](int Elem) { return Elem != -1; });
     if (First == Mask.end())
       return false;
     SplatIndex = *First;
@@ -2490,7 +2490,7 @@ struct VScaleVal_match {
         if (GEP->getNumIndices() == 1 && isa<ScalableVectorType>(DerefTy) &&
             m_Zero().match(GEP->getPointerOperand()) &&
             m_SpecificInt(1).match(GEP->idx_begin()->get()) &&
-            DL.getTypeAllocSizeInBits(DerefTy).getKnownMinSize() == 8)
+            DL.getTypeAllocSizeInBits(DerefTy).getKnownMinValue() == 8)
           return true;
       }
     }

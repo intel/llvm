@@ -169,9 +169,9 @@ static constexpr bool isIntermediateConstructStmt{common::HasMember<
 
 template <typename A>
 static constexpr bool isNopConstructStmt{common::HasMember<
-    A, std::tuple<parser::CaseStmt, parser::EndSelectStmt, parser::ElseIfStmt,
-                  parser::ElseStmt, parser::EndIfStmt,
-                  parser::SelectRankCaseStmt, parser::TypeGuardStmt>>};
+    A, std::tuple<parser::CaseStmt, parser::ElseIfStmt, parser::ElseStmt,
+                  parser::EndIfStmt, parser::SelectRankCaseStmt,
+                  parser::TypeGuardStmt>>};
 
 template <typename A>
 static constexpr bool isExecutableDirective{common::HasMember<
@@ -276,9 +276,8 @@ struct Evaluation : EvaluationVariant {
   /// from one or more enclosing constructs.
   Evaluation &nonNopSuccessor() const {
     Evaluation *successor = lexicalSuccessor;
-    if (successor && successor->isNopConstructStmt()) {
+    if (successor && successor->isNopConstructStmt())
       successor = successor->parentConstruct->constructExit;
-    }
     assert(successor && "missing successor");
     return *successor;
   }
@@ -637,6 +636,15 @@ struct FunctionLikeUnit : public ProgramUnit {
       llvm::report_fatal_error(
           "not inside a procedure; do not call on main program.");
     return *symbol;
+  }
+
+  /// Return a pointer to the main program symbol for named programs
+  /// Return the null pointer for anonymous programs
+  const semantics::Symbol *getMainProgramSymbol() const {
+    if (!isMainProgram()) {
+      llvm::report_fatal_error("call only on main program.");
+    }
+    return entryPointList[activeEntry].first;
   }
 
   /// Return a pointer to the current entry point Evaluation.

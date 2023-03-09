@@ -23,6 +23,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/CodeGen/ExpandReductions.h"
+#include "llvm/CodeGen/FPBuiltinFnSelection.h"
 #include "llvm/CodeGen/MachinePassManager.h"
 #include "llvm/CodeGen/PreISelIntrinsicLowering.h"
 #include "llvm/CodeGen/ReplaceWithVeclib.h"
@@ -582,6 +583,7 @@ void CodeGenPassBuilder<Derived>::addISelPasses(AddIRPass &addPass) const {
   addPass(PreISelIntrinsicLoweringPass());
 
   derived().addIRPasses(addPass);
+  addPass(FPBuiltinFnSelectionPass());
   derived().addCodeGenPrepare(addPass);
   addPassesToHandleExceptions(addPass);
   derived().addISelPrepare(addPass);
@@ -714,6 +716,7 @@ template <typename Derived>
 void CodeGenPassBuilder<Derived>::addISelPrepare(AddIRPass &addPass) const {
   derived().addPreISel(addPass);
 
+  addPass(CallBrPrepare());
   // Add both the safe stack and the stack protection passes: each of them will
   // only protect functions that have corresponding attributes.
   addPass(SafeStackPass());

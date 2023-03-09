@@ -443,7 +443,7 @@ void ARMDAGToDAGISel::PreprocessISelDAG() {
       continue;
 
     // Check if the AND mask is an immediate of the form: 000.....1111111100
-    unsigned TZ = countTrailingZeros(And_imm);
+    unsigned TZ = llvm::countr_zero(And_imm);
     if (TZ != 1 && TZ != 2)
       // Be conservative here. Shifter operands aren't always free. e.g. On
       // Swift, left shifter operand of 1 / 2 for free but others are not.
@@ -2640,7 +2640,7 @@ void ARMDAGToDAGISel::SelectMVE_LongShift(SDNode *N, uint16_t Opcode,
   Ops.push_back(getAL(CurDAG, Loc));
   Ops.push_back(CurDAG->getRegister(0, MVT::i32));
 
-  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), ArrayRef(Ops));
 }
 
 void ARMDAGToDAGISel::SelectMVE_VADCSBC(SDNode *N, uint16_t OpcodeWithCarry,
@@ -2674,7 +2674,7 @@ void ARMDAGToDAGISel::SelectMVE_VADCSBC(SDNode *N, uint16_t OpcodeWithCarry,
   else
     AddEmptyMVEPredicateToOps(Ops, Loc, N->getValueType(0));
 
-  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), ArrayRef(Ops));
 }
 
 void ARMDAGToDAGISel::SelectMVE_VSHLC(SDNode *N, bool Predicated) {
@@ -2693,7 +2693,7 @@ void ARMDAGToDAGISel::SelectMVE_VSHLC(SDNode *N, bool Predicated) {
   else
     AddEmptyMVEPredicateToOps(Ops, Loc);
 
-  CurDAG->SelectNodeTo(N, ARM::MVE_VSHLC, N->getVTList(), makeArrayRef(Ops));
+  CurDAG->SelectNodeTo(N, ARM::MVE_VSHLC, N->getVTList(), ArrayRef(Ops));
 }
 
 static bool SDValueToConstBool(SDValue SDVal) {
@@ -2755,7 +2755,7 @@ void ARMDAGToDAGISel::SelectBaseMVE_VMLLDAV(SDNode *N, bool Predicated,
   else
     AddEmptyMVEPredicateToOps(Ops, Loc);
 
-  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), ArrayRef(Ops));
 }
 
 void ARMDAGToDAGISel::SelectMVE_VMLLDAV(SDNode *N, bool Predicated,
@@ -2883,7 +2883,7 @@ void ARMDAGToDAGISel::SelectMVE_VxDUP(SDNode *N, const uint16_t *Opcodes,
   else
     AddEmptyMVEPredicateToOps(Ops, Loc, N->getValueType(0));
 
-  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), ArrayRef(Ops));
 }
 
 void ARMDAGToDAGISel::SelectCDE_CXxD(SDNode *N, uint16_t Opcode,
@@ -3365,7 +3365,7 @@ bool ARMDAGToDAGISel::tryV6T2BitfieldExtractOp(SDNode *N, bool isSigned) {
         And_imm &= -1U >> Srl_imm;
 
         // Note: The width operand is encoded as width-1.
-        unsigned Width = countTrailingOnes(And_imm) - 1;
+        unsigned Width = llvm::countr_one(And_imm) - 1;
         unsigned LSB = Srl_imm;
 
         SDValue Reg0 = CurDAG->getRegister(0, MVT::i32);
@@ -3431,11 +3431,11 @@ bool ARMDAGToDAGISel::tryV6T2BitfieldExtractOp(SDNode *N, bool isSigned) {
   if (isOpcWithIntImmediate(N->getOperand(0).getNode(), ISD::AND, And_imm) &&
       isShiftedMask_32(And_imm)) {
     unsigned Srl_imm = 0;
-    unsigned LSB = countTrailingZeros(And_imm);
+    unsigned LSB = llvm::countr_zero(And_imm);
     // Shift must be the same as the ands lsb
     if (isInt32Immediate(N->getOperand(1), Srl_imm) && Srl_imm == LSB) {
       assert(Srl_imm > 0 && Srl_imm < 32 && "bad amount in shift node!");
-      unsigned MSB = 31 - countLeadingZeros(And_imm);
+      unsigned MSB = llvm::Log2_32(And_imm);
       // Note: The width operand is encoded as width-1.
       unsigned Width = MSB - LSB;
       SDValue Reg0 = CurDAG->getRegister(0, MVT::i32);

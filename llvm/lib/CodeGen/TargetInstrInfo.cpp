@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineScheduler.h"
+#include "llvm/CodeGen/MachineTraceMetrics.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/ScoreboardHazardRecognizer.h"
 #include "llvm/CodeGen/StackMaps.h"
@@ -49,8 +50,8 @@ TargetInstrInfo::getRegClass(const MCInstrDesc &MCID, unsigned OpNum,
   if (OpNum >= MCID.getNumOperands())
     return nullptr;
 
-  short RegClass = MCID.OpInfo[OpNum].RegClass;
-  if (MCID.OpInfo[OpNum].isLookupPtrRegClass())
+  short RegClass = MCID.operands()[OpNum].RegClass;
+  if (MCID.operands()[OpNum].isLookupPtrRegClass())
     return TRI->getPointerRegClass(MF, RegClass);
 
   // Instructions like INSERT_SUBREG do not have fixed register classes.
@@ -194,12 +195,10 @@ MachineInstr *TargetInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   bool Reg2IsInternal = MI.getOperand(Idx2).isInternalRead();
   // Avoid calling isRenamable for virtual registers since we assert that
   // renamable property is only queried/set for physical registers.
-  bool Reg1IsRenamable = Register::isPhysicalRegister(Reg1)
-                             ? MI.getOperand(Idx1).isRenamable()
-                             : false;
-  bool Reg2IsRenamable = Register::isPhysicalRegister(Reg2)
-                             ? MI.getOperand(Idx2).isRenamable()
-                             : false;
+  bool Reg1IsRenamable =
+      Reg1.isPhysical() ? MI.getOperand(Idx1).isRenamable() : false;
+  bool Reg2IsRenamable =
+      Reg2.isPhysical() ? MI.getOperand(Idx2).isRenamable() : false;
   // If destination is tied to either of the commuted source register, then
   // it must be updated.
   if (HasDef && Reg0 == Reg1 &&
@@ -239,9 +238,9 @@ MachineInstr *TargetInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   CommutedMI->getOperand(Idx1).setIsInternalRead(Reg2IsInternal);
   // Avoid calling setIsRenamable for virtual registers since we assert that
   // renamable property is only queried/set for physical registers.
-  if (Register::isPhysicalRegister(Reg1))
+  if (Reg1.isPhysical())
     CommutedMI->getOperand(Idx2).setIsRenamable(Reg1IsRenamable);
-  if (Register::isPhysicalRegister(Reg2))
+  if (Reg2.isPhysical())
     CommutedMI->getOperand(Idx1).setIsRenamable(Reg2IsRenamable);
   return CommutedMI;
 }
@@ -339,7 +338,7 @@ bool TargetInstrInfo::PredicateInstruction(
     return false;
 
   for (unsigned j = 0, i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    if (MCID.OpInfo[i].isPredicate()) {
+    if (MCID.operands()[i].isPredicate()) {
       MachineOperand &MO = MI.getOperand(i);
       if (MO.isReg()) {
         MO.setReg(Pred[j].getReg());
@@ -456,12 +455,12 @@ static const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
   Register FoldReg = FoldOp.getReg();
   Register LiveReg = LiveOp.getReg();
 
-  assert(Register::isVirtualRegister(FoldReg) && "Cannot fold physregs");
+  assert(FoldReg.isVirtual() && "Cannot fold physregs");
 
   const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
   const TargetRegisterClass *RC = MRI.getRegClass(FoldReg);
 
-  if (Register::isPhysicalRegister(LiveOp.getReg()))
+  if (LiveOp.getReg().isPhysical())
     return RC->contains(LiveOp.getReg()) ? RC : nullptr;
 
   if (RC->hasSubClassEq(MRI.getRegClass(LiveReg)))
@@ -707,13 +706,13 @@ bool TargetInstrInfo::hasReassociableOperands(
   // reassociate.
   MachineInstr *MI1 = nullptr;
   MachineInstr *MI2 = nullptr;
-  if (Op1.isReg() && Register::isVirtualRegister(Op1.getReg()))
+  if (Op1.isReg() && Op1.getReg().isVirtual())
     MI1 = MRI.getUniqueVRegDef(Op1.getReg());
-  if (Op2.isReg() && Register::isVirtualRegister(Op2.getReg()))
+  if (Op2.isReg() && Op2.getReg().isVirtual())
     MI2 = MRI.getUniqueVRegDef(Op2.getReg());
 
-  // And they need to be in the trace (otherwise, they won't have a depth).
-  return MI1 && MI2 && MI1->getParent() == MBB && MI2->getParent() == MBB;
+  // And at least one operand must be defined in MBB.
+  return MI1 && MI2 && (MI1->getParent() == MBB || MI2->getParent() == MBB);
 }
 
 bool TargetInstrInfo::areOpcodesEqualOrInverse(unsigned Opcode1,
@@ -963,15 +962,15 @@ void TargetInstrInfo::reassociateOps(
   Register RegY = OpY.getReg();
   Register RegC = OpC.getReg();
 
-  if (Register::isVirtualRegister(RegA))
+  if (RegA.isVirtual())
     MRI.constrainRegClass(RegA, RC);
-  if (Register::isVirtualRegister(RegB))
+  if (RegB.isVirtual())
     MRI.constrainRegClass(RegB, RC);
-  if (Register::isVirtualRegister(RegX))
+  if (RegX.isVirtual())
     MRI.constrainRegClass(RegX, RC);
-  if (Register::isVirtualRegister(RegY))
+  if (RegY.isVirtual())
     MRI.constrainRegClass(RegY, RC);
-  if (Register::isVirtualRegister(RegC))
+  if (RegC.isVirtual())
     MRI.constrainRegClass(RegC, RC);
 
   // Create a new virtual register for the result of (X op Y) instead of
@@ -1042,9 +1041,17 @@ void TargetInstrInfo::genAlternativeCodeSequence(
     break;
   }
 
+  // Don't reassociate if Prev and Root are in different blocks.
+  if (Prev->getParent() != Root.getParent())
+    return;
+
   assert(Prev && "Unknown pattern for machine combiner");
 
   reassociateOps(Root, *Prev, Pattern, InsInstrs, DelInstrs, InstIdxForVirtReg);
+}
+
+MachineTraceStrategy TargetInstrInfo::getMachineCombinerTraceStrategy() const {
+  return MachineTraceStrategy::TS_MinInstrCount;
 }
 
 bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
@@ -1061,7 +1068,7 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
   // doesn't read the other parts of the register.  Otherwise it is really a
   // read-modify-write operation on the full virtual register which cannot be
   // moved safely.
-  if (Register::isVirtualRegister(DefReg) && MI.getOperand(0).getSubReg() &&
+  if (DefReg.isVirtual() && MI.getOperand(0).getSubReg() &&
       MI.readsVirtualRegister(DefReg))
     return false;
 
@@ -1096,7 +1103,7 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
       continue;
 
     // Check for a well-behaved physical register.
-    if (Register::isPhysicalRegister(Reg)) {
+    if (Reg.isPhysical()) {
       if (MO.isUse()) {
         // If the physreg has no defs anywhere, it's just an ambient register
         // and we can freely move its uses. Alternatively, if it's allocatable,
@@ -1551,6 +1558,72 @@ void TargetInstrInfo::mergeOutliningCandidateAttributes(
         return C.getMF()->getFunction().hasFnAttribute(Attribute::NoUnwind);
       }))
     F.addFnAttr(Attribute::NoUnwind);
+}
+
+outliner::InstrType TargetInstrInfo::getOutliningType(
+    MachineBasicBlock::iterator &MIT, unsigned Flags) const {
+  MachineInstr &MI = *MIT;
+
+  // NOTE: MI.isMetaInstruction() will match CFI_INSTRUCTION, but some targets
+  // have support for outlining those. Special-case that here.
+  if (MI.isCFIInstruction())
+    // Just go right to the target implementation.
+    return getOutliningTypeImpl(MIT, Flags);
+
+  // Don't allow instructions that don't materialize to impact analysis.
+  if (MI.isMetaInstruction())
+    return outliner::InstrType::Invisible;
+
+  // Be conservative about inline assembly.
+  if (MI.isInlineAsm())
+    return outliner::InstrType::Illegal;
+
+  // Labels generally can't safely be outlined.
+  if (MI.isLabel())
+    return outliner::InstrType::Illegal;
+
+  // Is this a terminator for a basic block?
+  if (MI.isTerminator()) {
+    // If this is a branch to another block, we can't outline it.
+    if (!MI.getParent()->succ_empty())
+      return outliner::InstrType::Illegal;
+
+    // Don't outline if the branch is not unconditional.
+    if (isPredicated(MI))
+      return outliner::InstrType::Illegal;
+  }
+
+  // Make sure none of the operands of this instruction do anything that
+  // might break if they're moved outside their current function.
+  // This includes MachineBasicBlock references, BlockAddressses,
+  // Constant pool indices and jump table indices.
+  //
+  // A quick note on MO_TargetIndex:
+  // This doesn't seem to be used in any of the architectures that the
+  // MachineOutliner supports, but it was still filtered out in all of them.
+  // There was one exception (RISC-V), but MO_TargetIndex also isn't used there.
+  // As such, this check is removed both here and in the target-specific
+  // implementations. Instead, we assert to make sure this doesn't
+  // catch anyone off-guard somewhere down the line.
+  for (const MachineOperand &MOP : MI.operands()) {
+    // If you hit this assertion, please remove it and adjust
+    // `getOutliningTypeImpl` for your target appropriately if necessary.
+    // Adding the assertion back to other supported architectures
+    // would be nice too :)
+    assert(!MOP.isTargetIndex() && "This isn't used quite yet!");
+
+    // CFI instructions should already have been filtered out at this point.
+    assert(!MOP.isCFIIndex() && "CFI instructions handled elsewhere!");
+
+    // PrologEpilogInserter should've already run at this point.
+    assert(!MOP.isFI() && "FrameIndex instructions should be gone by now!");
+
+    if (MOP.isMBB() || MOP.isBlockAddress() || MOP.isCPI() || MOP.isJTI())
+      return outliner::InstrType::Illegal;
+  }
+
+  // If we don't know, delegate to the target-specific hook.
+  return getOutliningTypeImpl(MIT, Flags);
 }
 
 bool TargetInstrInfo::isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,

@@ -11,13 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/ELF_i386.h"
+#include "DefineExternalSectionStartAndEndSymbols.h"
 #include "ELFLinkGraphBuilder.h"
 #include "JITLinkGeneric.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ExecutionEngine/JITLink/i386.h"
 #include "llvm/Object/ELFObjectFile.h"
-
-#include "DefineExternalSectionStartAndEndSymbols.h"
 
 #define DEBUG_TYPE "jitlink"
 
@@ -31,7 +30,8 @@ Error buildTables_ELF_i386(LinkGraph &G) {
   LLVM_DEBUG(dbgs() << "Visiting edges in graph:\n");
 
   i386::GOTTableManager GOT;
-  visitExistingEdges(G, GOT);
+  i386::PLTTableManager PLT(GOT);
+  visitExistingEdges(G, GOT, PLT);
   return Error::success();
 }
 } // namespace
@@ -131,6 +131,8 @@ private:
       return EdgeKind_i386::Delta32;
     case ELF::R_386_GOTOFF:
       return EdgeKind_i386::Delta32FromGOT;
+    case ELF::R_386_PLT32:
+      return EdgeKind_i386::BranchPCRel32;
     }
 
     return make_error<JITLinkError>("Unsupported i386 relocation:" +
@@ -180,9 +182,20 @@ private:
     if (!Kind)
       return Kind.takeError();
 
+    auto FixupAddress = orc::ExecutorAddr(FixupSection.sh_addr) + Rel.r_offset;
     int64_t Addend = 0;
 
-    auto FixupAddress = orc::ExecutorAddr(FixupSection.sh_addr) + Rel.r_offset;
+    switch (*Kind) {
+    case i386::EdgeKind_i386::Delta32: {
+      const char *FixupContent = BlockToFix.getContent().data() +
+                                 (FixupAddress - BlockToFix.getAddress());
+      Addend = *(const support::ulittle32_t *)FixupContent;
+      break;
+    }
+    default:
+      break;
+    }
+
     Edge::OffsetT Offset = FixupAddress - BlockToFix.getAddress();
     Edge GE(*Kind, Offset, *GraphSymbol, Addend);
     LLVM_DEBUG({
@@ -197,8 +210,8 @@ private:
 
 public:
   ELFLinkGraphBuilder_i386(StringRef FileName, const object::ELFFile<ELFT> &Obj,
-                           const Triple T)
-      : ELFLinkGraphBuilder<ELFT>(Obj, std::move(T), FileName,
+                           Triple TT)
+      : ELFLinkGraphBuilder<ELFT>(Obj, std::move(TT), FileName,
                                   i386::getEdgeKindName) {}
 };
 
@@ -233,8 +246,11 @@ void link_ELF_i386(std::unique_ptr<LinkGraph> G,
     else
       Config.PrePrunePasses.push_back(markAllSymbolsLive);
 
-    // Add an in-place GOT build pass.
+    // Add an in-place GOT and PLT build pass.
     Config.PostPrunePasses.push_back(buildTables_ELF_i386);
+
+    // Add GOT/Stubs optimizer pass.
+    Config.PreFixupPasses.push_back(i386::optimizeGOTAndStubAccesses);
   }
   if (auto Err = Ctx->modifyPassConfig(*G, Config))
     return Ctx->notifyFailed(std::move(Err));

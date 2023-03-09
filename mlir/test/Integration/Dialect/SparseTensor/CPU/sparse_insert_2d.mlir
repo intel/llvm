@@ -1,15 +1,26 @@
 // DEFINE: %{option} = enable-runtime-library=false
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: mlir-cpu-runner \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #Dense = #sparse_tensor.encoding<{
   dimLevelType = ["dense", "dense"]
@@ -47,14 +58,14 @@ module {
     %cu = arith.constant -1 : index
     %fu = arith.constant 99.0 : f64
     %p0 = sparse_tensor.pointers %arg0 { dimension = 0 : index } : tensor<4x3xf64, #SortedCOO> to memref<?xindex>
-    %i0 = sparse_tensor.indices  %arg0 { dimension = 0 : index } : tensor<4x3xf64, #SortedCOO> to memref<?xindex>
-    %i1 = sparse_tensor.indices  %arg0 { dimension = 1 : index } : tensor<4x3xf64, #SortedCOO> to memref<?xindex>
+    %i0 = sparse_tensor.indices  %arg0 { dimension = 0 : index } : tensor<4x3xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
+    %i1 = sparse_tensor.indices  %arg0 { dimension = 1 : index } : tensor<4x3xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
     %v = sparse_tensor.values %arg0 : tensor<4x3xf64, #SortedCOO> to memref<?xf64>
     %vp0 = vector.transfer_read %p0[%c0], %cu: memref<?xindex>, vector<2xindex>
     vector.print %vp0 : vector<2xindex>
-    %vi0 = vector.transfer_read %i0[%c0], %cu: memref<?xindex>, vector<4xindex>
+    %vi0 = vector.transfer_read %i0[%c0], %cu: memref<?xindex, strided<[?], offset: ?>>, vector<4xindex>
     vector.print %vi0 : vector<4xindex>
-    %vi1 = vector.transfer_read %i1[%c0], %cu: memref<?xindex>, vector<4xindex>
+    %vi1 = vector.transfer_read %i1[%c0], %cu: memref<?xindex, strided<[?], offset: ?>>, vector<4xindex>
     vector.print %vi1 : vector<4xindex>
     %vv = vector.transfer_read %v[%c0], %fu: memref<?xf64>, vector<4xf64>
     vector.print %vv : vector<4xf64>

@@ -43,6 +43,8 @@
 #  define CAN_SANITIZE_LEAKS 1
 #elif defined(__arm__) && SANITIZER_LINUX
 #  define CAN_SANITIZE_LEAKS 1
+#elif SANITIZER_LOONGARCH64 && SANITIZER_LINUX
+#  define CAN_SANITIZE_LEAKS 1
 #elif SANITIZER_RISCV64 && SANITIZER_LINUX
 #  define CAN_SANITIZE_LEAKS 1
 #elif SANITIZER_NETBSD || SANITIZER_FUCHSIA
@@ -77,6 +79,11 @@ enum IgnoreObjectResult {
   kIgnoreObjectInvalid
 };
 
+struct Range {
+  uptr begin;
+  uptr end;
+};
+
 //// --------------------------------------------------------------------------
 //// Poisoning prototypes.
 //// --------------------------------------------------------------------------
@@ -103,12 +110,11 @@ bool GetThreadRangesLocked(tid_t os_id, uptr *stack_begin, uptr *stack_end,
                            uptr *tls_begin, uptr *tls_end, uptr *cache_begin,
                            uptr *cache_end, DTLS **dtls);
 void GetAllThreadAllocatorCachesLocked(InternalMmapVector<uptr> *caches);
-void ForEachExtraStackRange(tid_t os_id, RangeIteratorCallback callback,
-                            void *arg);
-
-void RunCallbackForEachThreadLocked(__sanitizer::ThreadRegistry::ThreadCallback cb,
-                                    void *arg);
-void FinishThreadLocked(u32 tid);
+void GetThreadExtraStackRangesLocked(InternalMmapVector<Range> *ranges);
+void GetThreadExtraStackRangesLocked(tid_t os_id,
+                                     InternalMmapVector<Range> *ranges);
+void GetAdditionalThreadContextPtrsLocked(InternalMmapVector<uptr> *ptrs);
+void GetRunningThreadsLocked(InternalMmapVector<tid_t> *threads);
 
 //// --------------------------------------------------------------------------
 //// Allocator prototypes.
@@ -125,6 +131,9 @@ void GetAllocatorGlobalRange(uptr *begin, uptr *end);
 uptr PointsIntoChunk(void *p);
 // Returns address of user-visible chunk contained in this allocator chunk.
 uptr GetUserBegin(uptr chunk);
+// Returns user-visible address for chunk. If memory tagging is used this
+// function will return the tagged address.
+uptr GetUserAddr(uptr chunk);
 
 // Wrapper for chunk metadata operations.
 class LsanMetadata {
@@ -146,8 +155,6 @@ void ForEachChunk(ForEachChunkCallback callback, void *arg);
 
 // Helper for __lsan_ignore_object().
 IgnoreObjectResult IgnoreObjectLocked(const void *p);
-
-void GetAdditionalThreadContextPtrs(ThreadContextBase *tctx, void *ptrs);
 
 // The rest of the LSan interface which is implemented by library.
 
@@ -252,7 +259,6 @@ struct CheckForLeaksParam {
 InternalMmapVectorNoCtor<RootRegion> const *GetRootRegions();
 void ScanRootRegion(Frontier *frontier, RootRegion const &region,
                     uptr region_begin, uptr region_end, bool is_readable);
-void ForEachExtraStackRangeCb(uptr begin, uptr end, void *arg);
 // Run stoptheworld while holding any platform-specific locks, as well as the
 // allocator and thread registry locks.
 void LockStuffAndStopTheWorld(StopTheWorldCallback callback,
@@ -262,6 +268,8 @@ void ScanRangeForPointers(uptr begin, uptr end,
                           Frontier *frontier,
                           const char *region_type, ChunkTag tag);
 void ScanGlobalRange(uptr begin, uptr end, Frontier *frontier);
+void ScanExtraStackRanges(const InternalMmapVector<Range> &ranges,
+                          Frontier *frontier);
 
 // Functions called from the parent tool.
 const char *MaybeCallLsanDefaultOptions();

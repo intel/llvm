@@ -1256,6 +1256,13 @@ TEST(TypeHints, StructuredBindings_NoInitializer) {
   )cpp");
 }
 
+TEST(TypeHints, InvalidType) {
+  assertTypeHints(R"cpp(
+    auto x = (unknown_type)42; /*error-ok*/
+    auto *y = (unknown_ptr)nullptr;
+  )cpp");
+}
+
 TEST(TypeHints, ReturnTypeDeduction) {
   assertTypeHints(
       R"cpp(
@@ -1364,7 +1371,6 @@ TEST(TypeHints, Aliased) {
 TEST(TypeHints, Decltype) {
   assertTypeHints(R"cpp(
     $a[[decltype(0)]] a;
-    // FIXME: will be nice to show `: int` instead
     $b[[decltype(a)]] b;
     const $c[[decltype(0)]] &c = b;
 
@@ -1377,11 +1383,17 @@ TEST(TypeHints, Decltype) {
 
     template <class, class> struct Foo;
     using G = Foo<$g[[decltype(0)]], float>;
+
+    auto $h[[h]] = $i[[decltype(0)]]{};
+
+    // No crash
+    /* error-ok */
+    auto $j[[s]];
   )cpp",
-                  ExpectedHint{": int", "a"},
-                  ExpectedHint{": decltype(0)", "b"},
+                  ExpectedHint{": int", "a"}, ExpectedHint{": int", "b"},
                   ExpectedHint{": int", "c"}, ExpectedHint{": int", "e"},
-                  ExpectedHint{": int", "f"}, ExpectedHint{": int", "g"});
+                  ExpectedHint{": int", "f"}, ExpectedHint{": int", "g"},
+                  ExpectedHint{": int", "h"}, ExpectedHint{": int", "i"});
 }
 
 TEST(DesignatorHints, Basic) {

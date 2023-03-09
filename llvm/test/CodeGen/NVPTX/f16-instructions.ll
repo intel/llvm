@@ -196,8 +196,10 @@ define half @test_fdiv(half %a, half %b) #0 {
 ; CHECK-F16-FTZ-NEXT: cvt.rzi.ftz.f32.f32 [[DI:%f[0-9]+]], [[D]];
 ; CHECK-F16-FTZ-NEXT: mul.ftz.f32         [[RI:%f[0-9]+]], [[DI]], [[FB]];
 ; CHECK-F16-FTZ-NEXT: sub.ftz.f32         [[RF:%f[0-9]+]], [[FA]], [[RI]];
-; CHECK-NEXT: cvt.rn.f16.f32  [[R:%h[0-9]+]], [[RF]];
-; CHECK-NEXT: st.param.b16    [func_retval0+0], [[R]];
+; CHECK-NEXT: testp.infinite.f32 [[ISBINF:%p[0-9]+]], [[FB]];
+; CHECK-NEXT: selp.f32           [[RESULT:%f[0-9]+]], [[FA]], [[RF]], [[ISBINF]];
+; CHECK-NEXT: cvt.rn.f16.f32     [[R:%h[0-9]+]], [[RESULT]];
+; CHECK-NEXT: st.param.b16       [func_retval0+0], [[R]];
 ; CHECK-NEXT: ret;
 define half @test_frem(half %a, half %b) #0 {
   %r = frem half %a, %b
@@ -1030,8 +1032,7 @@ define half @test_copysign(half %a, half %b) #0 {
 ; CHECK-DAG:  mov.b32         [[B:%r[0-9]+]], [[BF]];
 ; CHECK-DAG:  and.b16         [[AX:%rs[0-9]+]], [[A]], 32767;
 ; CHECK-DAG:  and.b32         [[BX0:%r[0-9]+]], [[B]], -2147483648;
-; CHECK-DAG:  shr.u32         [[BX1:%r[0-9]+]], [[BX0]], 16;
-; CHECK-DAG:  cvt.u16.u32     [[BX2:%rs[0-9]+]], [[BX1]];
+; CHECK-DAG:  mov.b32         {tmp, [[BX2:%rs[0-9]+]]}, [[BX0]];
 ; CHECK:      or.b16          [[RX:%rs[0-9]+]], [[AX]], [[BX2]];
 ; CHECK:      mov.b16         [[R:%h[0-9]+]], [[RX]];
 ; CHECK:      st.param.b16    [func_retval0+0], [[R]];

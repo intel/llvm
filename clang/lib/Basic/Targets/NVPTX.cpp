@@ -22,11 +22,11 @@ using namespace clang::targets;
 
 static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsNVPTX.def"
 };
 
@@ -155,7 +155,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
 }
 
 ArrayRef<const char *> NVPTXTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 bool NVPTXTargetInfo::hasFeature(StringRef Feature) const {
@@ -169,7 +169,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
   if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice) {
-    // Set __CUDA_ARCH__ for the GPU specified.
+    // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
+    // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
     std::string CUDAArchCode = [this] {
       switch (GPU) {
       case CudaArch::GFX600:
@@ -260,11 +261,16 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       }
       llvm_unreachable("unhandled CudaArch");
     }();
-    Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+
+    if (Opts.SYCLIsDevice) {
+      Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
+    } else {
+      Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+    }
   }
 }
 
 ArrayRef<Builtin::Info> NVPTXTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::NVPTX::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::NVPTX::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }

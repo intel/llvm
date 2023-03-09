@@ -79,6 +79,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::DELETED_NODE:               return "<<Deleted Node!>>";
 #endif
   case ISD::PREFETCH:                   return "Prefetch";
+  case ISD::MEMBARRIER:                 return "MemBarrier";
   case ISD::ATOMIC_FENCE:               return "AtomicFence";
   case ISD::ATOMIC_CMP_SWAP:            return "AtomicCmpSwap";
   case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS: return "AtomicCmpSwapWithSuccess";
@@ -95,6 +96,10 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::ATOMIC_LOAD_UMIN:           return "AtomicLoadUMin";
   case ISD::ATOMIC_LOAD_UMAX:           return "AtomicLoadUMax";
   case ISD::ATOMIC_LOAD_FADD:           return "AtomicLoadFAdd";
+  case ISD::ATOMIC_LOAD_UINC_WRAP:
+    return "AtomicLoadUIncWrap";
+  case ISD::ATOMIC_LOAD_UDEC_WRAP:
+    return "AtomicLoadUDecWrap";
   case ISD::ATOMIC_LOAD:                return "AtomicLoad";
   case ISD::ATOMIC_STORE:               return "AtomicStore";
   case ISD::PCMARKER:                   return "PCMarker";
@@ -693,7 +698,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     else
       OS << "<null>";
   } else if (const VTSDNode *N = dyn_cast<VTSDNode>(this)) {
-    OS << ":" << N->getVT().getEVTString();
+    OS << ":" << N->getVT();
   }
   else if (const LoadSDNode *LD = dyn_cast<LoadSDNode>(this)) {
     OS << "<";
@@ -708,7 +713,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << LD->getMemoryVT().getEVTString();
+      OS << " from " << LD->getMemoryVT();
 
     const char *AM = getIndexedModeName(LD->getAddressingMode());
     if (*AM)
@@ -720,7 +725,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *ST->getMemOperand(), G);
 
     if (ST->isTruncatingStore())
-      OS << ", trunc to " << ST->getMemoryVT().getEVTString();
+      OS << ", trunc to " << ST->getMemoryVT();
 
     const char *AM = getIndexedModeName(ST->getAddressingMode());
     if (*AM)
@@ -740,7 +745,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << MLd->getMemoryVT().getEVTString();
+      OS << " from " << MLd->getMemoryVT();
 
     const char *AM = getIndexedModeName(MLd->getAddressingMode());
     if (*AM)
@@ -755,7 +760,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *MSt->getMemOperand(), G);
 
     if (MSt->isTruncatingStore())
-      OS << ", trunc to " << MSt->getMemoryVT().getEVTString();
+      OS << ", trunc to " << MSt->getMemoryVT();
 
     const char *AM = getIndexedModeName(MSt->getAddressingMode());
     if (*AM)
@@ -777,7 +782,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << MGather->getMemoryVT().getEVTString();
+      OS << " from " << MGather->getMemoryVT();
 
     auto Signed = MGather->isIndexSigned() ? "signed" : "unsigned";
     auto Scaled = MGather->isIndexScaled() ? "scaled" : "unscaled";
@@ -789,7 +794,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *MScatter->getMemOperand(), G);
 
     if (MScatter->isTruncatingStore())
-      OS << ", trunc to " << MScatter->getMemoryVT().getEVTString();
+      OS << ", trunc to " << MScatter->getMemoryVT();
 
     auto Signed = MScatter->isIndexSigned() ? "signed" : "unsigned";
     auto Scaled = MScatter->isIndexScaled() ? "scaled" : "unscaled";

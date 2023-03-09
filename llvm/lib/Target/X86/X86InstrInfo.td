@@ -121,8 +121,6 @@ def SDT_X86EHRET : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 
 def SDT_X86TCRET : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
 
-def SDT_X86MEMBARRIER : SDTypeProfile<0, 0, []>;
-
 def SDT_X86ENQCMD : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
                                          SDTCisPtrTy<1>, SDTCisSameAs<1, 2>]>;
 
@@ -135,10 +133,7 @@ def SDTX86Cmpccxadd : SDTypeProfile<1, 4, [SDTCisSameAs<0, 2>,
                                            SDTCisPtrTy<1>, SDTCisSameAs<2, 3>,
                                            SDTCisVT<4, i8>]>;
 
-def X86MemBarrier : SDNode<"X86ISD::MEMBARRIER", SDT_X86MEMBARRIER,
-                            [SDNPHasChain,SDNPSideEffect]>;
-def X86MFence : SDNode<"X86ISD::MFENCE", SDT_X86MEMBARRIER,
-                        [SDNPHasChain]>;
+def X86MFence : SDNode<"X86ISD::MFENCE", SDTNone, [SDNPHasChain]>;
 
 
 def X86bsf     : SDNode<"X86ISD::BSF",      SDTUnaryArithWithFlags>;
@@ -1268,19 +1263,27 @@ def extloadi64i32  : PatFrag<(ops node:$ptr), (i64 (unindexedload node:$ptr)), [
   return LD->getAlign() >= 4 && LD->isSimple();
 }]>;
 
+// binary op with only one user
+class binop_oneuse<SDPatternOperator operator>
+    : PatFrag<(ops node:$A, node:$B),
+              (operator node:$A, node:$B), [{
+  return N->hasOneUse();
+}]>;
 
-// An 'and' node with a single use.
-def and_su : PatFrag<(ops node:$lhs, node:$rhs), (and node:$lhs, node:$rhs), [{
+def add_su : binop_oneuse<add>;
+def and_su : binop_oneuse<and>;
+def srl_su : binop_oneuse<srl>;
+
+// unary op with only one user
+class unop_oneuse<SDPatternOperator operator>
+    : PatFrag<(ops node:$A),
+              (operator node:$A), [{
   return N->hasOneUse();
 }]>;
-// An 'srl' node with a single use.
-def srl_su : PatFrag<(ops node:$lhs, node:$rhs), (srl node:$lhs, node:$rhs), [{
-  return N->hasOneUse();
-}]>;
-// An 'trunc' node with a single use.
-def trunc_su : PatFrag<(ops node:$src), (trunc node:$src), [{
-  return N->hasOneUse();
-}]>;
+
+
+def ineg_su : unop_oneuse<ineg>;
+def trunc_su : unop_oneuse<trunc>;
 
 //===----------------------------------------------------------------------===//
 // Instruction list.
@@ -1386,7 +1389,7 @@ def PUSH32rmm: I<0xFF, MRM6m, (outs), (ins i32mem:$src), "push{l}\t$src", []>,
 
 }
 
-let mayLoad = 1, mayStore = 1, usesCustomInserter = 1,
+let isPseudo = 1, mayLoad = 1, mayStore = 1,
     SchedRW = [WriteRMW], Defs = [ESP] in {
   let Uses = [ESP] in
   def RDFLAGS32 : PseudoI<(outs GR32:$dst), (ins),
@@ -1399,7 +1402,7 @@ let mayLoad = 1, mayStore = 1, usesCustomInserter = 1,
                 Requires<[In64BitMode]>;
 }
 
-let mayLoad = 1, mayStore = 1, usesCustomInserter = 1,
+let isPseudo = 1, mayLoad = 1, mayStore = 1,
     SchedRW = [WriteRMW] in {
   let Defs = [ESP, EFLAGS, DF], Uses = [ESP] in
   def WRFLAGS32 : PseudoI<(outs), (ins GR32:$src),
@@ -2551,37 +2554,41 @@ def and_flag_nocf : PatFrag<(ops node:$lhs, node:$rhs),
   return hasNoCarryFlagUses(SDValue(N, 1));
 }]>;
 
+
 let Predicates = [HasBMI] in {
-  // FIXME: patterns for the load versions are not implemented
-  def : Pat<(and GR32:$src, (add GR32:$src, -1)),
+  // FIXME(1): patterns for the load versions are not implemented
+  // FIXME(2): By only matching `add_su` and `ineg_su` we may emit
+  // extra `mov` instructions if `src` has future uses. It may be better
+  // to always match if `src` has more users.
+  def : Pat<(and GR32:$src, (add_su GR32:$src, -1)),
             (BLSR32rr GR32:$src)>;
-  def : Pat<(and GR64:$src, (add GR64:$src, -1)),
+  def : Pat<(and GR64:$src, (add_su GR64:$src, -1)),
             (BLSR64rr GR64:$src)>;
 
-  def : Pat<(xor GR32:$src, (add GR32:$src, -1)),
+  def : Pat<(xor GR32:$src, (add_su GR32:$src, -1)),
             (BLSMSK32rr GR32:$src)>;
-  def : Pat<(xor GR64:$src, (add GR64:$src, -1)),
+  def : Pat<(xor GR64:$src, (add_su GR64:$src, -1)),
             (BLSMSK64rr GR64:$src)>;
 
-  def : Pat<(and GR32:$src, (ineg GR32:$src)),
+  def : Pat<(and GR32:$src, (ineg_su GR32:$src)),
             (BLSI32rr GR32:$src)>;
-  def : Pat<(and GR64:$src, (ineg GR64:$src)),
+  def : Pat<(and GR64:$src, (ineg_su GR64:$src)),
             (BLSI64rr GR64:$src)>;
 
   // Versions to match flag producing ops.
-  def : Pat<(and_flag_nocf GR32:$src, (add GR32:$src, -1)),
+  def : Pat<(and_flag_nocf GR32:$src, (add_su GR32:$src, -1)),
             (BLSR32rr GR32:$src)>;
-  def : Pat<(and_flag_nocf GR64:$src, (add GR64:$src, -1)),
+  def : Pat<(and_flag_nocf GR64:$src, (add_su GR64:$src, -1)),
             (BLSR64rr GR64:$src)>;
 
-  def : Pat<(xor_flag_nocf GR32:$src, (add GR32:$src, -1)),
+  def : Pat<(xor_flag_nocf GR32:$src, (add_su GR32:$src, -1)),
             (BLSMSK32rr GR32:$src)>;
-  def : Pat<(xor_flag_nocf GR64:$src, (add GR64:$src, -1)),
+  def : Pat<(xor_flag_nocf GR64:$src, (add_su GR64:$src, -1)),
             (BLSMSK64rr GR64:$src)>;
 
-  def : Pat<(and_flag_nocf GR32:$src, (ineg GR32:$src)),
+  def : Pat<(and_flag_nocf GR32:$src, (ineg_su GR32:$src)),
             (BLSI32rr GR32:$src)>;
-  def : Pat<(and_flag_nocf GR64:$src, (ineg GR64:$src)),
+  def : Pat<(and_flag_nocf GR64:$src, (ineg_su GR64:$src)),
             (BLSI64rr GR64:$src)>;
 }
 
@@ -2639,11 +2646,11 @@ let Predicates = [HasBMI2], Defs = [EFLAGS] in {
 
 def CountTrailingOnes : SDNodeXForm<imm, [{
   // Count the trailing ones in the immediate.
-  return getI8Imm(countTrailingOnes(N->getZExtValue()), SDLoc(N));
+  return getI8Imm(llvm::countr_one(N->getZExtValue()), SDLoc(N));
 }]>;
 
 def BEXTRMaskXForm : SDNodeXForm<imm, [{
-  unsigned Length = countTrailingOnes(N->getZExtValue());
+  unsigned Length = llvm::countr_one(N->getZExtValue());
   return getI32Imm(Length << 8, SDLoc(N));
 }]>;
 

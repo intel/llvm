@@ -17,9 +17,9 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace clang {
@@ -372,7 +372,7 @@ public:
     }
   }
 
-  llvm::Optional<LangAS> getConstantAddressSpace() const override {
+  std::optional<LangAS> getConstantAddressSpace() const override {
     return getLangASFromTargetAS(Constant);
   }
 
@@ -455,7 +455,7 @@ public:
     return true;
   }
 
-  Optional<std::string> getTargetID() const override {
+  std::optional<std::string> getTargetID() const override {
     if (!isAMDGCN(getTriple()))
       return std::nullopt;
     // When -target-cpu is not set, we assume generic code that it is valid

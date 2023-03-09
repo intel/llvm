@@ -21,6 +21,14 @@ using namespace mlir;
 MlirAttribute mlirAttributeGetNull() { return {nullptr}; }
 
 //===----------------------------------------------------------------------===//
+// Location attribute.
+//===----------------------------------------------------------------------===//
+
+bool mlirAttributeIsALocation(MlirAttribute attr) {
+  return unwrap(attr).isa<LocationAttr>();
+}
+
+//===----------------------------------------------------------------------===//
 // Affine map attribute.
 //===----------------------------------------------------------------------===//
 
@@ -301,13 +309,13 @@ MlirAttribute mlirElementsAttrGetValue(MlirAttribute attr, intptr_t rank,
                                        uint64_t *idxs) {
   return wrap(unwrap(attr)
                   .cast<ElementsAttr>()
-                  .getValues<Attribute>()[llvm::makeArrayRef(idxs, rank)]);
+                  .getValues<Attribute>()[llvm::ArrayRef(idxs, rank)]);
 }
 
 bool mlirElementsAttrIsValidIndex(MlirAttribute attr, intptr_t rank,
                                   uint64_t *idxs) {
   return unwrap(attr).cast<ElementsAttr>().isValidIndex(
-      llvm::makeArrayRef(idxs, rank));
+      llvm::ArrayRef(idxs, rank));
 }
 
 int64_t mlirElementsAttrGetNumElements(MlirAttribute attr) {
@@ -520,9 +528,8 @@ template <typename T>
 static MlirAttribute getDenseAttribute(MlirType shapedType,
                                        intptr_t numElements,
                                        const T *elements) {
-  return wrap(
-      DenseElementsAttr::get(unwrap(shapedType).cast<ShapedType>(),
-                             llvm::makeArrayRef(elements, numElements)));
+  return wrap(DenseElementsAttr::get(unwrap(shapedType).cast<ShapedType>(),
+                                     llvm::ArrayRef(elements, numElements)));
 }
 
 MlirAttribute mlirDenseElementsAttrUInt8Get(MlirType shapedType,
@@ -710,7 +717,7 @@ static MlirAttribute getDenseResource(MlirType shapedType, MlirStringRef name,
                                       intptr_t numElements, const T *elements) {
   return wrap(U::get(unwrap(shapedType).cast<ShapedType>(), unwrap(name),
                      UnmanagedAsmResourceBlob::allocateInferAlign(
-                         llvm::makeArrayRef(elements, numElements))));
+                         llvm::ArrayRef(elements, numElements))));
 }
 
 MLIR_CAPI_EXPORTED MlirAttribute mlirUnmanagedDenseBoolResourceElementsAttrGet(

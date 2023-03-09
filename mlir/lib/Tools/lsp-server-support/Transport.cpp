@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Transport.h"
-#include "Logging.h"
-#include "Protocol.h"
+#include "mlir/Tools/lsp-server-support/Transport.h"
+#include "mlir/Tools/lsp-server-support/Logging.h"
+#include "mlir/Tools/lsp-server-support/Protocol.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/Error.h"
+#include <optional>
 #include <system_error>
 #include <utility>
 
@@ -228,11 +229,11 @@ bool JSONTransport::handleMessage(llvm::json::Value msg,
   // Message must be an object with "jsonrpc":"2.0".
   llvm::json::Object *object = msg.getAsObject();
   if (!object ||
-      object->getString("jsonrpc") != llvm::Optional<StringRef>("2.0"))
+      object->getString("jsonrpc") != std::optional<StringRef>("2.0"))
     return false;
 
   // `id` may be any JSON value. If absent, this is a notification.
-  llvm::Optional<llvm::json::Value> id;
+  std::optional<llvm::json::Value> id;
   if (llvm::json::Value *i = object->get("id"))
     id = std::move(*i);
   std::optional<StringRef> method = object->getString("method");

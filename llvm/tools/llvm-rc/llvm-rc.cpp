@@ -17,7 +17,6 @@
 #include "ResourceScriptStmt.h"
 #include "ResourceScriptToken.h"
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Object/WindowsResource.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -25,8 +24,8 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -35,6 +34,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <algorithm>
 #include <system_error>
@@ -76,9 +77,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 };
 } // namespace rc_opt
 
-class RcOptTable : public opt::OptTable {
+class RcOptTable : public opt::GenericOptTable {
 public:
-  RcOptTable() : OptTable(rc_opt::InfoTable, /* IgnoreCase = */ true) {}
+  RcOptTable() : GenericOptTable(rc_opt::InfoTable, /* IgnoreCase = */ true) {}
 };
 
 enum Windres_ID {
@@ -110,10 +111,10 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 };
 } // namespace windres_opt
 
-class WindresOptTable : public opt::OptTable {
+class WindresOptTable : public opt::GenericOptTable {
 public:
   WindresOptTable()
-      : OptTable(windres_opt::InfoTable, /* IgnoreCase = */ false) {}
+      : GenericOptTable(windres_opt::InfoTable, /* IgnoreCase = */ false) {}
 };
 
 static ExitOnError ExitOnErr;
@@ -734,16 +735,16 @@ void doCvtres(std::string Src, std::string Dest, std::string TargetTriple) {
 
 } // anonymous namespace
 
-int llvm_rc_main(int Argc, char **Argv) {
+int llvm_rc_main(int Argc, char **Argv, const llvm::ToolContext &) {
   InitLLVM X(Argc, Argv);
   ExitOnErr.setBanner("llvm-rc: ");
 
   char **DashDash = std::find_if(Argv + 1, Argv + Argc,
                                  [](StringRef Str) { return Str == "--"; });
-  ArrayRef<const char *> ArgsArr = makeArrayRef(Argv + 1, DashDash);
+  ArrayRef<const char *> ArgsArr = ArrayRef(Argv + 1, DashDash);
   ArrayRef<const char *> FileArgsArr;
   if (DashDash != Argv + Argc)
-    FileArgsArr = makeArrayRef(DashDash + 1, Argv + Argc);
+    FileArgsArr = ArrayRef(DashDash + 1, Argv + Argc);
 
   RcOptions Opts = getOptions(Argv[0], ArgsArr, FileArgsArr);
 

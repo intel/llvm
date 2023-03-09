@@ -18,11 +18,13 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Host/PseudoTerminal.h"
+#include "lldb/Interpreter/ScriptedPlatformInterface.h"
 #include "lldb/Interpreter/ScriptedProcessInterface.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StructuredData.h"
 #include "lldb/lldb-private.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -145,8 +147,8 @@ public:
 
   ScriptInterpreter(
       Debugger &debugger, lldb::ScriptLanguage script_lang,
-      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up =
-          std::make_unique<ScriptedProcessInterface>());
+      lldb::ScriptedPlatformInterfaceUP scripted_platform_interface_up =
+          std::make_unique<ScriptedPlatformInterface>());
 
   virtual StructuredData::DictionarySP GetInterpreterInfo();
 
@@ -566,8 +568,12 @@ public:
 
   lldb::ScriptLanguage GetLanguage() { return m_script_lang; }
 
-  ScriptedProcessInterface &GetScriptedProcessInterface() {
-    return *m_scripted_process_interface_up;
+  virtual lldb::ScriptedProcessInterfaceUP CreateScriptedProcessInterface() {
+    return std::make_unique<ScriptedProcessInterface>();
+  }
+
+  ScriptedPlatformInterface &GetScriptedPlatformInterface() {
+    return *m_scripted_platform_interface_up;
   }
 
   lldb::DataExtractorSP
@@ -575,13 +581,13 @@ public:
 
   Status GetStatusFromSBError(const lldb::SBError &error) const;
 
-  llvm::Optional<MemoryRegionInfo> GetOpaqueTypeFromSBMemoryRegionInfo(
+  std::optional<MemoryRegionInfo> GetOpaqueTypeFromSBMemoryRegionInfo(
       const lldb::SBMemoryRegionInfo &mem_region) const;
 
 protected:
   Debugger &m_debugger;
   lldb::ScriptLanguage m_script_lang;
-  lldb::ScriptedProcessInterfaceUP m_scripted_process_interface_up;
+  lldb::ScriptedPlatformInterfaceUP m_scripted_platform_interface_up;
 };
 
 } // namespace lldb_private

@@ -14,11 +14,11 @@
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Semantics/tools.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/MD5.h"
+#include <optional>
 
 // recursively build the vector of module scopes
 static void moduleNames(const Fortran::semantics::Scope &scope,
@@ -39,7 +39,7 @@ moduleNames(const Fortran::semantics::Symbol &symbol) {
   return result;
 }
 
-static llvm::Optional<llvm::StringRef>
+static std::optional<llvm::StringRef>
 hostName(const Fortran::semantics::Symbol &symbol) {
   const Fortran::semantics::Scope &scope = symbol.owner();
   if (scope.kind() == Fortran::semantics::Scope::Kind::Subprogram) {
@@ -119,7 +119,7 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
           [&](const Fortran::semantics::ObjectEntityDetails &) {
             llvm::SmallVector<llvm::StringRef> modNames =
                 moduleNames(ultimateSymbol);
-            llvm::Optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
+            std::optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
             if (Fortran::semantics::IsNamedConstant(ultimateSymbol))
               return fir::NameUniquer::doConstant(modNames, optHost,
                                                   symbolName);
@@ -128,7 +128,7 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
           [&](const Fortran::semantics::NamelistDetails &) {
             llvm::SmallVector<llvm::StringRef> modNames =
                 moduleNames(ultimateSymbol);
-            llvm::Optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
+            std::optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
             return fir::NameUniquer::doNamelistGroup(modNames, optHost,
                                                      symbolName);
           },
@@ -157,7 +157,7 @@ std::string Fortran::lower::mangle::mangleName(
       derivedType.typeSymbol().GetUltimate();
   llvm::StringRef symbolName = toStringRef(ultimateSymbol.name());
   llvm::SmallVector<llvm::StringRef> modNames = moduleNames(ultimateSymbol);
-  llvm::Optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
+  std::optional<llvm::StringRef> optHost = hostName(ultimateSymbol);
   llvm::SmallVector<std::int64_t> kinds;
   for (const auto &param :
        Fortran::semantics::OrderParameterDeclarations(ultimateSymbol)) {
@@ -188,7 +188,8 @@ std::string Fortran::lower::mangle::demangleName(llvm::StringRef name) {
 // Array Literals Mangling
 //===----------------------------------------------------------------------===//
 
-static std::string typeToString(Fortran::common::TypeCategory cat, int kind) {
+static std::string typeToString(Fortran::common::TypeCategory cat, int kind,
+                                llvm::StringRef derivedName) {
   switch (cat) {
   case Fortran::common::TypeCategory::Integer:
     return "i" + std::to_string(kind);
@@ -201,8 +202,7 @@ static std::string typeToString(Fortran::common::TypeCategory cat, int kind) {
   case Fortran::common::TypeCategory::Character:
     return "c" + std::to_string(kind);
   case Fortran::common::TypeCategory::Derived:
-    // FIXME: Replace "DT" with the (fully qualified) type name.
-    return "dt.DT";
+    return derivedName.str();
   }
   llvm_unreachable("bad TypeCategory");
 }
@@ -211,13 +211,13 @@ std::string Fortran::lower::mangle::mangleArrayLiteral(
     const uint8_t *addr, size_t size,
     const Fortran::evaluate::ConstantSubscripts &shape,
     Fortran::common::TypeCategory cat, int kind,
-    Fortran::common::ConstantSubscript charLen) {
+    Fortran::common::ConstantSubscript charLen, llvm::StringRef derivedName) {
   std::string typeId;
   for (Fortran::evaluate::ConstantSubscript extent : shape)
     typeId.append(std::to_string(extent)).append("x");
   if (charLen >= 0)
     typeId.append(std::to_string(charLen)).append("x");
-  typeId.append(typeToString(cat, kind));
+  typeId.append(typeToString(cat, kind, derivedName));
   std::string name =
       fir::NameUniquer::doGenerated("ro."s.append(typeId).append("."));
   if (!size)
@@ -229,52 +229,6 @@ std::string Fortran::lower::mangle::mangleArrayLiteral(
   llvm::SmallString<32> hashString;
   llvm::MD5::stringifyResult(hashResult, hashString);
   return name += hashString.c_str();
-}
-
-//===----------------------------------------------------------------------===//
-// Intrinsic Procedure Mangling
-//===----------------------------------------------------------------------===//
-
-/// Helper to encode type into string for intrinsic procedure names.
-/// Note: mlir has Type::dump(ostream) methods but it may add "!" that is not
-/// suitable for function names.
-static std::string typeToString(mlir::Type t) {
-  if (auto refT{t.dyn_cast<fir::ReferenceType>()})
-    return "ref_" + typeToString(refT.getEleTy());
-  if (auto i{t.dyn_cast<mlir::IntegerType>()}) {
-    return "i" + std::to_string(i.getWidth());
-  }
-  if (auto cplx{t.dyn_cast<fir::ComplexType>()}) {
-    return "z" + std::to_string(cplx.getFKind());
-  }
-  if (auto real{t.dyn_cast<fir::RealType>()}) {
-    return "r" + std::to_string(real.getFKind());
-  }
-  if (auto f{t.dyn_cast<mlir::FloatType>()}) {
-    return "f" + std::to_string(f.getWidth());
-  }
-  if (auto logical{t.dyn_cast<fir::LogicalType>()}) {
-    return "l" + std::to_string(logical.getFKind());
-  }
-  if (auto character{t.dyn_cast<fir::CharacterType>()}) {
-    return "c" + std::to_string(character.getFKind());
-  }
-  if (auto boxCharacter{t.dyn_cast<fir::BoxCharType>()}) {
-    return "bc" + std::to_string(boxCharacter.getEleTy().getFKind());
-  }
-  llvm_unreachable("no mangling for type");
-}
-
-std::string fir::mangleIntrinsicProcedure(llvm::StringRef intrinsic,
-                                          mlir::FunctionType funTy) {
-  std::string name = "fir.";
-  name.append(intrinsic.str()).append(".");
-  assert(funTy.getNumResults() == 1 && "only function mangling supported");
-  name.append(typeToString(funTy.getResult(0)));
-  unsigned e = funTy.getNumInputs();
-  for (decltype(e) i = 0; i < e; ++i)
-    name.append(".").append(typeToString(funTy.getInput(i)));
-  return name;
 }
 
 std::string Fortran::lower::mangle::globalNamelistDescriptorName(

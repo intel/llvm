@@ -16,7 +16,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Uniformity.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -62,6 +61,7 @@ class TargetRegisterInfo;
 class TargetSchedModel;
 class TargetSubtargetInfo;
 enum class MachineCombinerPattern;
+enum class MachineTraceStrategy;
 
 template <class T> class SmallVectorImpl;
 
@@ -1252,6 +1252,9 @@ public:
   /// Return true when a target supports MachineCombiner.
   virtual bool useMachineCombiner() const { return false; }
 
+  /// Return a strategy that MachineCombiner must use when creating traces.
+  virtual MachineTraceStrategy getMachineCombinerTraceStrategy() const;
+
   /// Return true if the given SDNode can be copied during scheduling
   /// even if it has glue.
   virtual bool canCopyGluedNodeDuringSchedule(SDNode *N) const { return false; }
@@ -1976,17 +1979,43 @@ public:
   virtual void mergeOutliningCandidateAttributes(
       Function &F, std::vector<outliner::Candidate> &Candidates) const;
 
-  /// Returns how or if \p MI should be outlined.
+protected:
+  /// Target-dependent implementation for getOutliningTypeImpl.
   virtual outliner::InstrType
-  getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
+  getOutliningTypeImpl(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
     llvm_unreachable(
-        "Target didn't implement TargetInstrInfo::getOutliningType!");
+        "Target didn't implement TargetInstrInfo::getOutliningTypeImpl!");
   }
+
+public:
+  /// Returns how or if \p MIT should be outlined. \p Flags is the
+  /// target-specific information returned by isMBBSafeToOutlineFrom.
+  outliner::InstrType
+  getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const;
 
   /// Optional target hook that returns true if \p MBB is safe to outline from,
   /// and returns any target-specific information in \p Flags.
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
                                       unsigned &Flags) const;
+
+  /// Optional target hook which partitions \p MBB into outlinable ranges for
+  /// instruction mapping purposes. Each range is defined by two iterators:
+  /// [start, end).
+  ///
+  /// Ranges are expected to be ordered top-down. That is, ranges closer to the
+  /// top of the block should come before ranges closer to the end of the block.
+  ///
+  /// Ranges cannot overlap.
+  ///
+  /// If an entire block is mappable, then its range is [MBB.begin(), MBB.end())
+  ///
+  /// All instructions not present in an outlinable range are considered
+  /// illegal.
+  virtual SmallVector<
+      std::pair<MachineBasicBlock::iterator, MachineBasicBlock::iterator>>
+  getOutlinableRanges(MachineBasicBlock &MBB, unsigned &Flags) const {
+    return {std::make_pair(MBB.begin(), MBB.end())};
+  }
 
   /// Insert a custom frame for outlined functions.
   virtual void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
@@ -2059,6 +2088,15 @@ public:
   virtual InstructionUniformity
   getInstructionUniformity(const MachineInstr &MI) const {
     return InstructionUniformity::Default;
+  }
+
+  /// Returns true if the given \p MI defines a TargetIndex operand that can be
+  /// tracked by their offset, can have values, and can have debug info
+  /// associated with it. If so, sets \p Index and \p Offset of the target index
+  /// operand.
+  virtual bool isExplicitTargetIndexDef(const MachineInstr &MI, int &Index,
+                                        int64_t &Offset) const {
+    return false;
   }
 
 private:

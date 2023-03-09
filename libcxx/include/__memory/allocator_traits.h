@@ -187,7 +187,7 @@ struct __has_allocate_hint : false_type { };
 
 template <class _Alloc, class _SizeType, class _ConstVoidPtr>
 struct __has_allocate_hint<_Alloc, _SizeType, _ConstVoidPtr, decltype(
-    (void)declval<_Alloc>().allocate(declval<_SizeType>(), declval<_ConstVoidPtr>())
+    (void)std::declval<_Alloc>().allocate(std::declval<_SizeType>(), std::declval<_ConstVoidPtr>())
 )> : true_type { };
 
 // __has_construct
@@ -196,7 +196,7 @@ struct __has_construct_impl : false_type { };
 
 template <class _Alloc, class ..._Args>
 struct __has_construct_impl<decltype(
-    (void)declval<_Alloc>().construct(declval<_Args>()...)
+    (void)std::declval<_Alloc>().construct(std::declval<_Args>()...)
 ), _Alloc, _Args...> : true_type { };
 
 template <class _Alloc, class ..._Args>
@@ -208,7 +208,7 @@ struct __has_destroy : false_type { };
 
 template <class _Alloc, class _Pointer>
 struct __has_destroy<_Alloc, _Pointer, decltype(
-    (void)declval<_Alloc>().destroy(declval<_Pointer>())
+    (void)std::declval<_Alloc>().destroy(std::declval<_Pointer>())
 )> : true_type { };
 
 // __has_max_size
@@ -217,7 +217,7 @@ struct __has_max_size : false_type { };
 
 template <class _Alloc>
 struct __has_max_size<_Alloc, decltype(
-    (void)declval<_Alloc&>().max_size()
+    (void)std::declval<_Alloc&>().max_size()
 )> : true_type { };
 
 // __has_select_on_container_copy_construction
@@ -226,7 +226,7 @@ struct __has_select_on_container_copy_construction : false_type { };
 
 template <class _Alloc>
 struct __has_select_on_container_copy_construction<_Alloc, decltype(
-    (void)declval<_Alloc>().select_on_container_copy_construction()
+    (void)std::declval<_Alloc>().select_on_container_copy_construction()
 )> : true_type { };
 
 _LIBCPP_SUPPRESS_DEPRECATED_POP
@@ -300,7 +300,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits
         __enable_if_t<!__has_construct<allocator_type, _Tp*, _Args...>::value> >
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20
     static void construct(allocator_type&, _Tp* __p, _Args&&... __args) {
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
         _VSTD::construct_at(__p, _VSTD::forward<_Args>(__args)...);
 #else
         ::new ((void*)__p) _Tp(_VSTD::forward<_Args>(__args)...);
@@ -319,7 +319,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits
         __enable_if_t<!__has_destroy<allocator_type, _Tp*>::value> >
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20
     static void destroy(allocator_type&, _Tp* __p) {
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
         _VSTD::destroy_at(__p);
 #else
         __p->~_Tp();

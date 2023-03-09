@@ -17,12 +17,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/ProfileSummary.h"
+#include "llvm/Object/BuildID.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/InstrProfCorrelator.h"
 #include "llvm/ProfileData/MemProf.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/OnDiskHashTable.h"
 #include "llvm/Support/SwapByteOrder.h"
@@ -38,6 +40,10 @@
 namespace llvm {
 
 class InstrProfReader;
+
+namespace vfs {
+class FileSystem;
+} // namespace vfs
 
 /// A file format agnostic iterator over profiling data.
 template <class record_type = NamedInstrProfRecord,
@@ -96,7 +102,12 @@ public:
   /// Read a single record.
   virtual Error readNextRecord(NamedInstrProfRecord &Record) = 0;
 
-  /// Print binary ids on stream OS.
+  /// Read a list of binary ids.
+  virtual Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) {
+    return success();
+  }
+
+  /// Print binary ids.
   virtual Error printBinaryIds(raw_ostream &OS) { return success(); };
 
   /// Iterator over profile data.
@@ -183,7 +194,8 @@ public:
   /// Factory method to create an appropriately typed reader for the given
   /// instrprof file.
   static Expected<std::unique_ptr<InstrProfReader>>
-  create(const Twine &Path, const InstrProfCorrelator *Correlator = nullptr);
+  create(const Twine &Path, vfs::FileSystem &FS,
+         const InstrProfCorrelator *Correlator = nullptr);
 
   static Expected<std::unique_ptr<InstrProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer,
@@ -295,7 +307,9 @@ private:
   uint32_t ValueKindLast;
   uint32_t CurValueDataSize;
 
-  uint64_t BinaryIdsSize;
+  /// Total size of binary ids.
+  uint64_t BinaryIdsSize{0};
+  /// Start address of binary id length and data pairs.
   const uint8_t *BinaryIdsStart;
 
 public:
@@ -310,6 +324,7 @@ public:
   static bool hasFormat(const MemoryBuffer &DataBuffer);
   Error readHeader() override;
   Error readNextRecord(NamedInstrProfRecord &Record) override;
+  Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) override;
   Error printBinaryIds(raw_ostream &OS) override;
 
   uint64_t getVersion() const override { return Version; }
@@ -596,6 +611,10 @@ private:
   std::unique_ptr<MemProfRecordHashTable> MemProfRecordTable;
   /// MemProf frame profile data on-disk indexed via frame id.
   std::unique_ptr<MemProfFrameHashTable> MemProfFrameTable;
+  /// Total size of binary ids.
+  uint64_t BinaryIdsSize{0};
+  /// Start address of binary id length and data pairs.
+  const uint8_t *BinaryIdsStart = nullptr;
 
   // Index to the current record in the record array.
   unsigned RecordIndex;
@@ -679,7 +698,8 @@ public:
 
   /// Factory method to create an indexed reader.
   static Expected<std::unique_ptr<IndexedInstrProfReader>>
-  create(const Twine &Path, const Twine &RemappingPath = "");
+  create(const Twine &Path, vfs::FileSystem &FS,
+         const Twine &RemappingPath = "");
 
   static Expected<std::unique_ptr<IndexedInstrProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer,
@@ -706,6 +726,9 @@ public:
       return *Summary;
     }
   }
+
+  Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) override;
+  Error printBinaryIds(raw_ostream &OS) override;
 };
 
 } // end namespace llvm

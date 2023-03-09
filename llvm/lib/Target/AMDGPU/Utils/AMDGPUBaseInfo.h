@@ -12,6 +12,8 @@
 #include "SIDefines.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/IR/CallingConv.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Alignment.h"
 #include <array>
 #include <functional>
@@ -42,6 +44,13 @@ namespace AMDGPU {
 
 struct IsaVersion;
 
+enum {
+  AMDHSA_COV2 = 2,
+  AMDHSA_COV3 = 3,
+  AMDHSA_COV4 = 4,
+  AMDHSA_COV5 = 5
+};
+
 /// \returns HSA OS ABI Version identification.
 std::optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 2,
@@ -61,13 +70,19 @@ bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
 /// \returns The offset of the multigrid_sync_arg argument from implicitarg_ptr
-unsigned getMultigridSyncArgImplicitArgPosition();
+unsigned getMultigridSyncArgImplicitArgPosition(unsigned COV);
 
 /// \returns The offset of the hostcall pointer argument from implicitarg_ptr
-unsigned getHostcallImplicitArgPosition();
+unsigned getHostcallImplicitArgPosition(unsigned COV);
+
+unsigned getDefaultQueueImplicitArgPosition(unsigned COV);
+unsigned getCompletionActionImplicitArgPosition(unsigned COV);
 
 /// \returns Code object version.
 unsigned getAmdhsaCodeObjectVersion();
+
+/// \returns Code object version.
+unsigned getCodeObjectVersion(const Module &M);
 
 struct GcnBufferFormatInfo {
   unsigned Format;
@@ -113,6 +128,7 @@ private:
   const MCSubtargetInfo &STI;
   TargetIDSetting XnackSetting;
   TargetIDSetting SramEccSetting;
+  unsigned CodeObjectVersion;
 
 public:
   explicit AMDGPUTargetID(const MCSubtargetInfo &STI);
@@ -140,6 +156,10 @@ public:
   /// "Unsupported", "Any", "Off", and "On".
   TargetIDSetting getXnackSetting() const {
     return XnackSetting;
+  }
+
+  void setCodeObjectVersion(unsigned COV) {
+    CodeObjectVersion = COV;
   }
 
   /// Sets xnack setting to \p NewXnackSetting.
@@ -188,6 +208,10 @@ unsigned getWavefrontSize(const MCSubtargetInfo *STI);
 
 /// \returns Local memory size in bytes for given subtarget \p STI.
 unsigned getLocalMemorySize(const MCSubtargetInfo *STI);
+
+/// \returns Maximum addressable local memory size in bytes for given subtarget
+/// \p STI.
+unsigned getAddressableLocalMemorySize(const MCSubtargetInfo *STI);
 
 /// \returns Number of execution units per compute unit for given subtarget \p
 /// STI.
@@ -1092,7 +1116,7 @@ inline bool isKernel(CallingConv::ID CC) {
 bool hasXNACK(const MCSubtargetInfo &STI);
 bool hasSRAMECC(const MCSubtargetInfo &STI);
 bool hasMIMG_R128(const MCSubtargetInfo &STI);
-bool hasGFX10A16(const MCSubtargetInfo &STI);
+bool hasA16(const MCSubtargetInfo &STI);
 bool hasG16(const MCSubtargetInfo &STI);
 bool hasPackedD16(const MCSubtargetInfo &STI);
 
@@ -1206,7 +1230,7 @@ inline unsigned getOperandSize(const MCOperandInfo &OpInfo) {
 
 LLVM_READNONE
 inline unsigned getOperandSize(const MCInstrDesc &Desc, unsigned OpNo) {
-  return getOperandSize(Desc.OpInfo[OpNo]);
+  return getOperandSize(Desc.operands()[OpNo]);
 }
 
 /// Is this literal inlinable, and not one of the values intended for floating
@@ -1237,6 +1261,8 @@ bool isFoldableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 bool isArgPassedInSGPR(const Argument *Arg);
 
+bool isArgPassedInSGPR(const CallBase *CB, unsigned ArgNo);
+
 LLVM_READONLY
 bool isLegalSMRDEncodedUnsignedOffset(const MCSubtargetInfo &ST,
                                       int64_t EncodedOffset);
@@ -1265,9 +1291,10 @@ std::optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
 /// For FLAT segment the offset must be positive;
 /// MSB is ignored and forced to zero.
 ///
-/// \return The number of bits available for the offset field in flat
-/// instructions.
-unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST, bool Signed);
+/// \return The number of bits available for the signed offset field in flat
+/// instructions. Note that some forms of the instruction disallow negative
+/// offsets.
+unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST);
 
 /// \returns true if this offset is small enough to fit in the SMRD
 /// offset field.  \p ByteOffset should be the offset in bytes and
@@ -1285,6 +1312,9 @@ inline bool isLegal64BitDPPControl(unsigned DC) {
 
 /// \returns true if the intrinsic is divergent
 bool isIntrinsicSourceOfDivergence(unsigned IntrID);
+
+/// \returns true if the intrinsic is uniform
+bool isIntrinsicAlwaysUniform(unsigned IntrID);
 
 // Track defaults for fields in the MODE register.
 struct SIModeRegisterDefaults {

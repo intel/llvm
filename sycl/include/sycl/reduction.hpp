@@ -159,6 +159,53 @@ struct ReducerTraits<reducer<T, BinaryOperation, Dims, Extent, View, Subst>> {
   static constexpr size_t extent = Extent;
 };
 
+/// Helper class for accessing internal reducer member functions.
+template <typename ReducerT> class ReducerAccess {
+public:
+  ReducerAccess(ReducerT &ReducerRef) : MReducerRef(ReducerRef) {}
+
+  template <typename ReducerRelayT = ReducerT> auto &getElement(size_t E) {
+    return MReducerRef.getElement(E);
+  }
+
+  template <typename ReducerRelayT = ReducerT>
+  enable_if_t<
+      IsKnownIdentityOp<typename ReducerRelayT::value_type,
+                        typename ReducerRelayT::binary_operation>::value,
+      typename ReducerRelayT::value_type> constexpr getIdentity() {
+    return getIdentityStatic();
+  }
+
+  template <typename ReducerRelayT = ReducerT>
+  enable_if_t<
+      !IsKnownIdentityOp<typename ReducerRelayT::value_type,
+                         typename ReducerRelayT::binary_operation>::value,
+      typename ReducerRelayT::value_type>
+  getIdentity() {
+    return MReducerRef.identity();
+  }
+
+  // MSVC does not like static overloads of non-static functions, even if they
+  // are made mutually exclusive through SFINAE. Instead we use a new static
+  // function to be used when a static function is needed.
+  template <typename ReducerRelayT = ReducerT>
+  enable_if_t<
+      IsKnownIdentityOp<typename ReducerRelayT::value_type,
+                        typename ReducerRelayT::binary_operation>::value,
+      typename ReducerRelayT::value_type> static constexpr getIdentityStatic() {
+    return ReducerT::getIdentity();
+  }
+
+private:
+  ReducerT &MReducerRef;
+};
+
+// Helper function to simplify the use of ReducerAccess. This avoids the need
+// for potentially unsupported deduction guides.
+template <typename ReducerT> auto getReducerAccess(ReducerT &Reducer) {
+  return ReducerAccess<ReducerT>{Reducer};
+}
+
 /// Use CRTP to avoid redefining shorthand operators in terms of combine
 ///
 /// Also, for many types with known identity the operation 'atomic_combine()'
@@ -179,46 +226,48 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+                  is_geninteger<_T>::value,
+              Reducer &>
   operator++() {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+                  is_geninteger<_T>::value,
+              Reducer &>
   operator++(int) {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value, Reducer &>
   operator+=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value, Reducer &>
   operator*=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value, Reducer &>
   operator|=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value, Reducer &>
   operator^=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value, Reducer &>
   operator&=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
 private:
@@ -236,7 +285,7 @@ private:
       auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
                                         getMemoryScope<Space>(), Space>(
           address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
-      Functor(AtomicRef, reducer->getElement(E));
+      Functor(std::move(AtomicRef), getReducerAccess(*reducer).getElement(E));
     }
   }
 
@@ -256,7 +305,7 @@ public:
               IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
@@ -267,7 +316,7 @@ public:
               IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
@@ -278,7 +327,7 @@ public:
               IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
@@ -291,7 +340,7 @@ public:
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
   /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
@@ -303,7 +352,7 @@ public:
               IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
   /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
@@ -315,9 +364,17 @@ public:
               IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
-        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
+        ReduVarPtr, [](auto &&Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };
+
+template <typename T, class BinaryOperation, int Dims> class reducer_common {
+public:
+  using value_type = T;
+  using binary_operation = BinaryOperation;
+  static constexpr int dimensions = Dims;
+};
+
 } // namespace detail
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -334,20 +391,26 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
+  reducer &combine(const T &Partial) {
+    MValue = MBinaryOp(MValue, Partial);
+    return *this;
+  }
 
-  T getIdentity() const { return MIdentity; }
+  T identity() const { return MIdentity; }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
 
   T &getElement(size_t) { return MValue; }
   const T &getElement(size_t) const { return MValue; }
-  T MValue;
 
-private:
+  T MValue;
   const T MIdentity;
   BinaryOperation MBinaryOp;
 };
@@ -366,17 +429,24 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 0 && Extent == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
 
-  void combine(const T &Partial) {
+  reducer &combine(const T &Partial) {
     BinaryOperation BOp;
     MValue = BOp(MValue, Partial);
+    return *this;
   }
 
-  static T getIdentity() {
+  T identity() const { return getIdentity(); }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
+  static constexpr T getIdentity() {
     return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
@@ -392,13 +462,19 @@ class reducer<T, BinaryOperation, Dims, Extent, View,
               std::enable_if_t<Dims == 0 && View == true>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && View == true>>> {
+                  std::enable_if_t<Dims == 0 && View == true>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MElement = MBinaryOp(MElement, Partial); }
+  reducer &combine(const T &Partial) {
+    MElement = MBinaryOp(MElement, Partial);
+    return *this;
+  }
 
 private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
   T &MElement;
   BinaryOperation MBinaryOp;
 };
@@ -414,7 +490,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -423,11 +500,14 @@ public:
     return {MValue[Index], MBinaryOp};
   }
 
-  T getIdentity() const { return MIdentity; }
+  T identity() const { return MIdentity; }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
   T &getElement(size_t E) { return MValue[E]; }
   const T &getElement(size_t E) const { return MValue[E]; }
 
-private:
   marray<T, Extent> MValue;
   const T MIdentity;
   BinaryOperation MBinaryOp;
@@ -444,7 +524,8 @@ class reducer<
           reducer<T, BinaryOperation, Dims, Extent, View,
                   std::enable_if_t<
                       Dims == 1 && View == false &&
-                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>>,
+      public detail::reducer_common<T, BinaryOperation, Dims> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -455,14 +536,18 @@ public:
     return {MValue[Index], BinaryOperation()};
   }
 
-  static T getIdentity() {
+  T identity() const { return getIdentity(); }
+
+private:
+  template <typename ReducerT> friend class detail::ReducerAccess;
+
+  static constexpr T getIdentity() {
     return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
   const T &getElement(size_t E) const { return MValue[E]; }
 
-private:
   marray<T, Extent> MValue;
 };
 
@@ -526,6 +611,19 @@ struct get_red_t<
     accessor<T, AccessorDims, Mode, access::target::device, IsPH, PropList>> {
   using type = T;
 };
+
+namespace reduction {
+// Kernel name wrapper for initializing reduction-related memory through
+// reduction_impl_algo::withInitializedMem.
+template <typename KernelName> struct InitMemKrn;
+} // namespace reduction
+
+/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
+/// must do that to avoid name collisions.
+template <class KernelName>
+using __sycl_init_mem_for =
+    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+                       reduction::InitMemKrn<KernelName>>;
 
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
@@ -626,7 +724,7 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // MSVC (19.32.31329) has problems compiling the line below when used
         // as a host compiler in c++17 mode (but not in c++latest)
         //   accessor Mem{*Buf, CopyHandler};
         // so use the old-style API.
@@ -642,7 +740,7 @@ public:
           // between host/device in lambda captures.
           size_t NElements = num_elements;
 
-          CopyHandler.single_task<KernelName>([=] {
+          CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
             for (int i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
@@ -734,8 +832,7 @@ private:
     // list of known operations does not break the existing programs.
     if constexpr (is_known_identity) {
       (void)Identity;
-      return reducer_type::getIdentity();
-
+      return ReducerAccess<reducer_type>::getIdentityStatic();
     } else {
       return Identity;
     }
@@ -751,67 +848,26 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            enable_if_t<_self::is_known_identity && !_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known.
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self,
-            enable_if_t<_self::is_known_identity && _self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, VarPtr) {}
-
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
-                                                    !_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Acc) {
-    associateWithHandler(CGH, &Acc, access::target::device);
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
+            enable_if_t<_self::is_known_identity> * = nullptr>
+  reduction_impl(RedOutVar Var, bool InitializeToIdentity = false)
+      : algo(ReducerAccess<reducer_type>::getIdentityStatic(),
+             BinaryOperation(), InitializeToIdentity, Var) {
+    if constexpr (!is_usm)
+      if (Var.size() != 1)
+        throw sycl::runtime_error(errc::invalid,
+                                  "Reduction variable must be a scalar.",
+                                  PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(chooseIdentity(Identity), BOp, false, Acc) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, enable_if_t<_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity = false)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
-
-  /// For placeholder accessor.
-  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
-                 BinaryOperation BOp, bool InitializeToIdentity)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
-    associateWithHandler(CGH, &Acc, access::target::device);
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
+  reduction_impl(RedOutVar &Var, const T &Identity, BinaryOperation BOp,
+                 bool InitializeToIdentity)
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Var) {
+    if constexpr (!is_usm)
+      if (Var.size() != 1)
+        throw sycl::runtime_error(errc::invalid,
+                                  "Reduction variable must be a scalar.",
+                                  PI_ERROR_INVALID_VALUE);
   }
 };
 
@@ -886,14 +942,13 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_atomic_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       local_accessor<typename Reduction::result_type, 1> GroupSum{NElements,
                                                                   CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_atomic_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -903,7 +958,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
         // Work-group cooperates to initialize multiple reduction variables
         auto LID = NDId.get_local_id(0);
         for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
-          GroupSum[E] = Reducer.getIdentity();
+          GroupSum[E] = getReducerAccess(Reducer).getIdentity();
         }
         workGroupBarrier();
 
@@ -916,7 +971,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
         workGroupBarrier();
         if (LID == 0) {
           for (size_t E = 0; E < NElements; ++E) {
-            Reducer.getElement(E) = GroupSum[E];
+            getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
           Reducer.template atomic_combine(&Out[0]);
         }
@@ -966,7 +1021,7 @@ struct NDRangeReduction<
         // reduce_over_group is only defined for each T, not for span<T, ...>
         size_t LID = NDId.get_local_id(0);
         for (int E = 0; E < NElements; ++E) {
-          auto &RedElem = Reducer.getElement(E);
+          auto &RedElem = getReducerAccess(Reducer).getElement(E);
           RedElem = reduce_over_group(Group, RedElem, BOp);
           if (LID == 0) {
             if (NWorkGroups == 1) {
@@ -977,7 +1032,7 @@ struct NDRangeReduction<
               Out[E] = RedElem;
             } else {
               PartialSums[NDId.get_group_linear_id() * NElements + E] =
-                  Reducer.getElement(E);
+                  getReducerAccess(Reducer).getElement(E);
             }
           }
         }
@@ -989,7 +1044,7 @@ struct NDRangeReduction<
         // Signal this work-group has finished after all values are reduced
         if (LID == 0) {
           auto NFinished =
-              sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+              sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
           DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
@@ -1000,7 +1055,7 @@ struct NDRangeReduction<
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
           for (int E = 0; E < NElements; ++E) {
-            auto LocalSum = Reducer.getIdentity();
+            auto LocalSum = getReducerAccess(Reducer).getIdentity();
             for (size_t I = LID; I < NWorkGroups; I += WGSize)
               LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
             auto Result = reduce_over_group(Group, LocalSum, BOp);
@@ -1027,27 +1082,97 @@ struct NDRangeReduction<
   }
 };
 
-template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy,
-          typename IdentityTy>
-void doTreeReduction(size_t WGSize, size_t LID, bool DisableExtraElem,
-                     IdentityTy Identity, LocalRedsTy &LocalReds, BinOpTy &BOp,
-                     BarrierTy Barrier) {
-  // For work-groups, which size is not power of two, local accessors have
-  // an additional element with index WGSize that is used by the
-  // tree-reduction algorithm. Initialize those additional elements with
-  // identity values here.
-  if (!DisableExtraElem)
-    LocalReds[WGSize] = Identity;
-  Barrier();
-  size_t PrevStep = WGSize;
-  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-    if (LID < CurStep)
-      LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-    else if (!DisableExtraElem && LID == CurStep && (PrevStep & 0x1))
-      LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-    Barrier();
-    PrevStep = CurStep;
+/// Computes the greatest power-of-two less than or equal to N.
+static inline size_t GreatestPowerOfTwo(size_t N) {
+  if (N == 0)
+    return 0;
+
+  size_t Ret = 1;
+  while ((N >>= 1) != 0)
+    Ret <<= 1;
+  return Ret;
+}
+
+template <typename FuncTy>
+void doTreeReductionHelper(size_t WorkSize, size_t LID, FuncTy Func) {
+  workGroupBarrier();
+
+  // Initial pivot is the greatest power-of-two value smaller or equal to the
+  // work size.
+  size_t Pivot = GreatestPowerOfTwo(WorkSize);
+
+  // If the pivot is not the same as the work size, it needs to do an initial
+  // reduction where we only reduce the N last elements into the first N
+  // elements, where N is WorkSize - Pivot.
+  // 0                            Pivot                   WorkSize  Power of two
+  // |                              |                        |      |
+  // +-----------------------+------+------------------------+------+
+  //                         |
+  //                WorkSize - Pivot
+  if (Pivot != WorkSize) {
+    if (Pivot + LID < WorkSize)
+      Func(LID, Pivot + LID);
+    workGroupBarrier();
   }
+
+  // Now the amount of work must be power-of-two, so do the tree reduction.
+  for (size_t CurPivot = Pivot >> 1; CurPivot > 0; CurPivot >>= 1) {
+    if (LID < CurPivot)
+      Func(LID, CurPivot + LID);
+    workGroupBarrier();
+  }
+}
+
+// Enum for specifying work size guarantees in tree-reduction.
+enum class WorkSizeGuarantees { None, Equal, LessOrEqual };
+
+template <WorkSizeGuarantees WSGuarantee, int Dim, typename LocalRedsTy,
+          typename BinOpTy, typename AccessFuncTy>
+void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
+                     BinOpTy &BOp, AccessFuncTy AccessFunc) {
+  size_t LID = NDIt.get_local_linear_id();
+  size_t AdjustedWorkSize;
+  if constexpr (WSGuarantee == WorkSizeGuarantees::LessOrEqual ||
+                WSGuarantee == WorkSizeGuarantees::Equal) {
+    // If there is less-or-equal number of items and amount of work, we just
+    // load the work into the local memory and start reducing. If we know it is
+    // equal we can let the optimizer remove the check.
+    if (WSGuarantee == WorkSizeGuarantees::Equal || LID < WorkSize)
+      LocalReds[LID] = AccessFunc(LID);
+    AdjustedWorkSize = WorkSize;
+  } else {
+    // Otherwise we have no guarantee and we need to first reduce the amount of
+    // work to fit into the local memory.
+    size_t WGSize = NDIt.get_local_range().size();
+    AdjustedWorkSize = std::min(WorkSize, WGSize);
+    if (LID < AdjustedWorkSize) {
+      auto LocalSum = AccessFunc(LID);
+      for (size_t I = LID + WGSize; I < WorkSize; I += WGSize)
+        LocalSum = BOp(LocalSum, AccessFunc(I));
+
+      LocalReds[LID] = LocalSum;
+    }
+  }
+  doTreeReductionHelper(AdjustedWorkSize, LID, [&](size_t I, size_t J) {
+    LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
+  });
+}
+
+// Tree-reduction over tuples of accessors. This assumes that WorkSize is
+// less than or equal to the work-group size.
+// TODO: For variadics/tuples we don't provide such a high-level abstraction as
+// for the scalar case above. Is there some C++ magic to level them?
+template <typename... LocalAccT, typename... BOPsT, size_t... Is>
+void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
+                            ReduTupleT<LocalAccT...> &LocalAccs,
+                            ReduTupleT<BOPsT...> &BOPs,
+                            std::index_sequence<Is...>) {
+  doTreeReductionHelper(WorkSize, LID, [&](size_t I, size_t J) {
+    auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
+      LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);
+    };
+    (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
+  });
 }
 
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
@@ -1067,8 +1192,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     auto Out = (NWorkGroups == 1)
                    ? PartialSums
                    : Redu.getWriteAccForPartialReds(NElements, CGH);
-    local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize + 1,
-                                                                 CGH};
+    local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize, CGH};
     auto NWorkGroupsFinished =
         Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
     local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
@@ -1089,14 +1213,12 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       size_t LID = NDId.get_local_linear_id();
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = Reducer.getElement(E);
-
-        doTreeReduction(WGSize, LID, false, Identity, LocalReds, BOp,
-                        [&]() { workGroupBarrier(); });
+        doTreeReduction<WorkSizeGuarantees::Equal>(
+            WGSize, NDId, LocalReds, BOp,
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         if (LID == 0) {
-          auto V = BOp(LocalReds[0], LocalReds[WGSize]);
+          auto V = LocalReds[0];
           if (NWorkGroups == 1 && IsUpdateOfUserVar)
             V = BOp(V, Out[E]);
           // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
@@ -1107,7 +1229,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // Signal this work-group has finished after all values are reduced
       if (LID == 0) {
         auto NFinished =
-            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+            sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::global_space>(
                 NWorkGroupsFinished[0]);
         DoReducePartialSumsInLastWG[0] =
@@ -1119,16 +1241,11 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
-          auto LocalSum = Identity;
-          for (size_t I = LID; I < NWorkGroups; I += WGSize)
-            LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-
-          LocalReds[LID] = LocalSum;
-
-          doTreeReduction(WGSize, LID, false, Identity, LocalReds, BOp,
-                          [&]() { workGroupBarrier(); });
+          doTreeReduction<WorkSizeGuarantees::None>(
+              NWorkGroups, NDId, LocalReds, BOp,
+              [&](size_t I) { return PartialSums[I * NElements + E]; });
           if (LID == 0) {
-            auto V = BOp(LocalReds[0], LocalReds[WGSize]);
+            auto V = LocalReds[0];
             if (IsUpdateOfUserVar)
               V = BOp(V, Out[E]);
             Out[E] = V;
@@ -1152,12 +1269,11 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::group_reduce_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::group_reduce_and_atomic_cross_wg>;
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's function. Reducer.MValue gets initialized there.
@@ -1166,8 +1282,8 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
 
         typename Reduction::binary_operation BOp;
         for (int E = 0; E < NElements; ++E) {
-          Reducer.getElement(E) =
-              reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
+          getReducerAccess(Reducer).getElement(E) = reduce_over_group(
+              NDIt.get_group(), getReducerAccess(Reducer).getElement(E), BOp);
         }
         if (NDIt.get_local_linear_id() == 0)
           Reducer.atomic_combine(&Out[0]);
@@ -1185,23 +1301,16 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+    using Name = __sycl_reduction_kernel<
+        reduction::MainKrn, KernelName,
+        reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
+    Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       size_t WGSize = NDRange.get_local_range().size();
-      bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
 
       // Use local memory to reduce elements in work-groups into zero-th
-      // element. If WGSize is not power of two, then WGSize+1 elements are
-      // allocated. The additional last element is used to catch reduce elements
-      // that could otherwise be lost in the tree-reduction algorithm used in
-      // the kernel.
-      size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-      local_accessor<typename Reduction::result_type, 1> LocalReds{
-          NLocalElements, CGH};
-
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn, KernelName,
-          reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
+      // element.
+      local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize, CGH};
 
       CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
         // Call user's functions. Reducer.MValue gets initialized there.
@@ -1215,17 +1324,13 @@ struct NDRangeReduction<
         // This prevents local memory from scaling with elements
         for (int E = 0; E < NElements; ++E) {
 
-          // Copy the element to local memory to prepare it for tree-reduction.
-          LocalReds[LID] = Reducer.getElement(E);
-
           typename Reduction::binary_operation BOp;
-          doTreeReduction(WGSize, LID, IsPow2WG, Reducer.getIdentity(),
-                          LocalReds, BOp, [&]() { NDIt.barrier(); });
+          doTreeReduction<WorkSizeGuarantees::Equal>(
+              WGSize, NDIt, LocalReds, BOp,
+              [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
-          if (LID == 0) {
-            Reducer.getElement(E) =
-                IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
-          }
+          if (LID == 0)
+            getReducerAccess(Reducer).getElement(E) = LocalReds[0];
 
           // Ensure item 0 is finished with LocalReds before next iteration
           if (E != NElements - 1) {
@@ -1291,7 +1396,7 @@ struct NDRangeReduction<
       typename Reduction::binary_operation BOp;
       for (int E = 0; E < NElements; ++E) {
         typename Reduction::result_type PSum;
-        PSum = Reducer.getElement(E);
+        PSum = getReducerAccess(Reducer).getElement(E);
         PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
         if (NDIt.get_local_linear_id() == 0) {
           if (IsUpdateOfUserVar)
@@ -1355,7 +1460,8 @@ struct NDRangeReduction<
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? In[GID * NElements + E]
-                    : Reduction::reducer_type::getIdentity();
+                    : ReducerAccess<typename Reduction::reducer_type>::
+                          getIdentityStatic();
             PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
             if (NDIt.get_local_linear_id() == 0) {
               if (IsUpdateOfUserVar)
@@ -1397,7 +1503,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
-    bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
     size_t NWorkGroups = NDRange.get_group_range().size();
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
 
@@ -1405,12 +1510,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
         !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
     // Use local memory to reduce elements in work-groups into 0-th element.
-    // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch elements that could
-    // otherwise be lost in the tree-reduction algorithm.
-    size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-    local_accessor<typename Reduction::result_type, 1> LocalReds{
-        NumLocalElements, CGH};
+    local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize, CGH};
     typename Reduction::result_type ReduIdentity = Redu.getIdentity();
     using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
                                          reduction::strategy::basic>;
@@ -1428,17 +1528,14 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       // This prevents local memory from scaling with elements
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = Reducer.getElement(E);
-
-        doTreeReduction(WGSize, LID, IsPow2WG, ReduIdentity, LocalReds, BOp,
-                        [&]() { NDIt.barrier(); });
+        doTreeReduction<WorkSizeGuarantees::Equal>(
+            WGSize, NDIt, LocalReds, BOp,
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
           size_t GrID = NDIt.get_group_linear_id();
-          typename Reduction::result_type PSum =
-              IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
+          typename Reduction::result_type PSum = LocalReds[0];
           if (IsUpdateOfUserVar)
             PSum = BOp(Out[0], PSum);
           Out[GrID * NElements + E] = PSum;
@@ -1490,12 +1587,8 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
         bool UniformPow2WG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
         // Use local memory to reduce elements in work-groups into 0-th element.
-        // If WGSize is not power of two, then WGSize+1 elements are allocated.
-        // The additional last element is used to catch elements that could
-        // otherwise be lost in the tree-reduction algorithm.
-        size_t NumLocalElements = WGSize + (UniformPow2WG ? 0 : 1);
         local_accessor<typename Reduction::result_type, 1> LocalReds{
-            NumLocalElements, AuxHandler};
+            WGSize, AuxHandler};
 
         auto ReduIdentity = Redu.getIdentity();
         auto BOp = Redu.getBinaryOperation();
@@ -1509,23 +1602,20 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
           size_t WGSize = NDIt.get_local_range().size();
           size_t LID = NDIt.get_local_linear_id();
           size_t GID = NDIt.get_global_linear_id();
+          size_t GrID = NDIt.get_group_linear_id();
 
           for (int E = 0; E < NElements; ++E) {
-            // Copy the element to local memory to prepare it for
-            // tree-reduction.
-            LocalReds[LID] = (UniformPow2WG || GID < NWorkItems)
-                                 ? In[GID * NElements + E]
-                                 : ReduIdentity;
+            // The last work-group may not have enough work for all its items.
+            size_t RemainingWorkSize =
+                sycl::min(WGSize, NWorkItems - GrID * WGSize);
 
-            doTreeReduction(WGSize, LID, UniformPow2WG, ReduIdentity, LocalReds,
-                            BOp, [&]() { NDIt.barrier(); });
+            doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
+                RemainingWorkSize, NDIt, LocalReds, BOp,
+                [&](size_t) { return In[GID * NElements + E]; });
 
             // Compute the partial sum/reduction for the work-group.
             if (LID == 0) {
-              size_t GrID = NDIt.get_group_linear_id();
-              typename Reduction::result_type PSum =
-                  UniformPow2WG ? LocalReds[0]
-                                : BOp(LocalReds[0], LocalReds[WGSize]);
+              typename Reduction::result_type PSum = LocalReds[0];
               if (IsUpdateOfUserVar)
                 PSum = BOp(Out[0], PSum);
               Out[GrID * NElements + E] = PSum;
@@ -1563,23 +1653,12 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           CGH)...);
 }
 
-template <typename... LocalAccT, typename... BOPsT, size_t... Is>
-void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
-                         ReduTupleT<LocalAccT...> LocalAccs,
-                         ReduTupleT<BOPsT...> BOPs,
-                         std::index_sequence<Is...>) {
-  auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
-    LocalAcc[IndexA] = BOp(LocalAcc[IndexA], LocalAcc[IndexB]);
-  };
-  (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
-}
-
 template <typename... Reductions, typename... OutAccT, typename... LocalAccT,
           typename... BOPsT, typename... Ts, size_t... Is>
 void writeReduSumsToOutAccs(
-    bool Pow2WG, bool IsOneWG, size_t OutAccIndex, size_t WGSize,
-    ReduTupleT<OutAccT...> OutAccs, ReduTupleT<LocalAccT...> LocalAccs,
-    ReduTupleT<BOPsT...> BOPs, ReduTupleT<Ts...> IdentityVals,
+    bool IsOneWG, size_t OutAccIndex, ReduTupleT<OutAccT...> OutAccs,
+    ReduTupleT<LocalAccT...> LocalAccs, ReduTupleT<BOPsT...> BOPs,
+    ReduTupleT<Ts...> IdentityVals,
     std::array<bool, sizeof...(Reductions)> IsInitializeToIdentity,
     std::index_sequence<Is...>) {
   // Add the initial value of user's variable to the final result.
@@ -1590,18 +1669,9 @@ void writeReduSumsToOutAccs(
                                           : std::get<Is>(OutAccs)[0])),
      ...);
 
-  if (Pow2WG) {
-    // The partial sums for the work-group are stored in 0-th elements of local
-    // accessors. Simply write those sums to output accessors.
-    ((std::get<Is>(OutAccs)[OutAccIndex] = std::get<Is>(LocalAccs)[0]), ...);
-  } else {
-    // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
-    // elements. Combine them into final partial sums and write to output
-    // accessors.
-    ((std::get<Is>(OutAccs)[OutAccIndex] = std::get<Is>(BOPs)(
-          std::get<Is>(LocalAccs)[0], std::get<Is>(LocalAccs)[WGSize])),
-     ...);
-  }
+  // The partial sums for the work-group are stored in 0-th elements of local
+  // accessors. Simply write those sums to output accessors.
+  ((std::get<Is>(OutAccs)[OutAccIndex] = std::get<Is>(LocalAccs)[0]), ...);
 }
 
 // Concatenate an empty sequence.
@@ -1693,8 +1763,7 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... OutAccT, typename... ReducerT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduCGFuncImplScalar(
-    bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
-    ReduTupleT<LocalAccT...> LocalAccsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
@@ -1702,45 +1771,25 @@ void reduCGFuncImplScalar(
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
 
-  ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(ReducersTuple).MValue),
+  ((std::get<Is>(LocalAccsTuple)[LID] =
+        getReducerAccess(std::get<Is>(ReducersTuple)).getElement(0)),
    ...);
 
-  // For work-groups, which size is not power of two, local accessors have
-  // an additional element with index WGSize that is used by the tree-reduction
-  // algorithm. Initialize those additional elements with identity values here.
-  if (!Pow2WG)
-    ((std::get<Is>(LocalAccsTuple)[WGSize] = std::get<Is>(IdentitiesTuple)),
-     ...);
-  NDIt.barrier();
-
-  size_t PrevStep = WGSize;
-  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-    if (LID < CurStep) {
-      // LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-      reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
-                          ReduIndices);
-    } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
-      // LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-      reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
-                          ReduIndices);
-    }
-    NDIt.barrier();
-    PrevStep = CurStep;
-  }
+  doTreeReductionOnTuple(WGSize, LID, LocalAccsTuple, BOPsTuple, ReduIndices);
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
     size_t GrID = NDIt.get_group_linear_id();
     writeReduSumsToOutAccs<Reductions...>(
-        Pow2WG, IsOneWG, GrID, WGSize, OutAccsTuple, LocalAccsTuple, BOPsTuple,
-        IdentitiesTuple, InitToIdentityProps, ReduIndices);
+        IsOneWG, GrID, OutAccsTuple, LocalAccsTuple, BOPsTuple, IdentitiesTuple,
+        InitToIdentityProps, ReduIndices);
   }
 }
 
 /// Each array reduction is processed separately.
 template <typename Reduction, int Dims, typename LocalAccT, typename OutAccT,
           typename ReducerT, typename T, typename BOPT>
-void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
+void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
                                LocalAccT LocalReds, OutAccT Out,
                                ReducerT &Reducer, T Identity, BOPT BOp,
                                bool IsInitializeToIdentity) {
@@ -1751,32 +1800,17 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-
-    // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = Reducer.getElement(E);
-
-    doTreeReduction(WGSize, LID, Pow2WG, Identity, LocalReds, BOp,
-                    [&]() { NDIt.barrier(); });
+    doTreeReduction<WorkSizeGuarantees::Equal>(
+        WGSize, NDIt, LocalReds, BOp,
+        [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
-      if (IsOneWG) {
-        LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
-      }
-
       size_t GrID = NDIt.get_group_linear_id();
       Out[GrID * NElements + E] =
-          Pow2WG ?
-                 // The partial sums for the work-group are stored in 0-th
-                 // elements of local accessors. Simply write those sums to
-                 // output accessors.
-              LocalReds[0]
-                 :
-                 // Each of local accessors keeps two partial sums: in 0-th
-                 // and WGsize-th elements. Combine them into final partial
-                 // sums and write to output accessors.
-              BOp(LocalReds[0], LocalReds[WGSize]);
+          IsOneWG
+              ? BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E])
+              : LocalReds[0];
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -1790,18 +1824,16 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... OutAccT, typename... ReducerT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduCGFuncImplArray(
-    bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
-    ReduTupleT<LocalAccT...> LocalAccsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
-       Pow2WG, IsOneWG, NDIt, std::get<Is>(LocalAccsTuple),
-       std::get<Is>(OutAccsTuple), std::get<Is>(ReducersTuple),
-       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
-       InitToIdentityProps[Is]),
+       IsOneWG, NDIt, std::get<Is>(LocalAccsTuple), std::get<Is>(OutAccsTuple),
+       std::get<Is>(ReducersTuple), std::get<Is>(IdentitiesTuple),
+       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
    ...);
 }
 
@@ -1815,7 +1847,6 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = Range.get_local_range().size();
-  bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
 
   // Split reduction sequence into two:
   // 1) Scalar reductions
@@ -1831,12 +1862,8 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
-  // Create inputs using the global order of all reductions
-  size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
-
-  auto LocalAccsTuple =
-      makeReduTupleT(local_accessor<typename Reductions::result_type, 1>{
-          LocalAccSize, CGH}...);
+  auto LocalAccsTuple = makeReduTupleT(
+      local_accessor<typename Reductions::result_type, 1>{WGSize, CGH}...);
 
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsOneWG = NWorkGroups == 1;
@@ -1870,7 +1897,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // ReducersTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
       // ReduIndices);
       reduCGFuncImplScalar<Reductions...>(
-          Pow2WG, IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
+          IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
           IdentitiesTuple, BOPsTuple, InitToIdentityProps, ScalarIs);
 
       // Combine and write-back the results of any array reductions
@@ -1878,7 +1905,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // for the fact that each array reduction may have a different number of
       // elements to reduce (i.e. a different extent).
       reduCGFuncImplArray<Reductions...>(
-          Pow2WG, IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
+          IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
           IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
     });
   };
@@ -1907,62 +1934,33 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... InAccT, typename... OutAccT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplScalar(
-    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
-    size_t GID, size_t NWorkItems, size_t WGSize,
-    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
-    ReduTupleT<BOPsT...> BOPsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, size_t LID, size_t GID,
+    size_t RemainingWorkSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
-  // Normally, the local accessors are initialized with elements from the input
-  // accessors. The exception is the case when (GID >= NWorkItems), which
-  // possible only when UniformPow2WG is false. For that case the elements of
-  // local accessors are initialized with identity value, so they would not
-  // give any impact into the final partial sums during the tree-reduction
-  // algorithm work.
-  ((std::get<Is>(LocalAccsTuple)[LID] = UniformPow2WG || GID < NWorkItems
-                                            ? std::get<Is>(InAccsTuple)[GID]
-                                            : std::get<Is>(IdentitiesTuple)),
-   ...);
+  // The end work-group may have less work than the rest, so we only need to
+  // read the value of the elements that still have work left.
+  if (LID < RemainingWorkSize)
+    ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(InAccsTuple)[GID]), ...);
 
-  // For work-groups, which size is not power of two, local accessors have
-  // an additional element with index WGSize that is used by the tree-reduction
-  // algorithm. Initialize those additional elements with identity values here.
-  if (!UniformPow2WG)
-    ((std::get<Is>(LocalAccsTuple)[WGSize] = std::get<Is>(IdentitiesTuple)),
-     ...);
-
-  NDIt.barrier();
-
-  size_t PrevStep = WGSize;
-  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-    if (LID < CurStep) {
-      // LocalAcc[LID] = BOp(LocalAcc[LID], LocalAcc[LID + CurStep]);
-      reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
-                          ReduIndices);
-    } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
-      // LocalAcc[WGSize] = BOp(LocalAcc[WGSize], LocalAcc[PrevStep - 1]);
-      reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
-                          ReduIndices);
-    }
-    NDIt.barrier();
-    PrevStep = CurStep;
-  }
+  doTreeReductionOnTuple(RemainingWorkSize, LID, LocalAccsTuple, BOPsTuple,
+                         ReduIndices);
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
     size_t GrID = NDIt.get_group_linear_id();
     writeReduSumsToOutAccs<Reductions...>(
-        UniformPow2WG, IsOneWG, GrID, WGSize, OutAccsTuple, LocalAccsTuple,
-        BOPsTuple, IdentitiesTuple, InitToIdentityProps, ReduIndices);
+        IsOneWG, GrID, OutAccsTuple, LocalAccsTuple, BOPsTuple, IdentitiesTuple,
+        InitToIdentityProps, ReduIndices);
   }
 }
 
 template <typename Reduction, int Dims, typename LocalAccT, typename InAccT,
           typename OutAccT, typename T, typename BOPT>
-void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
-                                  nd_item<Dims> NDIt, size_t LID, size_t GID,
-                                  size_t NWorkItems, size_t WGSize,
+void reduAuxCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
+                                  size_t GID, size_t RemainingWorkSize,
                                   LocalAccT LocalReds, InAccT In, OutAccT Out,
                                   T Identity, BOPT BOp,
                                   bool IsInitializeToIdentity) {
@@ -1971,40 +1969,17 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-    // Normally, the local accessors are initialized with elements from the
-    // input accessors. The exception is the case when (GID >= NWorkItems),
-    // which possible only when UniformPow2WG is false. For that case the
-    // elements of local accessors are initialized with identity value, so they
-    // would not give any impact into the final partial sums during the
-    // tree-reduction algorithm work.
-    if (UniformPow2WG || GID < NWorkItems) {
-      LocalReds[LID] = In[GID * NElements + E];
-    } else {
-      LocalReds[LID] = Identity;
-    }
-
-    doTreeReduction(WGSize, LID, UniformPow2WG, Identity, LocalReds, BOp,
-                    [&]() { NDIt.barrier(); });
+    doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
+        RemainingWorkSize, NDIt, LocalReds, BOp,
+        [&](size_t) { return In[GID * NElements + E]; });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
-      if (IsOneWG) {
-        LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
-      }
-
       size_t GrID = NDIt.get_group_linear_id();
       Out[GrID * NElements + E] =
-          UniformPow2WG ?
-                        // The partial sums for the work-group are stored in
-                        // 0-th elements of local accessors. Simply write those
-                        // sums to output accessors.
-              LocalReds[0]
-                        :
-                        // Each of local accessors keeps two partial sums: in
-                        // 0-th and WGsize-th elements. Combine them into final
-                        // partial sums and write to output accessors.
-              BOp(LocalReds[0], LocalReds[WGSize]);
+          IsOneWG
+              ? BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E])
+              : LocalReds[0];
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -2018,19 +1993,18 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
           typename... InAccT, typename... OutAccT, typename... Ts,
           typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplArray(
-    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
-    size_t GID, size_t NWorkItems, size_t WGSize,
-    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
-    ReduTupleT<BOPsT...> BOPsTuple,
+    bool IsOneWG, nd_item<Dims> NDIt, size_t LID, size_t GID,
+    size_t RemainingWorkSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduAuxCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
-       UniformPow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
-       std::get<Is>(LocalAccsTuple), std::get<Is>(InAccsTuple),
-       std::get<Is>(OutAccsTuple), std::get<Is>(IdentitiesTuple),
-       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
+       IsOneWG, NDIt, LID, GID, RemainingWorkSize, std::get<Is>(LocalAccsTuple),
+       std::get<Is>(InAccsTuple), std::get<Is>(OutAccsTuple),
+       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
+       InitToIdentityProps[Is]),
    ...);
 }
 
@@ -2056,10 +2030,8 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
-  size_t LocalAccSize = WGSize + (HasUniformWG ? 0 : 1);
-  auto LocalAccsTuple =
-      makeReduTupleT(local_accessor<typename Reductions::result_type, 1>{
-          LocalAccSize, CGH}...);
+  auto LocalAccsTuple = makeReduTupleT(
+      local_accessor<typename Reductions::result_type, 1>{WGSize, CGH}...);
   auto InAccsTuple = makeReduTupleT(
       std::get<Is>(ReduTuple).getReadAccToPreviousPartialReds(CGH)...);
 
@@ -2084,17 +2056,19 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
     nd_range<1> Range{GlobalRange, range<1>(WGSize)};
     CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
       size_t WGSize = NDIt.get_local_range().size();
+      size_t RemainingWorkSize =
+          sycl::min(WGSize, NWorkItems - WGSize * NDIt.get_group_linear_id());
       size_t LID = NDIt.get_local_linear_id();
       size_t GID = NDIt.get_global_linear_id();
 
       // Handle scalar and array reductions
       reduAuxCGFuncImplScalar<Reductions...>(
-          HasUniformWG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
-          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ScalarIs);
       reduAuxCGFuncImplArray<Reductions...>(
-          HasUniformWG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
-          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          IsOneWG, NDIt, LID, GID, RemainingWorkSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ArrayIs);
     });
   };
@@ -2321,6 +2295,11 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
       if constexpr (Strategy != reduction::strategy::auto_select)
         return Strategy;
 
+      // TODO: Both group_reduce_and_last_wg_detection and range_basic require
+      // memory_order::acq_rel support that isn't guaranteed by the
+      // specification. However, implementing run-time check for that would
+      // result in an extra kernel compilation(s). We probably need to
+      // investigate if the usage of kernel_bundles can mitigate that.
       if constexpr (Reduction::has_fast_reduce)
         return reduction::strategy::group_reduce_and_last_wg_detection;
       else if constexpr (Reduction::has_fast_atomics)
@@ -2351,7 +2330,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH}, CGH,
+  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH},
                                                        InitializeToIdentity);
 }
 
@@ -2364,9 +2343,7 @@ template <
     typename = std::enable_if_t<!has_known_identity<BinaryOperation, T>::value>>
 detail::reduction_impl<
     T, BinaryOperation, 0, 1,
-    accessor<T, 1, access::mode::read_write, access::target::device,
-             access::placeholder::true_t,
-             ext::oneapi::accessor_property_list<>>>
+    accessor<T, 1, access::mode::read_write, access::target::device>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
@@ -2415,7 +2392,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor{Var, CGH}, CGH, Identity, Combiner, InitializeToIdentity);
+      accessor{Var, CGH}, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by

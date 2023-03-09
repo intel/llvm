@@ -153,12 +153,11 @@ private:
   void parseCaseLabel();
   void parseSwitch();
   void parseNamespace();
-  void parseModuleImport();
+  bool parseModuleImport();
   void parseNew();
   void parseAccessSpecifier();
   bool parseEnum();
   bool parseStructLike();
-  void parseConcept();
   bool parseRequires();
   void parseRequiresClause(FormatToken *RequiresToken);
   void parseRequiresExpression(FormatToken *RequiresToken);
@@ -281,9 +280,6 @@ private:
   FormatTokenSource *Tokens;
   UnwrappedLineConsumer &Callback;
 
-  // FIXME: This is a temporary measure until we have reworked the ownership
-  // of the format tokens. The goal is to have the actual tokens created and
-  // owned outside of and handed into the UnwrappedLineParser.
   ArrayRef<FormatToken *> AllTokens;
 
   // Keeps a stack of the states of nested control statements (true if the

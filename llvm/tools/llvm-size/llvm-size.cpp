@@ -26,6 +26,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -66,9 +67,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class SizeOptTable : public opt::OptTable {
+class SizeOptTable : public opt::GenericOptTable {
 public:
-  SizeOptTable() : OptTable(InfoTable) { setGroupedShortOptions(true); }
+  SizeOptTable() : GenericOptTable(InfoTable) { setGroupedShortOptions(true); }
 };
 
 enum OutputFormatTy { berkeley, sysv, darwin };
@@ -869,7 +870,7 @@ static void printBerkeleyTotals() {
          << "(TOTALS)\n";
 }
 
-int llvm_size_main(int argc, char **argv) {
+int llvm_size_main(int argc, char **argv, const llvm::ToolContext &) {
   InitLLVM X(argc, argv);
   BumpPtrAllocator A;
   StringSaver Saver(A);

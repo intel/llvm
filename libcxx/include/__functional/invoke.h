@@ -398,7 +398,7 @@ template <class _Ret, class _Fp, class ..._Args>
 struct __invokable_r
 {
   template <class _XFp, class ..._XArgs>
-  static decltype(std::__invoke(declval<_XFp>(), declval<_XArgs>()...)) __try_call(int);
+  static decltype(std::__invoke(std::declval<_XFp>(), std::declval<_XArgs>()...)) __try_call(int);
   template <class _XFp, class ..._XArgs>
   static __nat __try_call(...);
 
@@ -428,15 +428,23 @@ struct __nothrow_invokable_r_imp<true, false, _Ret, _Fp, _Args...>
     template <class _Tp>
     static void __test_noexcept(_Tp) _NOEXCEPT;
 
+#ifdef _LIBCPP_CXX03_LANG
+    static const bool value = false;
+#else
     static const bool value = noexcept(_ThisT::__test_noexcept<_Ret>(
-        _VSTD::__invoke(declval<_Fp>(), declval<_Args>()...)));
+        _VSTD::__invoke(std::declval<_Fp>(), std::declval<_Args>()...)));
+#endif
 };
 
 template <class _Ret, class _Fp, class ..._Args>
 struct __nothrow_invokable_r_imp<true, true, _Ret, _Fp, _Args...>
 {
+#ifdef _LIBCPP_CXX03_LANG
+    static const bool value = false;
+#else
     static const bool value = noexcept(
-        _VSTD::__invoke(declval<_Fp>(), declval<_Args>()...));
+        _VSTD::__invoke(std::declval<_Fp>(), std::declval<_Args>()...));
+#endif
 };
 
 template <class _Ret, class _Fp, class ..._Args>
@@ -480,7 +488,7 @@ struct __invoke_void_return_wrapper<_Ret, true>
     }
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 // is_invocable
 
@@ -531,7 +539,26 @@ invoke(_Fn&& __f, _Args&&... __args)
     return _VSTD::__invoke(_VSTD::forward<_Fn>(__f), _VSTD::forward<_Args>(__args)...);
 }
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
+
+#if _LIBCPP_STD_VER >= 23
+template <class _Result, class _Fn, class... _Args>
+  requires is_invocable_r_v<_Result, _Fn, _Args...>
+_LIBCPP_HIDE_FROM_ABI constexpr _Result
+invoke_r(_Fn&& __f, _Args&&... __args) noexcept(is_nothrow_invocable_r_v<_Result, _Fn, _Args...>) {
+    if constexpr (is_void_v<_Result>) {
+        static_cast<void>(std::invoke(std::forward<_Fn>(__f), std::forward<_Args>(__args)...));
+    } else {
+        // TODO: Use reference_converts_from_temporary_v once implemented
+        // using _ImplicitInvokeResult = invoke_result_t<_Fn, _Args...>;
+        // static_assert(!reference_converts_from_temporary_v<_Result, _ImplicitInvokeResult>,
+        static_assert(true,
+            "Returning from invoke_r would bind a temporary object to the reference return type, "
+            "which would result in a dangling reference.");
+        return std::invoke(std::forward<_Fn>(__f), std::forward<_Args>(__args)...);
+    }
+}
+#endif
 
 _LIBCPP_END_NAMESPACE_STD
 

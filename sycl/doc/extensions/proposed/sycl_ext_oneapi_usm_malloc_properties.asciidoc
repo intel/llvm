@@ -1,0 +1,1349 @@
+:sectnums:
+
+= `sycl_ext_oneapi_usm_malloc_properties`
+
+:dpcpp: pass:[DPC++]
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Contact
+
+Jessica Davies, Intel (jessica 'dot' davies 'at' intel 'dot' com)
+
+== Contributors
+
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Michael Kinsner, Intel +
+Aditi Kumaraswamy, Intel +
+Steffen Larsen, Intel +
+Gregory Lueck, Intel +
+John Pennycook, Intel +
+Roland Schulz, Intel +
+Jason Sewall, Intel +
+Abhishek Tiwari, Intel +
+Sherry Yuan, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 6.
+All references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces USM memory allocation functions with support for compile-time-constant and runtime properties, as defined in the link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
+The USM memory allocation functions introduced by this extension take a `properties` object as a (possibly optional) parameter, and return an `annotated_ptr`.
+This allows both runtime and compile-time-constant properties to be specified when allocating USM memory.
+Furthermore, the `annotated_ptr` returned by the USM memory allocation functions allows compile-time-constant information to propagate to the device compiler and thereby enable additional optimization of kernel code.
+
+This extension also introduces a new compile-time constant property `sycl::ext::oneapi::experimental::usm_kind`, whose single parameter is a value from the enumeration `sycl::usm::alloc`.
+
+[NOTE]
+====
+In this document, we use the shortened form `annotated_ptr` to refer to the
+proposed `sycl::ext::oneapi::experimental::annotated_ptr` class.
+We also use the shortened form `properties` to refer to the `sycl::ext::oneapi::experimental::properties` class.
+====
+
+The purpose of this document is to clearly describe and specify USM memory allocation functions with `properties` support,
+and related concepts, types, and mechanisms, and to give examples and context for their usage.
+
+== Examples
+
+Runtime and compile-time constant properties can be passed to the USM memory allocation functions introduced by this extension.
+Properties passed to an allocation function may or may not appear on the returned `annotated_ptr` object:
+compile-time constant properties will appear on the `annotated_ptr`, while runtime properties will not.
+
+In the following examples, `bar` and `baz` are compile-time-constant properties, while `foo` is a
+runtime property. Therefore if `bar` or `baz` is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr`.
+However, the `foo` property will not appear on the returned `annotated_ptr` because it is a runtime property.
+
+If the USM memory allocation kind is known at compile-time, the compile-time-constant property `sycl::ext::oneapi::experimental::usm_kind` will also appear on the returned `annotated_ptr`.
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+properties P1{bar, baz, foo{1}};
+properties P2{bar, foo{1}};
+properties P3{bar, baz}
+
+// APtr1 is of type annotated_ptr<int, decltype(properties{bar, baz, usm_kind<sycl::usm::alloc::device>})>
+auto APtr1 = malloc_device_annotated<int>(N, q, P1);
+
+// APtr2 is of type annotated_ptr<int, decltype(properties{bar, usm_kind<sycl::usm::alloc::device>})>
+auto APtr2 = malloc_device_annotated<int>(N, q, P2);
+
+// APtr3 is of type annotated_ptr<int, decltype(properties{bar, baz, usm_kind<sycl::usm::alloc::device>})>
+auto APtr3 = malloc_device_annotated<int>(N, q, P3);
+
+// Runtime properties are not present on the returned annotated_ptr
+static_assert(std::is_same_v<decltype(APtr1), decltype(APtr3)>);
+
+// APtr1 and APtr2 do not have the same properties
+static_assert(!std::is_same_v<decltype(APtr1), decltype(APtr2)>);
+
+// APtr4 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::host>})>
+auto APtr4 = malloc_host_annotated<int>(N, q);
+
+// APtr5 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::shared>})>
+auto APtr5 = malloc_shared_annotated<int>(N, q);
+
+// The USM kinds differ
+static_assert(!std::is_same_v<decltype(APtr4), decltype(APtr5)>);
+----
+
+This extension also introduces USM memory allocation functions with `properties` support that allow the USM memory allocation kind to be specified at runtime.
+In this case, the returned `annotated_ptr` will not have the `sycl::ext::oneapi::experimental::usm_kind` property (unless that property is also passed in).
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+properties P4{bar, foo{1}};
+
+// APtr6 is of type annotated_ptr<int, decltype(properties{bar})>
+auto APtr6 = malloc_annotated<int>(N, q, sycl::usm::alloc::device, P4);
+
+// APtr7 is of type annotated_ptr<int, decltype(properties{})>;
+auto APtr7 = malloc_annotated<int>(N, q, sycl::usm::alloc::device);
+----
+
+If the USM memory allocation kind specified by a parameter to the allocation function is different than the USM memory allocation kind specified by the `sycl::ext::oneapi::experimental::usm_kind` property, the function throws a
+synchronous exception with the `errc::invalid` error code. 
+If the `sycl::ext::oneapi::experimental::usm_kind` property specifies a different USM memory allocation kind than the function supports, the compiler will issue a diagnostic error.
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+properties P5{usm_kind<sycl::usm::alloc::device>};
+
+// Throws an exception with error code errc::invalid
+auto APtr8 = malloc_annotated<int>(N, q, sycl::usm::alloc::host, P5);
+
+// Error: the USM kinds do not agree
+auto APtr9 = malloc_host_annotated<int>(N, q, P5);
+----
+
+The following example uses the compile-time-constant property `alignment`, defined in the link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr] extension.
+When the `alignment` property is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr` since it is a compile-time constant property.
+It also informs the runtime to allocate the memory with this alignment.
+ 
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+properties P7{alignment<512>};
+properties P8{alignment<2>};
+properties P9{alignment<64>};
+
+// APtr10 is of type annotated_ptr<int, decltype(properties{alignment<512>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr10 is 512-byte aligned
+auto APtr10 = malloc_device_annotated<int>(N, q, P7);
+
+// APtr11 is of type annotated_ptr<int, decltype(properties{alignment<1>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr11 is sizeof(int)-byte aligned, e.g., 4 for some implementations
+auto APtr11 = malloc_device_annotated<int>(N, q, P8);
+
+// APtr12 is of type annotated_ptr<void, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr12 is 512-byte aligned
+auto APtr12 = malloc_device_annotated(512, q, P9);
+----
+
+This extension also introduces USM memory allocation functions with `properties` support that allow alignment to be specified at runtime, using a separate parameter of type `size_t`.
+If the parameter of type `size_t` has value `A` and the compile-time constant `alignment` property has value `B`, the resulting pointer will be both `A`-byte aligned and `B`-byte aligned, as well as `C`-byte aligned,
+where `C` is the least common multiple of `A` and `B`.
+
+Note that the `alignment` property will not be on the returned `annotated_ptr` (unless it is passed to the function), because the alignment is only known at runtime and not at compile-time.
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+properties P10{alignment<64>};
+properties P11{alignment<8>};
+
+// APtr13 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr13 is 64-byte aligned
+// Note: APtr13 does not have the alignment property. The alignment is runtime information.
+auto APtr13 = aligned_alloc_device_annotated<int>(N, q, 64 /* alignment */);
+
+// APtr14 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr14 is 64-byte aligned
+// Note: APtr14 has the alignment property because P10 contains the alignment property
+auto APtr14 = aligned_alloc_device_annotated<int>(N, q, 64, P10);
+
+// APtr15 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr15 is 128-byte aligned
+// Note: APtr15 has the alignment property with value 64, because this is the alignment known at compile-time
+auto APtr15 = aligned_alloc_device_annotated<int>(N, q, 128, P10);
+
+// APtr16 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr16 is 64-byte aligned
+auto APtr16 = aligned_alloc_device_annotated<int>(N, q, 16, P10);
+
+// APtr17 is of type annotated_ptr<int, decltype(properties{alignment<8>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr17 is 56-byte aligned (if this alignment is supported by the implementation)
+auto APtr17 = aligned_alloc_device_annotated<int>(N, q, 7, P11);
+----
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USM_MALLOC_PROPERTIES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+=== Orientation
+
+The core SYCL specification lists eight functions in each of the following four tables:
+
+- Table 103 "Device USM Allocation Functions", of Section 4.8.3.2 "Device allocation functions" +
+- Table 104 "Host USM Allocation Functions", of Section 4.8.3.3 "Host allocation functions" +
+- Table 105 "Shared USM Allocation Functions", of Section 4.8.3.4 "Shared allocation functions" +
+- Table 106 "Parameterized USM Allocation Functions", of Section 4.8.3.5 "Parameterized allocation functions"
+
+This extension introduces a new function for each function listed in the above tables of the core SYCL specification.
+This extension also adds USM memory allocation functions with `properties` support that require the `sycl::ext::oneapi::experimental::usm_kind` property,
+and these do not correspond to any functions in the core SYCL specification.
+All USM memory allocation functions introduced by this extension are listed explicitly in Section <<section.usm.allocs>>.
+
+[NOTE]
+====
+The USM memory allocation functions defined in the core SYCL specification can be used in the same program as the USM memory allocation functions with `properties` support defined in this extension.
+The new functions are distinguished by their names having the `_annotated` suffix.
+====
+
+[[section.usm.allocs]]
+=== USM Memory Allocation Functions with properties Support
+
+The following five tables list all functions introduced by this extension.
+
+[NOTE]
+====
+All functions in the following five tables belong to the `sycl::ext::oneapi::experimental` namespace. The
+namespace is omitted to save space.
+====
+
+[[section.usm.device.allocs]]
+==== Device USM allocation functions with properties support
+
+The functions in <<table.usm.device.allocs>> allocate device USM.  On success,
+these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
+eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
+leak.  If there are not enough resources to allocate the requested memory,
+these functions return an `annotated_ptr` containing a null raw pointer.
+
+
+[[table.usm.device.allocs]]
+.Device USM Allocation Functions with properties Support
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ Function @ Description
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_device_annotated(
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on `syclDevice`.
+The allocation size is specified in bytes.
+
+Zero or more runtime and compile-time constant properties can be provided to the
+allocation function via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::device>`.
+
+Throws a
+synchronous `exception` with the `errc::feature_not_supported`
+error code if the `syclDevice` does not have
+`aspect::usm_device_allocations`.  The `syclDevice` must either be
+contained by `syclContext` or it must be a descendent device of some
+device that is contained by that context, otherwise this function throws a
+synchronous `exception` with the `errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::device`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_device_annotated(
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@  Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on `syclDevice`.
+The allocation size is specified in number of elements of type
+`T`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::device>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_device_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::device`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_device_annotated(
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device`
+and `context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_device_annotated(
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device`
+and `context`.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_device_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on
+`syclDevice`.
+The allocation is specified in bytes and aligned according
+to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::device>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_device_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::device`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_device_annotated(
+   size_t alignment,
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on
+`syclDevice`.
+The allocation is specified in number of elements of type
+`T` and aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::device>`.
+
+Throws a
+synchronous `exception` with the `errc::feature_not_supported`
+error code if the `syclDevice` does not have
+`aspect::usm_device_allocations`.  The `syclDevice` must either be
+contained by `syclContext` or it must be a descendent device of some
+device that is contained by that context, otherwise this function throws a
+synchronous `exception` with the `errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::device`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_device_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device`
+and `context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_device_annotated(
+   size_t alignment,
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device`
+and `context`.
+
+|====
+
+==== Host USM allocation functions with properties support
+
+The functions in <<table.usm.host.allocs>> allocate host USM.  On success,
+these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
+eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
+leak.  If there are not enough resources to allocate the requested memory,
+these functions return an `annotated_ptr` containing a null raw pointer.
+
+
+[[table.usm.host.allocs]]
+.Host USM Allocation Functions with properties Support
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ Function @ Description
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_host_annotated(
+   size_t numBytes,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory. This allocation is specified in bytes.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::host>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if no device in
+`syclContext` has `aspect::usm_host_allocations`.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::host`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_host_annotated(
+   size_t count,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory. This allocation is specified in number of elements of type `T`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::host>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if no device in
+`syclContext` has `aspect::usm_host_allocations`.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::host`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_host_annotated(
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_host_annotated(
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_host_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory.
+This allocation is specified in bytes and aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::host>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if no device in
+`syclContext` has `aspect::usm_host_allocations`.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::host`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_host_annotated(
+   size_t alignment,
+   size_t count,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory.
+This allocation is specified in elements of type `T` and aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::host>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if no device in
+`syclContext` has `aspect::usm_host_allocations`.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::host`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_host_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_host_annotated(
+   size_t alignment,
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`.
+
+|====
+
+==== Shared USM allocation functions with properties support
+
+The functions in <<table.usm.shared.allocs>> allocate shared USM.  On success,
+these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory, which must
+eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid a memory
+leak.  If there are not enough resources to allocate the requested memory,
+these functions return an `annotated_ptr` containing a null raw pointer.
+
+[[table.usm.shared.allocs]]
+.Shared USM Allocation Functions with properties Support
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ Function @ Description
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_shared_annotated(
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
+This allocation is specified in bytes.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::shared>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_shared_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::shared`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_shared_annotated(
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
+This allocation is specified in number of elements of
+type `T`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::shared>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_shared_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::shared`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_shared_annotated(
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device` and
+`context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_shared_annotated(
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device` and
+`context`.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_shared_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
+This allocation is specified in bytes and aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::shared>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_shared_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::shared`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_shared_annotated(
+   size_t alignment,
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
+This allocation is specified in number of elements of type `T` and aligned according to `alignment`. 
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+The returned `annotated_ptr` will have the property `usm_kind<sycl::usm::alloc::shared>`.
+
+Throws a synchronous `exception` with the
+`errc::feature_not_supported` error code if the `syclDevice`
+does not have `aspect::usm_shared_allocations`.  The `syclDevice`
+must either be contained by `syclContext` or it must be a
+descendent device of some device that is contained by that context,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code.
+
+An error is reported if `propList` contains
+a `usm_kind` property with value different than `sycl::usm::alloc::shared`.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_shared_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device` and
+`context`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_shared_annotated(
+   size_t alignment,
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `device` and
+`context`.
+
+|====
+
+==== Parameterized USM allocation functions with properties support
+
+The functions in <<table.usm.param.allocs>> take a `kind` parameter that
+specifies the type of USM to allocate.  When `kind` is
+`usm::alloc::device`, then the allocation device must have
+`aspect::usm_device_allocations`.  When `kind` is
+`usm::alloc::host`, at least one device in the allocation context must
+have `aspect::usm_host_allocations`.  When `kind` is
+`usm::alloc::shared`, the allocation device must have
+`aspect::usm_shared_allocations`.  If these requirements are
+violated, the allocation function throws a synchronous `exception` with
+the `errc::feature_not_supported` error code.
+
+On success, these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory,
+which must eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid
+a memory leak.  If there are not enough resources to allocate the requested
+memory, these functions return an `annotated_ptr` containing a null raw pointer.
+
+
+[[table.usm.param.allocs]]
+.Parameterized USM Allocation Functions with properties Support
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ Function @ Description
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_annotated(
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
+This allocation size is specified in bytes.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if `kind` is `sycl::usm::alloc::host`.  If `kind` is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_annotated(
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
+This allocation is specified in number of elements of type `T`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if `kind` is `sycl::usm::alloc::host`.  If `kind` is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_annotated(
+   size_t numBytes,
+   const queue& syclQueue,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_annotated(
+   size_t count,
+   const queue& syclQueue,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
+This allocation is specified in bytes and is aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if `kind` is `sycl::usm::alloc::host`.  If `kind` is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_annotated(
+   size_t alignment,
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
+This allocation is specified in number of elements of type `T` and is aligned according to `alignment`.
+
+Zero or more runtime and compile-time constant properties can be provided to the allocation function
+via an instance of `properties`.
+The compile-time constant properties in `propList` will appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if `kind` is `sycl::usm::alloc::host`.  If `kind` is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template<typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+aligned_alloc_annotated(
+   size_t alignment,
+   size_t numBytes,
+   const queue& syclQueue,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+aligned_alloc_annotated(
+   size_t alignment,
+   size_t count,
+   const queue& syclQueue,
+   sycl::usm::alloc kind,
+   const propertyListA &propList = properties{})
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+|====
+
+==== Additional USM memory allocation functions, requiring the usm_kind property
+
+This section defines additional USM memory allocation functions with `properties` support, that require the `sycl::ext::oneapi::experimental::usm_kind` property to be passed in.
+These functions do not correspond to any USM memory allocation functions in the core SYCL specification.
+
+[NOTE]
+====
+The `properties` argument is non-optional for the functions defined in this section, since at least one property (i.e., `sycl::ext::oneapi::experimental::usm_kind`) must be provided. 
+These functions are distinguished from the functions with the same names in Table <<table.usm.param.allocs>>, by the absence of a parameter of type `sycl::usm::alloc`.
+====
+
+The functions in <<table.usm.additional.allocs>> require a `sycl::ext::oneapi::experimental::usm_kind` property that
+specifies the type of USM to allocate.  When the `sycl::ext::oneapi::experimental::usm_kind` property has value 
+`usm::alloc::device`, then the allocation device must have
+`aspect::usm_device_allocations`.  When the `sycl::ext::oneapi::experimental::usm_kind` property has value 
+`usm::alloc::host`, at least one device in the allocation context must
+have `aspect::usm_host_allocations`.  When the `sycl::ext::oneapi::experimental::usm_kind` property has value
+`usm::alloc::shared`, the allocation device must have
+`aspect::usm_shared_allocations`.  If these requirements are
+violated, the allocation function throws a synchronous `exception` with
+the `errc::feature_not_supported` error code.
+
+On success, these functions return an `annotated_ptr` containing a raw pointer to the newly allocated memory,
+which must eventually be deallocated with `sycl::ext::oneapi::experimental::free` or `sycl::free` in order to avoid
+a memory leak.  If there are not enough resources to allocate the requested
+memory, these functions return an `annotated_ptr` containing a null raw pointer.
+
+
+[[table.usm.additional.allocs]]
+.USM allocation functions requiring the usm_kind property
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ Function @ Description
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_annotated(
+   size_t numBytes,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList)
+----
+a@ 
+Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type specified by the `sycl::ext::oneapi::experimental::usm_kind` property.
+This allocation is specified in bytes.
+
+`propList` must contain the `sycl::ext::oneapi::experimental::usm_kind` property, otherwise the compiler will issue a diagnostic error.
+Additional runtime and compile-time constant properties can be provided in `propList`.
+The compile-time constant properties in `propList` will also appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if the allocation kind is `sycl::usm::alloc::host`.  If the allocation kind is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_annotated(
+   size_t count,
+   const device& syclDevice,
+   const context& syclContext,
+   const propertyListA &propList)
+----
+a@ 
+Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type specified by the `sycl::ext::oneapi::experimental::usm_kind` property.
+This allocation is specified in number of elements of type `T`.
+
+`propList` must contain the `sycl::ext::oneapi::experimental::usm_kind` property, otherwise the compiler will issue a diagnostic error.
+Additional runtime and compile-time constant properties can be provided in `propList`.
+The compile-time constant properties in `propList` will also appear as properties of the returned `annotated_ptr`.
+Runtime properties in `propList` will not appear as properties of the returned `annotated_ptr`.
+
+The `syclDevice` parameter is
+ignored if the allocation kind is `sycl::usm::alloc::host`.  If the allocation kind is not
+`sycl::usm::alloc::host`, `syclDevice` must either be contained by
+`syclContext` or it must be a descendent device of some device that
+is contained by that context, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
+
+a@
+[source]
+----
+template <typename propertyListA, typename propertyListB>
+annotated_ptr<void, propertyListB>
+malloc_annotated(
+   size_t numBytes,
+   const queue& syclQueue,
+   const propertyListA &propList)
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+a@
+[source]
+----
+template <typename T,
+          typename propertyListA,
+          typename propertyListB>
+annotated_ptr<T, propertyListB>
+malloc_annotated(
+   size_t count,
+   const queue& syclQueue,
+   const propertyListA &propList)
+----
+a@ Simplified form where `syclQueue` provides the `context`
+and any necessary `device`.
+
+|====
+
+=== USM Memory Allocation Properties
+
+This section specifies the properties that can be passed to the USM memory allocation functions with `properties` support defined in Section <<section.usm.allocs>>.
+A SYCL implementation or SYCL backend may support additional properties other than those defined here, provided they are defined in accordance with the
+link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
+If unsupported properties are passed to the USM memory allocation functions with `properties` support, the compiler will issue a diagnostic error.
+
+All properties supported by `annotated_ptr` are supported by the USM memory allocation functions with `properties` support. These properties do not affect the behavior of the allocation functions at runtime, except where explicitly specified.
+
+
+[NOTE]
+====
+The USM memory allocation functions with `properties` support defined in this extension support all properties supported by `annotated_ptr`, as a convenience. This allows the user to attach all desired properties to the `annotated_ptr` in a single step.
+====
+
+Table <<table.usm.malloc.properties>> lists properties that affect the behavior of the allocation functions.
+
+[[table.usm.malloc.properties]]
+.Properties that affect the behavior of the USM memory allocation functions with properties support
+[options="header"]
+|====
+|Property|Description|Source
+a|
+sycl::ext::oneapi::experimental::alignment
+| 	
+If this property is passed to a USM memory allocation function with `properties` support, it instructs the runtime to allocate memory with this alignment in bytes.
+The set of allowed alignments is implementation defined. Specifying an alignment that is not supported causes the allocation function to return an `annotated_ptr` containing a null raw pointer.
+|
+link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+|====
+
+Table <<table.usm.malloc.devhostsh>> lists the new properties introduced by this extension.
+
+[[table.usm.malloc.devhostsh]]
+.New compile-time constant properties introduced by this extension
+[options="header"]
+|====
+|Property|Description|Supported By
+a|
+`sycl::ext::oneapi::experimental::usm_kind<kind>`
+|
+Indicates the kind of USM memory accessed by dereferencing this pointer and pointers derived from this pointer.
+Instructs the runtime to allocate USM memory of this kind.
+
+`kind` can be one of:
+
+`sycl::usm::alloc::host` +
+`sycl::usm::alloc::device` +
+`sycl::usm::alloc::shared` +
+
+For convenience, the following variables are provided:
+`sycl::ext::oneapi::experimental::usm_kind_host` +
+`sycl::ext::oneapi::experimental::usm_kind_device` +
+`sycl::ext::oneapi::experimental::usm_kind_shared`
+|
+`annotated_ptr`, +
+and the USM memory allocation functions with `properties` support defined in this extension.
+|====
+
+
+The `sycl::ext::oneapi::experimental::usm_kind` property is a compile-time constant property with a single non-type parameter. This parameter is a value belonging to the enumeration `sycl::usm::alloc`.
+The `sycl::ext::oneapi::experimental::usm_kind` property is supported by `annotated_ptr` and the USM memory allocation functions defined in this extension.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+struct usm_kind_key {
+  template<sycl::usm::alloc kind>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    usm_kind_key, std::integral_constant<sycl::usm::alloc, kind>>;
+};
+
+template<sycl::usm::alloc kind>
+inline constexpr usm_kind_key::value_t<kind> usm_kind;
+
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::host> usm_kind_host;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device> usm_kind_device;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared> usm_kind_shared;
+
+}
+----
+
+=== Deallocation
+
+This extension introduces two new functions called `sycl::ext::oneapi::experimental::free` that take an `annotated_ptr` as argument. These functions deallocate the memory pointed to by the raw pointer belonging to the `annotated_ptr`. The new deallocation functions are listed in Table <<table.usm.malloc.free>>. These functions belong to the namespace `sycl::ext::oneapi::experimental`.
+To avoid memory leaks, USM memory allocated using the USM memory allocation functions with `properties` support defined in this extension, must be deallocated using `sycl::ext::oneapi::experimental::free` or `sycl::free`.
+
+The following example shows how USM memory allocated using one of the functions defined in this extension can be deallocated, to avoid memory leaks.
+
+==== Example
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+// APtr and BPtr are of type
+// annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
+auto APtr = malloc_device_annotated<int>(N, q);
+auto BPtr = malloc_device_annotated<int>(N, q);
+
+// Deallocate the memory pointed to by the raw pointer of APtr
+free(APtr, q);
+
+// Deallocate the memory pointed to by the raw pointer of BPtr, using sycl::free 
+free(BPtr.get(), q);
+----
+
+[[table.usm.malloc.free]]
+.New USM memory deallocation functions introduced by this extension
+[options="header"]
+|====
+|Function|Description
+a|
+[source,c++]
+----
+template<typename T, typename propList>
+void free(annotated_ptr<T, propList> &ptr,
+          const context& syclContext)
+----
+| Frees an allocation. The memory pointed to by the raw pointer belonging to `ptr` must have been allocated using one of the USM memory allocation functions with `properties` support defined in this extension, or one of the
+SYCL USM allocation routines. `syclContext` must be the same `context` that was used to allocate the memory. The memory is freed without waiting for `commands` operating on it to be completed. If `commands` that use this memory
+are in-progress or are enqueued the behavior is undefined. 
+a|
+[source,c++]
+----
+template<typename T, typename propList>
+void free(annotated_ptr<T, propList> &ptr,
+          const queue& syclQueue)
+----
+| Alternate form where `syclQueue` provides the `context`. 
+|====
+

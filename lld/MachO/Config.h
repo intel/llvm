@@ -26,6 +26,10 @@
 
 #include <vector>
 
+namespace llvm::CodeGenOpt {
+enum Level : int;
+} // namespace llvm::CodeGenOpt
+
 namespace lld {
 namespace macho {
 
@@ -133,6 +137,9 @@ struct Configuration {
   bool emitEncryptionInfo = false;
   bool emitInitOffsets = false;
   bool emitChainedFixups = false;
+  bool thinLTOEmitImportsFiles;
+  bool thinLTOEmitIndexFiles;
+  bool thinLTOIndexOnly;
   bool timeTraceEnabled = false;
   bool dataConst = false;
   bool dedupStrings = true;
@@ -162,8 +169,12 @@ struct Configuration {
   llvm::StringRef thinLTOJobs;
   llvm::StringRef umbrella;
   uint32_t ltoo = 2;
+  llvm::CodeGenOpt::Level ltoCgo;
   llvm::CachePruningPolicy thinLTOCachePolicy;
   llvm::StringRef thinLTOCacheDir;
+  llvm::StringRef thinLTOIndexOnlyArg;
+  std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
+  std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
   bool deadStripDylibs = false;
   bool demangle = false;
   bool deadStrip = false;

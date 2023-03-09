@@ -475,8 +475,10 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
+  LDIAPP,
   LDNP,
   STP,
+  STILP,
   STNP,
 
   // Memory Operations
@@ -501,6 +503,11 @@ enum Rounding {
 
 // Bit position of rounding mode bits in FPCR.
 const unsigned RoundingBitsPos = 22;
+
+// Registers used to pass function arguments.
+const ArrayRef<MCPhysReg> getGPRArgRegs();
+const ArrayRef<MCPhysReg> getFPRArgRegs();
+
 } // namespace AArch64
 
 class AArch64Subtarget;
@@ -595,15 +602,10 @@ public:
                                   MachineInstr &MI,
                                   MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitFill(MachineInstr &MI, MachineBasicBlock *BB) const;
-  MachineBasicBlock *EmitMopa(unsigned Opc, unsigned BaseReg, MachineInstr &MI,
-                              MachineBasicBlock *BB) const;
-  MachineBasicBlock *EmitInsertVectorToTile(unsigned Opc, unsigned BaseReg,
-                                            MachineInstr &MI,
-                                            MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitZAInstr(unsigned Opc, unsigned BaseReg,
+                                 MachineInstr &MI, MachineBasicBlock *BB,
+                                 bool HasTile) const;
   MachineBasicBlock *EmitZero(MachineInstr &MI, MachineBasicBlock *BB) const;
-  MachineBasicBlock *EmitAddVectorToTile(unsigned Opc, unsigned BaseReg,
-                                         MachineInstr &MI,
-                                         MachineBasicBlock *BB) const;
 
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
@@ -673,6 +675,7 @@ public:
                                      CodeGenOpt::Level OptLevel) const override;
 
   const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
+  ArrayRef<MCPhysReg> getRoundingControlRegisters() const override;
 
   /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
   bool isDesirableToCommuteWithShift(const SDNode *N,
@@ -710,7 +713,11 @@ public:
   void emitAtomicCmpXchgNoStoreLLBalance(IRBuilderBase &Builder) const override;
 
   bool isOpSuitableForLDPSTP(const Instruction *I) const;
+  bool isOpSuitableForLSE128(const Instruction *I) const;
+  bool isOpSuitableForRCPC3(const Instruction *I) const;
   bool shouldInsertFencesForAtomic(const Instruction *I) const override;
+  bool
+  shouldInsertTrailingFenceForAtomicStore(const Instruction *I) const override;
 
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
@@ -799,7 +806,9 @@ public:
       unsigned OldShiftOpcode, unsigned NewShiftOpcode,
       SelectionDAG &DAG) const override;
 
-  bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override;
+  ShiftLegalizationStrategy
+  preferredShiftLegalizationStrategy(SelectionDAG &DAG, SDNode *N,
+                                     unsigned ExpansionFactor) const override;
 
   bool shouldTransformSignedTruncationCheck(EVT XVT,
                                             unsigned KeptBits) const override {
@@ -830,11 +839,6 @@ public:
       Instruction *I, ComplexDeinterleavingOperation OperationType,
       ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
       Value *Accumulator = nullptr) const override;
-
-  bool hasBitPreservingFPLogic(EVT VT) const override {
-    // FIXME: Is this always true? It should be true for vectors at least.
-    return VT == MVT::f32 || VT == MVT::f64;
-  }
 
   bool supportSplitCSR(MachineFunction *MF) const override {
     return MF->getFunction().getCallingConv() == CallingConv::CXX_FAST_TLS &&
@@ -910,6 +914,8 @@ public:
   SDValue changeStreamingMode(SelectionDAG &DAG, SDLoc DL, bool Enable,
                               SDValue Chain, SDValue InFlag,
                               SDValue PStateSM, bool Entry) const;
+
+  bool isVScaleKnownToBeAPowerOfTwo() const override;
 
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
@@ -1161,8 +1167,7 @@ private:
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
   bool getIndexedAddressParts(SDNode *N, SDNode *Op, SDValue &Base,
-                              SDValue &Offset, ISD::MemIndexedMode &AM,
-                              bool &IsInc, SelectionDAG &DAG) const;
+                              SDValue &Offset, SelectionDAG &DAG) const;
   bool getPreIndexedAddressParts(SDNode *N, SDValue &Base, SDValue &Offset,
                                  ISD::MemIndexedMode &AM,
                                  SelectionDAG &DAG) const override;

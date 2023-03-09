@@ -205,6 +205,12 @@ def ptr_add_immed_chain : GICombineRule<
          [{ return Helper.matchPtrAddImmedChain(*${d}, ${matchinfo}); }]),
   (apply [{ Helper.applyPtrAddImmedChain(*${d}, ${matchinfo}); }])>;
 
+def shifts_too_big : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SHL, G_ASHR, G_LSHR):$root,
+         [{ return Helper.matchShiftsTooBig(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
 // Fold shift (shift base x), y -> shift base, (x+y), if shifts are same
 def shift_immed_matchdata : GIDefMatchData<"RegisterImmPair">;
 def shift_immed_chain : GICombineRule<
@@ -341,6 +347,24 @@ def select_to_logical : GICombineRule<
   (match (wip_match_opcode G_SELECT):$root,
     [{ return Helper.matchSelectToLogical(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])
+>;
+
+// Fold (C op x) -> (x op C)
+// TODO: handle more isCommutable opcodes
+// TODO: handle compares (currently not marked as isCommutable)
+def commute_constant_to_rhs : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_ADD, G_MUL, G_AND, G_OR, G_XOR):$root, [{
+    return getIConstantVRegVal(${root}->getOperand(1).getReg(), MRI).has_value();
+  }]),
+  (apply [{
+    Observer.changingInstr(*${root});
+    Register LHSReg = ${root}->getOperand(1).getReg();
+    Register RHSReg = ${root}->getOperand(2).getReg();
+    ${root}->getOperand(1).setReg(RHSReg);
+    ${root}->getOperand(2).setReg(LHSReg);
+    Observer.changedInstr(*${root});
+  }])
 >;
 
 // Fold x op 0 -> x
@@ -1071,7 +1095,7 @@ def fma_combines : GICombineGroup<[combine_fadd_fmul_to_fmad_or_fma,
 def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     extract_vec_elt_combines, combines_for_extload,
     combine_indexed_load_store, undef_combines, identity_combines, phi_combines,
-    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands,
+    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
     reassocs, ptr_add_immed_chain,
     shl_ashr_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
@@ -1086,7 +1110,7 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
     sub_add_reg, select_to_minmax, redundant_binop_in_equality,
-    fsub_to_fneg]>;
+    fsub_to_fneg, commute_constant_to_rhs]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

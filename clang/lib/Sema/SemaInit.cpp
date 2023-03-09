@@ -12,6 +12,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/Designator.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
@@ -19,7 +20,6 @@
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
-#include "clang/Sema/Designator.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/SemaInternal.h"
@@ -239,6 +239,7 @@ static void CheckStringInit(Expr *Str, QualType &DeclT, const ArrayType *AT,
     if (StrLength > CAT->getSize().getZExtValue())
       S.Diag(Str->getBeginLoc(),
              diag::err_initializer_string_for_char_array_too_long)
+          << CAT->getSize().getZExtValue() << StrLength
           << Str->getSourceRange();
   } else {
     // C99 6.7.8p14.
@@ -2339,19 +2340,17 @@ static void ExpandAnonymousFieldDesignator(Sema &SemaRef,
                                            DesignatedInitExpr *DIE,
                                            unsigned DesigIdx,
                                            IndirectFieldDecl *IndirectField) {
-  typedef DesignatedInitExpr::Designator Designator;
-
   // Build the replacement designators.
   SmallVector<Designator, 4> Replacements;
   for (IndirectFieldDecl::chain_iterator PI = IndirectField->chain_begin(),
        PE = IndirectField->chain_end(); PI != PE; ++PI) {
     if (PI + 1 == PE)
-      Replacements.push_back(Designator((IdentifierInfo *)nullptr,
-                                    DIE->getDesignator(DesigIdx)->getDotLoc(),
-                                DIE->getDesignator(DesigIdx)->getFieldLoc()));
+      Replacements.push_back(Designator::CreateFieldDesignator(
+          nullptr, DIE->getDesignator(DesigIdx)->getDotLoc(),
+          DIE->getDesignator(DesigIdx)->getFieldLoc()));
     else
-      Replacements.push_back(Designator((IdentifierInfo *)nullptr,
-                                        SourceLocation(), SourceLocation()));
+      Replacements.push_back(Designator::CreateFieldDesignator(
+          nullptr, SourceLocation(), SourceLocation()));
     assert(isa<FieldDecl>(*PI));
     Replacements.back().setField(cast<FieldDecl>(*PI));
   }
@@ -2494,7 +2493,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
     return hadError && !prevHadError;
   }
 
-  DesignatedInitExpr::Designator *D = DIE->getDesignator(DesigIdx);
+  Designator *D = DIE->getDesignator(DesigIdx);
   bool IsFirstDesignator = (DesigIdx == 0);
   if (IsFirstDesignator ? FullyStructuredList : StructuredList) {
     // Determine the structural initializer list that corresponds to the
@@ -2576,7 +2575,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
 
     FieldDecl *KnownField = D->getField();
     if (!KnownField) {
-      IdentifierInfo *FieldName = D->getFieldName();
+      const IdentifierInfo *FieldName = D->getFieldName();
       DeclContext::lookup_result Lookup = RT->getDecl()->lookup(FieldName);
       for (NamedDecl *ND : Lookup) {
         if (auto *FD = dyn_cast<FieldDecl>(ND)) {
@@ -2752,8 +2751,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
         // We can't designate an object within the flexible array
         // member (because GCC doesn't allow it).
         if (!VerifyOnly) {
-          DesignatedInitExpr::Designator *NextD
-            = DIE->getDesignator(DesigIdx + 1);
+          Designator *NextD = DIE->getDesignator(DesigIdx + 1);
           SemaRef.Diag(NextD->getBeginLoc(),
                        diag::err_designator_into_flexible_array_member)
               << SourceRange(NextD->getBeginLoc(), DIE->getEndLoc());
@@ -3213,40 +3211,32 @@ CheckArrayDesignatorExpr(Sema &S, Expr *Index, llvm::APSInt &Value) {
 
 ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
                                             SourceLocation EqualOrColonLoc,
-                                            bool GNUSyntax,
-                                            ExprResult Init) {
-  typedef DesignatedInitExpr::Designator ASTDesignator;
-
+                                            bool GNUSyntax, ExprResult Init) {
   bool Invalid = false;
-  SmallVector<ASTDesignator, 32> Designators;
+  SmallVector<Designator, 32> Designators;
   SmallVector<Expr *, 32> InitExpressions;
 
   // Build designators and check array designator expressions.
   for (unsigned Idx = 0; Idx < Desig.getNumDesignators(); ++Idx) {
     const Designator &D = Desig.getDesignator(Idx);
-    switch (D.getKind()) {
-    case Designator::FieldDesignator:
-      Designators.push_back(ASTDesignator(D.getField(), D.getDotLoc(),
-                                          D.getFieldLoc()));
-      break;
 
-    case Designator::ArrayDesignator: {
+    if (D.isFieldDesignator()) {
+      Designators.push_back(Designator::CreateFieldDesignator(
+          D.getFieldName(), D.getDotLoc(), D.getFieldLoc()));
+    } else if (D.isArrayDesignator()) {
       Expr *Index = static_cast<Expr *>(D.getArrayIndex());
       llvm::APSInt IndexValue;
+
       if (!Index->isTypeDependent() && !Index->isValueDependent())
         Index = CheckArrayDesignatorExpr(*this, Index, IndexValue).get();
       if (!Index)
         Invalid = true;
       else {
-        Designators.push_back(ASTDesignator(InitExpressions.size(),
-                                            D.getLBracketLoc(),
-                                            D.getRBracketLoc()));
+        Designators.push_back(Designator::CreateArrayDesignator(
+            InitExpressions.size(), D.getLBracketLoc(), D.getRBracketLoc()));
         InitExpressions.push_back(Index);
       }
-      break;
-    }
-
-    case Designator::ArrayRangeDesignator: {
+    } else if (D.isArrayRangeDesignator()) {
       Expr *StartIndex = static_cast<Expr *>(D.getArrayRangeStart());
       Expr *EndIndex = static_cast<Expr *>(D.getArrayRangeEnd());
       llvm::APSInt StartValue;
@@ -3255,9 +3245,11 @@ ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
                             StartIndex->isValueDependent();
       bool EndDependent = EndIndex->isTypeDependent() ||
                           EndIndex->isValueDependent();
+
       if (!StartDependent)
         StartIndex =
             CheckArrayDesignatorExpr(*this, StartIndex, StartValue).get();
+
       if (!EndDependent)
         EndIndex = CheckArrayDesignatorExpr(*this, EndIndex, EndValue).get();
 
@@ -3278,24 +3270,18 @@ ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
             << StartIndex->getSourceRange() << EndIndex->getSourceRange();
           Invalid = true;
         } else {
-          Designators.push_back(ASTDesignator(InitExpressions.size(),
-                                              D.getLBracketLoc(),
-                                              D.getEllipsisLoc(),
-                                              D.getRBracketLoc()));
+          Designators.push_back(Designator::CreateArrayRangeDesignator(
+              InitExpressions.size(), D.getLBracketLoc(), D.getEllipsisLoc(),
+              D.getRBracketLoc()));
           InitExpressions.push_back(StartIndex);
           InitExpressions.push_back(EndIndex);
         }
       }
-      break;
-    }
     }
   }
 
   if (Invalid || Init.isInvalid())
     return ExprError();
-
-  // Clear out the expressions within the designation.
-  Desig.ClearExprs(*this);
 
   return DesignatedInitExpr::Create(Context, Designators, InitExpressions,
                                     EqualOrColonLoc, GNUSyntax,
@@ -5278,22 +5264,25 @@ static void TryOrBuildParenListInitialization(
   SmallVector<Expr *, 4> InitExprs;
   QualType ResultType;
   Expr *ArrayFiller = nullptr;
+  FieldDecl *InitializedFieldInUnion = nullptr;
 
   // Process entities (i.e. array members, base classes, or class fields) by
   // adding an initialization expression to InitExprs for each entity to
   // initialize.
   auto ProcessEntities = [&](auto Range) -> bool {
+    bool IsUnionType = Entity.getType()->isUnionType();
     for (InitializedEntity SubEntity : Range) {
       // Unions should only have one initializer expression.
       // If there are more initializers than it will be caught when we check
       // whether Index equals Args.size().
-      if (ArgIndexToProcess == 1 && Entity.getType()->isUnionType())
+      if (ArgIndexToProcess == 1 && IsUnionType)
         return true;
+
+      bool IsMember = SubEntity.getKind() == InitializedEntity::EK_Member;
 
       // Unnamed bitfields should not be initialized at all, either with an arg
       // or by default.
-      if (SubEntity.getKind() == InitializedEntity::EK_Member &&
-          cast<FieldDecl>(SubEntity.getDecl())->isUnnamedBitfield())
+      if (IsMember && cast<FieldDecl>(SubEntity.getDecl())->isUnnamedBitfield())
         continue;
 
       if (ArgIndexToProcess < Args.size()) {
@@ -5304,7 +5293,7 @@ static void TryOrBuildParenListInitialization(
         // Incomplete array types indicate flexible array members. Do not allow
         // paren list initializations of structs with these members, as GCC
         // doesn't either.
-        if (SubEntity.getKind() == InitializedEntity::EK_Member) {
+        if (IsMember) {
           auto *FD = cast<FieldDecl>(SubEntity.getDecl());
           if (FD->getType()->isIncompleteArrayType()) {
             if (!VerifyOnly) {
@@ -5334,11 +5323,13 @@ static void TryOrBuildParenListInitialization(
         if (!VerifyOnly) {
           ExprResult ER = SubSeq.Perform(S, SubEntity, SubKind, E);
           InitExprs.push_back(ER.get());
+          if (IsMember && IsUnionType)
+            InitializedFieldInUnion = cast<FieldDecl>(SubEntity.getDecl());
         }
       } else {
         // We've processed all of the args, but there are still entities that
         // have to be initialized.
-        if (SubEntity.getKind() == InitializedEntity::EK_Member) {
+        if (IsMember) {
           // C++ [dcl.init]p17.6.2.2
           //   The remaining elements are initialized with their default member
           //   initializers, if any
@@ -5409,8 +5400,8 @@ static void TryOrBuildParenListInitialization(
         return;
 
       ResultType = S.Context.getConstantArrayType(
-          AT->getElementType(), llvm::APInt(32, ArrayLength), nullptr,
-          ArrayType::Normal, 0);
+          AT->getElementType(), llvm::APInt(/*numBits=*/32, ArrayLength),
+          nullptr, ArrayType::Normal, 0);
     }
   } else if (auto *RT = Entity.getType()->getAs<RecordType>()) {
     const CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
@@ -5438,8 +5429,10 @@ static void TryOrBuildParenListInitialization(
     if (!VerifyOnly) {
       QualType T = Entity.getType();
       int InitKind = T->isArrayType() ? 0 : T->isUnionType() ? 3 : 4;
+      SourceRange ExcessInitSR(Args[ArgIndexToProcess]->getBeginLoc(),
+                               Args.back()->getEndLoc());
       S.Diag(Kind.getLocation(), diag::err_excess_initializers)
-          << InitKind << Args[ArgIndexToProcess]->getSourceRange();
+          << InitKind << ExcessInitSR;
     }
     return;
   }
@@ -5452,7 +5445,10 @@ static void TryOrBuildParenListInitialization(
     auto *CPLIE = CXXParenListInitExpr::Create(
         S.getASTContext(), InitExprs, ResultType, Args.size(),
         Kind.getLocation(), SR.getBegin(), SR.getEnd());
-    CPLIE->setArrayFiller(ArrayFiller);
+    if (ArrayFiller)
+      CPLIE->setArrayFiller(ArrayFiller);
+    if (InitializedFieldInUnion)
+      CPLIE->setInitializedFieldInUnion(InitializedFieldInUnion);
     *Result = CPLIE;
     S.Diag(Kind.getLocation(),
            diag::warn_cxx17_compat_aggregate_init_paren_list)
@@ -6183,13 +6179,27 @@ void InitializationSequence::InitializeFrom(Sema &S,
           S.getLangOpts().CPlusPlus20 && RD && RD->hasDefinition() &&
           RD->isAggregate() && Failed() &&
           getFailureKind() == FK_ConstructorOverloadFailed) {
-        // C++20 [dcl.init] 17.6.2.2:
-        //   - Otherwise, if no constructor is viable, the destination type is
-        //   an
-        //      aggregate class, and the initializer is a parenthesized
-        //      expression-list.
-        TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
-                                          /*VerifyOnly=*/true);
+        // Do not attempt paren list initialization if overload resolution
+        // resolves to a deleted function .
+        //
+        // We may reach this condition if we have a union wrapping a class with
+        // a non-trivial copy or move constructor and we call one of those two
+        // constructors. The union is an aggregate, but the matched constructor
+        // is implicitly deleted, so we need to prevent aggregate initialization
+        // (otherwise, it'll attempt aggregate initialization by initializing
+        // the first element with a reference to the union).
+        OverloadCandidateSet::iterator Best;
+        OverloadingResult OR = getFailedCandidateSet().BestViableFunction(
+            S, Kind.getLocation(), Best);
+        if (OR != OverloadingResult::OR_Deleted) {
+          // C++20 [dcl.init] 17.6.2.2:
+          //   - Otherwise, if no constructor is viable, the destination type is
+          //   an
+          //      aggregate class, and the initializer is a parenthesized
+          //      expression-list.
+          TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
+                                            /*VerifyOnly=*/true);
+        }
       }
     } else {
       //     - Otherwise (i.e., for the remaining copy-initialization cases),
@@ -7322,11 +7332,11 @@ static void visitLifetimeBoundArguments(IndirectLocalPath &Path, Expr *Call,
 
   if (auto *CE = dyn_cast<CallExpr>(Call)) {
     Callee = CE->getDirectCallee();
-    Args = llvm::makeArrayRef(CE->getArgs(), CE->getNumArgs());
+    Args = llvm::ArrayRef(CE->getArgs(), CE->getNumArgs());
   } else {
     auto *CCE = cast<CXXConstructExpr>(Call);
     Callee = CCE->getConstructor();
-    Args = llvm::makeArrayRef(CCE->getArgs(), CCE->getNumArgs());
+    Args = llvm::ArrayRef(CCE->getArgs(), CCE->getNumArgs());
   }
   if (!Callee)
     return;
@@ -9161,7 +9171,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
       break;
     }
     case SK_ParenthesizedListInit: {
-      CurInit = false;
+      CurInit = nullptr;
       TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
                                         /*VerifyOnly=*/false, &CurInit);
       if (CurInit.get() && ResultType)

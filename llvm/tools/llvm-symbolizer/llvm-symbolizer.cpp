@@ -75,9 +75,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class SymbolizerOptTable : public opt::OptTable {
+class SymbolizerOptTable : public opt::GenericOptTable {
 public:
-  SymbolizerOptTable() : OptTable(InfoTable) {
+  SymbolizerOptTable() : GenericOptTable(InfoTable) {
     setGroupedShortOptions(true);
   }
 };
@@ -443,13 +443,7 @@ int main(int argc, char **argv) {
 
   LLVMSymbolizer Symbolizer(Opts);
 
-  // A debuginfod lookup could succeed if a HTTP client is available and at
-  // least one backing URL is configured.
-  bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
-  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
-                   ShouldUseDebuginfodByDefault))
+  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod, canUseDebuginfod()))
     enableDebuginfod(Symbolizer, Args);
 
   if (Args.hasArg(OPT_filter_markup)) {

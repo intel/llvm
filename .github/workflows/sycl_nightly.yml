@@ -47,7 +47,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE"
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
@@ -58,7 +58,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE"
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
 
   windows_default:
@@ -68,7 +68,7 @@ jobs:
 
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: ubuntu2004_build_test
     steps:
     - uses: actions/checkout@v3
@@ -105,7 +105,7 @@ jobs:
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: ubuntu2204_build_test
     steps:
     - uses: actions/checkout@v3

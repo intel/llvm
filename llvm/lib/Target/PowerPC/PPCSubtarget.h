@@ -16,7 +16,6 @@
 #include "PPCFrameLowering.h"
 #include "PPCISelLowering.h"
 #include "PPCInstrInfo.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
@@ -24,6 +23,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/MCInstrItineraries.h"
+#include "llvm/TargetParser/Triple.h"
 #include <string>
 
 #define GET_SUBTARGETINFO_HEADER
@@ -116,7 +116,8 @@ public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
   ///
-  PPCSubtarget(const Triple &TT, const std::string &CPU, const std::string &FS,
+  PPCSubtarget(const Triple &TT, const std::string &CPU,
+               const std::string &TuneCPU, const std::string &FS,
                const PPCTargetMachine &TM);
 
   /// ParseSubtargetFeatures - Parses features string setting specified
@@ -153,13 +154,16 @@ public:
   }
   const PPCTargetMachine &getTargetMachine() const { return TM; }
 
-  /// initializeSubtargetDependencies - Initializes using a CPU and feature string
-  /// so that we can use initializer lists for subtarget initialization.
-  PPCSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+  /// initializeSubtargetDependencies - Initializes using a CPU, a TuneCPU,  and
+  /// feature string so that we can use initializer lists for subtarget
+  /// initialization.
+  PPCSubtarget &initializeSubtargetDependencies(StringRef CPU,
+                                                StringRef TuneCPU,
+                                                StringRef FS);
 
 private:
   void initializeEnvironment();
-  void initSubtargetFeatures(StringRef CPU, StringRef FS);
+  void initSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
 
 public:
   /// isPPC64 - Return true if we are generating code for 64-bit pointer mode.
@@ -235,6 +239,8 @@ public:
   bool useAA() const override;
 
   bool enableSubRegLiveness() const override;
+
+  bool enableSpillageCopyElimination() const override { return true; }
 
   /// True if the GV will be accessed via an indirect symbol.
   bool isGVIndirectSymbol(const GlobalValue *GV) const;

@@ -69,7 +69,8 @@ class Arith_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
       !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>],
                   traits)>,
     Arguments<(ins FloatLike:$operand,
-      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+      DefaultValuedAttr<
+        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
     Results<(outs FloatLike:$result)> {
   let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
                           attr-dict `:` type($result) }];
@@ -81,7 +82,8 @@ class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
       !listconcat([Pure, DeclareOpInterfaceMethods<ArithFastMathInterface>],
                   traits)>,
     Arguments<(ins FloatLike:$lhs, FloatLike:$rhs,
-      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+      DefaultValuedAttr<
+        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
     Results<(outs FloatLike:$result)> {
   let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
                           attr-dict `:` type($result) }];
@@ -102,7 +104,7 @@ class Arith_CastOp<string mnemonic, TypeConstraint From, TypeConstraint To,
 // excluding indices: signless integers, vectors or tensors thereof.
 def SignlessFixedWidthIntegerLike : TypeConstraint<Or<[
         AnySignlessInteger.predicate,
-        VectorOf<[AnySignlessInteger]>.predicate,
+        VectorOfAnyRankOf<[AnySignlessInteger]>.predicate,
         TensorOf<[AnySignlessInteger]>.predicate]>,
     "signless-fixed-width-integer-like">;
 
@@ -1305,13 +1307,6 @@ def Arith_CmpIOp
                        SignlessIntegerLikeOfAnyRank:$lhs,
                        SignlessIntegerLikeOfAnyRank:$rhs);
 
-  let builders = [
-    OpBuilder<(ins "CmpIPredicate":$predicate, "Value":$lhs, "Value":$rhs), [{
-      build($_builder, $_state, ::getI1SameShape(lhs.getType()),
-            predicate, lhs, rhs);
-    }]>
-  ];
-
   let extraClassDeclaration = [{
     static arith::CmpIPredicate getPredicateByName(StringRef name);
   }];
@@ -1355,13 +1350,6 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
   let arguments = (ins Arith_CmpFPredicateAttr:$predicate,
                        FloatLike:$lhs,
                        FloatLike:$rhs);
-
-  let builders = [
-    OpBuilder<(ins "CmpFPredicate":$predicate, "Value":$lhs, "Value":$rhs), [{
-      build($_builder, $_state, ::getI1SameShape(lhs.getType()),
-            predicate, lhs, rhs);
-    }]>
-  ];
 
   let extraClassDeclaration = [{
     static arith::CmpFPredicate getPredicateByName(StringRef name);

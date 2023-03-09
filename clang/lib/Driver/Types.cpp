@@ -365,6 +365,7 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("FPP", TY_Fortran)
       .Case("gch", TY_PCH)
       .Case("hip", TY_HIP)
+      .Case("hipi", TY_PP_HIP)
       .Case("hpp", TY_CXXHeader)
       .Case("hxx", TY_CXXHeader)
       .Case("iim", TY_PP_CXXModule)

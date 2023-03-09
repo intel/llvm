@@ -46,8 +46,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
-bool doesDevSupportImgAspects(const device &Dev,
-                              const RTDeviceBinaryImage &BinImages);
+bool doesDevSupportDeviceRequirements(const device &Dev,
+                                      const RTDeviceBinaryImage &BinImages);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -88,6 +88,10 @@ public:
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const std::string &KernelName,
+                                      const context &Context,
+                                      const device &Device,
+                                      bool JITCompilationIsRequired = false);
+  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
@@ -211,6 +215,10 @@ public:
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
 
+  device_image_plain
+  getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
+                                const context &Ctx, const device &Dev);
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
@@ -278,10 +286,6 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context,
-                                      const device &Device,
-                                      bool JITCompilationIsRequired = false);
   using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
                                      decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,

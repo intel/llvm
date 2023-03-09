@@ -38,7 +38,6 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Tooling/Syntax/Tokens.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -47,6 +46,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 #include <string>
 
 namespace clang {
@@ -401,8 +401,8 @@ static llvm::FormattedNumber printHex(const llvm::APSInt &V) {
   return llvm::format_hex(Bits, 0);
 }
 
-llvm::Optional<std::string> printExprValue(const Expr *E,
-                                           const ASTContext &Ctx) {
+std::optional<std::string> printExprValue(const Expr *E,
+                                          const ASTContext &Ctx) {
   // InitListExpr has two forms, syntactic and semantic. They are the same thing
   // (refer to a same AST node) in most cases.
   // When they are different, RAV returns the syntactic form, and we should feed
@@ -450,8 +450,8 @@ llvm::Optional<std::string> printExprValue(const Expr *E,
   return Constant.Val.getAsString(Ctx, T);
 }
 
-llvm::Optional<std::string> printExprValue(const SelectionTree::Node *N,
-                                           const ASTContext &Ctx) {
+std::optional<std::string> printExprValue(const SelectionTree::Node *N,
+                                          const ASTContext &Ctx) {
   for (; N; N = N->Parent) {
     // Try to evaluate the first evaluatable enclosing expression.
     if (const Expr *E = N->ASTNode.get<Expr>()) {
@@ -470,7 +470,7 @@ llvm::Optional<std::string> printExprValue(const SelectionTree::Node *N,
   return std::nullopt;
 }
 
-llvm::Optional<StringRef> fieldName(const Expr *E) {
+std::optional<StringRef> fieldName(const Expr *E) {
   const auto *ME = llvm::dyn_cast<MemberExpr>(E->IgnoreCasts());
   if (!ME || !llvm::isa<CXXThisExpr>(ME->getBase()->IgnoreCasts()))
     return std::nullopt;
@@ -481,7 +481,7 @@ llvm::Optional<StringRef> fieldName(const Expr *E) {
 }
 
 // If CMD is of the form T foo() { return FieldName; } then returns "FieldName".
-llvm::Optional<StringRef> getterVariableName(const CXXMethodDecl *CMD) {
+std::optional<StringRef> getterVariableName(const CXXMethodDecl *CMD) {
   assert(CMD->hasBody());
   if (CMD->getNumParams() != 0 || CMD->isVariadic())
     return std::nullopt;
@@ -500,7 +500,7 @@ llvm::Optional<StringRef> getterVariableName(const CXXMethodDecl *CMD) {
 //   void foo(T arg) { FieldName = std::move(arg); }
 //   R foo(T arg) { FieldName = std::move(arg); return *this; }
 // then returns "FieldName"
-llvm::Optional<StringRef> setterVariableName(const CXXMethodDecl *CMD) {
+std::optional<StringRef> setterVariableName(const CXXMethodDecl *CMD) {
   assert(CMD->hasBody());
   if (CMD->isConst() || CMD->getNumParams() != 1 || CMD->isVariadic())
     return std::nullopt;
@@ -795,7 +795,7 @@ bool isLiteral(const Expr *E) {
          llvm::isa<CXXNullPtrLiteralExpr>(E) ||
          llvm::isa<FixedPointLiteral>(E) || llvm::isa<FloatingLiteral>(E) ||
          llvm::isa<ImaginaryLiteral>(E) || llvm::isa<IntegerLiteral>(E) ||
-         llvm::isa<UserDefinedLiteral>(E);
+         llvm::isa<StringLiteral>(E) || llvm::isa<UserDefinedLiteral>(E);
 }
 
 llvm::StringLiteral getNameForExpr(const Expr *E) {
@@ -809,34 +809,53 @@ llvm::StringLiteral getNameForExpr(const Expr *E) {
   return llvm::StringLiteral("expression");
 }
 
+void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
+                           const PrintingPolicy &PP);
+
 // Generates hover info for `this` and evaluatable expressions.
 // FIXME: Support hover for literals (esp user-defined)
-std::optional<HoverInfo> getHoverContents(const Expr *E, ParsedAST &AST,
+std::optional<HoverInfo> getHoverContents(const SelectionTree::Node *N,
+                                          const Expr *E, ParsedAST &AST,
                                           const PrintingPolicy &PP,
                                           const SymbolIndex *Index) {
-  // There's not much value in hovering over "42" and getting a hover card
-  // saying "42 is an int", similar for other literals.
-  if (isLiteral(E))
-    return std::nullopt;
+  std::optional<HoverInfo> HI;
 
-  HoverInfo HI;
-  // Print the type and the size for string literals
-  if (const StringLiteral *SL = dyn_cast<StringLiteral>(E))
-    return getStringLiteralContents(SL, PP);
+  if (const StringLiteral *SL = dyn_cast<StringLiteral>(E)) {
+    // Print the type and the size for string literals
+    HI = getStringLiteralContents(SL, PP);
+  } else if (isLiteral(E)) {
+    // There's not much value in hovering over "42" and getting a hover card
+    // saying "42 is an int", similar for most other literals.
+    // However, if we have CalleeArgInfo, it's still useful to show it.
+    maybeAddCalleeArgInfo(N, HI.emplace(), PP);
+    if (HI->CalleeArgInfo) {
+      // FIXME Might want to show the expression's value here instead?
+      // E.g. if the literal is in hex it might be useful to show the decimal
+      // value here.
+      HI->Name = "literal";
+      return HI;
+    }
+    return std::nullopt;
+  }
+
   // For `this` expr we currently generate hover with pointee type.
   if (const CXXThisExpr *CTE = dyn_cast<CXXThisExpr>(E))
-    return getThisExprHoverContents(CTE, AST.getASTContext(), PP);
+    HI = getThisExprHoverContents(CTE, AST.getASTContext(), PP);
   if (const PredefinedExpr *PE = dyn_cast<PredefinedExpr>(E))
-    return getPredefinedExprHoverContents(*PE, AST.getASTContext(), PP);
+    HI = getPredefinedExprHoverContents(*PE, AST.getASTContext(), PP);
   // For expressions we currently print the type and the value, iff it is
   // evaluatable.
   if (auto Val = printExprValue(E, AST.getASTContext())) {
-    HI.Type = printType(E->getType(), AST.getASTContext(), PP);
-    HI.Value = *Val;
-    HI.Name = std::string(getNameForExpr(E));
-    return HI;
+    HI.emplace();
+    HI->Type = printType(E->getType(), AST.getASTContext(), PP);
+    HI->Value = *Val;
+    HI->Name = std::string(getNameForExpr(E));
   }
-  return std::nullopt;
+
+  if (HI)
+    maybeAddCalleeArgInfo(N, *HI, PP);
+
+  return HI;
 }
 
 // Generates hover info for attributes.
@@ -933,6 +952,15 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
   }
 }
 
+HoverInfo::PassType::PassMode getPassMode(QualType ParmType) {
+  if (ParmType->isReferenceType()) {
+    if (ParmType->getPointeeType().isConstQualified())
+      return HoverInfo::PassType::ConstRef;
+    return HoverInfo::PassType::Ref;
+  }
+  return HoverInfo::PassType::Value;
+}
+
 // If N is passed as argument to a function, fill HI.CalleeArgInfo with
 // information about that argument.
 void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
@@ -953,14 +981,19 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
   if (!FD || FD->isOverloadedOperator() || FD->isVariadic())
     return;
 
+  HoverInfo::PassType PassType;
+
   // Find argument index for N.
   for (unsigned I = 0; I < CE->getNumArgs() && I < FD->getNumParams(); ++I) {
     if (CE->getArg(I) != OuterNode.ASTNode.get<Expr>())
       continue;
 
     // Extract matching argument from function declaration.
-    if (const ParmVarDecl *PVD = FD->getParamDecl(I))
+    if (const ParmVarDecl *PVD = FD->getParamDecl(I)) {
       HI.CalleeArgInfo.emplace(toHoverInfoParam(PVD, PP));
+      if (N == &OuterNode)
+        PassType.PassBy = getPassMode(PVD->getType());
+    }
     break;
   }
   if (!HI.CalleeArgInfo)
@@ -969,7 +1002,6 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
   // If we found a matching argument, also figure out if it's a
   // [const-]reference. For this we need to walk up the AST from the arg itself
   // to CallExpr and check all implicit casts, constructor calls, etc.
-  HoverInfo::PassType PassType;
   if (const auto *E = N->ASTNode.get<Expr>()) {
     if (E->getType().isConstQualified())
       PassType.PassBy = HoverInfo::PassType::ConstRef;
@@ -1010,6 +1042,9 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
         PassType.PassBy = HoverInfo::PassType::Value;
       else
         PassType.Converted = true;
+    } else if (CastNode->ASTNode.get<MaterializeTemporaryExpr>()) {
+      // Can't bind a non-const-ref to a temporary, so has to be const-ref
+      PassType.PassBy = HoverInfo::PassType::ConstRef;
     } else { // Unknown implicit node, assume type conversion.
       PassType.PassBy = HoverInfo::PassType::Value;
       PassType.Converted = true;
@@ -1041,9 +1076,8 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
   //     template <typename T> void bar() { fo^o(T{}); }
   // we actually want to show the using declaration,
   // it's not clear which declaration to pick otherwise.
-  auto BaseDecls = llvm::make_filter_range(Candidates, [](const NamedDecl *D) {
-    return llvm::isa<UsingDecl>(D);
-  });
+  auto BaseDecls = llvm::make_filter_range(
+      Candidates, [](const NamedDecl *D) { return llvm::isa<UsingDecl>(D); });
   if (std::distance(BaseDecls.begin(), BaseDecls.end()) == 1)
     return *BaseDecls.begin();
 
@@ -1135,7 +1169,7 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
           HI->Value = printExprValue(N, AST.getASTContext());
         maybeAddCalleeArgInfo(N, *HI, PP);
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
-        HI = getHoverContents(E, AST, PP, Index);
+        HI = getHoverContents(N, E, AST, PP, Index);
       } else if (const Attr *A = N->ASTNode.get<Attr>()) {
         HI = getHoverContents(A, AST);
       }
@@ -1240,6 +1274,8 @@ markup::Document HoverInfo::present() const {
     }
     if (CalleeArgInfo->Name)
       OS << "as " << CalleeArgInfo->Name;
+    else if (CallPassType->PassBy == HoverInfo::PassType::Value)
+      OS << "by value";
     if (CallPassType->Converted && CalleeArgInfo->Type)
       OS << " (converted to " << CalleeArgInfo->Type->Type << ")";
     Output.addParagraph().appendText(OS.str());
@@ -1282,8 +1318,8 @@ markup::Document HoverInfo::present() const {
 
 // If the backtick at `Offset` starts a probable quoted range, return the range
 // (including the quotes).
-llvm::Optional<llvm::StringRef> getBacktickQuoteRange(llvm::StringRef Line,
-                                                      unsigned Offset) {
+std::optional<llvm::StringRef> getBacktickQuoteRange(llvm::StringRef Line,
+                                                     unsigned Offset) {
   assert(Line[Offset] == '`');
 
   // The open-quote is usually preceded by whitespace.

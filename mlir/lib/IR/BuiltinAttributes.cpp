@@ -21,6 +21,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Endian.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -93,9 +94,9 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
 
 /// Returns an entry with a duplicate name from the given sorted array of named
 /// attributes. Returns std::nullopt if all elements have unique names.
-static Optional<NamedAttribute>
+static std::optional<NamedAttribute>
 findDuplicateElement(ArrayRef<NamedAttribute> value) {
-  const Optional<NamedAttribute> none{std::nullopt};
+  const std::optional<NamedAttribute> none{std::nullopt};
   if (value.size() < 2)
     return none;
 
@@ -124,7 +125,7 @@ bool DictionaryAttr::sortInPlace(SmallVectorImpl<NamedAttribute> &array) {
   return isSorted;
 }
 
-Optional<NamedAttribute>
+std::optional<NamedAttribute>
 DictionaryAttr::findDuplicate(SmallVectorImpl<NamedAttribute> &array,
                               bool isSorted) {
   if (!isSorted)
@@ -171,13 +172,13 @@ Attribute DictionaryAttr::get(StringAttr name) const {
 }
 
 /// Return the specified named attribute if present, std::nullopt otherwise.
-Optional<NamedAttribute> DictionaryAttr::getNamed(StringRef name) const {
+std::optional<NamedAttribute> DictionaryAttr::getNamed(StringRef name) const {
   auto it = impl::findAttrSorted(begin(), end(), name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
-Optional<NamedAttribute> DictionaryAttr::getNamed(StringAttr name) const {
+std::optional<NamedAttribute> DictionaryAttr::getNamed(StringAttr name) const {
   auto it = impl::findAttrSorted(begin(), end(), name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
 
 /// Return whether the specified attribute is present.
@@ -890,9 +891,44 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<Attribute> values) {
   assert(hasSameElementsOrSplat(type, values));
 
+  Type eltType = type.getElementType();
+
+  // Take care complex type case first.
+  if (auto complexType = eltType.dyn_cast<ComplexType>()) {
+    if (complexType.getElementType().isIntOrIndex()) {
+      SmallVector<std::complex<APInt>> complexValues;
+      complexValues.reserve(values.size());
+      for (Attribute attr : values) {
+        assert(attr.isa<ArrayAttr>() &&
+               "expected ArrayAttr for complex");
+        auto arrayAttr = attr.cast<ArrayAttr>();
+        assert(arrayAttr.size() == 2 && "expected 2 element for complex");
+        auto attr0 = arrayAttr[0];
+        auto attr1 = arrayAttr[1];
+        complexValues.push_back(
+            std::complex<APInt>(attr0.cast<IntegerAttr>().getValue(),
+                                attr1.cast<IntegerAttr>().getValue()));
+      }
+      return DenseElementsAttr::get(type, complexValues);
+    }
+    // Must be float.
+    SmallVector<std::complex<APFloat>> complexValues;
+    complexValues.reserve(values.size());
+    for (Attribute attr : values) {
+      assert(attr.isa<ArrayAttr>() && "expected ArrayAttr for complex");
+      auto arrayAttr = attr.cast<ArrayAttr>();
+      assert(arrayAttr.size() == 2 && "expected 2 element for complex");
+      auto attr0 = arrayAttr[0];
+      auto attr1 = arrayAttr[1];
+      complexValues.push_back(
+          std::complex<APFloat>(attr0.cast<FloatAttr>().getValue(),
+                                attr1.cast<FloatAttr>().getValue()));
+    }
+    return DenseElementsAttr::get(type, complexValues);
+  }
+
   // If the element type is not based on int/float/index, assume it is a string
   // type.
-  Type eltType = type.getElementType();
   if (!eltType.isIntOrIndexOrFloat()) {
     SmallVector<StringRef, 8> stringValues;
     stringValues.reserve(values.size());
@@ -1551,7 +1587,7 @@ DenseResourceElementsAttrBase<T>::get(ShapedType type, StringRef blobName,
 }
 
 template <typename T>
-Optional<ArrayRef<T>>
+std::optional<ArrayRef<T>>
 DenseResourceElementsAttrBase<T>::tryGetAsArrayRef() const {
   if (AsmResourceBlob *blob = this->getRawHandle().getBlob())
     return blob->template getDataAs<T>();

@@ -6,9 +6,17 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("//llvm:tblgen.bzl", "gentbl")
 load("//llvm:binary_alias.bzl", "binary_alias")
 load("//llvm:cc_plugin_library.bzl", "cc_plugin_library")
+load(
+    "//:vars.bzl",
+    "LLVM_VERSION",
+    "LLVM_VERSION_MAJOR",
+    "LLVM_VERSION_MINOR",
+    "LLVM_VERSION_PATCH",
+)
 
 package(
     default_visibility = ["//visibility:public"],
+    features = ["layering_check"],
 )
 
 licenses(["notice"])
@@ -359,12 +367,17 @@ genrule(
     name = "basic_version_gen",
     outs = ["include/clang/Basic/Version.inc"],
     cmd = (
-        "echo '#define CLANG_VERSION 16.0.0' >> $@\n" +
-        "echo '#define CLANG_VERSION_MAJOR 16' >> $@\n" +
-        "echo '#define CLANG_VERSION_MAJOR_STRING \"16\"' >> $@\n" +
-        "echo '#define CLANG_VERSION_MINOR 0' >> $@\n" +
-        "echo '#define CLANG_VERSION_PATCHLEVEL 0' >> $@\n" +
-        "echo '#define CLANG_VERSION_STRING \"16.0.0\"' >> $@\n"
+        "echo '#define CLANG_VERSION {vers}' >> $@\n" +
+        "echo '#define CLANG_VERSION_MAJOR {major}' >> $@\n" +
+        "echo '#define CLANG_VERSION_MAJOR_STRING \"{major}\"' >> $@\n" +
+        "echo '#define CLANG_VERSION_MINOR {minor}' >> $@\n" +
+        "echo '#define CLANG_VERSION_PATCHLEVEL {patch}' >> $@\n" +
+        "echo '#define CLANG_VERSION_STRING \"{vers}\"' >> $@\n"
+    ).format(
+        major = LLVM_VERSION_MAJOR,
+        minor = LLVM_VERSION_MINOR,
+        patch = LLVM_VERSION_PATCH,
+        vers = LLVM_VERSION,
     ),
 )
 
@@ -475,6 +488,7 @@ cc_library(
         "//llvm:MC",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:config",
     ],
 )
@@ -493,6 +507,7 @@ cc_library(
         ":basic",
         ":config",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -767,6 +782,7 @@ cc_library(
         "//llvm:Core",
         "//llvm:FrontendOpenMP",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -896,6 +912,7 @@ cc_library(
         "//llvm:MC",
         "//llvm:MCParser",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1056,6 +1073,7 @@ cc_library(
         ":tooling_core",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1063,10 +1081,10 @@ cc_library(
     name = "tooling_inclusions",
     srcs = glob([
         "lib/Tooling/Inclusions/**/*.cpp",
+        "lib/Tooling/Inclusions/**/*.inc",
     ]),
     hdrs = glob([
         "include/clang/Tooling/Inclusions/**/*.h",
-        "include/clang/Tooling/Inclusions/**/*.inc",
     ]),
     deps = [
         ":ast",
@@ -1138,11 +1156,13 @@ cc_library(
     deps = [
         ":basic",
         ":codegen",
+        ":driver",
         ":frontend",
         ":lex",
         ":serialization",
         ":tooling",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1178,12 +1198,14 @@ cc_library(
     srcs = glob(["lib/CrossTU/*.cpp"]),
     hdrs = glob(["include/clang/CrossTU/*.h"]),
     deps = [
+        ":analysis",
         ":ast",
         ":basic",
         ":frontend",
         ":index",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1198,6 +1220,9 @@ cc_library(
     hdrs = [
         "lib/Format/FormatTokenLexer.h",
         "lib/Format/Macros.h",
+        "lib/Format/UnwrappedLineParser.h",
+        "lib/Format/FormatTokenSource.h",
+        "lib/Format/QualifierAlignmentFixer.h",
     ] + glob([
         "include/clang/Format/*.h",
     ]),
@@ -1372,6 +1397,7 @@ cc_library(
         "//llvm:ProfileData",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:WindowsDriver",
         "//llvm:config",
     ],
@@ -1480,6 +1506,7 @@ builtin_headers = glob(
     ["lib/Headers/**/*.h"],
     exclude = [
         # FIXME: They are not handled in CMake side.
+        "lib/Headers/openmp_wrappers/stdlib.h",
         "lib/Headers/openmp_wrappers/time.h",
         "lib/Headers/ppc_wrappers/nmmintrin.h",
     ],
@@ -1550,8 +1577,10 @@ cc_library(
         "//llvm:MC",
         "//llvm:Option",
         "//llvm:ProfileData",
+        "//llvm:Remarks",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:config",
     ],
 )
@@ -1607,6 +1636,7 @@ cc_library(
         "//llvm:OrcJIT",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1633,6 +1663,7 @@ cc_library(
         ":type_nodes_gen",
         "//llvm:AllTargetsAsmParsers",
         "//llvm:Analysis",
+        "//llvm:BinaryFormat",
         "//llvm:BitReader",
         "//llvm:BitWriter",
         "//llvm:BitstreamReader",
@@ -1659,6 +1690,7 @@ cc_library(
         "//llvm:Scalar",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:TransformUtils",
     ],
 )
@@ -1755,6 +1787,7 @@ cc_library(
         "//llvm:BitstreamWriter",
         "//llvm:FrontendOpenMP",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1803,6 +1836,7 @@ cc_library(
         ":static_analyzer_checkers",
         ":static_analyzer_core",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1962,6 +1996,7 @@ cc_binary(
         ":parse",
         "//llvm:Core",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2012,6 +2047,7 @@ cc_library(
         "//llvm:Option",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:config",
     ],
 )
@@ -2115,11 +2151,13 @@ cc_binary(
     stamp = 0,
     deps = [
         ":basic",
+        ":driver",
         ":tooling",
         "//llvm:BitWriter",
         "//llvm:Core",
         "//llvm:Object",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2198,6 +2236,7 @@ cc_binary(
         ":tooling",
         ":tooling_dependency_scanning",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2217,5 +2256,6 @@ cc_library(
         ":lex",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )

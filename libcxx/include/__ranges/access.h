@@ -29,7 +29,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
   template <class _Tp>
@@ -105,7 +105,7 @@ inline namespace __cpo {
 
 namespace ranges {
   template <class _Tp>
-  using iterator_t = decltype(ranges::begin(declval<_Tp&>()));
+  using iterator_t = decltype(ranges::begin(std::declval<_Tp&>()));
 } // namespace ranges
 
 // [range.access.end]
@@ -223,7 +223,7 @@ inline namespace __cpo {
 } // namespace __cpo
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -264,7 +264,26 @@ TEST(KernelID, KernelIDHasKernel) {
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel3ID));
 }
 
-TEST(KernelID, InvalidKernelName) {
+TEST(KernelID, HasKernelTemplated) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  sycl::kernel_id TestKernel1ID = sycl::get_kernel_id<TestKernel1>();
+
+  std::vector<sycl::kernel_id> KernelIDs1 = {TestKernel1ID};
+  auto InputBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, KernelIDs1);
+
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel1>());
+  EXPECT_FALSE(InputBundle1.has_kernel<TestKernel2>());
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel3>());
+}
+
+TEST(KernelID, GetKernelIDInvalidKernelName) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 

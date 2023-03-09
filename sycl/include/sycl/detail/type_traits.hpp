@@ -231,6 +231,14 @@ template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
+template <typename> struct get_vec_size {
+  static constexpr std::size_t size = 1;
+};
+
+template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr std::size_t size = N;
+};
+
 // is_integral
 template <typename T>
 struct is_integral : std::is_integral<vector_element_t<T>> {};

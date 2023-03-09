@@ -367,6 +367,54 @@ void test_builtin_elementwise_floor(float f1, float f2, double d1, double d2,
   vf2 = __builtin_elementwise_floor(vf1);
 }
 
+void test_builtin_elementwise_log(float f1, float f2, double d1, double d2,
+                                  float4 vf1, float4 vf2) {
+  // CHECK-LABEL: define void @test_builtin_elementwise_log(
+  // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr, align 4
+  // CHECK-NEXT:  call float @llvm.log.f32(float [[F1]])
+  f2 = __builtin_elementwise_log(f1);
+
+  // CHECK:      [[D1:%.+]] = load double, ptr %d1.addr, align 8
+  // CHECK-NEXT: call double @llvm.log.f64(double [[D1]])
+  d2 = __builtin_elementwise_log(d1);
+
+  // CHECK:      [[VF1:%.+]] = load <4 x float>, ptr %vf1.addr, align 16
+  // CHECK-NEXT: call <4 x float> @llvm.log.v4f32(<4 x float> [[VF1]])
+  vf2 = __builtin_elementwise_log(vf1);
+}
+
+void test_builtin_elementwise_log10(float f1, float f2, double d1, double d2,
+                                  float4 vf1, float4 vf2) {
+  // CHECK-LABEL: define void @test_builtin_elementwise_log10(
+  // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr, align 4
+  // CHECK-NEXT:  call float @llvm.log10.f32(float [[F1]])
+  f2 = __builtin_elementwise_log10(f1);
+
+  // CHECK:      [[D1:%.+]] = load double, ptr %d1.addr, align 8
+  // CHECK-NEXT: call double @llvm.log10.f64(double [[D1]])
+  d2 = __builtin_elementwise_log10(d1);
+
+  // CHECK:      [[VF1:%.+]] = load <4 x float>, ptr %vf1.addr, align 16
+  // CHECK-NEXT: call <4 x float> @llvm.log10.v4f32(<4 x float> [[VF1]])
+  vf2 = __builtin_elementwise_log10(vf1);
+}
+
+void test_builtin_elementwise_log2(float f1, float f2, double d1, double d2,
+                                  float4 vf1, float4 vf2) {
+  // CHECK-LABEL: define void @test_builtin_elementwise_log2(
+  // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr, align 4
+  // CHECK-NEXT:  call float @llvm.log2.f32(float [[F1]])
+  f2 = __builtin_elementwise_log2(f1);
+
+  // CHECK:      [[D1:%.+]] = load double, ptr %d1.addr, align 8
+  // CHECK-NEXT: call double @llvm.log2.f64(double [[D1]])
+  d2 = __builtin_elementwise_log2(d1);
+
+  // CHECK:      [[VF1:%.+]] = load <4 x float>, ptr %vf1.addr, align 16
+  // CHECK-NEXT: call <4 x float> @llvm.log2.v4f32(<4 x float> [[VF1]])
+  vf2 = __builtin_elementwise_log2(vf1);
+}
+
 void test_builtin_elementwise_roundeven(float f1, float f2, double d1, double d2,
                                         float4 vf1, float4 vf2) {
   // CHECK-LABEL: define void @test_builtin_elementwise_roundeven(
@@ -432,7 +480,7 @@ void test_builtin_elementwise_canonicalize(float f1, float f2, double d1, double
 }
 
 void test_builtin_elementwise_copysign(float f1, float f2, double d1, double d2,
-                                       float4 vf1, float4 vf2) {
+                                       float4 vf1, float4 vf2, double2 v2f64) {
   // CHECK-LABEL: define void @test_builtin_elementwise_copysign(
   // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr, align 4
   // CHECK-NEXT: [[F2:%.+]] = load float, ptr %f2.addr, align 4
@@ -463,4 +511,17 @@ void test_builtin_elementwise_copysign(float f1, float f2, double d1, double d2,
   // CHECK-NEXT: [[CVF1:%.+]] = load <4 x float>, ptr %cvf1, align 16
   // CHECK-NEXT: call <4 x float> @llvm.copysign.v4f32(<4 x float> [[VF2]], <4 x float> [[CVF1]])
   vf1 = __builtin_elementwise_copysign(vf2, cvf1);
+
+
+  // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr
+  // CHECK-NEXT: call float @llvm.copysign.f32(float [[F1]], float 2.000000e+00)
+  f1 = __builtin_elementwise_copysign(f1, 2.0f);
+
+  // CHECK:      [[F1:%.+]] = load float, ptr %f1.addr
+  // CHECK-NEXT: call float @llvm.copysign.f32(float 2.000000e+00, float [[F1]])
+  f1 = __builtin_elementwise_copysign(2.0f, f1);
+
+  // CHECK:      [[V2F64:%.+]] = load <2 x double>, ptr %v2f64.addr, align 16
+  // CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> <double 1.000000e+00, double 1.000000e+00>, <2 x double> [[V2F64]])
+  v2f64 = __builtin_elementwise_copysign((double2)1.0, v2f64);
 }

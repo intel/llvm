@@ -234,7 +234,8 @@ MIRParserImpl::parseIRModule(DataLayoutCallbackTy DataLayoutCallback) {
     // Create an empty module when the MIR file is empty.
     NoMIRDocuments = true;
     auto M = std::make_unique<Module>(Filename, Context);
-    if (auto LayoutOverride = DataLayoutCallback(M->getTargetTriple()))
+    if (auto LayoutOverride =
+            DataLayoutCallback(M->getTargetTriple(), M->getDataLayoutStr()))
       M->setDataLayout(*LayoutOverride);
     return M;
   }
@@ -257,7 +258,8 @@ MIRParserImpl::parseIRModule(DataLayoutCallbackTy DataLayoutCallback) {
   } else {
     // Create an new, empty module.
     M = std::make_unique<Module>(Filename, Context);
-    if (auto LayoutOverride = DataLayoutCallback(M->getTargetTriple()))
+    if (auto LayoutOverride =
+            DataLayoutCallback(M->getTargetTriple(), M->getDataLayoutStr()))
       M->setDataLayout(*LayoutOverride);
     NoLLVMIR = true;
   }
@@ -441,6 +443,9 @@ void MIRParserImpl::setupDebugValueTracking(
     MF.makeDebugValueSubstitution({Sub.SrcInst, Sub.SrcOp},
                                   {Sub.DstInst, Sub.DstOp}, Sub.Subreg);
   }
+
+  // Flag for whether we're supposed to be using DBG_INSTR_REF.
+  MF.setUseDebugInstrRef(YamlMF.UseDebugInstrRef);
 }
 
 bool

@@ -56,6 +56,9 @@ private:
   uint8_t MaxInterleaveFactor = 2;
   RISCVABI::ABI TargetABI = RISCVABI::ABI_Unknown;
   std::bitset<RISCV::NUM_TARGET_REGS> UserReservedRegister;
+  Align PrefFunctionAlignment;
+  Align PrefLoopAlignment;
+
   RISCVFrameLowering FrameLowering;
   RISCVInstrInfo InstrInfo;
   RISCVRegisterInfo RegInfo;
@@ -95,6 +98,9 @@ public:
   }
   bool enableMachineScheduler() const override { return true; }
 
+  Align getPrefFunctionAlignment() const { return PrefFunctionAlignment; }
+  Align getPrefLoopAlignment() const { return PrefLoopAlignment; }
+
   /// Returns RISCV processor family.
   /// Avoid this function! CPU specifics should be kept local to this class
   /// and preferably modeled with SubtargetFeatures or properties in
@@ -126,11 +132,11 @@ public:
   }
   unsigned getRealMinVLen() const {
     unsigned VLen = getMinRVVVectorSizeInBits();
-    return VLen == 0 ? getArchMinVLen() : VLen;
+    return VLen == 0 ? ZvlLen : VLen;
   }
   unsigned getRealMaxVLen() const {
     unsigned VLen = getMaxRVVVectorSizeInBits();
-    return VLen == 0 ? getArchMaxVLen() : VLen;
+    return VLen == 0 ? 65536 : VLen;
   }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
@@ -170,16 +176,13 @@ protected:
   unsigned getMaxRVVVectorSizeInBits() const;
   unsigned getMinRVVVectorSizeInBits() const;
 
-  // Return the known range for the bit length of RVV data registers as indicated
-  // by -march and -mattr.
-  unsigned getArchMinVLen() const { return ZvlLen; }
-  unsigned getArchMaxVLen() const { return 65536; }
-
 public:
   const CallLowering *getCallLowering() const override;
   InstructionSelector *getInstructionSelector() const override;
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
+
+  bool isTargetFuchsia() const { return getTargetTriple().isOSFuchsia(); }
 
   bool useConstantPoolForLargeInts() const;
 

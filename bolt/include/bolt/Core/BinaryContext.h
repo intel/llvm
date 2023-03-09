@@ -21,7 +21,6 @@
 #include "bolt/RuntimeLibs/RuntimeLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -39,9 +38,11 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/RWMutex.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <functional>
 #include <list>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <system_error>
@@ -600,6 +601,9 @@ public:
   /// Indicates if the binary is stripped
   bool IsStripped{false};
 
+  /// Indicates if the binary contains split functions.
+  bool HasSplitFunctions{false};
+
   /// Is the binary always loaded at a fixed address. Shared objects and
   /// position-independent executables (PIEs) are examples of binaries that
   /// will have HasFixedLoadAddress set to false.
@@ -650,11 +654,11 @@ public:
 
   /// Address of the code/function that is executed before any other code in
   /// the binary.
-  Optional<uint64_t> StartFunctionAddress;
+  std::optional<uint64_t> StartFunctionAddress;
 
   /// Address of the code/function that is going to be executed right before
   /// the execution of the binary is completed.
-  Optional<uint64_t> FiniFunctionAddress;
+  std::optional<uint64_t> FiniFunctionAddress;
 
   /// Page alignment used for code layout.
   uint64_t PageAlign{HugePageSize};

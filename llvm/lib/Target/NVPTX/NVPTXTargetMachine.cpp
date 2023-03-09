@@ -12,6 +12,7 @@
 
 #include "NVPTXTargetMachine.h"
 #include "NVPTX.h"
+#include "NVPTXAliasAnalysis.h"
 #include "NVPTXAllocaHoisting.h"
 #include "NVPTXAtomicLower.h"
 #include "NVPTXLowerAggrCopies.h"
@@ -20,12 +21,10 @@
 #include "NVPTXTargetTransformInfo.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -35,6 +34,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Vectorize.h"
@@ -83,6 +83,8 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry &);
 void initializeNVVMReflectPass(PassRegistry &);
+void initializeNVPTXAAWrapperPassPass(PassRegistry &);
+void initializeNVPTXExternalAAWrapperPass(PassRegistry &);
 
 void initializeGlobalOffsetLegacyPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
@@ -94,9 +96,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   RegisterTargetMachine<NVPTXTargetMachine32> X(getTheNVPTXTarget32());
   RegisterTargetMachine<NVPTXTargetMachine64> Y(getTheNVPTXTarget64());
 
+  PassRegistry &PR = *PassRegistry::getPassRegistry();
   // FIXME: This pass is really intended to be invoked during IR optimization,
   // but it's very NVPTX-specific.
-  PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeNVVMReflectPass(PR);
   initializeNVVMIntrRangePass(PR);
   initializeGenericToNVVMPass(PR);
@@ -112,6 +114,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(PR);
+  initializeNVPTXAAWrapperPassPass(PR);
+  initializeNVPTXExternalAAWrapperPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -140,7 +144,8 @@ NVPTXTargetMachine::NVPTXTargetMachine(const Target &T, const Triple &TT,
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
       is64bit(is64bit), UseShortPointers(UseShortPointersOpt),
       TLOF(std::make_unique<NVPTXTargetObjectFile>()),
-      Subtarget(TT, std::string(CPU), std::string(FS), *this) {
+      Subtarget(TT, std::string(CPU), std::string(FS), *this),
+      StrPool(StrAlloc) {
   if (TT.getOS() == Triple::NVCL)
     drvInterface = NVPTX::NVCL;
   else
@@ -226,6 +231,10 @@ MachineFunctionInfo *NVPTXTargetMachine::createMachineFunctionInfo(
                                                                     F, STI);
 }
 
+void NVPTXTargetMachine::registerDefaultAliasAnalyses(AAManager &AAM) {
+  AAM.registerFunctionAnalysis<NVPTXAA>();
+}
+
 void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
       [](StringRef PassName, FunctionPassManager &PM,
@@ -240,6 +249,18 @@ void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         return false;
       });
+
+  PB.registerAnalysisRegistrationCallback([](FunctionAnalysisManager &FAM) {
+    FAM.registerPass([&] { return NVPTXAA(); });
+  });
+
+  PB.registerParseAACallback([](StringRef AAName, AAManager &AAM) {
+    if (AAName == "nvptx-aa") {
+      AAM.registerFunctionAnalysis<NVPTXAA>();
+      return true;
+    }
+    return false;
+  });
 
   PB.registerPipelineStartEPCallback(
       [this](ModulePassManager &PM, OptimizationLevel Level) {
@@ -327,16 +348,18 @@ void NVPTXPassConfig::addIRPasses() {
   disablePass(&PatchableFunctionID);
   disablePass(&ShrinkWrapID);
 
+  addPass(createNVPTXAAWrapperPass());
+  addPass(createExternalAAWrapperPass([](Pass &P, Function &, AAResults &AAR) {
+    if (auto *WrapperPass = P.getAnalysisIfAvailable<NVPTXAAWrapperPass>())
+      AAR.addAAResult(WrapperPass->getResult());
+  }));
+
   // NVVMReflectPass is added in addEarlyAsPossiblePasses, so hopefully running
   // it here does nothing.  But since we need it for correctness when lowering
   // to NVPTX, run it here too, in case whoever built our pass pipeline didn't
   // call addEarlyAsPossiblePasses.
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
-
-  if (getOptLevel() == CodeGenOpt::None && UseIPSCCPO0) {
-    addPass(createIPSCCPPass());
-  }
 
   // FIXME: should the target triple check be done by the pass itself?
   // See createNVPTXLowerArgsPass as an example
@@ -352,7 +375,7 @@ void NVPTXPassConfig::addIRPasses() {
 
   // NVPTXLowerArgs is required for correctness and should be run right
   // before the address space inference passes.
-  addPass(createNVPTXLowerArgsPass(&getNVPTXTargetMachine()));
+  addPass(createNVPTXLowerArgsPass());
   if (getOptLevel() != CodeGenOpt::None) {
     addAddressSpaceInferencePasses();
     addStraightLineScalarOptimizationPasses();

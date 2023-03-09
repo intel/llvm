@@ -17,6 +17,7 @@
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include <optional>
 #include <string>
 
 namespace clang {
@@ -30,7 +31,7 @@ class DependencyScanningWorkerFilesystem;
 
 /// A command-line tool invocation that is part of building a TU.
 ///
-/// \see FullDependencies::Commands.
+/// \see TranslationUnitDeps::Commands.
 struct Command {
   std::string Executable;
   std::vector<std::string> Arguments;
@@ -40,7 +41,11 @@ class DependencyConsumer {
 public:
   virtual ~DependencyConsumer() {}
 
-  virtual void handleBuildCommand(Command Cmd) = 0;
+  virtual void handleProvidedAndRequiredStdCXXModules(
+      std::optional<P1689ModuleInfo> Provided,
+      std::vector<P1689ModuleInfo> Requires) {}
+
+  virtual void handleBuildCommand(Command Cmd) {}
 
   virtual void
   handleDependencyOutputOpts(const DependencyOutputOptions &Opts) = 0;
@@ -79,14 +84,14 @@ public:
                            const std::vector<std::string> &CommandLine,
                            DependencyConsumer &DepConsumer,
                            DiagnosticConsumer &DiagConsumer,
-                           llvm::Optional<StringRef> ModuleName = std::nullopt);
+                           std::optional<StringRef> ModuleName = std::nullopt);
   /// \returns A \c StringError with the diagnostic output if clang errors
   /// occurred, success otherwise.
   llvm::Error
   computeDependencies(StringRef WorkingDirectory,
                       const std::vector<std::string> &CommandLine,
                       DependencyConsumer &Consumer,
-                      llvm::Optional<StringRef> ModuleName = std::nullopt);
+                      std::optional<StringRef> ModuleName = std::nullopt);
 
   bool shouldEagerLoadModules() const { return EagerLoadModules; }
 

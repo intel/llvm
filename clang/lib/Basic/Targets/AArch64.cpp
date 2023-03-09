@@ -17,97 +17,89 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/AArch64TargetParser.h"
-#include "llvm/Support/ARMTargetParserCommon.h"
+#include "llvm/TargetParser/AArch64TargetParser.h"
+#include "llvm/TargetParser/ARMTargetParserCommon.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::targets;
 
 static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsNEON.def"
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsSVE.def"
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANG)                                     \
-  {#ID, TYPE, ATTRS, nullptr, LANG, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, LANG},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define TARGET_HEADER_BUILTIN(ID, TYPE, ATTRS, HEADER, LANGS, FEATURE)         \
-  {#ID, TYPE, ATTRS, HEADER, LANGS, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::HEADER, LANGS},
 #include "clang/Basic/BuiltinsAArch64.def"
 };
 
-static StringRef getArchVersionString(llvm::AArch64::ArchKind Kind) {
-  switch (Kind) {
-  case llvm::AArch64::ArchKind::ARMV9A:
-  case llvm::AArch64::ArchKind::ARMV9_1A:
-  case llvm::AArch64::ArchKind::ARMV9_2A:
-  case llvm::AArch64::ArchKind::ARMV9_3A:
-  case llvm::AArch64::ArchKind::ARMV9_4A:
-    return "9";
-  default:
-    return "8";
-  }
-}
-
 void AArch64TargetInfo::setArchFeatures() {
-  switch (ArchKind) {
-  case llvm::AArch64::ArchKind::ARMV8_9A:
-  case llvm::AArch64::ArchKind::ARMV8_8A:
-  case llvm::AArch64::ArchKind::ARMV8_7A:
-    HasWFxT = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_6A:
-    HasBFloat16 = true;
-    HasMatMul = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_5A:
-    HasAlternativeNZCV = true;
-    HasFRInt3264 = true;
-    HasSSBS = true;
-    HasSB = true;
-    HasPredRes = true;
-    HasBTI = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_4A:
+  if (*ArchInfo == llvm::AArch64::ARMV8R) {
     HasDotProd = true;
     HasDIT = true;
     HasFlagM = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_3A:
     HasRCPC = true;
     FPU |= NeonMode;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_2A:
     HasCCPP = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV8_1A:
     HasCRC = true;
     HasLSE = true;
     HasRDM = true;
-    return;
-  default:
-    break;
-  }
-  switch (ArchKind) {
-  case llvm::AArch64::ArchKind::ARMV9_4A:
-  case llvm::AArch64::ArchKind::ARMV9_3A:
-  case llvm::AArch64::ArchKind::ARMV9_2A:
-    HasWFxT = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV9_1A:
-    HasBFloat16 = true;
-    HasMatMul = true;
-    LLVM_FALLTHROUGH;
-  case llvm::AArch64::ArchKind::ARMV9A:
+  } else if (ArchInfo->Version.getMajor() == 8) {
+    if (ArchInfo->Version.getMinor() >= 7u) {
+      HasWFxT = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 6u) {
+      HasBFloat16 = true;
+      HasMatMul = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 5u) {
+      HasAlternativeNZCV = true;
+      HasFRInt3264 = true;
+      HasSSBS = true;
+      HasSB = true;
+      HasPredRes = true;
+      HasBTI = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 4u) {
+      HasDotProd = true;
+      HasDIT = true;
+      HasFlagM = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 3u) {
+      HasRCPC = true;
+      FPU |= NeonMode;
+    }
+    if (ArchInfo->Version.getMinor() >= 2u) {
+      HasCCPP = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 1u) {
+      HasCRC = true;
+      HasLSE = true;
+      HasRDM = true;
+    }
+  } else if (ArchInfo->Version.getMajor() == 9) {
+    if (ArchInfo->Version.getMinor() >= 2u) {
+      HasWFxT = true;
+    }
+    if (ArchInfo->Version.getMinor() >= 1u) {
+      HasBFloat16 = true;
+      HasMatMul = true;
+    }
     FPU |= SveMode;
     HasSVE2 = true;
     HasFullFP16 = true;
@@ -126,29 +118,6 @@ void AArch64TargetInfo::setArchFeatures() {
     HasCRC = true;
     HasLSE = true;
     HasRDM = true;
-    return;
-  default:
-    break;
-  }
-  if (ArchKind == llvm::AArch64::ArchKind::ARMV8R) {
-    HasDotProd = true;
-    HasDIT = true;
-    HasFlagM = true;
-    HasRCPC = true;
-    FPU |= NeonMode;
-    HasCCPP = true;
-    HasCRC = true;
-    HasLSE = true;
-    HasRDM = true;
-  }
-}
-
-StringRef AArch64TargetInfo::getArchProfile() const {
-  switch (ArchKind) {
-  case llvm::AArch64::ArchKind::ARMV8R:
-    return "R";
-  default:
-    return "A";
   }
 }
 
@@ -254,8 +223,7 @@ bool AArch64TargetInfo::validateBranchProtection(StringRef Spec, StringRef,
 }
 
 bool AArch64TargetInfo::isValidCPUName(StringRef Name) const {
-  return Name == "generic" ||
-         llvm::AArch64::parseCPUArch(Name) != llvm::AArch64::ArchKind::INVALID;
+  return Name == "generic" || llvm::AArch64::parseCpu(Name);
 }
 
 bool AArch64TargetInfo::setCPU(const std::string &Name) {
@@ -385,8 +353,10 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
 
   // ACLE predefines. Many can only have one possible value on v8 AArch64.
   Builder.defineMacro("__ARM_ACLE", "200");
-  Builder.defineMacro("__ARM_ARCH", getArchVersionString(ArchKind));
-  Builder.defineMacro("__ARM_ARCH_PROFILE", "'" + getArchProfile() + "'");
+  Builder.defineMacro("__ARM_ARCH",
+                      std::to_string(ArchInfo->Version.getMajor()));
+  Builder.defineMacro("__ARM_ARCH_PROFILE",
+                      std::string("'") + (char)ArchInfo->Profile + "'");
 
   Builder.defineMacro("__ARM_64BIT_STATE", "1");
   Builder.defineMacro("__ARM_PCS_AAPCS64", "1");
@@ -557,52 +527,34 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasD128)
     Builder.defineMacro("__ARM_FEATURE_SYSREG128", "1");
 
-  switch (ArchKind) {
-  default:
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_1A:
+  if (*ArchInfo == llvm::AArch64::ARMV8_1A)
     getTargetDefinesARMV81A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_2A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_2A)
     getTargetDefinesARMV82A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_3A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_3A)
     getTargetDefinesARMV83A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_4A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_4A)
     getTargetDefinesARMV84A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_5A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_5A)
     getTargetDefinesARMV85A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_6A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_6A)
     getTargetDefinesARMV86A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_7A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_7A)
     getTargetDefinesARMV87A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_8A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_8A)
     getTargetDefinesARMV88A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV8_9A:
+  else if (*ArchInfo == llvm::AArch64::ARMV8_9A)
     getTargetDefinesARMV89A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV9A:
+  else if (*ArchInfo == llvm::AArch64::ARMV9A)
     getTargetDefinesARMV9A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV9_1A:
+  else if (*ArchInfo == llvm::AArch64::ARMV9_1A)
     getTargetDefinesARMV91A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV9_2A:
+  else if (*ArchInfo == llvm::AArch64::ARMV9_2A)
     getTargetDefinesARMV92A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV9_3A:
+  else if (*ArchInfo == llvm::AArch64::ARMV9_3A)
     getTargetDefinesARMV93A(Opts, Builder);
-    break;
-  case llvm::AArch64::ArchKind::ARMV9_4A:
+  else if (*ArchInfo == llvm::AArch64::ARMV9_4A)
     getTargetDefinesARMV94A(Opts, Builder);
-    break;
-  }
 
   // All of the __sync_(bool|val)_compare_and_swap_(1|2|4|8) builtins work.
   Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
@@ -624,11 +576,11 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
 }
 
 ArrayRef<Builtin::Info> AArch64TargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::AArch64::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo, clang::AArch64::LastTSBuiltin -
+                                         Builtin::FirstTSBuiltin);
 }
 
-Optional<std::pair<unsigned, unsigned>>
+std::optional<std::pair<unsigned, unsigned>>
 AArch64TargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
   if (LangOpts.VScaleMin || LangOpts.VScaleMax)
     return std::pair<unsigned, unsigned>(
@@ -643,42 +595,34 @@ AArch64TargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
 unsigned AArch64TargetInfo::multiVersionSortPriority(StringRef Name) const {
   if (Name == "default")
     return 0;
-  unsigned Priority = llvm::StringSwitch<unsigned>(Name)
-#define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
-                              DEP_FEATURES, FMV_PRIORITY)                      \
-  .Case(NAME, FMV_PRIORITY)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
-      ;
-  assert((Name == "none" || Priority < multiVersionFeatureCost()) &&
-         "FMV priority is out of bounds!");
-  return Priority;
+  for (const auto &E : llvm::AArch64::Extensions)
+    if (Name == E.Name)
+      return E.FmvPriority;
+  return 0;
 }
 
 unsigned AArch64TargetInfo::multiVersionFeatureCost() const {
   // Take the maximum priority as per feature cost, so more features win.
-  // AARCH64_ARCH_EXT_NAME "none" feature must have top priority, use it.
-  return multiVersionSortPriority("none");
+  return llvm::AArch64::ExtensionInfo::MaxFMVPriority;
 }
 
 bool AArch64TargetInfo::getFeatureDepOptions(StringRef Name,
                                              std::string &FeatureVec) const {
-  FeatureVec = llvm::StringSwitch<std::string>(Name)
-#define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
-                              DEP_FEATURES, FMV_PRIORITY)                      \
-  .Case(NAME, DEP_FEATURES)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
-                   .Default("");
+  FeatureVec = "";
+  for (const auto &E : llvm::AArch64::Extensions) {
+    if (Name == E.Name) {
+      FeatureVec = E.DependentFeatures;
+      break;
+    }
+  }
   return FeatureVec != "";
 }
 
 bool AArch64TargetInfo::validateCpuSupports(StringRef FeatureStr) const {
-  unsigned Feat = llvm::StringSwitch<unsigned>(FeatureStr)
-#define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
-                              DEP_FEATURES, FMV_PRIORITY)                      \
-  .Case(NAME, llvm::AArch64::FEAT_##FMV_ID)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
-                      .Default(llvm::AArch64::FEAT_MAX);
-  return Feat != llvm::AArch64::FEAT_MAX;
+  for (const auto &E : llvm::AArch64::Extensions)
+    if (FeatureStr == E.Name)
+      return true;
+  return false;
 }
 
 bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
@@ -719,8 +663,8 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
       .Case("sve2-sha3", FPU & SveMode && HasSVE2SHA3)
       .Case("sve2-sm4", FPU & SveMode && HasSVE2SM4)
       .Case("sme", HasSME)
-      .Case("sme-f64f64", HasSMEF64)
-      .Case("sme-i16i64", HasSMEI64)
+      .Case("sme-f64f64", HasSMEF64F64)
+      .Case("sme-i16i64", HasSMEI16I64)
       .Cases("memtag", "memtag2", HasMTE)
       .Case("sb", HasSB)
       .Case("predres", HasPredRes)
@@ -734,17 +678,30 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
 void AArch64TargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
                                           StringRef Name, bool Enabled) const {
   Features[Name] = Enabled;
-  llvm::AArch64::ArchKind AK = llvm::AArch64::getSubArchArchKind(Name);
-  // Add all previous architecture versions.
-  // In case of v9.x the v8.x counterparts are added too.
-  if ("9" == getArchVersionString(AK))
-    for (llvm::AArch64::ArchKind I = llvm::AArch64::convertV9toV8(AK);
-         I != llvm::AArch64::ArchKind::INVALID; --I)
-      Features[llvm::AArch64::getSubArch(I)] = Enabled;
+  // If the feature is an architecture feature (like v8.2a), add all previous
+  // architecture versions and any dependant target features.
+  const std::optional<llvm::AArch64::ArchInfo> ArchInfo =
+      llvm::AArch64::ArchInfo::findBySubArch(Name);
 
-  for (llvm::AArch64::ArchKind I = --AK; I != llvm::AArch64::ArchKind::INVALID;
-       --I)
-    Features[llvm::AArch64::getSubArch(I)] = Enabled;
+  if (!ArchInfo)
+    return; // Not an architecture, nothing more to do.
+
+  // Disabling an architecture feature does not affect dependent features
+  if (!Enabled)
+    return;
+
+  for (const auto *OtherArch : llvm::AArch64::ArchInfos)
+    if (ArchInfo->implies(*OtherArch))
+      Features[OtherArch->getSubArch()] = true;
+
+  // Set any features implied by the architecture
+  std::vector<StringRef> CPUFeats;
+  if (llvm::AArch64::getExtensionFeatures(ArchInfo->DefaultExts, CPUFeats)) {
+    for (auto F : CPUFeats) {
+      assert(F[0] == '+' && "Expected + in target feature!");
+      Features[F.drop_front(1)] = true;
+    }
+  }
 }
 
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
@@ -823,12 +780,12 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     }
     if (Feature == "+sme-f64f64") {
       HasSME = true;
-      HasSMEF64 = true;
+      HasSMEF64F64 = true;
       HasBFloat16 = true;
     }
     if (Feature == "+sme-i16i64") {
       HasSME = true;
-      HasSMEI64 = true;
+      HasSMEI16I64 = true;
       HasBFloat16 = true;
     }
     if (Feature == "+sb")
@@ -881,38 +838,51 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     if (Feature == "+strict-align")
       HasUnaligned = false;
     // All predecessor archs are added but select the latest one for ArchKind.
-    if (Feature == "+v8a" && ArchKind < llvm::AArch64::ArchKind::ARMV8A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8A;
-    if (Feature == "+v8.1a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_1A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_1A;
-    if (Feature == "+v8.2a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_2A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_2A;
-    if (Feature == "+v8.3a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_3A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_3A;
-    if (Feature == "+v8.4a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_4A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_4A;
-    if (Feature == "+v8.5a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_5A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_5A;
-    if (Feature == "+v8.6a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_6A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_6A;
-    if (Feature == "+v8.7a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_7A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_7A;
-    if (Feature == "+v8.8a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_8A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_8A;
-    if (Feature == "+v8.9a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_9A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV8_9A;
-    if (Feature == "+v9a" && ArchKind < llvm::AArch64::ArchKind::ARMV9A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV9A;
-    if (Feature == "+v9.1a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_1A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV9_1A;
-    if (Feature == "+v9.2a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_2A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV9_2A;
-    if (Feature == "+v9.3a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_3A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV9_3A;
-    if (Feature == "+v9.4a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_4A)
-      ArchKind = llvm::AArch64::ArchKind::ARMV9_4A;
+    if (Feature == "+v8a" && ArchInfo->Version < llvm::AArch64::ARMV8A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8A;
+    if (Feature == "+v8.1a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_1A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_1A;
+    if (Feature == "+v8.2a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_2A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_2A;
+    if (Feature == "+v8.3a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_3A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_3A;
+    if (Feature == "+v8.4a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_4A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_4A;
+    if (Feature == "+v8.5a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_5A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_5A;
+    if (Feature == "+v8.6a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_6A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_6A;
+    if (Feature == "+v8.7a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_7A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_7A;
+    if (Feature == "+v8.8a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_8A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_8A;
+    if (Feature == "+v8.9a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV8_9A.Version)
+      ArchInfo = &llvm::AArch64::ARMV8_9A;
+    if (Feature == "+v9a" && ArchInfo->Version < llvm::AArch64::ARMV9A.Version)
+      ArchInfo = &llvm::AArch64::ARMV9A;
+    if (Feature == "+v9.1a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV9_1A.Version)
+      ArchInfo = &llvm::AArch64::ARMV9_1A;
+    if (Feature == "+v9.2a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV9_2A.Version)
+      ArchInfo = &llvm::AArch64::ARMV9_2A;
+    if (Feature == "+v9.3a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV9_3A.Version)
+      ArchInfo = &llvm::AArch64::ARMV9_3A;
+    if (Feature == "+v9.4a" &&
+        ArchInfo->Version < llvm::AArch64::ARMV9_4A.Version)
+      ArchInfo = &llvm::AArch64::ARMV9_4A;
     if (Feature == "+v8r")
-      ArchKind = llvm::AArch64::ArchKind::ARMV8R;
+      ArchInfo = &llvm::AArch64::ARMV8R;
     if (Feature == "+fullfp16") {
       FPU |= NeonMode;
       HasFullFP16 = true;
@@ -980,9 +950,9 @@ bool AArch64TargetInfo::initFeatureMap(
     const std::vector<std::string> &FeaturesVec) const {
   std::vector<std::string> UpdatedFeaturesVec;
   // Parse the CPU and add any implied features.
-  llvm::AArch64::ArchKind Arch = llvm::AArch64::parseCPUArch(CPU);
-  if (Arch != llvm::AArch64::ArchKind::INVALID) {
-    uint64_t Exts = llvm::AArch64::getDefaultExtensions(CPU, Arch);
+  std::optional<llvm::AArch64::CpuInfo> CpuInfo = llvm::AArch64::parseCpu(CPU);
+  if (CpuInfo) {
+    uint64_t Exts = CpuInfo->getImpliedExtensions();
     std::vector<StringRef> CPUFeats;
     llvm::AArch64::getExtensionFeatures(Exts, CPUFeats);
     for (auto F : CPUFeats) {
@@ -1006,12 +976,16 @@ bool AArch64TargetInfo::initFeatureMap(
       }
     }
   for (const auto &Feature : FeaturesVec)
-    if (Feature[0] == '+') {
-      std::string F;
-      llvm::AArch64::getFeatureOption(Feature, F);
-      UpdatedFeaturesVec.push_back(F);
-    } else if (Feature[0] != '?')
-      UpdatedFeaturesVec.push_back(Feature);
+    if (Feature[0] != '?') {
+      std::string UpdatedFeature = Feature;
+      if (Feature[0] == '+') {
+        std::optional<llvm::AArch64::ExtensionInfo> Extension =
+          llvm::AArch64::parseArchExtension(Feature.substr(1));
+        if (Extension)
+          UpdatedFeature = Extension->Feature.str();
+      }
+      UpdatedFeaturesVec.push_back(UpdatedFeature);
+    }
 
   return TargetInfo::initFeatureMap(Features, Diags, CPU, UpdatedFeaturesVec);
 }
@@ -1064,13 +1038,14 @@ ParsedTargetAttr AArch64TargetInfo::parseTargetAttr(StringRef Features) const {
       FoundArch = true;
       std::pair<StringRef, StringRef> Split =
           Feature.split("=").second.trim().split("+");
-      llvm::AArch64::ArchKind ArchKind = llvm::AArch64::parseArch(Split.first);
+      const std::optional<llvm::AArch64::ArchInfo> AI =
+          llvm::AArch64::parseArch(Split.first);
 
       // Parse the architecture version, adding the required features to
       // Ret.Features.
-      if (ArchKind == llvm::AArch64::ArchKind::INVALID)
+      if (!AI)
         continue;
-      Ret.Features.push_back(llvm::AArch64::getArchFeature(ArchKind).str());
+      Ret.Features.push_back(AI->ArchFeature.str());
       // Add any extra features, after the +
       SplitAndAddFeatures(Split.second, Ret.Features);
     } else if (Feature.startswith("cpu=")) {
@@ -1177,7 +1152,7 @@ const char *const AArch64TargetInfo::GCCRegNames[] = {
 };
 
 ArrayRef<const char *> AArch64TargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 const TargetInfo::GCCRegAlias AArch64TargetInfo::GCCRegAliases[] = {
@@ -1220,7 +1195,7 @@ const TargetInfo::GCCRegAlias AArch64TargetInfo::GCCRegAliases[] = {
 };
 
 ArrayRef<TargetInfo::GCCRegAlias> AArch64TargetInfo::getGCCRegAliases() const {
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 bool AArch64TargetInfo::validateAsmConstraint(

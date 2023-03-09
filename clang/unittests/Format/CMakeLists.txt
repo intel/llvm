@@ -21,6 +21,8 @@ add_clang_unittest(FormatTests
   FormatTestTableGen.cpp
   FormatTestTextProto.cpp
   FormatTestVerilog.cpp
+  FormatTokenSourceTest.cpp
+  IntegerLiteralSeparatorTest.cpp
   MacroCallReconstructorTest.cpp
   MacroExpanderTest.cpp
   NamespaceEndCommentsFixerTest.cpp

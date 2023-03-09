@@ -275,6 +275,10 @@ uptr GetUserBegin(uptr chunk) {
   return chunk;
 }
 
+uptr GetUserAddr(uptr chunk) {
+  return chunk;
+}
+
 LsanMetadata::LsanMetadata(uptr chunk) {
   metadata_ = Metadata(reinterpret_cast<void *>(chunk));
   CHECK(metadata_);
@@ -319,7 +323,7 @@ IgnoreObjectResult IgnoreObjectLocked(const void *p) {
   }
 }
 
-void GetAdditionalThreadContextPtrs(ThreadContextBase *tctx, void *ptrs) {
+void GetAdditionalThreadContextPtrsLocked(InternalMmapVector<uptr> *ptrs) {
   // This function can be used to treat memory reachable from `tctx` as live.
   // This is useful for threads that have been created but not yet started.
 

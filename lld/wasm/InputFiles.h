@@ -13,11 +13,12 @@
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -192,7 +193,7 @@ InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "",
                             uint64_t offsetInArchive = 0);
 
 // Opens a given file.
-llvm::Optional<MemoryBufferRef> readFile(StringRef path);
+std::optional<MemoryBufferRef> readFile(StringRef path);
 
 } // namespace wasm
 

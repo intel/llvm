@@ -20,6 +20,7 @@
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Dialect/SparseTensor/Utils/Merger.h"
+#include <optional>
 
 namespace mlir {
 namespace sparse_tensor {
@@ -43,18 +44,22 @@ public:
   // General methods.
   //
 
+  LogicalResult initTensorExp();
+  unsigned getTensorExp() const { return tensorExp; }
+
   linalg::GenericOp op() const { return linalgOp; }
   const SparsificationOptions &options() const { return sparseOptions; }
   Merger &merger() { return latticeMerger; }
-  LoopEmitter *emitter() { return loopEmitter; }
+  LoopEmitter &emitter() { return loopEmitter; }
 
-  void startEmit(OpOperand *so, unsigned lv, LoopEmitter *le);
+  void startEmit();
 
   /// Generates loop boundary statements (entering/exiting loops). The function
   /// passes and updates the passed-in parameters.
-  Optional<Operation *> genLoopBoundary(
-      function_ref<Optional<Operation *>(MutableArrayRef<Value> parameters)>
-          callback);
+  std::optional<Operation *>
+  genLoopBoundary(function_ref<
+                  std::optional<Operation *>(MutableArrayRef<Value> parameters)>
+                      callback);
 
   //
   // Merger delegates.
@@ -71,11 +76,20 @@ public:
   }
 
   //
-  // Topological delegate and sort methods.
+  // Code generation environment verify functions.
   //
 
-  // TODO: get rid of this one!
-  std::vector<unsigned> &topSortRef() { return topSort; }
+  /// Whether the tensor expression is admissible for codegen.
+  /// It also sets the sparseOut if the output tensor is sparse.
+  bool isAdmissibleTensorExp(unsigned exp);
+
+  /// Whether the iteration graph is sorted in admissible topoOrder.
+  /// Sets outerParNest on success with sparse output
+  bool isAdmissibleTopoOrder();
+
+  //
+  // Topological delegate and sort methods.
+  //
 
   size_t topSortSize() const { return topSort.size(); }
   unsigned topSortAt(unsigned i) const { return topSort.at(i); }
@@ -118,6 +132,9 @@ public:
   void updateReduc(Value val);
   Value getReduc() const { return redVal; }
   Value endReduc();
+  void setValidLexInsert(Value val);
+  void clearValidLexInsert();
+  Value getValidLexInsert() const { return redValidLexInsert; }
 
   void startCustomReduc(unsigned exp);
   bool isCustomReduc() const { return redCustom != -1u; }
@@ -134,9 +151,8 @@ private:
   // Merger helper class.
   Merger latticeMerger;
 
-  // Loop emitter helper class (keep reference in scope!).
-  // TODO: move emitter constructor up in time?
-  LoopEmitter *loopEmitter;
+  // Loop emitter helper class.
+  LoopEmitter loopEmitter;
 
   // Topological sort.
   std::vector<unsigned> topSort;
@@ -158,6 +174,14 @@ private:
   Value redVal;
   unsigned redExp;
   unsigned redCustom;
+
+  // Bookkeeping for lex insertion during reductions. Holds the runtime boolean
+  // value of whether any reduction occurred. This is only set during a
+  // reduction and cleared once the reduction is finished.
+  Value redValidLexInsert;
+
+  // The root tensor expression of the kernel.
+  unsigned tensorExp;
 };
 
 } // namespace sparse_tensor

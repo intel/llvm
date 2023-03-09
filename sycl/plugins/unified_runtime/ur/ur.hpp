@@ -20,6 +20,44 @@
 
 #include <zer_api.h>
 
+// TODO: promote all of the below extensions to the Unified Runtime
+//       and get rid of these ZER_EXT constants.
+const int ZER_EXT_DEVICE_INFO_END = ZER_DEVICE_INFO_FORCE_UINT32;
+const int ZER_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE = ZER_EXT_DEVICE_INFO_END - 1;
+const int ZER_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D = ZER_EXT_DEVICE_INFO_END - 2;
+const int ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
+    ZER_EXT_DEVICE_INFO_END - 3;
+const int ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS =
+    ZER_EXT_DEVICE_INFO_END - 4;
+const int ZER_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH = ZER_EXT_DEVICE_INFO_END - 6;
+const int ZER_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU =
+    ZER_EXT_DEVICE_INFO_END - 7;
+const int ZER_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE =
+    ZER_EXT_DEVICE_INFO_END - 8;
+const int ZER_EXT_DEVICE_INFO_GPU_SLICES = ZER_EXT_DEVICE_INFO_END - 9;
+const int ZER_EXT_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES =
+    ZER_EXT_DEVICE_INFO_END - 10;
+const int ZER_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = ZER_EXT_DEVICE_INFO_END - 11;
+const int ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE = ZER_EXT_DEVICE_INFO_END - 12;
+const int ZER_EXT_DEVICE_INFO_FREE_MEMORY = ZER_EXT_DEVICE_INFO_END - 13;
+const int ZER_EXT_DEVICE_INFO_DEVICE_ID = ZER_EXT_DEVICE_INFO_END - 14;
+const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
+    ZER_DEVICE_INFO_IMAGE_MAX_ARRAR_SIZE;
+
+const int ZER_EXT_RESULT_END = 0x1000;
+const zer_result_t ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
+    zer_result_t(ZER_EXT_RESULT_END - 1);
+
+const int ZER_EXT_USM_CAPS_ACCESS = 1 << 0;
+const int ZER_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
+const int ZER_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
+const int ZER_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
+
+const zer_device_partition_property_flag_t
+    ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
+        zer_device_partition_property_flag_t(
+            ZER_DEVICE_PARTITION_PROPERTY_FLAG_FORCE_UINT32 - 1);
+
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
   std::cerr << "die: " << Message << std::endl;
@@ -315,3 +353,16 @@ protected:
   void *param_value;
   size_t *param_value_size_ret;
 };
+
+// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+extern thread_local zer_result_t ErrorMessageCode;
+extern thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] void setErrorMessage(const char *message,
+                                      zer_result_t error_code);
+
+// Returns plugin specific error and warning messages
+// TODO: promote to Unified Runtime API
+zer_result_t zerPluginGetLastError(char **message);

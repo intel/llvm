@@ -900,6 +900,93 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Type = "int &";
          HI.CallPassType = HoverInfo::PassType{PassMode::Ref, false};
        }},
+      {
+          R"cpp(
+          void foobar(const float &arg);
+          int main() {
+            int a = 0;
+            foobar([[^a]]);
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "a";
+            HI.Kind = index::SymbolKind::Variable;
+            HI.NamespaceScope = "";
+            HI.Definition = "int a = 0";
+            HI.LocalScope = "main::";
+            HI.Value = "0";
+            HI.Type = "int";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "arg";
+            HI.CalleeArgInfo->Type = "const float &";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, true};
+          }},
+      {// Literal passed to function call
+       R"cpp(
+          void fun(int arg_a, const int &arg_b) {};
+          void code() {
+            int a = 1;
+            fun(a, [[^2]]);
+          }
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "literal";
+         HI.Kind = index::SymbolKind::Unknown;
+         HI.CalleeArgInfo.emplace();
+         HI.CalleeArgInfo->Name = "arg_b";
+         HI.CalleeArgInfo->Type = "const int &";
+         HI.CallPassType = HoverInfo::PassType{PassMode::ConstRef, false};
+       }},
+      {// Expression passed to function call
+       R"cpp(
+          void fun(int arg_a, const int &arg_b) {};
+          void code() {
+            int a = 1;
+            fun(a, 1 [[^+]] 2);
+          }
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "expression";
+         HI.Kind = index::SymbolKind::Unknown;
+         HI.Type = "int";
+         HI.Value = "3";
+         HI.CalleeArgInfo.emplace();
+         HI.CalleeArgInfo->Name = "arg_b";
+         HI.CalleeArgInfo->Type = "const int &";
+         HI.CallPassType = HoverInfo::PassType{PassMode::ConstRef, false};
+       }},
+      {
+          R"cpp(
+        int add(int lhs, int rhs);
+        int main() {
+          add(1 [[^+]] 2, 3);
+        }
+        )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "expression";
+            HI.Kind = index::SymbolKind::Unknown;
+            HI.Type = "int";
+            HI.Value = "3";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "lhs";
+            HI.CalleeArgInfo->Type = "int";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
+          }},
+      {
+          R"cpp(
+        void foobar(const float &arg);
+        int main() {
+          foobar([[^0]]);
+        }
+        )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "literal";
+            HI.Kind = index::SymbolKind::Unknown;
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "arg";
+            HI.CalleeArgInfo->Type = "const float &";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, true};
+          }},
       {// Extra info for method call.
        R"cpp(
           class C {
@@ -926,6 +1013,29 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Default = "3";
          HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
        }},
+      {
+          R"cpp(
+          struct Foo {
+            Foo(const int &);
+          };
+          void foo(Foo);
+          void bar() {
+            const int x = 0;
+            foo([[^x]]);
+          }
+       )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "x";
+            HI.Kind = index::SymbolKind::Variable;
+            HI.NamespaceScope = "";
+            HI.Definition = "const int x = 0";
+            HI.LocalScope = "bar::";
+            HI.Value = "0";
+            HI.Type = "const int";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Type = "Foo";
+            HI.CallPassType = HoverInfo::PassType{PassMode::ConstRef, true};
+          }},
       {// Dont crash on invalid decl
        R"cpp(
         // error-ok
@@ -1226,8 +1336,10 @@ void fun() {
   } Tests[] = {
       // Integer tests
       {"int_by_value([[^int_x]]);", PassMode::Value, false},
+      {"int_by_value([[^123]]);", PassMode::Value, false},
       {"int_by_ref([[^int_x]]);", PassMode::Ref, false},
       {"int_by_const_ref([[^int_x]]);", PassMode::ConstRef, false},
+      {"int_by_const_ref([[^123]]);", PassMode::ConstRef, false},
       {"int_by_value([[^int_ref]]);", PassMode::Value, false},
       {"int_by_const_ref([[^int_ref]]);", PassMode::ConstRef, false},
       {"int_by_const_ref([[^int_ref]]);", PassMode::ConstRef, false},
@@ -1245,6 +1357,8 @@ void fun() {
       {"float_by_value([[^int_x]]);", PassMode::Value, true},
       {"float_by_value([[^int_ref]]);", PassMode::Value, true},
       {"float_by_value([[^int_const_ref]]);", PassMode::Value, true},
+      {"float_by_value([[^123.0f]]);", PassMode::Value, false},
+      {"float_by_value([[^123]]);", PassMode::Value, true},
       {"custom_by_value([[^int_x]]);", PassMode::Ref, true},
       {"custom_by_value([[^float_x]]);", PassMode::Value, true},
       {"custom_by_value([[^base]]);", PassMode::ConstRef, true},
@@ -1635,8 +1749,8 @@ TEST(Hover, All) {
           }},
       {
           R"cpp(// Function definition via using declaration
-            namespace ns { 
-              void foo(); 
+            namespace ns {
+              void foo();
             }
             int main() {
               using ns::foo;
@@ -3043,6 +3157,18 @@ Passed as arg_a
 
 // In test::Bar
 int foo = 3)",
+      },
+      {
+          [](HoverInfo &HI) {
+            HI.Kind = index::SymbolKind::Variable;
+            HI.Name = "foo";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Type = "int";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
+          },
+          R"(variable foo
+
+Passed by value)",
       },
       {
           [](HoverInfo &HI) {

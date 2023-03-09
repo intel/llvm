@@ -26,6 +26,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringExtras.h"
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -149,11 +150,19 @@ bool Sema::CheckConstraintExpression(const Expr *ConstraintExpression,
 namespace {
 struct SatisfactionStackRAII {
   Sema &SemaRef;
-  SatisfactionStackRAII(Sema &SemaRef, llvm::FoldingSetNodeID FSNID)
+  bool Inserted = false;
+  SatisfactionStackRAII(Sema &SemaRef, const NamedDecl *ND,
+                        llvm::FoldingSetNodeID FSNID)
       : SemaRef(SemaRef) {
-      SemaRef.PushSatisfactionStackEntry(FSNID);
+      if (ND) {
+      SemaRef.PushSatisfactionStackEntry(ND, FSNID);
+      Inserted = true;
+      }
   }
-  ~SatisfactionStackRAII() { SemaRef.PopSatisfactionStackEntry(); }
+  ~SatisfactionStackRAII() {
+        if (Inserted)
+          SemaRef.PopSatisfactionStackEntry();
+  }
 };
 } // namespace
 
@@ -272,7 +281,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
 }
 
 static bool
-DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
+DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID,
+                            const NamedDecl *Templ, const Expr *E,
                             const MultiLevelTemplateArgumentList &MLTAL) {
   E->Profile(ID, S.Context, /*Canonical=*/true);
   for (const auto &List : MLTAL)
@@ -285,7 +295,7 @@ DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
   // expression, or when trying to determine the constexpr-ness of special
   // members. Otherwise we could just use the
   // Sema::InstantiatingTemplate::isAlreadyBeingInstantiated function.
-  if (S.SatisfactionStackContains(ID)) {
+  if (S.SatisfactionStackContains(Templ, ID)) {
     S.Diag(E->getExprLoc(), diag::err_constraint_depends_on_self)
         << const_cast<Expr *>(E) << E->getSourceRange();
     return true;
@@ -316,26 +326,20 @@ static ExprResult calculateConstraintSatisfaction(
             return ExprError();
 
           llvm::FoldingSetNodeID ID;
-          if (DiagRecursiveConstraintEval(S, ID, AtomicExpr, MLTAL)) {
+          if (Template &&
+              DiagRecursiveConstraintEval(S, ID, Template, AtomicExpr, MLTAL)) {
             Satisfaction.IsSatisfied = false;
             Satisfaction.ContainsErrors = true;
             return ExprEmpty();
           }
 
-          SatisfactionStackRAII StackRAII(S, ID);
+          SatisfactionStackRAII StackRAII(S, Template, ID);
 
           // We do not want error diagnostics escaping here.
           Sema::SFINAETrap Trap(S);
           SubstitutedExpression =
               S.SubstConstraintExpr(const_cast<Expr *>(AtomicExpr), MLTAL);
-          // Substitution might have stripped off a contextual conversion to
-          // bool if this is the operand of an '&&' or '||'. For example, we
-          // might lose an lvalue-to-rvalue conversion here. If so, put it back
-          // before we try to evaluate.
-          if (SubstitutedExpression.isUsable() &&
-              !SubstitutedExpression.isInvalid())
-            SubstitutedExpression =
-                S.PerformContextuallyConvertToBool(SubstitutedExpression.get());
+
           if (SubstitutedExpression.isInvalid() || Trap.hasErrorOccurred()) {
             // C++2a [temp.constr.atomic]p1
             //   ...If substitution results in an invalid type or expression, the
@@ -371,6 +375,22 @@ static ExprResult calculateConstraintSatisfaction(
 
         if (!S.CheckConstraintExpression(SubstitutedExpression.get()))
           return ExprError();
+
+        // [temp.constr.atomic]p3: To determine if an atomic constraint is
+        // satisfied, the parameter mapping and template arguments are first
+        // substituted into its expression.  If substitution results in an
+        // invalid type or expression, the constraint is not satisfied.
+        // Otherwise, the lvalue-to-rvalue conversion is performed if necessary,
+        // and E shall be a constant expression of type bool.
+        //
+        // Perform the L to R Value conversion if necessary. We do so for all
+        // non-PRValue categories, else we fail to extend the lifetime of
+        // temporaries, and that fails the constant expression check.
+        if (!SubstitutedExpression.get()->isPRValue())
+          SubstitutedExpression = ImplicitCastExpr::Create(
+              S.Context, SubstitutedExpression.get()->getType(),
+              CK_LValueToRValue, SubstitutedExpression.get(),
+              /*BasePath=*/nullptr, VK_PRValue, FPOptionsOverride());
 
         return SubstitutedExpression;
       });
@@ -500,7 +520,7 @@ bool Sema::CheckConstraintSatisfaction(const Expr *ConstraintExpr,
 }
 
 bool Sema::SetupConstraintScope(
-    FunctionDecl *FD, llvm::Optional<ArrayRef<TemplateArgument>> TemplateArgs,
+    FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
     MultiLevelTemplateArgumentList MLTAL, LocalInstantiationScope &Scope) {
   if (FD->isTemplateInstantiation() && FD->getPrimaryTemplate()) {
     FunctionTemplateDecl *PrimaryTemplate = FD->getPrimaryTemplate();
@@ -563,9 +583,9 @@ bool Sema::SetupConstraintScope(
 
 // This function collects all of the template arguments for the purposes of
 // constraint-instantiation and checking.
-llvm::Optional<MultiLevelTemplateArgumentList>
+std::optional<MultiLevelTemplateArgumentList>
 Sema::SetupConstraintCheckingTemplateArgumentsAndScope(
-    FunctionDecl *FD, llvm::Optional<ArrayRef<TemplateArgument>> TemplateArgs,
+    FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
     LocalInstantiationScope &Scope) {
   MultiLevelTemplateArgumentList MLTAL;
 
@@ -610,7 +630,7 @@ bool Sema::CheckFunctionConstraints(const FunctionDecl *FD,
   ContextRAII SavedContext{*this, CtxToSave};
   LocalInstantiationScope Scope(*this, !ForOverloadResolution ||
                                            isLambdaCallOperator(FD));
-  llvm::Optional<MultiLevelTemplateArgumentList> MLTAL =
+  std::optional<MultiLevelTemplateArgumentList> MLTAL =
       SetupConstraintCheckingTemplateArgumentsAndScope(
           const_cast<FunctionDecl *>(FD), {}, Scope);
 
@@ -785,7 +805,7 @@ bool Sema::CheckInstantiatedFunctionTemplateConstraints(
   Sema::ContextRAII savedContext(*this, Decl);
   LocalInstantiationScope Scope(*this);
 
-  Optional<MultiLevelTemplateArgumentList> MLTAL =
+  std::optional<MultiLevelTemplateArgumentList> MLTAL =
       SetupConstraintCheckingTemplateArgumentsAndScope(Decl, TemplateArgs,
                                                        Scope);
 
@@ -1002,6 +1022,7 @@ static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
     S.DiagnoseUnsatisfiedConstraint(CSE->getSatisfaction());
     return;
   } else if (auto *RE = dyn_cast<RequiresExpr>(SubstExpr)) {
+    // FIXME: RequiresExpr should store dependent diagnostics.
     for (concepts::Requirement *Req : RE->getRequirements())
       if (!Req->isDependent() && !Req->isSatisfied()) {
         if (auto *E = dyn_cast<concepts::ExprRequirement>(Req))
@@ -1121,8 +1142,7 @@ substituteParameterMappings(Sema &S, NormalizedConstraint &N,
   Sema::InstantiatingTemplate Inst(
       S, ArgsAsWritten->arguments().front().getSourceRange().getBegin(),
       Sema::InstantiatingTemplate::ParameterMappingSubstitution{}, Concept,
-      SourceRange(ArgsAsWritten->arguments()[0].getSourceRange().getBegin(),
-                  ArgsAsWritten->arguments().back().getSourceRange().getEnd()));
+      ArgsAsWritten->arguments().front().getSourceRange());
   if (S.SubstTemplateArguments(*Atomic.ParameterMapping, MLTAL, SubstArgs))
     return true;
 
@@ -1139,7 +1159,7 @@ static bool substituteParameterMappings(Sema &S, NormalizedConstraint &N,
   TemplateArgumentList TAL{TemplateArgumentList::OnStack,
                            CSE->getTemplateArguments()};
   MultiLevelTemplateArgumentList MLTAL = S.getTemplateInstantiationArgs(
-      CSE->getNamedConcept(), /*Final=*/true, &TAL,
+      CSE->getNamedConcept(), /*Final=*/false, &TAL,
       /*RelativeToPrimary=*/true,
       /*Pattern=*/nullptr,
       /*ForConstraintInstantiation=*/true);
@@ -1148,7 +1168,7 @@ static bool substituteParameterMappings(Sema &S, NormalizedConstraint &N,
                                      CSE->getTemplateArgsAsWritten());
 }
 
-Optional<NormalizedConstraint>
+std::optional<NormalizedConstraint>
 NormalizedConstraint::fromConstraintExprs(Sema &S, NamedDecl *D,
                                           ArrayRef<const Expr *> E) {
   assert(E.size() != 0);
@@ -1165,7 +1185,7 @@ NormalizedConstraint::fromConstraintExprs(Sema &S, NamedDecl *D,
   return Conjunction;
 }
 
-llvm::Optional<NormalizedConstraint>
+std::optional<NormalizedConstraint>
 NormalizedConstraint::fromConstraintExpr(Sema &S, NamedDecl *D, const Expr *E) {
   assert(E != nullptr);
 
@@ -1213,7 +1233,7 @@ NormalizedConstraint::fromConstraintExpr(Sema &S, NamedDecl *D, const Expr *E) {
         return std::nullopt;
     }
 
-    Optional<NormalizedConstraint> New;
+    std::optional<NormalizedConstraint> New;
     New.emplace(S.Context, *SubNF);
 
     if (substituteParameterMappings(S, *New, CSE))
@@ -1353,6 +1373,7 @@ bool Sema::IsAtLeastAsConstrained(NamedDecl *D1,
     };
     const auto *FD2 = dyn_cast<FunctionDecl>(D2);
     (void)IsExpectedEntity;
+    (void)FD1;
     (void)FD2;
     assert(IsExpectedEntity(FD1) && FD2 && IsExpectedEntity(FD2) &&
            "use non-instantiated function declaration for constraints partial "

@@ -269,11 +269,6 @@ if (LIBCXX_BUILD_32_BITS)
   message(FATAL_ERROR "LIBCXX_BUILD_32_BITS is not supported anymore when building the runtimes, please specify a full triple instead.")
 endif()
 
-# TODO: Remove this after branching for LLVM 15
-if(LIBCXX_SYSROOT OR LIBCXX_TARGET_TRIPLE OR LIBCXX_GCC_TOOLCHAIN)
-  message(WARNING "LIBCXX_SYSROOT, LIBCXX_TARGET_TRIPLE and LIBCXX_GCC_TOOLCHAIN are not supported anymore, please use the native CMake equivalents instead")
-endif()
-
 # Feature options -------------------------------------------------------------
 option(LIBCXX_ENABLE_EXCEPTIONS "Use exceptions." ON)
 option(LIBCXX_ENABLE_RTTI "Use run time type information." ON)
@@ -541,11 +536,6 @@ function(cxx_add_basic_build_flags target)
   # symbols on all compilers.
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_add_compile_flags_if_supported(${target} PRIVATE -fvisibility=hidden)
-  endif()
-
-  if (LIBCXX_CONFIGURE_IDE)
-    # This simply allows IDE to process <experimental/coroutine>
-    target_add_compile_flags_if_supported(${target} PRIVATE -fcoroutines-ts)
   endif()
 
   # Let the library headers know they are currently being used to build the

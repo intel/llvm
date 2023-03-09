@@ -25,6 +25,7 @@ def ArmNeon_Dialect : Dialect {
   let name = "arm_neon";
   let cppNamespace = "::mlir::arm_neon";
 
+
   // Note: this does not need to depend on LLVMDialect as long as functions in
   // this dialect (such as canonicalization) do not produce entities belonging
   // to the LLVMDialect (ops or types).

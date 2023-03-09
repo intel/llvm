@@ -30,7 +30,7 @@ CODEGENOPT(Name, Bits, Default)
 CODEGENOPT(DisableIntegratedAS, 1, 0) ///< -no-integrated-as
 ENUM_CODEGENOPT(CompressDebugSections, llvm::DebugCompressionType, 2,
                 llvm::DebugCompressionType::None)
-CODEGENOPT(RelaxELFRelocations, 1, 0) ///< -Wa,--mrelax-relocations
+CODEGENOPT(RelaxELFRelocations, 1, 1) ///< -Wa,-mrelax-relocations={yes,no}
 CODEGENOPT(AsmVerbose        , 1, 0) ///< -dA, -fverbose-asm.
 CODEGENOPT(Dwarf64           , 1, 0) ///< -gdwarf64.
 CODEGENOPT(Dwarf32           , 1, 1) ///< -gdwarf32.
@@ -258,6 +258,8 @@ CODEGENOPT(SanitizeMinimalRuntime, 1, 0) ///< Use "_minimal" sanitizer runtime f
                                          ///< diagnostics.
 CODEGENOPT(SanitizeCfiICallGeneralizePointers, 1, 0) ///< Generalize pointer types in
                                                      ///< CFI icall function signatures
+CODEGENOPT(SanitizeCfiICallNormalizeIntegers, 1, 0) ///< Normalize integer types in
+                                                    ///< CFI icall function signatures
 CODEGENOPT(SanitizeCfiCanonicalJumpTables, 1, 0) ///< Make jump table symbols canonical
                                                  ///< instead of creating a local jump table.
 CODEGENOPT(SanitizeCoverageType, 2, 0) ///< Type of sanitizer coverage
@@ -514,6 +516,10 @@ CODEGENOPT(CtorDtorReturnThis, 1, 0)
 
 /// Whether to disable the standard optimization pipeline for the SYCL device compiler.
 CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
+
+/// Optimize SYCL Framework functions. These are functions
+/// which do not contain "user" code.
+CODEGENOPT(OptimizeSYCLFramework, 1, 0)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT

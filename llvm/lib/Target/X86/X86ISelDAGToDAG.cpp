@@ -2054,8 +2054,8 @@ static bool foldMaskAndShiftToScale(SelectionDAG &DAG, SDValue N,
     return true;
 
   unsigned ShiftAmt = Shift.getConstantOperandVal(1);
-  unsigned MaskLZ = countLeadingZeros(Mask);
-  unsigned MaskTZ = countTrailingZeros(Mask);
+  unsigned MaskLZ = llvm::countl_zero(Mask);
+  unsigned MaskTZ = llvm::countr_zero(Mask);
 
   // The amount of shift we're trying to fit into the addressing mode is taken
   // from the trailing zeros of the mask.
@@ -2066,7 +2066,8 @@ static bool foldMaskAndShiftToScale(SelectionDAG &DAG, SDValue N,
   if (AMShiftAmt == 0 || AMShiftAmt > 3) return true;
 
   // We also need to ensure that mask is a continuous run of bits.
-  if (countTrailingOnes(Mask >> MaskTZ) + MaskTZ + MaskLZ != 64) return true;
+  if (llvm::countr_one(Mask >> MaskTZ) + MaskTZ + MaskLZ != 64)
+    return true;
 
   // Scale the leading zero count down based on the actual size of the value.
   // Also scale it down based on the size of the shift.
@@ -2154,7 +2155,7 @@ static bool foldMaskedShiftToBEXTR(SelectionDAG &DAG, SDValue N,
 
   // The amount of shift we're trying to fit into the addressing mode is taken
   // from the trailing zeros of the mask.
-  unsigned AMShiftAmt = countTrailingZeros(Mask);
+  unsigned AMShiftAmt = llvm::countr_zero(Mask);
 
   // There is nothing we can do here unless the mask is removing some bits.
   // Also, the addressing mode can only represent shifts of 1, 2, or 3 bits.
@@ -3831,7 +3832,7 @@ MachineSDNode *X86DAGToDAGISel::matchBEXTRFromAndImm(SDNode *Node) {
     return nullptr;
 
   uint64_t Shift = ShiftCst->getZExtValue();
-  uint64_t MaskSize = countPopulation(Mask);
+  uint64_t MaskSize = llvm::popcount(Mask);
 
   // Don't interfere with something that can be handled by extracting AH.
   // TODO: If we are able to fold a load, BEXTR might still be better than AH.
@@ -3995,17 +3996,35 @@ bool X86DAGToDAGISel::tryShiftAmountMod(SDNode *N) {
   // so we are not afraid that we might mess up BZHI/BEXTR pattern.
 
   SDValue NewShiftAmt;
-  if (ShiftAmt->getOpcode() == ISD::ADD || ShiftAmt->getOpcode() == ISD::SUB) {
+  if (ShiftAmt->getOpcode() == ISD::ADD || ShiftAmt->getOpcode() == ISD::SUB ||
+      ShiftAmt->getOpcode() == ISD::XOR) {
     SDValue Add0 = ShiftAmt->getOperand(0);
     SDValue Add1 = ShiftAmt->getOperand(1);
     auto *Add0C = dyn_cast<ConstantSDNode>(Add0);
     auto *Add1C = dyn_cast<ConstantSDNode>(Add1);
-    // If we are shifting by X+/-N where N == 0 mod Size, then just shift by X
-    // to avoid the ADD/SUB.
+    // If we are shifting by X+/-/^N where N == 0 mod Size, then just shift by X
+    // to avoid the ADD/SUB/XOR.
     if (Add1C && Add1C->getAPIntValue().urem(Size) == 0) {
       NewShiftAmt = Add0;
-      // If we are shifting by N-X where N == 0 mod Size, then just shift by -X
-      // to generate a NEG instead of a SUB of a constant.
+
+    } else if (ShiftAmt->getOpcode() != ISD::ADD &&
+               ((Add0C && Add0C->getAPIntValue().urem(Size) == Size - 1) ||
+                (Add1C && Add1C->getAPIntValue().urem(Size) == Size - 1))) {
+      // If we are doing a NOT on just the lower bits with (Size*N-1) -/^ X
+      // we can replace it with a NOT. In the XOR case it may save some code
+      // size, in the SUB case it also may save a move.
+      assert(Add0C == nullptr || Add1C == nullptr);
+
+      // We can only do N-X, not X-N
+      if (ShiftAmt->getOpcode() == ISD::SUB && Add0C == nullptr)
+        return false;
+
+      EVT OpVT = ShiftAmt.getValueType();
+
+      NewShiftAmt = CurDAG->getNOT(DL, Add0C == nullptr ? Add0 : Add1, OpVT);
+      insertDAGNode(*CurDAG, OrigShiftAmt, NewShiftAmt);
+      // If we are shifting by N-X where N == 0 mod Size, then just shift by
+      // -X to generate a NEG instead of a SUB of a constant.
     } else if (ShiftAmt->getOpcode() == ISD::SUB && Add0C &&
                Add0C->getZExtValue() != 0) {
       EVT SubVT = ShiftAmt.getValueType();
@@ -4163,7 +4182,7 @@ bool X86DAGToDAGISel::tryShrinkShlLogicImm(SDNode *N) {
   if (Opcode == ISD::AND) {
     // Find the smallest zext this could possibly be.
     unsigned ZExtWidth = Cst->getAPIntValue().getActiveBits();
-    ZExtWidth = PowerOf2Ceil(std::max(ZExtWidth, 8U));
+    ZExtWidth = llvm::bit_ceil(std::max(ZExtWidth, 8U));
 
     // Figure out which bits need to be zero to achieve that mask.
     APInt NeededMask = APInt::getLowBitsSet(NVT.getSizeInBits(),
@@ -5632,8 +5651,8 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
         unsigned SubRegIdx;
         MVT SubRegVT;
         unsigned TestOpcode;
-        unsigned LeadingZeros = countLeadingZeros(Mask);
-        unsigned TrailingZeros = countTrailingZeros(Mask);
+        unsigned LeadingZeros = llvm::countl_zero(Mask);
+        unsigned TrailingZeros = llvm::countr_zero(Mask);
 
         // With leading/trailing zeros, the transform is profitable if we can
         // eliminate a movabsq or shrink a 32-bit immediate to 8-bit without

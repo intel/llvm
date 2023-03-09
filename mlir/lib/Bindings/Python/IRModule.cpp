@@ -11,6 +11,7 @@
 #include "PybindUtils.h"
 
 #include <vector>
+#include <optional>
 
 #include "mlir-c/Bindings/Python/Interop.h"
 
@@ -62,7 +63,7 @@ void PyGlobals::loadDialectModule(llvm::StringRef dialectNamespace) {
 
 void PyGlobals::registerAttributeBuilder(const std::string &attributeKind,
                                          py::function pyFunc) {
-  py::function &found = attributeBuilderMap[attributeKind];
+  py::object &found = attributeBuilderMap[attributeKind];
   if (found) {
     throw std::runtime_error((llvm::Twine("Attribute builder for '") +
                               attributeKind + "' is already registered")
@@ -111,7 +112,7 @@ PyGlobals::lookupAttributeBuilder(const std::string &attributeKind) {
   return std::nullopt;
 }
 
-llvm::Optional<py::object>
+std::optional<py::object>
 PyGlobals::lookupDialectClass(const std::string &dialectNamespace) {
   loadDialectModule(dialectNamespace);
   // Fast match against the class map first (common case).
@@ -128,7 +129,7 @@ PyGlobals::lookupDialectClass(const std::string &dialectNamespace) {
   return std::nullopt;
 }
 
-llvm::Optional<pybind11::object>
+std::optional<pybind11::object>
 PyGlobals::lookupRawOpViewClass(llvm::StringRef operationName) {
   {
     auto foundIt = rawOpViewClassMapCache.find(operationName);

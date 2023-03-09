@@ -11,7 +11,6 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -28,6 +27,7 @@
 #include "llvm/Object/ModuleSymbolTable.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <optional>
 #include <utility>
@@ -316,7 +316,7 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
                                      cast<PointerType>(Ty)->getAddressSpace());
   case Type::FunctionTyID:
     return *Entry = FunctionType::get(ElementTypes[0],
-                                      makeArrayRef(ElementTypes).slice(1),
+                                      ArrayRef(ElementTypes).slice(1),
                                       cast<FunctionType>(Ty)->isVarArg());
   case Type::StructTyID: {
     auto *STy = cast<StructType>(Ty);
@@ -1555,7 +1555,7 @@ void IRLinker::updateAttributes(GlobalValue &GV) {
     // Remove nocallback attribute when it is on a call-site.
     for (BasicBlock &BB : *F)
       for (Instruction &I : BB)
-        if (CallInst *CI = dyn_cast<CallInst>(&I))
+        if (CallBase *CI = dyn_cast<CallBase>(&I))
           CI->removeFnAttr(Attribute::NoCallback);
   }
 }
@@ -1671,15 +1671,16 @@ Error IRLinker::run() {
 
   // Reorder the globals just added to the destination module to match their
   // original order in the source module.
-  Module::GlobalListType &Globals = DstM.getGlobalList();
   for (GlobalVariable &GV : SrcM->globals()) {
     if (GV.hasAppendingLinkage())
       continue;
     Value *NewValue = Mapper.mapValue(GV);
     if (NewValue) {
       auto *NewGV = dyn_cast<GlobalVariable>(NewValue->stripPointerCasts());
-      if (NewGV)
-        Globals.splice(Globals.end(), Globals, NewGV->getIterator());
+      if (NewGV) {
+        NewGV->removeFromParent();
+        DstM.insertGlobalVariable(NewGV);
+      }
     }
   }
 

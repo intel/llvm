@@ -35,7 +35,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 template<class _Iter>
 concept __can_use_postfix_proxy =
@@ -217,7 +217,7 @@ public:
   }
 
   _LIBCPP_HIDE_FROM_ABI friend constexpr iter_rvalue_reference_t<_Iter> iter_move(const common_iterator& __i)
-    noexcept(noexcept(ranges::iter_move(declval<const _Iter&>())))
+    noexcept(noexcept(ranges::iter_move(std::declval<const _Iter&>())))
       requires input_iterator<_Iter>
   {
     _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__i.__hold_), "Attempted to iter_move a non-dereferenceable common_iterator");
@@ -226,7 +226,7 @@ public:
 
   template<indirectly_swappable<_Iter> _I2, class _S2>
   _LIBCPP_HIDE_FROM_ABI friend constexpr void iter_swap(const common_iterator& __x, const common_iterator<_I2, _S2>& __y)
-      noexcept(noexcept(ranges::iter_swap(declval<const _Iter&>(), declval<const _I2&>())))
+      noexcept(noexcept(ranges::iter_swap(std::declval<const _Iter&>(), std::declval<const _I2&>())))
   {
     _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__x.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
     _LIBCPP_ASSERT(std::holds_alternative<_I2>(__y.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
@@ -257,7 +257,7 @@ struct __arrow_type_or_void {
 template<class _Iter, class _Sent>
   requires __common_iter_has_ptr_op<_Iter, _Sent>
 struct __arrow_type_or_void<_Iter, _Sent> {
-    using type = decltype(declval<const common_iterator<_Iter, _Sent>&>().operator->());
+    using type = decltype(std::declval<const common_iterator<_Iter, _Sent>&>().operator->());
 };
 
 template<input_iterator _Iter, class _Sent>
@@ -274,7 +274,7 @@ struct iterator_traits<common_iterator<_Iter, _Sent>> {
   using reference = iter_reference_t<_Iter>;
 };
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

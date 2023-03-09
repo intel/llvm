@@ -71,14 +71,13 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/Support/Capacity.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -86,6 +85,7 @@
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -182,22 +182,96 @@ static SourceLocation getDeclLocForCommentSearch(const Decl *D,
 
   const SourceLocation DeclLoc = D->getLocation();
   if (DeclLoc.isMacroID()) {
-    if (isa<TypedefDecl>(D)) {
-      // If location of the typedef name is in a macro, it is because being
-      // declared via a macro. Try using declaration's starting location as
-      // the "declaration location".
-      return D->getBeginLoc();
-    }
+    // There are (at least) three types of macros we care about here.
+    //
+    // 1. Macros that are used in the definition of a type outside the macro,
+    //    with a comment attached at the macro call site.
+    //    ```
+    //    #define MAKE_NAME(Foo) Name##Foo
+    //
+    //    /// Comment is here, where we use the macro.
+    //    struct MAKE_NAME(Foo) {
+    //        int a;
+    //        int b;
+    //    };
+    //    ```
+    // 2. Macros that define whole things along with the comment.
+    //    ```
+    //    #define MAKE_METHOD(name) \
+    //      /** Comment is here, inside the macro. */ \
+    //      void name() {}
+    //
+    //    struct S {
+    //      MAKE_METHOD(f)
+    //    }
+    //    ```
+    // 3. Macros that both declare a type and name a decl outside the macro.
+    //    ```
+    //    /// Comment is here, where we use the macro.
+    //    typedef NS_ENUM(NSInteger, Size) {
+    //        SizeWidth,
+    //        SizeHeight
+    //    };
+    //    ```
+    //    In this case NS_ENUM declares am enum type, and uses the same name for
+    //    the typedef declaration that appears outside the macro. The comment
+    //    here should be applied to both declarations inside and outside the
+    //    macro.
+    //
+    // We have found a Decl name that comes from inside a macro, but
+    // Decl::getLocation() returns the place where the macro is being called.
+    // If the declaration (and not just the name) resides inside the macro,
+    // then we want to map Decl::getLocation() into the macro to where the
+    // declaration and its attached comment (if any) were written.
+    //
+    // This mapping into the macro is done by mapping the location to its
+    // spelling location, however even if the declaration is inside a macro,
+    // the name's spelling can come from a macro argument (case 2 above). In
+    // this case mapping the location to the spelling location finds the
+    // argument's position (at `f` in MAKE_METHOD(`f`) above), which is not
+    // where the declaration and its comment are located.
+    //
+    // To avoid this issue, we make use of Decl::getBeginLocation() instead.
+    // While the declaration's position is where the name is written, the
+    // comment is always attached to the begining of the declaration, not to
+    // the name.
+    //
+    // In the first case, the begin location of the decl is outside the macro,
+    // at the location of `typedef`. This is where the comment is found as
+    // well. The begin location is not inside a macro, so it's spelling
+    // location is the same.
+    //
+    // In the second case, the begin location of the decl is the call to the
+    // macro, at `MAKE_METHOD`. However its spelling location is inside the
+    // the macro at the location of `void`. This is where the comment is found
+    // again.
+    //
+    // In the third case, there's no correct single behaviour. We want to use
+    // the comment outside the macro for the definition that's inside the macro.
+    // There is also a definition outside the macro, and we want the comment to
+    // apply to both. The cases we care about here is NS_ENUM() and
+    // NS_OPTIONS(). In general, if an enum is defined inside a macro, we should
+    // try to find the comment there.
 
-    if (const auto *TD = dyn_cast<TagDecl>(D)) {
-      // If location of the tag decl is inside a macro, but the spelling of
-      // the tag name comes from a macro argument, it looks like a special
-      // macro like NS_ENUM is being used to define the tag decl.  In that
-      // case, adjust the source location to the expansion loc so that we can
-      // attach the comment to the tag decl.
-      if (SourceMgr.isMacroArgExpansion(DeclLoc) && TD->isCompleteDefinition())
-        return SourceMgr.getExpansionLoc(DeclLoc);
+    // This is handling case 3 for NS_ENUM() and NS_OPTIONS(), which define
+    // enum types inside the macro.
+    if (isa<EnumDecl>(D)) {
+      SourceLocation MacroCallLoc = SourceMgr.getExpansionLoc(DeclLoc);
+      if (auto BufferRef =
+              SourceMgr.getBufferOrNone(SourceMgr.getFileID(MacroCallLoc));
+          BufferRef.has_value()) {
+        llvm::StringRef buffer = BufferRef->getBuffer().substr(
+            SourceMgr.getFileOffset(MacroCallLoc));
+        if (buffer.starts_with("NS_ENUM(") ||
+            buffer.starts_with("NS_OPTIONS(")) {
+          // We want to use the comment on the call to NS_ENUM and NS_OPTIONS
+          // macros for the types defined inside the macros, which is at the
+          // expansion location.
+          return MacroCallLoc;
+        }
+      }
     }
+    return SourceMgr.getSpellingLoc(D->getBeginLoc());
   }
 
   return DeclLoc;
@@ -802,7 +876,7 @@ ASTContext::getCanonicalTemplateTemplateParmDecl(
           TTP->getDepth(), TTP->getIndex(), nullptr, false,
           TTP->isParameterPack(), TTP->hasTypeConstraint(),
           TTP->isExpandedParameterPack()
-              ? llvm::Optional<unsigned>(TTP->getNumExpansionParameters())
+              ? std::optional<unsigned>(TTP->getNumExpansionParameters())
               : std::nullopt);
       if (const auto *TC = TTP->getTypeConstraint()) {
         QualType ParamAsArgument(NewTTP->getTypeForDecl(), 0);
@@ -1438,6 +1512,12 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 #include "clang/Basic/RISCVVTypes.def"
   }
 
+  if (Target.getTriple().isWasm() && Target.hasFeature("reference-types")) {
+#define WASM_TYPE(Name, Id, SingletonId)                                       \
+  InitBuiltinType(SingletonId, BuiltinType::Id);
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+  }
+
   // Builtin type for __objc_yes and __objc_no
   ObjCBuiltinBoolTy = (Target.useSignedCharForObjCBool() ?
                        SignedCharTy : BoolTy);
@@ -2008,13 +2088,14 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     TypeInfo EltInfo = getTypeInfo(VT->getElementType());
     Width = VT->isExtVectorBoolType() ? VT->getNumElements()
                                       : EltInfo.Width * VT->getNumElements();
-    // Enforce at least byte alignment.
+    // Enforce at least byte size and alignment.
+    Width = std::max<unsigned>(8, Width);
     Align = std::max<unsigned>(8, Width);
 
     // If the alignment is not a power of 2, round up to the next power of 2.
     // This happens for non-power-of-2 length vectors.
     if (Align & (Align-1)) {
-      Align = llvm::NextPowerOf2(Align);
+      Align = llvm::bit_ceil(Align);
       Width = llvm::alignTo(Width, Align);
     }
     // Adjust the alignment based on the target max.
@@ -2146,6 +2227,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       if (Target->hasBFloat16Type()) {
         Width = Target->getBFloat16Width();
         Align = Target->getBFloat16Align();
+      } else if ((getLangOpts().SYCLIsDevice ||
+                  (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
+                 AuxTarget->hasBFloat16Type()) {
+        Width = AuxTarget->getBFloat16Width();
+        Align = AuxTarget->getBFloat16Align();
       }
       break;
     case BuiltinType::Float16:
@@ -2267,6 +2353,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 8;                                                                 \
     break;
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId)                                       \
+  case BuiltinType::Id:                                                        \
+    Width = 0;                                                                 \
+    Align = 8;                                                                 \
+    break;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
     }
     break;
   case Type::ObjCObjectPointer:
@@ -2325,10 +2417,8 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   }
   case Type::BitInt: {
     const auto *EIT = cast<BitIntType>(T);
-    Align =
-        std::min(static_cast<unsigned>(std::max(
-                     getCharWidth(), llvm::PowerOf2Ceil(EIT->getNumBits()))),
-                 Target->getLongLongAlign());
+    Align = std::clamp<unsigned>(llvm::PowerOf2Ceil(EIT->getNumBits()),
+                                 getCharWidth(), Target->getLongLongAlign());
     Width = llvm::alignTo(EIT->getNumBits(), Align);
     break;
   }
@@ -2434,8 +2524,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       // favorable to atomic operations:
 
       // Round the size up to a power of 2.
-      if (!llvm::isPowerOf2_64(Width))
-        Width = llvm::NextPowerOf2(Width);
+      Width = llvm::bit_ceil(Width);
 
       // Set the alignment equal to the size.
       Align = static_cast<unsigned>(Width);
@@ -2475,7 +2564,8 @@ unsigned ASTContext::getTypeUnadjustedAlign(const Type *T) const {
 }
 
 unsigned ASTContext::getOpenMPDefaultSimdAlign(QualType T) const {
-  unsigned SimdAlign = getTargetInfo().getSimdDefaultAlign();
+  unsigned SimdAlign = llvm::OpenMPIRBuilder::getOpenMPDefaultSimdAlign(
+      getTargetInfo().getTriple(), Target->getTargetOpts().FeatureMap);
   return SimdAlign;
 }
 
@@ -2705,11 +2795,11 @@ static int64_t getSubobjectOffset(const CXXRecordDecl *RD,
   return Context.toBits(Layout.getBaseClassOffset(RD));
 }
 
-static llvm::Optional<int64_t>
+static std::optional<int64_t>
 structHasUniqueObjectRepresentations(const ASTContext &Context,
                                      const RecordDecl *RD);
 
-static llvm::Optional<int64_t>
+static std::optional<int64_t>
 getSubobjectSizeInBits(const FieldDecl *Field, const ASTContext &Context) {
   if (Field->getType()->isRecordType()) {
     const RecordDecl *RD = Field->getType()->getAsRecordDecl();
@@ -2743,17 +2833,17 @@ getSubobjectSizeInBits(const FieldDecl *Field, const ASTContext &Context) {
   return FieldSizeInBits;
 }
 
-static llvm::Optional<int64_t>
+static std::optional<int64_t>
 getSubobjectSizeInBits(const CXXRecordDecl *RD, const ASTContext &Context) {
   return structHasUniqueObjectRepresentations(Context, RD);
 }
 
 template <typename RangeT>
-static llvm::Optional<int64_t> structSubobjectsHaveUniqueObjectRepresentations(
+static std::optional<int64_t> structSubobjectsHaveUniqueObjectRepresentations(
     const RangeT &Subobjects, int64_t CurOffsetInBits,
     const ASTContext &Context, const clang::ASTRecordLayout &Layout) {
   for (const auto *Subobject : Subobjects) {
-    llvm::Optional<int64_t> SizeInBits =
+    std::optional<int64_t> SizeInBits =
         getSubobjectSizeInBits(Subobject, Context);
     if (!SizeInBits)
       return std::nullopt;
@@ -2767,7 +2857,7 @@ static llvm::Optional<int64_t> structSubobjectsHaveUniqueObjectRepresentations(
   return CurOffsetInBits;
 }
 
-static llvm::Optional<int64_t>
+static std::optional<int64_t>
 structHasUniqueObjectRepresentations(const ASTContext &Context,
                                      const RecordDecl *RD) {
   assert(!RD->isUnion() && "Must be struct/class type");
@@ -2789,7 +2879,7 @@ structHasUniqueObjectRepresentations(const ASTContext &Context,
       return Layout.getBaseClassOffset(L) < Layout.getBaseClassOffset(R);
     });
 
-    llvm::Optional<int64_t> OffsetAfterBases =
+    std::optional<int64_t> OffsetAfterBases =
         structSubobjectsHaveUniqueObjectRepresentations(Bases, CurOffsetInBits,
                                                         Context, Layout);
     if (!OffsetAfterBases)
@@ -2797,7 +2887,7 @@ structHasUniqueObjectRepresentations(const ASTContext &Context,
     CurOffsetInBits = *OffsetAfterBases;
   }
 
-  llvm::Optional<int64_t> OffsetAfterFields =
+  std::optional<int64_t> OffsetAfterFields =
       structSubobjectsHaveUniqueObjectRepresentations(
           RD->fields(), CurOffsetInBits, Context, Layout);
   if (!OffsetAfterFields)
@@ -2862,7 +2952,7 @@ bool ASTContext::hasUniqueObjectRepresentations(QualType Ty) const {
     if (Record->isUnion())
       return unionHasUniqueObjectRepresentations(*this, Record);
 
-    Optional<int64_t> StructSize =
+    std::optional<int64_t> StructSize =
         structHasUniqueObjectRepresentations(*this, Record);
 
     return StructSize && *StructSize == static_cast<int64_t>(getTypeSize(Ty));
@@ -4006,6 +4096,19 @@ ASTContext::getBuiltinVectorTypeInfo(const BuiltinType *Ty) const {
   }
 }
 
+/// getExternrefType - Return a WebAssembly externref type, which represents an
+/// opaque reference to a host value.
+QualType ASTContext::getWebAssemblyExternrefType() const {
+  if (Target->getTriple().isWasm() && Target->hasFeature("reference-types")) {
+#define WASM_REF_TYPE(Name, MangledName, Id, SingletonId, AS)                  \
+  if (BuiltinType::Id == BuiltinType::WasmExternRef)                           \
+    return SingletonId;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+  }
+  assert(false &&
+         "shouldn't try to generate type externref outside WebAssembly target");
+}
+
 /// getScalableVectorType - Return the unique reference to a scalable vector
 /// type of the specified element type and size. VectorType must be a built-in
 /// type.
@@ -4818,10 +4921,9 @@ QualType ASTContext::getBTFTagAttributedType(const BTFTypeTagAttr *BTFAttr,
 }
 
 /// Retrieve a substitution-result type.
-QualType
-ASTContext::getSubstTemplateTypeParmType(QualType Replacement,
-                                         Decl *AssociatedDecl, unsigned Index,
-                                         Optional<unsigned> PackIndex) const {
+QualType ASTContext::getSubstTemplateTypeParmType(
+    QualType Replacement, Decl *AssociatedDecl, unsigned Index,
+    std::optional<unsigned> PackIndex) const {
   llvm::FoldingSetNodeID ID;
   SubstTemplateTypeParmType::Profile(ID, Replacement, AssociatedDecl, Index,
                                      PackIndex);
@@ -5220,7 +5322,7 @@ TemplateArgument ASTContext::getInjectedTemplateArg(NamedDecl *Param) {
   } else {
     auto *TTP = cast<TemplateTemplateParmDecl>(Param);
     if (TTP->isParameterPack())
-      Arg = TemplateArgument(TemplateName(TTP), Optional<unsigned>());
+      Arg = TemplateArgument(TemplateName(TTP), std::optional<unsigned>());
     else
       Arg = TemplateArgument(TemplateName(TTP));
   }
@@ -5241,7 +5343,7 @@ ASTContext::getInjectedTemplateArgs(const TemplateParameterList *Params,
 }
 
 QualType ASTContext::getPackExpansionType(QualType Pattern,
-                                          Optional<unsigned> NumExpansions,
+                                          std::optional<unsigned> NumExpansions,
                                           bool ExpectPackInType) {
   assert((!ExpectPackInType || Pattern->containsUnexpandedParameterPack()) &&
          "Pack expansions must expand one or more parameter packs");
@@ -5309,7 +5411,7 @@ QualType ASTContext::getObjCObjectType(QualType BaseType,
                                        ObjCProtocolDecl * const *Protocols,
                                        unsigned NumProtocols) const {
   return getObjCObjectType(BaseType, {},
-                           llvm::makeArrayRef(Protocols, NumProtocols),
+                           llvm::ArrayRef(Protocols, NumProtocols),
                            /*isKindOf=*/false);
 }
 
@@ -6753,26 +6855,29 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
 
     case TemplateArgument::Declaration: {
       auto *D = cast<ValueDecl>(Arg.getAsDecl()->getCanonicalDecl());
-      return TemplateArgument(D, getCanonicalType(Arg.getParamTypeForDecl()));
+      return TemplateArgument(D, getCanonicalType(Arg.getParamTypeForDecl()),
+                              Arg.getIsDefaulted());
     }
 
     case TemplateArgument::NullPtr:
       return TemplateArgument(getCanonicalType(Arg.getNullPtrType()),
-                              /*isNullPtr*/true);
+                              /*isNullPtr*/ true, Arg.getIsDefaulted());
 
     case TemplateArgument::Template:
-      return TemplateArgument(getCanonicalTemplateName(Arg.getAsTemplate()));
+      return TemplateArgument(getCanonicalTemplateName(Arg.getAsTemplate()),
+                              Arg.getIsDefaulted());
 
     case TemplateArgument::TemplateExpansion:
-      return TemplateArgument(getCanonicalTemplateName(
-                                         Arg.getAsTemplateOrTemplatePattern()),
-                              Arg.getNumTemplateExpansions());
+      return TemplateArgument(
+          getCanonicalTemplateName(Arg.getAsTemplateOrTemplatePattern()),
+          Arg.getNumTemplateExpansions(), Arg.getIsDefaulted());
 
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
     case TemplateArgument::Type:
-      return TemplateArgument(getCanonicalType(Arg.getAsType()));
+      return TemplateArgument(getCanonicalType(Arg.getAsType()),
+                              /*isNullPtr*/ false, Arg.getIsDefaulted());
 
     case TemplateArgument::Pack: {
       bool AnyNonCanonArgs = false;
@@ -8049,6 +8154,8 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
 #include "clang/Basic/AArch64SVEACLETypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
       {
         DiagnosticsEngine &Diags = C->getDiagnostics();
         unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
@@ -9291,10 +9398,9 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
   return TemplateName(QTN);
 }
 
-TemplateName
-ASTContext::getSubstTemplateTemplateParm(TemplateName Replacement,
-                                         Decl *AssociatedDecl, unsigned Index,
-                                         Optional<unsigned> PackIndex) const {
+TemplateName ASTContext::getSubstTemplateTemplateParm(
+    TemplateName Replacement, Decl *AssociatedDecl, unsigned Index,
+    std::optional<unsigned> PackIndex) const {
   llvm::FoldingSetNodeID ID;
   SubstTemplateTemplateParmStorage::Profile(ID, Replacement, AssociatedDecl,
                                             Index, PackIndex);
@@ -10214,7 +10320,8 @@ QualType ASTContext::mergeFunctionParameterTypes(QualType lhs, QualType rhs,
 
 QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
                                         bool OfBlockPointer, bool Unqualified,
-                                        bool AllowCXX) {
+                                        bool AllowCXX,
+                                        bool IsConditionalOperator) {
   const auto *lbase = lhs->castAs<FunctionType>();
   const auto *rbase = rhs->castAs<FunctionType>();
   const auto *lproto = dyn_cast<FunctionProtoType>(lbase);
@@ -10277,9 +10384,27 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
   if (lbaseInfo.getNoCfCheck() != rbaseInfo.getNoCfCheck())
     return {};
 
-  // FIXME: some uses, e.g. conditional exprs, really want this to be 'both'.
-  bool NoReturn = lbaseInfo.getNoReturn() || rbaseInfo.getNoReturn();
-
+  // When merging declarations, it's common for supplemental information like
+  // attributes to only be present in one of the declarations, and we generally
+  // want type merging to preserve the union of information.  So a merged
+  // function type should be noreturn if it was noreturn in *either* operand
+  // type.
+  //
+  // But for the conditional operator, this is backwards.  The result of the
+  // operator could be either operand, and its type should conservatively
+  // reflect that.  So a function type in a composite type is noreturn only
+  // if it's noreturn in *both* operand types.
+  //
+  // Arguably, noreturn is a kind of subtype, and the conditional operator
+  // ought to produce the most specific common supertype of its operand types.
+  // That would differ from this rule in contravariant positions.  However,
+  // neither C nor C++ generally uses this kind of subtype reasoning.  Also,
+  // as a practical matter, it would only affect C code that does abstraction of
+  // higher-order functions (taking noreturn callbacks!), which is uncommon to
+  // say the least.  So we use the simpler rule.
+  bool NoReturn = IsConditionalOperator
+                      ? lbaseInfo.getNoReturn() && rbaseInfo.getNoReturn()
+                      : lbaseInfo.getNoReturn() || rbaseInfo.getNoReturn();
   if (lbaseInfo.getNoReturn() != NoReturn)
     allLTypes = false;
   if (rbaseInfo.getNoReturn() != NoReturn)
@@ -10412,9 +10537,9 @@ static QualType mergeEnumWithInteger(ASTContext &Context, const EnumType *ET,
   return {};
 }
 
-QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
-                                bool OfBlockPointer,
-                                bool Unqualified, bool BlockReturnType) {
+QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
+                                bool Unqualified, bool BlockReturnType,
+                                bool IsConditionalOperator) {
   // For C++ we will not reach this code with reference types (see below),
   // for OpenMP variant call overloading we might.
   //
@@ -10654,7 +10779,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
           const ConstantArrayType* CAT)
           -> std::pair<bool,llvm::APInt> {
         if (VAT) {
-          Optional<llvm::APSInt> TheInt;
+          std::optional<llvm::APSInt> TheInt;
           Expr *E = VAT->getSizeExpr();
           if (E && (TheInt = E->getIntegerConstantExpr(*this)))
             return std::make_pair(true, *TheInt);
@@ -10707,7 +10832,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
                                   ArrayType::ArraySizeModifier(), 0);
   }
   case Type::FunctionNoProto:
-    return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified);
+    return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified,
+                              /*AllowCXX=*/false, IsConditionalOperator);
   case Type::Record:
   case Type::Enum:
     return {};
@@ -11692,7 +11818,7 @@ static GVALinkage basicGVALinkageForVariable(const ASTContext &Context,
   llvm_unreachable("Invalid Linkage!");
 }
 
-GVALinkage ASTContext::GetGVALinkageForVariable(const VarDecl *VD) {
+GVALinkage ASTContext::GetGVALinkageForVariable(const VarDecl *VD) const {
   return adjustGVALinkageForExternalDefinitionKind(*this, VD,
            adjustGVALinkageForAttributes(*this, VD,
              basicGVALinkageForVariable(*this, VD)));
@@ -11943,7 +12069,7 @@ MangleContext *ASTContext::createDeviceMangleContext(const TargetInfo &T) {
   case TargetCXXABI::XL:
     return ItaniumMangleContext::create(
         *this, getDiagnostics(),
-        [](ASTContext &, const NamedDecl *ND) -> llvm::Optional<unsigned> {
+        [](ASTContext &, const NamedDecl *ND) -> std::optional<unsigned> {
           if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
             return RD->getDeviceLambdaManglingNumber();
           return std::nullopt;

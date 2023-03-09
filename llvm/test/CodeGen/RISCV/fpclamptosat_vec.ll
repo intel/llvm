@@ -489,11 +489,10 @@ define <4 x i32> @stest_f16i32(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    lui a0, 524288
 ; CHECK-V-NEXT:    addiw a1, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v10, a1
 ; CHECK-V-NEXT:    vmax.vx v10, v8, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
@@ -640,11 +639,10 @@ define <4 x i32> @utesth_f16i32(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    li a0, -1
 ; CHECK-V-NEXT:    srli a0, a0, 32
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vminu.vx v10, v10, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
 ; CHECK-V-NEXT:    vnsrl.wi v8, v10, 0
@@ -800,11 +798,10 @@ define <4 x i32> @ustest_f16i32(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    li a0, -1
 ; CHECK-V-NEXT:    srli a0, a0, 32
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v10, a0
 ; CHECK-V-NEXT:    vmax.vx v10, v8, zero
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
@@ -1455,11 +1452,10 @@ define <8 x i16> @stest_f16i16(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 8
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v8, a0
 ; CHECK-V-NEXT:    lui a0, 1048568
 ; CHECK-V-NEXT:    vmax.vx v10, v8, a0
@@ -1731,11 +1727,10 @@ define <8 x i16> @utesth_f16i16(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 16
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vminu.vx v10, v8, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e16, m1, ta, ma
 ; CHECK-V-NEXT:    vnsrl.wi v8, v10, 0
@@ -2027,11 +2022,10 @@ define <8 x i16> @ustest_f16i16(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 16
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v8, a0
 ; CHECK-V-NEXT:    vmax.vx v10, v8, zero
 ; CHECK-V-NEXT:    vsetvli zero, zero, e16, m1, ta, ma
@@ -2224,7 +2218,7 @@ define <2 x i64> @stest_f64i64(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -2317,7 +2311,7 @@ define <2 x i64> @utest_f64i64(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -2461,7 +2455,7 @@ define <2 x i64> @ustest_f64i64(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -2647,7 +2641,7 @@ define <2 x i64> @stest_f32i64(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -2740,7 +2734,7 @@ define <2 x i64> @utest_f32i64(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -2884,7 +2878,7 @@ define <2 x i64> @ustest_f32i64(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -3064,7 +3058,7 @@ define <2 x i64> @stest_f16i64(<2 x half> %x) {
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
 ; CHECK-V-NEXT:    mv a0, sp
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
@@ -3150,7 +3144,7 @@ define <2 x i64> @utesth_f16i64(<2 x half> %x) {
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
 ; CHECK-V-NEXT:    mv a0, sp
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
@@ -3287,7 +3281,7 @@ define <2 x i64> @ustest_f16i64(<2 x half> %x) {
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
 ; CHECK-V-NEXT:    mv a0, sp
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
@@ -3782,11 +3776,10 @@ define <4 x i32> @stest_f16i32_mm(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    lui a0, 524288
 ; CHECK-V-NEXT:    addiw a1, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v10, a1
 ; CHECK-V-NEXT:    vmax.vx v10, v8, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
@@ -3931,11 +3924,10 @@ define <4 x i32> @utesth_f16i32_mm(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    li a0, -1
 ; CHECK-V-NEXT:    srli a0, a0, 32
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vminu.vx v10, v10, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
 ; CHECK-V-NEXT:    vnsrl.wi v8, v10, 0
@@ -4090,11 +4082,10 @@ define <4 x i32> @ustest_f16i32_mm(<4 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 8
 ; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 4, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v10, v8, 3
 ; CHECK-V-NEXT:    li a0, -1
 ; CHECK-V-NEXT:    srli a0, a0, 32
-; CHECK-V-NEXT:    vsetvli zero, zero, e64, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v10, a0
 ; CHECK-V-NEXT:    vmax.vx v10, v8, zero
 ; CHECK-V-NEXT:    vsetvli zero, zero, e32, m1, ta, ma
@@ -4733,11 +4724,10 @@ define <8 x i16> @stest_f16i16_mm(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 8
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v8, a0
 ; CHECK-V-NEXT:    lui a0, 1048568
 ; CHECK-V-NEXT:    vmax.vx v10, v8, a0
@@ -5005,11 +4995,10 @@ define <8 x i16> @utesth_f16i16_mm(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 16
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vminu.vx v10, v8, a0
 ; CHECK-V-NEXT:    vsetvli zero, zero, e16, m1, ta, ma
 ; CHECK-V-NEXT:    vnsrl.wi v8, v10, 0
@@ -5300,11 +5289,10 @@ define <8 x i16> @ustest_f16i16_mm(<8 x half> %x) {
 ; CHECK-V-NEXT:    addi a0, sp, 4
 ; CHECK-V-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-V-NEXT:    vle32.v v10, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 8, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v10, 7
 ; CHECK-V-NEXT:    lui a0, 16
 ; CHECK-V-NEXT:    addiw a0, a0, -1
-; CHECK-V-NEXT:    vsetvli zero, zero, e32, m2, ta, ma
 ; CHECK-V-NEXT:    vmin.vx v8, v8, a0
 ; CHECK-V-NEXT:    vmax.vx v10, v8, zero
 ; CHECK-V-NEXT:    vsetvli zero, zero, e16, m1, ta, ma
@@ -5510,7 +5498,7 @@ define <2 x i64> @stest_f64i64_mm(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -5584,11 +5572,7 @@ define <2 x i64> @utest_f64i64_mm(<2 x double> %x) {
 ; CHECK-NOV-NEXT:    mv s1, a1
 ; CHECK-NOV-NEXT:    fmv.d fa0, fs0
 ; CHECK-NOV-NEXT:    call __fixunsdfti@plt
-; CHECK-NOV-NEXT:    snez a2, a1
-; CHECK-NOV-NEXT:    addi a2, a2, -1
-; CHECK-NOV-NEXT:    and a0, a2, a0
-; CHECK-NOV-NEXT:    addi a1, a1, -1
-; CHECK-NOV-NEXT:    seqz a1, a1
+; CHECK-NOV-NEXT:    snez a1, a1
 ; CHECK-NOV-NEXT:    addi a1, a1, -1
 ; CHECK-NOV-NEXT:    and a0, a1, a0
 ; CHECK-NOV-NEXT:    snez a1, s1
@@ -5639,11 +5623,7 @@ define <2 x i64> @utest_f64i64_mm(<2 x double> %x) {
 ; CHECK-V-NEXT:    seqz a3, s1
 ; CHECK-V-NEXT:    addi a3, a3, -1
 ; CHECK-V-NEXT:    and a2, a3, a2
-; CHECK-V-NEXT:    snez a3, a1
-; CHECK-V-NEXT:    addi a3, a3, -1
-; CHECK-V-NEXT:    and a0, a3, a0
-; CHECK-V-NEXT:    addi a1, a1, -1
-; CHECK-V-NEXT:    seqz a1, a1
+; CHECK-V-NEXT:    snez a1, a1
 ; CHECK-V-NEXT:    addi a1, a1, -1
 ; CHECK-V-NEXT:    and a0, a1, a0
 ; CHECK-V-NEXT:    sd a0, 24(sp)
@@ -5653,7 +5633,7 @@ define <2 x i64> @utest_f64i64_mm(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -5801,7 +5781,7 @@ define <2 x i64> @ustest_f64i64_mm(<2 x double> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -6000,7 +5980,7 @@ define <2 x i64> @stest_f32i64_mm(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -6074,11 +6054,7 @@ define <2 x i64> @utest_f32i64_mm(<2 x float> %x) {
 ; CHECK-NOV-NEXT:    mv s1, a1
 ; CHECK-NOV-NEXT:    fmv.s fa0, fs0
 ; CHECK-NOV-NEXT:    call __fixunssfti@plt
-; CHECK-NOV-NEXT:    snez a2, a1
-; CHECK-NOV-NEXT:    addi a2, a2, -1
-; CHECK-NOV-NEXT:    and a0, a2, a0
-; CHECK-NOV-NEXT:    addi a1, a1, -1
-; CHECK-NOV-NEXT:    seqz a1, a1
+; CHECK-NOV-NEXT:    snez a1, a1
 ; CHECK-NOV-NEXT:    addi a1, a1, -1
 ; CHECK-NOV-NEXT:    and a0, a1, a0
 ; CHECK-NOV-NEXT:    snez a1, s1
@@ -6129,11 +6105,7 @@ define <2 x i64> @utest_f32i64_mm(<2 x float> %x) {
 ; CHECK-V-NEXT:    seqz a3, s1
 ; CHECK-V-NEXT:    addi a3, a3, -1
 ; CHECK-V-NEXT:    and a2, a3, a2
-; CHECK-V-NEXT:    snez a3, a1
-; CHECK-V-NEXT:    addi a3, a3, -1
-; CHECK-V-NEXT:    and a0, a3, a0
-; CHECK-V-NEXT:    addi a1, a1, -1
-; CHECK-V-NEXT:    seqz a1, a1
+; CHECK-V-NEXT:    snez a1, a1
 ; CHECK-V-NEXT:    addi a1, a1, -1
 ; CHECK-V-NEXT:    and a0, a1, a0
 ; CHECK-V-NEXT:    sd a0, 24(sp)
@@ -6143,7 +6115,7 @@ define <2 x i64> @utest_f32i64_mm(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -6291,7 +6263,7 @@ define <2 x i64> @ustest_f32i64_mm(<2 x float> %x) {
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
 ; CHECK-V-NEXT:    addi a0, sp, 32
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    csrr a0, vlenb
 ; CHECK-V-NEXT:    slli a0, a0, 1
@@ -6485,7 +6457,7 @@ define <2 x i64> @stest_f16i64_mm(<2 x half> %x) {
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
 ; CHECK-V-NEXT:    mv a0, sp
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
@@ -6559,11 +6531,7 @@ define <2 x i64> @utesth_f16i64_mm(<2 x half> %x) {
 ; CHECK-NOV-NEXT:    mv a0, s0
 ; CHECK-NOV-NEXT:    call __extendhfsf2@plt
 ; CHECK-NOV-NEXT:    call __fixunssfti@plt
-; CHECK-NOV-NEXT:    snez a2, a1
-; CHECK-NOV-NEXT:    addi a2, a2, -1
-; CHECK-NOV-NEXT:    and a0, a2, a0
-; CHECK-NOV-NEXT:    addi a1, a1, -1
-; CHECK-NOV-NEXT:    seqz a1, a1
+; CHECK-NOV-NEXT:    snez a1, a1
 ; CHECK-NOV-NEXT:    addi a1, a1, -1
 ; CHECK-NOV-NEXT:    and a0, a1, a0
 ; CHECK-NOV-NEXT:    snez a1, s2
@@ -6592,8 +6560,7 @@ define <2 x i64> @utesth_f16i64_mm(<2 x half> %x) {
 ; CHECK-V-NEXT:    .cfi_offset s0, -16
 ; CHECK-V-NEXT:    .cfi_offset s1, -24
 ; CHECK-V-NEXT:    .cfi_offset s2, -32
-; CHECK-V-NEXT:    mv s0, a0
-; CHECK-V-NEXT:    mv a0, a1
+; CHECK-V-NEXT:    mv s0, a1
 ; CHECK-V-NEXT:    call __extendhfsf2@plt
 ; CHECK-V-NEXT:    call __fixunssfti@plt
 ; CHECK-V-NEXT:    mv s1, a0
@@ -6611,18 +6578,14 @@ define <2 x i64> @utesth_f16i64_mm(<2 x half> %x) {
 ; CHECK-V-NEXT:    snez a1, s2
 ; CHECK-V-NEXT:    addi a1, a1, -1
 ; CHECK-V-NEXT:    and a1, a1, s1
-; CHECK-V-NEXT:    addi s2, s2, -1
-; CHECK-V-NEXT:    seqz a2, s2
-; CHECK-V-NEXT:    addi a2, a2, -1
-; CHECK-V-NEXT:    and a1, a2, a1
-; CHECK-V-NEXT:    sd a1, 8(sp)
-; CHECK-V-NEXT:    sd a0, 0(sp)
-; CHECK-V-NEXT:    addi a0, sp, 8
-; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
-; CHECK-V-NEXT:    vle64.v v9, (a0)
+; CHECK-V-NEXT:    sd a1, 0(sp)
+; CHECK-V-NEXT:    sd a0, 8(sp)
 ; CHECK-V-NEXT:    mv a0, sp
+; CHECK-V-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    addi a0, sp, 8
+; CHECK-V-NEXT:    vle64.v v9, (a0)
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
@@ -6764,7 +6727,7 @@ define <2 x i64> @ustest_f16i64_mm(<2 x half> %x) {
 ; CHECK-V-NEXT:    vle64.v v9, (a0)
 ; CHECK-V-NEXT:    mv a0, sp
 ; CHECK-V-NEXT:    vle64.v v8, (a0)
-; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
+; CHECK-V-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
 ; CHECK-V-NEXT:    vslideup.vi v8, v9, 1
 ; CHECK-V-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; CHECK-V-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload

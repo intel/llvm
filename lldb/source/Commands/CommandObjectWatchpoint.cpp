@@ -196,7 +196,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_watchpoint_list_options);
+      return llvm::ArrayRef(g_watchpoint_list_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -209,13 +209,13 @@ protected:
     Target *target = &GetSelectedTarget();
 
     if (target->GetProcessSP() && target->GetProcessSP()->IsAlive()) {
-      uint32_t num_supported_hardware_watchpoints;
-      Status error = target->GetProcessSP()->GetWatchpointSupportInfo(
-          num_supported_hardware_watchpoints);
-      if (error.Success())
+      std::optional<uint32_t> num_supported_hardware_watchpoints =
+          target->GetProcessSP()->GetWatchpointSlotCount();
+
+      if (num_supported_hardware_watchpoints)
         result.AppendMessageWithFormat(
             "Number of supported hardware watchpoints: %u\n",
-            num_supported_hardware_watchpoints);
+            *num_supported_hardware_watchpoints);
     }
 
     const WatchpointList &watchpoints = target->GetWatchpointList();
@@ -479,7 +479,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_watchpoint_delete_options);
+      return llvm::ArrayRef(g_watchpoint_delete_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -605,7 +605,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_watchpoint_ignore_options);
+      return llvm::ArrayRef(g_watchpoint_ignore_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -730,7 +730,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_watchpoint_modify_options);
+      return llvm::ArrayRef(g_watchpoint_modify_options);
     }
 
     // Instance variables to hold the values for command options.

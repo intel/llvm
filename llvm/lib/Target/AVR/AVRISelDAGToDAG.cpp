@@ -188,18 +188,13 @@ unsigned AVRDAGToDAGISel::selectIndexedProgMemLoad(const LoadSDNode *LD, MVT VT,
   unsigned Opcode = 0;
   int Offs = cast<ConstantSDNode>(LD->getOffset())->getSExtValue();
 
-  switch (VT.SimpleTy) {
-  case MVT::i8:
-    if (Offs == 1)
-      Opcode = Bank > 0 ? AVR::ELPMBRdZPi : AVR::LPMRdZPi;
-    break;
-  case MVT::i16:
-    if (Offs == 2)
-      Opcode = Bank > 0 ? AVR::ELPMWRdZPi : AVR::LPMWRdZPi;
-    break;
-  default:
-    break;
-  }
+  if (VT.SimpleTy == MVT::i8 && Offs == 1 && Bank == 0)
+    Opcode = AVR::LPMRdZPi;
+
+  // TODO: Implements the expansion of the following pseudo instructions.
+  // LPMWRdZPi:  type == MVT::i16, offset == 2, Bank == 0.
+  // ELPMBRdZPi: type == MVT::i8,  offset == 1, Bank >  0.
+  // ELPMWRdZPi: type == MVT::i16, offset == 2, Bank >  0.
 
   return Opcode;
 }
@@ -472,8 +467,9 @@ template <> bool AVRDAGToDAGISel::select<AVRISD::CALL>(SDNode *N) {
   Ops.push_back(Chain);
   Ops.push_back(Chain.getValue(1));
 
-  SDNode *ResNode =
-      CurDAG->getMachineNode(AVR::ICALL, DL, MVT::Other, MVT::Glue, Ops);
+  SDNode *ResNode = CurDAG->getMachineNode(
+      Subtarget->hasEIJMPCALL() ? AVR::EICALL : AVR::ICALL, DL, MVT::Other,
+      MVT::Glue, Ops);
 
   ReplaceUses(SDValue(N, 0), SDValue(ResNode, 0));
   ReplaceUses(SDValue(N, 1), SDValue(ResNode, 1));

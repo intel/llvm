@@ -179,10 +179,8 @@ static void getSortedConstantKeys(std::vector<Value *> &SortedKeys,
 
   stable_sort(SortedKeys, [](const Value *LHS, const Value *RHS) {
     assert(LHS && RHS && "Expected non void values.");
-    const ConstantInt *LHSC = dyn_cast<ConstantInt>(LHS);
-    const ConstantInt *RHSC = dyn_cast<ConstantInt>(RHS);
-    assert(RHSC && "Not a constant integer in return value?");
-    assert(LHSC && "Not a constant integer in return value?");
+    const ConstantInt *LHSC = cast<ConstantInt>(LHS);
+    const ConstantInt *RHSC = cast<ConstantInt>(RHS);
 
     return LHSC->getLimitedValue() < RHSC->getLimitedValue();
   });
@@ -1277,7 +1275,7 @@ static std::optional<unsigned> getGVNForPHINode(OutlinableRegion &Region,
 /// \param [in,out] Region - The region of code to be analyzed.
 /// \param [in] Outputs - The values found by the code extractor.
 static void
-findExtractedOutputToOverallOutputMapping(OutlinableRegion &Region,
+findExtractedOutputToOverallOutputMapping(Module &M, OutlinableRegion &Region,
                                           SetVector<Value *> &Outputs) {
   OutlinableGroup &Group = *Region.Parent;
   IRSimilarityCandidate &C = *Region.Candidate;
@@ -1332,7 +1330,7 @@ findExtractedOutputToOverallOutputMapping(OutlinableRegion &Region,
 
     unsigned AggArgIdx = 0;
     for (unsigned Jdx = TypeIndex; Jdx < ArgumentSize; Jdx++) {
-      if (Group.ArgumentTypes[Jdx] != PointerType::getUnqual(Output->getType()))
+      if (!isa<PointerType>(Group.ArgumentTypes[Jdx]))
         continue;
 
       if (AggArgsUsed.contains(Jdx))
@@ -1350,7 +1348,8 @@ findExtractedOutputToOverallOutputMapping(OutlinableRegion &Region,
     // the output, so we add a pointer type to the argument types of the overall
     // function to handle this output and create a mapping to it.
     if (!TypeFound) {
-      Group.ArgumentTypes.push_back(PointerType::getUnqual(Output->getType()));
+      Group.ArgumentTypes.push_back(Output->getType()->getPointerTo(
+          M.getDataLayout().getAllocaAddrSpace()));
       // Mark the new pointer type as the last value in the aggregate argument
       // list.
       unsigned ArgTypeIdx = Group.ArgumentTypes.size() - 1;
@@ -1418,7 +1417,7 @@ void IROutliner::findAddInputsOutputs(Module &M, OutlinableRegion &Region,
 
   // Map the outputs found by the CodeExtractor to the arguments found for
   // the overall function.
-  findExtractedOutputToOverallOutputMapping(Region, Outputs);
+  findExtractedOutputToOverallOutputMapping(M, Region, Outputs);
 }
 
 /// Replace the extracted function in the Region with a call to the overall
@@ -3023,46 +3022,6 @@ bool IROutliner::run(Module &M) {
   return doOutline(M) > 0;
 }
 
-// Pass Manager Boilerplate
-namespace {
-class IROutlinerLegacyPass : public ModulePass {
-public:
-  static char ID;
-  IROutlinerLegacyPass() : ModulePass(ID) {
-    initializeIROutlinerLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-    AU.addRequired<IRSimilarityIdentifierWrapperPass>();
-  }
-
-  bool runOnModule(Module &M) override;
-};
-} // namespace
-
-bool IROutlinerLegacyPass::runOnModule(Module &M) {
-  if (skipModule(M))
-    return false;
-
-  std::unique_ptr<OptimizationRemarkEmitter> ORE;
-  auto GORE = [&ORE](Function &F) -> OptimizationRemarkEmitter & {
-    ORE.reset(new OptimizationRemarkEmitter(&F));
-    return *ORE;
-  };
-
-  auto GTTI = [this](Function &F) -> TargetTransformInfo & {
-    return this->getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-  };
-
-  auto GIRSI = [this](Module &) -> IRSimilarityIdentifier & {
-    return this->getAnalysis<IRSimilarityIdentifierWrapperPass>().getIRSI();
-  };
-
-  return IROutliner(GTTI, GIRSI, GORE).run(M);
-}
-
 PreservedAnalyses IROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
 
@@ -3087,14 +3046,3 @@ PreservedAnalyses IROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
 }
-
-char IROutlinerLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(IROutlinerLegacyPass, "iroutliner", "IR Outliner", false,
-                      false)
-INITIALIZE_PASS_DEPENDENCY(IRSimilarityIdentifierWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-INITIALIZE_PASS_END(IROutlinerLegacyPass, "iroutliner", "IR Outliner", false,
-                    false)
-
-ModulePass *llvm::createIROutlinerPass() { return new IROutlinerLegacyPass(); }

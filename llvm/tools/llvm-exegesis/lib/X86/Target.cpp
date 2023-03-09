@@ -22,7 +22,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 
 #include <memory>
 #include <string>
@@ -713,12 +713,11 @@ private:
 
   ArrayRef<unsigned> getUnavailableRegisters() const override {
     if (DisableUpperSSERegisters)
-      return makeArrayRef(kUnavailableRegistersSSE,
-                          sizeof(kUnavailableRegistersSSE) /
-                              sizeof(kUnavailableRegistersSSE[0]));
+      return ArrayRef(kUnavailableRegistersSSE,
+                      sizeof(kUnavailableRegistersSSE) /
+                          sizeof(kUnavailableRegistersSSE[0]));
 
-    return makeArrayRef(kUnavailableRegisters,
-                        std::size(kUnavailableRegisters));
+    return ArrayRef(kUnavailableRegisters, std::size(kUnavailableRegisters));
   }
 
   bool allowAsBackToBack(const Instruction &Instr) const override {

@@ -22,7 +22,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
@@ -37,12 +36,14 @@
 #include "llvm/Support/FileCollector.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/thread.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -82,9 +83,9 @@ static constexpr opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class DsymutilOptTable : public opt::OptTable {
+class DsymutilOptTable : public opt::GenericOptTable {
 public:
-  DsymutilOptTable() : OptTable(InfoTable) {}
+  DsymutilOptTable() : opt::GenericOptTable(InfoTable) {}
 };
 } // namespace
 
@@ -557,7 +558,7 @@ int main(int argc, char **argv) {
   DsymutilOptTable T;
   unsigned MAI;
   unsigned MAC;
-  ArrayRef<const char *> ArgsArr = makeArrayRef(argv + 1, argc - 1);
+  ArrayRef<const char *> ArgsArr = ArrayRef(argv + 1, argc - 1);
   opt::InputArgList Args = T.ParseArgs(ArgsArr, MAI, MAC);
 
   void *P = (void *)(intptr_t)getOutputFileName;

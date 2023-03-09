@@ -1,4 +1,4 @@
-﻿//===- GenericUniformAnalysis.cpp --------------------*- C++ -*------------===//
+﻿//===- GenericUniformityImpl.h -----------------------*- C++ -*------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -467,9 +467,8 @@ private:
                            ConstValueRefT Val) const;
 };
 
-template <typename ContextT>
-void GenericUniformityInfo<ContextT>::ImplDeleter::operator()(
-    GenericUniformityAnalysisImpl<ContextT> *Impl) {
+template <typename ImplT>
+void GenericUniformityAnalysisImplDeleter<ImplT>::operator()(ImplT *Impl) {
   delete Impl;
 }
 

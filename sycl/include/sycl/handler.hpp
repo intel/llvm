@@ -18,6 +18,7 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -33,6 +34,7 @@
 #include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <functional>
 #include <limits>
@@ -2468,13 +2470,30 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memcpy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
-    else
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Copies data from one 2D memory region to another, both pointed by
@@ -2502,14 +2521,31 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_copy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
                                SrcPitch * sizeof(T), Width * sizeof(T), Height);
-    else
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -2537,9 +2573,16 @@ public:
                             "Destination pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memset2d'");
     T CharVal = static_cast<T>(Value);
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemset2D())
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, CharVal, Width, Height);
+    else if (supportsUSMMemset2D())
       ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
     else
       commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
@@ -2567,13 +2610,105 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_fill2d'");
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMFill2D())
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, Pattern, Width, Height);
+    else if (supportsUSMFill2D())
       ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
                              Height);
     else
       commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
+  }
+
+  /// Copies data from a USM memory region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param NumBytes and
+  /// \param DestOffset.
+  ///
+  /// \param Dest is the destination device_glboal.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param DestOffset is the offset into \param Dest to copy to.
+  template <typename T, typename PropertyListT>
+  void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+              const void *Src, size_t NumBytes = sizeof(T),
+              size_t DestOffset = 0) {
+    if (sizeof(T) < DestOffset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy to device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, DestOffset);
+  }
+
+  /// Copies data from a device_global to USM memory.
+  /// Throws an exception if the copy operation intends to read outside the
+  /// memory range \param Src, as specified through \param NumBytes and
+  /// \param SrcOffset.
+  ///
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Src is the source device_global.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param SrcOffset is the offset into \param Src to copy from.
+  template <typename T, typename PropertyListT>
+  void
+  memcpy(void *Dest,
+         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+         size_t NumBytes = sizeof(T), size_t SrcOffset = 0) {
+    if (sizeof(T) < SrcOffset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy from device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
+                           SrcOffset);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
+  /// region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is the destination device_glboal.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Dest to copy to.
+  template <typename T, typename PropertyListT>
+  void copy(const std::remove_all_extents_t<T> *Src,
+            ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+            size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+            size_t StartIndex = 0) {
+    this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                 StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a
+  /// device_global to a USM memory region.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Src, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is the source device_global.
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Src to copy from.
+  template <typename T, typename PropertyListT>
+  void
+  copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+       std::remove_all_extents_t<T> *Dest,
+       size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+       size_t StartIndex = 0) {
+    this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                 StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
 
 private:
@@ -2706,6 +2841,8 @@ private:
         NumWorkItems, KernelFunc);
   }
 
+  const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();
   bool supportsUSMFill2D();
@@ -2720,6 +2857,8 @@ private:
   void commonUSMCopy2DFallbackKernel(const void *Src, size_t SrcPitch,
                                      void *Dest, size_t DestPitch, size_t Width,
                                      size_t Height) {
+    // Otherwise the data is accessible on the device so we do the operation
+    // there instead.
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
@@ -2739,12 +2878,33 @@ private:
         });
   }
 
+  // Common function for launching a 2D USM memcpy host-task to avoid
+  // redefinitions of the kernel from copy and memcpy.
+  template <typename T>
+  void commonUSMCopy2DFallbackHostTask(const void *Src, size_t SrcPitch,
+                                       void *Dest, size_t DestPitch,
+                                       size_t Width, size_t Height) {
+    // If both pointers are host USM or unknown (assumed non-USM) we use a
+    // host-task to satisfy dependencies.
+    host_task([=] {
+      const T *CastedSrc = static_cast<const T *>(Src);
+      T *CastedDest = static_cast<T *>(Dest);
+      for (size_t I = 0; I < Height; ++I) {
+        const T *SrcItBegin = CastedSrc + SrcPitch * I;
+        T *DestItBegin = CastedDest + DestPitch * I;
+        std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
+      }
+    });
+  }
+
   // Common function for launching a 2D USM fill kernel to avoid redefinitions
   // of the kernel from memset and fill.
   template <typename T>
   void commonUSMFill2DFallbackKernel(void *Dest, size_t DestPitch,
                                      const T &Pattern, size_t Width,
                                      size_t Height) {
+    // Otherwise the data is accessible on the device so we do the operation
+    // there instead.
     // Limit number of work items to be resistant to big fill operations.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
@@ -2763,6 +2923,23 @@ private:
         });
   }
 
+  // Common function for launching a 2D USM fill kernel or host_task to avoid
+  // redefinitions of the kernel from memset and fill.
+  template <typename T>
+  void commonUSMFill2DFallbackHostTask(void *Dest, size_t DestPitch,
+                                       const T &Pattern, size_t Width,
+                                       size_t Height) {
+    // If the pointer is host USM or unknown (assumed non-USM) we use a
+    // host-task to satisfy dependencies.
+    host_task([=] {
+      T *CastedDest = static_cast<T *>(Dest);
+      for (size_t I = 0; I < Height; ++I) {
+        T *ItBegin = CastedDest + DestPitch * I;
+        std::fill(ItBegin, ItBegin + Width, Pattern);
+      }
+    });
+  }
+
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
   void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,
                                 size_t SrcPitch, size_t Width, size_t Height);
@@ -2774,6 +2951,16 @@ private:
   // Implementation of ext_oneapi_memset2d using command for native 2D memset.
   void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                 size_t Width, size_t Height);
+
+  // Implementation of memcpy to device_global.
+  void memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
+                            bool IsDeviceImageScoped, size_t NumBytes,
+                            size_t Offset);
+
+  // Implementation of memcpy from device_global.
+  void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                              bool IsDeviceImageScoped, size_t NumBytes,
+                              size_t Offset);
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

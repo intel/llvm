@@ -350,6 +350,12 @@ namespace llvm {
     bool operator>=(const MVT& S) const { return SimpleTy >= S.SimpleTy; }
     bool operator<=(const MVT& S) const { return SimpleTy <= S.SimpleTy; }
 
+    /// Support for debugging, callable in GDB: VT.dump()
+    void dump() const;
+
+    /// Implement operator<<.
+    void print(raw_ostream &OS) const;
+
     /// Return true if this is a valid simple valuetype.
     bool isValid() const {
       return (SimpleTy >= MVT::FIRST_VALUETYPE &&
@@ -1132,11 +1138,11 @@ namespace llvm {
     /// Return the size of the specified fixed width value type in bits. The
     /// function will assert if the type is scalable.
     uint64_t getFixedSizeInBits() const {
-      return getSizeInBits().getFixedSize();
+      return getSizeInBits().getFixedValue();
     }
 
     uint64_t getScalarSizeInBits() const {
-      return getScalarType().getSizeInBits().getFixedSize();
+      return getScalarType().getSizeInBits().getFixedValue();
     }
 
     /// Return the number of bytes overwritten by a store of the specified value
@@ -1147,13 +1153,13 @@ namespace llvm {
     /// base size.
     TypeSize getStoreSize() const {
       TypeSize BaseSize = getSizeInBits();
-      return {(BaseSize.getKnownMinSize() + 7) / 8, BaseSize.isScalable()};
+      return {(BaseSize.getKnownMinValue() + 7) / 8, BaseSize.isScalable()};
     }
 
     // Return the number of bytes overwritten by a store of this value type or
     // this value type's element type in the case of a vector.
     uint64_t getScalarStoreSize() const {
-      return getScalarType().getStoreSize().getFixedSize();
+      return getScalarType().getStoreSize().getFixedValue();
     }
 
     /// Return the number of bits overwritten by a store of the specified value
@@ -1570,6 +1576,11 @@ namespace llvm {
     }
     /// @}
   };
+
+  inline raw_ostream &operator<<(raw_ostream &OS, const MVT &VT) {
+    VT.print(OS);
+    return OS;
+  }
 
 } // end namespace llvm
 

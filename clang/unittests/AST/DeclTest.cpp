@@ -20,7 +20,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gtest/gtest.h"
 
 using namespace clang::ast_matchers;
@@ -244,14 +244,14 @@ TEST(Decl, ModuleAndInternalLinkage) {
   EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
 
   AST = tooling::buildASTFromCodeWithArgs(
-      Code.code(), /*Args=*/{"-std=c++20", "-fmodules-ts"});
+      Code.code(), /*Args=*/{"-std=c++20"});
   ASTContext &CtxTS = AST->getASTContext();
   a = selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), CtxTS));
   f = selectFirst<FunctionDecl>(
       "f", match(functionDecl(hasName("f")).bind("f"), CtxTS));
 
-  EXPECT_EQ(a->getLinkageInternal(), ModuleInternalLinkage);
-  EXPECT_EQ(f->getLinkageInternal(), ModuleInternalLinkage);
+  EXPECT_EQ(a->getLinkageInternal(), InternalLinkage);
+  EXPECT_EQ(f->getLinkageInternal(), InternalLinkage);
 
   b = selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), CtxTS));
   g = selectFirst<FunctionDecl>(
@@ -404,7 +404,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                          hasParameter(0, hasType(isUnsignedInteger())))
                 .bind("operator new"),
             Ctx));
-  EXPECT_TRUE(SizedOperatorNew->getOwningModule());
+  ASSERT_TRUE(SizedOperatorNew->getOwningModule());
   EXPECT_TRUE(SizedOperatorNew->getOwningModule()->isGlobalModule());
 
   // void* operator new(std::size_t, std::align_val_t);
@@ -416,7 +416,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
                 .bind("operator new"),
             Ctx));
-  EXPECT_TRUE(SizedAlignedOperatorNew->getOwningModule());
+  ASSERT_TRUE(SizedAlignedOperatorNew->getOwningModule());
   EXPECT_TRUE(SizedAlignedOperatorNew->getOwningModule()->isGlobalModule());
 
   // void* operator new[](std::size_t);
@@ -426,7 +426,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                          hasParameter(0, hasType(isUnsignedInteger())))
                 .bind("operator new[]"),
             Ctx));
-  EXPECT_TRUE(SizedArrayOperatorNew->getOwningModule());
+  ASSERT_TRUE(SizedArrayOperatorNew->getOwningModule());
   EXPECT_TRUE(SizedArrayOperatorNew->getOwningModule()->isGlobalModule());
 
   // void* operator new[](std::size_t, std::align_val_t);
@@ -438,7 +438,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
                 .bind("operator new[]"),
             Ctx));
-  EXPECT_TRUE(SizedAlignedArrayOperatorNew->getOwningModule());
+  ASSERT_TRUE(SizedAlignedArrayOperatorNew->getOwningModule());
   EXPECT_TRUE(
       SizedAlignedArrayOperatorNew->getOwningModule()->isGlobalModule());
 
@@ -450,7 +450,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(0, hasType(pointerType(pointee(voidType())))))
                 .bind("operator delete"),
             Ctx));
-  EXPECT_TRUE(Delete->getOwningModule());
+  ASSERT_TRUE(Delete->getOwningModule());
   EXPECT_TRUE(Delete->getOwningModule()->isGlobalModule());
 
   // void operator delete(void*, std::align_val_t) noexcept;
@@ -462,7 +462,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
                 .bind("operator delete"),
             Ctx));
-  EXPECT_TRUE(AlignedDelete->getOwningModule());
+  ASSERT_TRUE(AlignedDelete->getOwningModule());
   EXPECT_TRUE(AlignedDelete->getOwningModule()->isGlobalModule());
 
   // Sized deallocation is not enabled by default. So we skip it here.
@@ -475,7 +475,7 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(0, hasType(pointerType(pointee(voidType())))))
                 .bind("operator delete[]"),
             Ctx));
-  EXPECT_TRUE(ArrayDelete->getOwningModule());
+  ASSERT_TRUE(ArrayDelete->getOwningModule());
   EXPECT_TRUE(ArrayDelete->getOwningModule()->isGlobalModule());
 
   // void operator delete[](void*, std::align_val_t) noexcept;
@@ -487,6 +487,37 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
                 hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
                 .bind("operator delete[]"),
             Ctx));
-  EXPECT_TRUE(AlignedArrayDelete->getOwningModule());
+  ASSERT_TRUE(AlignedArrayDelete->getOwningModule());
   EXPECT_TRUE(AlignedArrayDelete->getOwningModule()->isGlobalModule());
+}
+
+TEST(Decl, TemplateArgumentDefaulted) {
+  llvm::Annotations Code(R"cpp(
+    template<typename T1, typename T2>
+    struct Alloc {};
+
+    template <typename T1,
+              typename T2 = double,
+              int      T3 = 42,
+              typename T4 = Alloc<T1, T2>>
+    struct Foo {
+    };
+
+    Foo<char, int, 42, Alloc<char, int>> X;
+  )cpp");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto const *CTSD = selectFirst<ClassTemplateSpecializationDecl>(
+      "id",
+      match(classTemplateSpecializationDecl(hasName("Foo")).bind("id"), Ctx));
+  ASSERT_NE(CTSD, nullptr);
+  auto const &ArgList = CTSD->getTemplateArgs();
+
+  EXPECT_FALSE(ArgList.get(0).getIsDefaulted());
+  EXPECT_FALSE(ArgList.get(1).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(2).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(3).getIsDefaulted());
 }

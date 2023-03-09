@@ -64,9 +64,7 @@ static bool areSwitchBranchesIdentical(const SwitchBranch LHS,
   return true;
 }
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void BranchCloneCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -143,7 +141,7 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
         if (NumCopies == 2) {
           // We report the first occurrence only when we find the second one.
           diag(Branches[I]->getBeginLoc(),
-               "repeated branch in conditional chain");
+               "repeated branch body in conditional chain");
           SourceLocation End =
               Lexer::getLocForEndOfToken(Branches[I]->getEndLoc(), 0,
                                          *Result.SourceManager, getLangOpts());
@@ -238,6 +236,4 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
   llvm_unreachable("No if statement and no switch statement.");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

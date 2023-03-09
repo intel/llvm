@@ -17,7 +17,7 @@ class VOP3P_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR,
   // We do not want to print src modifiers for vop3p because the bits are
   // overloaded in meaning and the logic in printOperandAndFPInputMods is
   // wrong for vop3p
-  let AsmVOP3DPPBase = AsmVOP3P;
+  let AsmVOP3Base = AsmVOP3P;
 }
 
 // Used for FMA_MIX* and MAD_MIX* insts
@@ -35,7 +35,7 @@ class VOP3P_Mix_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR,
                FP16InputMods:$src2_modifiers, VCSrc_f16:$src2);
     dag dpp_srcs =
           (ins FPVRegInputMods:$src0_modifiers, VGPRSrc_32:$src0,
-               FPVRegInputMods:$src1_modifiers, VGPRSrc_32:$src1,
+               FPVRegInputMods:$src1_modifiers, VRegSrc_32:$src1,
                FP16InputMods:$src2_modifiers, VCSrc_f16:$src2);
 
            // FIXME: clampmod0 misbehaves with the non-default vdst_in
@@ -50,9 +50,8 @@ class VOP3P_Mix_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR,
     // due to the logic in class VOP3_Pseudo
     let Ins64 = !con(srcs, mods);
     let InsVOP3Base = !con(dpp_srcs, mods);
-    let Asm64 =
+    let AsmVOP3Base =
       "$vdst, $src0_modifiers, $src1_modifiers, $src2_modifiers$op_sel$op_sel_hi$clamp";
-    let AsmVOP3DPPBase = Asm64;
 }
 
 multiclass VOP3PInst<string OpName, VOPProfile P,
@@ -338,11 +337,12 @@ defm V_DOT2_U32_U16 : VOP3PInst<"v_dot2_u32_u16",
 
 } // End SubtargetPredicate = HasDot2Insts
 
-let SubtargetPredicate = HasDot7Insts in {
-
+let SubtargetPredicate = HasDot10Insts in
 defm V_DOT2_F32_F16 : VOP3PInst<"v_dot2_f32_f16",
   VOP3P_Profile<VOP_F32_V2F16_V2F16_F32, VOP3_REGULAR, /*HasDPP*/ 1>,
   AMDGPUfdot2, 1/*ExplicitClamp*/>;
+
+let SubtargetPredicate = HasDot7Insts in {
 defm V_DOT4_U32_U8  : VOP3PInst<"v_dot4_u32_u8",
   VOP3P_Profile<VOP_I32_I32_I32_I32, VOP3_PACKED>, int_amdgcn_udot4, 1>;
 defm V_DOT8_U32_U4  : VOP3PInst<"v_dot8_u32_u4",
@@ -359,13 +359,17 @@ defm V_DOT8_I32_I4  : VOP3PInst<"v_dot8_i32_i4",
 
 } // End SubtargetPredicate = HasDot1Insts
 
-let SubtargetPredicate = HasDot8Insts  in {
+def DOT2_BF16_Profile
+  : VOP3P_Profile<VOP_F32_V2I16_V2I16_F32, VOP3_REGULAR, /*HasDPP*/ 1> {
+  let HasSrc1Mods = 1;
+}
 
-defm V_DOT2_F32_BF16 : VOP3PInst<"v_dot2_f32_bf16",
-  VOP3P_Profile<VOP_F32_V2I16_V2I16_F32, VOP3_REGULAR, /*HasDPP*/ 1>,
+let SubtargetPredicate = HasDot9Insts  in {
+
+defm V_DOT2_F32_BF16 : VOP3PInst<"v_dot2_f32_bf16", DOT2_BF16_Profile,
   int_amdgcn_fdot2_f32_bf16, 1>;
 
-} // End SubtargetPredicate = HasDot8Insts
+} // End SubtargetPredicate = HasDot9Insts
 
 } // End let IsDOT = 1
 
@@ -450,8 +454,7 @@ class VOPProfileMAI<VOPProfile P, RegisterOperand _SrcRC, RegisterOperand _DstRC
   let HasIntClamp = 0;
   let HasOMod = 0;
   let HasModifiers = 0;
-  let Asm64 = "$vdst, $src0, $src1, $src2$cbsz$abid$blgp";
-  let AsmVOP3DPPBase = Asm64;
+  let AsmVOP3Base = "$vdst, $src0, $src1, $src2$cbsz$abid$blgp";
   let Ins64 = (ins Src0RC64:$src0, Src1RC64:$src1, Src2RC64:$src2, cbsz:$cbsz, abid:$abid, blgp:$blgp);
   let InsVOP3Base = Ins64;
   // Dst and SrcC cannot partially overlap if SrcC/Dst is bigger than 4 VGPRs.
@@ -1079,27 +1082,15 @@ defm V_FMA_MIXHI_F16 : VOP3P_Real_vi <0x22>;
 }
 
 
-let SubtargetPredicate = HasDot2Insts in {
-
 defm V_DOT2_I32_I16 : VOP3P_Real_vi <0x26>;
 defm V_DOT2_U32_U16 : VOP3P_Real_vi <0x27>;
-
-} // End SubtargetPredicate = HasDot2Insts
-
-let SubtargetPredicate = HasDot7Insts in {
 
 defm V_DOT2_F32_F16 : VOP3P_Real_vi <0x23>;
 defm V_DOT4_U32_U8  : VOP3P_Real_vi <0x29>;
 defm V_DOT8_U32_U4  : VOP3P_Real_vi <0x2b>;
 
-} // End SubtargetPredicate = HasDot7Insts
-
-let SubtargetPredicate = HasDot1Insts in {
-
 defm V_DOT4_I32_I8  : VOP3P_Real_vi <0x28>;
 defm V_DOT8_I32_I4  : VOP3P_Real_vi <0x2a>;
-
-} // End SubtargetPredicate = HasDot1Insts
 
 let SubtargetPredicate = HasMAIInsts in {
 
@@ -1223,24 +1214,12 @@ defm V_FMA_MIX_F32    : VOP3P_Real_gfx10_gfx11_Triple <0x20>;
 defm V_FMA_MIXLO_F16  : VOP3P_Real_gfx10_gfx11_Triple <0x21>;
 defm V_FMA_MIXHI_F16  : VOP3P_Real_gfx10_gfx11_Triple <0x22>;
 
-let SubtargetPredicate = HasDot2Insts in {
-
 defm V_DOT2_I32_I16 : VOP3P_Real_gfx10 <0x14>;
 defm V_DOT2_U32_U16 : VOP3P_Real_gfx10 <0x15>;
-
-} // End SubtargetPredicate = HasDot2Insts
-
-let SubtargetPredicate = HasDot7Insts in {
 
 defm V_DOT2_F32_F16 : VOP3P_Real_gfx10_gfx11_Triple <0x13>;
 defm V_DOT4_U32_U8  : VOP3P_Real_gfx10_gfx11 <0x17>;
 defm V_DOT8_U32_U4  : VOP3P_Real_gfx10_gfx11 <0x19>;
 
-} // End SubtargetPredicate = HasDot7Insts
-
-let SubtargetPredicate = HasDot1Insts in {
-
 defm V_DOT4_I32_I8  : VOP3P_Real_gfx10 <0x16>;
 defm V_DOT8_I32_I4  : VOP3P_Real_gfx10 <0x18>;
-
-} // End SubtargetPredicate = HasDot1Insts

@@ -609,7 +609,7 @@ bool M68kInstrInfo::isPCRelRegisterOperandLegal(
   const MachineInstr *MI = MO.getParent();
   const unsigned NameIndices = M68kInstrNameIndices[MI->getOpcode()];
   StringRef InstrName(&M68kInstrNameData[NameIndices]);
-  const unsigned OperandNo = MI->getOperandNo(&MO);
+  const unsigned OperandNo = MO.getOperandNo();
 
   // If this machine operand is the 2nd operand, then check
   // whether the instruction has destination addressing mode 'k'.
@@ -810,7 +810,7 @@ M68kInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_GOTOFF, "m68k-gotoff"},
       {MO_GOTPCREL, "m68k-gotpcrel"},
       {MO_PLT, "m68k-plt"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }
 
 namespace {

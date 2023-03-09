@@ -396,7 +396,7 @@ private:
     assert(!evaluationListStack.empty() && "empty evaluation list stack");
     if (!constructAndDirectiveStack.empty())
       eval.parentConstruct = constructAndDirectiveStack.back();
-    auto &entryPointList = eval.getOwningProcedure()->entryPointList;
+    lower::pft::FunctionLikeUnit *owningProcedure = eval.getOwningProcedure();
     evaluationListStack.back()->emplace_back(std::move(eval));
     lower::pft::Evaluation *p = &evaluationListStack.back()->back();
     if (p->isActionStmt() || p->isConstructStmt() || p->isEndStmt() ||
@@ -408,11 +408,14 @@ private:
         p->printIndex = 1;
       }
       lastLexicalEvaluation = p;
-      for (std::size_t entryIndex = entryPointList.size() - 1;
-           entryIndex && !entryPointList[entryIndex].second->lexicalSuccessor;
-           --entryIndex)
-        // Link to the entry's first executable statement.
-        entryPointList[entryIndex].second->lexicalSuccessor = p;
+      if (owningProcedure) {
+        auto &entryPointList = owningProcedure->entryPointList;
+        for (std::size_t entryIndex = entryPointList.size() - 1;
+             entryIndex && !entryPointList[entryIndex].second->lexicalSuccessor;
+             --entryIndex)
+          // Link to the entry's first executable statement.
+          entryPointList[entryIndex].second->lexicalSuccessor = p;
+      }
     } else if (const auto *entryStmt = p->getIf<parser::EntryStmt>()) {
       const semantics::Symbol *sym =
           std::get<parser::Name>(entryStmt->t).symbol;
@@ -420,7 +423,7 @@ private:
         sym = details->specific();
       assert(sym->has<semantics::SubprogramDetails>() &&
              "entry must be a subprogram");
-      entryPointList.push_back(std::pair{sym, p});
+      owningProcedure->entryPointList.push_back(std::pair{sym, p});
     }
     if (p->label.has_value())
       labelEvaluationMap->try_emplace(*p->label, p);
@@ -508,7 +511,7 @@ private:
       auto branchTargetMatch = [&]() {
         if (const parser::Label targetLabel =
                 ifCandidateStack.back().ifTargetLabel)
-          if (targetLabel == *targetEval.label)
+          if (targetEval.label && targetLabel == *targetEval.label)
             return true; // goto target match
         if (targetEvalIsEndDoStmt && ifCandidateStack.back().isCycleStmt)
           return true; // cycle target match
@@ -824,7 +827,7 @@ private:
             lastConstructStmtEvaluation = &eval;
           },
           [&](const parser::EndSelectStmt &) {
-            eval.nonNopSuccessor().isNewBlock = true;
+            eval.isNewBlock = true;
             lastConstructStmtEvaluation = nullptr;
           },
           [&](const parser::ChangeTeamStmt &s) {
@@ -924,32 +927,31 @@ private:
           },
 
           // Constructs - set (unstructured) construct exit targets
-          [&](const parser::AssociateConstruct &) { setConstructExit(eval); },
+          [&](const parser::AssociateConstruct &) {
+            eval.constructExit = &eval.evaluationList->back();
+          },
           [&](const parser::BlockConstruct &) {
-            // EndBlockStmt may have code.
             eval.constructExit = &eval.evaluationList->back();
           },
           [&](const parser::CaseConstruct &) {
-            setConstructExit(eval);
+            eval.constructExit = &eval.evaluationList->back();
             eval.isUnstructured = true;
           },
           [&](const parser::ChangeTeamConstruct &) {
-            // EndChangeTeamStmt may have code.
             eval.constructExit = &eval.evaluationList->back();
           },
           [&](const parser::CriticalConstruct &) {
-            // EndCriticalStmt may have code.
             eval.constructExit = &eval.evaluationList->back();
           },
           [&](const parser::DoConstruct &) { setConstructExit(eval); },
           [&](const parser::ForallConstruct &) { setConstructExit(eval); },
           [&](const parser::IfConstruct &) { setConstructExit(eval); },
           [&](const parser::SelectRankConstruct &) {
-            setConstructExit(eval);
+            eval.constructExit = &eval.evaluationList->back();
             eval.isUnstructured = true;
           },
           [&](const parser::SelectTypeConstruct &) {
-            setConstructExit(eval);
+            eval.constructExit = &eval.evaluationList->back();
             eval.isUnstructured = true;
           },
           [&](const parser::WhereConstruct &) { setConstructExit(eval); },
@@ -970,13 +972,6 @@ private:
       // Analyze construct evaluations.
       if (eval.evaluationList)
         analyzeBranches(&eval, *eval.evaluationList);
-
-      // Set the successor of the last statement in an IF or SELECT block.
-      if (!eval.controlSuccessor && eval.lexicalSuccessor &&
-          eval.lexicalSuccessor->isIntermediateConstructStmt()) {
-        eval.controlSuccessor = parentConstruct->constructExit;
-        eval.lexicalSuccessor->isNewBlock = true;
-      }
 
       // Propagate isUnstructured flag to enclosing construct.
       if (parentConstruct && eval.isUnstructured)

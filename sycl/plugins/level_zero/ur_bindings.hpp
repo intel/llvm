@@ -15,3 +15,7 @@
 struct _zer_platform_handle_t : public _pi_platform {
   using _pi_platform::_pi_platform;
 };
+
+struct _zer_device_handle_t : public _pi_device {
+  using _pi_device::_pi_device;
+};

@@ -1,9 +1,9 @@
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
-; RUN: not llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv 2>&1 | FileCheck %s
+; RUN: llvm-as < %s -o %t.bc
+; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK: Atomic nand is not supported in SPIR-V!
-; CHECK: atomicrmw nand i32 addrspace(1)* @ui, i32 42 acq_rel
+; CHECK: atomicrmw nand ptr addrspace(1) @ui, i32 42 acq_rel
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
@@ -14,9 +14,9 @@ target triple = "spir64"
 ; Function Attrs: nounwind
 define dso_local spir_func void @test_atomicrmw() local_unnamed_addr #0 {
 entry:
-  %0 = atomicrmw nand i32 addrspace(1)* @ui, i32 42 acq_rel
-  %1 = atomicrmw fadd float addrspace(1)* @f, float 42.000000e+00 seq_cst
-  %2 = atomicrmw fsub float addrspace(1)* @f, float 42.000000e+00 seq_cst
+  %0 = atomicrmw nand ptr addrspace(1) @ui, i32 42 acq_rel
+  %1 = atomicrmw fadd ptr addrspace(1) @f, float 42.000000e+00 seq_cst
+  %2 = atomicrmw fsub ptr addrspace(1) @f, float 42.000000e+00 seq_cst
   ret void
 }
 

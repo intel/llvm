@@ -37,7 +37,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
 
@@ -59,7 +59,7 @@ namespace ranges {
   // `iterator_t` defined in <__ranges/access.h>
 
   template <range _Rp>
-  using sentinel_t = decltype(ranges::end(declval<_Rp&>()));
+  using sentinel_t = decltype(ranges::end(std::declval<_Rp&>()));
 
   template <range _Rp>
   using range_difference_t = iter_difference_t<iterator_t<_Rp>>;
@@ -78,7 +78,7 @@ namespace ranges {
   concept sized_range = range<_Tp> && requires(_Tp& __t) { ranges::size(__t); };
 
   template<sized_range _Rp>
-  using range_size_t = decltype(ranges::size(declval<_Rp&>()));
+  using range_size_t = decltype(ranges::size(std::declval<_Rp&>()));
 
   // `disable_sized_range` defined in `<__ranges/size.h>`
 
@@ -140,7 +140,7 @@ namespace ranges {
 
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

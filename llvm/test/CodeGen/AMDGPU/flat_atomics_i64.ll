@@ -4032,14 +4032,8 @@ entry:
 define amdgpu_kernel void @atomic_cmpxchg_i64_ret_addr64_offset(ptr %out, ptr %out2, i64 %in, i64 %index, i64 %old) {
 ; GCN1-LABEL: atomic_cmpxchg_i64_ret_addr64_offset:
 ; GCN1:       ; %bb.0: ; %entry
-; GCN1-NEXT:    s_mov_b32 s12, SCRATCH_RSRC_DWORD0
-; GCN1-NEXT:    s_mov_b32 s13, SCRATCH_RSRC_DWORD1
 ; GCN1-NEXT:    s_load_dwordx8 s[4:11], s[0:1], 0x9
 ; GCN1-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x11
-; GCN1-NEXT:    s_mov_b32 s14, -1
-; GCN1-NEXT:    s_mov_b32 s15, 0xe8f000
-; GCN1-NEXT:    s_add_u32 s12, s12, s3
-; GCN1-NEXT:    s_addc_u32 s13, s13, 0
 ; GCN1-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN1-NEXT:    s_lshl_b64 s[2:3], s[10:11], 3
 ; GCN1-NEXT:    v_mov_b32_e32 v2, s0
@@ -4063,14 +4057,8 @@ define amdgpu_kernel void @atomic_cmpxchg_i64_ret_addr64_offset(ptr %out, ptr %o
 ;
 ; GCN2-LABEL: atomic_cmpxchg_i64_ret_addr64_offset:
 ; GCN2:       ; %bb.0: ; %entry
-; GCN2-NEXT:    s_mov_b32 s88, SCRATCH_RSRC_DWORD0
-; GCN2-NEXT:    s_mov_b32 s89, SCRATCH_RSRC_DWORD1
 ; GCN2-NEXT:    s_load_dwordx8 s[4:11], s[0:1], 0x24
 ; GCN2-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x44
-; GCN2-NEXT:    s_mov_b32 s90, -1
-; GCN2-NEXT:    s_mov_b32 s91, 0xe80000
-; GCN2-NEXT:    s_add_u32 s88, s88, s3
-; GCN2-NEXT:    s_addc_u32 s89, s89, 0
 ; GCN2-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN2-NEXT:    s_lshl_b64 s[2:3], s[10:11], 3
 ; GCN2-NEXT:    v_mov_b32_e32 v2, s0
@@ -4231,14 +4219,8 @@ entry:
 define amdgpu_kernel void @atomic_cmpxchg_i64_ret_addr64(ptr %out, ptr %out2, i64 %in, i64 %index, i64 %old) {
 ; GCN1-LABEL: atomic_cmpxchg_i64_ret_addr64:
 ; GCN1:       ; %bb.0: ; %entry
-; GCN1-NEXT:    s_mov_b32 s12, SCRATCH_RSRC_DWORD0
-; GCN1-NEXT:    s_mov_b32 s13, SCRATCH_RSRC_DWORD1
 ; GCN1-NEXT:    s_load_dwordx8 s[4:11], s[0:1], 0x9
 ; GCN1-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x11
-; GCN1-NEXT:    s_mov_b32 s14, -1
-; GCN1-NEXT:    s_mov_b32 s15, 0xe8f000
-; GCN1-NEXT:    s_add_u32 s12, s12, s3
-; GCN1-NEXT:    s_addc_u32 s13, s13, 0
 ; GCN1-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN1-NEXT:    s_lshl_b64 s[2:3], s[10:11], 3
 ; GCN1-NEXT:    s_add_u32 s2, s4, s2
@@ -4260,14 +4242,8 @@ define amdgpu_kernel void @atomic_cmpxchg_i64_ret_addr64(ptr %out, ptr %out2, i6
 ;
 ; GCN2-LABEL: atomic_cmpxchg_i64_ret_addr64:
 ; GCN2:       ; %bb.0: ; %entry
-; GCN2-NEXT:    s_mov_b32 s88, SCRATCH_RSRC_DWORD0
-; GCN2-NEXT:    s_mov_b32 s89, SCRATCH_RSRC_DWORD1
 ; GCN2-NEXT:    s_load_dwordx8 s[4:11], s[0:1], 0x24
 ; GCN2-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x44
-; GCN2-NEXT:    s_mov_b32 s90, -1
-; GCN2-NEXT:    s_mov_b32 s91, 0xe80000
-; GCN2-NEXT:    s_add_u32 s88, s88, s3
-; GCN2-NEXT:    s_addc_u32 s89, s89, 0
 ; GCN2-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN2-NEXT:    s_lshl_b64 s[2:3], s[10:11], 3
 ; GCN2-NEXT:    s_add_u32 s2, s4, s2
@@ -4607,5 +4583,165 @@ define amdgpu_kernel void @atomic_store_f64_addr64(double %in, ptr %out, i64 %in
 entry:
   %ptr = getelementptr double, ptr %out, i64 %index
   store atomic double %in, ptr %ptr seq_cst, align 8
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_offset:
+; GCN: flat_atomic_inc_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}}{{$}}
+define amdgpu_kernel void @atomic_inc_i64_offset(ptr %out, i64 %in) {
+entry:
+  %gep = getelementptr i64, ptr %out, i64 4
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %gep, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_ret_offset:
+; GCN: flat_atomic_inc_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_inc_i64_ret_offset(ptr %out, ptr %out2, i64 %in) {
+entry:
+  %gep = getelementptr i64, ptr %out, i64 4
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %gep, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_incr64_offset:
+; GCN: flat_atomic_inc_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}}{{$}}
+define amdgpu_kernel void @atomic_inc_i64_incr64_offset(ptr %out, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %gep = getelementptr i64, ptr %ptr, i64 4
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %gep, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_ret_incr64_offset:
+; GCN: flat_atomic_inc_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_inc_i64_ret_incr64_offset(ptr %out, ptr %out2, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %gep = getelementptr i64, ptr %ptr, i64 4
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %gep, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64:
+; GCN: flat_atomic_inc_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]$}}
+define amdgpu_kernel void @atomic_inc_i64(ptr %out, i64 %in) {
+entry:
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %out, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_ret:
+; GCN: flat_atomic_inc_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_inc_i64_ret(ptr %out, ptr %out2, i64 %in) {
+entry:
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %out, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_incr64:
+; GCN: flat_atomic_inc_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]$}}
+define amdgpu_kernel void @atomic_inc_i64_incr64(ptr %out, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %ptr, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_inc_i64_ret_incr64:
+; GCN: flat_atomic_inc_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_inc_i64_ret_incr64(ptr %out, ptr %out2, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %tmp0 = atomicrmw volatile uinc_wrap ptr %ptr, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_offset:
+; GCN: flat_atomic_dec_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}}{{$}}
+define amdgpu_kernel void @atomic_dec_i64_offset(ptr %out, i64 %in) {
+entry:
+  %gep = getelementptr i64, ptr %out, i64 4
+  %tmp0 = atomicrmw volatile udec_wrap ptr %gep, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_ret_offset:
+; GCN: flat_atomic_dec_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_dec_i64_ret_offset(ptr %out, ptr %out2, i64 %in) {
+entry:
+  %gep = getelementptr i64, ptr %out, i64 4
+  %tmp0 = atomicrmw volatile udec_wrap ptr %gep, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_decr64_offset:
+; GCN: flat_atomic_dec_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}}{{$}}
+define amdgpu_kernel void @atomic_dec_i64_decr64_offset(ptr %out, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %gep = getelementptr i64, ptr %ptr, i64 4
+  %tmp0 = atomicrmw volatile udec_wrap ptr %gep, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_ret_decr64_offset:
+; GCN: flat_atomic_dec_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_dec_i64_ret_decr64_offset(ptr %out, ptr %out2, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %gep = getelementptr i64, ptr %ptr, i64 4
+  %tmp0 = atomicrmw volatile udec_wrap ptr %gep, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64:
+; GCN: flat_atomic_dec_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]$}}
+define amdgpu_kernel void @atomic_dec_i64(ptr %out, i64 %in) {
+entry:
+  %tmp0 = atomicrmw volatile udec_wrap ptr %out, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_ret:
+; GCN: flat_atomic_dec_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_dec_i64_ret(ptr %out, ptr %out2, i64 %in) {
+entry:
+  %tmp0 = atomicrmw volatile udec_wrap ptr %out, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_decr64:
+; GCN: flat_atomic_dec_x2 v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]$}}
+define amdgpu_kernel void @atomic_dec_i64_decr64(ptr %out, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %tmp0 = atomicrmw volatile udec_wrap ptr %ptr, i64 %in seq_cst
+  ret void
+}
+
+; GCN-LABEL: {{^}}atomic_dec_i64_ret_decr64:
+; GCN: flat_atomic_dec_x2 [[RET:v\[[0-9]+:[0-9]+\]]], v[{{[0-9]+:[0-9]+}}], v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RET]]
+define amdgpu_kernel void @atomic_dec_i64_ret_decr64(ptr %out, ptr %out2, i64 %in, i64 %index) {
+entry:
+  %ptr = getelementptr i64, ptr %out, i64 %index
+  %tmp0 = atomicrmw volatile udec_wrap ptr %ptr, i64 %in seq_cst
+  store i64 %tmp0, ptr %out2
   ret void
 }

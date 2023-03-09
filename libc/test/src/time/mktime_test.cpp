@@ -9,13 +9,12 @@
 #include "src/time/mktime.h"
 #include "src/time/time_utils.h"
 #include "test/ErrnoSetterMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "test/src/time/TmHelper.h"
 #include "test/src/time/TmMatcher.h"
-#include "utils/UnitTest/Test.h"
 
 #include <errno.h>
 #include <limits.h>
-#include <string.h>
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
 using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;

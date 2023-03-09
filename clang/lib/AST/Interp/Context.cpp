@@ -42,6 +42,11 @@ bool Context::isPotentialConstantExpr(State &Parent, const FunctionDecl *FD) {
     }
   }
 
+  APValue DummyResult;
+  if (!Run(Parent, Func, DummyResult)) {
+    return false;
+  }
+
   return Func->isConstexpr();
 }
 
@@ -113,6 +118,9 @@ std::optional<PrimType> Context::classify(QualType T) const {
   if (T->isNullPtrType())
     return PT_Ptr;
 
+  if (T->isFloatingType())
+    return PT_Float;
+
   if (auto *AT = dyn_cast<AtomicType>(T))
     return classify(AT->getValueType());
 
@@ -125,7 +133,7 @@ unsigned Context::getCharBit() const {
 
 bool Context::Run(State &Parent, Function *Func, APValue &Result) {
   InterpState State(Parent, *P, Stk, *this);
-  State.Current = new InterpFrame(State, Func, nullptr, {}, {});
+  State.Current = new InterpFrame(State, Func, /*Caller=*/nullptr, {});
   if (Interpret(State, Result))
     return true;
   Stk.clear();

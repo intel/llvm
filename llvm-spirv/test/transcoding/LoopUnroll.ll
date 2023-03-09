@@ -52,6 +52,13 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.1
+; RUN: llvm-spirv -to-text %t.spv -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV-NEGATIVE
+
+; Check SPIR-V versions in a format magic number + version
+; CHECK-SPIRV: 119734787 66560
+; CHECK-SPIRV-NEGATIVE: 119734787 65536
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
@@ -125,6 +132,7 @@ while.cond:                                       ; preds = %if.end, %if.then, %
 ; Per SPIRV spec p3.23 "Unroll" loop control = 0x1
 ; CHECK-SPIRV: LoopMerge [[#MERGEBLOCK:]] [[#CONTINUE:]] 256 8
 ; CHECK-SPIRV: BranchConditional [[#]] [[#]] [[#MERGEBLOCK]]
+; CHECK-SPIRV-NEGATIVE-NOT: LoopMerge {{.*}} 256
   br i1 %cmp, label %while.body, label %while.end
 
 while.body:                                       ; preds = %while.cond

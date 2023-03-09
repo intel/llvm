@@ -9,6 +9,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -542,7 +543,7 @@ void Process::Finalize() {
   m_notifications.swap(empty_notifications);
   m_image_tokens.clear();
   m_memory_cache.Clear();
-  m_allocated_memory_cache.Clear();
+  m_allocated_memory_cache.Clear(/*deallocate_memory=*/true);
   {
     std::lock_guard<std::recursive_mutex> guard(m_language_runtimes_mutex);
     m_language_runtimes.clear();
@@ -2354,6 +2355,23 @@ Status Process::DeallocateMemory(addr_t ptr) {
   return error;
 }
 
+bool Process::GetWatchpointReportedAfter() {
+  if (std::optional<bool> subclass_override = DoGetWatchpointReportedAfter())
+    return *subclass_override;
+
+  bool reported_after = true;
+  const ArchSpec &arch = GetTarget().GetArchitecture();
+  if (!arch.IsValid())
+    return reported_after;
+  llvm::Triple triple = arch.GetTriple();
+
+  if (triple.isMIPS() || triple.isPPC64() || triple.isRISCV() ||
+      triple.isAArch64() || triple.isArmMClass() || triple.isARM())
+    reported_after = false;
+
+  return reported_after;
+}
+
 ModuleSP Process::ReadModuleFromMemory(const FileSpec &file_spec,
                                        lldb::addr_t header_addr,
                                        size_t size_to_read) {
@@ -3351,7 +3369,7 @@ Status Process::Signal(int signal) {
 
 void Process::SetUnixSignals(UnixSignalsSP &&signals_sp) {
   assert(signals_sp && "null signals_sp");
-  m_unix_signals_sp = signals_sp;
+  m_unix_signals_sp = std::move(signals_sp);
 }
 
 const lldb::UnixSignalsSP &Process::GetUnixSignals() {
@@ -4614,7 +4632,7 @@ GetExpressionTimeout(const EvaluateExpressionOptions &options,
     return *options.GetTimeout() - GetOneThreadExpressionTimeout(options);
 }
 
-static llvm::Optional<ExpressionResults>
+static std::optional<ExpressionResults>
 HandleStoppedEvent(lldb::tid_t thread_id, const ThreadPlanSP &thread_plan_sp,
                    RestorePlanState &restorer, const EventSP &event_sp,
                    EventSP &event_to_broadcast_sp,
@@ -5656,7 +5674,9 @@ void Process::DidExec() {
   m_dyld_up.reset();
   m_jit_loaders_up.reset();
   m_image_tokens.clear();
-  m_allocated_memory_cache.Clear();
+  // After an exec, the inferior is a new process and these memory regions are
+  // no longer allocated.
+  m_allocated_memory_cache.Clear(/*deallocte_memory=*/false);
   {
     std::lock_guard<std::recursive_mutex> guard(m_language_runtimes_mutex);
     m_language_runtimes.clear();

@@ -6,23 +6,14 @@
 # //
 # //===--------------------------------------------------------------------===//
 
-
-# TODO: This is deprecated. Since CMake 3.17 we can use FindCUDAToolkit instead.
-find_package(CUDA QUIET)
-find_library(cuda-library NAMES cuda PATHS /lib64)
-if (NOT cuda-library AND CUDA_FOUND)
-  get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
-  find_library(cuda-library NAMES cuda HINTS "${CUDA_LIBDIR}/stubs")
-endif()
-
-if (NOT CUDA_FOUND OR NOT cuda-library)
-  message(STATUS "Not building nvptx-arch: cuda runtime not found")
-  return()
-endif()
-
+set(LLVM_LINK_COMPONENTS Support)
 add_clang_tool(nvptx-arch NVPTXArch.cpp)
 
-set_target_properties(nvptx-arch PROPERTIES INSTALL_RPATH_USE_LINK_PATH ON)
-target_include_directories(nvptx-arch PRIVATE ${CUDA_INCLUDE_DIRS})
+find_package(CUDAToolkit QUIET)
 
-clang_target_link_libraries(nvptx-arch PRIVATE ${cuda-library})
+# If we found the CUDA library directly we just dynamically link against it.
+if(CUDAToolkit_FOUND AND NOT (LLVM_BUILD_32_BITS OR CMAKE_SIZEOF_VOID_P EQUAL 4))
+  target_link_libraries(nvptx-arch PRIVATE CUDA::cuda_driver)
+else()
+  target_compile_definitions(nvptx-arch PRIVATE "DYNAMIC_CUDA")
+endif()

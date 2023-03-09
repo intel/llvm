@@ -208,7 +208,7 @@ entry:
   ret void
 }
 
-declare !sycl.kernel.fused !18 void @fused_kernel()
+declare !sycl.kernel.fused !18 !sycl.kernel.nd-ranges !20 !sycl.kernel.nd-range !21 void @fused_kernel()
 
 attributes #0 = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
@@ -231,6 +231,10 @@ attributes #5 = { nounwind }
 !17 = !{!"_arg_accOut", !"_arg_accOut3", !"_arg_accTmp", !"_arg_accTmp6", !"_arg_accIn3", !"_arg_accIn39"}
 !18 = !{!"fused_0", !19}
 !19 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo"}
+!20 = !{!21, !21}
+!21 = !{i32 1, !22, !22, !23}
+!22 = !{i64 1, i64 1, i64 1}
+!23 = !{i64 0, i64 0, i64 0}
 
 ; Test scenario: Fusion of two kernels with mo identical parameters.
 

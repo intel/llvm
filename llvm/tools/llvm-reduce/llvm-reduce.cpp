@@ -17,9 +17,11 @@
 #include "DeltaManager.h"
 #include "ReducerWorkItem.h"
 #include "TestRunner.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -51,12 +53,12 @@ static cl::opt<bool>
                               "--delta-passes as a comma separated list"),
                      cl::cat(LLVMReduceOptions));
 
-static cl::opt<std::string> InputFilename(cl::Positional, cl::Required,
+static cl::opt<std::string> InputFilename(cl::Positional,
                                           cl::desc("<input llvm ll/bc file>"),
                                           cl::cat(LLVMReduceOptions));
 
 static cl::opt<std::string>
-    TestFilename("test", cl::Required,
+    TestFilename("test",
                  cl::desc("Name of the interesting-ness test to be run"),
                  cl::cat(LLVMReduceOptions));
 
@@ -101,8 +103,6 @@ static cl::opt<int>
 
 static codegen::RegisterCodeGenFlags CGF;
 
-bool isReduced(ReducerWorkItem &M, const TestRunner &Test);
-
 /// Turn off crash debugging features
 ///
 /// Crash is expected, so disable crash reports and symbolization to reduce
@@ -137,28 +137,22 @@ static std::pair<StringRef, bool> determineOutputType(bool IsMIR,
   return {OutputFilename, OutputBitcode};
 }
 
-void readBitcode(ReducerWorkItem &M, MemoryBufferRef Data, LLVMContext &Ctx, const char *ToolName) {
-  Expected<BitcodeFileContents> IF = llvm::getBitcodeFileContents(Data);
-  if (!IF) {
-    WithColor::error(errs(), ToolName) << IF.takeError();
-    exit(1);
-  }
-  BitcodeModule BM = IF->Mods[0];
-  Expected<BitcodeLTOInfo> LI = BM.getLTOInfo();
-  Expected<std::unique_ptr<Module>> MOrErr = BM.parseModule(Ctx);
-  if (!LI || !MOrErr) {
-    WithColor::error(errs(), ToolName) << IF.takeError();
-    exit(1);
-  }
-  M.LTOInfo = std::make_unique<BitcodeLTOInfo>(*LI);
-  M.M = std::move(MOrErr.get());
-}
-
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
+  const StringRef ToolName(Argv[0]);
 
   cl::HideUnrelatedOptions({&LLVMReduceOptions, &getColorCategory()});
   cl::ParseCommandLineOptions(Argc, Argv, "LLVM automatic testcase reducer.\n");
+
+  if (Argc == 1) {
+    cl::PrintHelpMessage();
+    return 0;
+  }
+
+  if (PrintDeltaPasses) {
+    printDeltaPasses(outs());
+    return 0;
+  }
 
   bool ReduceModeMIR = false;
   if (InputLanguage != InputLanguages::None) {
@@ -168,9 +162,15 @@ int main(int Argc, char **Argv) {
     ReduceModeMIR = true;
   }
 
-  if (PrintDeltaPasses) {
-    printDeltaPasses(errs());
-    return 0;
+  if (InputFilename.empty()) {
+    WithColor::error(errs(), ToolName)
+        << "reduction testcase positional argument must be specified\n";
+    return 1;
+  }
+
+  if (TestFilename.empty()) {
+    WithColor::error(errs(), ToolName) << "--test option must be specified\n";
+    return 1;
   }
 
   if (!PreserveDebugEnvironment)
@@ -180,7 +180,7 @@ int main(int Argc, char **Argv) {
   std::unique_ptr<TargetMachine> TM;
 
   auto [OriginalProgram, InputIsBitcode] =
-      parseReducerWorkItem(Argv[0], InputFilename, Context, TM, ReduceModeMIR);
+      parseReducerWorkItem(ToolName, InputFilename, Context, TM, ReduceModeMIR);
   if (!OriginalProgram) {
     return 1;
   }
@@ -192,14 +192,14 @@ int main(int Argc, char **Argv) {
 
   // Initialize test environment
   TestRunner Tester(TestFilename, TestArguments, std::move(OriginalProgram),
-                    std::move(TM), Argv[0], OutputFilename, InputIsBitcode,
+                    std::move(TM), ToolName, OutputFilename, InputIsBitcode,
                     OutputBitcode);
 
   // This parses and writes out the testcase into a temporary file copy for the
   // test, rather than evaluating the source IR directly. This is for the
   // convenience of lit tests; the stripped out comments may have broken the
   // interestingness checks.
-  if (!isReduced(Tester.getProgram(), Tester)) {
+  if (!Tester.getProgram().isReduced(Tester)) {
     errs() << "\nInput isn't interesting! Verify interesting-ness test\n";
     return 1;
   }

@@ -22,7 +22,6 @@
 #include "LlvmState.h"
 #include "PerfHelper.h"
 #include "SnippetGenerator.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -30,6 +29,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 namespace exegesis {
@@ -160,7 +160,7 @@ public:
   // Creates a benchmark runner for the given mode.
   Expected<std::unique_ptr<BenchmarkRunner>> createBenchmarkRunner(
       InstructionBenchmark::ModeE Mode, const LLVMState &State,
-      bool BenchmarkSkipMeasurements,
+      BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       InstructionBenchmark::ResultAggregationModeE ResultAggMode =
           InstructionBenchmark::Min) const;
 
@@ -199,10 +199,10 @@ private:
       const LLVMState &State, const SnippetGenerator::Options &Opts) const;
   std::unique_ptr<BenchmarkRunner> virtual createLatencyBenchmarkRunner(
       const LLVMState &State, InstructionBenchmark::ModeE Mode,
-      bool BenchmarkSkipMeasurements,
+      BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       InstructionBenchmark::ResultAggregationModeE ResultAggMode) const;
   std::unique_ptr<BenchmarkRunner> virtual createUopsBenchmarkRunner(
-      const LLVMState &State, bool BenchmarkSkipMeasurements,
+      const LLVMState &State, BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       InstructionBenchmark::ResultAggregationModeE ResultAggMode) const;
 
   const ExegesisTarget *Next = nullptr;

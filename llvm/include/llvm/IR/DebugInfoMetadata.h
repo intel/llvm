@@ -2769,10 +2769,18 @@ public:
   /// Return whether the first element a DW_OP_deref.
   bool startsWithDeref() const;
 
+  /// Return whether there is exactly one operator and it is a DW_OP_deref;
+  bool isDeref() const;
+
   /// Holds the characteristics of one fragment of a larger variable.
   struct FragmentInfo {
     uint64_t SizeInBits;
     uint64_t OffsetInBits;
+    /// Return the index of the first bit of the fragment.
+    uint64_t startInBits() const { return OffsetInBits; }
+    /// Return the index of the bit after the end of the fragment, e.g. for
+    /// fragment offset=16 and size=32 return their sum, 48.
+    uint64_t endInBits() const { return OffsetInBits + SizeInBits; }
   };
 
   /// Retrieve the details of this fragment expression.
@@ -2793,6 +2801,32 @@ public:
   /// Return whether the location is computed on the expression stack, meaning
   /// it cannot be a simple register location.
   bool isComplex() const;
+
+  /// Return whether the evaluated expression makes use of a single location at
+  /// the start of the expression, i.e. if it contains only a single
+  /// DW_OP_LLVM_arg op as its first operand, or if it contains none.
+  bool isSingleLocationExpression() const;
+
+  /// Removes all elements from \p Expr that do not apply to an undef debug
+  /// value, which includes every operator that computes the value/location on
+  /// the DWARF stack, including any DW_OP_LLVM_arg elements (making the result
+  /// of this function always a single-location expression) while leaving
+  /// everything that defines what the computed value applies to, i.e. the
+  /// fragment information.
+  static const DIExpression *convertToUndefExpression(const DIExpression *Expr);
+
+  /// If \p Expr is a non-variadic expression (i.e. one that does not contain
+  /// DW_OP_LLVM_arg), returns \p Expr converted to variadic form by adding a
+  /// leading [DW_OP_LLVM_arg, 0] to the expression; otherwise returns \p Expr.
+  static const DIExpression *
+  convertToVariadicExpression(const DIExpression *Expr);
+
+  /// If \p Expr is a valid single-location expression, i.e. it refers to only a
+  /// single debug operand at the start of the expression, then return that
+  /// expression in a non-variadic form by removing DW_OP_LLVM_arg from the
+  /// expression if it is present; otherwise returns std::nullopt.
+  static std::optional<const DIExpression *>
+  convertToNonVariadicExpression(const DIExpression *Expr);
 
   /// Inserts the elements of \p Expr into \p Ops modified to a canonical form,
   /// which uses DW_OP_LLVM_arg (i.e. is a variadic expression) and folds the

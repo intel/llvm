@@ -61,13 +61,11 @@ endif()
 if( LLVM_ENABLE_ASSERTIONS )
   # MSVC doesn't like _DEBUG on release builds. See PR 4379.
   if( NOT MSVC )
-    add_definitions( -D_DEBUG )
+    add_compile_definitions(_DEBUG)
   endif()
   # On non-Debug builds cmake automatically defines NDEBUG, so we
   # explicitly undefine it:
   if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
-    # NOTE: use `add_compile_options` rather than `add_definitions` since
-    # `add_definitions` does not support generator expressions.
     add_compile_options($<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:-UNDEBUG>)
     if (MSVC)
       # Also remove /D NDEBUG to avoid MSVC warnings about conflicting defines.
@@ -81,12 +79,16 @@ if( LLVM_ENABLE_ASSERTIONS )
         string (REGEX REPLACE "(^| )[/-]D *NDEBUG($| )" " "
           "${flags_var_to_scrub}" "${${flags_var_to_scrub}}")
       endforeach()
-     endif()
+    endif()
   endif()
+  # Enable assertions in libstdc++.
+  add_compile_definitions(_GLIBCXX_ASSERTIONS)
+  # Enable assertions in libc++.
+  add_compile_definitions(_LIBCPP_ENABLE_ASSERTIONS)
 endif()
 
 if(LLVM_ENABLE_EXPENSIVE_CHECKS)
-  add_definitions(-DEXPENSIVE_CHECKS)
+  add_compile_definitions(EXPENSIVE_CHECKS)
 
   # In some libstdc++ versions, std::min_element is not constexpr when
   # _GLIBCXX_DEBUG is enabled.
@@ -99,14 +101,14 @@ if(LLVM_ENABLE_EXPENSIVE_CHECKS)
       return 0;
     }" CXX_SUPPORTS_GLIBCXX_DEBUG)
   if(CXX_SUPPORTS_GLIBCXX_DEBUG)
-    add_definitions(-D_GLIBCXX_DEBUG)
+    add_compile_definitions(_GLIBCXX_DEBUG)
   else()
-    add_definitions(-D_GLIBCXX_ASSERTIONS)
+    add_compile_definitions(_GLIBCXX_ASSERTIONS)
   endif()
 endif()
 
 if (LLVM_ENABLE_STRICT_FIXED_SIZE_VECTORS)
-  add_definitions(-DSTRICT_FIXED_SIZE_VECTORS)
+  add_compile_definitions(STRICT_FIXED_SIZE_VECTORS)
 endif()
 
 string(TOUPPER "${LLVM_ABI_BREAKING_CHECKS}" uppercase_LLVM_ABI_BREAKING_CHECKS)
@@ -299,15 +301,15 @@ if( LLVM_ENABLE_LLD )
   # compiler option.
   if ( MSVC )
     if(NOT CMAKE_LINKER MATCHES "lld-link")
-        get_filename_component(CXX_COMPILER_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
-        get_filename_component(C_COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
-        find_program(LLD_LINK NAMES "lld-link" "lld-link.exe" HINTS ${CXX_COMPILER_DIR} ${C_COMPILER_DIR} DOC "lld linker")
-        if(NOT LLD_LINK)
-            message(FATAL_ERROR
-                "LLVM_ENABLE_LLD set, but cannot find lld-link. "
-                "Consider setting CMAKE_LINKER to lld-link path.")
-        endif()
-        set(CMAKE_LINKER ${LLD_LINK})
+      get_filename_component(CXX_COMPILER_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
+      get_filename_component(C_COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
+      find_program(LLD_LINK NAMES "lld-link" "lld-link.exe" HINTS ${CXX_COMPILER_DIR} ${C_COMPILER_DIR} DOC "lld linker")
+      if(NOT LLD_LINK)
+        message(FATAL_ERROR
+          "LLVM_ENABLE_LLD set, but cannot find lld-link. "
+          "Consider setting CMAKE_LINKER to lld-link path.")
+      endif()
+      set(CMAKE_LINKER ${LLD_LINK})
     endif()
   else()
     set(LLVM_USE_LINKER "lld")
@@ -372,7 +374,7 @@ if((NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX")) AND
 endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND MINGW)
-  add_definitions( -D_FILE_OFFSET_BITS=64 )
+  add_compile_definitions(_FILE_OFFSET_BITS=64)
 endif()
 
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )
@@ -386,8 +388,8 @@ if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )
     set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m32")
 
     # FIXME: CMAKE_SIZEOF_VOID_P is still 8
-    add_definitions(-D_LARGEFILE_SOURCE)
-    add_definitions(-D_FILE_OFFSET_BITS=64)
+    add_compile_definitions(_LARGEFILE_SOURCE)
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
   endif( LLVM_BUILD_32_BITS )
 endif( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )
 
@@ -399,8 +401,8 @@ if (ANDROID AND (ANDROID_NATIVE_API_LEVEL LESS 24))
 endif()
 if( CMAKE_SIZEOF_VOID_P EQUAL 4 AND NOT LLVM_FORCE_SMALLFILE_FOR_ANDROID)
   # FIXME: It isn't handled in LLVM_BUILD_32_BITS.
-  add_definitions( -D_LARGEFILE_SOURCE )
-  add_definitions( -D_FILE_OFFSET_BITS=64 )
+  add_compile_definitions(_LARGEFILE_SOURCE)
+  add_compile_definitions(_FILE_OFFSET_BITS=64)
 endif()
 
 if( XCODE )
@@ -433,10 +435,10 @@ if( MSVC_IDE )
     "Number of parallel compiler jobs. 0 means use all processors. Default is 0.")
   if( NOT LLVM_COMPILER_JOBS STREQUAL "1" )
     if( LLVM_COMPILER_JOBS STREQUAL "0" )
-      add_definitions( /MP )
+      add_compile_options(/MP)
     else()
       message(STATUS "Number of parallel compiler jobs set to " ${LLVM_COMPILER_JOBS})
-      add_definitions( /MP${LLVM_COMPILER_JOBS} )
+      add_compile_options(/MP${LLVM_COMPILER_JOBS})
     endif()
   else()
     message(STATUS "Parallel compilation disabled")
@@ -465,20 +467,20 @@ if( MSVC )
   include(ChooseMSVCCRT)
 
   # Add definitions that make MSVC much less annoying.
-  add_definitions(
+  add_compile_definitions(
     # For some reason MS wants to deprecate a bunch of standard functions...
-    -D_CRT_SECURE_NO_DEPRECATE
-    -D_CRT_SECURE_NO_WARNINGS
-    -D_CRT_NONSTDC_NO_DEPRECATE
-    -D_CRT_NONSTDC_NO_WARNINGS
-    -D_SCL_SECURE_NO_DEPRECATE
-    -D_SCL_SECURE_NO_WARNINGS
+    _CRT_SECURE_NO_DEPRECATE
+    _CRT_SECURE_NO_WARNINGS
+    _CRT_NONSTDC_NO_DEPRECATE
+    _CRT_NONSTDC_NO_WARNINGS
+    _SCL_SECURE_NO_DEPRECATE
+    _SCL_SECURE_NO_WARNINGS
     )
 
   # Tell MSVC to use the Unicode version of the Win32 APIs instead of ANSI.
-  add_definitions(
-    -DUNICODE
-    -D_UNICODE
+  add_compile_definitions(
+    UNICODE
+    _UNICODE
   )
 
   if (LLVM_WINSYSROOT)
@@ -493,6 +495,12 @@ if( MSVC )
   endif (LLVM_ENABLE_WERROR)
 
   append("/Zc:inline" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+
+  if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Enable standards-conforming preprocessor.
+    # https://learn.microsoft.com/en-us/cpp/build/reference/zc-preprocessor
+    append("/Zc:preprocessor" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif ()
 
   # Some projects use the __cplusplus preprocessor macro to check support for
   # a particular version of the C++ standard. When this option is not specified
@@ -661,6 +669,10 @@ if (MSVC)
           # v15.8.8. Re-evaluate the usefulness of this diagnostic when the bug
           # is fixed.
       -wd4709 # Suppress comma operator within array index expression
+
+      # We'd like this warning to be enabled, but it triggers from code in
+      # WinBase.h that we don't have control over.
+      -wd5105 # Suppress macro expansion producing 'defined' has undefined behavior
 
       # Ideally, we'd like this warning to be enabled, but even MSVC 2019 doesn't
       # support the 'aligned' attribute in the way that clang sources requires (for
@@ -938,7 +950,7 @@ if(LLVM_USE_SANITIZER)
     append("-fsanitize=fuzzer-no-link" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
   if (LLVM_USE_SANITIZER MATCHES ".*Undefined.*")
-    set(IGNORELIST_FILE "${CMAKE_SOURCE_DIR}/utils/sanitizers/ubsan_ignorelist.txt")
+    set(IGNORELIST_FILE "${PROJECT_SOURCE_DIR}/utils/sanitizers/ubsan_ignorelist.txt")
     if (EXISTS "${IGNORELIST_FILE}")
       # Use this option name version since -fsanitize-ignorelist is only
       # accepted with clang 13.0 or newer.
@@ -956,16 +968,16 @@ if (LLVM_USE_SPLIT_DWARF AND
   if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
       CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-gsplit-dwarf)
-  include(LLVMCheckLinkerFlag)
-  llvm_check_linker_flag(CXX "-Wl,--gdb-index" LINKER_SUPPORTS_GDB_INDEX)
-  append_if(LINKER_SUPPORTS_GDB_INDEX "-Wl,--gdb-index"
-    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+    include(LLVMCheckLinkerFlag)
+    llvm_check_linker_flag(CXX "-Wl,--gdb-index" LINKER_SUPPORTS_GDB_INDEX)
+    append_if(LINKER_SUPPORTS_GDB_INDEX "-Wl,--gdb-index"
+      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 endif()
 
-add_definitions( -D__STDC_CONSTANT_MACROS )
-add_definitions( -D__STDC_FORMAT_MACROS )
-add_definitions( -D__STDC_LIMIT_MACROS )
+add_compile_definitions(__STDC_CONSTANT_MACROS)
+add_compile_definitions(__STDC_FORMAT_MACROS)
+add_compile_definitions(__STDC_LIMIT_MACROS)
 
 # clang and gcc don't default-print colored diagnostics when invoked from Ninja.
 if (UNIX AND
@@ -1037,9 +1049,9 @@ if (LLVM_BUILD_INSTRUMENTED)
       CMAKE_CXX_FLAGS
       CMAKE_C_FLAGS)
     if(NOT LINKER_IS_LLD_LINK)
-        append("-fprofile-generate=\"${LLVM_PROFILE_DATA_DIR}\""
-          CMAKE_EXE_LINKER_FLAGS
-          CMAKE_SHARED_LINKER_FLAGS)
+      append("-fprofile-generate=\"${LLVM_PROFILE_DATA_DIR}\""
+        CMAKE_EXE_LINKER_FLAGS
+        CMAKE_SHARED_LINKER_FLAGS)
     endif()
     # Set this to avoid running out of the value profile node section
     # under clang in dynamic linking mode.

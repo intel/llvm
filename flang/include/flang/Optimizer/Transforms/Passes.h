@@ -15,7 +15,7 @@
 #include <memory>
 
 namespace mlir {
-class BlockAndValueMapping;
+class IRMapping;
 class GreedyRewriteConfig;
 class Operation;
 class Pass;
@@ -47,14 +47,17 @@ namespace fir {
 std::unique_ptr<mlir::Pass> createAbstractResultOnFuncOptPass();
 std::unique_ptr<mlir::Pass> createAbstractResultOnGlobalOptPass();
 std::unique_ptr<mlir::Pass> createAffineDemotionPass();
-std::unique_ptr<mlir::Pass> createArrayValueCopyPass();
+std::unique_ptr<mlir::Pass>
+createArrayValueCopyPass(fir::ArrayValueCopyOptions options = {});
 std::unique_ptr<mlir::Pass> createFirToCfgPass();
 std::unique_ptr<mlir::Pass> createCharacterConversionPass();
 std::unique_ptr<mlir::Pass> createExternalNameConversionPass();
 std::unique_ptr<mlir::Pass> createMemDataFlowOptPass();
 std::unique_ptr<mlir::Pass> createPromoteToAffinePass();
 std::unique_ptr<mlir::Pass> createMemoryAllocationPass();
+std::unique_ptr<mlir::Pass> createStackArraysPass();
 std::unique_ptr<mlir::Pass> createSimplifyIntrinsicsPass();
+std::unique_ptr<mlir::Pass> createAddDebugFoundationPass();
 
 std::unique_ptr<mlir::Pass>
 createMemoryAllocationPass(bool dynOnHeap, std::size_t maxStackSize);
