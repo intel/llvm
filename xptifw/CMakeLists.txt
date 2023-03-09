@@ -10,7 +10,12 @@ set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
 if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
-  set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
+  if (NOT DEFINED XPTI_SOURCE_DIR)
+    # If XPTI_SOURCE_DIR is no provided then assume that xpti is in-tree and not external.
+    set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
+  else()
+    set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
+  endif()
 endif()
 
 # Create a soft option for enabling the use of TBB
