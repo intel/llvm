@@ -87,6 +87,15 @@ void traceUser(User *U, Function *F, DenseMap<Function *, EntryPointSet> &Cache)
     // Simple case: F is used by an instruction U.
     // We simply look up which Function FB instruction U belongs to and record
     // that.
+
+    if (auto *CI = dyn_cast<CallInst>(U)) {
+      // CallInst is an exception here: we don't want to record direct calls,
+      // because it may lead to too many functions grouped together in some
+      // cases.
+      if (!CI->isIndirectCall() && CI->getCalledFunction() == F)
+        return;
+    }
+
     auto *I = cast<Instruction>(U);
     auto *FB = I->getFunction();
     Cache[F].insert(FB);
