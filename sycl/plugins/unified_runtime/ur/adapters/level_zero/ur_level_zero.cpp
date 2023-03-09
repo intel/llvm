@@ -10,8 +10,8 @@
 #include <climits>
 #include <string.h>
 
-#include <sycl/detail/pi.h>
 #include "ur_level_zero.hpp"
+#include <sycl/detail/pi.h>
 #include <ur_bindings.hpp>
 
 // Define the static class field
@@ -1163,9 +1163,9 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
   }
 
   case ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    return ReturnValue(uint32_t{
-      PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST
-    });
+    return ReturnValue(uint32_t{PI_MEMORY_ORDER_RELAXED |
+                                PI_MEMORY_ORDER_ACQ_REL |
+                                PI_MEMORY_ORDER_SEQ_CST});
   }
 
   // TODO: Implement.
