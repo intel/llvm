@@ -754,7 +754,7 @@ llvm.func @caller(%arg0: i32) -> i32 attributes { personality = @__gxx_personali
   llvm.return %0 : i32
 ^bb2: // pred: ^bb0
   %2 = llvm.landingpad cleanup : !llvm.struct<(ptr<i8>, i32)>
-  // expected-error@+1 {{'llvm.resume' op expects landingpad value as operand}}
+  // expected-error@+1 {{'llvm.resume' op expects landingpad operation with the same type in the same function as this operation's operand}}
   llvm.resume %0 : i32
 }
 

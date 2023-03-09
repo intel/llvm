@@ -406,6 +406,27 @@ llvm.func @invokeLandingpad() -> i32 attributes { personality = @__gxx_personali
   llvm.return %0 : i32
 }
 
+llvm.func @foo2() -> !llvm.struct<(ptr<i8>, i32)>
+
+// CHECK-LABEL: llvm.func @resumeNoLandingpadValue(
+// CHECK-SAME:                                     %[[ARG:.*]]: i32)
+llvm.func @resumeNoLandingpadValue(%arg0: i32) -> i32 attributes { personality = @__gxx_personality_v0 } {
+// CHECK: %[[VAL_0:.*]] = llvm.call @foo2() : () -> !llvm.struct<(ptr<i8>, i32)>
+// CHECK: %[[VAL_1:.*]] = llvm.invoke @foo(%[[ARG]]) to ^[[BB1:.*]] unwind ^[[BB2:.*]] : (i32) -> i32
+  %0 = llvm.call @foo2() : () -> !llvm.struct<(ptr<i8>, i32)>
+  %1 = llvm.invoke @foo(%arg0) to ^bb1 unwind ^bb2 : (i32) -> i32
+// CHECK: ^[[BB1]]:
+// CHECK: llvm.return %[[VAL_1]] : i32
+^bb1: // pred: ^bb0
+  llvm.return %1 : i32
+// CHECK: ^[[BB2]]:
+// CHECK: %[[VAL_2:.*]] = llvm.landingpad cleanup : !llvm.struct<(ptr<i8>, i32)>
+// CHECK: llvm.resume %[[VAL_0]] : !llvm.struct<(ptr<i8>, i32)>
+^bb2: // pred: ^bb0
+  %2 = llvm.landingpad cleanup : !llvm.struct<(ptr<i8>, i32)>
+  llvm.resume %0 : !llvm.struct<(ptr<i8>, i32)>
+}
+
 // CHECK-LABEL: @useFreezeOp
 func.func @useFreezeOp(%arg0: i32) {
   // CHECK:  = llvm.freeze %[[ARG0:.*]] : i32
