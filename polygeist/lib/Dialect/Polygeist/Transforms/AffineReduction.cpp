@@ -354,14 +354,13 @@ public:
 
     numReductionsDetected += ReductionOps.size();
 
-    DEBUG_WITH_TYPE(
-        REPORT_DEBUG_TYPE, if (!ReductionOps.empty()) {
-          llvm::dbgs()
-              << "AffineReduction: detected " << ReductionOps.size()
-              << " reduction(s) in: "
-              << ForOp->getParentOfType<FunctionOpInterface>().getName()
-              << "\n";
-        });
+    DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
+      if (!ReductionOps.empty())
+        llvm::dbgs() << "AffineReduction: detected " << ReductionOps.size()
+                     << " reduction(s) in: "
+                     << ForOp->getParentOfType<FunctionOpInterface>().getName()
+                     << "\n";
+    });
 
     Rewriter.replaceOp(ForOp, NewYieldedRes);
     return success();

@@ -950,13 +950,13 @@ void LICM::runOnOperation() {
         llvm::dbgs() << "----------------\n";
       });
 
-      DEBUG_WITH_TYPE(
-          REPORT_DEBUG_TYPE, if (OpHoisted) {
-            llvm::dbgs()
-                << "LICM: hoisted " << OpHoisted << " operations(s) in : "
-                << loop->getParentOfType<FunctionOpInterface>().getName()
-                << "\n";
-          });
+      DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
+        if (OpHoisted)
+          llvm::dbgs() << "LICM: hoisted " << OpHoisted
+                       << " operations(s) in : "
+                       << loop->getParentOfType<FunctionOpInterface>().getName()
+                       << "\n";
+      });
     }
   });
 }
