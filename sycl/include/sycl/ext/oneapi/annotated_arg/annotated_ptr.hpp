@@ -126,7 +126,7 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  annotated_ptr(T *Ptr, const property_list_t &PropList = properties{}) noexcept
+  annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -172,7 +172,7 @@ public:
   // and `PropertyListV` must have the same property value.
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &other,
-                         const PropertyListV &proplist) noexcept
+                         const PropertyListV &) noexcept
       : m_Ptr(other.m_Ptr) {
     static_assert(
         std::is_convertible<T2 *, T *>::value,

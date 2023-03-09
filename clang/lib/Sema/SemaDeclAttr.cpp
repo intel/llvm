@@ -10804,7 +10804,7 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
   SYCLDeviceHasAttr TmpAttr(Context, CI, Exprs, Size);
   SmallVector<Expr *, 5> Aspects;
   for (auto *E : TmpAttr.aspects())
-    if (!isDeviceAspectType(E->getType()))
+    if (!isa<PackExpansionExpr>(E) && !isDeviceAspectType(E->getType()))
       Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
 
   if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {

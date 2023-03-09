@@ -46,10 +46,10 @@
 #include "VectorComputeUtil.h"
 #include "libSPIRV/SPIRVDebug.h"
 
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace SPIRV;

@@ -8,66 +8,60 @@
 using namespace llvm;
 using namespace jit_compiler;
 
-namespace {
-/// This class implements all of the logic to remap builtins.
-///
-/// When constructed, the "remapping function" to be called instead of the
-/// builtin is initialized (if needed) and the remapping then simply involves
-/// replacing each relevant call by such function.
-class Remapper {
-public:
-  enum class Kind : uint8_t {
-    GlobalSizeRemapper,
-    LocalSizeRemapper,
-    NumWorkGroupsRemapper,
-    GlobalOffsetRemapper,
-    GlobalIDRemapper,
-    LocalIDRemapper,
-    GroupIDRemapper,
-  } K;
-
-  Remapper(Kind K, Module &M, const NDRange &SrcNDRange,
-           const NDRange &FusedNDRange)
-      : K{K}, F{initFunction(K, M, SrcNDRange, FusedNDRange)} {}
-
-  void operator()(CallBase *C) const;
-
-  static constexpr StringLiteral RemapperCommonName{"__remapper"};
-
-private:
-  static uint64_t getDefaultValue(Kind K);
-  static std::string getFunctionName(Kind K, const NDRange &SrcNDRange,
-                                     const NDRange &FusedNDRange);
-  static bool shouldRemap(Kind K, const NDRange &SrcNDRange,
-                          const NDRange &FusedNDRange);
-  static Value *generateCase(Kind K, IRBuilderBase &Builder,
-                             const NDRange &SrcNDRange,
-                             const NDRange &FusedNDRange, uint32_t Index);
-  static Function *initFunction(Kind K, Module &M, const NDRange &SrcNDRange,
-                                const NDRange &FusedNDRange);
-
-  Function *F;
+enum class BuiltinKind : uint8_t {
+  GlobalSizeRemapper,
+  LocalSizeRemapper,
+  NumWorkGroupsRemapper,
+  GlobalOffsetRemapper,
+  GlobalIDRemapper,
+  LocalIDRemapper,
+  GroupIDRemapper,
 };
-} // namespace
 
-void Remapper::operator()(CallBase *C) const {
-  if (F) {
-    C->setCalledFunction(F);
-    C->setAttributes(F->getAttributes());
-  }
+static constexpr StringLiteral RemapperCommonName{"__remapper"};
+static constexpr size_t NumBuiltins{11};
+static constexpr size_t NumBuiltinsToRemap{7};
+
+template <typename ForwardIt, typename KeyTy>
+static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
+                                const KeyTy &Key) {
+  return std::lower_bound(
+      Begin, End, Key,
+      [](const auto &Entry, const auto &Key) { return Entry.first < Key; });
+}
+
+template <typename ForwardIt, typename KeyTy>
+static auto mapArrayLookupValue(ForwardIt Begin, ForwardIt End,
+                                const KeyTy &Key) -> decltype(Begin->second) {
+  const auto Iter = mapArrayLookup(Begin, End, Key);
+  assert(Iter != End && Iter->first == Key && "Invalid key");
+  return Iter->second;
+}
+
+static BuiltinKind getBuiltinKind(Function *F) {
+  constexpr std::array<std::pair<StringLiteral, BuiltinKind>,
+                       NumBuiltinsToRemap>
+      Map{{{GetGlobalSizeName, BuiltinKind::GlobalSizeRemapper},
+           {GetGroupIDName, BuiltinKind::GroupIDRemapper},
+           {GetGlobalOffsetName, BuiltinKind::GlobalOffsetRemapper},
+           {GetNumWorkGroupsName, BuiltinKind::NumWorkGroupsRemapper},
+           {GetLocalSizeName, BuiltinKind::LocalSizeRemapper},
+           {GetLocalIDName, BuiltinKind::LocalIDRemapper},
+           {GetGlobalIDName, BuiltinKind::GlobalIDRemapper}}};
+  return mapArrayLookupValue(Map.begin(), Map.end(), F->getName());
 }
 
 /// 0 for IDs/offset and 1 for sizes.
-uint64_t Remapper::getDefaultValue(Kind K) {
+static uint64_t getDefaultValue(BuiltinKind K) {
   switch (K) {
-  case Kind::GlobalSizeRemapper:
-  case Kind::LocalSizeRemapper:
-  case Kind::NumWorkGroupsRemapper:
+  case BuiltinKind::GlobalSizeRemapper:
+  case BuiltinKind::LocalSizeRemapper:
+  case BuiltinKind::NumWorkGroupsRemapper:
     return 1;
-  case Kind::GlobalIDRemapper:
-  case Kind::LocalIDRemapper:
-  case Kind::GroupIDRemapper:
-  case Kind::GlobalOffsetRemapper:
+  case BuiltinKind::GlobalIDRemapper:
+  case BuiltinKind::LocalIDRemapper:
+  case BuiltinKind::GroupIDRemapper:
+  case BuiltinKind::GlobalOffsetRemapper:
     return 0;
   }
   llvm_unreachable("Unhandled kind");
@@ -84,26 +78,26 @@ static raw_ostream &operator<<(raw_ostream &Os, const NDRange &ND) {
 
 /// Will generate a unique function name so that it can be reused in further
 /// stages.
-std::string Remapper::getFunctionName(Kind K, const NDRange &SrcNDRange,
-                                      const NDRange &FusedNDRange) {
+static std::string getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
+                                   const NDRange &FusedNDRange) {
   std::string Res;
   raw_string_ostream S{Res};
   S << "__" <<
       [K]() {
         switch (K) {
-        case Kind::GlobalSizeRemapper:
+        case BuiltinKind::GlobalSizeRemapper:
           return "global_size";
-        case Kind::LocalSizeRemapper:
+        case BuiltinKind::LocalSizeRemapper:
           return "local_size";
-        case Kind::NumWorkGroupsRemapper:
+        case BuiltinKind::NumWorkGroupsRemapper:
           return "num_work_groups";
-        case Kind::GlobalIDRemapper:
+        case BuiltinKind::GlobalIDRemapper:
           return "global_id";
-        case Kind::LocalIDRemapper:
+        case BuiltinKind::LocalIDRemapper:
           return "local_id";
-        case Kind::GroupIDRemapper:
+        case BuiltinKind::GroupIDRemapper:
           return "group_id";
-        case Kind::GlobalOffsetRemapper:
+        case BuiltinKind::GlobalOffsetRemapper:
           return "global_offset";
         }
         llvm_unreachable("Unhandled kind");
@@ -112,19 +106,19 @@ std::string Remapper::getFunctionName(Kind K, const NDRange &SrcNDRange,
   return S.str();
 }
 
-bool Remapper::shouldRemap(Kind K, const NDRange &SrcNDRange,
-                           const NDRange &FusedNDRange) {
+static bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
+                        const NDRange &FusedNDRange) {
   switch (K) {
-  case Kind::GlobalSizeRemapper:
-  case Kind::GlobalOffsetRemapper:
+  case BuiltinKind::GlobalSizeRemapper:
+  case BuiltinKind::GlobalOffsetRemapper:
     return true;
-  case Kind::NumWorkGroupsRemapper:
-  case Kind::LocalSizeRemapper:
+  case BuiltinKind::NumWorkGroupsRemapper:
+  case BuiltinKind::LocalSizeRemapper:
     // Do not remap when the local size is not specified.
     return SrcNDRange.hasSpecificLocalSize();
-  case Kind::GlobalIDRemapper:
-  case Kind::LocalIDRemapper:
-  case Kind::GroupIDRemapper: {
+  case BuiltinKind::GlobalIDRemapper:
+  case BuiltinKind::LocalIDRemapper:
+  case BuiltinKind::GroupIDRemapper: {
     // No need to remap when all but the dimensions and the left-most components
     // of the global size range are equal.
     const auto &GS0 = SrcNDRange.getGlobalSize();
@@ -268,47 +262,27 @@ static Value *generateGetGroupIDCase(IRBuilderBase &Builder,
                                 SrcNDRange.getDimensions(), Index)]));
 }
 
-Value *Remapper::generateCase(Kind K, IRBuilderBase &Builder,
-                              const NDRange &SrcNDRange,
-                              const NDRange &FusedNDRange, uint32_t Index) {
+static Value *generateCase(BuiltinKind K, IRBuilderBase &Builder,
+                           const NDRange &SrcNDRange,
+                           const NDRange &FusedNDRange, uint32_t Index) {
   switch (K) {
-  case Kind::GlobalSizeRemapper:
+  case BuiltinKind::GlobalSizeRemapper:
     return generateGetGlobalSizeCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::LocalSizeRemapper:
+  case BuiltinKind::LocalSizeRemapper:
     return generateGetLocalSizeCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::NumWorkGroupsRemapper:
+  case BuiltinKind::NumWorkGroupsRemapper:
     return generateNumWorkGroupsCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::GlobalIDRemapper:
+  case BuiltinKind::GlobalIDRemapper:
     return generateGetGlobalIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::LocalIDRemapper:
+  case BuiltinKind::LocalIDRemapper:
     return generateGetLocalIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::GroupIDRemapper:
+  case BuiltinKind::GroupIDRemapper:
     return generateGetGroupIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case Kind::GlobalOffsetRemapper:
+  case BuiltinKind::GlobalOffsetRemapper:
     return generateGetGlobalOffsetCase(Builder, SrcNDRange, FusedNDRange,
                                        Index);
   }
   llvm_unreachable("Unhandled kind");
-}
-
-static constexpr size_t NumBuiltins{8};
-static constexpr size_t NumBuiltinsToRemap{7};
-
-template <typename ForwardIt>
-static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
-                                const decltype(Begin->first) &Key) {
-  return std::lower_bound(
-      Begin, End, Key,
-      [](const auto &Entry, const auto &Key) { return Entry.first < Key; });
-}
-
-template <typename ForwardIt>
-static auto mapArrayLookupValue(ForwardIt Begin, ForwardIt End,
-                                const decltype(Begin->first) &Key)
-    -> decltype(Begin->second) {
-  const auto Iter = mapArrayLookup(Begin, End, Key);
-  assert(Iter != End && Iter->first == Key && "Invalid key");
-  return Iter->second;
 }
 
 static llvm::AttributeList getAttributes(StringRef FunctionName,
@@ -337,6 +311,7 @@ static llvm::AttributeList getAttributes(StringRef FunctionName,
                   Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
         {}, {});
   };
+  constexpr auto OffloaderAttrs = RemapperAttrs;
 
   // This array is sorted by key value
   const std::array<
@@ -345,12 +320,15 @@ static llvm::AttributeList getAttributes(StringRef FunctionName,
       AttrMap{{{BarrierName, GetBarrierAttrs},
                {GetGlobalSizeName, GetIndexSpaceAttrs},
                {GetGroupIDName, GetIndexSpaceAttrs},
+               {GetGlobalOffsetName, GetIndexSpaceAttrs},
                {GetNumWorkGroupsName, GetIndexSpaceAttrs},
                {GetLocalSizeName, GetIndexSpaceAttrs},
                {GetGlobalLinearIDName, GetIndexSpaceAttrs},
                {GetLocalIDName, GetIndexSpaceAttrs},
                {GetGlobalIDName, GetIndexSpaceAttrs},
-               {Remapper::RemapperCommonName, RemapperAttrs}}};
+               {RemapperCommonName, RemapperAttrs},
+               {OffloadStartWrapperName, OffloaderAttrs},
+               {OffloadFinishWrapperName, OffloaderAttrs}}};
   return mapArrayLookupValue(AttrMap.begin(), AttrMap.end(), FunctionName)(Ctx);
 }
 
@@ -375,6 +353,9 @@ static FunctionType *getFunctionType(IRBuilderBase &Builder,
         {Builder.getInt32Ty(), Builder.getInt32Ty(), Builder.getInt32Ty()},
         false /*IsVarArg*/);
   };
+  constexpr auto OffloadWrapperTy = [](IRBuilderBase &Builder) {
+    return FunctionType::get(Builder.getVoidTy(), {}, false /*IsVarArg*/);
+  };
 
   // This array is sorted by key value
   const std::array<
@@ -383,35 +364,37 @@ static FunctionType *getFunctionType(IRBuilderBase &Builder,
       TypeMap{{{BarrierName, GetBarrierTy},
                {GetGlobalSizeName, GetIndexSpaceGetTy},
                {GetGroupIDName, GetIndexSpaceGetTy},
+               {GetGlobalOffsetName, GetIndexSpaceGetTy},
                {GetNumWorkGroupsName, GetIndexSpaceGetTy},
                {GetLocalSizeName, GetIndexSpaceGetTy},
                {GetGlobalLinearIDName, GetGlobalLinearIDTy},
                {GetLocalIDName, GetIndexSpaceGetTy},
                {GetGlobalIDName, GetIndexSpaceGetTy},
-               {Remapper::RemapperCommonName, GetIndexSpaceGetTy}}};
+               {RemapperCommonName, GetIndexSpaceGetTy},
+               {OffloadFinishWrapperName, OffloadWrapperTy},
+               {OffloadStartWrapperName, OffloadWrapperTy}}};
 
   return mapArrayLookupValue(TypeMap.begin(), TypeMap.end(),
                              FunctionName)(Builder);
 }
 
-Function *Remapper::initFunction(Kind K, Module &M, const NDRange &SrcNDRange,
-                                 const NDRange &FusedNDRange) {
+static Function *initFunction(Function *OldF, const NDRange &SrcNDRange,
+                              const NDRange &FusedNDRange) {
+  const auto K = getBuiltinKind(OldF);
   if (!shouldRemap(K, SrcNDRange, FusedNDRange)) {
-    // If the builtin should not be remapped, the function won't be initialized.
-    return nullptr;
+    // If the builtin should not be remapped, return the original function.
+    return OldF;
   }
   const auto Name = getFunctionName(K, SrcNDRange, FusedNDRange);
-  auto *F = M.getFunction(Name);
-  if (F) {
-    // Remapping function already generated
-    return F;
-  }
+  auto *M = OldF->getParent();
+  auto *F = M->getFunction(Name);
+  assert(!F && "Function name should be unique");
 
-  auto &Ctx = M.getContext();
+  auto &Ctx = M->getContext();
   IRBuilder<> Builder{Ctx};
 
   F = Function::Create(getFunctionType(Builder, RemapperCommonName),
-                       Function::LinkageTypes::InternalLinkage, Name, M);
+                       Function::LinkageTypes::InternalLinkage, Name, *M);
 
   auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(EntryBlock);
@@ -442,59 +425,106 @@ Value *jit_compiler::getGlobalLinearID(IRBuilderBase &Builder,
   return createSPIRVCall(Builder, GetGlobalLinearIDName, {});
 }
 
-Function *jit_compiler::remapBuiltins(Function *F, const NDRange &SrcNDRange,
-                                      const NDRange &FusedNDRange) {
-  {
-    ValueToValueMapTy Map;
-    F = CloneFunction(F, Map);
+static bool isIndexSpaceGetterBuiltin(Function *F) {
+  constexpr std::array<StringLiteral, NumBuiltinsToRemap> BuiltinNames{
+      GetGlobalSizeName,    GetGroupIDName,   GetGlobalOffsetName,
+      GetNumWorkGroupsName, GetLocalSizeName, GetLocalIDName,
+      GetGlobalIDName};
+  const auto Name = F->getName();
+  const auto *Iter = llvm::lower_bound(BuiltinNames, Name);
+  return Iter != BuiltinNames.end() && *Iter == Name;
+}
+
+static bool isSafeToNotRemapBuiltin(Function *F) {
+  constexpr std::size_t NumUnsafeBuiltins{8};
+  // SPIRV builtins with kernel capabilities in alphabetical order.
+  //
+  // These builtins might need remapping, but are not supported by the remapper,
+  // so we should abort kernel fusion if we find them during remapping.
+  constexpr std::array<StringLiteral, NumUnsafeBuiltins> UnsafeBuiltIns{
+      "EnqueuedWorkgroupSize",
+      "NumEnqueuedSubgroups",
+      "NumSubgroups",
+      "SubgroupId",
+      "SubgroupLocalInvocationId",
+      "SubgroupMaxSize",
+      "SubgroupSize",
+      "WorkDim"};
+  constexpr StringLiteral SPIRVBuiltinNamespace{"spirv"};
+  constexpr StringLiteral SPIRVBuiltinPrefix{"BuiltIn"};
+
+  auto Name = F->getName();
+  if (!(Name.contains(SPIRVBuiltinNamespace) &&
+        Name.contains(SPIRVBuiltinPrefix))) {
+    return true;
   }
-  auto &M = *F->getParent();
-  // This is a sorted array which should have the same order as the one in the
-  // remap function.
-  // Values are lazy initialized.
-  std::array<std::pair<StringRef,
-                       std::pair<Remapper::Kind, std::unique_ptr<Remapper>>>,
-             NumBuiltinsToRemap>
-      Remappers{{
-          {GetGlobalSizeName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::GlobalSizeRemapper,
-               std::unique_ptr<Remapper>{}}},
-          {GetGroupIDName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::GroupIDRemapper, std::unique_ptr<Remapper>{}}},
-          {GetGlobalOffsetName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::GlobalOffsetRemapper,
-               std::unique_ptr<Remapper>{}}},
-          {GetNumWorkGroupsName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::NumWorkGroupsRemapper,
-               std::unique_ptr<Remapper>{}}},
-          {GetLocalSizeName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::LocalSizeRemapper, std::unique_ptr<Remapper>{}}},
-          {GetLocalIDName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::LocalIDRemapper, std::unique_ptr<Remapper>{}}},
-          {GetGlobalIDName,
-           std::pair<Remapper::Kind, std::unique_ptr<Remapper>>{
-               Remapper::Kind::GlobalIDRemapper, std::unique_ptr<Remapper>{}}},
-      }};
-  for (auto &I : instructions(F)) {
-    if (auto *Call = dyn_cast<CallInst>(&I)) {
-      const auto Name = Call->getCalledFunction()->getName();
-      auto *Iter = mapArrayLookup(Remappers.begin(), Remappers.end(), Name);
-      if (Iter != Remappers.end() && Iter->first == Name) {
-        if (!Iter->second.second) {
-          Iter->second.second = std::make_unique<Remapper>(
-              Iter->second.first, M, SrcNDRange, FusedNDRange);
-        }
-        (*Iter->second.second)(Call);
+  // Drop "spirv" namespace name and "BuiltIn" prefix.
+  Name = Name.drop_front(Name.find(SPIRVBuiltinPrefix) +
+                         SPIRVBuiltinPrefix.size());
+  // Check that Name does not start with any name in UnsafeBuiltIns
+  const auto *Iter =
+      std::upper_bound(UnsafeBuiltIns.begin(), UnsafeBuiltIns.end(), Name);
+  return Iter == UnsafeBuiltIns.begin() || !Name.starts_with(*(Iter - 1));
+}
+
+Expected<Function *>
+jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
+                                      const NDRange &FusedNDRange) {
+  auto &Cached = Cache[decltype(Cache)::key_type{F, SrcNDRange, FusedNDRange}];
+  if (Cached) {
+    // Cache hit. Return cached function.
+    return Cached;
+  }
+
+  if (F->isDeclaration()) {
+    if (isIndexSpaceGetterBuiltin(F)) {
+      // Remap given builtin.
+      return Cached = initFunction(F, SrcNDRange, FusedNDRange);
+    }
+    if (isSafeToNotRemapBuiltin(F)) {
+      // No need to remap.
+      return Cached = F;
+    }
+    // Unknown builtin
+    return make_error<StringError>(Twine("Cannot remap unknown builtin: \"")
+                                       .concat(Twine{F->getName()})
+                                       .concat("\""),
+                                   inconvertibleErrorCode());
+  }
+
+  // As we clone the called function and remap the clone, we can have
+  // more than one callee to the same function being remapped and a different
+  // remapping will be performed each time.
+  ValueToValueMapTy Map;
+  ClonedCodeInfo CodeInfo;
+  auto *Clone = CloneFunction(F, Map, &CodeInfo);
+
+  if (!CodeInfo.ContainsCalls) {
+    // No need to perform any remapping as the function has no calls.
+    // We can erase the cloned function from the parent and return the
+    // original.
+    Clone->eraseFromParent();
+    return Cached = F;
+  }
+
+  // Set Cached to support recursive functions.
+  Cached = Clone;
+  for (auto &I : instructions(Clone)) {
+    if (auto *Call = dyn_cast<CallBase>(&I)) {
+      // Recursive call
+      auto *OldF = Call->getCalledFunction();
+      auto ErrOrNewF = remapBuiltins(OldF, SrcNDRange, FusedNDRange);
+      if (auto Err = ErrOrNewF.takeError()) {
+        return Err;
       }
+      // Override called function.
+      auto *NewF = *ErrOrNewF;
+      Call->setCalledFunction(NewF);
+      Call->setCallingConv(NewF->getCallingConv());
+      Call->setAttributes(NewF->getAttributes());
     }
   }
-  return F;
+  return Clone;
 }
 
 void jit_compiler::barrierCall(IRBuilderBase &Builder, int Flags) {

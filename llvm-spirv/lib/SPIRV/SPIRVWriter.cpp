@@ -68,7 +68,6 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -88,6 +87,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
@@ -612,14 +612,9 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
   return TranslatedTy;
 }
 
-// Representation in LLVM IR before the translator is a pointer array wrapped
-// in a structure:
-// %struct.__spirv_JointMatrixINTEL = type { [R x [C x [L x [S x type]]]]* }
-// where R = Rows, C = Columnts, L = Layout + 1, S = Scope + 1
-// this '+1' for the Layout and Scope is required because both of them can
-// be '0', but array size can not be '0'.
-// The result should look like SPIR-V friendly LLVM IR:
-// %spirv.JointMatrixINTEL._char_2_2_0_3
+// Representation in LLVM IR before the translator is a pointer to an opaque
+// structure:
+// %spirv.JointMatrixINTEL._%element_type%_%rows%_%cols%_%scope%_%use%
 // Here we check the structure name yet again. Another option would be to
 // check SPIR-V friendly function calls (by their name) and obtain return
 // or their parameter types, assuming, that the appropriate types are Matrix
@@ -2896,6 +2891,12 @@ using DecorationsInfoVec =
 struct AnnotationDecorations {
   DecorationsInfoVec MemoryAttributesVec;
   DecorationsInfoVec MemoryAccessesVec;
+  DecorationsInfoVec BufferLocationVec;
+
+  bool empty() {
+    return (MemoryAttributesVec.empty() && MemoryAccessesVec.empty() &&
+            BufferLocationVec.empty());
+  }
 };
 
 struct IntelLSUControlsInfo {
@@ -3086,6 +3087,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_memory_accesses);
   const bool AllowFPGAMemAttr = BM->isAllowedToUseExtension(
       ExtensionID::SPV_INTEL_fpga_memory_attributes);
+  const bool AllowFPGABufLoc =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location);
 
   bool ValidDecorationFound = false;
   DecorationsInfoVec DecorationsVec;
@@ -3104,8 +3107,15 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       std::vector<std::string> DecValues;
       if (tryParseAnnotationDecoValues(ValueStr, DecValues)) {
         ValidDecorationFound = true;
-        DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
-                                    std::move(DecValues));
+
+        if (AllowFPGABufLoc &&
+            DecorationKind == DecorationBufferLocationINTEL) {
+          Decorates.BufferLocationVec.emplace_back(
+              static_cast<Decoration>(DecorationKind), std::move(DecValues));
+        } else {
+          DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
+                                      std::move(DecValues));
+        }
       }
       continue;
     }
@@ -3176,6 +3186,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       DecorationsVec.emplace_back(Dec, std::move(DecValues));
     }
   }
+
   // Even if there is an annotation string that is split in blocks like Intel
   // FPGA annotation, it's not necessarily an FPGA annotation. Translate the
   // whole string as UserSemantic decoration in this case.
@@ -3292,6 +3303,18 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
         E->addDecorate(I.first, Result);
       }
     } break;
+    case DecorationBufferLocationINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_buffer_location)) {
+        M->getErrorLog().checkError(I.second.size() == 1,
+                                    SPIRVEC_InvalidLlvmModule,
+                                    "Decoration requires a single argument.");
+        SPIRVWord Result = 0;
+        StringRef(I.second[0]).getAsInteger(10, Result);
+        E->addDecorate(I.first, Result);
+      }
+    } break;
+
     default:
       // Other decorations are either not supported by the translator or
       // handled in other places.
@@ -3555,6 +3578,26 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
          (Ty->isFloatTy() ||
           (Ty->isVectorTy() &&
            cast<VectorType>(Ty)->getElementType()->isFloatTy()));
+}
+
+bool allowDecorateWithBufferLocationINTEL(IntrinsicInst *II) {
+  SmallVector<Value *, 8> UserList;
+
+  for (auto *Inst : II->users()) {
+    // if castInst, push Successors
+    if (auto *Cast = dyn_cast<CastInst>(Inst)) {
+      for (auto *Successor : Cast->users())
+        UserList.push_back(Successor);
+    } else {
+      UserList.push_back(Inst);
+    }
+  }
+
+  for (auto &Inst : UserList)
+    if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
+      return true;
+
+  return false;
 }
 
 SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
@@ -4025,8 +4068,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
 
       // If we didn't find any IntelFPGA-specific decorations, let's add the
       // whole annotation string as UserSemantic Decoration
-      if (Decorations.MemoryAttributesVec.empty() &&
-          Decorations.MemoryAccessesVec.empty()) {
+      if (Decorations.empty()) {
         // TODO: Is there a way to detect that the annotation belongs solely
         // to struct member memory atributes or struct member memory access
         // controls? This would allow emitting just the necessary decoration.
@@ -4043,20 +4085,26 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         // because multiple accesses to the struct-held memory can require
         // different LSU parameters.
         addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
+        if (allowDecorateWithBufferLocationINTEL(II))
+          addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
       }
       II->replaceAllUsesWith(II->getOperand(0));
     } else {
       // Memory accesses to a standalone pointer variable
       auto *DecSubj = transValue(II->getArgOperand(0), BB);
-      if (Decorations.MemoryAccessesVec.empty())
+      if (Decorations.MemoryAccessesVec.empty() &&
+          Decorations.BufferLocationVec.empty())
         DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
             DecSubj, AnnotationString.c_str()));
-      else
+      else {
         // Apply the LSU parameter decoration to the pointer result of an
         // instruction. Note it's the address to the accessed memory that's
         // loaded from the original pointer variable, and not the value
         // accessed by the latter.
         addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
+        if (allowDecorateWithBufferLocationINTEL(II))
+          addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+      }
       II->replaceAllUsesWith(II->getOperand(0));
     }
     return nullptr;
@@ -4256,26 +4304,18 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
           SPIR::TypeAttributeEnum::ATTR_CONST) {
-        if (BM->isAllowedToUseExtension(
+        if (!BM->isAllowedToUseExtension(
                 ExtensionID::SPV_EXT_relaxed_printf_string_address_space)) {
-          BM->addExtension(
-              ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
-        } else if (BM->isAllowedToUseExtension(
-                       ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
-          BM->addExtension(
-              ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
-          BM->addCapability(
-              internal::CapabilityNonConstantAddrspacePrintfINTEL);
-        } else {
           std::string ErrorStr =
-              "Either SPV_EXT_relaxed_printf_string_address_space or "
-              "SPV_INTEL_non_constant_addrspace_printf extension should be "
-              "allowed to translate this module, because this LLVM module "
-              "contains the printf function with format string, whose address "
-              "space is not equal to 2 (constant).";
+              "Either SPV_EXT_relaxed_printf_string_address_space extension "
+              "should be allowed to translate this module, because this LLVM "
+              "module contains the printf function with format string, whose "
+              "address space is not equal to 2 (constant).";
           getErrorLog().checkError(false, SPIRVEC_RequiresExtension, CI,
                                    ErrorStr);
         }
+        BM->addExtension(
+            ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
       }
     }
 

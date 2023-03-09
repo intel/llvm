@@ -1790,10 +1790,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // offloading path is not properly setup to use the updated device linking
   // scheme.
   if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
-       Args.hasFlag(options::OPT_fopenmp_new_driver,
-                    options::OPT_no_offload_new_driver, true)) ||
-      Args.hasFlag(options::OPT_offload_new_driver,
-                   options::OPT_no_offload_new_driver, false))
+       TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
+                               options::OPT_no_offload_new_driver, true)) ||
+      TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
+                              options::OPT_no_offload_new_driver, false))
     setUseNewOffloadingDriver();
 
   // Determine FPGA emulation status.
@@ -3449,7 +3449,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
     if (!LibName.startswith("-l"))
       return false;
-    for (auto LPath : LibPaths) {
+    for (auto &LPath : LibPaths) {
       if (!IsStatic) {
         // Current linking state is dynamic.  We will first check for the
         // shared object and not pull in the static library if it is found.
@@ -5395,7 +5395,7 @@ class OffloadingActionBuilder final {
 
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);
-        for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+        for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
           const char *BoundArch =
               SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
           std::string LibDeviceFile =
@@ -5419,7 +5419,7 @@ class OffloadingActionBuilder final {
       // to produce a final binary.
       // They will be bundled per TC before being sent to the Offload Wrapper.
       llvm::MapVector<const ToolChain *, ActionList> LinkedInputs;
-      for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+      for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
         auto &LI = LinkInputEnum.value();
         const ToolChain *TC = SYCLTargetInfoList[LinkInputEnum.index()].TC;
         const char *BoundArch =
@@ -5948,7 +5948,7 @@ class OffloadingActionBuilder final {
       SmallVector<std::string, 4> UniqueSections;
       for (StringRef OLArg : OffloadLibArgs) {
         SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
-        for (auto Section : Sections) {
+        for (auto &Section : Sections) {
           // We only care about sections that start with 'sycl-'.  Also remove
           // the prefix before adding it.
           std::string Prefix("sycl-");
@@ -5970,7 +5970,7 @@ class OffloadingActionBuilder final {
       if (!UniqueSections.size())
         return;
 
-      for (auto SyclTarget : Targets) {
+      for (auto &SyclTarget : Targets) {
         std::string SectionTriple = SyclTarget.TC->getTriple().str();
         if (SyclTarget.BoundArch) {
           SectionTriple += "-";
@@ -6100,7 +6100,7 @@ class OffloadingActionBuilder final {
 
           int I = 0;
           // Fill SYCLTargetInfoList
-          for (auto TT : SYCLTripleList) {
+          for (auto &TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
             assert(TCIt != ToolChains.end() &&
@@ -7147,8 +7147,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
         Arg *InputArg = MakeInputArg(Args, getOpts(), FileName);
-        OffloadBuilder->addHostDependenceToDeviceActions(UnbundlerInput,
-                                                        InputArg, Args);
+        if (!UseNewOffloadingDriver)
+          OffloadBuilder->addHostDependenceToDeviceActions(UnbundlerInput,
+                                                           InputArg, Args);
       }
     }
   }

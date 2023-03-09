@@ -1350,6 +1350,7 @@ def SYCLDeviceHas : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceHasDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+  let AcceptsExprPack = 1;
 }
 
 def SYCLUsesAspects : InheritableAttr {

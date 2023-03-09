@@ -472,7 +472,8 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     Relocatable = Args.hasFlag(options::OPT_fopenmp_relocatable_target,
                                options::OPT_fnoopenmp_relocatable_target,
                                /*Default=*/true);
-  else if (JA.isOffloading(Action::OFK_Cuda))
+  else if (JA.isOffloading(Action::OFK_Cuda) ||
+           JA.isOffloading(Action::OFK_SYCL))
     // In CUDA we generate relocatable code by default.
     Relocatable = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                                /*Default=*/false);
