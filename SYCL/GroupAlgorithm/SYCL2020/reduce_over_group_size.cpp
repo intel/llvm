@@ -109,4 +109,6 @@ int main() {
     printf("test failed!\n");
   }
   assert(fails == 0);
+  free(x, ctx);
+  free(r, ctx);
 }
