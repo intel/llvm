@@ -121,10 +121,8 @@ public:
   void updateForDeletedStore(StoreInst *ToDelete, DIBuilder &DIB) const {
     // There's nothing to do if the alloca doesn't have any variables using
     // assignment tracking.
-    if (DbgAssigns.empty()) {
-      assert(at::getAssignmentMarkers(ToDelete).empty());
+    if (DbgAssigns.empty())
       return;
-    }
 
     // Just leave dbg.assign intrinsics in place and remember that we've seen
     // one for each variable fragment.
@@ -386,10 +384,12 @@ static void addAssumeNonNull(AssumptionCache *AC, LoadInst *LI) {
 static void convertMetadataToAssumes(LoadInst *LI, Value *Val,
                                      const DataLayout &DL, AssumptionCache *AC,
                                      const DominatorTree *DT) {
-  // If the load was marked as nonnull we don't want to lose
-  // that information when we erase this Load. So we preserve
-  // it with an assume.
+  // If the load was marked as nonnull we don't want to lose that information
+  // when we erase this Load. So we preserve it with an assume. As !nonnull
+  // returns poison while assume violations are immediate undefined behavior,
+  // we can only do this if the value is known non-poison.
   if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
+      LI->getMetadata(LLVMContext::MD_noundef) &&
       !isKnownNonZero(Val, DL, 0, AC, LI, DT))
     addAssumeNonNull(AC, LI);
 }

@@ -787,8 +787,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(size_t{1});
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     return ReturnValue(pi_int32{1});
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+    return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
 
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
