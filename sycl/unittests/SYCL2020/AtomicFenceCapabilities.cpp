@@ -14,7 +14,7 @@ using namespace sycl;
 
 namespace {
 
-thread_local bool isRedefined;
+thread_local bool deviceGetInfoCalled;
 
 pi_platform PiPlatform = nullptr;
 
@@ -23,8 +23,8 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
-  isRedefined = true;
   if (param_name == PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES) {
+    deviceGetInfoCalled = true;
     if (param_value) {
       auto *Result =
           reinterpret_cast<pi_memory_order_capabilities *>(param_value);
@@ -33,6 +33,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
                 PI_MEMORY_ORDER_SEQ_CST;
     }
   } else if (param_name == PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES) {
+    deviceGetInfoCalled = true;
     if (param_value) {
       auto *Result =
           reinterpret_cast<pi_memory_scope_capabilities *>(param_value);
@@ -52,13 +53,13 @@ TEST(AtomicFenceCapabilitiesCheck, CheckAtomicFenceOrderCapabilities) {
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  isRedefined = false;
+  deviceGetInfoCalled = false;
 
   Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfoAfter);
   auto order_capabilities =
       Dev.get_info<sycl::info::device::atomic_fence_order_capabilities>();
-  EXPECT_TRUE(isRedefined);
+  EXPECT_TRUE(deviceGetInfoCalled);
   size_t expectedSize = 5;
   EXPECT_EQ(order_capabilities.size(), expectedSize);
 
@@ -87,13 +88,13 @@ TEST(AtomicFenceCapabilitiesCheck, CheckAtomicFenceScopeCapabilities) {
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  isRedefined = false;
+  deviceGetInfoCalled = false;
 
   Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfoAfter);
   auto scope_capabilities =
       Dev.get_info<sycl::info::device::atomic_fence_scope_capabilities>();
-  EXPECT_TRUE(isRedefined);
+  EXPECT_TRUE(deviceGetInfoCalled);
   size_t expectedSize = 5;
   EXPECT_EQ(scope_capabilities.size(), expectedSize);
 
