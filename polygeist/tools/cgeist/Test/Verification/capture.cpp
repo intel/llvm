@@ -19,9 +19,9 @@ double kernel_deriche(int x, float y) {
 // CHECK-NEXT:     %2 = llvm.mlir.undef : f32
 // CHECK-NEXT:     affine.store %arg1, %alloca[0] : memref<1xf32>
 // CHECK-NEXT:     %cast = memref.cast %alloca : memref<1xf32> to memref<?xf32>
-// CHECK-NEXT:     [[GEP1:%.*]] = llvm.getelementptr %1[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<memref<?xf32>>
+// CHECK-NEXT:     [[GEP1:%.*]] = llvm.getelementptr inbounds %1[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<memref<?xf32>>
 // CHECK-NEXT:     llvm.store %cast, [[GEP1]] : !llvm.ptr<memref<?xf32>>
-// CHECK-NEXT:     [[GEP2:%.*]] = llvm.getelementptr %1[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     [[GEP2:%.*]] = llvm.getelementptr inbounds %1[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %arg0, [[GEP2]] : !llvm.ptr<i32>
 // CHECK-NEXT:     [[LOAD1:%.*]] = llvm.load %1 : !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     llvm.store [[LOAD1]], %0 : !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
@@ -31,10 +31,10 @@ double kernel_deriche(int x, float y) {
 // CHECK-NEXT:     return [[RES]] : f64
 // CHECK-NEXT:   }
 // CHECK:   func private @_ZZ14kernel_dericheENK3$_0clEv(%arg0: !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     %2 = arith.sitofp %1 : i32 to f32
-// CHECK-NEXT:     %3 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<memref<?xf32>>
+// CHECK-NEXT:     %3 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr<memref<?xf32>>
 // CHECK-NEXT:     %4 = llvm.load %3 : !llvm.ptr<memref<?xf32>>
 // CHECK-NEXT:     %5 = affine.load %4[0] : memref<?xf32>
 // CHECK-NEXT:     %6 = arith.mulf %5, %2 : f32

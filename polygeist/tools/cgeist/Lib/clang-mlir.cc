@@ -611,7 +611,8 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
             Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
             Scalar.val,
             ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                        Builder.create<arith::ConstantIntOp>(Loc, 0, 32)})),
+                        Builder.create<arith::ConstantIntOp>(Loc, 0, 32)}),
+            /* inbounds */ true),
         /*isReference*/ false);
   }
 
@@ -1245,7 +1246,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     Value CommonGep = Builder.create<LLVM::GEPOp>(
         Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val,
         ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                    Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)}));
+                    Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)}),
+        /* inbounds*/ true);
 
     if (RD->isUnion()) {
       LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
@@ -1418,8 +1420,8 @@ Value MLIRScanner::GetAddressOfDerivedClass(
           LLVM::LLVMPointerType::get(Builder.getI8Type(), PT.getAddressSpace()),
           Ptr);
 
-    Ptr = Builder.create<LLVM::GEPOp>(Loc, Ptr.getType(), Ptr,
-                                      ValueRange({Offset}));
+    Ptr = Builder.create<LLVM::GEPOp>(
+        Loc, Ptr.getType(), Ptr, ValueRange({Offset}), /* inbounds */ true);
 
     if (auto PT = NT.dyn_cast<LLVM::LLVMPointerType>())
       Val = Builder.create<LLVM::BitcastOp>(
@@ -1502,8 +1504,8 @@ Value MLIRScanner::GetAddressOfBaseClass(
                       });
 
         Val = Builder.create<LLVM::GEPOp>(
-            Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val,
-            Idx);
+            Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val, Idx,
+            /* inbounds */ true);
       }
     }
 

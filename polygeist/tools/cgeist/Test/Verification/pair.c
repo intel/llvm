@@ -22,7 +22,7 @@ int create() {
 // CHECK-NEXT:    %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
 // CHECK-NEXT:    llvm.store %arg0, %0 : !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:    %1 = llvm.getelementptr %0[0, 1] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:    %1 = llvm.getelementptr inbounds %0[0, 1] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:    llvm.store %arg1, %1 : !llvm.ptr<i32>
 // CHECK-NEXT:    %2 = llvm.load %0 : !llvm.ptr<struct<(i32, i32)>>
 // CHECK-NEXT:    return %2 : !llvm.struct<(i32, i32)>
@@ -34,14 +34,14 @@ int create() {
 // CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
 // CHECK-NEXT:    %1 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:    %2 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:    %2 = llvm.getelementptr inbounds %1[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:    llvm.store %c0_i32, %2 : !llvm.ptr<i32>
-// CHECK-NEXT:    %3 = llvm.getelementptr %1[0, 1] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:    %3 = llvm.getelementptr inbounds %1[0, 1] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:    llvm.store %c1_i32, %3 : !llvm.ptr<i32>
 // CHECK-NEXT:    %4 = llvm.load %1 : !llvm.ptr<struct<(i32, i32)>>
 // CHECK-NEXT:    %5 = call @byval0(%4, %c2_i32) : (!llvm.struct<(i32, i32)>, i32) -> !llvm.struct<(i32, i32)>
 // CHECK-NEXT:    llvm.store %5, %0 : !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:    %6 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:    %6 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:    %7 = llvm.load %6 : !llvm.ptr<i32>
 // CHECK-NEXT:    return %7 : i32
 // CHECK-NEXT:   }

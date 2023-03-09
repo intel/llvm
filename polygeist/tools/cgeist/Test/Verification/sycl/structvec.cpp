@@ -17,7 +17,7 @@ struct structvec {
 // CHECK-LABEL: func.func @_Z10test_store9structvecic(%arg0: !llvm.ptr<struct<(vector<2xi8>)>> {llvm.align = 2 : i64, llvm.byval = !llvm.struct<(vector<2xi8>)>, llvm.noundef}, %arg1: i32 {llvm.noundef}, %arg2: i8 {llvm.noundef, llvm.signext}) -> !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:    %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>>) -> !llvm.ptr<vector<2xi8>>
+// CHECK-NEXT:    %1 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>>) -> !llvm.ptr<vector<2xi8>>
 // CHECK-NEXT:    %2 = llvm.load %1 : !llvm.ptr<vector<2xi8>>
 // CHECK-NEXT:    %3 = vector.insertelement %arg2, %2[%arg1 : i32] : vector<2xi8>
 // CHECK-NEXT:    llvm.store %3, %1 : !llvm.ptr<vector<2xi8>>
@@ -29,9 +29,9 @@ struct structvec {
 // CHECK-NEXT:  }
 
 // CHECK-LABEL: func.func @_ZN9structvecC1EOS_(%arg0: !llvm.ptr<struct<(vector<2xi8>)>, 4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}, %arg1: !llvm.ptr<struct<(vector<2xi8>)>, 4> {llvm.align = 2 : i64, llvm.dereferenceable = 2 : i64, llvm.noundef})
-// CHECK-NEXT:    %0 = llvm.getelementptr %arg1[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:    %0 = llvm.getelementptr inbounds %arg1[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    %1 = llvm.load %0 : !llvm.ptr<vector<2xi8>, 4>
-// CHECK-NEXT:    %2 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:    %2 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    llvm.store %1, %2 : !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -53,17 +53,17 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-DAG:     %4 = llvm.alloca %c1_i64 x !llvm.array<2 x i8> : (i64) -> !llvm.ptr<array<2 x i8>>
 // CHECK-DAG:     %5 = llvm.alloca %c1_i64 x !llvm.array<2 x i8> : (i64) -> !llvm.ptr<array<2 x i8>>
 // CHECK-DAG:     %6 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    %7 = llvm.getelementptr %5[0, 0] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:    %7 = llvm.getelementptr inbounds %5[0, 0] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:    llvm.store %c0_i8, %7 : !llvm.ptr<i8>
-// CHECK-NEXT:    %8 = llvm.getelementptr %5[0, 1] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:    %8 = llvm.getelementptr inbounds %5[0, 1] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:    llvm.store %c1_i8, %8 : !llvm.ptr<i8>
 // CHECK-NEXT:    %9 = llvm.addrspacecast %4 : !llvm.ptr<array<2 x i8>> to !llvm.ptr<array<2 x i8>, 4>
 // CHECK-NEXT:    %10 = llvm.load %5 : !llvm.ptr<array<2 x i8>>
 // CHECK-NEXT:    llvm.store %10, %9 : !llvm.ptr<array<2 x i8>, 4>
 // CHECK-NEXT:    %11 = "polygeist.pointer2memref"(%9) : (!llvm.ptr<array<2 x i8>, 4>) -> memref<?xi8, 4 : i32>
-// CHECK-NEXT:    %12 = llvm.getelementptr %3[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<memref<?xi8, 4>>
+// CHECK-NEXT:    %12 = llvm.getelementptr inbounds %3[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<memref<?xi8, 4>>
 // CHECK-NEXT:    llvm.store %11, %12 : !llvm.ptr<memref<?xi8, 4>>
-// CHECK-NEXT:    %13 = llvm.getelementptr %3[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<i64>
+// CHECK-NEXT:    %13 = llvm.getelementptr inbounds %3[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:    llvm.store %c2_i64, %13 : !llvm.ptr<i64>
 // CHECK-NEXT:    %14 = llvm.load %3 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>
 // CHECK-NEXT:    %15 = llvm.addrspacecast %6 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
@@ -83,7 +83,7 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
 // CHECK-NEXT:    %0 = llvm.addrspacecast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>> to !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
+// CHECK-NEXT:    %1 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(vector<2xi8>)>, 4>) -> !llvm.ptr<vector<2xi8>, 4>
 // CHECK-NEXT:    affine.for %arg2 = 0 to 2 {
 // CHECK-NEXT:      %2 = arith.index_cast %arg2 : index to i32
 // CHECK-NEXT:      %3 = func.call @_ZNKSt16initializer_listIcE5beginEv(%0) : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>, 4>) -> memref<?xi8, 4>

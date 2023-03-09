@@ -59,7 +59,7 @@ memref.global @global : memref<3xi64>
 
 // CHECK-LABEL:   llvm.func @get_global() -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global : !llvm.ptr<array<3 x i64>>
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr %[[VAL_0]][0, 0] : (!llvm.ptr<array<3 x i64>>) -> !llvm.ptr<i64>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<array<3 x i64>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:    }
 
@@ -76,7 +76,7 @@ memref.global @global_addrspace : memref<3xi64, 4>
 
 // CHECK-LABEL:   llvm.func @get_global_addrspace() -> !llvm.ptr<i64, 4>
 // CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global_addrspace : !llvm.ptr<array<3 x i64>, 4>
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr %[[VAL_0]][0, 0] : (!llvm.ptr<array<3 x i64>, 4>) -> !llvm.ptr<i64, 4>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<array<3 x i64>, 4>) -> !llvm.ptr<i64, 4>
 // CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr<i64, 4>
 // CHECK-NEXT:    }
 
@@ -91,7 +91,7 @@ memref.global "private" constant @shape : memref<2xi64> = dense<[2, 2]>
 
 // CHECK-LABEL:   llvm.func @reshape(
 // CHECK-SAME:                       %[[VAL_0:.*]]: !llvm.ptr<i32>) -> !llvm.ptr<i32>
-// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %{{.*}}[0, 0] : (!llvm.ptr<array<2 x i64>>) -> !llvm.ptr<i64>
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr inbounds %{{.*}}[0, 0] : (!llvm.ptr<array<2 x i64>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      llvm.return %[[VAL_0]] : !llvm.ptr<i32>
 // CHECK-NEXT:    }
 
@@ -107,7 +107,7 @@ memref.global "private" constant @shape : memref<1xindex>
 
 // CHECK-LABEL:   llvm.func @reshape_dyn(
 // CHECK-SAME:                           %[[VAL_0:.*]]: !llvm.ptr<i32>) -> !llvm.ptr<i32>
-// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %{{.*}}[0, 0] : (!llvm.ptr<array<1 x i64>>) -> !llvm.ptr<i64>
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr inbounds %{{.*}}[0, 0] : (!llvm.ptr<array<1 x i64>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      llvm.return %[[VAL_0]] : !llvm.ptr<i32>
 // CHECK-NEXT:    }
 

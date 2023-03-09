@@ -14,10 +14,10 @@ double alloc() {
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i64, i64)> : (i64) -> !llvm.ptr<struct<(i64, i64)>>
 // CHECK-NEXT:     %1 = llvm.mlir.null : !llvm.ptr<{{.*}}>
 // CHECK:          %{{.*}} = llvm.call @gettimeofday(%0, %{{.*}}) : (!llvm.ptr<struct<(i64, i64)>>, {{.*}}) -> i32
-// CHECK-NEXT:     [[T3:%.*]] = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(i64, i64)>>) -> !llvm.ptr<i64>
+// CHECK-NEXT:     [[T3:%.*]] = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i64, i64)>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:     [[T4:%.*]] = llvm.load [[T3]] : !llvm.ptr<i64>
 // CHECK-NEXT:     [[T5:%.*]] = arith.sitofp [[T4]] : i64 to f64
-// CHECK-NEXT:     [[T6:%.*]] = llvm.getelementptr %0[0, 1] : (!llvm.ptr<struct<(i64, i64)>>) -> !llvm.ptr<i64>
+// CHECK-NEXT:     [[T6:%.*]] = llvm.getelementptr inbounds %0[0, 1] : (!llvm.ptr<struct<(i64, i64)>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:     [[T7:%.*]] = llvm.load [[T6]] : !llvm.ptr<i64>
 // CHECK-NEXT:     [[T8:%.*]] = arith.sitofp [[T7]] : i64 to f64
 // CHECK-NEXT:     [[T9:%.*]] = arith.mulf [[T8]], %cst : f64
