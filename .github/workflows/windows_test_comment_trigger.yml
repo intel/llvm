@@ -28,7 +28,7 @@ jobs:
           const pr = await github.rest.pulls.get({
             owner: context.issue.owner,
             repo: context.issue.repo,
-            pull_number: number
+            pull_number: context.issue.number
           });
           return pr.data.head.sha
     - name: update_pr_status_pending

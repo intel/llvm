@@ -518,10 +518,18 @@ public:
          {"lsc.load.slm",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_load_merge_slm",
+         {"lsc.load.merge.slm",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0), a(2)}}},
         {"lsc_load_bti",
          {"lsc.load.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_load_merge_bti",
+         {"lsc.load.merge.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2), a(2)}}},
         {"lsc_load_stateless",
          {"lsc.load.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -1191,6 +1199,25 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
+    InstsToErase.push_back(LI);
+    return;
+  }
+
+  // As an optimization of accesses of the first element for vector SPIRV
+  // globals sometimes the load will return a scalar and the uses can be of any
+  // pattern. In this case, generate GenX calls to access the first element and
+  // update the use to instead use the GenX call result rather than the load
+  // result.
+  if (!LI->getType()->isVectorTy()) {
+    // Copy users to seperate container for safe modification
+    // during iteration.
+    SmallVector<User *> Users(LI->users());
+    for (User *LU : Users) {
+      Instruction *Inst = cast<Instruction>(LU);
+      NewInst =
+          generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0);
+      LU->replaceUsesOfWith(LI, NewInst);
+    }
     InstsToErase.push_back(LI);
     return;
   }
