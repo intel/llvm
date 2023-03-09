@@ -886,7 +886,6 @@ urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == pHost`
 ///         + `NULL == phMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -894,6 +893,8 @@ urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
+///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
+///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -902,7 +903,7 @@ urMemImageCreate(
     ur_mem_flags_t flags,                  ///< [in] allocation and usage information flags
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    void *pHost,                           ///< [in] pointer to the buffer data
+    void *pHost,                           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem                 ///< [out] pointer to handle of image object created
 ) {
     auto pfnImageCreate = ur_lib::context->urDdiTable.Mem.pfnImageCreate;
@@ -934,6 +935,8 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
+///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
+///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL

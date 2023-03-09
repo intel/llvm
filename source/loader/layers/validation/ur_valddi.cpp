@@ -664,7 +664,7 @@ urMemImageCreate(
     ur_mem_flags_t flags,                  ///< [in] allocation and usage information flags
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    void *pHost,                           ///< [in] pointer to the buffer data
+    void *pHost,                           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem                 ///< [out] pointer to handle of image object created
 ) {
     auto pfnImageCreate = context.urDdiTable.Mem.pfnImageCreate;
@@ -694,12 +694,16 @@ urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == pHost) {
+        if (NULL == phMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        if (pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
+            return UR_RESULT_ERROR_INVALID_HOST_PTR;
+        }
+
+        if (pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0) {
+            return UR_RESULT_ERROR_INVALID_HOST_PTR;
         }
     }
 
@@ -733,6 +737,14 @@ urMemBufferCreate(
 
         if (NULL == phBuffer) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
+            return UR_RESULT_ERROR_INVALID_HOST_PTR;
+        }
+
+        if (pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0) {
+            return UR_RESULT_ERROR_INVALID_HOST_PTR;
         }
     }
 
