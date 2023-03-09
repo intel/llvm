@@ -1111,31 +1111,31 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     LLVM::ICmpPredicate LPred;
     switch (BO->getOpcode()) {
     case clang::BinaryOperator::Opcode::BO_GT:
-      FPred = arith::CmpFPredicate::UGT;
+      FPred = arith::CmpFPredicate::OGT;
       IPred =
           SignedType ? arith::CmpIPredicate::sgt : arith::CmpIPredicate::ugt,
       LPred = LLVM::ICmpPredicate::ugt;
       break;
     case clang::BinaryOperator::Opcode::BO_GE:
-      FPred = arith::CmpFPredicate::UGE;
+      FPred = arith::CmpFPredicate::OGE;
       IPred =
           SignedType ? arith::CmpIPredicate::sge : arith::CmpIPredicate::uge,
       LPred = LLVM::ICmpPredicate::uge;
       break;
     case clang::BinaryOperator::Opcode::BO_LT:
-      FPred = arith::CmpFPredicate::ULT;
+      FPred = arith::CmpFPredicate::OLT;
       IPred =
           SignedType ? arith::CmpIPredicate::slt : arith::CmpIPredicate::ult,
       LPred = LLVM::ICmpPredicate::ult;
       break;
     case clang::BinaryOperator::Opcode::BO_LE:
-      FPred = arith::CmpFPredicate::ULE;
+      FPred = arith::CmpFPredicate::OLE;
       IPred =
           SignedType ? arith::CmpIPredicate::sle : arith::CmpIPredicate::ule,
       LPred = LLVM::ICmpPredicate::ule;
       break;
     case clang::BinaryOperator::Opcode::BO_EQ:
-      FPred = arith::CmpFPredicate::UEQ;
+      FPred = arith::CmpFPredicate::OEQ;
       IPred = arith::CmpIPredicate::eq;
       LPred = LLVM::ICmpPredicate::eq;
       break;
