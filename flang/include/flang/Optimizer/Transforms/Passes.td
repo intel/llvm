@@ -117,6 +117,12 @@ def ArrayValueCopy : Pass<"array-value-copy", "::mlir::func::FuncOp"> {
   }];
   let constructor = "::fir::createArrayValueCopyPass()";
   let dependentDialects = [ "fir::FIROpsDialect" ];
+  let options = [
+    Option<"optimizeConflicts", "optimize-conflicts", "bool",
+           /*default=*/"false",
+           "do more detailed conflict analysis to reduce the number "
+           "of temporaries">
+  ];
 }
 
 def CharacterConversion : Pass<"character-conversion"> {
@@ -227,6 +233,16 @@ def MemoryAllocationOpt : Pass<"memory-allocation-opt", "mlir::func::FuncOp"> {
            "Set maximum number of elements of an array allocated on the stack.">
   ];
   let constructor = "::fir::createMemoryAllocationPass()";
+}
+
+def StackArrays : Pass<"stack-arrays", "mlir::ModuleOp"> {
+  let summary = "Move local array allocations from heap memory into stack memory";
+  let description = [{
+    Convert heap allocations for arrays, even those of unknown size, into stack
+    allocations.
+  }];
+  let dependentDialects = [ "fir::FIROpsDialect" ];
+  let constructor = "::fir::createStackArraysPass()";
 }
 
 def SimplifyRegionLite : Pass<"simplify-region-lite", "mlir::ModuleOp"> {

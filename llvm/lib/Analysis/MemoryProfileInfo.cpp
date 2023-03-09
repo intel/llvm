@@ -92,7 +92,7 @@ static void addAllocTypeAttribute(LLVMContext &Ctx, CallBase *CI,
 }
 
 static bool hasSingleAllocType(uint8_t AllocTypes) {
-  const unsigned NumAllocTypes = countPopulation(AllocTypes);
+  const unsigned NumAllocTypes = llvm::popcount(AllocTypes);
   assert(NumAllocTypes != 0);
   return NumAllocTypes == 1;
 }
@@ -241,4 +241,10 @@ CallStack<MDNode, MDNode::op_iterator>::CallStackIterator::operator*() {
   ConstantInt *StackIdCInt = mdconst::dyn_extract<ConstantInt>(*Iter);
   assert(StackIdCInt);
   return StackIdCInt->getZExtValue();
+}
+
+template <> uint64_t CallStack<MDNode, MDNode::op_iterator>::back() const {
+  assert(N);
+  return mdconst::dyn_extract<ConstantInt>(N->operands().back())
+      ->getZExtValue();
 }
