@@ -185,7 +185,7 @@ Unified Runtime loader implements tracing support through the `XPTI framework <h
        | **parent**: nullptr
        | **event**: nullptr
        | **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event.
-       | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, and arguments. 
+       | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, and arguments.
      - None
    * - `function_with_args_end`
      - | **trace_type**: `xpti::trace_point_type_t::function_with_args_end` that marks the end of a function
@@ -210,7 +210,7 @@ All of these logging options can be set with **UR_LOG_LOADER** and **UR_LOG_NULL
 Both of these environment variables have the same syntax for setting logger options:
 
   "[level:debug|info|warning|error];[flush:<debug|info|warning|error>];[output:stdout|stderr|file,<path>]"
-  
+
   * level - a log level, meaning that only messages from this level and above are printed,
             possible values, from the lowest level to the highest one: *debug*, *info*, *warning*, *error*,
   * flush - a flush level, meaning that messages at this level and above are guaranteed to be flushed immediately,
@@ -220,7 +220,7 @@ Both of these environment variables have the same syntax for setting logger opti
              when providing a *file* output option, a *<path>* is required
 
   .. note::
-    For output to file, a path to the file have to be provided after a comma, like in the example above. The path has to exist, file will be created if not existing. 
+    For output to file, a path to the file have to be provided after a comma, like in the example above. The path has to exist, file will be created if not existing.
     All these three logger options are optional. The defaults are set when options are not provided in the environment variable.
     Options have to be separated with `;`, option names, and their values with `:`. Additionally, when providing *file* output, the keyword *file* and a path to a file
     have to be separated by `,`.
@@ -247,6 +247,10 @@ Specific environment variables can be set to control the behavior of unified run
 
    Holds parameters for setting Unified Runtime null adapter logging. The syntax is described in the **Logging** section above.
 
+.. envvar:: UR_LOG_VALIDATION
+
+   Holds parameters for setting Unified Runtime validation logging. The syntax is described in the **Logging** section above.
+
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 
    Holds a comma-separated list of library names used by the loader for adapter discovery. By setting this value you can
@@ -271,3 +275,12 @@ Specific environment variables can be set to control the behavior of unified run
    .. note::
 
     This environment variable should be used together with "UR_ENABLE_VALIDATION_LAYER".
+
+.. envvar:: UR_ENABLE_LEAK_CHECKING
+
+   Holds the value '0' or '1'. By setting it to '1' you enable leak checking for Unified Runtime API calls involving
+   object creation/destruction. Leak checking depends on the logging mechanism.
+
+   .. note::
+
+    This environment variable should be used together with "UR_ENABLE_VALIDATION_LAYER" and "UR_LOG_VALIDATION".
