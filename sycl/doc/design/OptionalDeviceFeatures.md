@@ -634,17 +634,26 @@ AST.  By contrast, we can diagnose the warning more efficiently in an IR pass
 because traversal of the IR is much more efficient than traversal of the AST.
 The downside, though, is that the warning message is less informative.
 
-#### Aspect requirement strictness control
+#### Pre- and post-optimization aspect propagation
 
-For some aspects (currently only `fp64`) we want the usage analysis to be less
-strict to avoid user confusion in cases where the aspects are used
-unintentionally and is later optimized out. An example of this is through the
-use of a literal such as `3.14` which is a double-precision floating point value
-in C++, but may be lowered to a single-precision floating point immediately,
-making it difficult to debug.
+Sometimes aspects that are used by a kernel in source code are eliminated during
+optimization. The most common case is when a kernel uses a double precision
+floating point literal to initialize a single precision floating point variable.
+Although the kernel uses the aspect `fp64` (corresponding to `double`) in its
+source code, the optimizer commonly replaces the double precision literal with a
+single precision literal, and this can sometimes mean that the kernel does not
+actually rely on the `fp64` aspect at all. We therefore have a quandary, should
+kernels like this be allowed to run on a device that doesn't have `fp64`
+support?
 
-To allow both strict and relaxed aspect propagation, the aspect propagation pass
-is run twice; once before optimizations and again after optimizations.
+It seems too extreme to raise an exception if the application attempts to submit
+a kernel like this to a device without fp64 support because applications like
+this previously ran without error (prior to this design being implemented).
+However, it also seems useful to issue a warning in a case like this if the
+application specifically decorated the kernel with `[[sycl::device_has()]]`
+(i.e. requesting a warning if the kernel uses aspects not listed in that
+attribute). We therefore run the aspect propagation pass twice: once before
+optimization and again after optimization.
 
 The first run of the pass takes a list of aspect names to exclude when saving
 the result of the propagation. It will still propagate the excluded aspects to
