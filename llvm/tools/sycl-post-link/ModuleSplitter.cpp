@@ -98,7 +98,7 @@ void traceUser(User *U, Function *F, DenseMap<Function *, EntryPointSet> &Cache)
 
     auto *I = cast<Instruction>(U);
     auto *FB = I->getFunction();
-    Cache[F].insert(FB);
+    Cache[FB].insert(F);
 
     return;
   }
@@ -138,12 +138,11 @@ void propagateThroughCallGraph(
 
       for (auto *From : CallGraph[To]) {
         if (Visited.insert(From).second) {
-          Pairs.emplace_back(From, To);
           WorkList.push_back(From);
         }
+        Pairs.emplace_back(From, To);
       }
     }
-
   }
 
   for (auto &P : Pairs) {
@@ -1033,9 +1032,6 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
 
   Module &M = MD.getModule();
 
-  auto FTToF = getFunctionTypeToFunctionMap(M);
-  auto FToF = getFunctionToFunctionMap(M);
-
   // Only process module entry points:
   for (auto &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
@@ -1047,13 +1043,6 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     auto &It = PropertiesToFunctionsMap[std::move(Key)];
 
     It.insert(&F);
-    auto S = getUsedIndirectCallSignatures(F);
-    for (auto *FT : S) {
-      It.insert(FTToF[FT].begin(), FTToF[FT].end());
-    }
-    for (auto *FF: FToF[&F]) {
-      It.insert(FF);
-    }
   }
 
   if (PropertiesToFunctionsMap.empty()) {
