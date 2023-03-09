@@ -48,7 +48,8 @@ struct GetGlobalMemrefOpLowering
     // the address of the GV as the base, and (rank + 1) number of 0 indices.
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
         getGlobalOp, typeConverter->convertType(memrefTy), addressOf,
-        SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0));
+        SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0),
+        /* inbounds */ true);
 
     return success();
   }

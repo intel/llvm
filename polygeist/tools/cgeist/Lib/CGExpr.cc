@@ -298,22 +298,23 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                         Loc,
                         LLVM::LLVMPointerType::get(ST.getBody()[I],
                                                    PT.getAddressSpace()),
-                        ToInit,
-                        llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex});
+                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                        /* inbounds */ true);
                   })
                   .Case<LLVM::LLVMArrayType>([=](auto AT) {
                     return Builder.create<LLVM::GEPOp>(
                         Loc,
                         LLVM::LLVMPointerType::get(AT.getElementType(),
                                                    PT.getAddressSpace()),
-                        ToInit,
-                        llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex});
+                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                        /* inbounds */ true);
                   })
                   .Case<IntegerType>([=](auto IT) {
                     return Builder.create<LLVM::GEPOp>(
                         Loc,
                         LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
-                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex});
+                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex},
+                        /* inbounds */ true);
                   });
         }
 
@@ -483,11 +484,12 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   auto Zero = Builder.create<arith::ConstantIntOp>(Loc, 0, 32);
   auto GEP0 = Builder.create<LLVM::GEPOp>(
       Loc, LLVM::LLVMPointerType::get(SubType.getBody()[0], 0), Alloca,
-      ValueRange({Zero, Zero}));
+      ValueRange({Zero, Zero}), /* inbounds */ true);
   Builder.create<LLVM::StoreOp>(Loc, ArrayPtr.getValue(Builder), GEP0);
   auto GEP1 = Builder.create<LLVM::GEPOp>(
       Loc, LLVM::LLVMPointerType::get(SubType.getBody()[1], 0), Alloca,
-      ValueRange({Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}));
+      ValueRange({Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}),
+      /* inbounds */ true);
   ++Field;
   auto ITy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();

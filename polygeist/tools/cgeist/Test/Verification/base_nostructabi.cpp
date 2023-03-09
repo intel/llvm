@@ -34,7 +34,7 @@ void a() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN19basic_ostringstreamC1Ev(%arg0: !llvm.ptr<struct<(struct<(i8)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     call @_ZN12_Alloc_hiderC1Ev(%0) : (!llvm.ptr<struct<(i8)>>) -> ()
 // CHECK-NEXT:     %1 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i8)>)>> to !llvm.ptr<i8>
 // CHECK-NEXT:     call @_Z4run2Pv(%1) : (!llvm.ptr<i8>) -> ()

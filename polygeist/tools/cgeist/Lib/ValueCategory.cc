@@ -322,7 +322,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                                 builder.create<ConstantIntOp>(loc, i, 32)};
           builder.create<mlir::LLVM::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
-              builder.create<mlir::LLVM::GEPOp>(loc, elty, val, lidx));
+              builder.create<mlir::LLVM::GEPOp>(loc, elty, val, lidx,
+                                                /* inbounds */ true));
         }
       }
     } else if (auto smt = val.getType().dyn_cast<mlir::MemRefType>()) {
@@ -352,8 +353,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(
-                loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, toStore.val,
-                                                       lidx)),
+                loc, builder.create<mlir::LLVM::GEPOp>(
+                         loc, elty, toStore.val, lidx, /* inbounds */ true)),
             val, idx);
       }
     } else
@@ -752,8 +753,9 @@ ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
   });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
-  return {Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, val, IdxList),
-          isReference};
+  return {
+      Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, val, IdxList, IsInBounds),
+      isReference};
 }
 
 ValueCategory ValueCategory::InBoundsGEP(OpBuilder &Builder, Location Loc,

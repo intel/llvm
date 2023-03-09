@@ -39,11 +39,11 @@ void make() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN3SubC1Eid(%arg0: !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, %arg1: i32, %arg2: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<struct<(i32)>>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<struct<(i32)>>
 // CHECK-NEXT:     call @_ZN4RootC1Ei(%0, %arg1) : (!llvm.ptr<struct<(i32)>>, i32) -> ()
-// CHECK-NEXT:     %1 = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<struct<(f32)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<struct<(f32)>>
 // CHECK-NEXT:     call @_ZN5FRootC1Ev(%1) : (!llvm.ptr<struct<(f32)>>) -> ()
-// CHECK-NEXT:     %2 = llvm.getelementptr %arg0[0, 2] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<f64>
+// CHECK-NEXT:     %2 = llvm.getelementptr inbounds %arg0[0, 2] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     llvm.store %arg2, %2 : !llvm.ptr<f64>
 // CHECK-NEXT:     %3 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
 // CHECK-NEXT:     %4 = "polygeist.pointer2memref"(%3) : (!llvm.ptr<array<12 x i8>>) -> memref<?xi8>
@@ -51,7 +51,7 @@ void make() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: !llvm.ptr<struct<(i32)>>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %arg1, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     %1 = llvm.mlir.addressof @str1 : !llvm.ptr<array<13 x i8>>
 // CHECK-NEXT:     %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<array<13 x i8>>) -> memref<?xi8>
@@ -60,7 +60,7 @@ void make() {
 // CHECK-NEXT:   }
 // CHECK:   func.func @_ZN5FRootC1Ev(%arg0: !llvm.ptr<struct<(f32)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:      %cst = arith.constant 2.180000e+00 : f32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(f32)>>) -> !llvm.ptr<f32>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(f32)>>) -> !llvm.ptr<f32>
 // CHECK-NEXT:     llvm.store %cst, %0 : !llvm.ptr<f32>
 // CHECK-NEXT:     %[[i1:.+]] = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
 // CHECK-NEXT:     %[[i2:.+]] = "polygeist.pointer2memref"(%1) : (!llvm.ptr<array<14 x i8>>) -> memref<?xi8>

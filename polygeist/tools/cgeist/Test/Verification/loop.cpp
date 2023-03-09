@@ -30,7 +30,7 @@ void div_(int* sizes, short k) {
 // CHECK-NEXT:       %reshape = memref.reshape %[[VAL_K]](%alloca) : (memref<i16>, memref<1xindex>) -> memref<1xi16>
 // CHECK-NEXT:       affine.store %[[ARG_K]], %reshape[0] : memref<1xi16>
 // CHECK-NEXT:       %[[VAL_5:.*]] = memref.get_global @MAX_DIMS : memref<i32>
-// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr %[[VAL_4]][0, 0] : (!llvm.ptr<array<25 x struct<(i32, f64)>>>) -> !llvm.ptr<struct<(i32, f64)>>
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0] : (!llvm.ptr<array<25 x struct<(i32, f64)>>>) -> !llvm.ptr<struct<(i32, f64)>>
 // CHECK-NEXT:       %[[VAL_7:.*]] = scf.while (%[[VAL_8:.*]] = %[[VAL_2]]) : (i32) -> i32 {
 // CHECK-NEXT:         %[[VAL_9:.*]] = memref.alloca() : memref<1xindex>
 // CHECK-NEXT:         %[[VAL_10:.*]] = memref.reshape %[[VAL_5]](%[[VAL_9]]) : (memref<i32>, memref<1xindex>) -> memref<1xi32>
@@ -48,7 +48,7 @@ void div_(int* sizes, short k) {
 // CHECK-NEXT:         %[[ADDI:.*]] = arith.addi %[[VAL_15]], %[[EXTSI]] : i32
 // CHECK-NEXT:         %[[VAL_16:.*]] = arith.index_cast %[[VAL_14]] : index to i64
 // CHECK-NEXT:         %[[VAL_17:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_16]]] : (!llvm.ptr<struct<(i32, f64)>>, i64) -> !llvm.ptr<struct<(i32, f64)>>
-// CHECK-NEXT:         %[[VAL_18:.*]] = llvm.getelementptr %[[VAL_17]][0, 0] : (!llvm.ptr<struct<(i32, f64)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:         %[[VAL_18:.*]] = llvm.getelementptr inbounds %[[VAL_17]][0, 0] : (!llvm.ptr<struct<(i32, f64)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:         llvm.store %[[ADDI]], %[[VAL_18]] : !llvm.ptr<i32>
 // CHECK-NEXT:         %[[VAL_19:.*]] = arith.addi %[[VAL_13]], %[[VAL_1]] : i32
 // CHECK-NEXT:         scf.yield %[[VAL_19]] : i32

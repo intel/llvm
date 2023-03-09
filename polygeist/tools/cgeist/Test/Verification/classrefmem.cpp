@@ -28,7 +28,7 @@ void Q(A& a) {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN1A3addEv(%arg0: !llvm.ptr<!llvm.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> !llvm.ptr<memref<?xi32>>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> !llvm.ptr<memref<?xi32>>
 // CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<memref<?xi32>>
 // CHECK-NEXT:     call @_Z4oaddRi(%1) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return

@@ -31,21 +31,21 @@ void meta() {
 // CHECK-NEXT:     %3 = llvm.load %1 : !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     llvm.store %3, %0 : !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     %4 = call @_ZN8MyScalaraSEOS_(%2, %0) : (!llvm.ptr<struct<(struct<(f64)>)>>, !llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %5 = llvm.getelementptr %2[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %6 = llvm.getelementptr %5[0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
+// CHECK-NEXT:     %5 = llvm.getelementptr inbounds %2[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
+// CHECK-NEXT:     %6 = llvm.getelementptr inbounds %5[0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     %7 = llvm.load %6 : !llvm.ptr<f64>
 // CHECK-NEXT:     call @_Z3used(%7) : (f64) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN8MyScalarC1Ed(%arg0: !llvm.ptr<struct<(struct<(f64)>)>>, %arg1: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     llvm.store %arg1, %1 : !llvm.ptr<f64>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN8MyScalaraSEOS_(%arg0: !llvm.ptr<struct<(struct<(f64)>)>>, %arg1: !llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %arg1[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
+// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %arg1[0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
 // CHECK-NEXT:     %2 = call @_ZN1SaSEOS_(%0, %1) : (!llvm.ptr<struct<(f64)>>, !llvm.ptr<struct<(f64)>>) -> !llvm.ptr<struct<(f64)>>
 // CHECK-NEXT:     return %arg0 : !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:   }
