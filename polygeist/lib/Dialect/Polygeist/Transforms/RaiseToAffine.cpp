@@ -172,7 +172,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
       llvm::dbgs()
           << "RaiseSCFForToAffine: raised scf::ForOp to AffineForOp in: "
-          << loop->getParentOfType<func::FuncOp>().getSymName() << "\n";
+          << loop->getParentOfType<FunctionOpInterface>().getName() << "\n";
     });
 
     LLVM_DEBUG({
