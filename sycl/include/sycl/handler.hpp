@@ -656,7 +656,6 @@ private:
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
     using KI = detail::KernelInfo<KernelName>;
-
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -670,7 +669,6 @@ private:
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
 
