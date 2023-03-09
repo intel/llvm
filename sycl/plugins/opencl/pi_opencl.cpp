@@ -311,7 +311,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       cl_int result = clGetDeviceInfo(
           cast<cl_device_id>(device), cast<cl_device_info>(paramName),
           paramValueSize, paramValue, paramValueSizeRet);
-      return static_cast<pi_result>(result);
+      return static_cast<pi_result>(result & PI_MEMORY_ORDER_BITMASK);
     }
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
