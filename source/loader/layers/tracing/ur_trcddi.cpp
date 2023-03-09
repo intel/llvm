@@ -622,7 +622,7 @@ urMemImageCreate(
     ur_mem_flags_t flags,                  ///< [in] allocation and usage information flags
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    void *pHost,                           ///< [in] pointer to the buffer data
+    void *pHost,                           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem                 ///< [out] pointer to handle of image object created
 ) {
     auto pfnImageCreate = context.urDdiTable.Mem.pfnImageCreate;

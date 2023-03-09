@@ -222,7 +222,7 @@ params:
       desc: "[in] pointer to image description"
     - type: "void*"
       name: pHost
-      desc: "[in] pointer to the buffer data"
+      desc: "[in][optional] pointer to the buffer data"
     - type: $x_mem_handle_t*
       name: phMem      
       desc: "[out] pointer to handle of image object created"
@@ -232,7 +232,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
-    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_INVALID_HOST_PTR:
+      - "`pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -263,7 +265,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
-    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_INVALID_HOST_PTR:
+      - "`pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
