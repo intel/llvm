@@ -66,7 +66,7 @@ public:
     Row(SimpleTable *Parent) : Parent(Parent) {}
 
     Row(SimpleTable *Parent, ArrayRef<StringRef> R) : Row(Parent) {
-      for (auto Cell : R)
+      for (auto &Cell : R)
         Cells.emplace_back(Cell.str());
     }
 
@@ -76,7 +76,7 @@ public:
 
   private:
     std::vector<std::string> Cells;
-    SimpleTable *Parent;
+    SimpleTable *Parent = nullptr;
   };
 
 public:
