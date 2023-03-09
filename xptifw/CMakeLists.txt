@@ -11,7 +11,7 @@ set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
 # the proxy implementation of XPTI
 if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   if (NOT DEFINED XPTI_SOURCE_DIR)
-    # If XPTI_SOURCE_DIR is no provided then assume that xpti is in-tree and not external.
+    # If XPTI_SOURCE_DIR is not provided then assume that xpti is in-tree and not external.
     set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
   else()
     set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
