@@ -113,7 +113,7 @@ constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";
 
-template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
+template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
   if (Target.startswith(GPUArh)) {

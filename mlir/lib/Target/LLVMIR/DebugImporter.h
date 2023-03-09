@@ -62,12 +62,17 @@ private:
   DILocalVariableAttr translateImpl(llvm::DILocalVariable *node);
   DIScopeAttr translateImpl(llvm::DIScope *node);
   DISubprogramAttr translateImpl(llvm::DISubprogram *node);
+  DINamespaceAttr translateImpl(llvm::DINamespace *node);
   DISubrangeAttr translateImpl(llvm::DISubrange *node);
   DISubroutineTypeAttr translateImpl(llvm::DISubroutineType *node);
   DITypeAttr translateImpl(llvm::DIType *node);
 
   /// A mapping between LLVM debug metadata and the corresponding attribute.
   DenseMap<llvm::DINode *, DINodeAttr> nodeToAttr;
+
+  /// A stack that stores the metadata nodes that are being traversed. The stack
+  /// is used to detect cyclic dependencies during the metadata translation.
+  SetVector<llvm::DINode *> translationStack;
 
   MLIRContext *context;
   ModuleOp mlirModule;
