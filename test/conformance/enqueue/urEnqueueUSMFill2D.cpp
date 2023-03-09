@@ -109,8 +109,8 @@ static std::vector<testParametersFill2D> test_cases{
     {1024, 256, 1, 256},
     /* Height == 1 && Pitch > width && pattern_size < width*/
     {1024, 256, 1, 4},
-    /* Height == 1 && Pitch > width && width != power_of_2 && pattern_size < width */
-    {1024, 57, 1, 4},
+    /* Height == 1 && Pitch > width && width != power_of_2 && pattern_size == 1*/
+    {1024, 57, 1, 1},
     /* Height == 1 && Pitch == width && pattern_size < width */
     {1024, 1024, 1, 256},
     /* Height == 1 && Pitch == width && pattern_size == width */
@@ -121,12 +121,12 @@ static std::vector<testParametersFill2D> test_cases{
     {1024, 256, 256, 256},
     /* Height > 1 && Pitch > width && pattern_size == width * height */
     {1024, 256, 256, 256 * 256},
-    /* Height > 1 && Pitch == width + 1 && pattern_size == 2 */
-    {234, 233, 23, 2},
-    /* Height == 1 && Pitch == width + 1 && pattern_size == 128 */
-    {234, 233, 1, 128},
-    /* Height != power_of_2 && Pitch == width + 1 && pattern_size == 128 */
-    {234, 233, 35, 128}};
+    /* Height == 1 && Pitch == width + 1 && pattern_size == 1 */
+    {234, 233, 1, 1},
+    /* Height != power_of_2 && Pitch == width + 1 && pattern_size == 1 */
+    {234, 233, 35, 1},
+    /* Height != power_of_2 && width == power_of_2 && pattern_size == 128 */
+    {1024, 256, 35, 128}};
 
 UUR_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam,
                  testing::ValuesIn(test_cases),
@@ -220,9 +220,16 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidPitch) {
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidWidth) {
 
+    /* width is 0 */
     ASSERT_EQ_RESULT(
         urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
                            0, height, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+
+    /* width is not a multiple of pattern_size */
+    ASSERT_EQ_RESULT(
+        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
+                           7, height, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);
 }
 
@@ -255,8 +262,23 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, OutOfBounds) {
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, invalidPatternSize) {
 
+    /* pattern size is 0 */
     ASSERT_EQ_RESULT(
         urEnqueueUSMFill2D(queue, ptr, pitch, 0,
+                           pattern.data(),
+                           width, 1, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+
+    /* pattern_size is not a power of 2 */
+    ASSERT_EQ_RESULT(
+        urEnqueueUSMFill2D(queue, ptr, pitch, 3,
+                           pattern.data(),
+                           width, 1, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+
+    /* pattern_size is larger than size */
+    ASSERT_EQ_RESULT(
+        urEnqueueUSMFill2D(queue, ptr, pitch, 32,
                            pattern.data(),
                            width, 1, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_SIZE);

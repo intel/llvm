@@ -919,11 +919,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueMemUnmap_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueUSMMemset
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMMemset_t)(
+/// @brief Function-pointer for urEnqueueUSMFill
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFill_t)(
     ur_queue_handle_t,
     void *,
-    int,
+    size_t,
+    const void *,
     size_t,
     uint32_t,
     const ur_event_handle_t *,
@@ -969,19 +970,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFill2D_t)(
     size_t,
     size_t,
     const void *,
-    size_t,
-    size_t,
-    uint32_t,
-    const ur_event_handle_t *,
-    ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueUSMMemset2D
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMMemset2D_t)(
-    ur_queue_handle_t,
-    void *,
-    size_t,
-    int,
     size_t,
     size_t,
     uint32_t,
@@ -1049,12 +1037,11 @@ typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueMemImageCopy_t pfnMemImageCopy;
     ur_pfnEnqueueMemBufferMap_t pfnMemBufferMap;
     ur_pfnEnqueueMemUnmap_t pfnMemUnmap;
-    ur_pfnEnqueueUSMMemset_t pfnUSMMemset;
+    ur_pfnEnqueueUSMFill_t pfnUSMFill;
     ur_pfnEnqueueUSMMemcpy_t pfnUSMMemcpy;
     ur_pfnEnqueueUSMPrefetch_t pfnUSMPrefetch;
     ur_pfnEnqueueUSMMemAdvise_t pfnUSMMemAdvise;
     ur_pfnEnqueueUSMFill2D_t pfnUSMFill2D;
-    ur_pfnEnqueueUSMMemset2D_t pfnUSMMemset2D;
     ur_pfnEnqueueUSMMemcpy2D_t pfnUSMMemcpy2D;
     ur_pfnEnqueueDeviceGlobalVariableWrite_t pfnDeviceGlobalVariableWrite;
     ur_pfnEnqueueDeviceGlobalVariableRead_t pfnDeviceGlobalVariableRead;

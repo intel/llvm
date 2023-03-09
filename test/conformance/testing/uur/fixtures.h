@@ -343,12 +343,16 @@ struct urUSMDeviceAllocTest : urQueueTest {
         if (!device_usm.value()) {
             GTEST_SKIP() << "Device USM in not supported";
         }
-        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                        allocation_size, 0, &ptr));
-        ur_event_handle_t event = nullptr;
         ASSERT_SUCCESS(
-            urEnqueueUSMMemset(queue, ptr, 0, allocation_size, 0, nullptr,
-                               &event));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
+                             0, &ptr));
+        ur_event_handle_t event = nullptr;
+
+        uint8_t fillPattern = 0;
+        ASSERT_SUCCESS(
+            urEnqueueUSMFill(queue, ptr, sizeof(fillPattern), &fillPattern,
+                             allocation_size, 0, nullptr, &event));
+
         EXPECT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));
@@ -378,9 +382,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             urUSMDeviceAlloc(this->context, this->device, nullptr, nullptr,
                              allocation_size, 0, &ptr));
         ur_event_handle_t event = nullptr;
+
+        uint8_t fillPattern = 0;
         ASSERT_SUCCESS(
-            urEnqueueUSMMemset(this->queue, ptr, 0, allocation_size, 0,
-                               nullptr, &event));
+            urEnqueueUSMFill(this->queue, ptr, sizeof(fillPattern), &fillPattern,
+                             allocation_size, 0, nullptr, &event));
+
         EXPECT_SUCCESS(urQueueFlush(this->queue));
         ASSERT_SUCCESS(urEventWait(1, &event));
         EXPECT_SUCCESS(urEventRelease(event));

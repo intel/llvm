@@ -22,13 +22,18 @@ struct urEnqueueUSMMemcpy2DTestWithParam
 
         const size_t num_elements = pitch * height;
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0, &pSrc));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0,
+                             &pSrc));
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0, &pDst));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, num_elements, 0,
+                             &pDst));
         ur_event_handle_t memset_event = nullptr;
-        ASSERT_SUCCESS(urEnqueueUSMMemset2D(queue, pSrc, pitch, memset_value,
-                                            width, height, 0, nullptr,
-                                            &memset_event));
+
+        ASSERT_SUCCESS(
+            urEnqueueUSMFill2D(queue, pSrc, pitch, sizeof(memset_value),
+                               &memset_value, width, height, 0, nullptr,
+                               &memset_event));
+
         ASSERT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &memset_event));
         ASSERT_SUCCESS(urEventRelease(memset_event));
@@ -60,7 +65,7 @@ struct urEnqueueUSMMemcpy2DTestWithParam
 
     void *pSrc = nullptr;
     void *pDst = nullptr;
-    static constexpr int memset_value = 42;
+    static constexpr uint8_t memset_value = 42;
     size_t pitch = 0;
     size_t width = 0;
     size_t height = 0;
@@ -166,8 +171,10 @@ TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidSize) {
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidEventWaitList) {
     // enqueue something to get an event
     ur_event_handle_t event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMMemset2D(queue, pDst, pitch, 14, width, height,
-                                        0, nullptr, &event));
+    int fill_pattern = 14;
+    ASSERT_SUCCESS(urEnqueueUSMFill2D(queue, pDst, pitch, sizeof(fill_pattern),
+                                      &fill_pattern, width, height, 0, nullptr,
+                                      &event));
     ASSERT_NE(event, nullptr);
     ASSERT_SUCCESS(urQueueFinish(queue));
 
