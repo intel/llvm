@@ -169,19 +169,10 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
                                    mergedYieldOp.getOperands());
     rewriter.eraseOp(mergedYieldOp);
 
-    [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
-      Operation *parentOp = loop;
-      do {
-        parentOp = parentOp->getParentOp();
-      } while (parentOp && !isa<func::FuncOp>(parentOp));
-      assert(parentOp && "Failed to find parent function");
-      return cast<func::FuncOp>(parentOp);
-    };
-
     DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
       llvm::dbgs()
           << "RaiseSCFForToAffine: raised scf::ForOp to AffineForOp in: "
-          << getParentFunction(loop).getSymName() << "\n";
+          << loop->getParentOfType<func::FuncOp>().getSymName() << "\n";
     });
 
     LLVM_DEBUG({
@@ -226,13 +217,11 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     if (loop.getResults().size())
       return failure();
 
-    if (!llvm::all_of(loop.getLowerBound(), isValidIndex)) {
+    if (!llvm::all_of(loop.getLowerBound(), isValidIndex))
       return failure();
-    }
 
-    if (!llvm::all_of(loop.getUpperBound(), isValidIndex)) {
+    if (!llvm::all_of(loop.getUpperBound(), isValidIndex))
       return failure();
-    }
 
     SmallVector<int64_t> steps;
     for (auto step : loop.getStep())
@@ -267,9 +256,9 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     }
 
     SmallVector<Value> vals;
-    for (Value arg : affineLoop.getRegion().front().getArguments()) {
+    for (Value arg : affineLoop.getRegion().front().getArguments())
       vals.push_back(arg);
-    }
+
     rewriter.mergeBlocks(&loop.getRegion().front(),
                          &affineLoop.getRegion().front(), vals);
 
