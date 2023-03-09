@@ -2080,8 +2080,10 @@ public:
   void runOnOperation() override;
 
 private:
+  constexpr static int requiredRuns{2};
+
   LogicalResult convertToSPIRV();
-  LogicalResult convertToLLVM();
+  LogicalResult convertToLLVM(int currentIter);
   void cleanUnrealizedConversionCasts();
 };
 } // namespace
@@ -2169,7 +2171,7 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
   return res;
 }
 
-LogicalResult ConvertSYCLToLLVMPass::convertToLLVM() {
+LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(int currentIter) {
   LLVM_DEBUG(llvm::dbgs() << "Lowering to LLVM...\n");
 
   auto &context = getContext();
@@ -2201,8 +2203,10 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM() {
   populateSPIRVToLLVMFunctionConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(context);
-  target.addDynamicallyLegalDialect<sycl::SYCLDialect>(
-      [](Operation *op) { return isa<sycl::SYCLLocalIDOp>(op); });
+  if (currentIter != requiredRuns - 1) {
+    target.addDynamicallyLegalDialect<sycl::SYCLDialect>(
+        [](Operation *op) { return isa<sycl::SYCLLocalIDOp>(op); });
+  }
 
   const auto res = applyPartialConversion(module, target, std::move(patterns));
 
@@ -2235,9 +2239,8 @@ void ConvertSYCLToLLVMPass::cleanUnrealizedConversionCasts() {
 }
 
 void ConvertSYCLToLLVMPass::runOnOperation() {
-  constexpr int requiredRuns{2};
   for (int i = 0; i < requiredRuns; ++i) {
-    if (convertToSPIRV().failed() || convertToLLVM().failed()) {
+    if (convertToSPIRV().failed() || convertToLLVM(i).failed()) {
       signalPassFailure();
       return;
     }
