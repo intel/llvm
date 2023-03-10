@@ -200,7 +200,7 @@ extern "C" SYCL_EXTERNAL void cons_5() {
 // CHECK-LLVM-LABEL: define spir_func void @cons_6(
 // CHECK-LLVM-SAME:                                i32 noundef %{{.*}}) #[[FUNCATTRS]]
 // CHECK-LLVM:         call spir_func void @[[VEC_SPLAT_CTR:.*]](%"class.sycl::_V1::vec" addrspace(4)* %{{.*}}, i32 addrspace(4)* %{{.*}})
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_SPLAT_CTR]](%"class.sycl::_V1::vec" addrspace(4)* noundef align 32 %{{.*}}, i32 addrspace(4)* noundef align 4 %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_SPLAT_CTR]](%"class.sycl::_V1::vec" addrspace(4)* noundef align 32 dereferenceable_or_null(32) %{{.*}}, i32 addrspace(4)* noundef align 4 dereferenceable(4) %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         %[[VECINIT:.*]] = insertelement <8 x i32> undef, i32 %{{.*}}, i32 0
 // CHECK-LLVM:         %{{.*}} = shufflevector <8 x i32> %[[VECINIT]], <8 x i32> undef, <8 x i32> zeroinitializer
 
@@ -227,9 +227,9 @@ extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
 // CHECK:       func.func @[[VEC_COPY_CTR]](%{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_8(
-// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %[[ARG0:.*]]) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable(128) %[[ARG0:.*]]) #[[FUNCATTRS]] {
 // CHECK-LLVM:          call spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.2" addrspace(4)* %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %{{.*}}, %{{.*}}class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable_or_null(128) %{{.*}}, %{{.*}}class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable(128) %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other) {
   auto vec = sycl::vec<sycl::cl_double, 16>{Other};
 }
@@ -242,7 +242,7 @@ extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other
 // CHECK-LLVM-LABEL:  define spir_func void @cons_9(
 // CHECK-LLVM-SAME:                                 <3 x i8> noundef %[[ARG0:.*]]) #[[FUNCATTRS]] {
 // CHECK-LLVM:          call spir_func void @[[VEC_NATIVE_CTR:.*]](%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 dereferenceable_or_null(4) %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t Native) {
   auto vec = sycl::vec<sycl::cl_char, 3>{Native};
 }
@@ -253,9 +253,9 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 // CHECK:       func.func @[[VEC_INITLIST_VEC_CTR]](%{{.*}}: memref<?x!sycl_vec_i64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(
-// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 %[[ARG0:.*]], %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 %[[ARG1:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 dereferenceable(64) %[[ARG0:.*]], %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 dereferenceable(32) %[[ARG1:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 dereferenceable(16) %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.7" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.4" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.7" addrspace(4)* noundef align 128 %{{.*}}, %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.7" addrspace(4)* noundef align 128 dereferenceable_or_null(128) %{{.*}}, %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 dereferenceable(64) %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 dereferenceable(32) %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 dereferenceable(16) %{{.*}}, i64 addrspace(4)* noundef align 8 dereferenceable(8) %{{.*}}, i64 addrspace(4)* noundef align 8 dereferenceable(8) %{{.*}}) #[[FUNCATTRS]] {
 
 extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 				      const sycl::long4 &B,

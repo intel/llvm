@@ -186,8 +186,9 @@ enum PropKind : uint32_t {
   RWMode = 20,
   MaxBurst = 21,
   WaitRequest = 22,
+  Alignment = 23,
   // PropKindSize must always be the last value.
-  PropKindSize = 23,
+  PropKindSize = 24,
 };
 
 // This trait must be specialized for all properties and must have a unique

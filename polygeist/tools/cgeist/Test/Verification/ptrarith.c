@@ -67,7 +67,7 @@ void *f4(void *ptr, size_t index) {
 // CHECK:           %[[VOIDPTR_0:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<func<i32 ()>> to !llvm.ptr<i8>
 // CHECK:           %[[PTR:.*]] = llvm.getelementptr %[[VOIDPTR_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8>, i64) -> !llvm.ptr<i8>
 // CHECK:           %[[FUNCPTR:.*]] = llvm.bitcast %[[PTR]] : !llvm.ptr<i8> to !llvm.ptr<func<i32 ()>>
-// CHECK:           %[[RES:.*]] = llvm.call %[[FUNCPTR]]() : () -> i32
+// CHECK:           %[[RES:.*]] = llvm.call %[[FUNCPTR]]() : !llvm.ptr<func<i32 ()>>, () -> i32
 // CHECK:           return %[[RES]] : i32
 // CHECK:         }
 

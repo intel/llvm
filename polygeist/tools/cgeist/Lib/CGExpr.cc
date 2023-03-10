@@ -1229,7 +1229,7 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
           Loc, A1.getType(), Op, A1, A0,
           std::vector<mlir::Value>({getConstantIndex(0)}));
     else
-      V = Builder.create<LLVM::AtomicRMWOp>(Loc, A1.getType(), Lop, A0, A1,
+      V = Builder.create<LLVM::AtomicRMWOp>(Loc, Lop, A0, A1,
                                             LLVM::AtomicOrdering::acq_rel);
 
     if (Ty.isa<mlir::IntegerType>())

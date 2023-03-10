@@ -88,9 +88,7 @@ runs:
       echo "::group::SYCL In-Tree End-to-End tests"
       ninja -C build-e2e check-sycl-e2e
       echo "::endgroup::"
-      echo "::group::LLVM Test Suite SYCL tests"
       ninja -C build check-sycl-all
-      echo "::endgroup::"
   - name: Upload test results
     uses: actions/upload-artifact@v1
     if: always()

@@ -23,7 +23,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"

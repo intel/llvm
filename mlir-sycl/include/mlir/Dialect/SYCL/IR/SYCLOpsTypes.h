@@ -58,23 +58,23 @@ enum class DecoratedAccess : int { No = 0, Yes = 1, Legacy = 2 };
 llvm::StringRef
 memoryAccessModeAsString(mlir::sycl::MemoryAccessMode MemAccessMode);
 LogicalResult parseMemoryAccessMode(AsmParser &Parser,
-                                    FailureOr<MemoryAccessMode> &MemAccessMode);
+                                    MemoryAccessMode &MemAccessMode);
 void printMemoryAccessMode(AsmPrinter &Printer, MemoryAccessMode MemAccessMode);
 
 llvm::StringRef
 memoryTargetModeAsString(mlir::sycl::MemoryTargetMode MemTargetMode);
 LogicalResult parseMemoryTargetMode(AsmParser &Parser,
-                                    FailureOr<MemoryTargetMode> &MemTargetMode);
+                                    MemoryTargetMode &MemTargetMode);
 void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
 
 std::string accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress);
 LogicalResult parseAccessAddrSpace(AsmParser &Parser,
-                                   FailureOr<AccessAddrSpace> &AccAddress);
+                                   AccessAddrSpace &AccAddress);
 void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
 
 std::string decoratedAccessAsString(mlir::sycl::DecoratedAccess DecAccess);
 LogicalResult parseDecoratedAccess(AsmParser &Parser,
-                                   FailureOr<DecoratedAccess> &DecAccess);
+                                   DecoratedAccess &DecAccess);
 void printDecoratedAccess(AsmPrinter &Printer, DecoratedAccess DecAccess);
 
 template <typename Parameter> class SYCLInheritanceTypeTrait {
