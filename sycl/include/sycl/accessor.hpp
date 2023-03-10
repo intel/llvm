@@ -1141,34 +1141,20 @@ public:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
 
-  id<3> &getOffset() {
-    if constexpr (IsHostBuf)
-      return MAccData->MOffset;
-    else
-      return AccessorBaseHost::getOffset();
-  }
-
-  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
-  range<3> &getMemoryRange() {
-    if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
-    else
-      return AccessorBaseHost::getMemoryRange();
-  }
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
-  const id<3> &getOffset() const {
+  const id<3> getOffset() const {
     if constexpr (IsHostBuf)
-      return MAccData->MOffset;
+      return MAccData ? MAccData->MOffset : id<3>();
     else
       return AccessorBaseHost::getOffset();
   }
   const range<3> &getAccessRange() const {
     return AccessorBaseHost::getAccessRange();
   }
-  const range<3> &getMemoryRange() const {
+  const range<3> getMemoryRange() const {
     if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
+      return MAccData ? MAccData->MMemoryRange : range(0, 0, 0);
     else
       return AccessorBaseHost::getMemoryRange();
   }
@@ -1200,7 +1186,7 @@ public:
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
-      return reinterpret_cast<PtrType>(MAccData->MData);
+      return MAccData ? reinterpret_cast<PtrType>(MAccData->MData) : nullptr;
     else
       return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
