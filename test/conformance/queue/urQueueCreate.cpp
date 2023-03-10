@@ -22,9 +22,7 @@ UUR_TEST_SUITE_P(
 
 TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {
     ur_queue_flags_t supportedFlags{};
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES,
-                        sizeof(ur_queue_flags_t), &supportedFlags, nullptr));
+    ASSERT_SUCCESS(uur::GetDeviceQueueOnHostProperties(device, supportedFlags));
 
     ur_queue_flag_t queryFlag = getParam();
     if (!(supportedFlags & queryFlag)) {

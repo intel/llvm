@@ -6,15 +6,13 @@
 struct urUSMSharedAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+        bool shared_usm_cross = false;
+        bool shared_usm_single = false;
 
-        auto sharedUSMCross = uur::GetDeviceInfo<bool>(
-            device, UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT);
-        auto sharedUSMSingle = uur::GetDeviceInfo<bool>(
-            device, UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT);
+        ASSERT_SUCCESS(uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
+        ASSERT_SUCCESS(uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
 
-        ASSERT_TRUE(sharedUSMCross.has_value() && sharedUSMSingle.has_value());
-
-        if (!(sharedUSMCross.value() || !sharedUSMCross.value())) {
+        if (!(shared_usm_cross || shared_usm_single)) {
             GTEST_SKIP() << "Shared USM is not supported by the device.";
         }
     }

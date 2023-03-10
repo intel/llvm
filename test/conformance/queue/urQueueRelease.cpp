@@ -8,15 +8,15 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueReleaseTest);
 TEST_P(urQueueReleaseTest, Success) {
     ASSERT_SUCCESS(urQueueRetain(queue));
 
-    const auto prevRefCount = uur::GetObjectReferenceCount(queue);
-    ASSERT_TRUE(prevRefCount.has_value());
+    uint32_t prevRefCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(queue, prevRefCount));
 
     ASSERT_SUCCESS(urQueueRelease(queue));
 
-    const auto refCount = uur::GetObjectReferenceCount(queue);
-    ASSERT_TRUE(refCount.has_value());
+    uint32_t refCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(queue, refCount));
 
-    ASSERT_GT(prevRefCount.value(), refCount.value());
+    ASSERT_GT(prevRefCount, refCount);
 }
 
 TEST_P(urQueueReleaseTest, InvalidNullHandleQueue) {

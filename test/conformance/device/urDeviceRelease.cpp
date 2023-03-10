@@ -8,15 +8,15 @@ TEST_F(urDeviceReleaseTest, Success) {
     for (auto device : devices) {
         ASSERT_SUCCESS(urDeviceRetain(device));
 
-        const auto prevRefCount = uur::GetObjectReferenceCount(device);
-        ASSERT_TRUE(prevRefCount.has_value());
+        uint32_t prevRefCount = 0;
+        ASSERT_SUCCESS(uur::GetObjectReferenceCount(device, prevRefCount));
 
         EXPECT_SUCCESS(urDeviceRelease(device));
 
-        const auto refCount = uur::GetObjectReferenceCount(device);
-        ASSERT_TRUE(refCount.has_value());
+        uint32_t refCount = 0;
+        ASSERT_SUCCESS(uur::GetObjectReferenceCount(device, refCount));
 
-        ASSERT_GT(prevRefCount.value(), refCount.value());
+        ASSERT_GT(prevRefCount, refCount);
     }
 }
 

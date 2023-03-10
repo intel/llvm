@@ -8,13 +8,10 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
-        bool device_usm{false};
-        ASSERT_SUCCESS(
-            urDeviceGetInfo(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
-                            sizeof(bool), &device_usm, nullptr));
-
+        bool device_usm = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
         if (!device_usm) {
-            GTEST_SKIP_("Device USM is not supported");
+            GTEST_SKIP() << "Device USM is not supported";
         }
 
         ASSERT_SUCCESS(
