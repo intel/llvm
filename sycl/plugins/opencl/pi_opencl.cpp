@@ -301,9 +301,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     pi_device_atomic_capabilities devCapabilities = 0;
     if (devVer >= OCLV::V3_0) {
-      ret_err = clGetDeviceInfo(
-          deviceID, PI_DEVICE_ATOMIC_FENCE_CAPABILITIES,
-          sizeof(pi_device_atomic_capabilities), &devCapabilities, nullptr);
+      ret_err = clGetDeviceInfo(deviceID, PI_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(pi_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
       if (ret_err != CL_SUCCESS)
         return static_cast<pi_result>(ret_err);
       assert(devCapabilities && PI_DEVICE_ATOMIC_ORDER_RELAXED &&
