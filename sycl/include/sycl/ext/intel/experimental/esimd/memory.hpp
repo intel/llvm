@@ -2669,6 +2669,31 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 
 /// @} sycl_esimd_memory_lsc
 
+/// @defgroup sycl_esimd_hw_thread_queries HW thread .
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_hw_thread_queries
+/// @{
+
+/// Get HW Thread ID
+__ESIMD_API int32_t get_hw_thread_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInGlobalHWThreadIDINTEL();
+#else
+  return std::rand();
+#endif // __SYCL_DEVICE_ONLY__
+}
+/// Get subdevice ID
+__ESIMD_API int32_t get_subdevice_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInSubDeviceIDINTEL();
+#else
+  return 0;
+#endif
+}
+
+/// @} sycl_esimd_hw_thread_queries
+
 } // namespace experimental::esimd
 
 namespace esimd {
