@@ -502,6 +502,13 @@ public:
                                    ArrayRef<CanonicalLoopInfo *> Loops,
                                    InsertPointTy ComputeIP);
 
+  /// Get the default alignment value for given target
+  ///
+  /// \param TargetTriple   Target triple
+  /// \param Features       StringMap which describes extra CPU features
+  static unsigned getOpenMPDefaultSimdAlign(const Triple &TargetTriple,
+                                            const StringMap<bool> &Features);
+
 private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
@@ -776,7 +783,7 @@ public:
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
                            bool Tied = true, Value *Final = nullptr,
                            Value *IfCondition = nullptr,
-                           ArrayRef<DependData *> Dependencies = {});
+                           SmallVector<DependData> Dependencies = {});
 
   /// Generator for the taskgroup construct
   ///
@@ -988,12 +995,10 @@ public:
   /// \param NumThreads Number of threads via the 'thread_limit' clause.
   /// \param HostPtr Pointer to the host-side pointer of the target kernel.
   /// \param KernelArgs Array of arguments to the kernel.
-  /// \param NoWaitArgs Optional array of arguments to the nowait kernel.
   InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
                                  Value *Ident, Value *DeviceID, Value *NumTeams,
                                  Value *NumThreads, Value *HostPtr,
-                                 ArrayRef<Value *> KernelArgs,
-                                 ArrayRef<Value *> NoWaitArgs = {});
+                                 ArrayRef<Value *> KernelArgs);
 
   /// Generate a barrier runtime call.
   ///

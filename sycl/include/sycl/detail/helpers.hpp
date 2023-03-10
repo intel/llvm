@@ -13,6 +13,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/memcpy.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
 
@@ -35,13 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
-}
 
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as

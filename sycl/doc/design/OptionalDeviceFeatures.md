@@ -524,17 +524,19 @@ We add a new IR phase to the device compiler which does the following:
   graph so that each function lists the aspects used by that function and by
   any functions it calls.
 
-* Diagnoses a warning if any function that has `!sycl_declared_aspects` uses
-  an aspect not listed in that declared set.
-
 * Creates an `!sycl_fixed_targets` metadata for each kernel function or
   `SYCL_EXTERNAL` function that is defined.  This is done regardless of whether
   the `-fsycl-fixed-targets` command line switch is specified.  If the switch
   is not specified, the metadata has an empty list of targets.
 
-* If the `-fsycl-fixed-targets` command line switch is specified, diagnoses a
-  warning if any function uses an aspect that is not compatible with all target
-  devices specified by that switch.
+Additionally, the pass will issue warning diagnostics in the following cases:
+
+* If any function that has `!sycl_declared_aspects` uses an aspect not listed in
+  that declared set.
+
+* If the `-fsycl-fixed-targets` command line switch is specified and any
+  function uses an aspect that is not compatible with all target devices
+  specified by that switch.
 
 It is important that this IR phase runs before any other optimization phase
 that might eliminate a reference to a type or inline a function call because
@@ -568,13 +570,13 @@ need only look at the `!sycl_used_aspects` metadata for each function,
 propagating the aspects used by each function up to it callers and augmenting
 the caller's `!sycl_used_aspects` set.
 
-Diagnosing warnings for the third bullet point is then straightforward.  The
+Diagnosing warnings for the fifth bullet point is then straightforward.  The
 implementation looks for functions that have `!sycl_declared_aspects` and
 compares that set with the `!sycl_used_aspects` set (if any).  If a function
 uses an aspect that is not in the declared set, the implementation issues a
 warning.
 
-Diagnosing warnings for the fifth bullet point requires the [device
+Diagnosing warnings for the sixth bullet point requires the [device
 configuration file][7] which gives the set of allowed optional features for
 each target device.  The implementation looks for functions that have either
 `!sycl_declared_aspects` or `!sycl_used_aspects`, and it compares the aspects
@@ -632,6 +634,39 @@ AST.  By contrast, we can diagnose the warning more efficiently in an IR pass
 because traversal of the IR is much more efficient than traversal of the AST.
 The downside, though, is that the warning message is less informative.
 
+#### Pre- and post-optimization aspect propagation
+
+Sometimes aspects that are used by a kernel in source code are eliminated during
+optimization. The most common case is when a kernel uses a double precision
+floating point literal to initialize a single precision floating point variable.
+Although the kernel uses the aspect `fp64` (corresponding to `double`) in its
+source code, the optimizer commonly replaces the double precision literal with a
+single precision literal, and this can sometimes mean that the kernel does not
+actually rely on the `fp64` aspect at all. We therefore have a quandary, should
+kernels like this be allowed to run on a device that doesn't have `fp64`
+support?
+
+It seems too extreme to raise an exception if the application attempts to submit
+a kernel like this to a device without fp64 support because applications like
+this previously ran without error (prior to this design being implemented).
+However, it also seems useful to issue a warning in a case like this if the
+application specifically decorated the kernel with `[[sycl::device_has()]]`
+(i.e. requesting a warning if the kernel uses aspects not listed in that
+attribute). We therefore run the aspect propagation pass twice: once before
+optimization and again after optimization.
+
+The first run of the pass takes a list of aspect names to exclude when saving
+the result of the propagation. It will still propagate the excluded aspects to
+correctly issue strict warning diagnostics for the cases mentioned above, but
+after the pass finishes functions will only have the excluded aspects in their
+`!sycl_used_aspects` metadata if they had them prior to the execution of the
+pass.
+
+In the second run of the pass, all aspects are propagated and saved. For the
+aspects that were not excluded from the first run of the pass this will have no
+effect and the pass may elect to ignore these aspects. To avoid repeating
+warnings issued by the previous execution of the pass, this run will not issue
+any warning diagnostics.
 
 ### Assumptions on other phases of clang
 

@@ -235,7 +235,7 @@ static const bool ExposeCSliceInAffinityPartitioning = [] {
   return Flag ? std::atoi(Flag) != 0 : false;
 }();
 
-zer_result_t _ur_platform_handle_t::initialize() {
+ur_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
@@ -284,25 +284,23 @@ zer_result_t _ur_platform_handle_t::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
-    uint32_t
-        *NumPlatforms, ///< [in,out] pointer to the number of platforms.
-                       ///< if count is zero, then the call shall update the
-                       ///< value with the total number of platforms available.
-                       ///< if count is greater than the number of platforms
-                       ///< available, then the call shall update the value with
-                       ///< the correct number of platforms available.
-    zer_platform_handle_t
-        *Platforms ///< [out][optional][range(0, *pCount)] array of handle of
-                   ///< platforms. if count is less than the number of platforms
-                   ///< available, then platform shall only retrieve that number
-                   ///< of platforms.
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+    uint32_t NumEntries, ///< [in] the number of platforms to be added to
+                         ///< phPlatforms. If phPlatforms is not NULL, then
+                         ///< NumEntries should be greater than zero, otherwise
+                         ///< ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    ur_platform_handle_t
+        *Platforms, ///< [out][optional][range(0, NumEntries)] array of handle
+                    ///< of platforms. If NumEntries is less than the number of
+                    ///< platforms available, then
+                    ///< ::urPlatformGet shall only retrieve that number of
+                    ///< platforms.
+    uint32_t *NumPlatforms ///< [out][optional] returns the total number of
+                           ///< platforms available.
 ) {
-  PI_ASSERT(NumPlatforms, ZER_RESULT_INVALID_VALUE);
-
   static std::once_flag ZeCallCountInitialized;
   try {
     std::call_once(ZeCallCountInitialized, []() {
@@ -311,9 +309,9 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
       }
     });
   } catch (const std::bad_alloc &) {
-    return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   // Setting these environment variables before running zeInit will enable the
@@ -339,9 +337,10 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    PI_ASSERT(NumPlatforms != 0, ZER_RESULT_INVALID_VALUE);
-    *NumPlatforms = 0;
-    return ZER_RESULT_SUCCESS;
+    PI_ASSERT(NumEntries != 0, UR_RESULT_ERROR_INVALID_VALUE);
+    if (NumPlatforms)
+      *NumPlatforms = 0;
+    return UR_RESULT_SUCCESS;
   }
 
   if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -370,63 +369,65 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-          auto Platform = new _zer_platform_handle_t(ZeDrivers[I]);
+          auto Platform = new ur_platform_handle_t_(ZeDrivers[I]);
           // Save a copy in the cache for future uses.
           PiPlatformsCache->push_back(Platform);
 
-          zer_result_t Result = Platform->initialize();
-          if (Result != ZER_RESULT_SUCCESS) {
+          ur_result_t Result = Platform->initialize();
+          if (Result != UR_RESULT_SUCCESS) {
             return Result;
           }
         }
         PiPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
-      return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     } catch (...) {
-      return ZER_RESULT_ERROR_UNKNOWN;
+      return UR_RESULT_ERROR_UNKNOWN;
     }
   }
 
   // Populate returned platforms from the cache.
   if (Platforms) {
-    PI_ASSERT(*NumPlatforms <= PiPlatformsCache->size(),
-              ZER_RESULT_INVALID_PLATFORM);
-    std::copy_n(PiPlatformsCache->begin(), *NumPlatforms, Platforms);
+    PI_ASSERT(NumEntries <= PiPlatformsCache->size(),
+              UR_RESULT_ERROR_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), NumEntries, Platforms);
   }
 
-  if (*NumPlatforms == 0)
-    *NumPlatforms = PiPlatformsCache->size();
-  else
-    *NumPlatforms = std::min(PiPlatformsCache->size(), (size_t)*NumPlatforms);
+  if (NumPlatforms) {
+    if (*NumPlatforms == 0)
+      *NumPlatforms = PiPlatformsCache->size();
+    else
+      *NumPlatforms = std::min(PiPlatformsCache->size(), (size_t)NumEntries);
+  }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGetInfo(
-    zer_platform_handle_t Platform, ///< [in] handle of the platform
-    zer_platform_info_t ParamName,  ///< [in] type of the info to retrieve
-    size_t *pSize, ///< [in,out] pointer to the number of bytes needed to return
-                   ///< info queried. the call shall update it with the real
-                   ///< number of bytes needed to return the info
-    void *ParamValue ///< [out][optional] array of bytes holding the info.
-                     ///< if *pSize is not equal to the real number of bytes
-                     ///< needed to return the info then the
-                     ///< ::ZER_RESULT_ERROR_INVALID_SIZE error is returned and
-                     ///< pPlatformInfo is not used.
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform
+    ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
+    size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
+    void *ParamValue, ///< [out][optional] array of bytes holding the info.
+                      ///< If Size is not equal to or greater to the real number
+                      ///< of bytes needed to return the info then the
+                      ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                      ///< pPlatformInfo is not used.
+    size_t *pSizeRet  ///< [out][optional] pointer to the actual number of bytes
+                      ///< being queried by pPlatformInfo.
 ) {
 
-  PI_ASSERT(Platform, ZER_RESULT_INVALID_PLATFORM);
-  UrReturnHelper ReturnValue(pSize, ParamValue);
+  PI_ASSERT(Platform, UR_RESULT_ERROR_INVALID_PLATFORM);
+  UrReturnHelper ReturnValue(Size, ParamValue, pSizeRet);
 
   switch (ParamName) {
-  case ZER_PLATFORM_INFO_NAME:
+  case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
-  case ZER_PLATFORM_INFO_VENDOR_NAME:
+  case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
-  case ZER_PLATFORM_INFO_EXTENSIONS:
+  case UR_PLATFORM_INFO_EXTENSIONS:
     // Convention adopted from OpenCL:
     //     "Returns a space-separated list of extension names (the extension
     // names themselves do not contain any spaces) supported by the platform.
@@ -437,10 +438,10 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGetInfo(
     // return them. For now, hardcoding some extensions we know are supported by
     // all Level Zero devices.
     return ReturnValue(ZE_SUPPORTED_EXTENSIONS);
-  case ZER_PLATFORM_INFO_PROFILE:
+  case UR_PLATFORM_INFO_PROFILE:
     // TODO: figure out what this means and how is this used
     return ReturnValue("FULL_PROFILE");
-  case ZER_PLATFORM_INFO_VERSION:
+  case UR_PLATFORM_INFO_VERSION:
     // TODO: this should query to zeDriverGetDriverVersion
     // but we don't yet have the driver handle here.
     //
@@ -451,37 +452,39 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGetInfo(
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   default:
     zePrint("piPlatformGetInfo: unrecognized ParamName\n");
-    return ZER_RESULT_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGet(
-    zer_platform_handle_t Platform, ///< [in] handle of the platform instance
-    zer_device_type_t DeviceType,   ///< [in] the type of the devices.
-    uint32_t *NumDevices, ///< [in,out] pointer to the number of devices.
-                          ///< If count is zero, then the call shall update the
-                          ///< value with the total number of devices available.
-                          ///< If count is greater than the number of devices
-                          ///< available, then the call shall update the value
-                          ///< with the correct number of devices available.
-    zer_device_handle_t
-        *Devices ///< [out][optional][range(0, *pCount)] array of handle of
-                 ///< devices. If count is less than the number of devices
-                 ///< available, then platform shall only retrieve that number
-                 ///< of devices.
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform instance
+    ur_device_type_t DeviceType,   ///< [in] the type of the devices.
+    uint32_t NumEntries, ///< [in] the number of devices to be added to
+                         ///< phDevices. If phDevices in not NULL then
+                         ///< NumEntries should be greater than zero, otherwise
+                         ///< ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    ur_device_handle_t
+        *Devices, ///< [out][optional][range(0, NumEntries)] array of handle of
+                  ///< devices. If NumEntries is less than the number of devices
+                  ///< available, then platform shall only retrieve that number
+                  ///< of devices.
+    uint32_t *NumDevices ///< [out][optional] pointer to the number of devices.
+                         ///< pNumDevices will be updated with the total number
+                         ///< of devices available.
+
 ) {
 
-  PI_ASSERT(Platform, ZER_RESULT_INVALID_PLATFORM);
+  PI_ASSERT(Platform, UR_RESULT_ERROR_INVALID_PLATFORM);
 
   auto Res = Platform->populateDeviceCacheIfNeeded();
-  if (Res != ZER_RESULT_SUCCESS) {
+  if (Res != UR_RESULT_SUCCESS) {
     return Res;
   }
 
   // Filter available devices based on input DeviceType.
-  std::vector<zer_device_handle_t> MatchedDevices;
+  std::vector<ur_device_handle_t> MatchedDevices;
   std::shared_lock<pi_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
@@ -491,20 +494,20 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGet(
 
     bool Matched = false;
     switch (DeviceType) {
-    case ZER_DEVICE_TYPE_ALL:
+    case UR_DEVICE_TYPE_ALL:
       Matched = true;
       break;
-    case ZER_DEVICE_TYPE_GPU:
-    case ZER_DEVICE_TYPE_DEFAULT:
+    case UR_DEVICE_TYPE_GPU:
+    case UR_DEVICE_TYPE_DEFAULT:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
       break;
-    case ZER_DEVICE_TYPE_CPU:
+    case UR_DEVICE_TYPE_CPU:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
       break;
-    case ZER_DEVICE_TYPE_FPGA:
+    case UR_DEVICE_TYPE_FPGA:
       Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_FPGA;
       break;
-    case ZER_DEVICE_TYPE_MCA:
+    case UR_DEVICE_TYPE_MCA:
       Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_MCA;
       break;
     default:
@@ -518,63 +521,68 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGet(
 
   uint32_t ZeDeviceCount = MatchedDevices.size();
 
-  if (*NumDevices == 0)
-    *NumDevices = ZeDeviceCount;
-  else {
-    auto N = std::min(ZeDeviceCount, *NumDevices);
+  auto N = std::min(ZeDeviceCount, NumEntries);
+  if (Devices)
     std::copy_n(MatchedDevices.begin(), N, Devices);
+
+  if (NumDevices) {
+    if (*NumDevices == 0)
+      *NumDevices = ZeDeviceCount;
+    else
+      *NumDevices = N;
   }
-  return ZER_RESULT_SUCCESS;
+
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
-    zer_device_handle_t Device,  ///< [in] handle of the device instance
-    zer_device_info_t ParamName, ///< [in] type of the info to retrieve
-    size_t *pSize, ///< [in,out] pointer to the number of bytes needed to return
-                   ///< info queried. The call shall update it with the real
-                   ///< number of bytes needed to return the info
-    void *ParamValue ///< [out][optional] array of bytes holding the info.
-                     ///< If *pSize input is not 0 and not equal to the real
-                     ///< number of bytes needed to return the info then the
-                     ///< ::ZER_RESULT_ERROR_INVALID_SIZE error is returned and
-                     ///< pDeviceInfo is not used.
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
+    ur_device_handle_t Device,  ///< [in] handle of the device instance
+    ur_device_info_t ParamName, ///< [in] type of the info to retrieve
+    size_t propSize,  ///< [in] the number of bytes pointed to by pDeviceInfo.
+    void *ParamValue, ///< [out][optional] array of bytes holding the info.
+                      ///< If propSize is not equal to or greater than the real
+                      ///< number of bytes needed to return the info then the
+                      ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                      ///< pDeviceInfo is not used.
+    size_t *pSize ///< [out][optional] pointer to the actual size in bytes of
+                  ///< the queried infoType.
 ) {
-  PI_ASSERT(Device, ZER_RESULT_INVALID_DEVICE);
-  UrReturnHelper ReturnValue(pSize, ParamValue);
+  PI_ASSERT(Device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UrReturnHelper ReturnValue(propSize, ParamValue, pSize);
 
   ze_device_handle_t ZeDevice = Device->ZeDevice;
 
   switch ((int)ParamName) {
-  case ZER_DEVICE_INFO_TYPE: {
+  case UR_DEVICE_INFO_TYPE: {
     switch (Device->ZeDeviceProperties->type) {
     case ZE_DEVICE_TYPE_GPU:
-      return ReturnValue(ZER_DEVICE_TYPE_GPU);
+      return ReturnValue(UR_DEVICE_TYPE_GPU);
     case ZE_DEVICE_TYPE_CPU:
-      return ReturnValue(ZER_DEVICE_TYPE_CPU);
+      return ReturnValue(UR_DEVICE_TYPE_CPU);
     case ZE_DEVICE_TYPE_FPGA:
-      return ReturnValue(ZER_DEVICE_TYPE_FPGA);
+      return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
       zePrint("This device type is not supported\n");
-      return ZER_RESULT_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
-  case ZER_DEVICE_INFO_PARENT_DEVICE:
+  case UR_DEVICE_INFO_PARENT_DEVICE:
     return ReturnValue(Device->RootDevice);
-  case ZER_DEVICE_INFO_PLATFORM:
+  case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
-  case ZER_DEVICE_INFO_VENDOR_ID:
+  case UR_DEVICE_INFO_VENDOR_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->vendorId});
-  case ZER_DEVICE_INFO_UUID: {
+  case UR_DEVICE_INFO_UUID: {
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     const auto &UUID = Device->ZeDeviceProperties->uuid.id;
     return ReturnValue(UUID, sizeof(UUID));
   }
-  case ZER_DEVICE_INFO_ATOMIC_64:
+  case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(uint32_t{Device->ZeDeviceModuleProperties->flags &
                                 ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS});
-  case ZER_DEVICE_INFO_EXTENSIONS: {
+  case UR_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
     // names themselves do not contain any spaces) supported by the device."
@@ -629,38 +637,38 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
 
     return ReturnValue(SupportedExtensions.c_str());
   }
-  case ZER_DEVICE_INFO_NAME:
+  case UR_DEVICE_INFO_NAME:
     return ReturnValue(Device->ZeDeviceProperties->name);
   // zeModuleCreate allows using root device module for sub-devices:
   // > The application must only use the module for the device, or its
   // > sub-devices, which was provided during creation.
-  case ZER_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+  case UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(uint32_t{0});
-  case ZER_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(uint32_t{1});
-  case ZER_DEVICE_INFO_LINKER_AVAILABLE:
+  case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(uint32_t{1});
-  case ZER_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
         Device->ZeDeviceProperties->numSubslicesPerSlice *
         Device->ZeDeviceProperties->numSlices;
 
     bool RepresentsCSlice =
-        Device->QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute]
+        Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
             .ZeIndex >= 0;
     if (RepresentsCSlice)
       MaxComputeUnits /= Device->RootDevice->SubDevices.size();
 
     return ReturnValue(uint32_t{MaxComputeUnits});
   }
-  case ZER_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     // Level Zero spec defines only three dimensions
     return ReturnValue(uint32_t{3});
-  case ZER_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
-  case ZER_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
     } MaxGroupSize = {{Device->ZeDeviceComputeProperties->maxGroupSizeX,
@@ -668,7 +676,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
                        Device->ZeDeviceComputeProperties->maxGroupSizeZ}};
     return ReturnValue(MaxGroupSize);
   }
-  case ZER_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
+  case UR_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     struct {
       size_t Arr[3];
     } MaxGroupCounts = {{Device->ZeDeviceComputeProperties->maxGroupCountX,
@@ -676,15 +684,15 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
                          Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
   }
-  case ZER_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
+  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->coreClockRate});
-  case ZER_DEVICE_INFO_ADDRESS_BITS: {
+  case UR_DEVICE_INFO_ADDRESS_BITS: {
     // TODO: To confirm with spec.
     return ReturnValue(uint32_t{64});
   }
-  case ZER_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
-  case ZER_DEVICE_INFO_GLOBAL_MEM_SIZE: {
+  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
     for (const auto &ZeDeviceMemoryExtProperty :
          Device->ZeDeviceMemoryProperties->second) {
@@ -692,282 +700,278 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     }
     return ReturnValue(uint64_t{GlobalMemSize});
   }
-  case ZER_DEVICE_INFO_LOCAL_MEM_SIZE:
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
-  case ZER_DEVICE_INFO_IMAGE_SUPPORTED:
+  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
     return ReturnValue(
         uint32_t{Device->ZeDeviceImageProperties->maxImageDims1D > 0});
-  case ZER_DEVICE_INFO_HOST_UNIFIED_MEMORY:
+  case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(uint32_t{(Device->ZeDeviceProperties->flags &
                                  ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0});
-  case ZER_DEVICE_INFO_AVAILABLE:
+  case UR_DEVICE_INFO_AVAILABLE:
     return ReturnValue(uint32_t{ZeDevice ? true : false});
-  case ZER_DEVICE_INFO_VENDOR:
+  case UR_DEVICE_INFO_VENDOR:
     // TODO: Level-Zero does not return vendor's name at the moment
     // only the ID.
     return ReturnValue("Intel(R) Corporation");
-  case ZER_DEVICE_INFO_DRIVER_VERSION:
+  case UR_DEVICE_INFO_DRIVER_VERSION:
     return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
-  case ZER_DEVICE_INFO_VERSION:
+  case UR_DEVICE_INFO_VERSION:
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
-  case ZER_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
-    if (Res != ZER_RESULT_SUCCESS) {
+    if (Res != UR_RESULT_SUCCESS) {
       return Res;
     }
     return ReturnValue((uint32_t)Device->SubDevices.size());
   }
-  case ZER_DEVICE_INFO_REFERENCE_COUNT:
+  case UR_DEVICE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Device->RefCount.load()});
-  case ZER_DEVICE_INFO_PARTITION_PROPERTIES: {
+  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
-    if (Res != ZER_RESULT_SUCCESS) {
+    if (Res != UR_RESULT_SUCCESS) {
       return Res;
     }
 
     uint32_t ZeSubDeviceCount = Device->SubDevices.size();
     if (ZeSubDeviceCount < 2) {
-      return ReturnValue((zer_device_partition_property_flag_t)0);
+      return ReturnValue((ur_device_partition_property_t)0);
     }
     bool PartitionedByCSlice = Device->SubDevices[0]->isCCS();
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        zer_device_partition_property_flag_t Arr[sizeof...(Partitions) + 1];
+        ur_device_partition_property_t Arr[sizeof...(Partitions) + 1];
       } PartitionProperties = {
-          {Partitions..., zer_device_partition_property_flag_t(0)}};
+          {Partitions..., ur_device_partition_property_t(0)}};
       return ReturnValue(PartitionProperties);
     };
 
     if (ExposeCSliceInAffinityPartitioning) {
       if (PartitionedByCSlice)
-        return ReturnHelper(
-            ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
-            ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
+        return ReturnHelper(UR_DEVICE_PARTITION_BY_CSLICE,
+                            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
 
       else
-        return ReturnHelper(
-            ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
+        return ReturnHelper(UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
     } else {
-      return ReturnHelper(
-          PartitionedByCSlice
-              ? ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE
-              : ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN);
+      return ReturnHelper(PartitionedByCSlice
+                              ? UR_DEVICE_PARTITION_BY_CSLICE
+                              : UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
     }
     break;
   }
-  case ZER_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-    return ReturnValue(zer_device_affinity_domain_flag_t(
-        ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA |
-        ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE));
-  case ZER_DEVICE_INFO_PARTITION_TYPE: {
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
+    return ReturnValue(ur_device_affinity_domain_flag_t(
+        UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA |
+        UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE));
+  case UR_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
     if (!Device->isSubDevice())
-      return ReturnValue(zer_device_partition_property_flag_t(0));
+      return ReturnValue(ur_device_partition_property_t(0));
 
     if (Device->isCCS()) {
       struct {
-        zer_device_partition_property_flag_t Arr[2];
-      } PartitionProperties = {
-          {ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
-           zer_device_partition_property_flag_t(0)}};
+        ur_device_partition_property_t Arr[2];
+      } PartitionProperties = {{UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
+                                ur_device_partition_property_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
     struct {
-      zer_device_partition_property_flag_t Arr[3];
+      ur_device_partition_property_t Arr[3];
     } PartitionProperties = {
-        {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
-         (zer_device_partition_property_flag_t)
-             ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
-         zer_device_partition_property_flag_t(0)}};
+        {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+         (ur_device_partition_property_t)
+             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
+         ur_device_partition_property_t(0)}};
     return ReturnValue(PartitionProperties);
   }
 
     // Everything under here is not supported yet
 
-  case ZER_DEVICE_INFO_OPENCL_C_VERSION:
+  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
-  case ZER_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
+  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
     return ReturnValue(uint32_t{true});
-  case ZER_DEVICE_INFO_PRINTF_BUFFER_SIZE:
+  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->printfBufferSize});
-  case ZER_DEVICE_INFO_PROFILE:
+  case UR_DEVICE_INFO_PROFILE:
     return ReturnValue("FULL_PROFILE");
-  case ZER_DEVICE_INFO_BUILT_IN_KERNELS:
+  case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
-  case ZER_DEVICE_INFO_QUEUE_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
-        zer_queue_flag_t(ZER_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                         ZER_QUEUE_FLAG_PROFILING_ENABLE));
-  case ZER_DEVICE_INFO_EXECUTION_CAPABILITIES:
-    return ReturnValue(zer_device_exec_capability_flag_t{
-        ZER_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL});
-  case ZER_DEVICE_INFO_ENDIAN_LITTLE:
+        ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                        UR_QUEUE_FLAG_PROFILING_ENABLE));
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
+    return ReturnValue(ur_device_exec_capability_flag_t{
+        UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL});
+  case UR_DEVICE_INFO_ENDIAN_LITTLE:
     return ReturnValue(uint32_t{true});
-  case ZER_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
+  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->flags &
                                 ZE_DEVICE_PROPERTY_FLAG_ECC});
-  case ZER_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
+  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
     return ReturnValue(size_t{Device->ZeDeviceProperties->timerResolution});
-  case ZER_DEVICE_INFO_LOCAL_MEM_TYPE:
-    return ReturnValue(ZER_DEVICE_LOCAL_MEM_TYPE_LOCAL);
-  case ZER_DEVICE_INFO_MAX_CONSTANT_ARGS:
+  case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
+    return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
+  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
     return ReturnValue(uint32_t{64});
-  case ZER_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
+  case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
     return ReturnValue(
         uint64_t{Device->ZeDeviceImageProperties->maxImageBufferSize});
-  case ZER_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
-    return ReturnValue(ZER_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
-  case ZER_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
+    return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
     return ReturnValue(
         // TODO[1.0]: how to query cache line-size?
         uint32_t{1});
-  case ZER_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceCacheProperties->cacheSize});
-  case ZER_DEVICE_INFO_MAX_PARAMETER_SIZE:
+  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->maxArgumentsSize});
-  case ZER_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
+  case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // SYCL/OpenCL spec is vague on what this means exactly, but seems to
     // be for "alignment requirement (in bits) for sub-buffer offsets."
     // An OpenCL implementation returns 8*128, but Level Zero can do just 8,
     // meaning unaligned access for values of types larger than 8 bits.
     return ReturnValue(uint32_t{8});
-  case ZER_DEVICE_INFO_MAX_SAMPLERS:
+  case UR_DEVICE_INFO_MAX_SAMPLERS:
     return ReturnValue(uint32_t{Device->ZeDeviceImageProperties->maxSamplers});
-  case ZER_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
     return ReturnValue(
         uint32_t{Device->ZeDeviceImageProperties->maxReadImageArgs});
-  case ZER_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
     return ReturnValue(
         uint32_t{Device->ZeDeviceImageProperties->maxWriteImageArgs});
-  case ZER_DEVICE_INFO_SINGLE_FP_CONFIG: {
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     uint64_t SingleFPValue = 0;
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_DENORM;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_INF_NAN;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_FMA;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeSingleFPCapabilities) {
-      SingleFPValue |= ZER_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      SingleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{SingleFPValue});
   }
-  case ZER_DEVICE_INFO_HALF_FP_CONFIG: {
+  case UR_DEVICE_INFO_HALF_FP_CONFIG: {
     uint64_t HalfFPValue = 0;
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_DENORM;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_INF_NAN;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_FMA;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
-      HalfFPValue |= ZER_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      HalfFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{HalfFPValue});
   }
-  case ZER_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     uint64_t DoubleFPValue = 0;
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_DENORM;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_INF_NAN;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_FMA;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= ZER_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{DoubleFPValue});
   }
-  case ZER_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims2D});
-  case ZER_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims2D});
-  case ZER_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims3D});
-  case ZER_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims3D});
-  case ZER_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims3D});
-  case ZER_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageBufferSize});
-  case ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
+  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageArraySlices});
   // Handle SIMD widths.
   // TODO: can we do better than this?
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 1);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
-  case ZER_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-  case ZER_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
-  case ZER_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
         Device->ZeDeviceComputeProperties->subGroupSizes[0];
@@ -979,18 +983,18 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     return ReturnValue(Device->ZeDeviceComputeProperties->maxTotalGroupSize /
                        MinSubGroupSize);
   }
-  case ZER_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // TODO: Not supported yet. Needs to be updated after support is added.
     return ReturnValue(uint32_t{false});
   }
-  case ZER_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
     return ReturnValue.template operator()<size_t>(
         Device->ZeDeviceComputeProperties->subGroupSizes,
         Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
-  case ZER_DEVICE_INFO_IL_VERSION: {
+  case UR_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
     // <IL_Prefix>_<Major_version>.<Minor_version>.
     // "SPIR-V" is a required IL prefix when cl_khr_il_progam extension is
@@ -1007,34 +1011,34 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     std::string ILVersion(SpirvVersionString, Len);
     return ReturnValue(ILVersion.c_str());
   }
-  case ZER_DEVICE_INFO_USM_HOST_SUPPORT:
-  case ZER_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case ZER_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
-  case ZER_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-  case ZER_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
+  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
     auto MapCaps = [](const ze_memory_access_cap_flags_t &ZeCapabilities) {
       uint64_t Capabilities = 0;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_RW)
-        Capabilities |= ZER_EXT_USM_CAPS_ACCESS;
+        Capabilities |= UR_EXT_USM_CAPS_ACCESS;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)
-        Capabilities |= ZER_EXT_USM_CAPS_ATOMIC_ACCESS;
+        Capabilities |= UR_EXT_USM_CAPS_ATOMIC_ACCESS;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_CONCURRENT)
-        Capabilities |= ZER_EXT_USM_CAPS_CONCURRENT_ACCESS;
+        Capabilities |= UR_EXT_USM_CAPS_CONCURRENT_ACCESS;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_CONCURRENT_ATOMIC)
-        Capabilities |= ZER_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS;
+        Capabilities |= UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS;
       return Capabilities;
     };
     auto &Props = Device->ZeDeviceMemoryAccessProperties;
     switch (ParamName) {
-    case ZER_DEVICE_INFO_USM_HOST_SUPPORT:
+    case UR_DEVICE_INFO_USM_HOST_SUPPORT:
       return ReturnValue(MapCaps(Props->hostAllocCapabilities));
-    case ZER_DEVICE_INFO_USM_DEVICE_SUPPORT:
+    case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
       return ReturnValue(MapCaps(Props->deviceAllocCapabilities));
-    case ZER_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+    case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
       return ReturnValue(MapCaps(Props->sharedSingleDeviceAllocCapabilities));
-    case ZER_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+    case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
       return ReturnValue(MapCaps(Props->sharedCrossDeviceAllocCapabilities));
-    case ZER_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
+    case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
       return ReturnValue(MapCaps(Props->sharedSystemAllocCapabilities));
     default:
       die("piDeviceGetInfo: enexpected ParamName.");
@@ -1042,12 +1046,12 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
   }
 
     // intel extensions for GPU information
-  case ZER_EXT_DEVICE_INFO_DEVICE_ID:
+  case UR_DEVICE_INFO_DEVICE_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
-  case ZER_DEVICE_INFO_PCI_ADDRESS: {
+  case UR_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
-      return ZER_RESULT_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
     ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
     ZE_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
@@ -1061,11 +1065,11 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     return ReturnValue(AddressBuffer);
   }
 
-  case ZER_EXT_DEVICE_INFO_FREE_MEMORY: {
+  case UR_EXT_DEVICE_INFO_FREE_MEMORY: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
-                      ZER_RESULT_SUCCESS);
-      return ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR;
+                      UR_RESULT_SUCCESS);
+      return UR_EXT_RESULT_ADAPTER_SPECIFIC_ERROR;
     }
     // Only report device memory which zeMemAllocDevice can allocate from.
     // Currently this is only the one enumerated with ordinal 0.
@@ -1093,7 +1097,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
     }
     return ReturnValue(FreeMemory);
   }
-  case ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     // If there are not any memory modules then return 0.
     if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(uint32_t{0});
@@ -1109,7 +1113,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
                          Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(uint32_t{MinIt->maxClockRate});
   }
-  case ZER_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+  case UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH: {
     // If there are not any memory modules then return 0.
     if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(uint32_t{0});
@@ -1125,39 +1129,39 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
                          Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(uint32_t{MinIt->maxBusWidth});
   }
-  case ZER_EXT_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
-    if (Device->QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute]
+  case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    if (Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
             .ZeIndex >= 0)
       // Sub-sub-device represents a particular compute index already.
       return ReturnValue(int32_t{1});
 
     auto ZeDeviceNumIndices =
-        Device->QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute]
+        Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
             .ZeProperties.numQueues;
     return ReturnValue(int32_t(ZeDeviceNumIndices));
   } break;
-  case ZER_DEVICE_INFO_GPU_EU_COUNT: {
+  case UR_DEVICE_INFO_GPU_EU_COUNT: {
     uint32_t count = Device->ZeDeviceProperties->numEUsPerSubslice *
                      Device->ZeDeviceProperties->numSubslicesPerSlice *
                      Device->ZeDeviceProperties->numSlices;
     return ReturnValue(uint32_t{count});
   }
-  case ZER_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
     return ReturnValue(
         uint32_t{Device->ZeDeviceProperties->physicalEUSimdWidth});
-  case ZER_EXT_DEVICE_INFO_GPU_SLICES:
+  case UR_EXT_DEVICE_INFO_GPU_SLICES:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numSlices});
-  case ZER_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
     return ReturnValue(
         uint32_t{Device->ZeDeviceProperties->numSubslicesPerSlice});
-  case ZER_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
-  case ZER_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+  case UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case ZER_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+  case UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
-    return ZER_RESULT_INVALID_VALUE;
-  case ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }
@@ -1171,14 +1175,14 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
   }
 
   // TODO: Implement.
-  case ZER_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
-    return ZER_RESULT_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 // SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
@@ -1190,7 +1194,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGetInfo(
 // the copy engines will not be used at all. A value of 1 indicates that all
 // available copy engines can be used.
 const std::pair<int, int>
-getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device) {
+getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   static const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   // If the environment variable is not set, no copy engines are used when
   // immediate commandlists are being used. For standard commandlists all are
@@ -1222,7 +1226,7 @@ getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device) {
   return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
 }
 
-bool CopyEngineRequested(const zer_device_handle_t &Device) {
+bool CopyEngineRequested(const ur_device_handle_t &Device) {
   int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines(Device).first;
   int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines(Device).second;
   return ((LowerCopyQueueIndex != -1) || (UpperCopyQueueIndex != -1));
@@ -1283,13 +1287,13 @@ static const EventsScope DeviceEventsSetting = [] {
   return AllHostVisible;
 }();
 
-zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
-                                             int SubSubDeviceIndex) {
+ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
+                                            int SubSubDeviceIndex) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
   if (numQueueGroups == 0) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   zePrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
@@ -1301,9 +1305,9 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
   for (uint32_t i = 0; i < numQueueGroups; i++) {
     if (QueueGroupProperties[i].flags &
         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute].ZeOrdinal =
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
           i;
-      QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute]
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
           .ZeProperties = QueueGroupProperties[i];
       break;
     }
@@ -1314,18 +1318,18 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
   // handle + Level-Zero compute group/engine index]. Only the specified
   // index queue will be used to submit work to the sub-sub-device.
   if (SubSubDeviceOrdinal >= 0) {
-    QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute].ZeOrdinal =
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
         SubSubDeviceOrdinal;
-    QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute].ZeIndex =
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeIndex =
         SubSubDeviceIndex;
   } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
-    if (QueueGroup[_zer_device_handle_t::queue_group_info_t::Compute]
-            .ZeOrdinal < 0) {
-      return ZER_RESULT_ERROR_UNKNOWN;
+    if (QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal <
+        0) {
+      return UR_RESULT_ERROR_UNKNOWN;
     }
 
-    if (CopyEngineRequested((zer_device_handle_t)this)) {
+    if (CopyEngineRequested((ur_device_handle_t)this)) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueGroupProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
@@ -1426,16 +1430,16 @@ zer_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
     ZeEventsScope = DeviceEventsSetting;
   }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 // Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
-zer_device_handle_t
+ur_device_handle_t
 _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
-  zer_result_t Res = populateDeviceCacheIfNeeded();
-  if (Res != ZER_RESULT_SUCCESS) {
+  ur_result_t Res = populateDeviceCacheIfNeeded();
+  if (Res != UR_RESULT_SUCCESS) {
     return nullptr;
   }
 
@@ -1446,7 +1450,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // filter out PI sub-sub-devices.
   std::shared_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
-                         [&](std::unique_ptr<_zer_device_handle_t> &D) {
+                         [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
                                   (D.get()->RootDevice == nullptr ||
                                    D.get()->RootDevice->RootDevice == nullptr);
@@ -1458,11 +1462,11 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 }
 
 // Check the device cache and load it if necessary.
-zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
+ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
   std::scoped_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
-    return ZER_RESULT_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
   uint32_t ZeDeviceCount = 0;
@@ -1473,10 +1477,10 @@ zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
     ZE_CALL(zeDeviceGet, (ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      std::unique_ptr<_zer_device_handle_t> Device(
-          new _zer_device_handle_t(ZeDevices[I], (zer_platform_handle_t)this));
+      std::unique_ptr<ur_device_handle_t_> Device(
+          new ur_device_handle_t_(ZeDevices[I], (ur_platform_handle_t)this));
       auto Result = Device->initialize();
-      if (Result != ZER_RESULT_SUCCESS) {
+      if (Result != UR_RESULT_SUCCESS) {
         return Result;
       }
 
@@ -1494,11 +1498,11 @@ zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
       // Wrap the Level Zero sub-devices into PI sub-devices, and add them to
       // cache.
       for (uint32_t I = 0; I < SubDevicesCount; ++I) {
-        std::unique_ptr<_zer_device_handle_t> PiSubDevice(
-            new _zer_device_handle_t(
-                ZeSubdevices[I], (zer_platform_handle_t)this, Device.get()));
+        std::unique_ptr<ur_device_handle_t_> PiSubDevice(
+            new ur_device_handle_t_(ZeSubdevices[I], (ur_platform_handle_t)this,
+                                    Device.get()));
         auto Result = PiSubDevice->initialize();
-        if (Result != ZER_RESULT_SUCCESS) {
+        if (Result != UR_RESULT_SUCCESS) {
           delete[] ZeSubdevices;
           return Result;
         }
@@ -1510,7 +1514,7 @@ zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
         ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
                 (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
         if (numQueueGroups == 0) {
-          return ZER_RESULT_ERROR_UNKNOWN;
+          return UR_RESULT_ERROR_UNKNOWN;
         }
         std::vector<ze_command_queue_group_properties_t> QueueGroupProperties(
             numQueueGroups);
@@ -1541,12 +1545,12 @@ zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
           for (uint32_t J = 0; J < Ordinals.size(); ++J) {
             for (uint32_t K = 0;
                  K < QueueGroupProperties[Ordinals[J]].numQueues; ++K) {
-              std::unique_ptr<_zer_device_handle_t> PiSubSubDevice(
-                  new _zer_device_handle_t(ZeSubdevices[I],
-                                           (zer_platform_handle_t)this,
-                                           PiSubDevice.get()));
+              std::unique_ptr<ur_device_handle_t_> PiSubSubDevice(
+                  new ur_device_handle_t_(ZeSubdevices[I],
+                                          (ur_platform_handle_t)this,
+                                          PiSubDevice.get()));
               auto Result = PiSubSubDevice->initialize(Ordinals[J], K);
-              if (Result != ZER_RESULT_SUCCESS) {
+              if (Result != UR_RESULT_SUCCESS) {
                 return Result;
               }
 
@@ -1568,26 +1572,26 @@ zer_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
       PiDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
-    return ZER_RESULT_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   DeviceCachePopulated = true;
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-zer_result_t zerDeviceGetReference(zer_device_handle_t Device) {
-  PI_ASSERT(Device, ZER_RESULT_INVALID_DEVICE);
+ur_result_t urDeviceRetain(ur_device_handle_t Device) {
+  PI_ASSERT(Device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
     Device->RefCount.increment();
   }
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-zer_result_t zerDeviceRelease(zer_device_handle_t Device) {
-  PI_ASSERT(Device, ZER_RESULT_INVALID_DEVICE);
+ur_result_t urDeviceRelease(ur_device_handle_t Device) {
+  PI_ASSERT(Device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
@@ -1596,49 +1600,80 @@ zer_result_t zerDeviceRelease(zer_device_handle_t Device) {
     }
   }
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerDevicePartition(
-    zer_device_handle_t Device, ///< [in] handle of the device to partition.
-    zer_device_partition_property_value_t
-        *Properties, ///< [in] null-terminated array of <property, value> pair
-                     ///< of the requested partitioning.
-    uint32_t
-        *NumDevices, ///< [in,out] pointer to the number of sub-devices.
-                     ///< If count is zero, then the function shall update the
-                     ///< value with the total number of sub-devices available.
-                     ///< If count is greater than the number of sub-devices
-                     ///< available, then the function shall update the value
-                     ///< with the correct number of sub-devices available.
-    zer_device_handle_t
-        *OutDevices ///< [out][optional][range(0, *pCount)] array of handle of
-                    ///< devices. If count is less than the number of
-                    ///< sub-devices available, then the function shall only
-                    ///< retrieve that number of sub-devices.
+void ZeUSMImportExtension::setZeUSMImport(_ur_platform_handle_t *Platform) {
+  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+  // host ptr import during buffer creation.
+  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+  if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
+    return;
+
+  // Check if USM hostptr import feature is available.
+  ze_driver_handle_t DriverHandle = Platform->ZeDriver;
+  if (ZE_CALL_NOCHECK(
+          zeDriverGetExtensionFunctionAddress,
+          (DriverHandle, "zexDriverImportExternalPointer",
+           reinterpret_cast<void **>(&zexDriverImportExternalPointer))) == 0) {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (DriverHandle, "zexDriverReleaseImportedPointer",
+         reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
+    // Hostptr import/release is turned on because it has been requested
+    // by the env var, and this platform supports the APIs.
+    Enabled = true;
+    // Hostptr import is only possible if piMemBufferCreate receives a
+    // hostptr as an argument. The SYCL runtime passes a host ptr
+    // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
+    setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
+  }
+}
+void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
+                                         void *HostPtr, size_t Size) {
+  ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
+                  (DriverHandle, HostPtr, Size));
+}
+void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
+                                          void *HostPtr) {
+  ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
+    ur_device_handle_t Device, ///< [in] handle of the device to partition.
+    const ur_device_partition_property_t
+        *Properties, ///< [in] null-terminated array of <$_device_partition_t
+                     ///< enum, value> pairs.
+    uint32_t NumDevices, ///< [in] the number of sub-devices.
+    ur_device_handle_t
+        *OutDevices, ///< [out][optional][range(0, NumDevices)] array of handle
+                     ///< of devices. If NumDevices is less than the number of
+                     ///< sub-devices available, then the function shall only
+                     ///< retrieve that number of sub-devices.
+    uint32_t *pNumDevicesRet ///< [out][optional] pointer to the number of
+                             ///< sub-devices the device can be partitioned into
+                             ///< according to the partitioning property.
 ) {
-  PI_ASSERT(NumDevices, ZER_RESULT_INVALID_VALUE);
-  PI_ASSERT(Device, ZER_RESULT_INVALID_DEVICE);
+  PI_ASSERT(Device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Other partitioning ways are not supported by Level Zero
-  if (Properties->property ==
-      ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN) {
-    if ((Properties->value !=
-             ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
-         Properties->value != ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA))
-      return ZER_RESULT_INVALID_VALUE;
-  } else if (Properties->property ==
-             ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
-    if (Properties->value != 0)
-      return ZER_RESULT_INVALID_VALUE;
+  if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    if ((Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
+         Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  } else if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+    if (Properties[1] != 0) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   } else {
-    return ZER_RESULT_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
   //
   auto Res = Device->Platform->populateDeviceCacheIfNeeded();
-  if (Res != ZER_RESULT_SUCCESS) {
+  if (Res != UR_RESULT_SUCCESS) {
     return Res;
   }
 
@@ -1651,35 +1686,37 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDevicePartition(
     // SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
     // still expose CSlices in partitioning by affinity domain for compatibility
     // reasons.
-    if (Properties->property ==
-            ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN &&
+    if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
         !ExposeCSliceInAffinityPartitioning) {
-      if (Device->isSubDevice())
+      if (Device->isSubDevice()) {
         return 0;
+      }
     }
-    if (Properties->property ==
-        ZER_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+    if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
       // Not a CSlice-based partitioning.
-      if (!Device->SubDevices[0]->isCCS())
+      if (!Device->SubDevices[0]->isCCS()) {
         return 0;
+      }
     }
 
     return Device->SubDevices.size();
   }();
 
-  if (*NumDevices) {
-    // TODO: Consider support for partitioning to <= total sub-devices.
-    // Currently supported partitioning (by affinity domain/numa) would always
-    // partition to all sub-devices.
-    //
-    PI_ASSERT(*NumDevices == EffectiveNumDevices, ZER_RESULT_INVALID_VALUE);
+  // TODO: Consider support for partitioning to <= total sub-devices.
+  // Currently supported partitioning (by affinity domain/numa) would always
+  // partition to all sub-devices.
+  //
+  if (NumDevices !=0)
+    PI_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
-    for (uint32_t I = 0; I < *NumDevices; I++) {
-      OutDevices[I] = Device->SubDevices[I];
-      // reusing the same pi_device needs to increment the reference count
-      zerDeviceGetReference(OutDevices[I]);
-    }
+  for (uint32_t I = 0; I < NumDevices; I++) {
+    OutDevices[I] = Device->SubDevices[I];
+    // reusing the same pi_device needs to increment the reference count
+    urDeviceRetain(OutDevices[I]);
   }
-  *NumDevices = EffectiveNumDevices;
-  return ZER_RESULT_SUCCESS;
+
+  if (pNumDevicesRet) {
+    *pNumDevicesRet = EffectiveNumDevices;
+  }
+  return UR_RESULT_SUCCESS;
 }

@@ -258,6 +258,28 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   return PI_SUCCESS;
 }
 
+template <pi_usm_type USMType>
+pi_result after_piextUSMGetMemAllocInfo(pi_context, const void *,
+                                        pi_mem_alloc_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_MEM_ALLOC_TYPE: {
+    if (param_value) {
+      assert(param_value_size == sizeof(pi_usm_type));
+      *static_cast<pi_usm_type *>(param_value) = USMType;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_usm_type);
+    return PI_SUCCESS;
+  }
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
 pi_result redefine_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
                                          size_t pitch, size_t pattern_size,
                                          const void *pattern, size_t width,
@@ -340,6 +362,8 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
       redefine_piextUSMEnqueueMemset2D);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
       redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -402,6 +426,8 @@ TEST(USMMemcpy2DTest, USMMemops2DUnsupported) {
       after_piKernelCreate);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
       after_piEnqueueKernelLaunch);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -447,6 +473,8 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueFill2D>(
       redefine_piextUSMEnqueueFill2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -498,6 +526,8 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemset2D>(
       redefine_piextUSMEnqueueMemset2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -549,6 +579,8 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
       redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
