@@ -207,7 +207,7 @@ By default, there is a guarantee that *error* messages are flushed immediately. 
 Loggers redirect messages to *stdout*, *stderr*, or a file (default: *stderr*).
 
 All of these logging options can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
-Both of these environment variables have the same syntax for setting logger options::
+Both of these environment variables have the same syntax for setting logger options:
 
   "[level:debug|info|warning|error];[flush:<debug|info|warning|error>];[output:stdout|stderr|file,<path>]"
   
