@@ -1,3 +1,6 @@
+// Copyright (C) 2023 Intel Corporation
+// SPDX-License-Identifier: MIT
+
 #include <string_view>
 #include <uur/utils.h>
 
@@ -53,8 +56,10 @@ ur_result_t GetDeviceMaxComputeUnits(ur_device_handle_t device, uint32_t &max_co
 ur_result_t GetDeviceMaxWorkItemDimensions(ur_device_handle_t device, uint32_t &max_work_item_dimensions) {
     return GetDeviceInfo<uint32_t>(device, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS, max_work_item_dimensions);
 }
-// TODO
-ur_result_t GetDeviceMaxWorkItemSizes(ur_device_handle_t device, std::vector<size_t> &max_work_item_sizes);
+
+ur_result_t GetDeviceMaxWorkItemSizes(ur_device_handle_t device, std::vector<size_t> &max_work_item_sizes) {
+    return GetDeviceVectorInfo<size_t>(device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, max_work_item_sizes);
+}
 
 ur_result_t GetDeviceMaxWorkGroupSize(ur_device_handle_t device, size_t &max_work_group_size) {
     return GetDeviceInfo<size_t>(device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, max_work_group_size);
