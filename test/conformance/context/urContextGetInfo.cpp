@@ -11,8 +11,7 @@ UUR_TEST_SUITE_P(urContextGetInfoTestWithInfoParam,
                      UR_CONTEXT_INFO_NUM_DEVICES,          //
                      UR_CONTEXT_INFO_DEVICES,              //
                      UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, //
-                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,   //
-                     UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT  //
+                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT    //
 
                      ),
                  uur::deviceTestWithParamPrinter<ur_context_info_t>);
