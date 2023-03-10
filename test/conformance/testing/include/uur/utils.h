@@ -6,7 +6,6 @@
 
 #include <optional>
 #include <string>
-#include <uur/assert.h>
 #include <uur/environment.h>
 #include <vector>
 

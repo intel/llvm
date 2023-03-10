@@ -45,12 +45,10 @@ GetDevices(ur_platform_handle_t platform) {
 inline bool
 hasDevicePartitionSupport(ur_device_handle_t device,
                           const ur_device_partition_property_t property) {
-    // const auto properties = uur::GetDevicePartitionProperties(device);
-    // return std::find(properties.begin(), properties.end(), property) !=
-    //        properties.end();
-    (void)device;
-    (void)property;
-    return false;
+    std::vector<ur_device_partition_property_t> properties;
+    uur::GetDevicePartitionProperties(device, properties);
+    return std::find(properties.begin(), properties.end(), property) !=
+           properties.end();
 }
 
 struct urAllDevicesTest : urPlatformTest {
