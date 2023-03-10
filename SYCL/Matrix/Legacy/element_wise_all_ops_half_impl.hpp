@@ -13,9 +13,8 @@ public:
 };
 
 template <typename T, size_t M, size_t N>
-void assert_ops_ref(
-    accessor<T, 2, access::mode::read, access::target::host_buffer> C,
-    const float ref) {
+void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
+                    const float ref) {
   for (size_t i = 0; i < M; i++)
     for (size_t j = 0; j < N; j++) {
       auto diff = C[i][j] - ref;
@@ -53,7 +52,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
+  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
 template <typename T, size_t M, size_t N>
@@ -86,7 +85,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
+  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
 template <typename T, size_t M, size_t N>
@@ -119,7 +118,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
+  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
 template <typename T, size_t M, size_t N>
@@ -152,7 +151,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
+  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
 template <typename T, size_t M, size_t N>
@@ -204,7 +203,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
+  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
 static constexpr size_t MATRIX_M = TM * 2;
