@@ -387,11 +387,17 @@ number of outstanding invocations is less than or equal to `N`.
 
 === Compatibility with FPGA Kernel Interface Properties
 
-The `task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
-property described in link:sycl_ext_oneapi_kernel_properties.asciidoc[
-  ../sycl_ext_intel_fpga_kernel_interface_properties.].
-Normally the `pipelined` property is applicable only to kernels however this
-extension supports applying the property to task sequences.
+A `task_sequence` may be declared with the following FPGA Kernel Interface
+properties:
+
+ - `pipelined`
+ - `use_stall_enable_clusters`
+
+These are described in the link:../sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_intel_fpga_kernel_interface_properties] document.
+
+Normally these properties are applicable only to kernels however this extension
+supports applying the properties to task sequences.
 
 == Forward Progress Guarantees and Execution Model
 
