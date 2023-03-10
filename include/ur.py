@@ -959,17 +959,16 @@ class ur_program_info_v(IntEnum):
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 1                                     ## Program context info
-    NUM_DEVICES = 2                                 ## Return number of devices associated with Program
-    DEVICES = 3                                     ## Return list of devices associated with Program, return type
-                                                    ## uint32_t[].
-    SOURCE = 4                                      ## Return program source associated with Program, return type char[].
-    BINARY_SIZES = 5                                ## Return program binary sizes for each device, return type size_t[].
+    CONTEXT = 1                                     ## Program context info.
+    NUM_DEVICES = 2                                 ## Return number of devices associated with Program.
+    DEVICES = 3                                     ## Return list of devices associated with Program, return type uint32_t*.
+    SOURCE = 4                                      ## Return program source associated with Program, return type char*.
+    BINARY_SIZES = 5                                ## Return program binary sizes for each device, return type size_t*.
     BINARIES = 6                                    ## Return program binaries for all devices for this Program, return type
-                                                    ## uchar[].
-    NUM_KERNELS = 7                                 ## Number of kernels in Program, return type size_t
-    KERNEL_NAMES = 8                                ## Return a semi-colon separated list of kernel names in Program, return
-                                                    ## type char[]
+                                                    ## uchar*.
+    NUM_KERNELS = 7                                 ## Number of kernels in Program, return type size_t.
+    KERNEL_NAMES = 8                                ## Return a null-terminated, semi-colon separated list of kernel names in
+                                                    ## Program, return type char*.
 
 class ur_program_info_t(c_int):
     def __str__(self):
@@ -1005,10 +1004,11 @@ class ur_program_binary_type_t(c_int):
 ###############################################################################
 ## @brief Get Program object build information
 class ur_program_build_info_v(IntEnum):
-    STATUS = 0                                      ## Program build status, return type ::ur_program_build_status_t
-    OPTIONS = 1                                     ## Program build options, return type char[]
-    LOG = 2                                         ## Program build log, return type char[]
-    BINARY_TYPE = 3                                 ## Program binary type, return type ::ur_program_binary_type_t
+    STATUS = 0                                      ## Program build status, return type ::ur_program_build_status_t.
+    OPTIONS = 1                                     ## Null-terminated options string specified by last build, compile or
+                                                    ## link operation performed on the program. Return type char*.
+    LOG = 2                                         ## Null-terminated program build log, return type char*.
+    BINARY_TYPE = 3                                 ## Program binary type, return type ::ur_program_binary_type_t.
 
 class ur_program_build_info_t(c_int):
     def __str__(self):
@@ -1027,15 +1027,15 @@ class ur_specialization_constant_info_t(Structure):
 ###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
-    FUNCTION_NAME = 0                               ## Return Kernel function name, return type char[]
-    NUM_ARGS = 1                                    ## Return Kernel number of arguments
+    FUNCTION_NAME = 0                               ## Return null-terminated kernel function name, return type char*.
+    NUM_ARGS = 1                                    ## Return Kernel number of arguments.
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 3                                     ## Return Context object associated with Kernel
-    PROGRAM = 4                                     ## Return Program object associated with Kernel
-    ATTRIBUTES = 5                                  ## Return Kernel attributes, return type char[]
+    CONTEXT = 3                                     ## Return Context object associated with Kernel.
+    PROGRAM = 4                                     ## Return Program object associated with Kernel.
+    ATTRIBUTES = 5                                  ## Return null-terminated kernel attributes string, return type char*.
 
 class ur_kernel_info_t(c_int):
     def __str__(self):

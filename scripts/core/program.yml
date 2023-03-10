@@ -310,21 +310,21 @@ etors:
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
-      desc: "Program context info"
+      desc: "Program context info."
     - name: NUM_DEVICES
-      desc: "Return number of devices associated with Program"
+      desc: "Return number of devices associated with Program."
     - name: DEVICES
-      desc: "Return list of devices associated with Program, return type uint32_t[]."
+      desc: "Return list of devices associated with Program, return type uint32_t*."
     - name: SOURCE
-      desc: "Return program source associated with Program, return type char[]."
+      desc: "Return program source associated with Program, return type char*."
     - name: BINARY_SIZES
-      desc: "Return program binary sizes for each device, return type size_t[]."
+      desc: "Return program binary sizes for each device, return type size_t*."
     - name: BINARIES
-      desc: "Return program binaries for all devices for this Program, return type uchar[]."
+      desc: "Return program binaries for all devices for this Program, return type uchar*."
     - name: NUM_KERNELS
-      desc: "Number of kernels in Program, return type size_t"
+      desc: "Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES
-      desc: "Return a semi-colon separated list of kernel names in Program, return type char[]"
+      desc: "Return a null-terminated, semi-colon separated list of kernel names in Program, return type char*."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a Program object"
@@ -389,13 +389,13 @@ class: $xProgram
 name: $x_program_build_info_t
 etors:
     - name: STATUS
-      desc: "Program build status, return type $x_program_build_status_t"
+      desc: "Program build status, return type $x_program_build_status_t."
     - name: OPTIONS
-      desc: "Program build options, return type char[]"
+      desc: "Null-terminated options string specified by last build, compile or link operation performed on the program. Return type char*."
     - name: LOG
-      desc: "Program build log, return type char[]"
+      desc: "Null-terminated program build log, return type char*."
     - name: BINARY_TYPE
-      desc: "Program binary type, return type $x_program_binary_type_t"
+      desc: "Program binary type, return type $x_program_binary_type_t."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query build information about a Program object for a Device"

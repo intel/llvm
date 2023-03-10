@@ -82,20 +82,20 @@ class: $xKernel
 name: $x_kernel_info_t
 etors:
     - name: FUNCTION_NAME
-      desc: "Return Kernel function name, return type char[]"
+      desc: "Return null-terminated kernel function name, return type char*."
     - name: NUM_ARGS
-      desc: "Return Kernel number of arguments"
+      desc: "Return Kernel number of arguments."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the kernel object.
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
-      desc: "Return Context object associated with Kernel"
+      desc: "Return Context object associated with Kernel."
     - name: PROGRAM
-      desc: "Return Program object associated with Kernel"
+      desc: "Return Program object associated with Kernel."
     - name: ATTRIBUTES
-      desc: "Return Kernel attributes, return type char[]"
+      desc: "Return null-terminated kernel attributes string, return type char*."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel Work Group information"
