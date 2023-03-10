@@ -59,7 +59,8 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes"};
+        "Cannot fuse kernels with different offsets or local sizes or "
+        "different global sizes in dimensions [2, N) and non-zero offsets"};
   }
 
   // Initialize the configuration helper to make the options for this invocation

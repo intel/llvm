@@ -1,5 +1,7 @@
 #include "Builtins.h"
 
+#include "NDRangesHelper.h"
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/ModRef.h"
@@ -118,14 +120,8 @@ static bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
     return SrcNDRange.hasSpecificLocalSize();
   case BuiltinKind::GlobalIDRemapper:
   case BuiltinKind::LocalIDRemapper:
-  case BuiltinKind::GroupIDRemapper: {
-    // No need to remap when all but the dimensions and the left-most components
-    // of the global size range are equal.
-    const auto &GS0 = SrcNDRange.getGlobalSize();
-    const auto &GS1 = FusedNDRange.getGlobalSize();
-    return SrcNDRange.getDimensions() != FusedNDRange.getDimensions() ||
-           !std::equal(GS0.begin() + 1, GS0.end(), GS1.begin() + 1);
-  }
+  case BuiltinKind::GroupIDRemapper:
+    return requireIDRemapping(SrcNDRange, FusedNDRange);
   }
   llvm_unreachable("Unhandled kind");
 }
@@ -420,9 +416,78 @@ static Function *initFunction(Function *OldF, const NDRange &SrcNDRange,
   return F;
 }
 
+static std::string
+getGetGlobalLinearIDFunctionName(const NDRange &FusedNDRange) {
+  std::string Res;
+  raw_string_ostream S{Res};
+  S << "__global_linear_id_" << FusedNDRange;
+  return S.str();
+}
+
+static Function *
+getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
+  const auto Name = getGetGlobalLinearIDFunctionName(FusedNDRange);
+
+  auto *F = M->getFunction(Name);
+  if (F) {
+    // Already created function.
+    return F;
+  }
+
+  auto &Context = M->getContext();
+  IRBuilder<> Builder{Context};
+  auto *Ty = FunctionType::get(Builder.getInt64Ty(), /*isVarArg*/ false);
+  F = Function::Create(Ty, Function::LinkageTypes::InternalLinkage, Name, M);
+
+  auto *EntryBlock = BasicBlock::Create(Context, "entry", F);
+  Builder.SetInsertPoint(EntryBlock);
+
+  // See:
+  // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:multi-dim-linearization
+  auto *Res = [&Builder, &FusedNDRange] {
+    const auto Dimensions = FusedNDRange.getDimensions();
+    const auto GetGS = [&FusedNDRange](std::size_t I) {
+      return FusedNDRange.getGlobalSize()[I];
+    };
+    const auto GetID = [&Builder, Dimensions](uint32_t I) {
+      return createSPIRVCall(Builder, GetGlobalIDName,
+                             Builder.getInt32(mirror(Dimensions, I)));
+    };
+    switch (Dimensions) {
+    case 1:
+      // gid = id0
+      return GetID(0);
+    case 2:
+      // gid = id1 + (id0 * r1)
+      return Builder.CreateAdd(
+          GetID(1), Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1))));
+    case 3:
+      // gid = id2 + (id1 * r2) + (id0 * r1 * r2)
+      return Builder.CreateAdd(
+          GetID(2), Builder.CreateAdd(
+                        Builder.CreateMul(GetID(1), Builder.getInt64(GetGS(2))),
+                        Builder.CreateMul(
+                            GetID(0), Builder.getInt64(GetGS(1) * GetGS(2)))));
+    default:
+      llvm_unreachable("Invalid number of dimensions");
+    }
+  }();
+
+  Builder.CreateRet(Res);
+
+  setFunctionMetadata(F, RemapperCommonName, Context);
+
+  return F;
+}
+
 Value *jit_compiler::getGlobalLinearID(IRBuilderBase &Builder,
                                        const NDRange &FusedNDRange) {
-  return createSPIRVCall(Builder, GetGlobalLinearIDName, {});
+  auto *F = getOrCreateGetGlobalLinearIDFunction(
+      Builder.GetInsertBlock()->getParent()->getParent(), FusedNDRange);
+  auto *C = Builder.CreateCall(F);
+  C->setAttributes(F->getAttributes());
+  C->setCallingConv(F->getCallingConv());
+  return C;
 }
 
 static bool isIndexSpaceGetterBuiltin(Function *F) {
