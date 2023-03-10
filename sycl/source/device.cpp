@@ -222,11 +222,13 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
   const RT::PiDevice Device = impl->getHandleRef();
   const RT::PiDevice Peer = peer.impl->getHandleRef();
+
+  if (Device == Peer)
+    return true;
+
   RT::PiPeerAttr PiAttr;
   size_t return_size;
   int value;
-  if (Device == Peer)
-    return true;
 
   switch (attr) {
   case ext::oneapi::peer_access::access_supported: {

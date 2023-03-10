@@ -5636,7 +5636,9 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
       CUattr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
       break;
     }
-    default: { __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr); }
+    default: {
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr);
+    }
     }
     PI_CHECK_ERROR(cuDeviceGetP2PAttribute(
         &value, CUattr, command_device->get(), peer_device->get()));
