@@ -1,4 +1,4 @@
-// RUN: %clang -fsycl -O0 -fsyntax-only -Xclang -verify %s
+// RUN: %clang -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 // Regression test checking that the vector ctor taking an initializer list
