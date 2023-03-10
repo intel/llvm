@@ -1182,8 +1182,6 @@ typedef enum ur_context_info_t {
                                               ///< supported.
     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,   ///< [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
                                               ///< supported.
-    UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT = 5, ///< [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
-                                              ///< supported.
     /// @cond
     UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1231,7 +1229,7 @@ urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT < ContextInfoType`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < ContextInfoType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
     ur_context_handle_t hContext,      ///< [in] handle of the context
@@ -3614,15 +3612,14 @@ typedef enum ur_command_t {
     UR_COMMAND_MEM_IMAGE_COPY = 12,               ///< Event created by ::urEnqueueMemImageCopy
     UR_COMMAND_MEM_BUFFER_MAP = 14,               ///< Event created by ::urEnqueueMemBufferMap
     UR_COMMAND_MEM_UNMAP = 16,                    ///< Event created by ::urEnqueueMemUnmap
-    UR_COMMAND_USM_MEMSET = 17,                   ///< Event created by ::urEnqueueUSMMemset
+    UR_COMMAND_USM_FILL = 17,                     ///< Event created by ::urEnqueueUSMFill
     UR_COMMAND_USM_MEMCPY = 18,                   ///< Event created by ::urEnqueueUSMMemcpy
     UR_COMMAND_USM_PREFETCH = 19,                 ///< Event created by ::urEnqueueUSMPrefetch
     UR_COMMAND_USM_MEM_ADVISE = 20,               ///< Event created by ::urEnqueueUSMMemAdvise
     UR_COMMAND_USM_FILL_2D = 21,                  ///< Event created by ::urEnqueueUSMFill2D
-    UR_COMMAND_USM_MEMSET_2D = 22,                ///< Event created by ::urEnqueueUSMMemset2D
-    UR_COMMAND_USM_MEMCPY_2D = 23,                ///< Event created by ::urEnqueueUSMMemcpy2D
-    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 24, ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
-    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 25,  ///< Event created by ::urEnqueueDeviceGlobalVariableRead
+    UR_COMMAND_USM_MEMCPY_2D = 22,                ///< Event created by ::urEnqueueUSMMemcpy2D
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 23, ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,  ///< Event created by ::urEnqueueDeviceGlobalVariableRead
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
