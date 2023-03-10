@@ -197,11 +197,14 @@ public:
 };
 
 void rewrite1D(Operation *op, spirv::BuiltIn builtin,
-               const SPIRVTypeConverter &typeConverter,
+               SPIRVTypeConverter &typeConverter,
                ConversionPatternRewriter &rewriter) {
-  rewriter.replaceOp(op,
-                     spirv::getBuiltinVariableValue(
-                         op, builtin, typeConverter.getIndexType(), rewriter));
+  const auto res = spirv::getBuiltinVariableValue(
+      op, builtin, typeConverter.getIndexType(), rewriter);
+  rewriter.replaceOp(op, convertScalarToDtype(
+                             rewriter, op->getLoc(), res,
+                             typeConverter.convertType(op->getResultTypes()[0]),
+                             /*isUnsignedCast*/ true));
 }
 
 /// Converts one-dimensional operations of type \tparam OpTy to calls to a SPIRV

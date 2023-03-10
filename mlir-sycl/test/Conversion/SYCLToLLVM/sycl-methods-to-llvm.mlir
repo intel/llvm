@@ -49,10 +49,10 @@ func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64> {
 
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[RANGE1:.*]]>) -> i64 {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[RANGE1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:      llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:    }
 func.func @test_1(%range: memref<?x!sycl_range_1_>) -> i64 {
@@ -62,13 +62,13 @@ func.func @test_1(%range: memref<?x!sycl_range_1_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[RANGE2:.*]]>) -> i64 {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[RANGE2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1] : (!llvm.ptr<[[RANGE2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:      llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:    }
 func.func @test_2(%range: memref<?x!sycl_range_2_>) -> i64 {
@@ -78,16 +78,16 @@ func.func @test_2(%range: memref<?x!sycl_range_2_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[RANGE3]]>) -> i64 {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:      %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 2] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_10:.*]] = arith.muli %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.mul %[[VAL_7]], %[[VAL_9]] : i64
 // CHECK-NEXT:      llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:    }
 func.func @test_3(%range: memref<?x!sycl_range_3_>) -> i64 {
@@ -180,7 +180,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: i64) -> memref
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR2:.*]]>, %[[VAL_1:.*]]: i64) -> !llvm.[[ACCESSORSUBS2:.*]] {
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.[[ACCESSORSUBS2]]
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.insertvalue %[[VAL_1]], %[[VAL_2]][0, 0, 0, 0] : !llvm.[[ACCESSORSUBS2]]
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr<[[ACCESSOR2]]>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_5]], %[[VAL_3]][1] : !llvm.[[ACCESSORSUBS2]]
 // CHECK-NEXT:      llvm.return %[[VAL_6]] : !llvm.[[ACCESSORSUBS2]]
@@ -194,7 +194,7 @@ func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: i64) -> !syc
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR3:.*]]>, %[[VAL_1:.*]]: i64) -> !llvm.[[ACCESSORSUBS3:.*]] {
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.[[ACCESSORSUBS3]]
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.insertvalue %[[VAL_1]], %[[VAL_2]][0, 0, 0, 0] : !llvm.[[ACCESSORSUBS3]]
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_3]][0, 0, 0, 1] : !llvm.[[ACCESSORSUBS3]]
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr<[[ACCESSOR3]]>
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.insertvalue %[[VAL_6]], %[[VAL_5]][1] : !llvm.[[ACCESSORSUBS3]]
@@ -227,13 +227,13 @@ func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: i64) -> !syc
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR1]]>,
 // CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<[[ID1:.*]]>) -> !llvm.ptr<i32, 1> {
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 0] : (!llvm.ptr<[[ID1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
-// CHECK-NEXT:      %[[VAL_8:.*]] = arith.addi %[[VAL_7]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.add %[[VAL_7]], %[[VAL_6]] : i64
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_10]][%[[VAL_8]]] : (!llvm.ptr<i32, 1>, i64) -> !llvm.ptr<i32, 1>
@@ -247,19 +247,19 @@ func.func @test_1(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR2]]>,
 // CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<[[ID2:.*]]>) -> !llvm.ptr<i32, 1> {
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 0] : (!llvm.ptr<[[ID2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
-// CHECK-NEXT:      %[[VAL_8:.*]] = arith.addi %[[VAL_7]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.add %[[VAL_7]], %[[VAL_6]] : i64
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ACCESSOR2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 1] : (!llvm.ptr<[[ID2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_13:.*]] = arith.muli %[[VAL_8]], %[[VAL_10]] : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = arith.addi %[[VAL_13]], %[[VAL_12]] : i64
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mul %[[VAL_8]], %[[VAL_10]] : i64
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.add %[[VAL_13]], %[[VAL_12]] : i64
 // CHECK-NEXT:      %[[VAL_15:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0] : (!llvm.ptr<[[ACCESSOR2]]>) -> !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_17:.*]] = llvm.getelementptr inbounds %[[VAL_16]][%[[VAL_14]]] : (!llvm.ptr<i32, 1>, i64) -> !llvm.ptr<i32, 1>
@@ -273,25 +273,25 @@ func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR3:.*]]>,
 // CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<[[ID3]]>) -> !llvm.ptr<i32, 1> {
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 0] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
-// CHECK-NEXT:      %[[VAL_8:.*]] = arith.addi %[[VAL_7]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.add %[[VAL_7]], %[[VAL_6]] : i64
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ACCESSOR3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 1] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_13:.*]] = arith.muli %[[VAL_8]], %[[VAL_10]] : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = arith.addi %[[VAL_13]], %[[VAL_12]] : i64
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mul %[[VAL_8]], %[[VAL_10]] : i64
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.add %[[VAL_13]], %[[VAL_12]] : i64
 // CHECK-NEXT:      %[[VAL_15:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[ACCESSOR3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_17:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 2] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_18:.*]] = llvm.load %[[VAL_17]] : !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_19:.*]] = arith.muli %[[VAL_14]], %[[VAL_16]] : i64
-// CHECK-NEXT:      %[[VAL_20:.*]] = arith.addi %[[VAL_19]], %[[VAL_18]] : i64
+// CHECK-NEXT:      %[[VAL_19:.*]] = llvm.mul %[[VAL_14]], %[[VAL_16]] : i64
+// CHECK-NEXT:      %[[VAL_20:.*]] = llvm.add %[[VAL_19]], %[[VAL_18]] : i64
 // CHECK-NEXT:      %[[VAL_21:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0] : (!llvm.ptr<[[ACCESSOR3]]>) -> !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_22:.*]] = llvm.load %[[VAL_21]] : !llvm.ptr<ptr<i32, 1>>
 // CHECK-NEXT:      %[[VAL_23:.*]] = llvm.getelementptr inbounds %[[VAL_22]][%[[VAL_20]]] : (!llvm.ptr<i32, 1>, i64) -> !llvm.ptr<i32, 1>
@@ -344,27 +344,27 @@ func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
 
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDRANGE3:.*]]>) -> !llvm.[[RANGE3]] {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[RANGE3]] : (i64) -> !llvm.ptr<[[RANGE3]]>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.divui %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.udiv %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 0] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       llvm.store %[[VAL_7]], %[[VAL_8]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 1] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_13:.*]] = arith.divui %[[VAL_10]], %[[VAL_12]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.udiv %[[VAL_10]], %[[VAL_12]] : i64
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 1] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       llvm.store %[[VAL_13]], %[[VAL_14]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_15:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 2] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_17:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 2] : (!llvm.ptr<[[NDRANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_18:.*]] = llvm.load %[[VAL_17]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_19:.*]] = arith.divui %[[VAL_16]], %[[VAL_18]] : i64
+// CHECK-NEXT:       %[[VAL_19:.*]] = llvm.udiv %[[VAL_16]], %[[VAL_18]] : i64
 // CHECK-NEXT:       %[[VAL_20:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 2] : (!llvm.ptr<[[RANGE3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       llvm.store %[[VAL_19]], %[[VAL_20]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_21:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[RANGE3]]>
@@ -481,10 +481,10 @@ func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.add %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
@@ -498,17 +498,17 @@ func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mul %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.add %[[VAL_8]], %[[VAL_11]] : i64
 // CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.add %[[VAL_12]], %[[VAL_14]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
@@ -537,7 +537,7 @@ func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.sub %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_5]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
@@ -551,16 +551,16 @@ func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.sub %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 1] : (!llvm.ptr<[[ITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_12:.*]] = llvm.load %[[VAL_11]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_13:.*]] = arith.subi %[[VAL_10]], %[[VAL_12]] : i64
-// CHECK-NEXT:       %[[VAL_14:.*]] = arith.addi %[[VAL_8]], %[[VAL_13]] : i64
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.sub %[[VAL_10]], %[[VAL_12]] : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.add %[[VAL_8]], %[[VAL_13]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_14]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
@@ -574,26 +574,26 @@ func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.subi %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.sub %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_8]], %[[VAL_10]] : i64
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mul %[[VAL_8]], %[[VAL_10]] : i64
 // CHECK-NEXT:       %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_13:.*]] = llvm.load %[[VAL_12]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 1] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_15:.*]] = llvm.load %[[VAL_14]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_16:.*]] = arith.subi %[[VAL_13]], %[[VAL_15]] : i64
-// CHECK-NEXT:       %[[VAL_17:.*]] = arith.muli %[[VAL_16]], %[[VAL_10]] : i64
-// CHECK-NEXT:       %[[VAL_18:.*]] = arith.addi %[[VAL_11]], %[[VAL_17]] : i64
+// CHECK-NEXT:       %[[VAL_16:.*]] = llvm.sub %[[VAL_13]], %[[VAL_15]] : i64
+// CHECK-NEXT:       %[[VAL_17:.*]] = llvm.mul %[[VAL_16]], %[[VAL_10]] : i64
+// CHECK-NEXT:       %[[VAL_18:.*]] = llvm.add %[[VAL_11]], %[[VAL_17]] : i64
 // CHECK-NEXT:       %[[VAL_19:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_20:.*]] = llvm.load %[[VAL_19]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_21:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 2] : (!llvm.ptr<[[ITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_22:.*]] = llvm.load %[[VAL_21]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_23:.*]] = arith.subi %[[VAL_20]], %[[VAL_22]] : i64
-// CHECK-NEXT:       %[[VAL_24:.*]] = arith.addi %[[VAL_18]], %[[VAL_23]] : i64
+// CHECK-NEXT:       %[[VAL_23:.*]] = llvm.sub %[[VAL_20]], %[[VAL_22]] : i64
+// CHECK-NEXT:       %[[VAL_24:.*]] = llvm.add %[[VAL_18]], %[[VAL_23]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_24]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
@@ -690,10 +690,10 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.add %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
@@ -707,17 +707,17 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mul %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.add %[[VAL_8]], %[[VAL_11]] : i64
 // CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 1, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.add %[[VAL_12]], %[[VAL_14]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
@@ -814,10 +814,10 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.add %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
@@ -831,17 +831,17 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 1] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mul %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.add %[[VAL_8]], %[[VAL_11]] : i64
 // CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 1, 0, 0, 2] : (!llvm.ptr<[[NDITEM3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.add %[[VAL_12]], %[[VAL_14]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
@@ -998,7 +998,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[NDITEM1]]>) -> !llvm.[[NDRANGE1]] {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[NDRANGE1]] : (i32) -> !llvm.ptr<[[NDRANGE1]]>
 // CHECK-DAG:        %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr<[[NDRANGE1]]>) -> !llvm.ptr<[[RANGE1]]>
 // CHECK-DAG:        %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[NDITEM1]]>) -> !llvm.ptr<[[RANGE1]]>
@@ -1061,31 +1061,89 @@ func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
 !sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
 !sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
 
+module attributes {gpu.container} {
+  gpu.module @kernels {
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3:.*]]>) -> !llvm.[[ID3:.*]] {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.[[ID3]] : (i32) -> !llvm.ptr<[[ID3]]>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 0] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:       %[[VAL_5:.*]] = sycl.local_id %[[VAL_4]] : index
-// CHECK-NEXT:       %[[VAL_6:.*]] = arith.index_castui %[[VAL_5]] : index to i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_6:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_4]] : i32] : vector<3xi64>
 // CHECK-NEXT:       llvm.store %[[VAL_6]], %[[VAL_3]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 1] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:       %[[VAL_9:.*]] = sycl.local_id %[[VAL_8]] : index
-// CHECK-NEXT:       %[[VAL_10:.*]] = arith.index_castui %[[VAL_9]] : index to i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_10:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_8]] : i32] : vector<3xi64>
 // CHECK-NEXT:       llvm.store %[[VAL_10]], %[[VAL_7]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, 2] : (!llvm.ptr<[[ID3]]>) -> !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.constant 2 : i32
-// CHECK-NEXT:       %[[VAL_13:.*]] = sycl.local_id %[[VAL_12]] : index
-// CHECK-NEXT:       %[[VAL_14:.*]] = arith.index_castui %[[VAL_13]] : index to i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.extractelement %[[TMP_18]][%[[VAL_12]] : i32] : vector<3xi64>
 // CHECK-NEXT:       llvm.store %[[VAL_14]], %[[VAL_11]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_15:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<[[ID3]]>
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : !llvm.[[ID3]]
 // CHECK-NEXT:     }
-func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_id_3_ {
-  %0 = sycl.group.get_local_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_id_3_
-  return %0 : !sycl_id_3_
+    func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_id_3_ {
+      %0 = sycl.group.get_local_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_id_3_
+      return %0 : !sycl_id_3_
+    }
+  }
 }
 
 // -----
@@ -1094,16 +1152,39 @@ func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_id_3_ {
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 
+
+module attributes {gpu.container} {
+  gpu.module @kernels {
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
-// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
-// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
-// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.extractelement %[[VAL_4]][%[[VAL_5]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.insertelement %[[VAL_6]], %[[VAL_2]][%[[VAL_7]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.extractelement %[[VAL_10]][%[[VAL_11]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.insertelement %[[VAL_12]], %[[VAL_8]][%[[VAL_13]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_17:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[VAL_18:.*]] = llvm.extractelement %[[VAL_16]][%[[VAL_17]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_19:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[VAL_20:.*]] = llvm.insertelement %[[VAL_18]], %[[VAL_14]][%[[VAL_19]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_21:.*]] = llvm.extractelement %[[VAL_20]][%arg1 : i32] : vector<3xi64>
+// CHECK-NEXT:       llvm.return %[[VAL_21]] : i64
 // CHECK-NEXT:     }
-func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
-  %0 = sycl.group.get_local_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
-  return %0 : i64
+    func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
+      %0 = sycl.group.get_local_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+      return %0 : i64
+    }
+  }
 }
 
 // -----
@@ -1187,10 +1268,10 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.add %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
@@ -1204,17 +1285,17 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_5:.*]] = arith.muli %[[VAL_2]], %[[VAL_4]] : i64
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mul %[[VAL_2]], %[[VAL_4]] : i64
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_8:.*]] = arith.muli %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.mul %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_7]] : i64
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.addi %[[VAL_8]], %[[VAL_11]] : i64
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mul %[[VAL_10]], %[[VAL_7]] : i64
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.add %[[VAL_8]], %[[VAL_11]] : i64
 // CHECK-NEXT:       %[[VAL_13:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 3, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_15:.*]] = arith.addi %[[VAL_12]], %[[VAL_14]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.add %[[VAL_12]], %[[VAL_14]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
@@ -1234,62 +1315,174 @@ func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
 !sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
 !sycl_group_3_ = !sycl.group<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
 
+module attributes {gpu.container} {
+  gpu.module @kernels {
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
-// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
-// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[VAL_2:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_5:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.extractelement %[[VAL_4]][%[[VAL_5]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[VAL_8:.*]] = llvm.insertelement %[[VAL_6]], %[[VAL_2]][%[[VAL_7]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[VAL_12:.*]] = llvm.extractelement %[[VAL_10]][%[[VAL_11]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.insertelement %[[VAL_12]], %[[VAL_8]][%[[VAL_13]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[VAL_17:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[VAL_18:.*]] = llvm.extractelement %[[VAL_16]][%[[VAL_17]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_19:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[VAL_20:.*]] = llvm.insertelement %[[VAL_18]], %[[VAL_14]][%[[VAL_19]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_21:.*]] = llvm.extractelement %[[VAL_20]][%[[VAL_1]] : i32] : vector<3xi64>
+// CHECK-NEXT:       llvm.return %[[VAL_21]] : i64
 // CHECK-NEXT:     }
-func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
-  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
-  return %0 : i64
-}
+    func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
+      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+      return %0 : i64
+    }
 
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
-// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_2:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_1]] : i32] : vector<3xi64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_6:.*]] = arith.muli %[[VAL_3]], %[[VAL_5]] : i64
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:       %[[VAL_8:.*]] = sycl.local_id %[[VAL_7]] : index
-// CHECK-NEXT:       %[[VAL_9:.*]] = arith.index_castui %[[VAL_8]] : index to i64
-// CHECK-NEXT:       %[[VAL_10:.*]] = arith.addi %[[VAL_6]], %[[VAL_9]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.mul %[[VAL_21]], %[[VAL_5]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_8:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_7]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.add %[[VAL_6]], %[[VAL_8]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:     }
-func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
-  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
-  return %0 : i64
-}
+    func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
+      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+      return %0 : i64
+    }
 
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:       %[[VAL_2:.*]] = sycl.local_id %[[VAL_1]] : index
-// CHECK-NEXT:       %[[VAL_3:.*]] = arith.index_castui %[[VAL_2]] : index to i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_2:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_1]] : i32] : vector<3xi64>
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_6:.*]] = arith.muli %[[VAL_3]], %[[VAL_5]] : i64
+// CHECK-NEXT:       %[[VAL_6:.*]] = llvm.mul %[[VAL_2]], %[[VAL_5]] : i64
 // CHECK-NEXT:       %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_9:.*]] = arith.muli %[[VAL_6]], %[[VAL_8]] : i64
-// CHECK-NEXT:       %[[VAL_10:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:       %[[VAL_11:.*]] = sycl.local_id %[[VAL_10]] : index
-// CHECK-NEXT:       %[[VAL_12:.*]] = arith.index_castui %[[VAL_11]] : index to i64
-// CHECK-NEXT:       %[[VAL_13:.*]] = arith.muli %[[VAL_12]], %[[VAL_8]] : i64
-// CHECK-NEXT:       %[[VAL_14:.*]] = arith.addi %[[VAL_9]], %[[VAL_13]] : i64
-// CHECK-NEXT:       %[[VAL_15:.*]] = arith.constant 2 : i32
-// CHECK-NEXT:       %[[VAL_16:.*]] = sycl.local_id %[[VAL_15]] : index
-// CHECK-NEXT:       %[[VAL_17:.*]] = arith.index_castui %[[VAL_16]] : index to i64
-// CHECK-NEXT:       %[[VAL_18:.*]] = arith.addi %[[VAL_14]], %[[VAL_17]] : i64
+// CHECK-NEXT:       %[[VAL_9:.*]] = llvm.mul %[[VAL_6]], %[[VAL_8]] : i64
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_12:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_10]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_13:.*]] = llvm.mul %[[VAL_12]], %[[VAL_8]] : i64
+// CHECK-NEXT:       %[[VAL_14:.*]] = llvm.add %[[VAL_9]], %[[VAL_13]] : i64
+// CHECK-NEXT:       %[[VAL_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_0:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_1:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_2:.*]] = llvm.load %[[TMP_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_3:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:       %[[TMP_4:.*]] = llvm.extractelement %[[TMP_2]][%[[TMP_3]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_5:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:       %[[TMP_6:.*]] = llvm.insertelement %[[TMP_4]], %[[TMP_0]][%[[TMP_5]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_7:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_8:.*]] = llvm.load %[[TMP_7]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_9:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:       %[[TMP_10:.*]] = llvm.extractelement %[[TMP_8]][%[[TMP_9]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_11:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:       %[[TMP_12:.*]] = llvm.insertelement %[[TMP_10]], %[[TMP_6]][%[[TMP_11]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_13:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_14:.*]] = llvm.load %[[TMP_13]] : !llvm.ptr<vector<3xi64>>
+// CHECK-NEXT:       %[[TMP_15:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:       %[[TMP_16:.*]] = llvm.extractelement %[[TMP_14]][%[[TMP_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[TMP_17:.*]] = llvm.mlir.constant(2 : i64) : i64
+// CHECK-NEXT:       %[[TMP_18:.*]] = llvm.insertelement %[[TMP_16]], %[[TMP_12]][%[[TMP_17]] : i64] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_16:.*]]  = llvm.extractelement %[[TMP_18]][%[[VAL_15]] : i32] : vector<3xi64>
+// CHECK-NEXT:       %[[VAL_18:.*]] = llvm.add %[[VAL_14]], %[[VAL_16]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_18]] : i64
 // CHECK-NEXT:     }
-func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
-  %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
-  return %0 : i64
+    func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
+      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+      return %0 : i64
+    }
+  }
 }
 
 // -----
@@ -1306,10 +1499,10 @@ func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
@@ -1319,13 +1512,13 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
@@ -1335,16 +1528,16 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 0] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_10:.*]] = arith.muli %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.mul %[[VAL_7]], %[[VAL_9]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
@@ -1366,10 +1559,10 @@ func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
@@ -1379,13 +1572,13 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[GROUP2]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
@@ -1395,16 +1588,16 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:       %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 0] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_4:.*]] = arith.muli %[[VAL_1]], %[[VAL_3]] : i64
+// CHECK-NEXT:       %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK-NEXT:       %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 1] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_7:.*]] = arith.muli %[[VAL_4]], %[[VAL_6]] : i64
+// CHECK-NEXT:       %[[VAL_7:.*]] = llvm.mul %[[VAL_4]], %[[VAL_6]] : i64
 // CHECK-NEXT:       %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0, 0, 2] : (!llvm.ptr<[[GROUP3]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:       %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<i64>
-// CHECK-NEXT:       %[[VAL_10:.*]] = arith.muli %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK-NEXT:       %[[VAL_10:.*]] = llvm.mul %[[VAL_7]], %[[VAL_9]] : i64
 // CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
