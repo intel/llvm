@@ -1167,11 +1167,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    return ReturnValue(uint32_t{PI_MEMORY_ORDER_RELAXED |
-                                PI_MEMORY_ORDER_ACQUIRE |
-                                PI_MEMORY_ORDER_RELEASE |
-                                PI_MEMORY_ORDER_ACQ_REL |
-                                PI_MEMORY_ORDER_SEQ_CST});
+    return ReturnValue(
+        uint32_t{PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+                 PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
+                 PI_MEMORY_ORDER_SEQ_CST});
   }
 
   // TODO: Implement.
