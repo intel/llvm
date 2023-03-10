@@ -127,14 +127,15 @@ auto get_native(const SyclObjectT &Obj)
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-  if (std::is_same<SyclObjectT, queue>::value)
-    return Obj.getNative2();
+  if constexpr (BackendName == backend::ext_oneapi_level_zero)
+    if constexpr (std::is_same<SyclObjectT, queue>::value)
+      return Obj.getNative2();
+    else
+      return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+          Obj.getNative());
   else
-    return Obj.getNative();
-#else
-  return Obj.getNative();
-#endif
+    return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+        Obj.getNative());
 }
 
 template <backend BackendName, bundle_state State>
@@ -280,8 +281,12 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  return sycl::detail::make_queue_standard_or_immediate(
-      BackendObject, TargetContext, nullptr, false, Handler, Backend);
+  if constexpr (Backend == backend::ext_oneapi_level_zero)
+    return sycl::detail::make_queue_standard_or_immediate(
+        BackendObject, TargetContext, nullptr, false, Handler, Backend);
+  else
+    return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                              TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>

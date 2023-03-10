@@ -15,7 +15,7 @@ constexpr bool sub_group_mask_macro_defined = true;
 constexpr bool sub_group_mask_macro_defined = false;
 #endif
 
-#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO == 3
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO == 4
 constexpr bool backend_level_zero_macro_defined = true;
 #else
 constexpr bool backend_level_zero_macro_defined = false;

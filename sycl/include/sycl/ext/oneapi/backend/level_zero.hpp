@@ -88,7 +88,8 @@ T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop,
        ownership Ownership = ownership::transfer) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+  auto CommandQ = std::get_if<ze_command_queue_handle_t>(&Interop);
+  return make_queue(Context, reinterpret_cast<pi_native_handle>(CommandQ),
                     Ownership == ownership::keep);
 }
 
