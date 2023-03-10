@@ -1138,3 +1138,27 @@ inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
   }
   return PI_SUCCESS;
 }
+
+inline pi_result mock_piextEnablePeerAccess(pi_device command_device,
+                                            pi_device peer_device) {
+
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextDisablePeerAccess(pi_device command_device,
+                                             pi_device peer_device) {
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                            pi_peer_attr attr, size_t param_value_size,
+                            void *param_value, size_t *param_value_size_ret) {
+
+  if (param_value)
+    *static_cast<pi_int32 *>(param_value) = 1;
+  if (param_value_size_ret)
+    *param_value_size_ret = sizeof(pi_int32);
+  return PI_SUCCESS;
+}

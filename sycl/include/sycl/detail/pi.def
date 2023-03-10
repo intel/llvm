@@ -151,8 +151,8 @@ _PI_API(piGetDeviceAndHostTimer)
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
-_PI_API(piextEnablePeer)
-_PI_API(piextDisablePeer)
-_PI_API(piextCanAccessPeer)
+_PI_API(piextEnablePeerAccess)
+_PI_API(piextDisablePeerAccess)
+_PI_API(piextPeerAccessGetInfo)
 
 #undef _PI_API

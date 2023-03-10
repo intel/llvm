@@ -205,7 +205,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     const detail::plugin &Plugin = impl->getPlugin();
-    Plugin.call<detail::PiApiKind::piextEnablePeer>(Device, Peer);
+    Plugin.call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
   }
 }
 
@@ -214,7 +214,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     const detail::plugin Plugin = impl->getPlugin();
-    Plugin.call<detail::PiApiKind::piextDisablePeer>(Device, Peer);
+    Plugin.call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
   }
 }
 
@@ -222,11 +222,26 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
   const RT::PiDevice Device = impl->getHandleRef();
   const RT::PiDevice Peer = peer.impl->getHandleRef();
-
+  RT::PiPeerAttr PiAttr;
+  size_t return_size;
+  int value;
   if (Device == Peer)
     return true;
+
+  switch (attr) {
+  case ext::oneapi::peer_access::access_supported: {
+    PiAttr = PI_PEER_ACCESS_SUPPORTED;
+    break;
+  }
+  case ext::oneapi::peer_access::atomics_supported: {
+    PiAttr = PI_PEER_ATOMICS_SUPPORTED;
+    break;
+  }
+  }
   const detail::plugin Plugin = impl->getPlugin();
-  return Plugin.call_nocheck<detail::PiApiKind::piextCanAccessPeer>(Device, Peer, attr) == PI_SUCCESS;
+  Plugin.call_nocheck<detail::PiApiKind::piextPeerAccessGetInfo>(
+      Device, Peer, PiAttr, sizeof(int), &value, &return_size);
+  return value == 1;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

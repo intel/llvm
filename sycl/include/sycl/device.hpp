@@ -41,7 +41,10 @@ namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
 
-using peer_access = RT::PIPeerAttr;
+enum class peer_access {
+  access_supported,
+  atomics_supported,
+};
 
 } // namespace ext::oneapi
 

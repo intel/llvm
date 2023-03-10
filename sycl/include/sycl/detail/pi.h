@@ -79,7 +79,7 @@
 // piextEnqueueDeviceGlobalVariableRead functions.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -973,12 +973,12 @@ typedef struct {
 using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
 
-typedef enum {
-  access_supported,
-  atomics_supported,
-} _pi_peer_attr;
-
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
+
+typedef enum {
+  PI_PEER_ACCESS_SUPPORTED,
+  PI_PEER_ATOMICS_SUPPORTED
+} _pi_peer_attr;
 
 using pi_mem_info = _pi_mem_info;
 using pi_peer_attr = _pi_peer_attr;
@@ -1039,13 +1039,13 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
 
-__SYCL_EXPORT pi_result piextEnablePeer(pi_device command_device,
-                                        pi_device peer_device);
-__SYCL_EXPORT pi_result piextDisablePeer(pi_device command_device,
-                                         pi_device peer_device);
-__SYCL_EXPORT pi_result piextCanAccessPeer(pi_device command_device,
-                                           pi_device peer_device,
-                                           pi_peer_attr attr);
+__SYCL_EXPORT pi_result piextEnablePeerAccess(pi_device command_device,
+                                              pi_device peer_device);
+__SYCL_EXPORT pi_result piextDisablePeerAccess(pi_device command_device,
+                                               pi_device peer_device);
+__SYCL_EXPORT pi_result piextPeerAccessGetInfo(
+    pi_device command_device, pi_device peer_device, pi_peer_attr attr,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for

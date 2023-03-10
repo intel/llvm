@@ -5363,7 +5363,8 @@ pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
-pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
+pi_result hip_piextEnablePeerAccess(pi_device command_device,
+                                    pi_device peer_device) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
@@ -5373,8 +5374,8 @@ pi_result hip_piextEnablePeer(pi_device command_device, pi_device peer_device) {
   return {};
 }
 
-pi_result hip_piextDisablePeer(pi_device command_device,
-                               pi_device peer_device) {
+pi_result hip_piextDisablePeerAccess(pi_device command_device,
+                                     pi_device peer_device) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
@@ -5384,12 +5385,17 @@ pi_result hip_piextDisablePeer(pi_device command_device,
   return {};
 }
 
-pi_result hip_piextCanAccessPeer(pi_device command_device,
-                                 pi_device peer_device, pi_peer_attr attr) {
+pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
+                                     pi_device peer_device, pi_peer_attr attr,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
 
   std::ignore = command_device;
   std::ignore = peer_device;
   std::ignore = attr;
+  std::ignore = param_value_size;
+  std::ignore = param_value;
+  std::ignore = param_value_size_ret;
 
   sycl::detail::pi::die("hip_piextCanAccessPeer not "
                         "implemented");

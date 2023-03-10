@@ -5589,8 +5589,8 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextEnablePeer(pi_device command_device,
-                               pi_device peer_device) {
+pi_result cuda_piextEnablePeerAccess(pi_device command_device,
+                                     pi_device peer_device) {
 
   pi_result result = PI_SUCCESS;
   try {
@@ -5604,8 +5604,8 @@ pi_result cuda_piextEnablePeer(pi_device command_device,
   return result;
 }
 
-pi_result cuda_piextDisablePeer(pi_device command_device,
-                                pi_device peer_device) {
+pi_result cuda_piextDisablePeerAccess(pi_device command_device,
+                                      pi_device peer_device) {
 
   pi_result result = PI_SUCCESS;
   try {
@@ -5618,27 +5618,32 @@ pi_result cuda_piextDisablePeer(pi_device command_device,
   return result;
 }
 
-pi_result cuda_piextCanAccessPeer(pi_device command_device,
-                                  pi_device peer_device, pi_peer_attr attr) {
-
+pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
+                                      pi_device peer_device, pi_peer_attr attr,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
   int value;
-  pi_result result = PI_SUCCESS;
-
-  CUdevice_P2PAttribute CUattr =
-      attr == access_supported
-          ? CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED
-          : CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+  CUdevice_P2PAttribute CUattr;
   try {
     ScopedContext active(command_device->get_context());
+    switch (attr) {
+    case PI_PEER_ACCESS_SUPPORTED: {
+      CUattr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
+      break;
+    }
+    case PI_PEER_ATOMICS_SUPPORTED: {
+      CUattr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+      break;
+    }
+    default: { __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr); }
+    }
     PI_CHECK_ERROR(cuDeviceGetP2PAttribute(
         &value, CUattr, command_device->get(), peer_device->get()));
   } catch (pi_result err) {
-    result = err;
+    return err;
   }
-  if (value != 1) {
-    return PI_ERROR_INVALID_OPERATION;
-  }
-  return result;
+  return getInfo(param_value_size, param_value, param_value_size_ret, value);
 }
 
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
@@ -5796,9 +5801,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
   // Peer to Peer
-  _PI_CL(piextEnablePeer, cuda_piextEnablePeer)
-  _PI_CL(piextDisablePeer, cuda_piextDisablePeer)
-  _PI_CL(piextCanAccessPeer, cuda_piextCanAccessPeer)
+  _PI_CL(piextEnablePeerAccess, cuda_piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, cuda_piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, cuda_piextPeerAccessGetInfo)
 
 #undef _PI_CL
 
