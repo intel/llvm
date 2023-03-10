@@ -10,6 +10,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -17,6 +18,7 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "affine-reduction"
+#define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
 
 namespace mlir {
 namespace polygeist {
@@ -26,7 +28,6 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using namespace polygeist;
 
 namespace {
 class AffineReductionPass
@@ -73,9 +74,14 @@ private:
 }
 
 class AffineForReductionIter : public OpRewritePattern<AffineForOp> {
-  using OpRewritePattern<AffineForOp>::OpRewritePattern;
+  Pass::Statistic &numReductionsDetected;
 
 public:
+  AffineForReductionIter(MLIRContext *context,
+                         Pass::Statistic &numReductionsDetected)
+      : OpRewritePattern<AffineForOp>(context),
+        numReductionsDetected(numReductionsDetected) {}
+
   /// Returns true if the given operation \p Op is immediately contained in the
   /// \p ForOp loop, and false otherwise.
   bool isInAffineFor(Operation *Op, const AffineForOp ForOp) const {
@@ -346,6 +352,16 @@ public:
       });
     }
 
+    numReductionsDetected += ReductionOps.size();
+
+    DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
+      if (!ReductionOps.empty())
+        llvm::dbgs() << "AffineReduction: detected " << ReductionOps.size()
+                     << " reduction(s) in: "
+                     << ForOp->getParentOfType<FunctionOpInterface>().getName()
+                     << "\n";
+    });
+
     Rewriter.replaceOp(ForOp, NewYieldedRes);
     return success();
   }
@@ -355,7 +371,7 @@ public:
 
 void AffineReductionPass::runOnOperation() {
   RewritePatternSet RPS(getOperation()->getContext());
-  RPS.add<AffineForReductionIter>(getOperation()->getContext());
+  RPS.add<AffineForReductionIter>(getOperation()->getContext(), numReductions);
   GreedyRewriteConfig Config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(RPS), Config);
 }

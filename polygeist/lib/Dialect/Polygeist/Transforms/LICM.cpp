@@ -27,6 +27,7 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "licm"
+#define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
 
 namespace mlir {
 namespace polygeist {
@@ -906,20 +907,12 @@ void LICM::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
-  [[maybe_unused]] auto getParentFunction = [](LoopLikeOpInterface loop) {
-    Operation *parentOp = loop;
-    do {
-      parentOp = parentOp->getParentOp();
-    } while (parentOp && !isa<func::FuncOp>(parentOp));
-    assert(parentOp && "Failed to find parent function");
-    return parentOp;
-  };
-
   getOperation()->walk([&](LoopLikeOpInterface loop) {
     LLVM_DEBUG({
       llvm::dbgs() << "----------------\n";
       loop.print(llvm::dbgs() << "Original loop:\n");
-      llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
+      llvm::dbgs() << "\nIn:\n"
+                   << *loop->getParentOfType<FunctionOpInterface>() << "\n";
     });
 
     // First use MLIR LICM to hoist simple operations.
@@ -931,8 +924,10 @@ void LICM::runOnOperation() {
                      << " operation(s).\n";
         if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after MLIR LICM:\n");
-          llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
-          assert(mlir::verify(getParentFunction(loop)).succeeded());
+          llvm::dbgs() << "\nIn:\n"
+                       << *loop->getParentOfType<FunctionOpInterface>() << "\n";
+          assert(mlir::verify(loop->getParentOfType<FunctionOpInterface>())
+                     .succeeded());
         }
         llvm::dbgs() << "----------------\n";
       });
@@ -947,10 +942,20 @@ void LICM::runOnOperation() {
         llvm::dbgs() << "\nLICM hoisted " << OpHoisted << " operation(s).\n";
         if (OpHoisted) {
           loop.print(llvm::dbgs() << "Loop after LICM:\n");
-          llvm::dbgs() << "\nIn:\n" << *getParentFunction(loop) << "\n";
-          assert(mlir::verify(getParentFunction(loop)).succeeded());
+          llvm::dbgs() << "\nIn:\n"
+                       << *loop->getParentOfType<FunctionOpInterface>() << "\n";
+          assert(mlir::verify(loop->getParentOfType<FunctionOpInterface>())
+                     .succeeded());
         }
         llvm::dbgs() << "----------------\n";
+      });
+
+      DEBUG_WITH_TYPE(REPORT_DEBUG_TYPE, {
+        if (OpHoisted)
+          llvm::dbgs() << "LICM: hoisted " << OpHoisted
+                       << " operations(s) in : "
+                       << loop->getParentOfType<FunctionOpInterface>().getName()
+                       << "\n";
       });
     }
   });
