@@ -310,7 +310,7 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **message) { return PI_SUCCESS; }
+inline pi_result piPluginGetLastError(char **) { return PI_SUCCESS; }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
