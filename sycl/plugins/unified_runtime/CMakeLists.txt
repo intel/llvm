@@ -12,7 +12,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
-  # Disable some compilation options to avoid errors while building the UR
+  # Disable some compilation options to avoid errors while building the UR.
+  # And remember origin flags before doing that.
+  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
   if (UNIX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
@@ -23,6 +25,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
 
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
+
+  # Restore original flags
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
   add_library(${PROJECT_NAME}::ur_loader ALIAS loader)
 
