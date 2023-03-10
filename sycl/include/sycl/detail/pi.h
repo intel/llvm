@@ -554,8 +554,6 @@ constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
 
-constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_BITMASK = 0x07;
-
 using pi_memory_scope_capabilities = pi_bitfield;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_ITEM = 0x01;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SUB_GROUP = 0x02;

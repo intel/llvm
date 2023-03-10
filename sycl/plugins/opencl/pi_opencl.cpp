@@ -296,23 +296,69 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     if (devVer < OCLV::V2_0) {
       // For OpenCL 1.2, return the minimum required values
-      cl_int result = PI_MEMORY_ORDER_RELAXED;
-      std::memcpy(paramValue, &result, sizeof(cl_int));
-      return PI_SUCCESS;
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+
+      if (paramValue) {
+        cl_int capabilities = PI_MEMORY_ORDER_RELAXED;
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+      return static_cast<pi_result>(CL_SUCCESS);
     } else if (devVer < OCLV::V3_0) {
       // For OpenCL 2.x, return all capabilities
       // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
-      cl_int result = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQ_REL |
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+
+      if (paramValue) {
+        cl_int capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
                       PI_MEMORY_ORDER_SEQ_CST;
-      std::memcpy(paramValue, &result, sizeof(cl_int));
-      return PI_SUCCESS;
-    } else {
-      // For OpenCL >=3.0, the query should be implemented
-      cl_int result = clGetDeviceInfo(
-          cast<cl_device_id>(device), cast<cl_device_info>(paramName),
-          paramValueSize, paramValue, paramValueSizeRet);
-      return static_cast<pi_result>(result & PI_MEMORY_ORDER_BITMASK);
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+      return static_cast<pi_result>(CL_SUCCESS);
     }
+#ifdef CL_VERSION_3_0
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_int capabilities = CL_DEVICE_ATOMIC_ORDER_RELAXED;
+      cl_int ret_err = clGetDeviceInfo(
+          cast<cl_device_id>(device), cast<cl_device_info>(paramName),
+          paramValueSize, &result, paramValueSizeRet);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+      
+      if (paramValue) {
+        // Mask operation to only consider atomic_memory_order* capabilities
+        cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED | CL_DEVICE_ATOMIC_ORDER_ACQ_REL | CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+        capabilities &= mask;
+
+        // Convert from OCL bitfield to SYCL PI bitfield
+        // OCL could return (masked) 00000111 for all capabilities
+        // PI would want that to be ...11111 for all capabilities as well as ACQUIRE and RELEASE
+        // So need to bitshift and fill in result
+        if (capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+          capabilities &= ~CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+          capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+        }
+        if (capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+          capabilities &= ~CL_DEVICE_ATOMIC_ORDER_ACQ_REL;
+          capabilities |= (PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE);
+        }
+
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+    }
+#endif
+    return static_cast<pi_result>(CL_SUCCESS);
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
