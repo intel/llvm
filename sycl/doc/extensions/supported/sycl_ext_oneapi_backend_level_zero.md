@@ -425,10 +425,33 @@ make_image(
 </td>
 <td>This API is available starting with revision 4 of this specification.
 
-Construct a SYCL image instance from a ze_image_handle_t.  The input SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
+Construct a SYCL image instance from a ze_image_handle_t. 
+
+Because LevelZero has no way of getting image information from an image, it must be provided.  The  <code>backend_input_t</code> is a struct type like so:
+``` C++
+struct type {
+    ze_image_handle_t ZeImageHandle;
+    sycl::image_channel_order ChanOrder;
+    sycl::image_channel_type ChanType;
+    sycl::range<Dimensions> Range;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+```
+
+Example Usage
+``` C++
+sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ ZeHImage, ChanOrder, ChanType, ImgRange_2D, sycl::ext::oneapi::level_zero::ownership::transfer };      
+    
+auto Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
+```
+
+ The input SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory allocation. 
-Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
+Synchronization rules with this API are described in Section 4.5</td>
+
+
 </tr>
 </table>
 

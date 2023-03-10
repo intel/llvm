@@ -78,9 +78,7 @@ public:
   /// accessor), the exception `sycl::invalid_object` is thrown
   /// asynchronously.
   template <backend Backend = backend::opencl, typename DataT, int Dims,
-            access::mode Mode, access::target Target,
-            access::placeholder IsPlh> //,
-  // typename PropertyListT = ext::oneapi::accessor_property_list<>>
+            access::mode Mode, access::target Target, access::placeholder IsPlh>
   backend_return_t<Backend, image<Dims>> get_native_mem(
       const detail::image_accessor<DataT, Dims, Mode,
                                    /*access::target::image*/ Target,
