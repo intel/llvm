@@ -403,6 +403,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t UR_APICALL urGetLastResult(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform instance
+    const char **Message ///< [out] pointer to a string containing adapter
+                           ///< specific result in string representation.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve

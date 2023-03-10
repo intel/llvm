@@ -310,7 +310,15 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **message) { return PI_SUCCESS; }
+inline pi_result piPluginGetLastError(char **Message) {
+  uint32_t Count = 1u;
+  uint32_t NumPlatforms = 0;
+  ur_platform_handle_t Platform {};
+  HANDLE_ERRORS(urPlatformGet(Count, &Platform, &NumPlatforms));
+  HANDLE_ERRORS(urGetLastResult(Platform,
+                                const_cast<const char **>(Message)));
+  return PI_SUCCESS;
+}
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
