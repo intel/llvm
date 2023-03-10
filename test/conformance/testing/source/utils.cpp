@@ -1,5 +1,4 @@
 #include <string_view>
-#include <uur/assert.h>
 #include <uur/utils.h>
 
 namespace uur {
