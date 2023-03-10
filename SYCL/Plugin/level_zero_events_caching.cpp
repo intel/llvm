@@ -4,20 +4,16 @@
 // UNSUPPORTED: windows
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=0 SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED-STD %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=0 SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED-IMM %s
+// RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
 
 // With events caching we should be reusing them and 9 should be enough.
 // Might require more than one if previous one hasn't been released by the time
 // we need a new one.
 
-// With immediate commandlists there is one additional event created
-// during queue sync, so the expected count increases by 1 to 257.
-
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
-// CACHING-DISABLED-STD: zeEventCreate = 256
-// CACHING-DISABLED-IMM: zeEventCreate = 257
+// CACHING-DISABLED: zeEventCreate = 256
 
 // Check event caching modes in the L0 plugin.
 
