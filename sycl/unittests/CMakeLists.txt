@@ -50,4 +50,8 @@ add_subdirectory(context_device)
 add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
-add_subdirectory(xpti_trace)
+# TODO Enable xpti tests for Windows
+if (NOT WIN32)
+  add_subdirectory(xpti_trace)
+endif()
+
