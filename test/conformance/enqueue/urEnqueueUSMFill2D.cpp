@@ -39,10 +39,9 @@ struct urEnqueueUSMFill2DTestWithParam
         allocation_size = pitch * height;
         host_mem = std::vector<uint8_t>(allocation_size);
 
-        const auto device_usm =
-            uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(device_usm.has_value());
-        if (!device_usm.value()) {
+        bool device_usm = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
+        if (!device_usm) {
             GTEST_SKIP() << "Device USM is not supported";
         }
 
@@ -142,10 +141,10 @@ TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
     EXPECT_SUCCESS(urQueueFlush(queue));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
-    const auto event_status = uur::GetEventInfo<ur_event_status_t>(event,
-                                                                   UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
-    ASSERT_TRUE(event_status.has_value());
-    ASSERT_EQ(event_status.value(), UR_EVENT_STATUS_COMPLETE);
+    ur_event_status_t event_status;
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(event,
+                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
     EXPECT_SUCCESS(urEventRelease(event));
 
     ASSERT_NO_FATAL_FAILURE(verifyData());
@@ -155,10 +154,9 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
-        const auto device_usm =
-            uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(device_usm.has_value());
-        if (!device_usm.value()) {
+        bool device_usm = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
+        if (!device_usm) {
             GTEST_SKIP() << "Device USM is not supported";
         }
 

@@ -46,7 +46,7 @@ TEST_P(urMemBufferCreateTest, InvalidBufferSizeZero) {
 TEST_P(urMemBufferCreateTest, InvalidBufferSizeMax) {
     ur_mem_handle_t buffer = nullptr;
     uint64_t max_size = 0;
-    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(uint64_t), &max_size, nullptr));
+    ASSERT_SUCCESS(uur::GetDeviceMaxMemAllocSize(device, max_size));
     ASSERT_NE(max_size, 0);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_BUFFER_SIZE,
                      urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, max_size + 1, nullptr, &buffer));

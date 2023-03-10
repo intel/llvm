@@ -7,15 +7,15 @@ using urContextRetainTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextRetainTest);
 
 TEST_P(urContextRetainTest, Success) {
-    const auto prevRefCount = uur::GetObjectReferenceCount(context);
-    ASSERT_TRUE(prevRefCount.has_value());
+    uint32_t prevRefCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(context, prevRefCount));
 
     ASSERT_SUCCESS(urContextRetain(context));
 
-    const auto refCount = uur::GetObjectReferenceCount(context);
-    ASSERT_TRUE(refCount.has_value());
+    uint32_t refCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(context, refCount));
 
-    ASSERT_LT(prevRefCount.value(), refCount.value());
+    ASSERT_LT(prevRefCount, refCount);
 
     EXPECT_SUCCESS(urContextRelease(context));
 }

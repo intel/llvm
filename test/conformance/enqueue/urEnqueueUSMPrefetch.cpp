@@ -19,11 +19,10 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
     ASSERT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &prefetch_event));
 
-    const auto event_status =
-        uur::GetEventInfo<ur_event_status_t>(prefetch_event,
-                                             UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
-    ASSERT_TRUE(event_status.has_value());
-    ASSERT_EQ(event_status.value(), UR_EVENT_STATUS_COMPLETE);
+    ur_event_status_t event_status;
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(prefetch_event,
+                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
     ASSERT_SUCCESS(urEventRelease(prefetch_event));
 }
 
@@ -57,17 +56,15 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
     ASSERT_SUCCESS(urQueueFlush(fill_queue));
     ASSERT_SUCCESS(urEventWait(1, &prefetch_event));
 
-    const auto memset_status =
-        uur::GetEventInfo<ur_event_status_t>(fill_event,
-                                             UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
-    ASSERT_TRUE(memset_status.has_value());
-    ASSERT_EQ(memset_status.value(), UR_EVENT_STATUS_COMPLETE);
+    ur_event_status_t memset_status;
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(fill_event,
+                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, memset_status));
+    ASSERT_EQ(memset_status, UR_EVENT_STATUS_COMPLETE);
 
-    const auto event_status =
-        uur::GetEventInfo<ur_event_status_t>(prefetch_event,
-                                             UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
-    ASSERT_TRUE(event_status.has_value());
-    ASSERT_EQ(event_status.value(), UR_EVENT_STATUS_COMPLETE);
+    ur_event_status_t event_status;
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(prefetch_event,
+                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
 
     ASSERT_SUCCESS(urEventRelease(prefetch_event));
     ASSERT_SUCCESS(urEventRelease(fill_event));

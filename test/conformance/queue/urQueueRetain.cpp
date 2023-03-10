@@ -6,15 +6,15 @@ using urQueueRetainTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueRetainTest);
 
 TEST_P(urQueueRetainTest, Success) {
-    const auto prevRefCount = uur::GetObjectReferenceCount(queue);
-    ASSERT_TRUE(prevRefCount.has_value());
+    uint32_t prevRefCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(queue, prevRefCount));
 
     ASSERT_SUCCESS(urQueueRetain(queue));
 
-    const auto refCount = uur::GetObjectReferenceCount(queue);
-    ASSERT_TRUE(refCount.has_value());
+    uint32_t refCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(queue, refCount));
 
-    ASSERT_LT(prevRefCount.value(), refCount.value());
+    ASSERT_LT(prevRefCount, refCount);
 
     EXPECT_SUCCESS(urQueueRelease(queue));
 }
