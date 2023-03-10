@@ -73,16 +73,6 @@ template <unsigned N> struct overaligned_tag {
   template <typename> static constexpr unsigned alignment = N;
 };
 
-/// \c dqword_element_aligned_tag type. Flag of this type should be used in load
-/// and store operations when memory address is aligned by simd object's element
-/// type or dword whatever is greater.
-struct dqword_element_aligned_tag {
-  template <typename VT, typename ET = detail::element_type_t<VT>>
-  static constexpr unsigned alignment = alignof(ET) > 4 ? alignof(ET) : 4;
-};
-
-inline constexpr dqword_element_aligned_tag dqword_element_aligned = {};
-
 inline constexpr element_aligned_tag element_aligned = {};
 
 inline constexpr vector_aligned_tag vector_aligned = {};
@@ -95,9 +85,6 @@ template <typename T> struct is_simd_flag_type : std::false_type {};
 template <> struct is_simd_flag_type<element_aligned_tag> : std::true_type {};
 
 template <> struct is_simd_flag_type<vector_aligned_tag> : std::true_type {};
-
-template <>
-struct is_simd_flag_type<dqword_element_aligned_tag> : std::true_type {};
 
 template <unsigned N>
 struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
@@ -112,6 +99,15 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 namespace detail {
 
 /// @cond ESIMD_DETAIL
+/// \c dqword_element_aligned_tag type. Flag of this type should be used in load
+/// and store operations when memory address is aligned by simd object's element
+/// type or dword whatever is greater.
+struct dqword_element_aligned_tag {
+  template <typename VT, typename ET = detail::element_type_t<VT>>
+  static constexpr unsigned alignment = alignof(ET) > 4 ? alignof(ET) : 4;
+};
+
+inline constexpr dqword_element_aligned_tag dqword_element_aligned = {};
 
 // Functions to support efficient simd constructors - avoiding internal loop
 // over elements.
@@ -894,6 +890,9 @@ protected:
 
 } // namespace detail
 
+template <>
+struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
+};
 } // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
