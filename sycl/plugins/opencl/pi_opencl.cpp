@@ -958,6 +958,21 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextImgCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                         pi_context context,
+                                         bool ownNativeHandle,
+                                         const pi_image_format *ImageFormat,
+                                         const pi_image_desc *ImageDesc,
+                                         pi_mem *Img) {
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  assert(Img != nullptr);
+  *Img = reinterpret_cast<pi_mem>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                       const char **strings,
                                       const size_t *lengths,

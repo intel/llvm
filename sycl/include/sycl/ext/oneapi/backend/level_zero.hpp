@@ -198,6 +198,24 @@ make_buffer(
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
+// Specialization of sycl::make_image for Level-Zero backend.
+template <backend Backend, int Dimensions = 1,
+          typename AllocatorT = image_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        image<Dimensions, AllocatorT>>::type
+make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
+               &BackendObject,
+           const context &TargetContext, event AvailableEvent) {
+
+  bool OwnNativeHandle =
+      (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
+
+  return image<Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.ZeImageHandle),
+      TargetContext, AvailableEvent, BackendObject.ChanOrder,
+      BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
+}
+
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
 using namespace ext::oneapi::level_zero;

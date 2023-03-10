@@ -940,11 +940,14 @@ struct _pi_buffer final : _pi_mem {
   } SubBuffer;
 };
 
+struct _pi_image;
+using pi_image = _pi_image *;
+
 // TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image)
-      : _pi_mem(Ctx), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, bool OwnNativeHandle)
+      : _pi_mem(Ctx), ZeImage{Image}, OwnZeMemHandle{OwnNativeHandle} {}
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device = nullptr) override {
@@ -966,6 +969,8 @@ struct _pi_image final : _pi_mem {
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
+
+  bool OwnZeMemHandle;
 };
 
 struct _pi_ze_event_list_t {

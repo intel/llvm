@@ -14,6 +14,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/feature_test.hpp>
+#include <sycl/image.hpp>
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp>
 #endif
@@ -305,6 +306,20 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+      AvailableEvent);
+}
+
+template <backend Backend, int Dimensions = 1,
+          typename AllocatorT = image_allocator>
+typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeImage ==
+                                true &&
+                            Backend != backend::ext_oneapi_level_zero,
+                        image<Dimensions, AllocatorT>>::type
+make_image(const typename backend_traits<Backend>::template input_type<
+               image<Dimensions, AllocatorT>> &BackendObject,
+           const context &TargetContext, event AvailableEvent = {}) {
+  return image<Dimensions, AllocatorT>(
       detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
       AvailableEvent);
 }

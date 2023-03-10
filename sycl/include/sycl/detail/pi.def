@@ -61,6 +61,7 @@ _PI_API(piMemRelease)
 _PI_API(piMemBufferPartition)
 _PI_API(piextMemGetNativeHandle)
 _PI_API(piextMemCreateWithNativeHandle)
+_PI_API(piextImgCreateWithNativeHandle)
 // Program
 _PI_API(piProgramCreate)
 _PI_API(piclProgramCreateWithSource)

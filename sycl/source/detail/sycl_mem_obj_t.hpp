@@ -79,6 +79,12 @@ public:
               bool OwmNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
+  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+              bool OwnNativeHandle, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              RT::PiMemImageChannelOrder Order, RT::PiMemImageChannelType Type,
+              range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
+
   virtual ~SYCLMemObjT() = default;
 
   const plugin &getPlugin() const;

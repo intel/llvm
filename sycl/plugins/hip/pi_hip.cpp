@@ -2382,6 +2382,35 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
+/// Created a PI image mem object from a HIP image mem handle.
+/// TODO: Implement this.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param[out] mem Set to the PI mem object created from native handle.
+///
+/// \return TBD
+pi_result hip_piextImgCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             bool ownNativeHandle,
+                                             const pi_image_format *ImageFormat,
+                                             const pi_image_desc *ImageDesc,
+                                             pi_mem *mem) {
+  (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  (void)mem;
+
+  sycl::detail::pi::die(
+      "Creation of PI mem from native image handle not implemented");
+  return {};
+}
+
 /// Creates a `pi_queue` object on the HIP backend.
 /// Valid properties
 /// * __SYCL_PI_HIP_USE_DEFAULT_STREAM -> hipStreamDefault

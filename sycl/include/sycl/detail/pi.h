@@ -77,9 +77,11 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added piextImgCreateWithNativeHandle for creating images from native
+// handles.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1248,6 +1250,19 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 __SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
     pi_mem *mem);
+
+/// Creates PI image object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI image from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param img is the PI img created from the native handle.
+__SYCL_EXPORT pi_result piextImgCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *img);
 
 //
 // Program
