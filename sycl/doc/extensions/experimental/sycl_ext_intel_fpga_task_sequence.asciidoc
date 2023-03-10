@@ -87,8 +87,8 @@ extension introduces a sub-kernel task-level parallelism interface to SYCL for
 use in device code. It provides the class
 `sycl::ext::intel::experimental::task_sequence`, which is an
 abstraction of an asynchronous sequence of invocations of a callable that can be
-executed asynchronously from the caller, and with which a clear mapping to
-spatial hardware instances can be reasoned about when developing applications.
+executed asynchronously from the caller.  A single object of this class can map
+naturally to a single hardware instance on spatial targets.
 
 NOTE: In this document, we use `task_sequence` to indicate the proposed
 `sycl::ext::intel::experimental::task_sequence`
