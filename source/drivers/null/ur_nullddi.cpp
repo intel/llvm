@@ -2208,8 +2208,8 @@ urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
     bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
     ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
     size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
     size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being read
@@ -2231,7 +2231,7 @@ urEnqueueMemBufferReadRect(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnMemBufferReadRect = d_context.urDdiTable.Enqueue.pfnMemBufferReadRect;
     if (nullptr != pfnMemBufferReadRect) {
-        result = pfnMemBufferReadRect(hQueue, hBuffer, blockingRead, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
+        result = pfnMemBufferReadRect(hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {
@@ -2249,8 +2249,8 @@ urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
     bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
     ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
     size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
     size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being
@@ -2273,7 +2273,7 @@ urEnqueueMemBufferWriteRect(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnMemBufferWriteRect = d_context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
     if (nullptr != pfnMemBufferWriteRect) {
-        result = pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
+        result = pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {
@@ -2327,7 +2327,7 @@ urEnqueueMemBufferCopyRect(
     ur_mem_handle_t hBufferDst,               ///< [in] handle of the dest buffer object
     ur_rect_offset_t srcOrigin,               ///< [in] 3D offset in the source buffer
     ur_rect_offset_t dstOrigin,               ///< [in] 3D offset in the destination buffer
-    ur_rect_region_t srcRegion,               ///< [in] source 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,                  ///< [in] source 3D rectangular region descriptor: width, height, depth
     size_t srcRowPitch,                       ///< [in] length of each row in bytes in the source buffer object
     size_t srcSlicePitch,                     ///< [in] length of each 2D slice in bytes in the source buffer object
     size_t dstRowPitch,                       ///< [in] length of each row in bytes in the destination buffer object
@@ -2345,7 +2345,7 @@ urEnqueueMemBufferCopyRect(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnMemBufferCopyRect = d_context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
     if (nullptr != pfnMemBufferCopyRect) {
-        result = pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, srcRegion, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
+        result = pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {

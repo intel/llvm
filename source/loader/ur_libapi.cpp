@@ -3396,6 +3396,8 @@ urEnqueueEventsWaitWithBarrier(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `offset + size` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3449,6 +3451,8 @@ urEnqueueMemBufferRead(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `offset + size` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3505,6 +3509,15 @@ urEnqueueMemBufferWrite(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
+///         + `hostRowPitch != 0 && hostRowPitch < region.width`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`
+///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`
+///         + `hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`
+///         + If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3512,8 +3525,8 @@ urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
     bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
     ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
     size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
     size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being read
@@ -3535,7 +3548,7 @@ urEnqueueMemBufferReadRect(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMemBufferReadRect(hQueue, hBuffer, blockingRead, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
+    return pfnMemBufferReadRect(hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3568,6 +3581,15 @@ urEnqueueMemBufferReadRect(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
+///         + `hostRowPitch != 0 && hostRowPitch < region.width`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`
+///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`
+///         + `hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`
+///         + If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3575,8 +3597,8 @@ urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
     bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset,            ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,              ///< [in] 3D offset in the host region
+    ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
+    ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
     ur_rect_region_t region,                  ///< [in] 3D rectangular region descriptor: width, height, depth
     size_t bufferRowPitch,                    ///< [in] length of each row in bytes in the buffer object
     size_t bufferSlicePitch,                  ///< [in] length of each 2D slice in bytes in the buffer object being
@@ -3599,7 +3621,7 @@ urEnqueueMemBufferWriteRect(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOffset, hostOffset, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
+    return pfnMemBufferWriteRect(hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3624,6 +3646,9 @@ urEnqueueMemBufferWriteRect(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `srcOffset + size` results in an out-of-bounds access.
+///         + If `dstOffset + size` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3673,6 +3698,16 @@ urEnqueueMemBufferCopy(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
+///         + `srcRowPitch != 0 && srcRowPitch < region.height`
+///         + `dstRowPitch != 0 && dstRowPitch < region.height`
+///         + `srcSlicePitch != 0 && srcSlicePitch < region.height * srcRowPitch`
+///         + `srcSlicePitch != 0 && srcSlicePitch % srcRowPitch != 0`
+///         + `dstSlicePitch != 0 && dstSlicePitch < region.height * dstRowPitch`
+///         + `dstSlicePitch != 0 && dstSlicePitch % dstRowPitch != 0`
+///         + If the combination of `srcOrigin`, `region`, `srcRowPitch`, and `srcSlicePitch` results in an out-of-bounds access.
+///         + If the combination of `dstOrigin`, `region`, `dstRowPitch`, and `dstSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3682,7 +3717,7 @@ urEnqueueMemBufferCopyRect(
     ur_mem_handle_t hBufferDst,               ///< [in] handle of the dest buffer object
     ur_rect_offset_t srcOrigin,               ///< [in] 3D offset in the source buffer
     ur_rect_offset_t dstOrigin,               ///< [in] 3D offset in the destination buffer
-    ur_rect_region_t srcRegion,               ///< [in] source 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,                  ///< [in] source 3D rectangular region descriptor: width, height, depth
     size_t srcRowPitch,                       ///< [in] length of each row in bytes in the source buffer object
     size_t srcSlicePitch,                     ///< [in] length of each 2D slice in bytes in the source buffer object
     size_t dstRowPitch,                       ///< [in] length of each row in bytes in the destination buffer object
@@ -3700,7 +3735,7 @@ urEnqueueMemBufferCopyRect(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, srcRegion, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
+    return pfnMemBufferCopyRect(hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3727,6 +3762,8 @@ urEnqueueMemBufferCopyRect(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `offset + size` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
@@ -3951,6 +3988,8 @@ urEnqueueMemImageCopy(
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `offset + size` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL

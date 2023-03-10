@@ -189,6 +189,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -240,6 +242,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -264,10 +268,10 @@ params:
       name: blockingRead
       desc: "[in] indicates blocking (true), non-blocking (false)"
     - type: $x_rect_offset_t
-      name: bufferOffset
+      name: bufferOrigin
       desc: "[in] 3D offset in the buffer"
     - type: $x_rect_offset_t
-      name: hostOffset
+      name: hostOrigin
       desc: "[in] 3D offset in the host region"
     - type: $x_rect_region_t
       name: region
@@ -307,6 +311,15 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
+        - "`hostRowPitch != 0 && hostRowPitch < region.width`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`"
+        - "`hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`"
+        - "`hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`"
+        - "If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -331,10 +344,10 @@ params:
       name: blockingWrite
       desc: "[in] indicates blocking (true), non-blocking (false)"
     - type: $x_rect_offset_t
-      name: bufferOffset
+      name: bufferOrigin
       desc: "[in] 3D offset in the buffer"
     - type: $x_rect_offset_t
-      name: hostOffset
+      name: hostOrigin
       desc: "[in] 3D offset in the host region"
     - type: $x_rect_region_t
       name: region
@@ -374,6 +387,15 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
+        - "`hostRowPitch != 0 && hostRowPitch < region.width`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`"
+        - "`hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`"
+        - "`hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`"
+        - "If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -423,6 +445,9 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `srcOffset + size` results in an out-of-bounds access."
+        - "If `dstOffset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -450,7 +475,7 @@ params:
       name: dstOrigin
       desc: "[in] 3D offset in the destination buffer"
     - type: $x_rect_region_t
-      name: srcRegion
+      name: region
       desc: "[in] source 3D rectangular region descriptor: width, height, depth"
     - type: size_t
       name: srcRowPitch
@@ -484,6 +509,16 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+        - "`srcRowPitch != 0 && srcRowPitch < region.height`"
+        - "`dstRowPitch != 0 && dstRowPitch < region.height`"
+        - "`srcSlicePitch != 0 && srcSlicePitch < region.height * srcRowPitch`"
+        - "`srcSlicePitch != 0 && srcSlicePitch % srcRowPitch != 0`"
+        - "`dstSlicePitch != 0 && dstSlicePitch < region.height * dstRowPitch`"
+        - "`dstSlicePitch != 0 && dstSlicePitch % dstRowPitch != 0`"
+        - "If the combination of `srcOrigin`, `region`, `srcRowPitch`, and `srcSlicePitch` results in an out-of-bounds access."
+        - "If the combination of `dstOrigin`, `region`, `dstRowPitch`, and `dstSlicePitch` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -533,6 +568,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -825,6 +862,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

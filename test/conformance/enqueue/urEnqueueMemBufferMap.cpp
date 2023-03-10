@@ -157,6 +157,13 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
+TEST_P(urEnqueueMemBufferMapTest, InvalidSize) {
+    void *map = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urEnqueueMemBufferMap(queue, buffer, true, 0, 1, size, 0,
+                                           nullptr, nullptr, &map));
+}
+
 using urEnqueueMemBufferMapMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
