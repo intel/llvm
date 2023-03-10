@@ -529,9 +529,9 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      hipStream_t stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+      isRecorded_{false}, isStarted_{false}, streamToken_{stream_token},
+      evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr}, queue_{queue},
+      stream_{stream}, context_{context} {
 
   assert(type != PI_COMMAND_TYPE_USER);
 
@@ -685,8 +685,8 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{},
-      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+      context_{ctxt} {
   hip_piContextRetain(context_);
 }
 
@@ -1865,7 +1865,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  // There is no way to query this in the backend 
+  // There is no way to query this in the backend
   case PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_DEVICE_ID:
@@ -5327,7 +5327,7 @@ pi_result hip_piextEnqueueDeviceGlobalVariableRead(
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result hip_piTearDown(void *PluginParameter) {

@@ -188,7 +188,7 @@ typedef enum : pi_uint64 {
   PI_DEVICE_TYPE_CPU = (1 << 1),   ///< A PI device that is the host processor.
   PI_DEVICE_TYPE_GPU = (1 << 2),   ///< A PI device that is a GPU.
   PI_DEVICE_TYPE_ACC = (1 << 3),   ///< A PI device that is a
-                                   ///< dedicated accelerator.
+  ///< dedicated accelerator.
   PI_DEVICE_TYPE_CUSTOM = (1 << 4) ///< A PI device that is a custom device.
 } _pi_device_type;
 
@@ -565,16 +565,18 @@ constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_GROUP = 0x04;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_DEVICE = 0x08;
 constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SYSTEM = 0x10;
 
-// CL equivalents are only available for OpenCL version 3.0 
+// CL equivalents are only available for OpenCL version 3.0
 #define PI_DEVICE_ATOMIC_FENCE_CAPABILITIES 0x1064
 using pi_device_atomic_capabilities = pi_bitfield;
 constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_RELAXED = 0x01;
 constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_ACQ_REL = 0x02;
 constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_ORDER_SEQ_CST = 0x04;
 constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_WORK_ITEM = 0x08;
-constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP = 0x10;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP =
+    0x10;
 constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_DEVICE = 0x20;
-constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES = 0x40;
+constexpr pi_device_atomic_capabilities PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES =
+    0x40;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = 0x1280,
@@ -626,13 +628,13 @@ using pi_queue_properties = pi_bitfield;
 constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
 constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
 // clang-format off
-constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
-constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
-constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
-constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+    constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
+    constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
+    constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
+    constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
+    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
+    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
+    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
 using pi_result = _pi_result;
