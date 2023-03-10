@@ -19,7 +19,7 @@ int compute_tran_temp(int total_iterations, int num_iterations)
 // CHECK-NEXT:     %0 = arith.sitofp %arg0 : i32 to f32
 // CHECK-NEXT:     %1 = arith.sitofp %arg1 : i32 to f32
 // CHECK-NEXT:     %2:3 = scf.while (%arg2 = %c0_i32, %arg3 = %c1_i32, %arg4 = %cst) : (i32, i32, f32) -> (i32, i32, f32) {
-// CHECK-NEXT:       %3 = arith.cmpf ult, %arg4, %0 : f32
+// CHECK-NEXT:       %3 = arith.cmpf olt, %arg4, %0 : f32
 // CHECK-NEXT:       scf.condition(%3) %arg2, %arg3, %arg4 : i32, i32, f32
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32, %arg4: f32):
