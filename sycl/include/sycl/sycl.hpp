@@ -57,6 +57,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/types.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/version.hpp>
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
@@ -64,6 +65,7 @@
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
+#include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>

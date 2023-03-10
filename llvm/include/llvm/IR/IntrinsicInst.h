@@ -1381,7 +1381,8 @@ public:
 class InstrProfIncrementInst : public InstrProfInstBase {
 public:
   static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::instrprof_increment;
+    return I->getIntrinsicID() == Intrinsic::instrprof_increment ||
+           I->getIntrinsicID() == Intrinsic::instrprof_increment_step;
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
@@ -1538,9 +1539,20 @@ public:
   }
 };
 
+/// This represents intrinsics that guard a condition
+class CondGuardInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::assume ||
+           I->getIntrinsicID() == Intrinsic::experimental_guard;
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+};
 
 /// This represents the llvm.assume intrinsic.
-class AssumeInst : public IntrinsicInst {
+class AssumeInst : public CondGuardInst {
 public:
   static bool classof(const IntrinsicInst *I) {
     return I->getIntrinsicID() == Intrinsic::assume;

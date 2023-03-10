@@ -11,6 +11,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/type_list.hpp>
+#include <sycl/half_type.hpp>
 
 #include <cstddef>
 
@@ -22,10 +23,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-namespace detail::half_impl {
-class half;
-} // namespace detail::half_impl
-using half = detail::half_impl::half;
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

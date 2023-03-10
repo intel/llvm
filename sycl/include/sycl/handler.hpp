@@ -34,6 +34,7 @@
 #include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <functional>
 #include <limits>
@@ -655,7 +656,6 @@ private:
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
     using KI = detail::KernelInfo<KernelName>;
-
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -669,7 +669,6 @@ private:
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
 
@@ -2106,6 +2105,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             std::shared_ptr<T_Dst> Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Src);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2131,6 +2133,9 @@ public:
   void
   copy(std::shared_ptr<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2155,6 +2160,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             T_Dst *Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Src);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2194,6 +2202,9 @@ public:
   void
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -2239,6 +2250,11 @@ public:
             accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
                      IsPlaceholder_Dst>
                 Dst) {
+    if (Src.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Src);
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Dst);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
                   "Invalid source accessor target for the copy method.");
@@ -2282,6 +2298,9 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
+    if (Acc.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Acc);
+
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the update_host method.");
@@ -2311,6 +2330,9 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
+    if (Dst.is_placeholder())
+      checkIfPlaceholderIsBoundToHandler(Dst);
+
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2469,13 +2491,30 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memcpy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
-    else
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Copies data from one 2D memory region to another, both pointed by
@@ -2503,14 +2542,31 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_copy2d'");
-    // If the backends supports 2D copy we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemcpy2D())
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
       ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
                                SrcPitch * sizeof(T), Width * sizeof(T), Height);
-    else
+    } else {
       commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
                                        Height);
+    }
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -2538,9 +2594,16 @@ public:
                             "Destination pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_memset2d'");
     T CharVal = static_cast<T>(Value);
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMMemset2D())
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, CharVal, Width, Height);
+    else if (supportsUSMMemset2D())
       ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
     else
       commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
@@ -2568,9 +2631,16 @@ public:
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_fill2d'");
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel.
-    if (supportsUSMFill2D())
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, Pattern, Width, Height);
+    else if (supportsUSMFill2D())
       ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
                              Height);
     else
@@ -2792,6 +2862,8 @@ private:
         NumWorkItems, KernelFunc);
   }
 
+  const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();
   bool supportsUSMFill2D();
@@ -2806,6 +2878,8 @@ private:
   void commonUSMCopy2DFallbackKernel(const void *Src, size_t SrcPitch,
                                      void *Dest, size_t DestPitch, size_t Width,
                                      size_t Height) {
+    // Otherwise the data is accessible on the device so we do the operation
+    // there instead.
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
@@ -2825,12 +2899,33 @@ private:
         });
   }
 
+  // Common function for launching a 2D USM memcpy host-task to avoid
+  // redefinitions of the kernel from copy and memcpy.
+  template <typename T>
+  void commonUSMCopy2DFallbackHostTask(const void *Src, size_t SrcPitch,
+                                       void *Dest, size_t DestPitch,
+                                       size_t Width, size_t Height) {
+    // If both pointers are host USM or unknown (assumed non-USM) we use a
+    // host-task to satisfy dependencies.
+    host_task([=] {
+      const T *CastedSrc = static_cast<const T *>(Src);
+      T *CastedDest = static_cast<T *>(Dest);
+      for (size_t I = 0; I < Height; ++I) {
+        const T *SrcItBegin = CastedSrc + SrcPitch * I;
+        T *DestItBegin = CastedDest + DestPitch * I;
+        std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
+      }
+    });
+  }
+
   // Common function for launching a 2D USM fill kernel to avoid redefinitions
   // of the kernel from memset and fill.
   template <typename T>
   void commonUSMFill2DFallbackKernel(void *Dest, size_t DestPitch,
                                      const T &Pattern, size_t Width,
                                      size_t Height) {
+    // Otherwise the data is accessible on the device so we do the operation
+    // there instead.
     // Limit number of work items to be resistant to big fill operations.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
@@ -2847,6 +2942,23 @@ private:
             }
           }
         });
+  }
+
+  // Common function for launching a 2D USM fill kernel or host_task to avoid
+  // redefinitions of the kernel from memset and fill.
+  template <typename T>
+  void commonUSMFill2DFallbackHostTask(void *Dest, size_t DestPitch,
+                                       const T &Pattern, size_t Width,
+                                       size_t Height) {
+    // If the pointer is host USM or unknown (assumed non-USM) we use a
+    // host-task to satisfy dependencies.
+    host_task([=] {
+      T *CastedDest = static_cast<T *>(Dest);
+      for (size_t I = 0; I < Height; ++I) {
+        T *ItBegin = CastedDest + DestPitch * I;
+        std::fill(ItBegin, ItBegin + Width, Pattern);
+      }
+    });
   }
 
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
@@ -2870,6 +2982,28 @@ private:
   void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                               bool IsDeviceImageScoped, size_t NumBytes,
                               size_t Offset);
+
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void checkIfPlaceholderIsBoundToHandler(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Acc) {
+    auto *AccBase = reinterpret_cast<detail::AccessorBaseHost *>(&Acc);
+    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+    detail::AccessorImplHost *Req = AccImpl.get();
+    if (std::find_if(MAssociatedAccesors.begin(), MAssociatedAccesors.end(),
+                     [&](const detail::ArgDesc &AD) {
+                       return AD.MType ==
+                                  detail::kernel_param_kind_t::kind_accessor &&
+                              AD.MPtr == Req &&
+                              AD.MSize == static_cast<int>(AccessTarget);
+                     }) == MAssociatedAccesors.end())
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
+  }
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
