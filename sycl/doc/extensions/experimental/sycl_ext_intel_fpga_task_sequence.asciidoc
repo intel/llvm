@@ -51,8 +51,8 @@ SYCL specification refer to that revision.
 This extension also depends on the following other SYCL extension:
 
 * link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-* link:./sycl_ext_oneapi_kernel_properties.asciidoc[
-  sycl_ext_oneapi_kernel_properties]
+* link:../sycl_ext_intel_fpga_kernel_interface_properties..asciidoc[
+  sycl_ext_intel_fpga_kernel_interface_properties]
 
 == Status
 
@@ -389,7 +389,7 @@ number of outstanding invocations is less than or equal to `N`.
 
 The `task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
 property described in link:sycl_ext_oneapi_kernel_properties.asciidoc[
-  sycl_ext_oneapi_kernel_properties].
+  ../sycl_ext_intel_fpga_kernel_interface_properties.].
 Normally the `pipelined` property is applicable only to kernels however this
 extension supports applying the property to task sequences.
 
