@@ -268,7 +268,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr("fill;sycl/queue.hpp"));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -302,7 +302,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr("prefetch;sycl/queue.hpp"));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
