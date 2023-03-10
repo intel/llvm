@@ -96,6 +96,13 @@ enum class register_map_interface_options_enum {
   do_not_wait_for_done_write
 };
 
+struct use_stall_enable_clusters_key {
+  template <int stall_enable_clusters_option>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    use_stall_enable_clusters_key,
+    std::integral_constant<size_t, stall_enable_clusters_option>>;
+};
+
 struct streaming_interface_key {
   template <streaming_interface_options_enum option>
   using value_t = sycl::ext::oneapi::properties::property_value<
@@ -116,6 +123,10 @@ struct pipelined_key {
     pipelined_key,
     std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
 };
+
+template<int stall_enable_clusters_option>
+inline constexpr use_stall_enable_clusters_key::value_t<
+  stall_enable_clusters_option> use_stall_enable_clusters;
 
 template <streaming_interface_options_enum option>
 inline constexpr streaming_interface_key::value_t<option> streaming_interface;
@@ -218,6 +229,23 @@ inline constexpr pipelined_key::value_t<
 
  If the property parameter (N) is not specified, the default value is `-1`.
  Valid values for `N` are values greater than or equal to `-1`.
+
+|`use_stall_enable_clusters`
+|A signed integer value is accepted as property parameter.
+
+This parameter requests that statically-scheduled clusters should handle stalls
+using a stall-enable signal to freeze computation within the cluster.
+
+The valid values are:
+
+0 - Disable the use of stall enable clusters.
+
+1 - Direct the compiler to use stall enable clusters.
+
+-1 - Let the compiler decide which type of cluster to use.
+
+If the property parameter is not specified, the default value is `-1`.
+
 |===
 
 Device compilers that do not support this extension may accept and ignore these
