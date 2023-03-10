@@ -2080,8 +2080,6 @@ public:
   void runOnOperation() override;
 
 private:
-  constexpr static int requiredRuns{2};
-
   LogicalResult convertToSPIRV();
   LogicalResult convertToLLVM(bool lastRun);
   void cleanUnrealizedConversionCasts();
