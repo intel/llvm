@@ -1166,7 +1166,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(bool{false});
   }
 
-  case ZER_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     return ReturnValue(uint32_t{PI_MEMORY_ORDER_RELAXED |
                                 PI_MEMORY_ORDER_ACQUIRE |
                                 PI_MEMORY_ORDER_RELEASE |
