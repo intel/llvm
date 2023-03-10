@@ -22,7 +22,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
@@ -1582,7 +1582,7 @@ void generateKernelMetadata(Module &M) {
 // TODO: can we make the Module argument `const`?
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
-  for (auto &G : M.getGlobalList()) {
+  for (auto &G : M.globals()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
     auto GTy = dyn_cast<StructType>(G.getValueType());

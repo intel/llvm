@@ -379,6 +379,22 @@ static ParamIterator preProcessArguments(
     // we need to copy the argument to a permant location and update the
     // argument.
     Arg->Arg.MPtr = storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    // Standard layout arguments do not participate in identical argument
+    // detection, but we still add it to the list here. As the SYCL runtime can
+    // only check the raw bytes for identical content, but is unaware of the
+    // underlying datatype, some identities that would be detected here could
+    // not be materialized by the JIT compiler. Instead of removing some
+    // standard layout arguments due to identity and missing some in case the
+    // materialization is not possible, we rely on constant propagation to
+    // replace standard layout arguments by constants (see below).
+    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
+                                    true);
+    // Propagate values of scalar parameters as constants to the JIT
+    // compiler.
+    JITConstants.emplace_back(
+        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+        Arg->Arg.MPtr, Arg->Arg.MSize);
+    return ++Arg;
   }
   // First check if there's already another parameter with identical
   // value.
@@ -455,16 +471,6 @@ static ParamIterator preProcessArguments(
                                       true);
       return ++Arg;
     }
-  } else if (Arg->Arg.MType == kernel_param_kind_t::kind_std_layout) {
-    // No identical parameter exists, so add this to the list.
-    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
-                                    true);
-    // Propagate values of scalar parameters as constants to the JIT
-    // compiler.
-    JITConstants.emplace_back(
-        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
-        Arg->Arg.MPtr, Arg->Arg.MSize);
-    return ++Arg;
   } else if (Arg->Arg.MType == kernel_param_kind_t::kind_pointer) {
     // No identical parameter exists, so add this to the list.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,

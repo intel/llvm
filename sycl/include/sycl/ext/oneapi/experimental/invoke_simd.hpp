@@ -41,7 +41,7 @@
 /// target function and the original SPMD arguments passed to invoke_simd.
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, const void *obj,
                       UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -56,7 +56,7 @@ __builtin_invoke_simd(HelperFunc helper, const void *obj,
 
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
@@ -193,7 +193,7 @@ template <class SimdCallable, class... SpmdArgs> struct sg_size {
   using IsInvocableSgSize = __MP11_NS::mp_bool<std::is_invocable_v<
       SimdCallable, typename spmd2simd<SpmdArgs, N::value>::type...>>;
 
-  SYCL_EXTERNAL constexpr operator int() {
+  __DPCPP_SYCL_EXTERNAL constexpr operator int() {
     using SupportedSgSizes = __MP11_NS::mp_list_c<int, 1, 2, 4, 8, 16, 32>;
     using InvocableSgSizes =
         __MP11_NS::mp_copy_if<SupportedSgSizes, IsInvocableSgSize>;
@@ -234,7 +234,7 @@ static constexpr int get_sg_size() {
 // with captures. Note __regcall - this is needed for efficient argument
 // forwarding.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_obj_call_helper(const void *obj_ptr,
                          typename detail::spmd2simd<T, N>::type... simd_args) {
@@ -245,7 +245,7 @@ template <int N, class Callable, class... T>
 
 // This function is a wrapper around a call to a function.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_func_call_helper(Callable f,
                           typename detail::spmd2simd<T, N>::type... simd_args) {
