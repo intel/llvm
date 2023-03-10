@@ -84,6 +84,14 @@ TEST_P(urEnqueueMemBufferFillTest, InvalidNullPtrEventWaitList) {
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
+TEST_P(urEnqueueMemBufferFillTest, InvalidSize) {
+    const uint32_t pattern = 0xdeadbeef;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urEnqueueMemBufferFill(queue, buffer, &pattern,
+                                            sizeof(pattern), 1, size, 0,
+                                            nullptr, nullptr));
+}
+
 using urEnqueueMemBufferFillMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {

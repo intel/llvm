@@ -43,6 +43,13 @@ TEST_P(urEnqueueMemBufferReadTest, InvalidNullPtrEventWaitList) {
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
+TEST_P(urEnqueueMemBufferReadTest, InvalidSize) {
+    std::vector<uint32_t> output(count, 42);
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urEnqueueMemBufferRead(queue, buffer, true, 1, size,
+                                            output.data(), 0, nullptr, nullptr));
+}
+
 using urEnqueueMemBufferReadMultiDeviceTest = uur::urMultiDeviceMemBufferQueueTest;
 
 TEST_F(urEnqueueMemBufferReadMultiDeviceTest, WriteReadDifferentQueues) {

@@ -25,7 +25,7 @@ def generate_registry(path, specs):
     for s in specs:
         for i, obj in enumerate(s['objects']):
             if obj['type'] == 'function':
-                functions.append(obj['class'].removeprefix('$x') + obj['name'])
+                functions.append(obj['class'][len('$x'):] + obj['name'])
 
     try:
         existing_registry = list(util.yamlRead(path))[1]['etors']

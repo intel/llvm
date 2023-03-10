@@ -52,3 +52,10 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPtrEventWaitList) {
                                              nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
+
+TEST_P(urEnqueueMemBufferWriteTest, InvalidSize) {
+    std::vector<uint32_t> output(count, 42);
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urEnqueueMemBufferWrite(queue, buffer, true, 1, size,
+                                             output.data(), 0, nullptr, nullptr));
+}
