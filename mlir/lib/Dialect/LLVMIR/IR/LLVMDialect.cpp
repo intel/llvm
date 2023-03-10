@@ -1562,8 +1562,8 @@ LogicalResult ResumeOp::verify() {
            })
            .wasInterrupted()) {
     // No operation was found: emit error
-    return emitOpError("expects landingpad operation with the same type in the "
-                       "same function as this operation's operand");
+    return emitOpError("expects landingpad operation in the same function and "
+                       "with the same type as this operation's operand");
   }
 
   // No check for personality of function - landingpad op verifies it.
