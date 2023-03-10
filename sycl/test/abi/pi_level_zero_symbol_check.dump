@@ -71,7 +71,6 @@ piProgramLink
 piProgramRelease
 piProgramRetain
 piQueueCreate
-piextQueueCreate
 piQueueFinish
 piQueueFlush
 piQueueGetInfo
@@ -92,6 +91,7 @@ piextDeviceSelectBinary
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
+piextImgCreateWithNativeHandle
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj
@@ -105,16 +105,17 @@ piextPluginGetOpaqueData
 piextProgramCreateWithNativeHandle
 piextProgramGetNativeHandle
 piextProgramSetSpecializationConstant
+piextQueueCreate
 piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
 piextUSMDeviceAlloc
+piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
-piextUSMEnqueueMemset
-piextUSMEnqueuePrefetch
-piextUSMEnqueueFill2D
-piextUSMEnqueueMemset2D
 piextUSMEnqueueMemcpy2D
+piextUSMEnqueueMemset
+piextUSMEnqueueMemset2D
+piextUSMEnqueuePrefetch
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
