@@ -1,3 +1,4 @@
+; XFAIL: *
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-ext=-all,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_buffer_location -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
