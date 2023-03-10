@@ -491,7 +491,7 @@ template <typename DataT, template <typename, typename> typename FlattenF,
 struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
   static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
     auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
-    if constexpr (sizeof...(Args))
+    if constexpr (sizeof...(Args) > 0)
       return ConcatArrays(
           ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
     else
