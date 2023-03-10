@@ -315,8 +315,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         *paramValueSizeRet = sizeof(cl_int);
 
       if (paramValue) {
-        cl_int capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-                      PI_MEMORY_ORDER_SEQ_CST;
+        cl_int capabilities = PI_MEMORY_ORDER_RELAXED |
+                              PI_MEMORY_ORDER_ACQUIRE |
+                              PI_MEMORY_ORDER_RELEASE |
+                              PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
         std::memcpy(paramValue, &capabilities, sizeof(cl_int));
       }
       return static_cast<pi_result>(CL_SUCCESS);
@@ -335,23 +337,26 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         return static_cast<pi_result>(CL_INVALID_VALUE);
       if (paramValueSizeRet)
         *paramValueSizeRet = sizeof(cl_int);
-      
+
       if (paramValue) {
         // Mask operation to only consider atomic_memory_order* capabilities
-        cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED | CL_DEVICE_ATOMIC_ORDER_ACQ_REL | CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+        cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                      CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                      CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
         capabilities &= mask;
 
         // Convert from OCL bitfield to SYCL PI bitfield
         // OCL could return (masked) 00000111 for all capabilities
-        // PI would want that to be ...11111 for all capabilities as well as ACQUIRE and RELEASE
-        // So need to bitshift and fill in result
+        // PI would want that to be ...11111 for all capabilities as well as
+        // ACQUIRE and RELEASE So need to bitshift and fill in result
         if (capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
           capabilities &= ~CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
           capabilities |= PI_MEMORY_ORDER_SEQ_CST;
         }
         if (capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
           capabilities &= ~CL_DEVICE_ATOMIC_ORDER_ACQ_REL;
-          capabilities |= (PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE);
+          capabilities |= (PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                           PI_MEMORY_ORDER_RELEASE);
         }
 
         std::memcpy(paramValue, &capabilities, sizeof(cl_int));
