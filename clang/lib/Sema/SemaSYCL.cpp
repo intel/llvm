@@ -2784,10 +2784,10 @@ public:
   }
 };
 
-// This function traverses the static call graph from the root of the kernel
-// (e.g. “kernel_parallel_for”) and returns the version of “operator()()” that
-// is called by kernelFunc(). There will only be one call to kernelFunc() in
-// that call graph because the DPC++ headers are structured such that the user’s
+// This function traverses the static call graph from the function with
+// `sycl_kernel` attribute and returns the version of “operator()()” that is
+// called by kernelFunc(). There will only be one call to kernelFunc() in that
+// call graph because the DPC++ headers are structured such that the user’s
 // kernel function is only called once. This ensures that the correct
 // “operator()()” function call is returned, when a named function object used
 // to define a kernel has more than one “operator()()” calls defined in it. For
@@ -2820,7 +2820,7 @@ getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
                                  Sema &SemaRef) {
 
   CallGraph SYCLCG;
-  SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
+  SYCLCG.addToCallGraph(KernelCallerFunc);
 
   // This code returns the 'lambda' call operator.
   if (KernelFuncObjType->isLambda()) {
@@ -2843,10 +2843,10 @@ getCallOperatorInvokedFromKernel(const CXXRecordDecl *KernelFuncObjType,
       if (auto *Callee = dyn_cast<CXXMethodDecl>(ChildNode->getDecl())) {
         Callee = Callee->getMostRecentDecl();
         if (Callee->getParent() == KernelFuncObjType &&
-            Callee->isCXXClassMember() &&
-            Callee->getOverloadedOperator() == OO_Call)
+            Callee->getOverloadedOperator() == OO_Call) {
           OperatorCall = Callee;
-        return OperatorCall;
+          return OperatorCall;
+        }
       }
     }
   }

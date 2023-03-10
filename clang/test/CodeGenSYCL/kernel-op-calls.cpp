@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 constexpr auto sycl_read_write = sycl::access::mode::read_write;
 constexpr auto sycl_global_buffer = sycl::access::target::global_buffer;
@@ -66,15 +66,14 @@ template <typename T> T bar(T X) {
     Q.submit([&](sycl::handler& cgh) {
       auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
       Functor1<T> F(X, Acc);
-      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor1IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !11 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14 {
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor1IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !11 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !intel_reqd_sub_group_size !14 !sycl_fixed_targets !15 {
       cgh.parallel_for(sycl::range<1>(ARR_LEN(A)), F);
-      //cgh.parallel_for<class name>(F);
     });
 
     Q.submit([&](sycl::handler& cgh) {
       auto Acc = Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
       Functor2<T> FuncOp2(X, Acc);
-      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor2IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !22 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !work_group_size_hint !23 {
+      // CHECK: define {{.*}}spir_kernel void @{{.*}}_ZTS8Functor2IiE(i32 noundef %_arg_X, ptr addrspace(1) noundef align 4 %_arg_Acc, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc1, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %_arg_Acc2, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %_arg_Acc3) #0 !srcloc !22 !kernel_arg_buffer_location !12 !kernel_arg_runtime_aligned !13 !kernel_arg_exclusive_ptr !13 !work_group_size_hint !23 !sycl_fixed_targets !15 {
       cgh.parallel_for(sycl::range<2>(ARR_LEN(A)), FuncOp2);
     });
 
