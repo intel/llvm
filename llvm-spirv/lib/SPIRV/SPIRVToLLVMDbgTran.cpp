@@ -450,6 +450,50 @@ SPIRVToLLVMDbgTran::transTypeSubrange(const SPIRVExtInst *DebugInst) {
                                      TranslatedOps[2], TranslatedOps[3]);
 }
 
+DIStringType *
+SPIRVToLLVMDbgTran::transTypeString(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeString;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+
+  StringRef Name = getString(Ops[NameIdx]);
+  unsigned Encoding = 0;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>((Ops[BaseTypeIdx]))) {
+    DIBasicType *BaseTy =
+        transTypeBasic(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+    Encoding = BaseTy->getEncoding();
+  }
+
+  DIExpression *StrLocationExp = nullptr;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[DataLocationIdx])) {
+    if (const auto *DIExpr =
+            getDbgInst<SPIRVDebug::Expression>(Ops[DataLocationIdx]))
+      StrLocationExp = transDebugInst<DIExpression>(DIExpr);
+  }
+
+  uint64_t SizeInBits = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
+
+  DIExpression *StringLengthExp = nullptr;
+  DIVariable *StringLengthVar = nullptr;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[LengthAddrIdx])) {
+    if (const auto *GV =
+            getDbgInst<SPIRVDebug::GlobalVariable>(Ops[LengthAddrIdx]))
+      StringLengthVar = transDebugInst<DIGlobalVariable>(GV);
+    if (const auto *LV =
+            getDbgInst<SPIRVDebug::LocalVariable>(Ops[LengthAddrIdx]))
+      StringLengthVar = transDebugInst<DILocalVariable>(LV);
+    if (const auto *DIExpr =
+            getDbgInst<SPIRVDebug::Expression>(Ops[LengthAddrIdx]))
+      StringLengthExp = transDebugInst<DIExpression>(DIExpr);
+  }
+
+  return DIStringType::get(M->getContext(), dwarf::DW_TAG_string_type, Name,
+                           cast_or_null<Metadata>(StringLengthVar),
+                           cast_or_null<Metadata>(StringLengthExp),
+                           cast_or_null<Metadata>(StrLocationExp), SizeInBits,
+                           0 /*AlignInBits*/, Encoding);
+}
+
 DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeMember;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
@@ -1007,6 +1051,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::TypeSubrange:
     return transTypeSubrange(DebugInst);
+
+  case SPIRVDebug::TypeString:
+    return transTypeString(DebugInst);
 
   case SPIRVDebug::TypeVector:
     return transTypeVector(DebugInst);

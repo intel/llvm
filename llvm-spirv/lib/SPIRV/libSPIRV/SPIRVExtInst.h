@@ -241,6 +241,7 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::TypeTemplate, "DebugTemplate");
   add(SPIRVDebug::TypePtrToMember, "DebugTypePtrToMember,");
   add(SPIRVDebug::TypeSubrange, "DebugTypeSubrange");
+  add(SPIRVDebug::TypeString, "DebugTypeString");
   add(SPIRVDebug::Inheritance, "DebugInheritance");
   add(SPIRVDebug::Function, "DebugFunction");
   add(SPIRVDebug::FunctionDecl, "DebugFunctionDecl");

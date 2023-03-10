@@ -109,6 +109,7 @@ private:
   SPIRVEntry *transDbgArrayTypeNonSemantic(const DICompositeType *AT);
   SPIRVEntry *transDbgArrayTypeDynamic(const DICompositeType *AT);
   SPIRVEntry *transDbgSubrangeType(const DISubrange *ST);
+  SPIRVEntry *transDbgStringType(const DIStringType *ST);
   SPIRVEntry *transDbgTypeDef(const DIDerivedType *D);
   SPIRVEntry *transDbgSubroutineType(const DISubroutineType *FT);
   SPIRVEntry *transDbgEnumType(const DICompositeType *ET);

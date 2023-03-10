@@ -53,7 +53,8 @@ enum Instruction {
   ModuleINTEL                   = 36,
   InstCount                     = 37,
   TypeSubrange                  = 110,
-  TypeArrayDynamic              = 202
+  TypeArrayDynamic              = 202,
+  TypeString                    = 203
 };
 
 enum Flag {
@@ -352,6 +353,18 @@ enum {
   UpperBoundIdx   = 2,
   StrideIdx       = 3,
   OperandCount    = 4
+};
+}
+
+namespace TypeString {
+enum {
+  NameIdx         = 0,
+  BaseTypeIdx     = 1,
+  DataLocationIdx = 2,
+  SizeIdx         = 3,
+  LengthAddrIdx   = 4,
+  LengthSizeIdx   = 5,
+  MinOperandCount = 5
 };
 }
 
