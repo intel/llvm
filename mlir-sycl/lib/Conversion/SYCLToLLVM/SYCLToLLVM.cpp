@@ -2083,7 +2083,7 @@ private:
   constexpr static int requiredRuns{2};
 
   LogicalResult convertToSPIRV();
-  LogicalResult convertToLLVM(int currentIter);
+  LogicalResult convertToLLVM(bool lastRun);
   void cleanUnrealizedConversionCasts();
 };
 } // namespace
@@ -2171,7 +2171,7 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
   return res;
 }
 
-LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(int currentIter) {
+LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(bool lastRun) {
   LLVM_DEBUG(llvm::dbgs() << "Lowering to LLVM...\n");
 
   auto &context = getContext();
@@ -2203,9 +2203,16 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(int currentIter) {
   populateSPIRVToLLVMFunctionConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(context);
-  if (currentIter != requiredRuns - 1) {
-    target.addDynamicallyLegalDialect<sycl::SYCLDialect>(
-        [](Operation *op) { return isa<sycl::SYCLLocalIDOp>(op); });
+  if (!lastRun) {
+    target.addDynamicallyLegalDialect<sycl::SYCLDialect>([](Operation *op) {
+      return isa< // Convertible to GPU dialect
+          SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
+          SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp, SYCLNumSubGroupsOp,
+          SYCLSubGroupSizeOp,
+          // Not convertible to GPU dialect
+          SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp, SYCLSubGroupLocalIDOp,
+          SYCLSubGroupMaxSizeOp>(op);
+    });
   }
 
   const auto res = applyPartialConversion(module, target, std::move(patterns));
@@ -2239,11 +2246,10 @@ void ConvertSYCLToLLVMPass::cleanUnrealizedConversionCasts() {
 }
 
 void ConvertSYCLToLLVMPass::runOnOperation() {
-  for (int i = 0; i < requiredRuns; ++i) {
-    if (convertToSPIRV().failed() || convertToLLVM(i).failed()) {
-      signalPassFailure();
-      return;
-    }
+  if (convertToLLVM(/*lastRun*/ false).failed() || convertToSPIRV().failed() ||
+      convertToLLVM(/*lastRun*/ true).failed()) {
+    signalPassFailure();
+    return;
   }
   // We will not signal pass failure here as the operations causing the failure
   // may come from previous conversions.
