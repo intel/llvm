@@ -2637,17 +2637,16 @@ typedef enum ur_program_info_t {
                                          ///< The reference count returned should be considered immediately stale.
                                          ///< It is unsuitable for general use in applications. This feature is
                                          ///< provided for identifying memory leaks.
-    UR_PROGRAM_INFO_CONTEXT = 1,         ///< Program context info
-    UR_PROGRAM_INFO_NUM_DEVICES = 2,     ///< Return number of devices associated with Program
-    UR_PROGRAM_INFO_DEVICES = 3,         ///< Return list of devices associated with Program, return type
-                                         ///< uint32_t[].
-    UR_PROGRAM_INFO_SOURCE = 4,          ///< Return program source associated with Program, return type char[].
-    UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< Return program binary sizes for each device, return type size_t[].
+    UR_PROGRAM_INFO_CONTEXT = 1,         ///< Program context info.
+    UR_PROGRAM_INFO_NUM_DEVICES = 2,     ///< Return number of devices associated with Program.
+    UR_PROGRAM_INFO_DEVICES = 3,         ///< Return list of devices associated with Program, return type uint32_t*.
+    UR_PROGRAM_INFO_SOURCE = 4,          ///< Return program source associated with Program, return type char*.
+    UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< Return program binary sizes for each device, return type size_t*.
     UR_PROGRAM_INFO_BINARIES = 6,        ///< Return program binaries for all devices for this Program, return type
-                                         ///< uchar[].
-    UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< Number of kernels in Program, return type size_t
-    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< Return a semi-colon separated list of kernel names in Program, return
-                                         ///< type char[]
+                                         ///< uchar*.
+    UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< Number of kernels in Program, return type size_t.
+    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< Return a null-terminated, semi-colon separated list of kernel names in
+                                         ///< Program, return type char*.
     /// @cond
     UR_PROGRAM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2711,10 +2710,11 @@ typedef enum ur_program_binary_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Program object build information
 typedef enum ur_program_build_info_t {
-    UR_PROGRAM_BUILD_INFO_STATUS = 0,      ///< Program build status, return type ::ur_program_build_status_t
-    UR_PROGRAM_BUILD_INFO_OPTIONS = 1,     ///< Program build options, return type char[]
-    UR_PROGRAM_BUILD_INFO_LOG = 2,         ///< Program build log, return type char[]
-    UR_PROGRAM_BUILD_INFO_BINARY_TYPE = 3, ///< Program binary type, return type ::ur_program_binary_type_t
+    UR_PROGRAM_BUILD_INFO_STATUS = 0,      ///< Program build status, return type ::ur_program_build_status_t.
+    UR_PROGRAM_BUILD_INFO_OPTIONS = 1,     ///< Null-terminated options string specified by last build, compile or
+                                           ///< link operation performed on the program. Return type char*.
+    UR_PROGRAM_BUILD_INFO_LOG = 2,         ///< Null-terminated program build log, return type char*.
+    UR_PROGRAM_BUILD_INFO_BINARY_TYPE = 3, ///< Program binary type, return type ::ur_program_binary_type_t.
     /// @cond
     UR_PROGRAM_BUILD_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2925,15 +2925,15 @@ urKernelSetArgLocal(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel object information
 typedef enum ur_kernel_info_t {
-    UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< Return Kernel function name, return type char[]
-    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< Return Kernel number of arguments
+    UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< Return null-terminated kernel function name, return type char*.
+    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< Return Kernel number of arguments.
     UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
                                         ///< The reference count returned should be considered immediately stale.
                                         ///< It is unsuitable for general use in applications. This feature is
                                         ///< provided for identifying memory leaks.
-    UR_KERNEL_INFO_CONTEXT = 3,         ///< Return Context object associated with Kernel
-    UR_KERNEL_INFO_PROGRAM = 4,         ///< Return Program object associated with Kernel
-    UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< Return Kernel attributes, return type char[]
+    UR_KERNEL_INFO_CONTEXT = 3,         ///< Return Context object associated with Kernel.
+    UR_KERNEL_INFO_PROGRAM = 4,         ///< Return Program object associated with Kernel.
+    UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< Return null-terminated kernel attributes string, return type char*.
     /// @cond
     UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
