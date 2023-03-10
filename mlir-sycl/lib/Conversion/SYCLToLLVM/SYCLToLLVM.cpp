@@ -2065,14 +2065,13 @@ namespace {
 /// A pass converting MLIR SYCL operations into LLVM dialect.
 ///
 /// This pass relies on SYCL to GPU and target dialects, e.g., SPIRV, conversion
-/// patterns. This pass is executed in 5 steps:
-/// 1. Convert grid ops to a target dialect, e.g., SPIRV;
-/// 2. Lower all of the operations to LLVM. As some of the operations will yield
-///    SYCL grid ops, we need to perform the same conversions as in step 1
-///    again;
-/// 3. Same as 1;
-/// 4. Lower remaining operations to LLVM;
-/// 5. Resolve UnrealizedConversionCastOps appearing due to the fact that this
+/// patterns. This pass is executed in 4 steps:
+/// 1. Lower all of the operations to LLVM. As some of the operations will yield
+///    SYCL grid ops, we need to run this step first;
+/// 2. Convert grid ops to a target dialect, e.g., SPIRV;
+/// 3. Lower remaining operations to LLVM. Same as 1, but no operation will
+///    yield SYCL grid ops, so we can mark these as illegal;
+/// 4. Resolve UnrealizedConversionCastOps appearing due to the fact that this
 ///    pass is performed in several steps.
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
