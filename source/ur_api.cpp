@@ -1433,7 +1433,7 @@ ur_result_t UR_APICALL urUSMFree(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_ALLOC_INFO_DEVICE < propName`
+///         + `::UR_USM_ALLOC_INFO_POOL < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT

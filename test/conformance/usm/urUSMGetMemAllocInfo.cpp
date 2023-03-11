@@ -10,7 +10,8 @@ UUR_TEST_SUITE_P(urUSMAllocInfoTest,
                  ::testing::Values(UR_USM_ALLOC_INFO_TYPE,
                                    UR_USM_ALLOC_INFO_BASE_PTR,
                                    UR_USM_ALLOC_INFO_SIZE,
-                                   UR_USM_ALLOC_INFO_DEVICE),
+                                   UR_USM_ALLOC_INFO_DEVICE,
+                                   UR_USM_ALLOC_INFO_POOL),
                  uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
 
 TEST_P(urUSMAllocInfoTest, Success) {
