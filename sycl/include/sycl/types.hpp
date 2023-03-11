@@ -585,58 +585,6 @@ template <typename Type, int NumElements> class vec {
                               SizeChecker<Counter + 1, MaxValue, tail...>,
                               std::false_type> {};
 
-  // Utility trait for creating an std::array from an vector argument.
-  template <typename DataT_, typename T, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const vec<T, sizeof...(Is)> &V, std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::SwizzleOp<vec<T, N>, T2, T3, T4, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::SwizzleOp<const vec<T, N>, T2, T3, T4, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
-  }
-  template <typename DataT_, typename T, int N>
-  static constexpr std::array<DataT_, N>
-  FlattenVecArgHelper(const vec<T, N> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<N>());
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5>
-  static constexpr std::array<DataT_, sizeof...(T5)> FlattenVecArgHelper(
-      const detail::SwizzleOp<vec<T, N>, T2, T3, T4, T5...> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<sizeof...(T5)>());
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5>
-  static constexpr std::array<DataT_, sizeof...(T5)> FlattenVecArgHelper(
-      const detail::SwizzleOp<const vec<T, N>, T2, T3, T4, T5...> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<sizeof...(T5)>());
-  }
-  template <typename DataT_, typename T>
-  static constexpr auto FlattenVecArgHelper(const T &A) {
-    return std::array<DataT_, 1>{vec_data<DataT_>::get(A)};
-  }
-  template <typename DataT_, typename T> struct FlattenVecArg {
-    constexpr auto operator()(const T &A) const {
-      return FlattenVecArgHelper<DataT_>(A);
-    }
-  };
-
-  // Alias for shortening the vec arguments to array converter.
-  template <typename DataT_, typename... ArgTN>
-  using VecArgArrayCreator =
-      detail::ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
-
 #define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
   struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
@@ -724,14 +672,6 @@ template <typename Type, int NumElements> class vec {
   using EnableIfSuitableNumElements = typename detail::enable_if_t<
       SizeChecker<0, NumElements, argTN...>::value>;
 
-  template <size_t... Is>
-  constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
-                std::index_sequence<Is...>)
-      : m_Data{Arr[Is]...} {}
-
-  constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr)
-      : vec{Arr, std::make_index_sequence<NumElements>()} {}
-
 public:
   using element_type = DataT;
   using rel_t = detail::rel_t<DataT>;
@@ -780,8 +720,9 @@ public:
       T>;
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{(DataType)vec_data<Ty>::get(arg)} {}
+  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg) {
+    m_Data = (DataType)vec_data<Ty>::get(arg);
+  }
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -794,9 +735,11 @@ public:
   }
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg)
-      : vec{detail::RepeatValue<NumElements>(
-            static_cast<vec_data_t<DataT>>(arg))} {}
+  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg) {
+    for (int i = 0; i < NumElements; ++i) {
+      setValue(i, arg);
+    }
+  }
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -810,9 +753,11 @@ public:
     return *this;
   }
 #else
-  explicit constexpr vec(const DataT &arg)
-      : vec{detail::RepeatValue<NumElements>(
-            static_cast<vec_data_t<DataT>>(arg))} {}
+  explicit constexpr vec(const DataT &arg) {
+    for (int i = 0; i < NumElements; ++i) {
+      setValue(i, arg);
+    }
+  }
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -882,8 +827,9 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...)} {}
+  constexpr vec(const argTN &...args) {
+    vaargCtorHelper(0, args...);
+  }
 
   // TODO: Remove, for debug purposes only.
   void dump() {
@@ -1322,7 +1268,7 @@ private:
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
+  DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
 
@@ -1334,7 +1280,7 @@ private:
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
+  DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
 #else  // __SYCL_USE_EXT_VECTOR_TYPE__
@@ -1346,7 +1292,7 @@ private:
 
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 != Num>>
-  constexpr DataT getValue(int Index, int) const {
+  DataT getValue(int Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
@@ -1373,6 +1319,59 @@ private:
 
   DataT getValue(int Index) const {
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
+  }
+
+  // Helpers for variadic template constructor of vec.
+  template <typename T, typename... argTN>
+  constexpr int vaargCtorHelper(int Idx, const T &arg) {
+    setValue(Idx, arg);
+    return Idx + 1;
+  }
+
+  template <typename DataT_, int NumElements_>
+  constexpr int vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg) {
+    for (size_t I = 0; I < NumElements_; ++I) {
+      setValue(Idx + I, arg.getValue(I));
+    }
+    return Idx + NumElements_;
+  }
+
+  template <typename DataT_, int NumElements_, typename T2, typename T3,
+            template <typename> class T4, int... T5>
+  constexpr int
+  vaargCtorHelper(int Idx, const detail::SwizzleOp<vec<DataT_, NumElements_>,
+                                                   T2, T3, T4, T5...> &arg) {
+    size_t NumElems = sizeof...(T5);
+    for (size_t I = 0; I < NumElems; ++I) {
+      setValue(Idx + I, arg.getValue(I));
+    }
+    return Idx + NumElems;
+  }
+
+  template <typename DataT_, int NumElements_, typename T2, typename T3,
+            template <typename> class T4, int... T5>
+  constexpr int
+  vaargCtorHelper(int Idx,
+                  const detail::SwizzleOp<const vec<DataT_, NumElements_>, T2,
+                                          T3, T4, T5...> &arg) {
+    size_t NumElems = sizeof...(T5);
+    for (size_t I = 0; I < NumElems; ++I) {
+      setValue(Idx + I, arg.getValue(I));
+    }
+    return Idx + NumElems;
+  }
+
+  template <typename T1, typename... argTN>
+  constexpr void vaargCtorHelper(int Idx, const T1 &arg, const argTN &...args) {
+    int NewIdx = vaargCtorHelper(Idx, arg);
+    vaargCtorHelper(NewIdx, args...);
+  }
+
+  template <typename DataT_, int NumElements_, typename... argTN>
+  constexpr void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
+                                 const argTN &...args) {
+    int NewIdx = vaargCtorHelper(Idx, arg);
+    vaargCtorHelper(NewIdx, args...);
   }
 
   // fields
