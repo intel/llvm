@@ -262,7 +262,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct':'const NonDecomposedStruct' lvalue <NoOp>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}}'NonDecomposedStruct' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
@@ -281,7 +281,7 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
 // Initializer for StructWithPointersArray[0]
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
@@ -292,7 +292,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 // Initializer for StructWithPointersArray[1]
 // CHECK: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
