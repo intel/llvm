@@ -226,8 +226,4 @@ llvm::cl::opt<bool> OmitOptionalMangledFunctionName(
     "no-mangled-function-name", llvm::cl::init(false),
     llvm::cl::desc("Whether to omit optional \"MangledFunctionName\" fields"));
 
-llvm::cl::opt<bool>
-    GenerateSYCLAddrSpaceCast("gen-sycl-addrspacecast", llvm::cl::init(false),
-                              llvm::cl::desc("Generate sycl.addrspacecast"));
-
 #endif /* CGEIST_OPTIONS_H_ */

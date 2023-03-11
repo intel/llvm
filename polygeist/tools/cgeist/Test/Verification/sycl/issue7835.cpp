@@ -10,21 +10,21 @@
 // CHECK-MLIR-SAME:      %arg1: !llvm.ptr<!llvm.struct<(memref<?xi32, 1>)>> {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi32, 1>)>, llvm.noundef}) 
 // CHECK-MLIR-SAME:      kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>
 
-// CHECK-MLIR: sycl.constructor @range(%2, %3) {MangledFunctionName = @_ZN4sycl3_V15rangeILi1EEC1ERKS2_} : (memref<?x!sycl_range_1_, 4>, memref<?x!sycl_range_1_, 4>)
-// CHECK-MLIR: %4 = affine.load %alloca_0[0] : memref<1x!sycl_range_1_>
-// CHECK-MLIR: affine.store %4, %1[0] : memref<?x!sycl_range_1_>
-// CHECK-MLIR: %5 = "polygeist.subindex"(%cast_3, %c1) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>, index) -> memref<?x!llvm.struct<(memref<?xi32, 4>)>>
-// CHECK-MLIR: %6 = llvm.bitcast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi32, 1>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>>
-// CHECK-MLIR: %7 = llvm.addrspacecast %0 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>
-// CHECK-MLIR: %8 = llvm.addrspacecast %6 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>
-// CHECK-MLIR: func.call @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_(%7, %8) : (!llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>, !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>) -> ()
-// CHECK-MLIR: %9 = llvm.load %0 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>>
-// CHECK-MLIR: affine.store %9, %5[0] : memref<?x!llvm.struct<(memref<?xi32, 4>)>>
-// CHECK-MLIR: %10 = sycl.call @declptr() {MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
-// CHECK-MLIR: %11 = sycl.call @getElement(%10) {MangledFunctionName = @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE, TypeName = @Builder} : (memref<?x!sycl_item_1_, 4>) -> !sycl_item_1_
-// CHECK-MLIR: %12 = sycl.addrspacecast %cast_3 : memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>> to memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>
-// CHECK-MLIR: affine.store %11, %alloca[0] : memref<1x!sycl_item_1_>
-// CHECK-MLIR: sycl.call @"operator()"(%12, %cast) {MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, memref<?x!sycl_item_1_>) -> ()
+// CHECK-MLIR: sycl.constructor @range(%memspacecast, %memspacecast_4) {MangledFunctionName = @_ZN4sycl3_V15rangeILi1EEC1ERKS2_} : (memref<?x!sycl_range_1_, 4>, memref<?x!sycl_range_1_, 4>)
+// CHECK-MLIR: %2 = affine.load %alloca_0[0] : memref<1x!sycl_range_1_>
+// CHECK-MLIR: affine.store %2, %1[0] : memref<?x!sycl_range_1_>
+// CHECK-MLIR: %3 = "polygeist.subindex"(%cast_3, %c1) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>, index) -> memref<?x!llvm.struct<(memref<?xi32, 4>)>>
+// CHECK-MLIR: %4 = llvm.bitcast %arg1 : !llvm.ptr<!llvm.struct<(memref<?xi32, 1>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>>
+// CHECK-MLIR: %5 = llvm.addrspacecast %0 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>
+// CHECK-MLIR: %6 = llvm.addrspacecast %4 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>> to !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>
+// CHECK-MLIR: func.call @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_(%5, %6) : (!llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>, !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>, 4>) -> ()
+// CHECK-MLIR: %7 = llvm.load %0 : !llvm.ptr<!llvm.struct<(memref<?xi32, 4>)>>
+// CHECK-MLIR: affine.store %7, %3[0] : memref<?x!llvm.struct<(memref<?xi32, 4>)>>
+// CHECK-MLIR: %8 = sycl.call @declptr() {MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
+// CHECK-MLIR: %9 = sycl.call @getElement(%8) {MangledFunctionName = @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE, TypeName = @Builder} : (memref<?x!sycl_item_1_, 4>) -> !sycl_item_1_
+// CHECK-MLIR: %memspacecast_5 = memref.memory_space_cast %cast_3 : memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>> to memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>
+// CHECK-MLIR: affine.store %9, %alloca[0] : memref<1x!sycl_item_1_>
+// CHECK-MLIR: sycl.call @"operator()"(%memspacecast_5, %cast) {MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, memref<?x!sycl_item_1_>) -> ()
 // CHECK-MLIR: gpu.return
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE

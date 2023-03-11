@@ -230,6 +230,21 @@ struct CastMemrefOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
   }
 };
 
+struct MemorySpaceCastMemRefOpLowering
+    : public ConvertOpToLLVMPattern<memref::MemorySpaceCastOp> {
+  using ConvertOpToLLVMPattern<
+      memref::MemorySpaceCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::MemorySpaceCastOp castOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto newTy = getTypeConverter()->convertType(castOp.getType());
+    rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(castOp, newTy,
+                                                       adaptor.getSource());
+    return success();
+  }
+};
+
 /// Base class for lowering operations implementing memory accesses.
 struct MemAccessLowering : public ConvertToLLVMPattern {
   using ConvertToLLVMPattern::ConvertToLLVMPattern;
@@ -319,11 +334,11 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
     mlir::LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   assert(converter.getOptions().useBarePtrCallConv &&
          "Expecting \"bare pointer\" calling convention");
-  patterns
-      .add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
-           AllocMemrefOpLowering, AllocaMemrefOpLowering, CastMemrefOpLowering,
-           DeallocOpLowering, LoadMemRefOpLowering, StoreMemRefOpLowering>(
-          converter, 2);
+  patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
+               AllocMemrefOpLowering, AllocaMemrefOpLowering,
+               CastMemrefOpLowering, DeallocOpLowering, LoadMemRefOpLowering,
+               MemorySpaceCastMemRefOpLowering, StoreMemRefOpLowering>(
+      converter, 2);
 
   // Patterns are tried in reverse add order, so this is tried before the
   // one added by default.
