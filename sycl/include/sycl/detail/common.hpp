@@ -491,6 +491,8 @@ template <typename DataT, template <typename, typename> typename FlattenF,
 struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
   static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
     auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
+    // Due to a bug in MSVC narrowing size_t to a bool in an if constexpr causes
+    // warnings. To avoid this we add the comparison to 0.
     if constexpr (sizeof...(Args) > 0)
       return ConcatArrays(
           ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
