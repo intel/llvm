@@ -2924,7 +2924,8 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
 
 pi_result piextQueueCreateWithNativeHandle2(
     pi_native_handle NativeHandle, pi_context Context, pi_device Device,
-    bool UseImmCmdList, bool OwnNativeHandle, pi_queue *Queue) {
+    bool UseImmCmdList, bool OwnNativeHandle, pi_queue_properties *Properties,
+    pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -2939,7 +2940,7 @@ pi_result piextQueueCreateWithNativeHandle2(
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
     *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
-                           OwnNativeHandle);
+                           OwnNativeHandle, Properties[1]);
     auto &InitialGroup = (*Queue)->ComputeQueueGroupsByTID.begin()->second;
     InitialGroup.setImmCmdList(pi_cast<ze_command_list_handle_t>(NativeHandle));
   } else {
@@ -2954,7 +2955,7 @@ pi_result piextQueueCreateWithNativeHandle2(
     std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
 
     *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
-                           OwnNativeHandle);
+                           OwnNativeHandle, Properties[1]);
   }
   (*Queue)->UsingImmCmdLists = UseImmCmdList;
 

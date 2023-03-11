@@ -221,7 +221,8 @@ __SYCL_EXPORT queue make_queue_standard_or_immediate(
     std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
         NativeHandle,
     const context &TargetContext, const device *TargetDevice,
-    bool KeepOwnership, const async_handler &Handler, backend Backend);
+    bool KeepOwnership, const property_list &PropList,
+    const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -283,7 +284,8 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
            const context &TargetContext, const async_handler Handler = {}) {
   if constexpr (Backend == backend::ext_oneapi_level_zero)
     return sycl::detail::make_queue_standard_or_immediate(
-        BackendObject, TargetContext, nullptr, false, Handler, Backend);
+        &BackendObject.NativeHandle, TargetContext, nullptr, false,
+        BackendObject.Properties, Handler, Backend);
   else
     return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                               TargetContext, nullptr, false, Handler, Backend);

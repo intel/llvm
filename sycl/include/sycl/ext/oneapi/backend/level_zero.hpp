@@ -35,7 +35,7 @@ __SYCL_EXPORT queue make_queue_standard_or_immediate(
     const context &Context, const device &Device,
     std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
         InteropHandle,
-    bool keep_ownership = false);
+    bool keep_ownership, const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -127,7 +127,8 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
   const device Device = device{BackendObject.Device};
   return ext::oneapi::level_zero::make_queue_standard_or_immediate(
       TargetContext, Device, BackendObject.NativeHandle,
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      BackendObject.Properties);
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.

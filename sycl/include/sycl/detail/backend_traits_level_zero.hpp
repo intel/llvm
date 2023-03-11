@@ -135,14 +135,17 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
+    property_list Properties;
 
     device Device;
 
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
          device dev,
          ext::oneapi::level_zero::ownership ownership =
-             ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
+             ext::oneapi::level_zero::ownership::transfer,
+         property_list properties = {})
+        : NativeHandle(nativeHandle), Ownership(ownership),
+          Properties(properties), Device(dev) {}
   };
 };
 

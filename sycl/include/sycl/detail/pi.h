@@ -1235,10 +1235,12 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 ///        level_zero immediate commandlist.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
+/// \param Properties holds queue properties.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool IsImmCmdList, bool pluginOwnsNativeHandle, pi_queue *queue);
+    bool IsImmCmdList, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue);
 
 //
 // Memory
