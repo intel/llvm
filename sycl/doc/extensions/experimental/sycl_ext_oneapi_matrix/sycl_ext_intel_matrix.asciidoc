@@ -19,7 +19,7 @@
 
 == Notice
 
-Copyright (c) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -55,19 +55,21 @@ This document describes the extra features and details for the
 implementation of `joint_matrix` extension on Intel AMX and Intel
 XMX.
 
+The APIs in this extension may be used only on a device that has
+`aspect::ext_intel_matrix`. The application must check that the device
+has this aspect before submitting a kernel using any of the APIs in
+this extension. If the application fails to do this, the
+implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted to
+the queue.
+
 == Overview
-The Intel backend implementations on both Intel AMX and Intel XMX
-support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`,
-`joint_matrix_mad`, `joint_matrix_fill`, `joint_matrix_apply`, and the
-query interface, as they are defined in the sycl_ext_oneapi_matrix
-extension. Besides element-wise operations with mapping information,
-there are additional specifics about the supported layouts that enable
-extra performance and functionality listed in this document.
-This extension presents some supplementary Intel AMX and Intel XMX
-features not contained within the sycl_ext_oneapi_matrix
-extension. The additional features are built on top of the
-sycl_ext_oneapi_matrix extension but are only supported by the Intel
-AMX and Intel XMX backends.
+This extension provides additional APIs related to the `joint_matrix`
+type that can be used only on Intel devices that have Intel AMX or
+Intel XMX technology. These Intel devices also support all of the
+generic matrix APIs specified in `sycl_ext_oneapi_matrix`, but
+applications can make use of the extended Intel specific APIs in this
+extension to gain additional performance and capabilities.
 
 == Specification
 
@@ -95,43 +97,34 @@ extension's APIs the implementation supports.
 === Joint Matrix Intel-Specific Matrix Features
 
 ==== Layout
-Besides row major and column major layouts, `layout` introduces the
-custom layout packed layout that refers to the VNNI format descibed in
-the following section.
+This extension adds a new layout type named `ext_intel_packed` which
+an application can use to indicate that the matrix data is loaded or
+stored in VNNI "packed" format.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
 
 enum class layout {
-  packed
+  ext_intel_packed
 };
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
 
 
-==== Layout argument in `joint_matrix_load`
-`layout` in `joint_matrix_load` can take `packed` as argument to
-specify that the data has already been transformed into VNNI format
-(`packed`). in this case, `stride` argument of `joint_matrix_load`
-describes the number of elements between consecutive rows for packed
-layouts.
+Consequently, the layout argument `layout` in `joint_matrix_load` can
+take `ext_intel_packed` as argument to specify that the data has
+already been transformed into VNNI format. in this case, `stride`
+argument of `joint_matrix_load` describes the number of elements
+between consecutive rows for packed layouts.
 
 In order to get maximum performance on Intel AMX and Intel XMX,
 prepacking data in the memory is necessary. If users did not specify
-the packed layouts, transforms done by the implementation will be slow
-due to extra scatter/gather operations. Hence, we expose the `packed`
-layout to the user to specify that A or B have already been
-VNNIed. The packed or VNNI layout is introduced in the `VNNI layout`
-section below.
-
-IMPORTANT: In the current Intel AMX and Intel XMX implementations, the
-layout in the load of matrix B (provided by the `layout memL`
-parameter below) must be `packed` or `row_major`. Automatic VNNI
-transform is supported on AMX. The layout in the load of matrices A
-and C must be `row_major`, and the layout in the store of matrix C
-(provided by the `layout memL` parameter below) must also be
-`row_major`.
+the packed layouts, transforms done by the implementation may be slow
+due to extra scatter/gather operations. Hence, we expose the
+`ext_intel_packed` layout to the user to specify that A or B have
+already been VNNIed. The packed or VNNI layout is introduced in the
+`VNNI layout` section below.
 
 ==== Store Operation
 Besides store of matrix `accumulator`, the Intel implementation allows
@@ -140,37 +133,33 @@ store on matrix `a` and `b` as well.
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
 
-template <typename Group, typename T, typename S,
-          size_t NumRows, size_t NumCols,
-          use Use, layout Layout,
-          access::address_space Space, access::decorated IsDecorated>
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
   void joint_matrix_store(Group g,
-    joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
-    multi_ptr<S, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
 
 ==== Element Indexing and Piece-Wise Operations
-===== Background
-Besides matrix multiply and add, this extension aims to make it
-possible to perform piece-wise operations on matrices in a SPMD
-manner. The mechanisms that are recommended to perform such piece-wise
-operations depend upon which of the following classes the operation
-falls into:
-
-Class 1- Element-wise operations where the same operation is performed
-on every element of the matrix, such that the operation can be
-performed without knowledge of the position of the element within the
-matrix. Activation functions or adding a constant value to every
-element of the matrix are two examples. In this case
-`joint_matrix_apply` should be used. 
-
-Class 2- Piece-wise operations where the operation depends on the
-element index of the matrix or the operation takes multiple elements
-as operands (such as a sum of all elements in a row for
-example). Quantization that is needed for conversion between low
-precision types like `int8_t` and `fp32` uses piece-wise operations.
+The function `joint_matrix_apply` in `sycl_ext_oneapi_matrix` provides
+a way for the application to apply the same operation on every element
+of the matrix. However, some algorithms require the application to
+know the coordinates of each element as it operates on
+them. In this case, the operation depends on the element index of the
+matrix or the operation takes multiple elements as operands (such as a
+sum of all elements in a row for example). Quantization that is needed
+for conversion between low precision types like `int8_t` and `fp32`
+uses such piece-wise operations.
 
 ===== Explicit conversion with mapping from SIMD to SPMD
 The data elements in a `joint_matrix` are distributed or shared across
@@ -231,7 +220,7 @@ template <typename T, size_t Rows, size_t Cols, use Use, layout
 Layout, typename Group>
 class wi_data {
   size_t length();
-  wi_element<T, NumRows, NumCols, Use, Layout, Group> operator[](size_t i);
+  wi_element<T, Rows, Cols, Use, Layout, Group> operator[](size_t i);
 };
 template <typename T, size_t Rows, size_t Cols,
           use Use, layout Layout,
@@ -287,18 +276,52 @@ for (int i = 0; i < data.length(); ++i) {
 IMPORTANT: `get_coord` is not implemented yet.
 
 ==== VNNI/Packed Layout
-Intel AMX and Intel XMX compute assumes that the B tile register
-(src1) is in the VNNI format as they need 32bit of K-data in A and B
-to be contiguous in memory.
-The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4
-in the case of 8-bit types. While the current implementation assumes
-that the matrix has been already packed by the user for performance
-reasons, the layout information is needed to inform the implementation
-about this transformation.  The following example illustrates how a
-matrix in `row_major` layout is transformed into the `packed` layout
-for a 16-bit type.
+The `ext_intel_packed` layout (aka VNNI) is a special layout for
+matrix data that allows Intel AMX and Intel XMX devices to load
+matrices more efficiently (packing in 32 bits). This layout applies
+only to the A and B matrices, and may not be used with the accumulator
+matrix. The layout is different depending on whether the matrix
+element type is 8 bits or 16 bits, which are the only two element
+sizes supported for the A and B matrices on Intel AMX and Intel XMX
+devices.
 
-===== Example 1: 16-bit elements
+For an 8-bit element, the first four elements of column 0 are stored
+contiguously in memory, followed by the first four elements of column
+1, etc. This continues until the end of the row. After all the
+elements for rows 0 - 3 have been stored this way, the process
+repeats, starting with the next four elements of column 0. The diagram
+below illustrates this layout for a 8 x 4 matrix.
+
+===== Example 1: 8-bit elements
+
+      // Example of a 8 row x 4 column matrix using a 8-bit data
+      // element, in row-major layout, rows are shown horizontally.
+      // Element a1 is contiguous in memory with element b1, etc.
+      // ---------------------------------
+      // a1, b1, c1, d1
+      // a2, b2, c2, d2
+      // a3, b3, c3, d3
+      // a4, b4, c4, d4
+      // a5, b5, c5, d5
+      // a6, b6, c6, d6
+      // a7, b7, c7, d7
+      // a8, b8, c8, d8
+      // ---------------------------------
+      // The same matrix reformatted in packed layout.
+      // Here, packing of 4 elements is needed to form 32 bits.
+      // Elements a1, a2, a3, a4 are contiguous in memory, etc.
+      // ---------------------------------
+      // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
+      // a5, a6, a7, a8, b5, b6, b7, b8, c5, c6, c7, c8, d5, d6, d7, d8
+
+For a 16-bit element, the first two elements of column 0 are stored
+contiguously in memory, followed by the first two elements of column
+1, etc. This continues until the end of the row. After all the
+elements for rows 0 - 1 have been stored this way, the process
+repeats, starting with the next two elements of column 0. The diagram
+below illustrates this layout for a 4 x 4 matrix.
+
+===== Example 2: 16-bit elements
       // Example of a 4 row x 4 column matrix using a 16-bit data
       // element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
@@ -314,23 +337,6 @@ for a 16-bit type.
       // ---------------------------------
       // a1, a2, b1, b2, c1, c2, d1, d2
       // a3, a4, b3, b4, c3, c4, d3, d4
-
-===== Example 2: 8-bit elements
-
-      // Example of a 4 row x 4 column matrix using a 8-bit data
-      // element, in row-major layout.
-      // Element a1 is contiguous in memory with element b1, etc.
-      // ---------------------------------
-      // a1, b1, c1, d1
-      // a2, b2, c2, d2
-      // a3, b3, c3, d3
-      // a4, b4, c4, d4
-      // ---------------------------------
-      // The same matrix reformatted in packed layout.
-      // Here, packing of 4 elements is needed to form 32 bits.
-      // Elements a1, a2, a3, a4 are contiguous in memory, etc.
-      // ---------------------------------
-      // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
 
 === Example using int8_t type
 ```c++
@@ -383,8 +389,10 @@ namespace:
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::numtiles`| `uint32_t`
-|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
+|`ext::intel::experimental::info::device::matrix::numtiles`| `int`
+|If the matrix hardware in the device has separate storage (register
+files or tiles) from the rest of the processing units (e.g. Intel
+AMX), returns the number of tiles. For other devices, returns 0.
 |======================
 
 == Revision History
@@ -394,5 +402,5 @@ namespace:
 |Rev |Date       |Author     |Changes
 |1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
 layout information, iterative-based element-wise operations, and
-mapping 
+mapping
 |======================

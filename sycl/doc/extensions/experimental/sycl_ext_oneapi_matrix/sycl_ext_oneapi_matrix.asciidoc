@@ -284,7 +284,7 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
-possible to perform piece-wise operations on matrices in a SPMD
+possible to perform element-wise operations on matrices in a SPMD
 manner. `joint_matrix_apply` function performs an element-wise
 operation where the same operation is performed on every element of
 the joint matrix, such that the operation can be performed without knowledge
