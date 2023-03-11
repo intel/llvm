@@ -10296,15 +10296,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
-      NewFD->hasAttr<SYCLDeviceAttr>() &&
-      !getSourceManager().isInSystemHeader(NewFD->getLocation())) {
-    Diag(NewFD->getLocation(), diag::err_sycl_external_no_rdc)
-        << (D.getFunctionDefinitionKind() ==
-            clang::FunctionDefinitionKind::Definition);
-    NewFD->setInvalidDecl();
-  }
-
   if (!getLangOpts().CPlusPlus) {
     // Perform semantic checking on the function declaration.
     if (!NewFD->isInvalidDecl() && NewFD->isMain())
