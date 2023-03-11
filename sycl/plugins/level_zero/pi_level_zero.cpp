@@ -5726,17 +5726,28 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
-    for (auto &QueueGroup : QueueMap) {
-      if (Device->ImmCommandListUsed) {
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-      } else {
-        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
+  // Do nothing if the queue is empty
+  if (!LastCommandEvent)
+    return PI_SUCCESS;
+
+  // For in-order queue just wait for the last command.
+  if (isInOrderQueue()) {
+    ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+  } else {
+    // Otherwise sync all L0 queues/immediate command-lists.
+    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+      for (auto &QueueGroup : QueueMap) {
+        if (Device->ImmCommandListUsed) {
+          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            syncImmCmdList(this, ImmCmdList);
+        } else {
+          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+        }
       }
     }
+  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
