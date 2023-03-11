@@ -1353,7 +1353,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_USM_ALLOC_INFO_DEVICE < propName) {
+        if (UR_USM_ALLOC_INFO_POOL < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }

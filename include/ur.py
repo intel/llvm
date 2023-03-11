@@ -841,6 +841,7 @@ class ur_usm_alloc_info_v(IntEnum):
     BASE_PTR = 1                                    ## Memory allocation base pointer info
     SIZE = 2                                        ## Memory allocation size info
     DEVICE = 3                                      ## Memory allocation device info
+    POOL = 4                                        ## Memory allocation pool info
 
 class ur_usm_alloc_info_t(c_int):
     def __str__(self):

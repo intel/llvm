@@ -363,6 +363,7 @@ inline std::ostream &operator<<(std::ostream &out,
         CASE(UR_USM_ALLOC_INFO_BASE_PTR);
         CASE(UR_USM_ALLOC_INFO_SIZE);
         CASE(UR_USM_ALLOC_INFO_DEVICE);
+        CASE(UR_USM_ALLOC_INFO_POOL);
 
 #undef CASE
 
