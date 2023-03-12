@@ -258,7 +258,7 @@ a|
 ReturnT get();
 ----
 |
-Synchronously retrieves the result of an `async` call.
+Synchronously retrieves the result of a previous `async` call to this `task_sequence` object.
 
 Results are retrieved in the order in which the `async` calls were made.
 
@@ -271,7 +271,7 @@ a|
 |
 Destructor for `task_sequence`.
 
-Implicitly invokes `get` on all outstanding invocations launched through `async
+Implicitly invokes `get` on all outstanding invocations launched through `async`
 unless this `task_sequence` object was instantiated with the `balanced` property
 defined below.
 |===
@@ -279,10 +279,10 @@ defined below.
 === `task_sequence` Scoping
 
 `task_sequence` objects should retire all outstanding `async` invocations before
-exiting scope - this is performed by the `task_sequence` destructor unless the
+exiting scope.  This is performed by the `task_sequence` destructor unless the
 `balanced` property was specified in which case it is the programmer's
 responsibility to ensure that `get` has been called for all invocations launched
-using `async`, before the lifetime of the `task_sequence` object ends.
+using `async` before the lifetime of the `task_sequence` object ends.
 
 A count of outstanding `async` invocations could be maintained by incrementing a
 private counter upon each `async` call, and decrementing it upon each `get`
@@ -300,7 +300,7 @@ implicitly in the `task_sequence` destructor, the property `balanced` may be
 specified on a `task_sequence` object, which guarantees that a user will not
 allow a destructor on that `task_sequence` object to be called when there are
 outstanding `async` invocations that have not been balanced by a matching `get`
-call. In the presence of this property, potentially expensive hardware
+call. On spatial architectures, in the presence of this property, potentially expensive hardware
 implementing the destructor may be elided. It is undefined behavior to specify
 the `balanced` property on `task_sequence` and then to allow the `task_sequence`
 object to be destroyed while there are any `async` invocations for which `get`
