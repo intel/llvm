@@ -325,8 +325,6 @@ inline constexpr balanced_key::value_t balanced;
 
 template <> struct is_property_key<balanced_key> : std::true_type {};
 
-// TODO: Not sure if the template here should just be
-// template<auto &f, class propertiesT>
 template <typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
   class propertiesT>
 struct is_property_key_of<balanced_key,
