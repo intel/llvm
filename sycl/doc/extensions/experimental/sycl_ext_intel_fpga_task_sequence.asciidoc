@@ -284,25 +284,16 @@ exiting scope.  This is performed by the `task_sequence` destructor unless the
 responsibility to ensure that `get` has been called for all invocations launched
 using `async` before the lifetime of the `task_sequence` object ends.
 
-A count of outstanding `async` invocations could be maintained by incrementing a
-private counter upon each `async` call, and decrementing it upon each `get`
-call. The destructor can call `get` on all remaining outstanding `async`
-invocations, ensuring that no `async` invocations execute beyond the object's
-lifetime.
-
-Although retiring outstanding `async` s in the destructor is necessary to ensure
-that `async` s do not outlive their `task_sequence`, it is expected that many
-common coding patterns will guarantee that the number of `async` and `get` calls
-match (are balanced) before a `task_sequence` object is destroyed, meaning that
-a simple destructor will be sufficient in these cases. To provide more
-information to the compiler and to relax the requirement for `get` to be invoked
-implicitly in the `task_sequence` destructor, the property `balanced` may be
+It is expected that many common coding patterns will guarantee that the number
+of `async` and `get` calls match (are balanced) before a `task_sequence` object
+is destroyed. To provide more information to the compiler and to relax the
+requirement for `get` to be invoked implicitly, the property `balanced` may be
 specified on a `task_sequence` object, which guarantees that a user will not
 allow a destructor on that `task_sequence` object to be called when there are
 outstanding `async` invocations that have not been balanced by a matching `get`
-call. On spatial architectures, in the presence of this property, potentially expensive hardware
-implementing the destructor may be elided. It is undefined behavior to specify
-the `balanced` property on `task_sequence` and then to allow the `task_sequence`
+call. On spatial architectures, in the presence of this property, potentially
+expensive hardware may be elided. It is undefined behavior to specify the
+`balanced` property on `task_sequence` and then to allow the `task_sequence`
 object to be destroyed while there are any `async` invocations for which `get`
 has not been called.
 
