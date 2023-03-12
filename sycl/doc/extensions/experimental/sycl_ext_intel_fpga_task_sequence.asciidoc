@@ -48,11 +48,13 @@ This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension also depends on the following other SYCL extension:
+This extension also depends on the link:./sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties] extension.
 
-* link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-* link:../sycl_ext_intel_fpga_kernel_interface_properties..asciidoc[
+This extension interacts with but does not depend upon the
+link:../sycl_ext_intel_fpga_kernel_interface_properties..asciidoc[
   sycl_ext_intel_fpga_kernel_interface_properties]
+extension.
 
 == Status
 
