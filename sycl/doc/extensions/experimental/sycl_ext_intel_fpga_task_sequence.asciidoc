@@ -108,23 +108,18 @@ int vectorSum(float *v, size_t s, size_t sz) {
 {
   sycl::queue q{...};
 
-  constexpr kCount = ...;
+  constexpr int kCount = ...;
   std::vector<float> in(kCount);
   float* out = ...;
   ...
 
   q.single_task([=] {
-    task_sequence<vectorSum> firstQuarter;
-    task_sequence<vectorSum> secondQuarter;
-    task_sequence<vectorSum> thirdQuarter;
-    task_sequence<vectorSum> fourthQuarter;
-    int quarterCount = kCount/4;
-    firstQuarter.async(in.data(), 0, quarterCount);
-    secondQuarter.async(in.data(), quarterCount, quarterCount);
-    thirdQuarter.async(in.data(), 2*quarterCount, quarterCount);
-    fourthQuarter.async(in.data(), 3*quarterCount, quarterCount);
-    *out = firstQuarter.get() + secondQuarter.get() +
-      thirdQuarter.get() + fourthQuarter.get();
+    task_sequence<vectorSum> firstHalf;
+    task_sequence<vectorSum> secondHalf;
+    constexpr int halfCount = kCount/2;
+    firstHalf.async(in.data(), 0, halfCount);
+    secondHalf.async(in.data(), halfCount, halfCount);
+    *out = firstHalf.get() + secondHalf.get();
   }).wait();
   ...
 }
