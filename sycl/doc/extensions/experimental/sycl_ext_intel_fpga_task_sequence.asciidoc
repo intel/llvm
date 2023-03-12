@@ -157,9 +157,14 @@ supports.
 ----
 namespace sycl::ext::intel::experimental {
 
+template<auto &f> struct task_sequence_checker : std::false_type {};
+
+template<typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...)>
+struct task_sequence_checker<f> : std::true_type {};
+
 template<auto& f, class propertiesT =
-   decltype(oneapi::experimental::properties{})>
-class task_sequence{};
+  decltype(oneapi::experimental::properties{})>
+class task_sequence{ static_assert(task_sequence_checker<f>::value); };
 
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
           class propertiesT>
