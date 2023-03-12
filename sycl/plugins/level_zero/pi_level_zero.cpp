@@ -2424,7 +2424,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 }
 pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
                                    pi_queue_properties *Properties,
-                                   pi_queue *Queue, bool ImmCmdListOff) {
+                                   pi_queue *Queue, bool OldAPI) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
@@ -2474,9 +2474,8 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
                                                              nullptr);
 
   try {
-    *Queue =
-        new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                      Device, true, Flags, ForceComputeIndex, ImmCmdListOff);
+    *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
+                           Device, true, Flags, ForceComputeIndex, OldAPI);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2527,12 +2526,12 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
 
 pi_result piextQueueCreate(pi_context Context, pi_device Device,
                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, false);
+  return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
 }
 
 pi_result piextQueueCreate2(pi_context Context, pi_device Device,
                             pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
+  return piextQueueCreateInternal(Context, Device, Properties, Queue, false);
 }
 
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
