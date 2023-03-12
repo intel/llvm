@@ -1143,34 +1143,20 @@ public:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
 
-  id<3> &getOffset() {
-    if constexpr (IsHostBuf)
-      return MAccData->MOffset;
-    else
-      return AccessorBaseHost::getOffset();
-  }
-
-  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
-  range<3> &getMemoryRange() {
-    if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
-    else
-      return AccessorBaseHost::getMemoryRange();
-  }
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
-  const id<3> &getOffset() const {
+  const id<3> getOffset() const {
     if constexpr (IsHostBuf)
-      return MAccData->MOffset;
+      return MAccData ? MAccData->MOffset : id<3>();
     else
       return AccessorBaseHost::getOffset();
   }
   const range<3> &getAccessRange() const {
     return AccessorBaseHost::getAccessRange();
   }
-  const range<3> &getMemoryRange() const {
+  const range<3> getMemoryRange() const {
     if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
+      return MAccData ? MAccData->MMemoryRange : range(0, 0, 0);
     else
       return AccessorBaseHost::getMemoryRange();
   }
@@ -1202,7 +1188,7 @@ public:
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
-      return reinterpret_cast<PtrType>(MAccData->MData);
+      return MAccData ? reinterpret_cast<PtrType>(MAccData->MData) : nullptr;
     else
       return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
@@ -1247,6 +1233,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1272,6 +1259,37 @@ public:
   // -------+---------+-------+----+-----+--------------
 
 public:
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataT_,
+            typename = detail::enable_if_t<
+                IsAccessReadOnly && !std::is_same_v<DataT_, DataT> &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+#else
+      : accessor(other.impl) {
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataT_, access::mode AccessMode_,
+            typename = detail::enable_if_t<
+                (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  accessor(const accessor<DataT_, Dimensions, AccessMode_, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+#else
+      : accessor(other.impl) {
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
@@ -1976,11 +1994,11 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getAccessRange().size(); }
+  size_type size() const noexcept { return getAccessRange().size(); }
 
-  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2750,15 +2768,16 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
-  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 

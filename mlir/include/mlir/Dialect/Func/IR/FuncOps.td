@@ -23,7 +23,6 @@ def Func_Dialect : Dialect {
   let cppNamespace = "::mlir::func";
   let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 // Base class for Func dialect ops.
@@ -209,7 +208,7 @@ def ConstantOp : Func_Op<"constant",
 
 def FuncOp : Func_Op<"func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let summary = "An operation with a name containing a single `SSACFG` region";
   let description = [{
