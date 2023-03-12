@@ -105,6 +105,7 @@ piextProgramCreateWithNativeHandle
 piextProgramGetNativeHandle
 piextProgramSetSpecializationConstant
 piextQueueCreate
+piextQueueCreate2
 piextQueueCreateWithNativeHandle
 piextQueueCreateWithNativeHandle2
 piextQueueGetNativeHandle
