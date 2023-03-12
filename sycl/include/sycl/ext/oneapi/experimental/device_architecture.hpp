@@ -18,7 +18,6 @@ enum class architecture {
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
-  intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
@@ -79,7 +78,6 @@ enum class architecture {
   intel_gpu_9_6_0 = intel_gpu_aml,
   intel_gpu_9_7_0 = intel_gpu_cml,
   intel_gpu_11_0_0 = intel_gpu_icllp,
-  intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
   intel_gpu_12_10_0 = intel_gpu_dg1,
 };
@@ -123,9 +121,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ICLLP__
 #define __SYCL_TARGET_INTEL_GPU_ICLLP__ 0
-#endif
-#ifndef __SYCL_TARGET_INTEL_GPU_EHL__
-#define __SYCL_TARGET_INTEL_GPU_EHL__ 0
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_TGLLP__
 #define __SYCL_TARGET_INTEL_GPU_TGLLP__ 0
@@ -286,7 +281,6 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_AML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_CML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_RKL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1) ||
@@ -364,8 +358,6 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_CML__ == 1;
     arr[static_cast<int>(arch::intel_gpu_icllp)] =
         __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
-    arr[static_cast<int>(arch::intel_gpu_ehl)] =
-        __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_tgllp)] =
         __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
     arr[static_cast<int>(arch::intel_gpu_rkl)] =

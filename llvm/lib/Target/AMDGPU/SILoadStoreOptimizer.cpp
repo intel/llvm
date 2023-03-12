@@ -323,7 +323,7 @@ static unsigned getOpcodeWidth(const MachineInstr &MI, const SIInstrInfo &TII) {
   if (TII.isMIMG(MI)) {
     uint64_t DMaskImm =
         TII.getNamedOperand(MI, AMDGPU::OpName::dmask)->getImm();
-    return countPopulation(DMaskImm);
+    return llvm::popcount(DMaskImm);
   }
   if (TII.isMTBUF(Opc)) {
     return AMDGPU::getMTBUFElements(Opc);
@@ -887,7 +887,7 @@ bool SILoadStoreOptimizer::dmasksCanBeCombined(const CombineInfo &CI,
   unsigned MaxMask = std::max(CI.DMask, Paired.DMask);
   unsigned MinMask = std::min(CI.DMask, Paired.DMask);
 
-  unsigned AllowedBitsForMin = llvm::countTrailingZeros(MaxMask);
+  unsigned AllowedBitsForMin = llvm::countr_zero(MaxMask);
   if ((1u << AllowedBitsForMin) <= MinMask)
     return false;
 
@@ -926,7 +926,7 @@ static unsigned getBufferFormatWithCompCount(unsigned OldFormat,
 // - if Lo == 0, return 0 (even though the "- 1" below underflows
 // - if Lo > Hi, return 0 (as if the range wrapped around)
 static uint32_t mostAlignedValueInRange(uint32_t Lo, uint32_t Hi) {
-  return Hi & maskLeadingOnes<uint32_t>(countLeadingZeros((Lo - 1) ^ Hi) + 1);
+  return Hi & maskLeadingOnes<uint32_t>(llvm::countl_zero((Lo - 1) ^ Hi) + 1);
 }
 
 bool SILoadStoreOptimizer::offsetsCanBeCombined(CombineInfo &CI,
@@ -1784,7 +1784,7 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
       return AMDGPU::FLAT_STORE_DWORDX4;
     }
   case MIMG:
-    assert((countPopulation(CI.DMask | Paired.DMask) == Width) &&
+    assert(((unsigned)llvm::popcount(CI.DMask | Paired.DMask) == Width) &&
            "No overlaps");
     return AMDGPU::getMaskedMIMGOp(CI.I->getOpcode(), Width);
   }
@@ -1793,8 +1793,9 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
 std::pair<unsigned, unsigned>
 SILoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI,
                                     const CombineInfo &Paired) {
-  assert((CI.InstClass != MIMG || (countPopulation(CI.DMask | Paired.DMask) ==
-                                   CI.Width + Paired.Width)) &&
+  assert((CI.InstClass != MIMG ||
+          ((unsigned)llvm::popcount(CI.DMask | Paired.DMask) ==
+           CI.Width + Paired.Width)) &&
          "No overlaps");
 
   unsigned Idx0;

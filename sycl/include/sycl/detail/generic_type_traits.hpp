@@ -299,7 +299,8 @@ struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// Try to get pointer_t (legacy) or pointer, otherwise T
+// TryToGetPointerT<T>::type is T::pointer_t (legacy) or T::pointer if those
+// exist, otherwise T.
 template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
@@ -311,7 +312,8 @@ public:
       std::is_pointer<T>::value || !std::is_same<T, type>::value;
 };
 
-// Try to get element_type or value_type, otherwise T
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
@@ -322,7 +324,7 @@ public:
   static constexpr bool value = !std::is_same<T, type>::value;
 };
 
-// Try to get vector_t, otherwise T
+// TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
 template <typename T> class TryToGetVectorT {
   static T check(...);
   template <typename A> static typename A::vector_t check(const A &);
@@ -543,14 +545,14 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
+template <typename T /* MatchingOpencCLTypeT */>
+using ConvertToOpenCLTypeImpl_t =
+    conditional_t<TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
+                  conditional_t<TryToGetPointerT<T>::value,
+                                typename TryToGetPointerVecT<T>::type, T>>;
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
-    TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
-    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
-        TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
-        typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
-        SelectMatchingOpenCLType_t<T>>>;
+using ConvertToOpenCLType_t =
+    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.

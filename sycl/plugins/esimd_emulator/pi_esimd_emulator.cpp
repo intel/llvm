@@ -1022,7 +1022,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
 }
 
 pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, pi_context,
-                                            pi_device, bool, bool, pi_queue *) {
+                                            pi_device, bool, bool,
+                                            pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 

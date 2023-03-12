@@ -741,6 +741,20 @@ func.func @bitcast_f16_to_f32() -> (vector<4xf32>, vector<4xf32>) {
   return %cast0, %cast1: vector<4xf32>, vector<4xf32>
 }
 
+// CHECK-LABEL: func @bitcast_i8_to_i32
+//              bit pattern: 0xA0A0A0A0
+//       CHECK-DAG: %[[CST1:.+]] = arith.constant dense<-1600085856> : vector<4xi32>
+//              bit pattern: 0x00000000
+//       CHECK-DAG: %[[CST0:.+]] = arith.constant dense<0> : vector<4xi32>
+//       CHECK: return %[[CST0]], %[[CST1]]
+func.func @bitcast_i8_to_i32() -> (vector<4xi32>, vector<4xi32>) {
+  %cst0 = arith.constant dense<0> : vector<16xi8> // bit pattern: 0x00
+  %cst1 = arith.constant dense<160> : vector<16xi8> // bit pattern: 0xA0
+  %cast0 = vector.bitcast %cst0: vector<16xi8> to vector<4xi32>
+  %cast1 = vector.bitcast %cst1: vector<16xi8> to vector<4xi32>
+  return %cast0, %cast1: vector<4xi32>, vector<4xi32>
+}
+
 // -----
 
 // CHECK-LABEL: broadcast_folding1
@@ -1371,6 +1385,20 @@ func.func @vector_multi_reduction_unit_dimensions(%source: vector<5x1x4x1x20xf32
 
 // -----
 
+// Masked reduction can't be folded.
+
+// CHECK-LABEL: func @masked_vector_multi_reduction_unit_dimensions
+func.func @masked_vector_multi_reduction_unit_dimensions(%source: vector<5x1x4x1x20xf32>,
+                                                         %acc: vector<5x4x20xf32>,
+                                                         %mask: vector<5x1x4x1x20xi1>) -> vector<5x4x20xf32> {
+//       CHECK:   vector.mask %{{.*}} { vector.multi_reduction <mul>
+    %0 = vector.mask %mask { vector.multi_reduction <mul>, %source, %acc [1, 3] : vector<5x1x4x1x20xf32> to vector<5x4x20xf32> } :
+           vector<5x1x4x1x20xi1> -> vector<5x4x20xf32>
+    return %0 : vector<5x4x20xf32>
+}
+
+// -----
+
 // CHECK-LABEL: func @vector_multi_reduction_unit_dimensions_fail(
 //  CHECK-SAME: %[[SRC:.+]]: vector<5x1x4x1x20xf32>, %[[ACCUM:.+]]: vector<5x1x20xf32>
 func.func @vector_multi_reduction_unit_dimensions_fail(%source: vector<5x1x4x1x20xf32>, %acc: vector<5x1x20xf32>) -> vector<5x1x20xf32> {
@@ -1921,6 +1949,18 @@ func.func @reduce_one_element_vector_addf(%a : vector<1xf32>, %b: f32) -> f32 {
 
 // -----
 
+// CHECK-LABEL: func @masked_reduce_one_element_vector_addf
+//       CHECK:   vector.mask %{{.*}} { vector.reduction <add>
+func.func @masked_reduce_one_element_vector_addf(%a: vector<1xf32>,
+                                                 %b: f32,
+                                                 %mask: vector<1xi1>) -> f32 {
+  %s = vector.mask %mask { vector.reduction <add>, %a, %b : vector<1xf32> into f32 }
+         : vector<1xi1> -> f32
+  return %s : f32
+}
+
+// -----
+
 // CHECK-LABEL: func @reduce_one_element_vector_mulf
 //  CHECK-SAME: (%[[V:.+]]: vector<1xf32>, %[[B:.+]]: f32)
 //       CHECK:   %[[A:.+]] = vector.extract %[[V]][0] : vector<1xf32>
@@ -2116,4 +2156,14 @@ func.func @fold_extractelement_of_broadcast(%f: f32) -> f32 {
   %c5 = arith.constant 5 : index
   %1 = vector.extractelement %0 [%c5 : index] : vector<15xf32>
   return %1 : f32
+}
+
+// -----
+
+// CHECK-LABEL: func.func @fold_0d_vector_reduction
+func.func @fold_0d_vector_reduction(%arg0: vector<f32>) -> f32 {
+  // CHECK-NEXT: %[[RES:.*]] = vector.extractelement %arg{{.*}}[] : vector<f32>
+  // CHECK-NEXT: return %[[RES]] : f32
+  %0 = vector.reduction <add>, %arg0 : vector<f32> into f32
+  return %0 : f32
 }
